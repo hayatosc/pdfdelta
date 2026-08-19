@@ -49,6 +49,22 @@ fn identical_documents_exit_zero() {
 }
 
 #[test]
+fn inspect_without_flags_prints_backend_summary() {
+    let directory = TestDirectory::new();
+    let document = directory.join("document.pdf");
+    write_pdf(&document, &["A generic paragraph remains stable"]);
+
+    let output = inspect(&document, &[]);
+    let report = stdout(&output);
+
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert!(report.contains("backend: lopdf"), "{report}");
+    assert!(report.contains("pdf-version: 1.7"), "{report}");
+    assert!(report.contains("pages: 1"), "{report}");
+    assert!(!report.contains("glyphs:"), "{report}");
+}
+
+#[test]
 fn replacement_exits_one() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
@@ -83,8 +99,19 @@ fn line_wrap_only_exits_zero() {
     let old = directory.join("old.pdf");
     let new = directory.join("new.pdf");
     let report = directory.join("line-wrap.json");
-    write_pdf_pages(&old, &[&["A simple release note remains stable"]], 12);
-    write_pdf_pages(&new, &[&["A simple release note", "remains stable"]], 12);
+    write_positioned_pdf_pages(&old, &[&["A simple release note remains stable"]], 12);
+    write_positioned_pdf_pages(&new, &[&["A simple release note", "remains stable"]], 12);
+
+    let glyph_output = inspect(&old, &["--glyphs"]);
+    let glyph_report = stdout(&glyph_output);
+    assert_eq!(
+        glyph_output.status.code(),
+        Some(0),
+        "{}",
+        stderr(&glyph_output)
+    );
+    assert!(glyph_report.contains("text=\"A\""), "{glyph_report}");
+    assert!(!glyph_report.contains("text=\" \""), "{glyph_report}");
 
     let output = compare(&old, &new, &["--strict", "--json", path_text(&report)]);
 
@@ -328,16 +355,47 @@ fn compare(old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
         .expect("pdfdelta should run")
 }
 
+fn inspect(document: &Path, extra_arguments: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg("inspect")
+        .arg(document)
+        .args(extra_arguments)
+        .output()
+        .expect("pdfdelta inspect should run")
+}
+
 fn write_pdf(path: &Path, lines: &[&str]) {
     write_pdf_pages(path, &[lines], 30);
 }
 
 fn write_type0_pdf(path: &Path, lines: &[&str]) {
-    write_pdf_pages_with_font(path, &[lines], 30, "Type0");
+    write_pdf_pages_with_font(path, &[lines], 30, "Type0", TextEncoding::Literal);
 }
 
 fn write_pdf_pages(path: &Path, pages_content: &[&[&str]], line_gap: i64) {
-    write_pdf_pages_with_font(path, pages_content, line_gap, "Type1");
+    write_pdf_pages_with_font(
+        path,
+        pages_content,
+        line_gap,
+        "Type1",
+        TextEncoding::Literal,
+    );
+}
+
+fn write_positioned_pdf_pages(path: &Path, pages_content: &[&[&str]], line_gap: i64) {
+    write_pdf_pages_with_font(
+        path,
+        pages_content,
+        line_gap,
+        "Type1",
+        TextEncoding::PositionedWords,
+    );
+}
+
+#[derive(Clone, Copy)]
+enum TextEncoding {
+    Literal,
+    PositionedWords,
 }
 
 fn write_pdf_pages_with_font(
@@ -345,6 +403,7 @@ fn write_pdf_pages_with_font(
     pages_content: &[&[&str]],
     line_gap: i64,
     font_subtype: &str,
+    text_encoding: TextEncoding,
 ) {
     let mut document = Document::with_version("1.7");
     let pages = document.new_object_id();
@@ -376,10 +435,11 @@ fn write_pdf_pages_with_font(
                 .map(|(index, line)| {
                     let y = 250_i64
                         - i64::try_from(index).expect("line index should fit in i64") * line_gap;
-                    format!(
-                        "BT /F1 10 Tf 1 0 0 1 30 {y} Tm ({}) Tj ET\n",
-                        escape_pdf_literal(line)
-                    )
+                    let text = match text_encoding {
+                        TextEncoding::Literal => format!("({}) Tj", escape_pdf_literal(line)),
+                        TextEncoding::PositionedWords => positioned_words(line),
+                    };
+                    format!("BT /F1 10 Tf 1 0 0 1 30 {y} Tm {text} ET\n")
                 })
                 .collect::<String>();
             let contents = document.add_object(Stream::new(dictionary! {}, content.into_bytes()));
@@ -406,6 +466,15 @@ fn write_pdf_pages_with_font(
     });
     document.trailer.set("Root", catalog);
     document.save(path).expect("fixture PDF should serialize");
+}
+
+fn positioned_words(text: &str) -> String {
+    let words = text
+        .split_ascii_whitespace()
+        .map(|word| format!("({})", escape_pdf_literal(word)))
+        .collect::<Vec<_>>()
+        .join(" -500 ");
+    format!("[{words}] TJ")
 }
 
 fn assert_complete_json_report(

@@ -395,10 +395,7 @@ fn paths_refer_to_same_file(output_path: &Path, input_path: &Path) -> Result<boo
 }
 
 fn inspect_document(path: &Path, backend_info: bool, glyphs: bool) -> Result<(), String> {
-    if !backend_info && !glyphs {
-        return Err(format!("no inspection output selected: {}", path.display()));
-    }
-
+    let backend_info = backend_info || !glyphs;
     let limits = ParseLimits::default();
     let bytes = read_limited(path, limits.max_input_bytes)?;
     let stdout = io::stdout();
