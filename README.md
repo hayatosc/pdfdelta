@@ -2,7 +2,13 @@
 
 `pdfdelta` is an early-stage Rust CLI for comparing two born-digital PDF files and reporting meaningful text changes instead of differences in PDF encoding or page layout.
 
-The intended comparison ignores layout-only changes such as line wrapping, pagination, font size, margins, and document generator metadata. It must still preserve exact content changes such as `10 mg` becoming `20 mg`.
+## Why pdfdelta?
+
+A PDF usually stores drawing instructions rather than paragraphs, sentences, or a stable reading order. Extracting plain text and running a conventional diff therefore turns harmless line wrapping and page breaks into changes. Comparing rendered pages has the opposite problem: a new font, margin, or pagination can make nearly every pixel different even when the wording is unchanged.
+
+That noise is especially costly when reviewing regulated or otherwise high-stakes documents. A change from `10 mg` to `20 mg` must remain an exact, auditable replacement, while repagination around the same sentence should not hide it among hundreds of false positives.
+
+`pdfdelta` is intended to bridge that gap. It retains glyph geometry and PDF provenance, reconstructs imperfect document structure, aligns corresponding content despite layout drift, and performs the final text diff exactly. When the available evidence is insufficient, it reports unsupported or unresolved regions instead of claiming that no change exists.
 
 ## Status
 
