@@ -7,5 +7,10 @@ edition.workspace = true
 name = "pdfbench"
 path = "src/main.rs"
 
+[dependencies]
+clap.workspace = true
+lopdf.workspace = true
+pdfdelta-core = { path = "../pdfdelta-core" }
+
 [lints]
 workspace = true
