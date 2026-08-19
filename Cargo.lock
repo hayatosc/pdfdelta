@@ -411,7 +411,9 @@ name = "pdfdelta-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "lopdf",
  "pdfdelta-core",
+ "serde_json",
 ]
 
 [[package]]

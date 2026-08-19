@@ -65,7 +65,7 @@ born-digital PDFに限定する。
 |---|---|---|
 | 1 | 改行位置だけ違う | 0 changes |
 | 2 | 改ページ位置だけ違う | 0 changes |
-| 3 | 10 mg → 20 mg | 1 replacement |
+| 3 | Release 10 → Release 20 | 1 replacement |
 | 4 | 段落追加 | 1 insertion |
 | 5 | 段落削除 | 1 deletion |
 
