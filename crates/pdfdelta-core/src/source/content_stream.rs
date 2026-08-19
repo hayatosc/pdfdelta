@@ -1,0 +1,2694 @@
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    sync::Arc,
+};
+
+use crate::{
+    Error, Result,
+    model::{
+        DecodedText, Document, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect,
+        TextRenderMode, Vec2,
+    },
+    pdf::{
+        ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject,
+        content::{
+            ContentLimits, ContentParser, Matrix, Operand, OperandBudget, Operation, OperatorBudget,
+        },
+        font::cmap::CMapLimits,
+        font::{DecodedGlyph as FontGlyph, SimpleFontDecoder, SimpleFontLimits, UnicodeMapping},
+    },
+};
+
+use super::{ExtractionLimits, GlyphExtractor};
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ContentStreamGlyphExtractor;
+
+impl GlyphExtractor for ContentStreamGlyphExtractor {
+    fn extract(&self, pdf: &dyn ParsedPdf, limits: ExtractionLimits) -> Result<Document<Glyph>> {
+        let pages = pdf.pages()?;
+        let mut extraction = Extraction::new(pdf, limits);
+        for (index, page) in pages.into_iter().enumerate() {
+            let page_id = u32::try_from(index)
+                .map(PageId)
+                .map_err(|_| Error::LimitExceeded {
+                    resource: "PDF page count address space",
+                    limit: u32::MAX as usize,
+                })?;
+            extraction.extract_page(page, page_id)?;
+        }
+        Ok(Document::new(extraction.glyphs))
+    }
+}
+
+struct Extraction<'a> {
+    pdf: &'a dyn ParsedPdf,
+    limits: ExtractionLimits,
+    glyphs: Vec<Glyph>,
+    font_cache: HashMap<FontCacheKey, CachedFont>,
+    bound_fonts: HashMap<BoundFontKey, Arc<BoundFont>>,
+    ext_gstate_fonts: HashMap<ExtGStateKey, Option<(Arc<BoundFont>, f64)>>,
+    page_resource_cache: HashMap<usize, (Arc<PdfObject>, Resources)>,
+    resource_cache: HashMap<ObjectRef, Resources>,
+    resource_map_cache: HashMap<ObjectRef, Arc<ScopedResourceMap>>,
+    xobject_cache: HashMap<ObjectRef, Arc<CachedXObject>>,
+    decoded_stream_cache: HashMap<ObjectRef, Arc<Vec<u8>>>,
+    content_stream_cache: HashMap<ObjectRef, Arc<CachedContentNode>>,
+    active_forms: HashSet<ObjectRef>,
+    decoded_bytes: usize,
+    stream_invocations: usize,
+    operator_budget: OperatorBudget,
+    operand_budget: OperandBudget,
+    cmap_entries: usize,
+    next_font_id: u32,
+    next_scope_id: u64,
+    render_order: u32,
+}
+
+impl<'a> Extraction<'a> {
+    fn new(pdf: &'a dyn ParsedPdf, limits: ExtractionLimits) -> Self {
+        let operator_budget = OperatorBudget::new(limits.max_operators);
+        let operand_budget = OperandBudget::new(limits.max_operand_nodes);
+        Self {
+            pdf,
+            limits,
+            glyphs: Vec::new(),
+            font_cache: HashMap::new(),
+            bound_fonts: HashMap::new(),
+            ext_gstate_fonts: HashMap::new(),
+            page_resource_cache: HashMap::new(),
+            resource_cache: HashMap::new(),
+            resource_map_cache: HashMap::new(),
+            xobject_cache: HashMap::new(),
+            decoded_stream_cache: HashMap::new(),
+            content_stream_cache: HashMap::new(),
+            active_forms: HashSet::new(),
+            decoded_bytes: 0,
+            stream_invocations: 0,
+            operator_budget,
+            operand_budget,
+            cmap_entries: 0,
+            next_font_id: 0,
+            next_scope_id: 0,
+            render_order: 0,
+        }
+    }
+
+    fn extract_page(&mut self, page: PageRef, page_id: PageId) -> Result<()> {
+        let snapshot = self.pdf.page_snapshot(page)?;
+        let dictionary = snapshot.dictionary;
+        let page_transform = self.page_transform(&dictionary)?;
+        let resources = self.page_resources(snapshot.resources)?;
+        let streams = self.content_streams(dictionary.get(b"Contents".as_slice()))?;
+        let mut state = InterpreterState::default();
+        let mut parser = ContentParser::with_budgets(
+            self.content_limits(),
+            self.operator_budget.clone(),
+            self.operand_budget.clone(),
+        );
+
+        for stream in streams {
+            self.interpret_stream(
+                stream,
+                page_id,
+                page_transform,
+                &resources,
+                &mut state,
+                &mut parser,
+                0,
+            )?;
+        }
+        parser.finish()?;
+
+        if state.in_text {
+            return Err(Error::Unresolved(format!(
+                "page {} has an unterminated text object",
+                page.0.object_number
+            )));
+        }
+        if !state.graphics_stack.is_empty() {
+            return Err(Error::Unresolved(format!(
+                "page {} has an unbalanced graphics-state stack",
+                page.0.object_number
+            )));
+        }
+        if state.compatibility_depth != 0 {
+            return Err(Error::Unresolved(format!(
+                "page {} has an unterminated compatibility section",
+                page.0.object_number
+            )));
+        }
+        Ok(())
+    }
+
+    fn page_resources(&mut self, resource: Option<Arc<PdfObject>>) -> Result<Resources> {
+        let Some(resource) = resource else {
+            return self.resources(None, None);
+        };
+        let key = Arc::as_ptr(&resource) as usize;
+        if let Some((_, resources)) = self.page_resource_cache.get(&key) {
+            return Ok(resources.clone());
+        }
+
+        let resources = self.resources(Some(resource.as_ref()), None)?;
+        self.page_resource_cache
+            .insert(key, (resource, resources.clone()));
+        Ok(resources)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn interpret_stream(
+        &mut self,
+        stream: ObjectRef,
+        page: PageId,
+        page_transform: Matrix,
+        resources: &Resources,
+        state: &mut InterpreterState,
+        parser: &mut ContentParser,
+        form_depth: usize,
+    ) -> Result<()> {
+        self.account_stream_invocation()?;
+        let bytes = self.decoded_stream_bytes(stream)?;
+        self.account_decoded_bytes(bytes.len())?;
+        let operations = parser.parse_fragment(bytes.as_slice())?;
+
+        for operation in operations {
+            self.apply_operation(
+                &operation,
+                stream,
+                page,
+                page_transform,
+                resources,
+                state,
+                form_depth,
+            )?;
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn apply_operation(
+        &mut self,
+        operation: &Operation,
+        stream: ObjectRef,
+        page: PageId,
+        page_transform: Matrix,
+        resources: &Resources,
+        state: &mut InterpreterState,
+        form_depth: usize,
+    ) -> Result<()> {
+        match operation.operator.as_slice() {
+            b"q" => {
+                no_operands(operation)?;
+                if state.graphics_stack.len() >= self.limits.max_nesting_depth {
+                    return Err(Error::LimitExceeded {
+                        resource: "graphics-state stack depth",
+                        limit: self.limits.max_nesting_depth,
+                    });
+                }
+                state.graphics_stack.push(state.graphics.clone());
+            }
+            b"Q" => {
+                no_operands(operation)?;
+                state.graphics = state
+                    .graphics_stack
+                    .pop()
+                    .ok_or_else(|| operation_error(operation, "graphics-state stack underflow"))?;
+            }
+            b"cm" => {
+                let [a, b, c, d, e, f] = number_operands(operation)?;
+                state.graphics.ctm = state
+                    .graphics
+                    .ctm
+                    .concatenate(Matrix::new(a, b, c, d, e, f)?)?;
+            }
+            b"BT" => {
+                no_operands(operation)?;
+                if state.in_text {
+                    return Err(operation_error(operation, "nested text object"));
+                }
+                state.in_text = true;
+                state.text_matrix = Matrix::IDENTITY;
+                state.text_line_matrix = Matrix::IDENTITY;
+            }
+            b"ET" => {
+                no_operands(operation)?;
+                require_text_object(operation, state)?;
+                state.in_text = false;
+            }
+            b"Tf" => {
+                let (name, size) = name_and_number(operation)?;
+                if size == 0.0 {
+                    return Err(operation_error(operation, "font size must be non-zero"));
+                }
+                let font = resources.fonts.entries.get(name).ok_or_else(|| {
+                    operation_error(
+                        operation,
+                        &format!(
+                            "font resource /{} is not defined",
+                            String::from_utf8_lossy(name)
+                        ),
+                    )
+                })?;
+                let key = BoundFontKey::Resource {
+                    name: name.to_vec(),
+                    scope_id: resources.fonts.scope_id,
+                };
+                state.graphics.font = Some(self.bind_font(key, Arc::clone(font))?);
+                state.graphics.font_size = size;
+            }
+            b"Tm" => {
+                require_text_object(operation, state)?;
+                let [a, b, c, d, e, f] = number_operands(operation)?;
+                let matrix = Matrix::new(a, b, c, d, e, f)?;
+                state.text_matrix = matrix;
+                state.text_line_matrix = matrix;
+            }
+            b"Td" => {
+                require_text_object(operation, state)?;
+                let [x, y] = number_operands(operation)?;
+                move_text_line(state, x, y)?;
+            }
+            b"TD" => {
+                require_text_object(operation, state)?;
+                let [x, y] = number_operands(operation)?;
+                state.graphics.leading = -y;
+                move_text_line(state, x, y)?;
+            }
+            b"T*" => {
+                require_text_object(operation, state)?;
+                no_operands(operation)?;
+                move_text_line(state, 0.0, -state.graphics.leading)?;
+            }
+            b"TL" => {
+                state.graphics.leading = one_number(operation)?;
+            }
+            b"Tc" => {
+                state.graphics.character_spacing = one_number(operation)?;
+            }
+            b"Tw" => {
+                state.graphics.word_spacing = one_number(operation)?;
+            }
+            b"Tz" => {
+                state.graphics.horizontal_scale = one_number(operation)? / 100.0;
+            }
+            b"Ts" => {
+                state.graphics.rise = one_number(operation)?;
+            }
+            b"Tr" => {
+                state.graphics.render_mode = render_mode(one_number(operation)?, operation)?;
+            }
+            b"gs" => self.apply_ext_gstate(operation, resources, state)?,
+            b"Tj" => {
+                require_text_object(operation, state)?;
+                let bytes = one_string(operation)?;
+                self.show_text(
+                    bytes,
+                    operation,
+                    stream,
+                    page,
+                    page_transform,
+                    resources,
+                    state,
+                )?;
+            }
+            b"TJ" => {
+                require_text_object(operation, state)?;
+                self.show_text_array(operation, stream, page, page_transform, resources, state)?;
+            }
+            b"'" => {
+                require_text_object(operation, state)?;
+                let bytes = one_string(operation)?;
+                move_text_line(state, 0.0, -state.graphics.leading)?;
+                self.show_text(
+                    bytes,
+                    operation,
+                    stream,
+                    page,
+                    page_transform,
+                    resources,
+                    state,
+                )?;
+            }
+            b"\"" => {
+                require_text_object(operation, state)?;
+                let (word_spacing, character_spacing, bytes) = quote_operands(operation)?;
+                state.graphics.word_spacing = word_spacing;
+                state.graphics.character_spacing = character_spacing;
+                move_text_line(state, 0.0, -state.graphics.leading)?;
+                self.show_text(
+                    bytes,
+                    operation,
+                    stream,
+                    page,
+                    page_transform,
+                    resources,
+                    state,
+                )?;
+            }
+            b"Do" => {
+                let name = one_name(operation)?;
+                self.invoke_xobject(
+                    name,
+                    operation,
+                    page,
+                    page_transform,
+                    resources,
+                    state,
+                    form_depth,
+                )?;
+            }
+            b"BX" => {
+                no_operands(operation)?;
+                state.compatibility_depth =
+                    state
+                        .compatibility_depth
+                        .checked_add(1)
+                        .ok_or(Error::LimitExceeded {
+                            resource: "compatibility-section depth",
+                            limit: self.limits.max_nesting_depth,
+                        })?;
+                if state.compatibility_depth > self.limits.max_nesting_depth {
+                    return Err(Error::LimitExceeded {
+                        resource: "compatibility-section depth",
+                        limit: self.limits.max_nesting_depth,
+                    });
+                }
+            }
+            b"EX" => {
+                no_operands(operation)?;
+                state.compatibility_depth = state
+                    .compatibility_depth
+                    .checked_sub(1)
+                    .ok_or_else(|| operation_error(operation, "compatibility-section underflow"))?;
+            }
+            operator if is_ignored_operator(operator) || state.compatibility_depth > 0 => {}
+            _ => {
+                return Err(Error::Unsupported(format!(
+                    "content operator {} at index {}",
+                    String::from_utf8_lossy(&operation.operator),
+                    operation.index
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Extraction<'_> {
+    #[allow(clippy::too_many_arguments)]
+    fn show_text(
+        &mut self,
+        bytes: &[u8],
+        operation: &Operation,
+        stream: ObjectRef,
+        page: PageId,
+        page_transform: Matrix,
+        _resources: &Resources,
+        state: &mut InterpreterState,
+    ) -> Result<()> {
+        let font =
+            state.graphics.font.as_ref().ok_or_else(|| {
+                operation_error(operation, "text is shown before selecting a font")
+            })?;
+        let run = self.decode_font(font, bytes)?;
+        for glyph in run.glyphs {
+            self.emit_glyph(
+                glyph,
+                run.font_id,
+                run.ascent,
+                run.descent,
+                operation,
+                stream,
+                page,
+                page_transform,
+                state,
+            )?;
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn show_text_array(
+        &mut self,
+        operation: &Operation,
+        stream: ObjectRef,
+        page: PageId,
+        page_transform: Matrix,
+        resources: &Resources,
+        state: &mut InterpreterState,
+    ) -> Result<()> {
+        let [Operand::Array(items)] = operation.operands.as_slice() else {
+            return Err(operation_error(
+                operation,
+                "expected one text-array operand",
+            ));
+        };
+        for item in items {
+            match item {
+                Operand::String(bytes) => self.show_text(
+                    bytes,
+                    operation,
+                    stream,
+                    page,
+                    page_transform,
+                    resources,
+                    state,
+                )?,
+                Operand::Number(adjustment) if adjustment.is_finite() => {
+                    let offset = -(adjustment / 1000.0)
+                        * state.graphics.font_size
+                        * state.graphics.horizontal_scale;
+                    state.text_matrix = state
+                        .text_matrix
+                        .concatenate(Matrix::translation(offset, 0.0)?)?;
+                }
+                _ => {
+                    return Err(operation_error(
+                        operation,
+                        "text arrays may contain only strings and numbers",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_glyph(
+        &mut self,
+        glyph: FontGlyph,
+        font_id: FontId,
+        ascent: f64,
+        descent: f64,
+        operation: &Operation,
+        stream: ObjectRef,
+        page: PageId,
+        page_transform: Matrix,
+        state: &mut InterpreterState,
+    ) -> Result<()> {
+        if self.glyphs.len() >= self.limits.max_glyphs {
+            return Err(Error::LimitExceeded {
+                resource: "extracted glyph count",
+                limit: self.limits.max_glyphs,
+            });
+        }
+        let text = match glyph.mapping {
+            UnicodeMapping::Mapped(text) => DecodedText::Mapped(text),
+            UnicodeMapping::Unmapped => {
+                return Err(operation_error(
+                    operation,
+                    "font code has no Unicode mapping or stable font identity",
+                ));
+            }
+        };
+        let scale = Matrix::new(
+            state.graphics.font_size * state.graphics.horizontal_scale,
+            0.0,
+            0.0,
+            state.graphics.font_size,
+            0.0,
+            state.graphics.rise,
+        )?;
+        let text_rendering = page_transform
+            .concatenate(state.graphics.ctm)?
+            .concatenate(state.text_matrix)?
+            .concatenate(scale)?;
+        let bbox = transformed_rect(
+            text_rendering,
+            0.0,
+            descent / 1000.0,
+            glyph.width_1000_em / 1000.0,
+            ascent / 1000.0,
+        )?;
+        let (baseline_x, baseline_y) = text_rendering.transform_point(0.0, 0.0)?;
+        let (direction_x, direction_y) = text_rendering.transform_vector(1.0, 0.0)?;
+        let direction = normalized_vector(direction_x, direction_y, operation)?;
+        let (font_x, font_y) = text_rendering.transform_vector(0.0, 1.0)?;
+        let effective_font_size = font_x.hypot(font_y);
+        if !effective_font_size.is_finite() || effective_font_size <= f64::EPSILON {
+            return Err(operation_error(
+                operation,
+                "text transform produces a non-positive font size",
+            ));
+        }
+        let id =
+            u64::try_from(self.glyphs.len())
+                .map(GlyphId)
+                .map_err(|_| Error::LimitExceeded {
+                    resource: "glyph identifier address space",
+                    limit: usize::MAX,
+                })?;
+        let render_order = self.render_order;
+        self.render_order = self
+            .render_order
+            .checked_add(1)
+            .ok_or(Error::LimitExceeded {
+                resource: "glyph render-order address space",
+                limit: u32::MAX as usize,
+            })?;
+        let raw_code = glyph.raw_code;
+        let is_word_space = raw_code.as_slice() == b" ";
+        self.glyphs.push(Glyph {
+            id,
+            text,
+            raw_code,
+            page,
+            bbox,
+            baseline: Vec2 {
+                x: baseline_x,
+                y: baseline_y,
+            },
+            direction,
+            font_id,
+            font_size: effective_font_size,
+            render_order,
+            render_mode: state.graphics.render_mode,
+            provenance: GlyphProvenance {
+                content_stream: stream,
+                operator_index: operation.index,
+            },
+        });
+
+        let word_spacing = if is_word_space {
+            state.graphics.word_spacing
+        } else {
+            0.0
+        };
+        let advance = ((glyph.width_1000_em / 1000.0) * state.graphics.font_size
+            + state.graphics.character_spacing
+            + word_spacing)
+            * state.graphics.horizontal_scale;
+        state.text_matrix = state
+            .text_matrix
+            .concatenate(Matrix::translation(advance, 0.0)?)?;
+        Ok(())
+    }
+
+    fn decode_font(&mut self, selection: &BoundFont, bytes: &[u8]) -> Result<DecodedRun> {
+        let key = &selection.cache_key;
+
+        if !self.font_cache.contains_key(key) {
+            if self.font_cache.len() >= self.limits.max_fonts {
+                return Err(Error::LimitExceeded {
+                    resource: "loaded font count",
+                    limit: self.limits.max_fonts,
+                });
+            }
+            let remaining_bytes = self
+                .limits
+                .max_total_decoded_bytes
+                .saturating_sub(self.decoded_bytes);
+            let remaining_entries = self
+                .limits
+                .max_cmap_entries
+                .saturating_sub(self.cmap_entries);
+            let loaded = SimpleFontDecoder::load(
+                self.pdf,
+                selection.object.as_ref(),
+                SimpleFontLimits {
+                    max_indirections: self.limits.max_nesting_depth,
+                    max_width_entries: 256,
+                    max_to_unicode_bytes: remaining_bytes,
+                    cmap: CMapLimits {
+                        max_entries: remaining_entries,
+                        max_code_bytes: 4,
+                        max_output_scalars: self.limits.max_string_bytes,
+                    },
+                },
+            )?;
+            self.account_decoded_bytes(loaded.decoded_to_unicode_bytes)?;
+            self.cmap_entries = self
+                .cmap_entries
+                .checked_add(loaded.decoder.cmap_entry_count())
+                .ok_or(Error::LimitExceeded {
+                    resource: "ToUnicode CMap entries",
+                    limit: self.limits.max_cmap_entries,
+                })?;
+            if self.cmap_entries > self.limits.max_cmap_entries {
+                return Err(Error::LimitExceeded {
+                    resource: "ToUnicode CMap entries",
+                    limit: self.limits.max_cmap_entries,
+                });
+            }
+            let id = FontId(self.next_font_id);
+            self.next_font_id = self
+                .next_font_id
+                .checked_add(1)
+                .ok_or(Error::LimitExceeded {
+                    resource: "font identifier address space",
+                    limit: u32::MAX as usize,
+                })?;
+            self.font_cache.insert(
+                key.clone(),
+                CachedFont {
+                    id,
+                    decoder: loaded.decoder,
+                },
+            );
+        }
+
+        let remaining_glyphs = self.limits.max_glyphs.saturating_sub(self.glyphs.len());
+        let remaining_mapped_text_bytes = self
+            .limits
+            .max_total_decoded_bytes
+            .saturating_sub(self.decoded_bytes);
+        let (font_id, ascent, descent, glyphs) = {
+            let cached = self.font_cache.get(key).ok_or_else(|| {
+                Error::Unresolved("loaded font disappeared from the extraction cache".into())
+            })?;
+            (
+                cached.id,
+                cached.decoder.ascent_1000_em(),
+                cached.decoder.descent_1000_em(),
+                cached
+                    .decoder
+                    .decode(bytes, remaining_glyphs, remaining_mapped_text_bytes)?,
+            )
+        };
+        let mapped_text_bytes = glyphs.iter().try_fold(0usize, |total, glyph| {
+            let bytes = match &glyph.mapping {
+                UnicodeMapping::Mapped(text) => text.len(),
+                UnicodeMapping::Unmapped => 0,
+            };
+            total.checked_add(bytes).ok_or(Error::LimitExceeded {
+                resource: "decoded Unicode text bytes",
+                limit: remaining_mapped_text_bytes,
+            })
+        })?;
+        self.account_decoded_bytes(mapped_text_bytes)?;
+        Ok(DecodedRun {
+            font_id,
+            ascent,
+            descent,
+            glyphs,
+        })
+    }
+
+    fn bind_font(&mut self, key: BoundFontKey, object: Arc<PdfObject>) -> Result<Arc<BoundFont>> {
+        let (key, object) = match object.as_ref() {
+            PdfObject::Reference(reference) => {
+                let terminal = self.pdf.terminal_reference(*reference)?;
+                (
+                    BoundFontKey::Reference(terminal),
+                    Arc::new(PdfObject::Reference(terminal)),
+                )
+            }
+            _ => (key, object),
+        };
+        if let Some(font) = self.bound_fonts.get(&key) {
+            return Ok(Arc::clone(font));
+        }
+        let cache_key = match &key {
+            BoundFontKey::Reference(reference) => FontCacheKey::Reference(*reference),
+            BoundFontKey::Resource { scope_id, name } => FontCacheKey::ScopedResource {
+                scope_id: *scope_id,
+                name: name.clone(),
+            },
+            BoundFontKey::ExtGState(key) => FontCacheKey::ScopedExtGState(key.clone()),
+        };
+        let font = Arc::new(BoundFont { object, cache_key });
+        self.bound_fonts.insert(key, Arc::clone(&font));
+        Ok(font)
+    }
+
+    fn apply_ext_gstate(
+        &mut self,
+        operation: &Operation,
+        resources: &Resources,
+        state: &mut InterpreterState,
+    ) -> Result<()> {
+        let name = one_name(operation)?;
+        let resource = resources.ext_gstates.entries.get(name).ok_or_else(|| {
+            operation_error(
+                operation,
+                &format!(
+                    "ExtGState resource /{} is not defined",
+                    String::from_utf8_lossy(name)
+                ),
+            )
+        })?;
+        let key = match resource.as_ref() {
+            PdfObject::Reference(reference) => {
+                ExtGStateKey::Reference(self.pdf.terminal_reference(*reference)?)
+            }
+            _ => ExtGStateKey::Direct {
+                scope_id: resources.ext_gstates.scope_id,
+                name: name.to_vec(),
+            },
+        };
+        if let Some(selection) = self.ext_gstate_fonts.get(&key) {
+            if let Some((font, size)) = selection {
+                state.graphics.font = Some(Arc::clone(font));
+                state.graphics.font_size = *size;
+            }
+            return Ok(());
+        }
+        let dictionary = self.dictionary_value(resource.as_ref(), "ExtGState resource")?;
+        let Some(font) = dictionary.get(b"Font".as_slice()) else {
+            self.ext_gstate_fonts.insert(key, None);
+            return Ok(());
+        };
+        let font = self.resolve_value(font, "ExtGState Font")?;
+        let PdfObject::Array(values) = font else {
+            return Err(operation_error(operation, "ExtGState Font is not an array"));
+        };
+        let [font, size] = values.as_slice() else {
+            return Err(operation_error(
+                operation,
+                "ExtGState Font must contain a font and size",
+            ));
+        };
+        let size = self.number_value(size, "ExtGState font size")?;
+        if size == 0.0 {
+            return Err(operation_error(
+                operation,
+                "ExtGState font size must be non-zero",
+            ));
+        }
+        let font = self.bind_font(BoundFontKey::ExtGState(key.clone()), Arc::new(font.clone()))?;
+        self.ext_gstate_fonts
+            .insert(key, Some((Arc::clone(&font), size)));
+        state.graphics.font = Some(font);
+        state.graphics.font_size = size;
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn invoke_xobject(
+        &mut self,
+        name: &[u8],
+        operation: &Operation,
+        page: PageId,
+        page_transform: Matrix,
+        resources: &Resources,
+        state: &InterpreterState,
+        form_depth: usize,
+    ) -> Result<()> {
+        let object = resources.xobjects.entries.get(name).ok_or_else(|| {
+            operation_error(
+                operation,
+                &format!(
+                    "XObject resource /{} is not defined",
+                    String::from_utf8_lossy(name)
+                ),
+            )
+        })?;
+        let reference = match object.as_ref() {
+            PdfObject::Reference(reference) => *reference,
+            PdfObject::Stream(_) => {
+                return Err(Error::Unsupported(
+                    "direct Form XObject streams cannot retain object provenance".into(),
+                ));
+            }
+            _ => {
+                return Err(operation_error(
+                    operation,
+                    "XObject resource is not a stream reference",
+                ));
+            }
+        };
+        let xobject = self.cached_xobject(reference)?;
+        let CachedXObjectKind::Form {
+            matrix: form_matrix,
+            resources: local_resources,
+        } = &xobject.kind
+        else {
+            return Ok(());
+        };
+        let reference = xobject.reference;
+        if form_depth >= self.limits.max_form_depth {
+            return Err(Error::LimitExceeded {
+                resource: "Form XObject recursion depth",
+                limit: self.limits.max_form_depth,
+            });
+        }
+        if !self.active_forms.insert(reference) {
+            return Err(Error::Unresolved(format!(
+                "cyclic Form XObject reference {} {}",
+                reference.object_number, reference.generation
+            )));
+        }
+
+        let result = (|| {
+            let form_resources = local_resources.clone().unwrap_or_else(|| resources.clone());
+            let mut form_state = state.clone();
+            form_state.graphics.ctm = form_state.graphics.ctm.concatenate(*form_matrix)?;
+            form_state.graphics_stack.clear();
+            form_state.compatibility_depth = 0;
+            let initial_text_state = form_state.in_text;
+            let mut parser = ContentParser::with_budgets(
+                self.content_limits(),
+                self.operator_budget.clone(),
+                self.operand_budget.clone(),
+            );
+            self.interpret_stream(
+                reference,
+                page,
+                page_transform,
+                &form_resources,
+                &mut form_state,
+                &mut parser,
+                form_depth + 1,
+            )?;
+            parser.finish()?;
+            if !form_state.graphics_stack.is_empty() {
+                return Err(Error::Unresolved(format!(
+                    "Form XObject {} has an unbalanced graphics-state stack",
+                    reference.object_number
+                )));
+            }
+            if form_state.in_text != initial_text_state {
+                return Err(Error::Unresolved(format!(
+                    "Form XObject {} changes the enclosing text-object state",
+                    reference.object_number
+                )));
+            }
+            if form_state.compatibility_depth != 0 {
+                return Err(Error::Unresolved(format!(
+                    "Form XObject {} has an unterminated compatibility section",
+                    reference.object_number
+                )));
+            }
+            Ok(())
+        })();
+        self.active_forms.remove(&reference);
+        result
+    }
+
+    fn cached_xobject(&mut self, reference: ObjectRef) -> Result<Arc<CachedXObject>> {
+        if let Some(xobject) = self.xobject_cache.get(&reference) {
+            return Ok(Arc::clone(xobject));
+        }
+        let terminal = self.pdf.terminal_reference(reference)?;
+        if let Some(xobject) = self.xobject_cache.get(&terminal).cloned() {
+            self.xobject_cache.insert(reference, Arc::clone(&xobject));
+            return Ok(xobject);
+        }
+        let PdfObject::Stream(dictionary) = self.pdf.resolve(terminal)? else {
+            return Err(Error::Unresolved(
+                "XObject reference does not resolve to a stream".into(),
+            ));
+        };
+        let kind = match self
+            .name_value(dictionary.get(b"Subtype".as_slice()), "XObject Subtype")?
+            .as_slice()
+        {
+            b"Image" => CachedXObjectKind::Image,
+            b"Form" => {
+                let matrix = match dictionary.get(b"Matrix".as_slice()) {
+                    Some(value) => self.matrix_value(value, "Form Matrix")?,
+                    None => Matrix::IDENTITY,
+                };
+                let resources = dictionary
+                    .get(b"Resources".as_slice())
+                    .map(|value| self.resources(Some(value), None))
+                    .transpose()?;
+                CachedXObjectKind::Form { matrix, resources }
+            }
+            subtype => {
+                return Err(Error::Unsupported(format!(
+                    "XObject subtype /{}",
+                    String::from_utf8_lossy(subtype)
+                )));
+            }
+        };
+        let xobject = Arc::new(CachedXObject {
+            reference: terminal,
+            kind,
+        });
+        self.xobject_cache.insert(terminal, Arc::clone(&xobject));
+        self.xobject_cache.insert(reference, Arc::clone(&xobject));
+        Ok(xobject)
+    }
+
+    fn decoded_stream_bytes(&mut self, reference: ObjectRef) -> Result<Arc<Vec<u8>>> {
+        if let Some(bytes) = self.decoded_stream_cache.get(&reference) {
+            return Ok(Arc::clone(bytes));
+        }
+        let terminal = self.pdf.terminal_reference(reference)?;
+        if let Some(bytes) = self.decoded_stream_cache.get(&terminal).cloned() {
+            self.decoded_stream_cache
+                .insert(reference, Arc::clone(&bytes));
+            return Ok(bytes);
+        }
+        let bytes = Arc::new(self.pdf.decoded_stream(terminal)?.bytes);
+        self.decoded_stream_cache
+            .insert(terminal, Arc::clone(&bytes));
+        self.decoded_stream_cache
+            .insert(reference, Arc::clone(&bytes));
+        Ok(bytes)
+    }
+
+    fn account_decoded_bytes(&mut self, bytes: usize) -> Result<()> {
+        self.decoded_bytes = self
+            .decoded_bytes
+            .checked_add(bytes)
+            .ok_or(Error::LimitExceeded {
+                resource: "decoded extraction bytes",
+                limit: self.limits.max_total_decoded_bytes,
+            })?;
+        if self.decoded_bytes > self.limits.max_total_decoded_bytes {
+            return Err(Error::LimitExceeded {
+                resource: "decoded extraction bytes",
+                limit: self.limits.max_total_decoded_bytes,
+            });
+        }
+        Ok(())
+    }
+
+    fn account_stream_invocation(&mut self) -> Result<()> {
+        if self.stream_invocations >= self.limits.max_stream_invocations {
+            return Err(Error::LimitExceeded {
+                resource: "content stream invocations",
+                limit: self.limits.max_stream_invocations,
+            });
+        }
+        self.stream_invocations += 1;
+        Ok(())
+    }
+
+    fn content_limits(&self) -> ContentLimits {
+        ContentLimits {
+            max_operators: self.limits.max_operators,
+            max_operand_stack: self.limits.max_operand_stack,
+            max_operand_nodes: self.limits.max_operand_nodes,
+            max_nesting_depth: self.limits.max_nesting_depth,
+            max_string_bytes: self.limits.max_string_bytes,
+        }
+    }
+
+    fn content_streams(&mut self, contents: Option<&PdfObject>) -> Result<Vec<ObjectRef>> {
+        let Some(contents) = contents else {
+            return Ok(Vec::new());
+        };
+        let mut active = HashSet::new();
+        let summary = self.summarize_content_object(contents, 0, &mut active)?;
+        let materialization_limit = self
+            .limits
+            .max_stream_invocations
+            .saturating_sub(self.stream_invocations);
+        self.ensure_content_stream_count(summary.stream_count, materialization_limit)?;
+        let mut streams = Vec::new();
+        streams
+            .try_reserve(summary.stream_count)
+            .map_err(|_| Error::LimitExceeded {
+                resource: "content stream invocations",
+                limit: self.limits.max_stream_invocations,
+            })?;
+        if summary.stream_count != 0 {
+            self.materialize_content_object(contents, &mut streams, summary.stream_count)?;
+        }
+        if streams.len() != summary.stream_count {
+            return Err(Error::Unresolved(
+                "page Contents summary changed during materialization".into(),
+            ));
+        }
+        Ok(streams)
+    }
+
+    fn summarize_content_object(
+        &mut self,
+        object: &PdfObject,
+        depth: usize,
+        active: &mut HashSet<ObjectRef>,
+    ) -> Result<ContentStreamSummary> {
+        self.ensure_content_nesting_depth(depth, 0)?;
+        match object {
+            PdfObject::Null => Ok(ContentStreamSummary::EMPTY),
+            PdfObject::Array(items) => self.summarize_content_array(items, depth, active),
+            PdfObject::Reference(reference) => {
+                let node = self.load_content_reference(*reference, depth, active)?;
+                Ok(node.summary())
+            }
+            PdfObject::Stream(_) => Err(Error::Unsupported(
+                "direct page content streams cannot retain object provenance".into(),
+            )),
+            _ => Err(Error::Unresolved(
+                "page Contents is not a stream or stream array".into(),
+            )),
+        }
+    }
+
+    fn summarize_content_array(
+        &mut self,
+        items: &[PdfObject],
+        depth: usize,
+        active: &mut HashSet<ObjectRef>,
+    ) -> Result<ContentStreamSummary> {
+        self.ensure_content_nesting_depth(depth, 0)?;
+        let mut summary = ContentStreamSummary::EMPTY;
+        for item in items {
+            let child = self.summarize_content_object(item, depth.saturating_add(1), active)?;
+            summary.stream_count =
+                self.checked_content_stream_count(summary.stream_count, child.stream_count)?;
+            let child_depth = child
+                .nesting_depth
+                .checked_add(1)
+                .ok_or(Error::LimitExceeded {
+                    resource: "page Contents indirection depth",
+                    limit: self.limits.max_nesting_depth,
+                })?;
+            summary.nesting_depth = summary.nesting_depth.max(child_depth);
+        }
+        self.ensure_content_nesting_depth(depth, summary.nesting_depth)?;
+        Ok(summary)
+    }
+
+    fn load_content_reference(
+        &mut self,
+        reference: ObjectRef,
+        depth: usize,
+        active: &mut HashSet<ObjectRef>,
+    ) -> Result<Arc<CachedContentNode>> {
+        if let Some(node) = self.content_stream_cache.get(&reference).cloned() {
+            self.ensure_content_nesting_depth(depth, node.nesting_depth)?;
+            return Ok(node);
+        }
+        let terminal = self.pdf.terminal_reference(reference)?;
+        if let Some(node) = self.content_stream_cache.get(&terminal).cloned() {
+            self.ensure_content_nesting_depth(depth, node.nesting_depth)?;
+            self.content_stream_cache
+                .insert(reference, Arc::clone(&node));
+            return Ok(node);
+        }
+        if !active.insert(terminal) {
+            return Err(Error::Unresolved(format!(
+                "cyclic page Contents reference {} {}",
+                terminal.object_number, terminal.generation
+            )));
+        }
+        let result = (|| {
+            let resolved = self.pdf.resolve(terminal)?;
+            let node = match resolved {
+                PdfObject::Stream(_) => CachedContentNode {
+                    kind: CachedContentNodeKind::Stream(terminal),
+                    stream_count: 1,
+                    nesting_depth: 0,
+                },
+                PdfObject::Null => CachedContentNode {
+                    kind: CachedContentNodeKind::Null,
+                    stream_count: 0,
+                    nesting_depth: 1,
+                },
+                PdfObject::Array(items) => {
+                    let summary =
+                        self.summarize_content_array(&items, depth.saturating_add(1), active)?;
+                    let nesting_depth =
+                        summary
+                            .nesting_depth
+                            .checked_add(1)
+                            .ok_or(Error::LimitExceeded {
+                                resource: "page Contents indirection depth",
+                                limit: self.limits.max_nesting_depth,
+                            })?;
+                    CachedContentNode {
+                        kind: CachedContentNodeKind::Array(items),
+                        stream_count: summary.stream_count,
+                        nesting_depth,
+                    }
+                }
+                _ => Err(Error::Unresolved(
+                    "page Contents is not a stream or stream array".into(),
+                ))?,
+            };
+            self.ensure_content_stream_count(
+                node.stream_count,
+                self.limits.max_stream_invocations,
+            )?;
+            self.ensure_content_nesting_depth(depth, node.nesting_depth)?;
+            Ok(node)
+        })();
+        active.remove(&terminal);
+        let node = Arc::new(result?);
+        self.content_stream_cache
+            .insert(terminal, Arc::clone(&node));
+        self.content_stream_cache
+            .insert(reference, Arc::clone(&node));
+        Ok(node)
+    }
+
+    fn materialize_content_object(
+        &self,
+        object: &PdfObject,
+        streams: &mut Vec<ObjectRef>,
+        materialization_limit: usize,
+    ) -> Result<()> {
+        match object {
+            PdfObject::Null => Ok(()),
+            PdfObject::Array(items) => {
+                for item in items {
+                    self.materialize_content_object(item, streams, materialization_limit)?;
+                }
+                Ok(())
+            }
+            PdfObject::Reference(reference) => {
+                let node = self.content_stream_cache.get(reference).ok_or_else(|| {
+                    Error::Unresolved(
+                        "page Contents cache entry disappeared during materialization".into(),
+                    )
+                })?;
+                self.materialize_content_node(node, streams, materialization_limit)
+            }
+            PdfObject::Stream(_) => Err(Error::Unsupported(
+                "direct page content streams cannot retain object provenance".into(),
+            )),
+            _ => Err(Error::Unresolved(
+                "page Contents is not a stream or stream array".into(),
+            )),
+        }
+    }
+
+    fn materialize_content_node(
+        &self,
+        node: &CachedContentNode,
+        streams: &mut Vec<ObjectRef>,
+        materialization_limit: usize,
+    ) -> Result<()> {
+        let materialized_count =
+            streams
+                .len()
+                .checked_add(node.stream_count)
+                .ok_or(Error::LimitExceeded {
+                    resource: "content stream invocations",
+                    limit: self.limits.max_stream_invocations,
+                })?;
+        self.ensure_content_stream_count(materialized_count, materialization_limit)?;
+        if node.stream_count == 0 {
+            return Ok(());
+        }
+        match &node.kind {
+            CachedContentNodeKind::Stream(reference) => {
+                streams.push(*reference);
+                Ok(())
+            }
+            CachedContentNodeKind::Null => Ok(()),
+            CachedContentNodeKind::Array(items) => {
+                for item in items {
+                    self.materialize_content_object(item, streams, materialization_limit)?;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn ensure_content_nesting_depth(&self, depth: usize, relative_depth: usize) -> Result<()> {
+        if depth.saturating_add(relative_depth) > self.limits.max_nesting_depth {
+            return Err(Error::LimitExceeded {
+                resource: "page Contents indirection depth",
+                limit: self.limits.max_nesting_depth,
+            });
+        }
+        Ok(())
+    }
+
+    fn ensure_content_stream_count(&self, count: usize, limit: usize) -> Result<()> {
+        if count > limit {
+            return Err(Error::LimitExceeded {
+                resource: "content stream invocations",
+                limit: self.limits.max_stream_invocations,
+            });
+        }
+        Ok(())
+    }
+
+    fn checked_content_stream_count(&self, count: usize, additional: usize) -> Result<usize> {
+        let count = count.checked_add(additional).ok_or(Error::LimitExceeded {
+            resource: "content stream invocations",
+            limit: self.limits.max_stream_invocations,
+        })?;
+        self.ensure_content_stream_count(count, self.limits.max_stream_invocations)?;
+        Ok(count)
+    }
+
+    fn resources(
+        &mut self,
+        resource: Option<&PdfObject>,
+        inherited: Option<&Resources>,
+    ) -> Result<Resources> {
+        let Some(resource) = resource else {
+            return inherited.cloned().map_or_else(
+                || {
+                    Ok(Resources {
+                        fonts: self.empty_resource_map()?,
+                        xobjects: self.empty_resource_map()?,
+                        ext_gstates: self.empty_resource_map()?,
+                    })
+                },
+                Ok,
+            );
+        };
+        if let PdfObject::Reference(reference) = resource {
+            return self.indirect_resources(*reference);
+        }
+        let dictionary = self.dictionary_value(resource, "Resources")?;
+        self.resources_from_dictionary(&dictionary)
+    }
+
+    fn resources_from_dictionary(&mut self, dictionary: &PdfDict) -> Result<Resources> {
+        let fonts =
+            self.shared_resource_map(dictionary.get(b"Font".as_slice()), "Font resources")?;
+        let xobjects =
+            self.shared_resource_map(dictionary.get(b"XObject".as_slice()), "XObject resources")?;
+        let ext_gstates = self.shared_resource_map(
+            dictionary.get(b"ExtGState".as_slice()),
+            "ExtGState resources",
+        )?;
+        Ok(Resources {
+            fonts,
+            xobjects,
+            ext_gstates,
+        })
+    }
+
+    fn empty_resource_map(&mut self) -> Result<Arc<ScopedResourceMap>> {
+        self.scoped_resource_map(BTreeMap::new())
+    }
+
+    fn scoped_resource_map(&mut self, entries: ResourceMap) -> Result<Arc<ScopedResourceMap>> {
+        Ok(Arc::new(ScopedResourceMap {
+            scope_id: self.allocate_scope_id()?,
+            entries,
+        }))
+    }
+
+    fn indirect_resources(&mut self, reference: ObjectRef) -> Result<Resources> {
+        if let Some(resources) = self.resource_cache.get(&reference) {
+            return Ok(resources.clone());
+        }
+        let terminal = self.pdf.terminal_reference(reference)?;
+        if let Some(resources) = self.resource_cache.get(&terminal).cloned() {
+            self.resource_cache.insert(reference, resources.clone());
+            return Ok(resources);
+        }
+        let PdfObject::Dictionary(dictionary) = self.pdf.resolve(terminal)? else {
+            return Err(Error::Unresolved(
+                "Resources does not resolve to a dictionary".into(),
+            ));
+        };
+        let resources = self.resources_from_dictionary(&dictionary)?;
+        self.resource_cache.insert(terminal, resources.clone());
+        self.resource_cache.insert(reference, resources.clone());
+        Ok(resources)
+    }
+
+    fn shared_resource_map(
+        &mut self,
+        value: Option<&PdfObject>,
+        context: &str,
+    ) -> Result<Arc<ScopedResourceMap>> {
+        let Some(value) = value else {
+            return self.empty_resource_map();
+        };
+        if let PdfObject::Reference(reference) = value {
+            return self.indirect_resource_map(*reference, context);
+        }
+        self.scoped_resource_map(
+            self.dictionary_value(value, context)?
+                .into_iter()
+                .map(|(name, object)| (name, Arc::new(object)))
+                .collect(),
+        )
+    }
+
+    fn indirect_resource_map(
+        &mut self,
+        reference: ObjectRef,
+        context: &str,
+    ) -> Result<Arc<ScopedResourceMap>> {
+        if let Some(resources) = self.resource_map_cache.get(&reference) {
+            return Ok(Arc::clone(resources));
+        }
+        let terminal = self.pdf.terminal_reference(reference)?;
+        if let Some(resources) = self.resource_map_cache.get(&terminal).cloned() {
+            self.resource_map_cache
+                .insert(reference, Arc::clone(&resources));
+            return Ok(resources);
+        }
+        let PdfObject::Dictionary(dictionary) = self.pdf.resolve(terminal)? else {
+            return Err(Error::Unresolved(format!(
+                "{context} does not resolve to a dictionary"
+            )));
+        };
+        let resources = self.scoped_resource_map(
+            dictionary
+                .into_iter()
+                .map(|(name, object)| (name, Arc::new(object)))
+                .collect(),
+        )?;
+        self.resource_map_cache
+            .insert(terminal, Arc::clone(&resources));
+        self.resource_map_cache
+            .insert(reference, Arc::clone(&resources));
+        Ok(resources)
+    }
+
+    fn allocate_scope_id(&mut self) -> Result<u64> {
+        let id = self.next_scope_id;
+        self.next_scope_id = self
+            .next_scope_id
+            .checked_add(1)
+            .ok_or(Error::LimitExceeded {
+                resource: "resource-scope identifier address space",
+                limit: usize::MAX,
+            })?;
+        Ok(id)
+    }
+
+    fn page_transform(&self, dictionary: &PdfDict) -> Result<Matrix> {
+        let bounds = dictionary
+            .get(b"CropBox".as_slice())
+            .or_else(|| dictionary.get(b"MediaBox".as_slice()))
+            .ok_or_else(|| Error::Unresolved("page has no CropBox or MediaBox".into()))?;
+        let [x0, y0, x1, y1] = self.rectangle_value(bounds, "page box")?;
+        let width = x1 - x0;
+        let height = y1 - y0;
+        if !width.is_finite() || !height.is_finite() || width <= 0.0 || height <= 0.0 {
+            return Err(Error::Unresolved(
+                "page box must have finite positive dimensions".into(),
+            ));
+        }
+        let rotation = match dictionary.get(b"Rotate".as_slice()) {
+            Some(value) => self.integer_value(value, "page Rotate")?,
+            None => 0,
+        };
+        let normalized = rotation.rem_euclid(360);
+        if normalized % 90 != 0 {
+            return Err(Error::Unsupported(format!(
+                "page rotation {rotation} is not a multiple of 90 degrees"
+            )));
+        }
+        let crop = Matrix::translation(-x0, -y0)?;
+        let rotation = match normalized {
+            0 => Matrix::IDENTITY,
+            90 => Matrix::new(0.0, -1.0, 1.0, 0.0, 0.0, width)?,
+            180 => Matrix::new(-1.0, 0.0, 0.0, -1.0, width, height)?,
+            270 => Matrix::new(0.0, 1.0, -1.0, 0.0, height, 0.0)?,
+            _ => {
+                return Err(Error::Unresolved(
+                    "normalized page rotation is outside the supported set".into(),
+                ));
+            }
+        };
+        rotation.concatenate(crop)
+    }
+
+    fn matrix_value(&self, value: &PdfObject, context: &str) -> Result<Matrix> {
+        let object = self.resolve_value(value, context)?;
+        let PdfObject::Array(values) = object else {
+            return Err(Error::Unresolved(format!("{context} is not an array")));
+        };
+        if values.len() != 6 {
+            return Err(Error::Unresolved(format!(
+                "{context} must contain six numbers"
+            )));
+        }
+        let mut numbers = [0.0; 6];
+        for (number, value) in numbers.iter_mut().zip(&values) {
+            *number = self.number_value(value, context)?;
+        }
+        Matrix::new(
+            numbers[0], numbers[1], numbers[2], numbers[3], numbers[4], numbers[5],
+        )
+    }
+
+    fn rectangle_value(&self, value: &PdfObject, context: &str) -> Result<[f64; 4]> {
+        let object = self.resolve_value(value, context)?;
+        let PdfObject::Array(values) = object else {
+            return Err(Error::Unresolved(format!("{context} is not an array")));
+        };
+        if values.len() != 4 {
+            return Err(Error::Unresolved(format!(
+                "{context} must contain four numbers"
+            )));
+        }
+        let mut numbers = [0.0; 4];
+        for (number, value) in numbers.iter_mut().zip(&values) {
+            *number = self.number_value(value, context)?;
+        }
+        Ok(numbers)
+    }
+
+    fn dictionary_value(&self, value: &PdfObject, context: &str) -> Result<PdfDict> {
+        match self.resolve_value(value, context)? {
+            PdfObject::Dictionary(dictionary) => Ok(dictionary),
+            _ => Err(Error::Unresolved(format!(
+                "{context} does not resolve to a dictionary"
+            ))),
+        }
+    }
+
+    fn name_value(&self, value: Option<&PdfObject>, context: &str) -> Result<Vec<u8>> {
+        let value = value.ok_or_else(|| Error::Unresolved(format!("{context} is missing")))?;
+        match self.resolve_value(value, context)? {
+            PdfObject::Name(name) => Ok(name),
+            _ => Err(Error::Unresolved(format!(
+                "{context} does not resolve to a name"
+            ))),
+        }
+    }
+
+    fn integer_value(&self, value: &PdfObject, context: &str) -> Result<i64> {
+        match self.resolve_value(value, context)? {
+            PdfObject::Integer(number) => Ok(number),
+            _ => Err(Error::Unresolved(format!(
+                "{context} does not resolve to an integer"
+            ))),
+        }
+    }
+
+    fn number_value(&self, value: &PdfObject, context: &str) -> Result<f64> {
+        let number = match self.resolve_value(value, context)? {
+            PdfObject::Integer(number) => number as f64,
+            PdfObject::Real(number) => number,
+            _ => {
+                return Err(Error::Unresolved(format!(
+                    "{context} contains a non-numeric value"
+                )));
+            }
+        };
+        if number.is_finite() {
+            Ok(number)
+        } else {
+            Err(Error::Unresolved(format!(
+                "{context} contains a non-finite number"
+            )))
+        }
+    }
+
+    fn resolve_value(&self, value: &PdfObject, context: &str) -> Result<PdfObject> {
+        let mut value = value.clone();
+        let mut active = HashSet::new();
+        let mut depth = 0;
+        while let PdfObject::Reference(reference) = value {
+            if depth >= self.limits.max_nesting_depth {
+                return Err(Error::LimitExceeded {
+                    resource: "PDF extraction indirection depth",
+                    limit: self.limits.max_nesting_depth,
+                });
+            }
+            if !active.insert(reference) {
+                return Err(Error::Unresolved(format!(
+                    "{context} contains a cyclic indirect reference"
+                )));
+            }
+            value = self.pdf.resolve(reference)?;
+            depth += 1;
+        }
+        Ok(value)
+    }
+}
+
+#[derive(Clone)]
+struct GraphicsState {
+    ctm: Matrix,
+    character_spacing: f64,
+    word_spacing: f64,
+    horizontal_scale: f64,
+    leading: f64,
+    font: Option<Arc<BoundFont>>,
+    font_size: f64,
+    rise: f64,
+    render_mode: TextRenderMode,
+}
+
+impl Default for GraphicsState {
+    fn default() -> Self {
+        Self {
+            ctm: Matrix::IDENTITY,
+            character_spacing: 0.0,
+            word_spacing: 0.0,
+            horizontal_scale: 1.0,
+            leading: 0.0,
+            font: None,
+            font_size: 0.0,
+            rise: 0.0,
+            render_mode: TextRenderMode::Fill,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct InterpreterState {
+    graphics: GraphicsState,
+    graphics_stack: Vec<GraphicsState>,
+    text_matrix: Matrix,
+    text_line_matrix: Matrix,
+    in_text: bool,
+    compatibility_depth: usize,
+}
+
+impl Default for InterpreterState {
+    fn default() -> Self {
+        Self {
+            graphics: GraphicsState::default(),
+            graphics_stack: Vec::new(),
+            text_matrix: Matrix::IDENTITY,
+            text_line_matrix: Matrix::IDENTITY,
+            in_text: false,
+            compatibility_depth: 0,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct Resources {
+    fonts: Arc<ScopedResourceMap>,
+    xobjects: Arc<ScopedResourceMap>,
+    ext_gstates: Arc<ScopedResourceMap>,
+}
+
+type ResourceMap = BTreeMap<Vec<u8>, Arc<PdfObject>>;
+
+struct ScopedResourceMap {
+    scope_id: u64,
+    entries: ResourceMap,
+}
+
+struct CachedXObject {
+    reference: ObjectRef,
+    kind: CachedXObjectKind,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ContentStreamSummary {
+    stream_count: usize,
+    nesting_depth: usize,
+}
+
+impl ContentStreamSummary {
+    const EMPTY: Self = Self {
+        stream_count: 0,
+        nesting_depth: 0,
+    };
+}
+
+struct CachedContentNode {
+    kind: CachedContentNodeKind,
+    stream_count: usize,
+    nesting_depth: usize,
+}
+
+impl CachedContentNode {
+    fn summary(&self) -> ContentStreamSummary {
+        ContentStreamSummary {
+            stream_count: self.stream_count,
+            nesting_depth: self.nesting_depth,
+        }
+    }
+}
+
+enum CachedContentNodeKind {
+    Stream(ObjectRef),
+    Null,
+    Array(Vec<PdfObject>),
+}
+
+enum CachedXObjectKind {
+    Image,
+    Form {
+        matrix: Matrix,
+        resources: Option<Resources>,
+    },
+}
+
+struct BoundFont {
+    object: Arc<PdfObject>,
+    cache_key: FontCacheKey,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum BoundFontKey {
+    Reference(ObjectRef),
+    Resource { scope_id: u64, name: Vec<u8> },
+    ExtGState(ExtGStateKey),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum ExtGStateKey {
+    Reference(ObjectRef),
+    Direct { scope_id: u64, name: Vec<u8> },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum FontCacheKey {
+    Reference(ObjectRef),
+    ScopedResource { scope_id: u64, name: Vec<u8> },
+    ScopedExtGState(ExtGStateKey),
+}
+
+struct CachedFont {
+    id: FontId,
+    decoder: SimpleFontDecoder,
+}
+
+struct DecodedRun {
+    font_id: FontId,
+    ascent: f64,
+    descent: f64,
+    glyphs: Vec<FontGlyph>,
+}
+
+fn move_text_line(state: &mut InterpreterState, x: f64, y: f64) -> Result<()> {
+    state.text_line_matrix = state
+        .text_line_matrix
+        .concatenate(Matrix::translation(x, y)?)?;
+    state.text_matrix = state.text_line_matrix;
+    Ok(())
+}
+
+fn require_text_object(operation: &Operation, state: &InterpreterState) -> Result<()> {
+    if state.in_text {
+        Ok(())
+    } else {
+        Err(operation_error(operation, "text operator outside BT/ET"))
+    }
+}
+
+fn no_operands(operation: &Operation) -> Result<()> {
+    if operation.operands.is_empty() {
+        Ok(())
+    } else {
+        Err(operation_error(operation, "expected no operands"))
+    }
+}
+
+fn number_operands<const N: usize>(operation: &Operation) -> Result<[f64; N]> {
+    if operation.operands.len() != N {
+        return Err(operation_error(
+            operation,
+            &format!("expected {N} numeric operands"),
+        ));
+    }
+    let mut values = [0.0; N];
+    for (value, operand) in values.iter_mut().zip(&operation.operands) {
+        *value = match operand {
+            Operand::Number(number) if number.is_finite() => *number,
+            _ => return Err(operation_error(operation, "expected numeric operands")),
+        };
+    }
+    Ok(values)
+}
+
+fn one_number(operation: &Operation) -> Result<f64> {
+    Ok(number_operands::<1>(operation)?[0])
+}
+
+fn one_name(operation: &Operation) -> Result<&[u8]> {
+    match operation.operands.as_slice() {
+        [Operand::Name(name)] => Ok(name),
+        _ => Err(operation_error(operation, "expected one name operand")),
+    }
+}
+
+fn one_string(operation: &Operation) -> Result<&[u8]> {
+    match operation.operands.as_slice() {
+        [Operand::String(bytes)] => Ok(bytes),
+        _ => Err(operation_error(operation, "expected one string operand")),
+    }
+}
+
+fn name_and_number(operation: &Operation) -> Result<(&[u8], f64)> {
+    match operation.operands.as_slice() {
+        [Operand::Name(name), Operand::Number(number)] if number.is_finite() => Ok((name, *number)),
+        _ => Err(operation_error(
+            operation,
+            "expected a font name and numeric size",
+        )),
+    }
+}
+
+fn quote_operands(operation: &Operation) -> Result<(f64, f64, &[u8])> {
+    match operation.operands.as_slice() {
+        [
+            Operand::Number(word),
+            Operand::Number(character),
+            Operand::String(bytes),
+        ] if word.is_finite() && character.is_finite() => Ok((*word, *character, bytes)),
+        _ => Err(operation_error(
+            operation,
+            "expected word spacing, character spacing, and a string",
+        )),
+    }
+}
+
+fn render_mode(value: f64, operation: &Operation) -> Result<TextRenderMode> {
+    match value {
+        0.0 => Ok(TextRenderMode::Fill),
+        1.0 => Ok(TextRenderMode::Stroke),
+        2.0 => Ok(TextRenderMode::FillAndStroke),
+        3.0 => Ok(TextRenderMode::Invisible),
+        4.0 => Ok(TextRenderMode::FillAndClip),
+        5.0 => Ok(TextRenderMode::StrokeAndClip),
+        6.0 => Ok(TextRenderMode::FillStrokeAndClip),
+        7.0 => Ok(TextRenderMode::Clip),
+        _ => Err(operation_error(operation, "invalid text render mode")),
+    }
+}
+
+fn operation_error(operation: &Operation, message: &str) -> Error {
+    Error::Unresolved(format!(
+        "content operator {} at index {}: {message}",
+        String::from_utf8_lossy(&operation.operator),
+        operation.index
+    ))
+}
+
+fn is_ignored_operator(operator: &[u8]) -> bool {
+    matches!(
+        operator,
+        b"w" | b"J"
+            | b"j"
+            | b"M"
+            | b"d"
+            | b"ri"
+            | b"i"
+            | b"m"
+            | b"l"
+            | b"c"
+            | b"v"
+            | b"y"
+            | b"h"
+            | b"re"
+            | b"S"
+            | b"s"
+            | b"f"
+            | b"F"
+            | b"f*"
+            | b"B"
+            | b"B*"
+            | b"b"
+            | b"b*"
+            | b"n"
+            | b"W"
+            | b"W*"
+            | b"CS"
+            | b"cs"
+            | b"SC"
+            | b"SCN"
+            | b"sc"
+            | b"scn"
+            | b"G"
+            | b"g"
+            | b"RG"
+            | b"rg"
+            | b"K"
+            | b"k"
+            | b"sh"
+            | b"MP"
+            | b"DP"
+            | b"BMC"
+            | b"BDC"
+            | b"EMC"
+            | b"BI"
+    )
+}
+
+fn transformed_rect(matrix: Matrix, x0: f64, y0: f64, x1: f64, y1: f64) -> Result<Rect> {
+    let corners = [
+        matrix.transform_point(x0, y0)?,
+        matrix.transform_point(x0, y1)?,
+        matrix.transform_point(x1, y0)?,
+        matrix.transform_point(x1, y1)?,
+    ];
+    let mut min_x = f64::INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for (x, y) in corners {
+        min_x = min_x.min(x);
+        min_y = min_y.min(y);
+        max_x = max_x.max(x);
+        max_y = max_y.max(y);
+    }
+    Ok(Rect {
+        min: Vec2 { x: min_x, y: min_y },
+        max: Vec2 { x: max_x, y: max_y },
+    })
+}
+
+fn normalized_vector(x: f64, y: f64, operation: &Operation) -> Result<Vec2> {
+    let length = x.hypot(y);
+    if !length.is_finite() || length <= f64::EPSILON {
+        return Err(operation_error(
+            operation,
+            "text transform produces a zero writing direction",
+        ));
+    }
+    Ok(Vec2 {
+        x: x / length,
+        y: y / length,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use crate::pdf::{DecodedStream, PdfVersion, RawStream};
+
+    fn empty_map(scope_id: u64) -> Arc<ScopedResourceMap> {
+        Arc::new(ScopedResourceMap {
+            scope_id,
+            entries: BTreeMap::new(),
+        })
+    }
+
+    struct CountingPdf {
+        objects: HashMap<ObjectRef, PdfObject>,
+        terminals: HashMap<ObjectRef, ObjectRef>,
+        bytes: Vec<u8>,
+        resolve_calls: AtomicUsize,
+        terminal_calls: AtomicUsize,
+        decoded_calls: AtomicUsize,
+    }
+
+    impl ParsedPdf for CountingPdf {
+        fn version(&self) -> PdfVersion {
+            PdfVersion { major: 1, minor: 7 }
+        }
+
+        fn trailer(&self) -> Result<PdfDict> {
+            Ok(PdfDict::new())
+        }
+
+        fn resolve(&self, reference: ObjectRef) -> Result<PdfObject> {
+            self.resolve_calls.fetch_add(1, Ordering::Relaxed);
+            let reference = self.terminals.get(&reference).copied().unwrap_or(reference);
+            self.objects
+                .get(&reference)
+                .cloned()
+                .ok_or_else(|| Error::Unresolved("fixture object is missing".into()))
+        }
+
+        fn terminal_reference(&self, reference: ObjectRef) -> Result<ObjectRef> {
+            self.terminal_calls.fetch_add(1, Ordering::Relaxed);
+            Ok(self.terminals.get(&reference).copied().unwrap_or(reference))
+        }
+
+        fn pages(&self) -> Result<Vec<PageRef>> {
+            Ok(Vec::new())
+        }
+
+        fn page_dict(&self, _page: PageRef) -> Result<PdfDict> {
+            Err(Error::Unresolved("fixture has no pages".into()))
+        }
+
+        fn raw_stream(&self, _reference: ObjectRef) -> Result<RawStream> {
+            Err(Error::Unresolved("fixture has no raw stream".into()))
+        }
+
+        fn decoded_stream(&self, _reference: ObjectRef) -> Result<DecodedStream> {
+            self.decoded_calls.fetch_add(1, Ordering::Relaxed);
+            Ok(DecodedStream {
+                dictionary: PdfDict::new(),
+                bytes: self.bytes.clone(),
+            })
+        }
+    }
+
+    #[test]
+    fn clones_graphics_state_and_resources_by_shared_handle() {
+        let object = Arc::new(PdfObject::Dictionary(BTreeMap::from([(
+            b"LargePayload".to_vec(),
+            PdfObject::String(vec![0; 1024]),
+        )])));
+        let font = Arc::new(BoundFont {
+            object: Arc::clone(&object),
+            cache_key: FontCacheKey::ScopedResource {
+                scope_id: 1,
+                name: b"F1".to_vec(),
+            },
+        });
+        let graphics = GraphicsState {
+            font: Some(Arc::clone(&font)),
+            ..GraphicsState::default()
+        };
+        let resources = Resources {
+            fonts: Arc::new(ScopedResourceMap {
+                scope_id: 1,
+                entries: BTreeMap::from([(b"F1".to_vec(), object)]),
+            }),
+            xobjects: empty_map(2),
+            ext_gstates: empty_map(3),
+        };
+
+        let cloned_graphics = graphics.clone();
+        let cloned_resources = resources.clone();
+
+        assert!(Arc::ptr_eq(
+            graphics.font.as_ref().expect("font should be selected"),
+            cloned_graphics
+                .font
+                .as_ref()
+                .expect("cloned font should remain selected")
+        ));
+        assert!(Arc::ptr_eq(&resources.fonts, &cloned_resources.fonts));
+    }
+
+    #[test]
+    fn reuses_shared_page_resource_snapshots() -> Result<()> {
+        let pdf = CountingPdf {
+            objects: HashMap::new(),
+            terminals: HashMap::new(),
+            bytes: Vec::new(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let mut extraction = Extraction::new(&pdf, ExtractionLimits::default());
+        let snapshot = Arc::new(PdfObject::Dictionary(BTreeMap::from([(
+            b"Font".to_vec(),
+            PdfObject::Dictionary(BTreeMap::new()),
+        )])));
+
+        let first = extraction.page_resources(Some(Arc::clone(&snapshot)))?;
+        let second = extraction.page_resources(Some(Arc::clone(&snapshot)))?;
+
+        assert!(Arc::ptr_eq(&first.fonts, &second.fonts));
+        assert!(Arc::ptr_eq(&first.xobjects, &second.xobjects));
+        assert!(Arc::ptr_eq(&first.ext_gstates, &second.ext_gstates));
+        assert_eq!(extraction.page_resource_cache.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn caches_xobject_metadata_and_decoded_bytes_by_object_reference() -> Result<()> {
+        let alias = ObjectRef {
+            object_number: 7,
+            generation: 0,
+        };
+        let second_alias = ObjectRef {
+            object_number: 8,
+            generation: 0,
+        };
+        let terminal = ObjectRef {
+            object_number: 9,
+            generation: 0,
+        };
+        let pdf = CountingPdf {
+            objects: HashMap::from([(
+                terminal,
+                PdfObject::Stream(BTreeMap::from([
+                    (b"Subtype".to_vec(), PdfObject::Name(b"Form".to_vec())),
+                    (
+                        b"Resources".to_vec(),
+                        PdfObject::Dictionary(BTreeMap::new()),
+                    ),
+                ])),
+            )]),
+            terminals: HashMap::from([(alias, terminal), (second_alias, terminal)]),
+            bytes: b"% cached form".to_vec(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let mut extraction = Extraction::new(&pdf, ExtractionLimits::default());
+
+        let first_xobject = extraction.cached_xobject(alias)?;
+        let second_xobject = extraction.cached_xobject(second_alias)?;
+        let first_bytes = extraction.decoded_stream_bytes(first_xobject.reference)?;
+        let second_bytes = extraction.decoded_stream_bytes(second_xobject.reference)?;
+
+        assert!(Arc::ptr_eq(&first_xobject, &second_xobject));
+        assert_eq!(first_xobject.reference, terminal);
+        assert!(Arc::ptr_eq(&first_bytes, &second_bytes));
+        assert_eq!(pdf.resolve_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(pdf.terminal_calls.load(Ordering::Relaxed), 3);
+        assert_eq!(pdf.decoded_calls.load(Ordering::Relaxed), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn shares_indirect_resources_and_category_maps_across_aliases() -> Result<()> {
+        let form_one = ObjectRef {
+            object_number: 10,
+            generation: 0,
+        };
+        let form_two = ObjectRef {
+            object_number: 11,
+            generation: 0,
+        };
+        let resources_alias = ObjectRef {
+            object_number: 20,
+            generation: 0,
+        };
+        let resources_terminal = ObjectRef {
+            object_number: 21,
+            generation: 0,
+        };
+        let font_alias_one = ObjectRef {
+            object_number: 30,
+            generation: 0,
+        };
+        let font_alias_two = ObjectRef {
+            object_number: 31,
+            generation: 0,
+        };
+        let font_terminal = ObjectRef {
+            object_number: 32,
+            generation: 0,
+        };
+        let form = || {
+            PdfObject::Stream(BTreeMap::from([
+                (b"Subtype".to_vec(), PdfObject::Name(b"Form".to_vec())),
+                (b"Resources".to_vec(), PdfObject::Reference(resources_alias)),
+            ]))
+        };
+        let pdf = CountingPdf {
+            objects: HashMap::from([
+                (form_one, form()),
+                (form_two, form()),
+                (
+                    resources_terminal,
+                    PdfObject::Dictionary(BTreeMap::from([(
+                        b"Font".to_vec(),
+                        PdfObject::Reference(font_alias_one),
+                    )])),
+                ),
+                (
+                    font_terminal,
+                    PdfObject::Dictionary(BTreeMap::from([(
+                        b"F1".to_vec(),
+                        PdfObject::Dictionary(BTreeMap::new()),
+                    )])),
+                ),
+            ]),
+            terminals: HashMap::from([
+                (resources_alias, resources_terminal),
+                (font_alias_one, font_terminal),
+                (font_alias_two, font_terminal),
+            ]),
+            bytes: Vec::new(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let mut extraction = Extraction::new(&pdf, ExtractionLimits::default());
+
+        let first = extraction.cached_xobject(form_one)?;
+        let second = extraction.cached_xobject(form_two)?;
+        let (
+            CachedXObjectKind::Form {
+                resources: Some(first_resources),
+                ..
+            },
+            CachedXObjectKind::Form {
+                resources: Some(second_resources),
+                ..
+            },
+        ) = (&first.kind, &second.kind)
+        else {
+            return Err(Error::Unresolved("fixtures should be Forms".into()));
+        };
+        assert_eq!(
+            first_resources.fonts.scope_id,
+            second_resources.fonts.scope_id
+        );
+        assert!(Arc::ptr_eq(&first_resources.fonts, &second_resources.fonts));
+
+        let direct_one = PdfObject::Dictionary(BTreeMap::from([(
+            b"Font".to_vec(),
+            PdfObject::Reference(font_alias_one),
+        )]));
+        let direct_two = PdfObject::Dictionary(BTreeMap::from([(
+            b"Font".to_vec(),
+            PdfObject::Reference(font_alias_two),
+        )]));
+        let first_direct = extraction.resources(Some(&direct_one), None)?;
+        let second_direct = extraction.resources(Some(&direct_two), None)?;
+        assert!(Arc::ptr_eq(&first_direct.fonts, &second_direct.fonts));
+        assert_eq!(pdf.resolve_calls.load(Ordering::Relaxed), 4);
+        Ok(())
+    }
+
+    #[test]
+    fn caches_an_ext_gstate_without_a_font() -> Result<()> {
+        let pdf = CountingPdf {
+            objects: HashMap::new(),
+            terminals: HashMap::new(),
+            bytes: Vec::new(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let mut extraction = Extraction::new(&pdf, ExtractionLimits::default());
+        let ext_gstates = Arc::new(ScopedResourceMap {
+            scope_id: 4,
+            entries: BTreeMap::from([(
+                b"GS".to_vec(),
+                Arc::new(PdfObject::Dictionary(BTreeMap::from([(
+                    b"LargePayload".to_vec(),
+                    PdfObject::String(vec![0; 1024]),
+                )]))),
+            )]),
+        });
+        let first_resources = Resources {
+            fonts: empty_map(5),
+            xobjects: empty_map(6),
+            ext_gstates: Arc::clone(&ext_gstates),
+        };
+        let second_resources = Resources {
+            fonts: empty_map(7),
+            xobjects: empty_map(8),
+            ext_gstates,
+        };
+        let operation = Operation {
+            operands: vec![Operand::Name(b"GS".to_vec())],
+            operator: b"gs".to_vec(),
+            index: 0,
+        };
+        let mut state = InterpreterState::default();
+
+        extraction.apply_ext_gstate(&operation, &first_resources, &mut state)?;
+        extraction.apply_ext_gstate(&operation, &second_resources, &mut state)?;
+
+        assert_eq!(extraction.ext_gstate_fonts.len(), 1);
+        assert!(extraction.ext_gstate_fonts.values().all(Option::is_none));
+        Ok(())
+    }
+
+    #[test]
+    fn shares_ext_gstate_positive_and_negative_caches_across_entry_aliases() -> Result<()> {
+        let negative_aliases = [
+            ObjectRef {
+                object_number: 40,
+                generation: 0,
+            },
+            ObjectRef {
+                object_number: 41,
+                generation: 0,
+            },
+        ];
+        let negative_terminal = ObjectRef {
+            object_number: 42,
+            generation: 0,
+        };
+        let positive_aliases = [
+            ObjectRef {
+                object_number: 50,
+                generation: 0,
+            },
+            ObjectRef {
+                object_number: 51,
+                generation: 0,
+            },
+        ];
+        let positive_terminal = ObjectRef {
+            object_number: 52,
+            generation: 0,
+        };
+        let pdf = CountingPdf {
+            objects: HashMap::from([
+                (negative_terminal, PdfObject::Dictionary(BTreeMap::new())),
+                (
+                    positive_terminal,
+                    PdfObject::Dictionary(BTreeMap::from([(
+                        b"Font".to_vec(),
+                        PdfObject::Array(vec![
+                            PdfObject::Dictionary(BTreeMap::new()),
+                            PdfObject::Integer(10),
+                        ]),
+                    )])),
+                ),
+            ]),
+            terminals: HashMap::from([
+                (negative_aliases[0], negative_terminal),
+                (negative_aliases[1], negative_terminal),
+                (positive_aliases[0], positive_terminal),
+                (positive_aliases[1], positive_terminal),
+            ]),
+            bytes: Vec::new(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let mut extraction = Extraction::new(&pdf, ExtractionLimits::default());
+        let resources = |scope_id, negative, positive| Resources {
+            fonts: empty_map(scope_id),
+            xobjects: empty_map(scope_id + 1),
+            ext_gstates: Arc::new(ScopedResourceMap {
+                scope_id: scope_id + 2,
+                entries: BTreeMap::from([
+                    (
+                        b"Negative".to_vec(),
+                        Arc::new(PdfObject::Reference(negative)),
+                    ),
+                    (
+                        b"Positive".to_vec(),
+                        Arc::new(PdfObject::Reference(positive)),
+                    ),
+                ]),
+            }),
+        };
+        let first_resources = resources(60, negative_aliases[0], positive_aliases[0]);
+        let second_resources = resources(70, negative_aliases[1], positive_aliases[1]);
+        let operation = |name: &[u8]| Operation {
+            operands: vec![Operand::Name(name.to_vec())],
+            operator: b"gs".to_vec(),
+            index: 0,
+        };
+        let mut first_state = InterpreterState::default();
+        let mut second_state = InterpreterState::default();
+
+        extraction.apply_ext_gstate(&operation(b"Negative"), &first_resources, &mut first_state)?;
+        extraction.apply_ext_gstate(
+            &operation(b"Negative"),
+            &second_resources,
+            &mut second_state,
+        )?;
+        extraction.apply_ext_gstate(&operation(b"Positive"), &first_resources, &mut first_state)?;
+        extraction.apply_ext_gstate(
+            &operation(b"Positive"),
+            &second_resources,
+            &mut second_state,
+        )?;
+
+        assert_eq!(extraction.ext_gstate_fonts.len(), 2);
+        assert_eq!(extraction.bound_fonts.len(), 1);
+        assert!(Arc::ptr_eq(
+            first_state
+                .graphics
+                .font
+                .as_ref()
+                .expect("positive font should be selected"),
+            second_state
+                .graphics
+                .font
+                .as_ref()
+                .expect("positive font should be shared")
+        ));
+        assert_eq!(pdf.resolve_calls.load(Ordering::Relaxed), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn caches_shared_indirect_contents_without_losing_duplicates() -> Result<()> {
+        let aliases = [
+            ObjectRef {
+                object_number: 80,
+                generation: 0,
+            },
+            ObjectRef {
+                object_number: 81,
+                generation: 0,
+            },
+        ];
+        let array = ObjectRef {
+            object_number: 82,
+            generation: 0,
+        };
+        let stream = ObjectRef {
+            object_number: 83,
+            generation: 0,
+        };
+        let pdf = CountingPdf {
+            objects: HashMap::from([
+                (array, PdfObject::Array(vec![PdfObject::Reference(stream)])),
+                (stream, PdfObject::Stream(BTreeMap::new())),
+            ]),
+            terminals: HashMap::from([(aliases[0], array), (aliases[1], array)]),
+            bytes: Vec::new(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let mut extraction = Extraction::new(&pdf, ExtractionLimits::default());
+        let contents = PdfObject::Array(vec![
+            PdfObject::Reference(aliases[0]),
+            PdfObject::Reference(aliases[1]),
+        ]);
+
+        assert_eq!(
+            extraction.content_streams(Some(&contents))?,
+            [stream, stream]
+        );
+        assert_eq!(pdf.resolve_calls.load(Ordering::Relaxed), 2);
+        assert!(Arc::ptr_eq(
+            &extraction.content_stream_cache[&aliases[0]],
+            &extraction.content_stream_cache[&aliases[1]],
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn bounds_content_dag_summaries_by_stream_invocations() {
+        let reference = |object_number| ObjectRef {
+            object_number,
+            generation: 0,
+        };
+        let stream = reference(90);
+        let array_0 = reference(91);
+        let array_1 = reference(92);
+        let array_2 = reference(93);
+        let array_3 = reference(94);
+        let pdf = CountingPdf {
+            objects: HashMap::from([
+                (stream, PdfObject::Stream(BTreeMap::new())),
+                (
+                    array_0,
+                    PdfObject::Array(vec![PdfObject::Reference(stream)]),
+                ),
+                (
+                    array_1,
+                    PdfObject::Array(vec![
+                        PdfObject::Reference(array_0),
+                        PdfObject::Reference(array_0),
+                    ]),
+                ),
+                (
+                    array_2,
+                    PdfObject::Array(vec![
+                        PdfObject::Reference(array_1),
+                        PdfObject::Reference(array_1),
+                    ]),
+                ),
+                (
+                    array_3,
+                    PdfObject::Array(vec![
+                        PdfObject::Reference(array_2),
+                        PdfObject::Reference(array_2),
+                    ]),
+                ),
+            ]),
+            terminals: HashMap::new(),
+            bytes: Vec::new(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let mut extraction = Extraction::new(
+            &pdf,
+            ExtractionLimits {
+                max_stream_invocations: 4,
+                ..ExtractionLimits::default()
+            },
+        );
+        extraction.stream_invocations = 1;
+
+        assert_eq!(
+            extraction
+                .content_streams(Some(&PdfObject::Reference(array_2)))
+                .expect_err("the expanded DAG must exceed the remaining invocation budget"),
+            Error::LimitExceeded {
+                resource: "content stream invocations",
+                limit: 4,
+            }
+        );
+        assert!(extraction.content_stream_cache.contains_key(&array_1));
+        assert_eq!(extraction.content_stream_cache[&array_2].stream_count, 4);
+
+        assert_eq!(
+            extraction
+                .content_streams(Some(&PdfObject::Reference(array_3)))
+                .expect_err("the larger DAG must exceed the global invocation budget"),
+            Error::LimitExceeded {
+                resource: "content stream invocations",
+                limit: 4,
+            }
+        );
+        assert!(!extraction.content_stream_cache.contains_key(&array_3));
+    }
+
+    #[test]
+    fn caches_content_dag_structure_without_flattened_vectors() -> Result<()> {
+        const EXPANDED_STREAMS: usize = 1 << 22;
+        const DOUBLING_LEVELS: usize = 21;
+        const UNARY_WRAPPERS: usize = 64;
+
+        let reference = |object_number| ObjectRef {
+            object_number,
+            generation: 0,
+        };
+        let first_stream = reference(200);
+        let second_stream = reference(201);
+        let mut objects = HashMap::from([
+            (first_stream, PdfObject::Stream(BTreeMap::new())),
+            (second_stream, PdfObject::Stream(BTreeMap::new())),
+        ]);
+        let mut next_object_number = 202;
+        let mut root = reference(next_object_number);
+        objects.insert(
+            root,
+            PdfObject::Array(vec![
+                PdfObject::Reference(first_stream),
+                PdfObject::Reference(second_stream),
+            ]),
+        );
+        let mut retained_items = 2;
+
+        for _ in 0..DOUBLING_LEVELS {
+            next_object_number += 1;
+            let parent = reference(next_object_number);
+            objects.insert(
+                parent,
+                PdfObject::Array(vec![PdfObject::Reference(root), PdfObject::Reference(root)]),
+            );
+            root = parent;
+            retained_items += 2;
+        }
+        for _ in 0..UNARY_WRAPPERS {
+            next_object_number += 1;
+            let parent = reference(next_object_number);
+            objects.insert(parent, PdfObject::Array(vec![PdfObject::Reference(root)]));
+            root = parent;
+            retained_items += 1;
+        }
+
+        let pdf = CountingPdf {
+            objects,
+            terminals: HashMap::new(),
+            bytes: Vec::new(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let mut extraction = Extraction::new(
+            &pdf,
+            ExtractionLimits {
+                max_nesting_depth: 256,
+                max_stream_invocations: EXPANDED_STREAMS,
+                ..ExtractionLimits::default()
+            },
+        );
+
+        let streams = extraction.content_streams(Some(&PdfObject::Reference(root)))?;
+
+        assert_eq!(streams.len(), EXPANDED_STREAMS);
+        assert!(
+            streams
+                .chunks_exact(2)
+                .all(|pair| pair == [first_stream, second_stream])
+        );
+        let cached_items = extraction
+            .content_stream_cache
+            .values()
+            .map(|node| match &node.kind {
+                CachedContentNodeKind::Array(items) => items.len(),
+                CachedContentNodeKind::Stream(_) | CachedContentNodeKind::Null => 0,
+            })
+            .sum::<usize>();
+        assert_eq!(cached_items, retained_items);
+        assert_eq!(
+            extraction.content_stream_cache[&root].stream_count,
+            EXPANDED_STREAMS
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn counts_alternating_content_references_and_arrays() -> Result<()> {
+        let reference = |object_number| ObjectRef {
+            object_number,
+            generation: 0,
+        };
+        let stream = reference(100);
+        let inner_array = reference(101);
+        let outer_array = reference(102);
+        let pdf = CountingPdf {
+            objects: HashMap::from([
+                (stream, PdfObject::Stream(BTreeMap::new())),
+                (
+                    inner_array,
+                    PdfObject::Array(vec![PdfObject::Reference(stream)]),
+                ),
+                (
+                    outer_array,
+                    PdfObject::Array(vec![PdfObject::Reference(inner_array)]),
+                ),
+            ]),
+            terminals: HashMap::new(),
+            bytes: Vec::new(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let contents = PdfObject::Reference(outer_array);
+        let mut shallow = Extraction::new(
+            &pdf,
+            ExtractionLimits {
+                max_nesting_depth: 3,
+                ..ExtractionLimits::default()
+            },
+        );
+
+        assert_eq!(
+            shallow
+                .content_streams(Some(&contents))
+                .expect_err("the alternating chain has relative depth four"),
+            Error::LimitExceeded {
+                resource: "page Contents indirection depth",
+                limit: 3,
+            }
+        );
+
+        let mut exact = Extraction::new(
+            &pdf,
+            ExtractionLimits {
+                max_nesting_depth: 4,
+                ..ExtractionLimits::default()
+            },
+        );
+        assert_eq!(exact.content_streams(Some(&contents))?, [stream]);
+        Ok(())
+    }
+
+    #[test]
+    fn records_reference_relative_content_depth() -> Result<()> {
+        let reference = |object_number| ObjectRef {
+            object_number,
+            generation: 0,
+        };
+        let null = reference(105);
+        let empty_array = reference(106);
+        let stream = reference(107);
+        let stream_array = reference(108);
+        let pdf = CountingPdf {
+            objects: HashMap::from([
+                (null, PdfObject::Null),
+                (empty_array, PdfObject::Array(Vec::new())),
+                (stream, PdfObject::Stream(BTreeMap::new())),
+                (
+                    stream_array,
+                    PdfObject::Array(vec![PdfObject::Reference(stream)]),
+                ),
+            ]),
+            terminals: HashMap::new(),
+            bytes: Vec::new(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let mut extraction = Extraction::new(&pdf, ExtractionLimits::default());
+
+        assert!(
+            extraction
+                .content_streams(Some(&PdfObject::Reference(null)))?
+                .is_empty()
+        );
+        assert!(
+            extraction
+                .content_streams(Some(&PdfObject::Reference(empty_array)))?
+                .is_empty()
+        );
+        assert_eq!(
+            extraction.content_streams(Some(&PdfObject::Reference(stream_array)))?,
+            [stream]
+        );
+        assert_eq!(extraction.content_stream_cache[&null].nesting_depth, 1);
+        assert_eq!(
+            extraction.content_stream_cache[&empty_array].nesting_depth,
+            1
+        );
+        assert_eq!(
+            extraction.content_stream_cache[&stream_array].nesting_depth,
+            2
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn enforces_cached_content_depth_at_the_call_site() -> Result<()> {
+        let reference = |object_number| ObjectRef {
+            object_number,
+            generation: 0,
+        };
+        let stream = reference(110);
+        let array = reference(111);
+        let pdf = CountingPdf {
+            objects: HashMap::from([
+                (stream, PdfObject::Stream(BTreeMap::new())),
+                (array, PdfObject::Array(vec![PdfObject::Reference(stream)])),
+            ]),
+            terminals: HashMap::new(),
+            bytes: Vec::new(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let limits = ExtractionLimits {
+            max_nesting_depth: 2,
+            ..ExtractionLimits::default()
+        };
+        let mut extraction = Extraction::new(&pdf, limits);
+        let contents = PdfObject::Reference(array);
+
+        assert_eq!(extraction.content_streams(Some(&contents))?, [stream]);
+        assert_eq!(
+            extraction
+                .content_stream_cache
+                .get(&array)
+                .expect("the indirect array should be cached")
+                .nesting_depth,
+            2
+        );
+        let resolved_before_cache_hit = pdf.resolve_calls.load(Ordering::Relaxed);
+        let mut active = HashSet::new();
+        assert_eq!(
+            extraction
+                .summarize_content_object(&contents, 1, &mut active)
+                .expect_err("the cached relative depth must be applied to the new call depth"),
+            Error::LimitExceeded {
+                resource: "page Contents indirection depth",
+                limit: 2,
+            }
+        );
+        assert_eq!(
+            pdf.resolve_calls.load(Ordering::Relaxed),
+            resolved_before_cache_hit
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn does_not_cache_cyclic_content_nodes() {
+        let first = ObjectRef {
+            object_number: 120,
+            generation: 0,
+        };
+        let second = ObjectRef {
+            object_number: 121,
+            generation: 0,
+        };
+        let pdf = CountingPdf {
+            objects: HashMap::from([
+                (first, PdfObject::Array(vec![PdfObject::Reference(second)])),
+                (second, PdfObject::Array(vec![PdfObject::Reference(first)])),
+            ]),
+            terminals: HashMap::new(),
+            bytes: Vec::new(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let mut extraction = Extraction::new(&pdf, ExtractionLimits::default());
+
+        assert!(matches!(
+            extraction.content_streams(Some(&PdfObject::Reference(first))),
+            Err(Error::Unresolved(message)) if message.starts_with("cyclic page Contents reference")
+        ));
+        assert!(!extraction.content_stream_cache.contains_key(&first));
+        assert!(!extraction.content_stream_cache.contains_key(&second));
+    }
+}

@@ -8,12 +8,12 @@ use lopdf::{Dictionary, Document, LoadOptions, Object};
 use crate::{
     Error, Result,
     pdf::{
-        DecodedStream, ObjectRef, PageRef, ParseLimits, ParsedPdf, PdfDict, PdfObject, PdfParser,
-        PdfVersion, RawStream,
+        DecodedStream, ObjectRef, PageRef, ParseLimits, ParsedPage, ParsedPdf, PdfDict, PdfObject,
+        PdfParser, PdfVersion, RawStream, ResolvedObject,
     },
 };
 
-const INHERITABLE_PAGE_KEYS: [&[u8]; 4] = [b"Resources", b"MediaBox", b"CropBox", b"Rotate"];
+const INHERITABLE_PAGE_KEYS: [&[u8]; 3] = [b"MediaBox", b"CropBox", b"Rotate"];
 
 static LOPDF_PARSE_LOCK: Mutex<()> = Mutex::new(());
 static LOAD_OBJECT_BUDGET: Mutex<Option<ObjectBudget>> = Mutex::new(None);
@@ -70,12 +70,15 @@ impl PdfParser for LopdfParser {
 
         let version = effective_version(&document, limits)?;
         let page_tree = collect_pages(&document, limits)?;
+        let page_index = page_tree.pages.iter().copied().collect();
 
         Ok(Box::new(LopdfParsedPdf {
             document,
             limits,
             pages: page_tree.pages,
+            page_index,
             page_parents: page_tree.parents,
+            resource_cache: Mutex::new(HashMap::new()),
             version,
         }))
     }
@@ -85,12 +88,19 @@ struct LopdfParsedPdf {
     document: Document,
     limits: ParseLimits,
     pages: Vec<PageRef>,
+    page_index: HashSet<PageRef>,
     page_parents: HashMap<lopdf::ObjectId, Option<lopdf::ObjectId>>,
+    resource_cache: Mutex<HashMap<lopdf::ObjectId, Arc<PdfObject>>>,
     version: PdfVersion,
 }
 
 impl LopdfParsedPdf {
     fn resolve_object(&self, reference: ObjectRef) -> Result<&Object> {
+        self.resolve_object_with_id(reference)
+            .map(|(_, object)| object)
+    }
+
+    fn resolve_object_with_id(&self, reference: ObjectRef) -> Result<(lopdf::ObjectId, &Object)> {
         let mut current = to_lopdf_id(reference);
         let mut seen = HashSet::new();
 
@@ -110,7 +120,7 @@ impl LopdfParsedPdf {
             })?;
             match object {
                 Object::Reference(next) => current = *next,
-                _ => return Ok(object),
+                _ => return Ok((current, object)),
             }
         }
 
@@ -130,8 +140,23 @@ impl LopdfParsedPdf {
         convert_dictionary(dictionary, 0, self.limits.max_recursion_depth)
     }
 
-    fn page_dictionary_with_inheritance(&self, page: PageRef) -> Result<PdfDict> {
-        if !self.pages.contains(&page) {
+    fn cached_resource(&self, owner: lopdf::ObjectId, resource: &Object) -> Result<Arc<PdfObject>> {
+        let mut cache = lock_unpoisoned(&self.resource_cache);
+        if let Some(cached) = cache.get(&owner) {
+            return Ok(Arc::clone(cached));
+        }
+
+        let converted = Arc::new(convert_object(
+            resource,
+            1,
+            self.limits.max_recursion_depth,
+        )?);
+        cache.insert(owner, Arc::clone(&converted));
+        Ok(converted)
+    }
+
+    fn page_snapshot_with_inheritance(&self, page: PageRef) -> Result<ParsedPage> {
+        if !self.page_index.contains(&page) {
             return Err(Error::Backend(format!(
                 "reading page object {} {}: page is not in the page tree",
                 page.0.object_number, page.0.generation
@@ -139,7 +164,21 @@ impl LopdfParsedPdf {
         }
 
         let page_dictionary = self.object_dictionary(page.0, "reading page dictionary")?;
-        let mut converted = self.convert_dictionary(page_dictionary)?;
+        let mut converted = page_dictionary
+            .iter()
+            .filter(|(key, _)| key.as_slice() != b"Resources")
+            .map(|(key, value)| {
+                Ok((
+                    key.clone(),
+                    convert_object(value, 1, self.limits.max_recursion_depth)?,
+                ))
+            })
+            .collect::<Result<PdfDict>>()?;
+        let mut resources = page_dictionary
+            .get(b"Resources")
+            .ok()
+            .map(|resource| self.cached_resource(to_lopdf_id(page.0), resource))
+            .transpose()?;
         let mut parent = self
             .page_parents
             .get(&to_lopdf_id(page.0))
@@ -148,11 +187,19 @@ impl LopdfParsedPdf {
 
         for _ in 0..self.limits.max_recursion_depth {
             let Some(parent_reference) = parent else {
-                return Ok(converted);
+                return Ok(ParsedPage {
+                    dictionary: converted,
+                    resources,
+                });
             };
 
             let parent_dictionary =
                 self.object_dictionary(from_lopdf_id(parent_reference), "reading page parent")?;
+            if resources.is_none()
+                && let Ok(resource) = parent_dictionary.get(b"Resources")
+            {
+                resources = Some(self.cached_resource(parent_reference, resource)?);
+            }
             for key in INHERITABLE_PAGE_KEYS {
                 if converted.contains_key(key) {
                     continue;
@@ -182,7 +229,10 @@ impl LopdfParsedPdf {
                 self.limits.max_recursion_depth,
             ));
         }
-        Ok(converted)
+        Ok(ParsedPage {
+            dictionary: converted,
+            resources,
+        })
     }
 }
 
@@ -203,12 +253,34 @@ impl ParsedPdf for LopdfParsedPdf {
         )
     }
 
+    fn terminal_reference(&self, reference: ObjectRef) -> Result<ObjectRef> {
+        self.resolve_object_with_id(reference)
+            .map(|(terminal, _)| from_lopdf_id(terminal))
+    }
+
+    fn resolve_with_terminal(&self, reference: ObjectRef) -> Result<ResolvedObject> {
+        let (terminal, object) = self.resolve_object_with_id(reference)?;
+        Ok(ResolvedObject {
+            reference: from_lopdf_id(terminal),
+            object: convert_object(object, 0, self.limits.max_recursion_depth)?,
+        })
+    }
+
     fn pages(&self) -> Result<Vec<PageRef>> {
         Ok(self.pages.clone())
     }
 
     fn page_dict(&self, page: PageRef) -> Result<PdfDict> {
-        self.page_dictionary_with_inheritance(page)
+        let snapshot = self.page_snapshot_with_inheritance(page)?;
+        let mut dictionary = snapshot.dictionary;
+        if let Some(resources) = snapshot.resources {
+            dictionary.insert(b"Resources".to_vec(), resources.as_ref().clone());
+        }
+        Ok(dictionary)
+    }
+
+    fn page_snapshot(&self, page: PageRef) -> Result<ParsedPage> {
+        self.page_snapshot_with_inheritance(page)
     }
 
     fn raw_stream(&self, reference: ObjectRef) -> Result<RawStream> {

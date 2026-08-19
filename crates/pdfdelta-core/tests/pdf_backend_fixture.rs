@@ -386,6 +386,88 @@ fn parses_classic_xref_and_preserves_stream_evidence_and_page_inheritance() {
 }
 
 #[test]
+fn shares_inherited_page_resources_without_changing_page_dict() {
+    let (mut document, ids) = fixture_document(3);
+    let page_ids = document
+        .objects
+        .get(&ids.pages)
+        .expect("Pages root should exist")
+        .as_dict()
+        .expect("Pages root should be a dictionary")
+        .get(b"Kids")
+        .expect("Pages root should contain Kids")
+        .as_array()
+        .expect("Kids should be an array")
+        .iter()
+        .map(|object| object.as_reference().expect("Kid should be a reference"))
+        .collect::<Vec<_>>();
+    document
+        .objects
+        .get_mut(&ids.pages)
+        .expect("Pages root should exist")
+        .as_dict_mut()
+        .expect("Pages root should be a dictionary")
+        .set(
+            "Resources",
+            dictionary! { "Large" => vec![Object::Integer(7); 128] },
+        );
+    document
+        .objects
+        .get_mut(&page_ids[2])
+        .expect("leaf page should exist")
+        .as_dict_mut()
+        .expect("leaf page should be a dictionary")
+        .set("Resources", dictionary! { "Marker" => "Leaf" });
+
+    let pdf = parse(serialize_classic(document), limits()).expect("fixture should parse");
+    let pages = pdf.pages().expect("page tree should resolve");
+    let first = pdf
+        .page_snapshot(pages[0])
+        .expect("first page snapshot should resolve");
+    let second = pdf
+        .page_snapshot(pages[1])
+        .expect("second page snapshot should resolve");
+    let leaf = pdf
+        .page_snapshot(pages[2])
+        .expect("leaf page snapshot should resolve");
+    let first_resources = first.resources.as_ref().expect("resources should inherit");
+    let second_resources = second.resources.as_ref().expect("resources should inherit");
+    let leaf_resources = leaf
+        .resources
+        .as_ref()
+        .expect("leaf resources should resolve");
+
+    assert!(Arc::ptr_eq(first_resources, second_resources));
+    assert!(!Arc::ptr_eq(first_resources, leaf_resources));
+    assert!(!first.dictionary.contains_key(b"Resources".as_slice()));
+    assert!(!second.dictionary.contains_key(b"Resources".as_slice()));
+    assert!(!leaf.dictionary.contains_key(b"Resources".as_slice()));
+    assert_eq!(
+        pdf.page_dict(pages[0])
+            .expect("page dictionary should resolve")
+            .get(b"Resources".as_slice()),
+        Some(first_resources.as_ref())
+    );
+    assert!(matches!(
+        leaf_resources.as_ref(),
+        PdfObject::Dictionary(dictionary)
+            if dictionary.get(b"Marker".as_slice())
+                == Some(&PdfObject::Name(b"Leaf".to_vec()))
+    ));
+}
+
+#[test]
+fn rejects_page_snapshots_outside_the_page_tree() {
+    let (bytes, ids) = classic_fixture(1);
+    let pdf = parse(bytes, limits()).expect("fixture should parse");
+
+    assert!(matches!(
+        pdf.page_snapshot(pdfdelta_core::pdf::PageRef(object_ref(ids.marker))),
+        Err(Error::Backend(message)) if message.contains("page is not in the page tree")
+    ));
+}
+
+#[test]
 fn parses_xref_and_object_streams() {
     let bytes = handwritten_modern_fixture();
     assert!(
@@ -429,6 +511,28 @@ fn parses_xref_and_object_streams() {
         .decoded_stream(object_ref((6, 0)))
         .expect("object stream should decode on demand");
     assert_ne!(raw.bytes, decoded.bytes);
+}
+
+#[test]
+fn reports_the_terminal_reference_after_resolving_an_alias_chain() {
+    let (mut document, _) = fixture_document(1);
+    let terminal = document.add_object(dictionary! {
+        "Kind" => "SharedResource",
+    });
+    let second_alias = document.add_object(Object::Reference(terminal));
+    let first_alias = document.add_object(Object::Reference(second_alias));
+    let pdf = parse(serialize_classic(document), limits()).expect("fixture should parse");
+
+    assert_eq!(
+        pdf.terminal_reference(object_ref(first_alias))
+            .expect("terminal reference should resolve"),
+        object_ref(terminal)
+    );
+    let resolved = pdf
+        .resolve_with_terminal(object_ref(first_alias))
+        .expect("alias chain should resolve");
+    assert_eq!(resolved.reference, object_ref(terminal));
+    assert!(matches!(resolved.object, PdfObject::Dictionary(_)));
 }
 
 #[test]

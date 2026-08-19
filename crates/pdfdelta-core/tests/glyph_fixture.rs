@@ -116,6 +116,14 @@ fn parser_backed_source_preserves_glyph_evidence() {
                 max_glyphs: 10,
                 max_form_depth: 2,
                 max_nesting_depth: 4,
+                max_operators: 100,
+                max_stream_invocations: 10,
+                max_total_decoded_bytes: 4096,
+                max_operand_stack: 16,
+                max_operand_nodes: 64,
+                max_fonts: 4,
+                max_cmap_entries: 16,
+                max_string_bytes: 1024,
             },
         )
         .expect("fixture extraction should succeed");

@@ -3,6 +3,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use crate::Result;
 
 pub mod backend;
+pub(crate) mod content;
+pub(crate) mod font;
 
 pub use backend::LopdfParser;
 
@@ -76,12 +78,43 @@ pub struct DecodedStream {
     pub bytes: Vec<u8>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedObject {
+    /// The final indirect object reached after following a reference chain.
+    pub reference: ObjectRef,
+    pub object: PdfObject,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParsedPage {
+    pub dictionary: PdfDict,
+    pub resources: Option<Arc<PdfObject>>,
+}
+
 pub trait ParsedPdf: Send + Sync {
     fn version(&self) -> PdfVersion;
     fn trailer(&self) -> Result<PdfDict>;
     fn resolve(&self, reference: ObjectRef) -> Result<PdfObject>;
+    fn terminal_reference(&self, reference: ObjectRef) -> Result<ObjectRef> {
+        Ok(reference)
+    }
+    fn resolve_with_terminal(&self, reference: ObjectRef) -> Result<ResolvedObject> {
+        let terminal = self.terminal_reference(reference)?;
+        Ok(ResolvedObject {
+            reference: terminal,
+            object: self.resolve(terminal)?,
+        })
+    }
     fn pages(&self) -> Result<Vec<PageRef>>;
     fn page_dict(&self, page: PageRef) -> Result<PdfDict>;
+    fn page_snapshot(&self, page: PageRef) -> Result<ParsedPage> {
+        let mut dictionary = self.page_dict(page)?;
+        let resources = dictionary.remove(b"Resources".as_slice()).map(Arc::new);
+        Ok(ParsedPage {
+            dictionary,
+            resources,
+        })
+    }
     fn raw_stream(&self, reference: ObjectRef) -> Result<RawStream>;
     fn decoded_stream(&self, reference: ObjectRef) -> Result<DecodedStream>;
 }
