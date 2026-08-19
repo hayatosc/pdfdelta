@@ -21,7 +21,7 @@ pub struct PageId(pub u32);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FontId(pub u32);
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FontProgramHash(pub Vec<u8>);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

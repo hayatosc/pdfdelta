@@ -24,6 +24,7 @@ The current implementation provides:
 - relative Line-to-Block scoring across page breaks with preserved running-matter roles;
 - reversible raw/canonical normalization with scalar-indexed source maps, retained unmapped tokens, and auditable normalization events;
 - alignment-only compatibility folding and density-limited numeric masking that never changes exact canonical text;
+- unique exact anchors plus swappable n-gram inverted-index and exhaustive candidate generators;
 - the initial `pdfdelta --help` command surface.
 
 The first practical release is defined by five acceptance cases in [`SPEC.md`](SPEC.md): line-wrap-only and page-break-only changes produce no content changes, while replacement, paragraph insertion, and paragraph deletion each produce one exact change.

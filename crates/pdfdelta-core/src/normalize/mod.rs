@@ -42,7 +42,7 @@ pub struct SourceMapEntry {
     pub source: TextSource,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ComparableToken {
     Scalar(char),
     Unmapped {
