@@ -5,7 +5,10 @@ use crate::{
     model::{Document, Glyph, GlyphId, PageId, Rect, Vec2},
 };
 
-const HORIZONTAL_DIRECTION_TOLERANCE: f64 = 1.0e-6;
+use super::geometry::{
+    dot, interval_gap, interval_overlap_ratio, is_horizontal, length_squared, median, normalize,
+    perpendicular, projected_center, projected_extent, projected_interval,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct LineId(pub u64);
@@ -307,13 +310,18 @@ fn validate_glyph(glyph: &Glyph) -> Result<()> {
         return Err(invalid_glyph(glyph, "zero writing direction"));
     }
     let direction = normalize(glyph.direction);
-    if direction.y.abs() > HORIZONTAL_DIRECTION_TOLERANCE {
+    if !is_horizontal(direction) {
         return Err(Error::Unsupported(format!(
             "glyph {} uses a non-horizontal writing direction",
             glyph.id.0
         )));
     }
-    if projected_extent(glyph.bbox, perpendicular(direction)) <= f64::EPSILON {
+    let inline_extent = projected_extent(glyph.bbox, direction);
+    let cross_extent = projected_extent(glyph.bbox, perpendicular(direction));
+    if !inline_extent.is_finite() || !cross_extent.is_finite() {
+        return Err(invalid_glyph(glyph, "non-finite projected geometry"));
+    }
+    if cross_extent <= f64::EPSILON {
         return Err(invalid_glyph(glyph, "zero cross-axis extent"));
     }
     Ok(())
@@ -339,80 +347,6 @@ fn validate_unit_interval(name: &str, value: f64) -> Result<()> {
     Err(Error::InvalidConfiguration(format!(
         "{name} must be between 0 and 1"
     )))
-}
-
-fn normalize(vector: Vec2) -> Vec2 {
-    let length = length_squared(vector).sqrt();
-    Vec2 {
-        x: vector.x / length,
-        y: vector.y / length,
-    }
-}
-
-fn perpendicular(vector: Vec2) -> Vec2 {
-    Vec2 {
-        x: -vector.y,
-        y: vector.x,
-    }
-}
-
-fn length_squared(vector: Vec2) -> f64 {
-    vector.x * vector.x + vector.y * vector.y
-}
-
-fn dot(left: Vec2, right: Vec2) -> f64 {
-    left.x * right.x + left.y * right.y
-}
-
-fn projected_interval(rect: Rect, axis: Vec2) -> (f64, f64) {
-    let center = Vec2 {
-        x: (rect.min.x + rect.max.x) / 2.0,
-        y: (rect.min.y + rect.max.y) / 2.0,
-    };
-    let radius = (rect.max.x - rect.min.x) * axis.x.abs() / 2.0
-        + (rect.max.y - rect.min.y) * axis.y.abs() / 2.0;
-    let center_projection = dot(center, axis);
-    (center_projection - radius, center_projection + radius)
-}
-
-fn projected_center(rect: Rect, axis: Vec2) -> f64 {
-    let interval = projected_interval(rect, axis);
-    (interval.0 + interval.1) / 2.0
-}
-
-fn projected_extent(rect: Rect, axis: Vec2) -> f64 {
-    let interval = projected_interval(rect, axis);
-    interval.1 - interval.0
-}
-
-fn interval_gap(left: (f64, f64), right: (f64, f64)) -> f64 {
-    if left.1 < right.0 {
-        right.0 - left.1
-    } else if right.1 < left.0 {
-        left.0 - right.1
-    } else {
-        0.0
-    }
-}
-
-fn interval_overlap_ratio(left: (f64, f64), right: (f64, f64)) -> f64 {
-    let overlap = (left.1.min(right.1) - left.0.max(right.0)).max(0.0);
-    let shorter = (left.1 - left.0).min(right.1 - right.0);
-    if shorter <= f64::EPSILON {
-        0.0
-    } else {
-        overlap / shorter
-    }
-}
-
-fn median(mut values: Vec<f64>) -> f64 {
-    values.sort_by(f64::total_cmp);
-    let midpoint = values.len() / 2;
-    if values.len().is_multiple_of(2) {
-        (values[midpoint - 1] + values[midpoint]) / 2.0
-    } else {
-        values[midpoint]
-    }
 }
 
 fn is_whitespace(text: &crate::model::DecodedText) -> bool {
