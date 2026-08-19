@@ -1,5 +1,7 @@
 mod candidate;
 mod features;
+mod ordered;
+mod score;
 
 pub use candidate::{
     Candidate, CandidateGenerator, CandidateSource, ExhaustiveCandidateGenerator,
@@ -8,4 +10,8 @@ pub use candidate::{
 pub use features::{
     BlockFeatures, DEFAULT_ANCHOR_MIN_TOKENS, ExactAnchor, ExactHash, NGram, NGramSet,
     build_block_features, dice_similarity, exact_anchors,
+};
+pub use ordered::{
+    Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentOptions,
+    AlignmentSpan, align_ordered,
 };

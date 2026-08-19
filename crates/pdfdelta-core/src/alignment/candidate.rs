@@ -4,7 +4,7 @@ use crate::{Error, Result, layout::BlockId};
 
 use super::features::{BlockFeatures, ExactHash, NGram, dice_similarity};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CandidateSource {
     Exact,
     NGramInvertedIndex,

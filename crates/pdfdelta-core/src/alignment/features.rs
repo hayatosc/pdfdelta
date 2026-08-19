@@ -25,6 +25,7 @@ pub struct BlockFeatures {
     pub ngrams: NGramSet,
     pub ngram_size: usize,
     pub numeric_mask_applied: bool,
+    pub has_normalization_issues: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,10 +56,11 @@ pub fn build_block_features(blocks: &[BlockText], ngram_size: usize) -> Result<V
             block: block.block,
             exact_hash: exact_hash(&canonical_tokens),
             canonical_tokens,
-            ngrams: ngrams(&matching_tokens, ngram_size),
+            ngrams: token_ngrams(&matching_tokens, ngram_size),
             matching_tokens,
             ngram_size,
             numeric_mask_applied: block.numeric_mask_applied,
+            has_normalization_issues: !block.issues.is_empty(),
         });
     }
     Ok(features)
@@ -81,13 +83,17 @@ pub fn exact_anchors(
     let new_counts = exact_token_counts(new, min_token_count);
     let new_blocks = new
         .iter()
-        .filter(|features| features.canonical_tokens.len() >= min_token_count)
+        .filter(|features| {
+            !features.has_normalization_issues && features.canonical_tokens.len() >= min_token_count
+        })
         .map(|features| (features.canonical_tokens.clone(), features.block))
         .collect::<HashMap<_, _>>();
 
     Ok(old
         .iter()
-        .filter(|features| features.canonical_tokens.len() >= min_token_count)
+        .filter(|features| {
+            !features.has_normalization_issues && features.canonical_tokens.len() >= min_token_count
+        })
         .filter_map(|features| {
             let tokens = &features.canonical_tokens;
             (old_counts.get(tokens) == Some(&1) && new_counts.get(tokens) == Some(&1)).then(|| {
@@ -113,10 +119,9 @@ fn exact_token_counts(
     min_token_count: usize,
 ) -> HashMap<Vec<ComparableToken>, usize> {
     let mut counts = HashMap::new();
-    for features in features
-        .iter()
-        .filter(|features| features.canonical_tokens.len() >= min_token_count)
-    {
+    for features in features.iter().filter(|features| {
+        !features.has_normalization_issues && features.canonical_tokens.len() >= min_token_count
+    }) {
         *counts.entry(features.canonical_tokens.clone()).or_default() += 1;
     }
     counts
@@ -135,7 +140,7 @@ fn validate_feature_ids(side: &str, features: &[BlockFeatures]) -> Result<()> {
     Ok(())
 }
 
-fn ngrams(tokens: &[ComparableToken], size: usize) -> NGramSet {
+pub(crate) fn token_ngrams(tokens: &[ComparableToken], size: usize) -> NGramSet {
     if tokens.is_empty() {
         return HashSet::new();
     }
