@@ -76,6 +76,11 @@ fn reports_block_split_as_formatting_only() -> Result<()> {
 
     assert!(result.changes.is_empty());
     assert_eq!(result.formatting_changes.len(), 1);
+    assert_eq!(result.formatting_changes[0].old_span.separator, None);
+    assert_eq!(
+        result.formatting_changes[0].new_span.separator,
+        Some(BlockSeparator::Space)
+    );
     assert_eq!(
         result.formatting_changes[0].reasons,
         [FormattingReason::BlockStructure]
@@ -83,6 +88,46 @@ fn reports_block_split_as_formatting_only() -> Result<()> {
     assert_eq!(result.old_coverage.total_tokens, 11);
     assert_eq!(result.new_coverage.total_tokens, 10);
     assert_eq!(result.new_coverage.resolved_tokens, 10);
+    Ok(())
+}
+
+#[test]
+fn content_spans_retain_the_exact_multi_block_separator() -> Result<()> {
+    for (separator, old) in [
+        (
+            BlockSeparator::Concatenate,
+            [block(1, "alpha c"), block(2, "at")],
+        ),
+        (BlockSeparator::Space, [block(1, "alpha"), block(2, "cat")]),
+    ] {
+        let mut span = matched(&[1, 2], &[101]);
+        span.old_separator = Some(separator);
+        let result = compare_aligned(
+            &old,
+            &[block(101, "alpha cut")],
+            &aligned(vec![span]),
+            DiffOptions::default(),
+        )?;
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(
+            result.changes[0]
+                .old_span
+                .as_ref()
+                .expect("replacement should have an old span")
+                .separator,
+            Some(separator)
+        );
+        assert_eq!(
+            result.changes[0]
+                .new_span
+                .as_ref()
+                .expect("replacement should have a new span")
+                .separator,
+            None
+        );
+    }
     Ok(())
 }
 
@@ -157,6 +202,36 @@ fn excludes_unresolved_tokens_from_side_specific_coverage() -> Result<()> {
     assert_eq!(result.old_coverage.total_tokens, 7);
     assert_eq!(result.new_coverage.resolved_tokens, 1);
     assert_eq!(result.new_coverage.total_tokens, 8);
+    Ok(())
+}
+
+#[test]
+fn unresolved_multi_block_spans_record_effective_concatenate_separator() -> Result<()> {
+    let old = [block(1, "alpha"), block(2, "beta")];
+    let result = compare_aligned(
+        &old,
+        &[block(101, "unknown")],
+        &aligned(vec![unresolved(&[1, 2], &[101])]),
+        DiffOptions::default(),
+    )?;
+
+    let region = &result.unresolved_regions[0];
+    assert_eq!(
+        region
+            .old_span
+            .as_ref()
+            .expect("unresolved region should have an old span")
+            .separator,
+        Some(BlockSeparator::Concatenate)
+    );
+    assert_eq!(
+        region
+            .new_span
+            .as_ref()
+            .expect("unresolved region should have a new span")
+            .separator,
+        None
+    );
     Ok(())
 }
 

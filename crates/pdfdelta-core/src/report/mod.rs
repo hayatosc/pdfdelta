@@ -370,6 +370,16 @@ fn validate_text_span(context: &str, span: &TextSpan) -> Result<()> {
             "{context} text spans require at least one block"
         )));
     }
+    if span.blocks.len() == 1 && span.separator.is_some() {
+        return Err(Error::InvalidConfiguration(format!(
+            "{context} single-block text spans cannot have a block separator"
+        )));
+    }
+    if span.blocks.len() > 1 && span.separator.is_none() {
+        return Err(Error::InvalidConfiguration(format!(
+            "{context} multi-block text spans require a block separator"
+        )));
+    }
     if span.canonical_range.start > span.canonical_range.end
         || span.comparable_range.start > span.comparable_range.end
     {

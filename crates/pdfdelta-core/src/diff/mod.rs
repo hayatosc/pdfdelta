@@ -44,6 +44,7 @@ pub struct TokenRange {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextSpan {
     pub blocks: Vec<BlockId>,
+    pub separator: Option<BlockSeparator>,
     pub canonical_range: ScalarRange,
     pub comparable_range: TokenRange,
 }
@@ -560,6 +561,7 @@ impl Side<'_> {
     }
 
     fn canonical_group(&self, blocks: &[BlockId], separator: Option<BlockSeparator>) -> GroupText {
+        let separator = effective_group_separator(blocks.len(), separator);
         let mut tokens = Vec::new();
         for (position, block) in blocks.iter().enumerate() {
             let next = &self.canonical[self.index[block]];
@@ -571,7 +573,7 @@ impl Side<'_> {
                     .append(&mut tokens, next);
             }
         }
-        GroupText::new(blocks.to_vec(), tokens)
+        GroupText::new(blocks.to_vec(), separator, tokens)
     }
 
     fn raw_group(
@@ -579,6 +581,7 @@ impl Side<'_> {
         blocks: &[BlockId],
         separator: Option<BlockSeparator>,
     ) -> Result<GroupText> {
+        let separator = effective_group_separator(blocks.len(), separator);
         let mut tokens = Vec::new();
         for (position, block) in blocks.iter().enumerate() {
             let next = self.blocks[self.index[block]].raw.comparable_tokens()?;
@@ -590,18 +593,30 @@ impl Side<'_> {
                     .append(&mut tokens, &next);
             }
         }
-        Ok(GroupText::new(blocks.to_vec(), tokens))
+        Ok(GroupText::new(blocks.to_vec(), separator, tokens))
     }
+}
+
+fn effective_group_separator(
+    block_count: usize,
+    separator: Option<BlockSeparator>,
+) -> Option<BlockSeparator> {
+    (block_count > 1).then(|| separator.unwrap_or(BlockSeparator::Concatenate))
 }
 
 struct GroupText {
     blocks: Vec<BlockId>,
+    separator: Option<BlockSeparator>,
     tokens: Vec<ComparableToken>,
     scalar_boundaries: Vec<usize>,
 }
 
 impl GroupText {
-    fn new(blocks: Vec<BlockId>, tokens: Vec<ComparableToken>) -> Self {
+    fn new(
+        blocks: Vec<BlockId>,
+        separator: Option<BlockSeparator>,
+        tokens: Vec<ComparableToken>,
+    ) -> Self {
         let mut scalar_boundaries = Vec::with_capacity(tokens.len() + 1);
         let mut scalar_count = 0;
         scalar_boundaries.push(0);
@@ -613,6 +628,7 @@ impl GroupText {
         }
         Self {
             blocks,
+            separator,
             tokens,
             scalar_boundaries,
         }
@@ -625,6 +641,7 @@ impl GroupText {
     fn span(&self, start: usize, end: usize) -> TextSpan {
         TextSpan {
             blocks: self.blocks.clone(),
+            separator: self.separator,
             canonical_range: ScalarRange {
                 start: self.scalar_boundaries[start],
                 end: self.scalar_boundaries[end],

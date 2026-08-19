@@ -208,7 +208,7 @@ fn writes_json_report_atomically() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let json = fs::read_to_string(report).expect("JSON report should be readable");
-    assert!(json.contains("\"schema_version\": 2"));
+    assert!(json.contains("\"schema_version\": 3"));
     assert!(json.contains("\"content_changes\": 0"));
     assert_no_temporary_reports(&directory);
 }
@@ -292,7 +292,7 @@ fn unsupported_extraction_reports_without_false_changes() {
         &fs::read(report_path).expect("incomplete JSON report should be readable"),
     )
     .expect("incomplete JSON report should be valid");
-    assert_eq!(report["schema_version"], 2);
+    assert_eq!(report["schema_version"], 3);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["comparison_complete"], false);
     assert_eq!(report["summary"]["unsupported_extraction_issues"], 1);
@@ -484,7 +484,7 @@ fn assert_complete_json_report(
 ) {
     let json = fs::read_to_string(report_path).expect("JSON report should be readable");
     let report: Value = serde_json::from_str(&json).expect("JSON report should be valid");
-    assert_eq!(report["schema_version"], 2, "{report:#}");
+    assert_eq!(report["schema_version"], 3, "{report:#}");
     let summary = &report["summary"];
     assert_eq!(
         summary["content_changes"].as_u64(),

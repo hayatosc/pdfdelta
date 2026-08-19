@@ -1,6 +1,6 @@
 use pdfdelta_core::{
     Error, Result,
-    alignment::{AlignmentEvidence, CandidateSource},
+    alignment::{AlignmentEvidence, BlockSeparator, CandidateSource},
     diff::{
         Change, ChangeKind, ChangeTag, Comparison, Confidence, Coverage, FormattingChange,
         FormattingReason, TextSpan, TokenRange, UnresolvedRegion,
@@ -202,7 +202,7 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 2);
+    assert_eq!(json["schema_version"], 3);
     assert_eq!(json["summary"]["content_changes"], 1);
     assert_eq!(
         json["summary"]["old_alignment_coverage"]["resolved_tokens"],
@@ -210,6 +210,10 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
     );
     assert_eq!(json["summary"]["new_alignment_coverage"]["total_tokens"], 2);
     assert_eq!(json["changes"][0]["kind"], "replacement");
+    assert_eq!(
+        json["changes"][0]["old_span"]["block_separator"],
+        serde_json::Value::Null
+    );
     assert_eq!(
         json["changes"][0]["old_span"]["canonical_range"]["start"],
         1
@@ -226,6 +230,33 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
     assert_eq!(
         json["extraction"]["issues"][0]["description"],
         "unknown stream operator"
+    );
+    Ok(())
+}
+
+#[test]
+fn json_report_serializes_multi_block_separators() -> Result<()> {
+    let mut comparison = empty_comparison();
+    comparison.formatting_changes.push(FormattingChange {
+        old_span: group_span(&[1, 2], Some(BlockSeparator::Space)),
+        new_span: group_span(&[101, 102], Some(BlockSeparator::Concatenate)),
+        confidence: Confidence::High,
+        reasons: vec![FormattingReason::BlockStructure],
+    });
+    let mut output = Vec::new();
+
+    write_json(&mut output, &comparison, &ExtractionStatus::complete())?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("report should be valid JSON");
+
+    assert_eq!(json["schema_version"], 3);
+    assert_eq!(
+        json["formatting_only_changes"][0]["old_span"]["block_separator"],
+        "space"
+    );
+    assert_eq!(
+        json["formatting_only_changes"][0]["new_span"]["block_separator"],
+        "concatenate"
     );
     Ok(())
 }
@@ -369,6 +400,37 @@ fn rejects_invalid_public_change_and_region_shapes() {
             if message.contains("at least one block")
     ));
 
+    let mut single_block_separator = content_comparison();
+    single_block_separator.changes[0]
+        .old_span
+        .as_mut()
+        .expect("fixture replacement should have an old span")
+        .separator = Some(BlockSeparator::Space);
+    assert!(matches!(
+        summarize(
+            &single_block_separator,
+            &ExtractionStatus::complete()
+        ),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("single-block") && message.contains("separator")
+    ));
+
+    let mut missing_multi_block_separator = content_comparison();
+    missing_multi_block_separator.changes[0]
+        .old_span
+        .as_mut()
+        .expect("fixture replacement should have an old span")
+        .blocks
+        .push(BlockId(2));
+    assert!(matches!(
+        summarize(
+            &missing_multi_block_separator,
+            &ExtractionStatus::complete()
+        ),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("multi-block") && message.contains("separator")
+    ));
+
     let mut empty_change = content_comparison();
     empty_change.changes[0]
         .new_span
@@ -446,6 +508,7 @@ fn span(
 ) -> TextSpan {
     TextSpan {
         blocks: vec![BlockId(block)],
+        separator: None,
         canonical_range: ScalarRange {
             start: scalar_start,
             end: scalar_end,
@@ -454,5 +517,14 @@ fn span(
             start: token_start,
             end: token_end,
         },
+    }
+}
+
+fn group_span(blocks: &[u64], separator: Option<BlockSeparator>) -> TextSpan {
+    TextSpan {
+        blocks: blocks.iter().copied().map(BlockId).collect(),
+        separator,
+        canonical_range: ScalarRange { start: 0, end: 1 },
+        comparable_range: TokenRange { start: 0, end: 1 },
     }
 }

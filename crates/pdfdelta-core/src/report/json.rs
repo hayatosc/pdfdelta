@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::{
     Error, Result,
-    alignment::{AlignmentEvidence, CandidateSource},
+    alignment::{AlignmentEvidence, BlockSeparator, CandidateSource},
     diff::{
         Change, ChangeKind, ChangeTag, Comparison, Confidence, Coverage, FormattingChange,
         FormattingReason, TextSpan, UnresolvedRegion,
@@ -14,7 +14,7 @@ use crate::{
 
 use super::{ExtractionStatus, ReportSummary, issue_kind_name, side_name, summarize};
 
-const SCHEMA_VERSION: u32 = 2;
+const SCHEMA_VERSION: u32 = 3;
 
 pub fn write_json<W: Write>(
     mut writer: W,
@@ -221,6 +221,7 @@ impl From<&UnresolvedRegion> for JsonUnresolvedRegion {
 #[derive(Serialize)]
 struct JsonTextSpan {
     blocks: Vec<u64>,
+    block_separator: Option<&'static str>,
     canonical_range: JsonRange,
     comparable_range: JsonRange,
 }
@@ -229,6 +230,7 @@ impl From<&TextSpan> for JsonTextSpan {
     fn from(span: &TextSpan) -> Self {
         Self {
             blocks: span.blocks.iter().map(|block| block.0).collect(),
+            block_separator: span.separator.map(block_separator),
             canonical_range: JsonRange {
                 start: span.canonical_range.start,
                 end: span.canonical_range.end,
@@ -238,6 +240,13 @@ impl From<&TextSpan> for JsonTextSpan {
                 end: span.comparable_range.end,
             },
         }
+    }
+}
+
+fn block_separator(separator: BlockSeparator) -> &'static str {
+    match separator {
+        BlockSeparator::Concatenate => "concatenate",
+        BlockSeparator::Space => "space",
     }
 }
 
