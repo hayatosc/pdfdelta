@@ -1,6 +1,14 @@
-[package]
-name = "pdfdelta"
+[workspace]
+members = [
+    "crates/pdfdelta-bench",
+    "crates/pdfdelta-cli",
+    "crates/pdfdelta-core",
+]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
+[workspace.dependencies]
+clap = { version = "4", features = ["derive"] }

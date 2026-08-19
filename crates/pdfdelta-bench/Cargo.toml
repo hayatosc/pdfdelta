@@ -1,0 +1,8 @@
+[package]
+name = "pdfdelta-bench"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "pdfbench"
+path = "src/main.rs"
