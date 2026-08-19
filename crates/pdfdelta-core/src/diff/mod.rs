@@ -109,32 +109,44 @@ impl Default for DiffOptions {
     }
 }
 
+pub(crate) fn enforce_diff_token_budget(
+    old: &[BlockText],
+    new: &[BlockText],
+    options: DiffOptions,
+) -> Result<()> {
+    inspect_sides_with_budget(old, new, options).map(|_| ())
+}
+
+pub(crate) fn validate_diff_token_budget(options: DiffOptions) -> Result<()> {
+    if options.max_tokens == 0 {
+        return Err(Error::InvalidConfiguration(
+            "diff max_tokens must be greater than zero".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn enforce_diff_raw_token_budget(
+    old_tokens: usize,
+    new_tokens: usize,
+    options: DiffOptions,
+) -> Result<()> {
+    validate_diff_token_budget(options)?;
+    enforce_combined_token_budget(
+        "diff raw evidence tokens",
+        old_tokens,
+        new_tokens,
+        options.max_tokens,
+    )
+}
+
 pub fn compare_aligned(
     old: &[BlockText],
     new: &[BlockText],
     alignment: &Alignment,
     options: DiffOptions,
 ) -> Result<Comparison> {
-    if options.max_tokens == 0 {
-        return Err(Error::InvalidConfiguration(
-            "diff max_tokens must be greater than zero".to_owned(),
-        ));
-    }
-
-    let old = SidePlan::inspect("old", old)?;
-    let new = SidePlan::inspect("new", new)?;
-    enforce_token_budget(
-        "diff comparable tokens",
-        old.total_tokens,
-        new.total_tokens,
-        options.max_tokens,
-    )?;
-    enforce_token_budget(
-        "diff raw evidence tokens",
-        old.raw_tokens,
-        new.raw_tokens,
-        options.max_tokens,
-    )?;
+    let (old, new) = inspect_sides_with_budget(old, new, options)?;
     let old = old.materialize()?;
     let new = new.materialize()?;
     validate_alignment(&old, &new, alignment)?;
@@ -202,6 +214,30 @@ pub fn compare_aligned(
         old_coverage: coverage(resolved_old, old.total_tokens),
         new_coverage: coverage(resolved_new, new.total_tokens),
     })
+}
+
+fn inspect_sides_with_budget<'a>(
+    old: &'a [BlockText],
+    new: &'a [BlockText],
+    options: DiffOptions,
+) -> Result<(SidePlan<'a>, SidePlan<'a>)> {
+    validate_diff_token_budget(options)?;
+
+    let old = SidePlan::inspect("old", old)?;
+    let new = SidePlan::inspect("new", new)?;
+    enforce_combined_token_budget(
+        "diff comparable tokens",
+        old.total_tokens,
+        new.total_tokens,
+        options.max_tokens,
+    )?;
+    enforce_combined_token_budget(
+        "diff raw evidence tokens",
+        old.raw_tokens,
+        new.raw_tokens,
+        options.max_tokens,
+    )?;
+    Ok((old, new))
 }
 
 fn compare_match(
@@ -412,7 +448,7 @@ fn full_span(
     (!blocks.is_empty()).then(|| side.canonical_group(blocks, separator).full_span())
 }
 
-fn enforce_token_budget(
+fn enforce_combined_token_budget(
     resource: &'static str,
     old_tokens: usize,
     new_tokens: usize,

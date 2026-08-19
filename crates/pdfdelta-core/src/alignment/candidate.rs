@@ -20,6 +20,12 @@ pub struct Candidate {
 }
 
 pub trait CandidateGenerator {
+    /// Returns an upper bound on posting or feature visits performed by `candidates`.
+    ///
+    /// Implementations must never underestimate this work. They should return a conservative
+    /// value, including visits that do not ultimately produce a candidate.
+    fn estimated_visits(&self, old: &BlockFeatures, limit: usize) -> Result<usize>;
+
     fn candidates(&self, old: &BlockFeatures, limit: usize) -> Result<Vec<Candidate>>;
 }
 
@@ -94,6 +100,22 @@ struct CandidateEvidence {
 }
 
 impl CandidateGenerator for InvertedIndexCandidateGenerator {
+    fn estimated_visits(&self, old: &BlockFeatures, limit: usize) -> Result<usize> {
+        validate_query_ngram_size(self.ngram_size, old)?;
+        if limit == 0 {
+            return Ok(0);
+        }
+
+        let mut visits = self.exact_index.get(&old.exact_hash).map_or(0, Vec::len);
+        for ngram in &old.ngrams {
+            visits = visits.saturating_add(self.ngram_index.get(ngram).map_or(0, Vec::len));
+        }
+        if is_short(old) {
+            visits = visits.saturating_add(self.new_features.len());
+        }
+        Ok(visits)
+    }
+
     fn candidates(&self, old: &BlockFeatures, limit: usize) -> Result<Vec<Candidate>> {
         validate_query_ngram_size(self.ngram_size, old)?;
         if limit == 0 {
@@ -197,8 +219,20 @@ impl ExhaustiveCandidateGenerator {
 }
 
 impl CandidateGenerator for ExhaustiveCandidateGenerator {
+    fn estimated_visits(&self, old: &BlockFeatures, limit: usize) -> Result<usize> {
+        validate_query_ngram_size(self.ngram_size, old)?;
+        Ok(if limit == 0 {
+            0
+        } else {
+            self.new_features.len()
+        })
+    }
+
     fn candidates(&self, old: &BlockFeatures, limit: usize) -> Result<Vec<Candidate>> {
         validate_query_ngram_size(self.ngram_size, old)?;
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
         let mut candidates = self
             .new_features
             .iter()

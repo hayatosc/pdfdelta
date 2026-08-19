@@ -5,6 +5,7 @@ pub mod layout;
 pub mod model;
 pub mod normalize;
 pub mod pdf;
+pub mod pipeline;
 pub mod report;
 pub mod source;
 

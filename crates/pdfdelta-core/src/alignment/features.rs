@@ -35,11 +35,7 @@ pub struct ExactAnchor {
 }
 
 pub fn build_block_features(blocks: &[BlockText], ngram_size: usize) -> Result<Vec<BlockFeatures>> {
-    if ngram_size == 0 {
-        return Err(Error::InvalidConfiguration(
-            "ngram_size must be greater than zero".to_owned(),
-        ));
-    }
+    validate_ngram_size(ngram_size)?;
 
     let mut block_ids = HashSet::with_capacity(blocks.len());
     let mut features = Vec::with_capacity(blocks.len());
@@ -153,6 +149,46 @@ pub(crate) fn token_ngrams(tokens: &[ComparableToken], size: usize) -> NGramSet 
         .windows(size)
         .map(|window| NGram(window.to_vec()))
         .collect()
+}
+
+pub(crate) fn validate_ngram_size(size: usize) -> Result<()> {
+    if size == 0 {
+        return Err(Error::InvalidConfiguration(
+            "ngram_size must be greater than zero".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn estimate_ngram_token_elements(
+    blocks: &[BlockText],
+    size: usize,
+    limit: usize,
+) -> Result<usize> {
+    validate_ngram_size(size)?;
+    let mut total = 0_usize;
+    for block in blocks {
+        let token_count = block.matching_tokens.len();
+        let elements = if token_count == 0 {
+            Some(0)
+        } else if token_count <= size {
+            token_count.checked_mul(2)
+        } else {
+            token_count
+                .checked_sub(size)
+                .and_then(|windows| windows.checked_add(1))
+                .and_then(|windows| windows.checked_mul(size))
+        }
+        .ok_or(Error::LimitExceeded {
+            resource: "alignment n-gram token elements",
+            limit,
+        })?;
+        total = total.checked_add(elements).ok_or(Error::LimitExceeded {
+            resource: "alignment n-gram token elements",
+            limit,
+        })?;
+    }
+    Ok(total)
 }
 
 fn exact_hash(tokens: &[ComparableToken]) -> ExactHash {

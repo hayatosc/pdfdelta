@@ -40,6 +40,19 @@ pub struct LineOptions {
     pub space_gap_advance_ratio: f64,
 }
 
+impl Default for LineOptions {
+    fn default() -> Self {
+        Self {
+            max_baseline_distance_ratio: 0.25,
+            min_cross_axis_overlap_ratio: 0.25,
+            min_direction_similarity: 0.98,
+            max_inline_gap_font_size_ratio: 4.0,
+            space_gap_font_size_ratio: 0.2,
+            space_gap_advance_ratio: 0.5,
+        }
+    }
+}
+
 impl LineOptions {
     fn validate(self) -> Result<Self> {
         validate_non_negative(

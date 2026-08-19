@@ -62,7 +62,9 @@ pub struct Alignment {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AlignmentOptions {
     pub candidate_limit: usize,
+    pub max_candidate_visits: usize,
     pub anchor_min_tokens: usize,
+    pub max_dp_cells: usize,
     pub min_match_score: f64,
     pub min_score_margin: f64,
     pub gap_penalty: f64,
@@ -76,7 +78,9 @@ impl Default for AlignmentOptions {
     fn default() -> Self {
         Self {
             candidate_limit: 32,
+            max_candidate_visits: 1_000_000,
             anchor_min_tokens: super::DEFAULT_ANCHOR_MIN_TOKENS,
+            max_dp_cells: 1_000_000,
             min_match_score: 0.55,
             min_score_margin: 0.08,
             gap_penalty: 0.35,
@@ -95,9 +99,19 @@ impl AlignmentOptions {
                 "alignment candidate_limit must be greater than zero".to_owned(),
             ));
         }
+        if self.max_candidate_visits == 0 {
+            return Err(Error::InvalidConfiguration(
+                "alignment max_candidate_visits must be greater than zero".to_owned(),
+            ));
+        }
         if self.anchor_min_tokens == 0 {
             return Err(Error::InvalidConfiguration(
                 "alignment anchor_min_tokens must be greater than zero".to_owned(),
+            ));
+        }
+        if self.max_dp_cells == 0 {
+            return Err(Error::InvalidConfiguration(
+                "alignment max_dp_cells must be greater than zero".to_owned(),
             ));
         }
         for (name, value) in [
@@ -143,7 +157,13 @@ pub fn align_ordered(
         .enumerate()
         .map(|(index, features)| (features.block, index))
         .collect::<HashMap<_, _>>();
-    let candidate_map = collect_candidates(old, &new_indices, generator, options.candidate_limit)?;
+    let candidate_map = collect_candidates(
+        old,
+        &new_indices,
+        generator,
+        options.candidate_limit,
+        options.max_candidate_visits,
+    )?;
     let all_anchors = exact_anchors(old, new, options.anchor_min_tokens)?;
     let (main_anchors, move_candidates) = anchor_chain(&all_anchors, old, &new_indices)?;
     let old_indices = old
@@ -164,6 +184,7 @@ pub fn align_ordered(
     let mut old_start = 0;
     let mut new_start = 0;
     let mut has_left_anchor = false;
+    let mut remaining_dp_cells = options.max_dp_cells;
     for anchor in &main_anchors {
         let old_anchor = old_indices[&anchor.old];
         let new_anchor = new_indices[&anchor.new];
@@ -172,6 +193,7 @@ pub fn align_ordered(
             &new[new_start..new_anchor],
             &candidate_map,
             options,
+            &mut remaining_dp_cells,
             IntervalContext {
                 bounded_by_anchors: has_left_anchor,
                 contains_move_candidate: contains_move_candidate(
@@ -192,6 +214,7 @@ pub fn align_ordered(
         &new[new_start..],
         &candidate_map,
         options,
+        &mut remaining_dp_cells,
         IntervalContext {
             bounded_by_anchors: false,
             contains_move_candidate: contains_move_candidate(
@@ -218,7 +241,19 @@ fn collect_candidates(
     new_indices: &HashMap<BlockId, usize>,
     generator: &dyn CandidateGenerator,
     limit: usize,
+    max_visits: usize,
 ) -> Result<CandidateMap> {
+    let mut remaining_visits = max_visits;
+    for features in old {
+        let visits = generator.estimated_visits(features, limit)?;
+        remaining_visits = remaining_visits
+            .checked_sub(visits)
+            .ok_or(Error::LimitExceeded {
+                resource: "alignment candidate visits",
+                limit: max_visits,
+            })?;
+    }
+
     let mut all = HashMap::with_capacity(old.len());
     for features in old {
         let mut by_block = HashMap::<BlockId, Vec<CandidateSource>>::new();
@@ -280,27 +315,34 @@ fn anchor_chain(
     if positioned.is_empty() {
         return Ok((Vec::new(), Vec::new()));
     }
-    let mut lengths = vec![1_usize; positioned.len()];
+    let mut sorted_new_indices = positioned
+        .iter()
+        .map(|(_, _, new_index)| *new_index)
+        .collect::<Vec<_>>();
+    sorted_new_indices.sort_unstable();
+    sorted_new_indices.dedup();
+
     let mut previous = vec![None; positioned.len()];
-    for index in 0..positioned.len() {
-        for candidate in 0..index {
-            if positioned[candidate].2 < positioned[index].2
-                && lengths[candidate] + 1 > lengths[index]
-            {
-                lengths[index] = lengths[candidate] + 1;
-                previous[index] = Some(candidate);
-            }
-        }
+    let mut fenwick = vec![None; sorted_new_indices.len() + 1];
+    let mut chain_end = None;
+    for (index, (_, _, new_index)) in positioned.iter().enumerate() {
+        let rank = sorted_new_indices.partition_point(|candidate| candidate < new_index);
+        let predecessor = query_chain_tip(&fenwick, rank);
+        let tip = ChainTip {
+            length: predecessor.map_or(1, |tip| tip.length + 1),
+            position: index,
+        };
+        previous[index] = predecessor.map(|tip| tip.position);
+        update_chain_tip(&mut fenwick, rank + 1, tip);
+        chain_end = preferred_chain_tip(chain_end, Some(tip));
     }
-    let mut end = 0;
-    for index in 1..lengths.len() {
-        if lengths[index] > lengths[end] {
-            end = index;
-        }
-    }
-    let mut selected = HashSet::new();
+
+    let Some(mut end) = chain_end.map(|tip| tip.position) else {
+        return Ok((Vec::new(), Vec::new()));
+    };
+    let mut selected = vec![false; positioned.len()];
     loop {
-        selected.insert(end);
+        selected[end] = true;
         let Some(parent) = previous[end] else {
             break;
         };
@@ -310,13 +352,49 @@ fn anchor_chain(
     let mut main = Vec::new();
     let mut moves = Vec::new();
     for (index, (anchor, _, _)) in positioned.into_iter().enumerate() {
-        if selected.contains(&index) {
+        if selected[index] {
             main.push(anchor);
         } else {
             moves.push(anchor);
         }
     }
     Ok((main, moves))
+}
+
+#[derive(Clone, Copy)]
+struct ChainTip {
+    length: usize,
+    position: usize,
+}
+
+fn query_chain_tip(tree: &[Option<ChainTip>], mut end: usize) -> Option<ChainTip> {
+    let mut best = None;
+    while end > 0 {
+        best = preferred_chain_tip(best, tree[end]);
+        end &= end - 1;
+    }
+    best
+}
+
+fn update_chain_tip(tree: &mut [Option<ChainTip>], mut index: usize, tip: ChainTip) {
+    while index < tree.len() {
+        tree[index] = preferred_chain_tip(tree[index], Some(tip));
+        index += index & index.wrapping_neg();
+    }
+}
+
+fn preferred_chain_tip(current: Option<ChainTip>, candidate: Option<ChainTip>) -> Option<ChainTip> {
+    match (current, candidate) {
+        (None, candidate) => candidate,
+        (current, None) => current,
+        (Some(current), Some(candidate))
+            if candidate.length > current.length
+                || candidate.length == current.length && candidate.position < current.position =>
+        {
+            Some(candidate)
+        }
+        (current, Some(_)) => current,
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -330,6 +408,7 @@ fn align_interval(
     new: &[BlockFeatures],
     candidates: &CandidateMap,
     options: AlignmentOptions,
+    remaining_dp_cells: &mut usize,
     context: IntervalContext,
 ) -> Result<Vec<AlignmentSpan>> {
     if old.is_empty() && new.is_empty() {
@@ -354,8 +433,33 @@ fn align_interval(
         )]);
     }
 
-    let width = new.len() + 1;
-    let mut cells = vec![Cell::default(); (old.len() + 1) * width];
+    let width = new.len().checked_add(1).ok_or(Error::LimitExceeded {
+        resource: "alignment DP cells",
+        limit: options.max_dp_cells,
+    })?;
+    let height = old.len().checked_add(1).ok_or(Error::LimitExceeded {
+        resource: "alignment DP cells",
+        limit: options.max_dp_cells,
+    })?;
+    let cell_count = height.checked_mul(width).ok_or(Error::LimitExceeded {
+        resource: "alignment DP cells",
+        limit: options.max_dp_cells,
+    })?;
+    if cell_count > *remaining_dp_cells {
+        return Err(Error::LimitExceeded {
+            resource: "alignment DP cells",
+            limit: options.max_dp_cells,
+        });
+    }
+    *remaining_dp_cells -= cell_count;
+    let mut cells = Vec::new();
+    cells
+        .try_reserve_exact(cell_count)
+        .map_err(|_| Error::LimitExceeded {
+            resource: "alignment DP cells",
+            limit: options.max_dp_cells,
+        })?;
+    cells.resize(cell_count, Cell::default());
     cells[0].best = 0.0;
 
     for old_index in 0..=old.len() {

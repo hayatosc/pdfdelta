@@ -178,6 +178,30 @@ fn keeps_edited_short_blocks_in_the_candidate_set() {
 }
 
 #[test]
+fn estimates_repeated_short_block_visits_conservatively() {
+    let old = build_block_features(&[block_text(1, "id", "id", false)], 3)
+        .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text(2, "id", "id", false),
+            block_text(3, "id", "id", false),
+            block_text(4, "id", "id", false),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("index should be constructed");
+
+    assert_eq!(
+        generator
+            .estimated_visits(&old[0], 3)
+            .expect("visit estimate should succeed"),
+        15
+    );
+}
+
+#[test]
 fn falls_back_for_single_token_replacements_without_shared_content() {
     let old = build_block_features(&[block_text(1, "A", "A", false)], 3)
         .expect("old features should build");
@@ -233,6 +257,12 @@ fn exhaustive_generator_remains_an_all_pair_oracle() {
         .expect("candidate query should succeed");
 
     assert_eq!(candidates.len(), new.len());
+    assert_eq!(
+        generator
+            .estimated_visits(&old[0], usize::MAX)
+            .expect("visit estimate should succeed"),
+        new.len()
+    );
     assert_eq!(candidates[0].block, BlockId(11));
     assert_eq!(candidates[0].coarse_score, 1.0);
     assert!(

@@ -53,6 +53,29 @@ pub struct BlockOptions {
     pub min_repeated_margin_font_similarity: f64,
 }
 
+impl Default for BlockOptions {
+    fn default() -> Self {
+        Self {
+            vertical_proximity_weight: 0.25,
+            horizontal_overlap_weight: 0.25,
+            indent_similarity_weight: 0.25,
+            font_continuity_weight: 0.25,
+            min_join_score: 0.75,
+            max_vertical_gap_height_ratio: 0.8,
+            max_indent_height_ratio: 0.5,
+            min_horizontal_overlap_ratio: 0.8,
+            min_font_similarity: 0.8,
+            max_cross_page_indent_height_ratio: 0.25,
+            min_cross_page_horizontal_overlap_ratio: 0.9,
+            min_cross_page_font_similarity: 0.9,
+            max_cross_page_cadence_difference: 0.1,
+            repeated_edge_line_limit: 1,
+            repeated_min_pages: 3,
+            min_repeated_margin_font_similarity: 0.95,
+        }
+    }
+}
+
 impl BlockOptions {
     fn validate(self) -> Result<Self> {
         let weights = [

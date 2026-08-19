@@ -1,8 +1,10 @@
+use std::cell::Cell;
+
 use pdfdelta_core::{
-    Result,
+    Error, Result,
     alignment::{
         Alignment, AlignmentEvidence, AlignmentKind, AlignmentOptions, BlockFeatures,
-        BlockSeparator, Candidate, CandidateGenerator, CandidateSource,
+        BlockSeparator, Candidate, CandidateGenerator, CandidateSource, ExactHash,
         InvertedIndexCandidateGenerator, align_ordered, build_block_features,
     },
     layout::BlockId,
@@ -341,6 +343,138 @@ fn produces_the_same_result_when_candidate_order_changes() {
     assert_eq!(first, second);
 }
 
+#[test]
+fn bounds_aggregate_dp_cells_across_anchor_intervals() {
+    let old = build_block_features(
+        &[
+            block_text(1, OPENING),
+            block_text(2, "Old interval one"),
+            block_text(3, CLOSING),
+            block_text(4, "Old interval two"),
+            block_text(5, "Final anchor paragraph"),
+        ],
+        3,
+    )
+    .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text(101, OPENING),
+            block_text(102, "New interval one"),
+            block_text(103, CLOSING),
+            block_text(104, "New interval two"),
+            block_text(105, "Final anchor paragraph"),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("candidate index should build");
+    let mut at_limit = options();
+    at_limit.max_dp_cells = 8;
+
+    align_ordered(&old, &new, &generator, at_limit)
+        .expect("two four-cell anchor intervals should fit exactly");
+
+    let mut over_limit = at_limit;
+    over_limit.max_dp_cells = 7;
+    assert!(matches!(
+        align_ordered(&old, &new, &generator, over_limit),
+        Err(Error::LimitExceeded {
+            resource: "alignment DP cells",
+            limit: 7,
+        })
+    ));
+
+    let mut zero_limit = at_limit;
+    zero_limit.max_dp_cells = 0;
+    assert!(matches!(
+        align_ordered(&old, &new, &generator, zero_limit),
+        Err(Error::InvalidConfiguration(message)) if message.contains("max_dp_cells")
+    ));
+}
+
+#[test]
+fn bounds_aggregate_candidate_visits_before_generation() {
+    let old = build_block_features(&[block_text(1, "id"), block_text(2, "id")], 3)
+        .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text(101, "id"),
+            block_text(102, "id"),
+            block_text(103, "id"),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("candidate index should build");
+    let mut at_limit = options();
+    at_limit.max_candidate_visits = 30;
+
+    align_ordered(&old, &new, &generator, at_limit)
+        .expect("two fifteen-visit short-block queries should fit exactly");
+
+    let mut over_limit = at_limit;
+    over_limit.max_candidate_visits = 29;
+    assert!(matches!(
+        align_ordered(&old, &new, &generator, over_limit),
+        Err(Error::LimitExceeded {
+            resource: "alignment candidate visits",
+            limit: 29,
+        })
+    ));
+
+    let tracking = TrackingGenerator {
+        visits: 15,
+        calls: Cell::new(0),
+    };
+    assert!(matches!(
+        align_ordered(&old, &new, &tracking, over_limit),
+        Err(Error::LimitExceeded {
+            resource: "alignment candidate visits",
+            limit: 29,
+        })
+    ));
+    assert_eq!(tracking.calls.get(), 0);
+
+    let mut zero_limit = at_limit;
+    zero_limit.max_candidate_visits = 0;
+    assert!(matches!(
+        align_ordered(&old, &new, &generator, zero_limit),
+        Err(Error::InvalidConfiguration(message)) if message.contains("max_candidate_visits")
+    ));
+}
+
+#[test]
+fn chains_many_unique_anchors_in_n_log_n_time() {
+    const ANCHOR_COUNT: usize = 30_000;
+    let old = (0..ANCHOR_COUNT)
+        .map(|index| anchor_feature(index as u64 + 1, index))
+        .collect::<Vec<_>>();
+    let identity = (0..ANCHOR_COUNT)
+        .map(|index| anchor_feature(index as u64 + 100_001, index))
+        .collect::<Vec<_>>();
+    let reversed = (0..ANCHOR_COUNT)
+        .map(|index| anchor_feature(index as u64 + 200_001, ANCHOR_COUNT - index - 1))
+        .collect::<Vec<_>>();
+    let generator = EmptyGenerator;
+    let options = AlignmentOptions {
+        anchor_min_tokens: 1,
+        ..AlignmentOptions::default()
+    };
+
+    let identity =
+        align_ordered(&old, &identity, &generator, options).expect("identity anchors should align");
+    assert_eq!(identity.main_anchors.len(), ANCHOR_COUNT);
+    assert!(identity.move_candidates.is_empty());
+
+    let reversed = align_ordered(&old, &reversed, &generator, options)
+        .expect("reversed anchors should classify");
+    assert_eq!(reversed.main_anchors.len(), 1);
+    assert_eq!(reversed.main_anchors[0].old, BlockId(1));
+    assert_eq!(reversed.move_candidates.len(), ANCHOR_COUNT - 1);
+}
+
 fn align(old: Vec<BlockText>, new: Vec<BlockText>) -> Alignment {
     let old = build_block_features(&old, 3).expect("old features should build");
     let new = build_block_features(&new, 3).expect("new features should build");
@@ -361,6 +495,10 @@ struct MisleadingGenerator {
 }
 
 impl CandidateGenerator for MisleadingGenerator {
+    fn estimated_visits(&self, _old: &BlockFeatures, limit: usize) -> Result<usize> {
+        Ok(usize::from(limit > 0))
+    }
+
     fn candidates(&self, _old: &BlockFeatures, limit: usize) -> Result<Vec<Candidate>> {
         Ok((limit > 0)
             .then(|| Candidate {
@@ -377,7 +515,39 @@ struct OrderedGenerator {
     candidates: Vec<BlockId>,
 }
 
+struct TrackingGenerator {
+    visits: usize,
+    calls: Cell<usize>,
+}
+
+impl CandidateGenerator for TrackingGenerator {
+    fn estimated_visits(&self, _old: &BlockFeatures, _limit: usize) -> Result<usize> {
+        Ok(self.visits)
+    }
+
+    fn candidates(&self, _old: &BlockFeatures, _limit: usize) -> Result<Vec<Candidate>> {
+        self.calls.set(self.calls.get() + 1);
+        Ok(Vec::new())
+    }
+}
+
+struct EmptyGenerator;
+
+impl CandidateGenerator for EmptyGenerator {
+    fn estimated_visits(&self, _old: &BlockFeatures, _limit: usize) -> Result<usize> {
+        Ok(0)
+    }
+
+    fn candidates(&self, _old: &BlockFeatures, _limit: usize) -> Result<Vec<Candidate>> {
+        Ok(Vec::new())
+    }
+}
+
 impl CandidateGenerator for OrderedGenerator {
+    fn estimated_visits(&self, _old: &BlockFeatures, limit: usize) -> Result<usize> {
+        Ok(self.candidates.len().min(limit))
+    }
+
     fn candidates(&self, _old: &BlockFeatures, limit: usize) -> Result<Vec<Candidate>> {
         Ok(self
             .candidates
@@ -394,6 +564,21 @@ impl CandidateGenerator for OrderedGenerator {
 
 fn block_text(id: u64, text: &str) -> BlockText {
     block_text_with_matching(id, text, text, false)
+}
+
+fn anchor_feature(block: u64, key: usize) -> BlockFeatures {
+    let scalar = char::from_u32(0x1000 + key as u32).expect("fixture anchor key should be valid");
+    let tokens = vec![ComparableToken::Scalar(scalar)];
+    BlockFeatures {
+        block: BlockId(block),
+        exact_hash: ExactHash(key as u64),
+        canonical_tokens: tokens.clone(),
+        matching_tokens: tokens,
+        ngrams: Default::default(),
+        ngram_size: 3,
+        numeric_mask_applied: false,
+        has_normalization_issues: false,
+    }
 }
 
 fn block_text_with_matching(
