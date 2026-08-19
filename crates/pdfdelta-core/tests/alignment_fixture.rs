@@ -1,9 +1,9 @@
 use pdfdelta_core::{
     Result,
     alignment::{
-        Alignment, AlignmentEvidence, AlignmentKind, AlignmentOptions, BlockFeatures, Candidate,
-        CandidateGenerator, CandidateSource, InvertedIndexCandidateGenerator, align_ordered,
-        build_block_features,
+        Alignment, AlignmentEvidence, AlignmentKind, AlignmentOptions, BlockFeatures,
+        BlockSeparator, Candidate, CandidateGenerator, CandidateSource,
+        InvertedIndexCandidateGenerator, align_ordered, build_block_features,
     },
     layout::BlockId,
     normalize::{BlockText, ComparableToken, MappedText},
@@ -74,13 +74,13 @@ fn aligns_an_english_block_split_as_one_to_two() {
     let alignment = align(
         vec![
             block_text(1, OPENING),
-            block_text(2, "adult dose"),
+            block_text(2, "project log"),
             block_text(3, CLOSING),
         ],
         vec![
             block_text(101, OPENING),
-            block_text(102, "adult"),
-            block_text(103, "dose"),
+            block_text(102, "project"),
+            block_text(103, "log"),
             block_text(104, CLOSING),
         ],
     );
@@ -90,6 +90,7 @@ fn aligns_an_english_block_split_as_one_to_two() {
     assert_eq!(split.old, [BlockId(2)]);
     assert_eq!(split.new, [BlockId(102), BlockId(103)]);
     assert_eq!(split.score, 1.0);
+    assert_eq!(split.new_separator, Some(BlockSeparator::Space));
     assert!(split.evidence.contains(&AlignmentEvidence::SplitMerge));
 }
 
@@ -98,13 +99,13 @@ fn aligns_a_cjk_block_merge_without_inserting_a_space() {
     let alignment = align(
         vec![
             block_text(1, OPENING),
-            block_text(2, "通常、成人には"),
-            block_text(3, "投与する。"),
+            block_text(2, "設定を変更して"),
+            block_text(3, "保存する。"),
             block_text(4, CLOSING),
         ],
         vec![
             block_text(101, OPENING),
-            block_text(102, "通常、成人には投与する。"),
+            block_text(102, "設定を変更して保存する。"),
             block_text(103, CLOSING),
         ],
     );
@@ -114,6 +115,7 @@ fn aligns_a_cjk_block_merge_without_inserting_a_space() {
     assert_eq!(merge.old, [BlockId(2), BlockId(3)]);
     assert_eq!(merge.new, [BlockId(102)]);
     assert_eq!(merge.score, 1.0);
+    assert_eq!(merge.old_separator, Some(BlockSeparator::Concatenate));
 }
 
 #[test]
@@ -140,39 +142,43 @@ fn leaves_duplicate_tie_regions_unresolved() {
 
 #[test]
 fn accepts_numeric_mask_matches_only_with_anchor_context() {
-    let old_dose = block_text_with_matching(
+    let old_count = block_text_with_matching(
         2,
-        "The recommended dose is 10 mg daily.",
-        "The recommended dose is <NUM> mg daily.",
+        "The archive contains 10 files.",
+        "The archive contains <NUM> files.",
         true,
     );
-    let new_dose = block_text_with_matching(
+    let new_count = block_text_with_matching(
         102,
-        "The recommended dose is 20 mg daily.",
-        "The recommended dose is <NUM> mg daily.",
+        "The archive contains 20 files.",
+        "The archive contains <NUM> files.",
         true,
     );
     let alignment = align(
-        vec![block_text(1, OPENING), old_dose, block_text(3, CLOSING)],
-        vec![block_text(101, OPENING), new_dose, block_text(103, CLOSING)],
+        vec![block_text(1, OPENING), old_count, block_text(3, CLOSING)],
+        vec![
+            block_text(101, OPENING),
+            new_count,
+            block_text(103, CLOSING),
+        ],
     );
 
-    let dose = &alignment.spans[1];
-    assert_eq!(dose.kind, AlignmentKind::Match);
-    assert!(dose.evidence.contains(&AlignmentEvidence::NumericMask));
-    assert!(dose.evidence.contains(&AlignmentEvidence::AnchorInterval));
+    let count = &alignment.spans[1];
+    assert_eq!(count.kind, AlignmentKind::Match);
+    assert!(count.evidence.contains(&AlignmentEvidence::NumericMask));
+    assert!(count.evidence.contains(&AlignmentEvidence::AnchorInterval));
 
     let unsupported = align(
         vec![block_text_with_matching(
             1,
-            "The recommended dose is 10 mg daily.",
-            "The recommended dose is <NUM> mg daily.",
+            "The archive contains 10 files.",
+            "The archive contains <NUM> files.",
             true,
         )],
         vec![block_text_with_matching(
             101,
-            "The recommended dose is 20 mg daily.",
-            "The recommended dose is <NUM> mg daily.",
+            "The archive contains 20 files.",
+            "The archive contains <NUM> files.",
             true,
         )],
     );
@@ -186,14 +192,14 @@ fn masked_matches_cannot_confirm_each_other_as_neighbors() {
             block_text(1, "A"),
             block_text_with_matching(
                 2,
-                "The recommended dose is 10 mg daily.",
-                "The recommended dose is <NUM> mg daily.",
+                "The archive contains 10 files.",
+                "The archive contains <NUM> files.",
                 true,
             ),
             block_text_with_matching(
                 3,
-                "The infusion rate is 30 ml hourly.",
-                "The infusion rate is <NUM> ml hourly.",
+                "The backup contains 30 images.",
+                "The backup contains <NUM> images.",
                 true,
             ),
             block_text(4, "B"),
@@ -202,14 +208,14 @@ fn masked_matches_cannot_confirm_each_other_as_neighbors() {
             block_text(101, "A"),
             block_text_with_matching(
                 102,
-                "The recommended dose is 20 mg daily.",
-                "The recommended dose is <NUM> mg daily.",
+                "The archive contains 20 files.",
+                "The archive contains <NUM> files.",
                 true,
             ),
             block_text_with_matching(
                 103,
-                "The infusion rate is 40 ml hourly.",
-                "The infusion rate is <NUM> ml hourly.",
+                "The backup contains 40 images.",
+                "The backup contains <NUM> images.",
                 true,
             ),
             block_text(104, "B"),
@@ -232,22 +238,22 @@ fn masked_matches_cannot_confirm_each_other_as_neighbors() {
 fn rejected_masked_paths_cannot_displace_a_crossing_fuzzy_match() {
     let alignment = align(
         vec![
-            block_text(1, "Patient instructions are provided here."),
+            block_text(1, "Project instructions are provided here."),
             block_text_with_matching(
                 2,
-                "The recommended dose is 10 mg daily.",
-                "The recommended dose is <NUM> mg daily.",
+                "The archive contains 10 files.",
+                "The archive contains <NUM> files.",
                 true,
             ),
         ],
         vec![
             block_text_with_matching(
                 101,
-                "The recommended dose is 20 mg daily.",
-                "The recommended dose is <NUM> mg daily.",
+                "The archive contains 20 files.",
+                "The archive contains <NUM> files.",
                 true,
             ),
-            block_text(102, "Patient guidance is provided here."),
+            block_text(102, "Project guidance is provided here."),
         ],
     );
 
@@ -260,8 +266,8 @@ fn rejected_masked_paths_cannot_displace_a_crossing_fuzzy_match() {
 #[test]
 fn does_not_split_or_merge_outside_a_bounded_anchor_interval() {
     let alignment = align(
-        vec![block_text(1, "adult dose")],
-        vec![block_text(101, "adult"), block_text(102, "dose")],
+        vec![block_text(1, "project log")],
+        vec![block_text(101, "project"), block_text(102, "log")],
     );
 
     assert!(!alignment.spans.iter().any(|span| {

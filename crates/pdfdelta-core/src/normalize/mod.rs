@@ -68,19 +68,8 @@ pub struct MappedText {
 
 impl MappedText {
     pub fn comparable_tokens(&self) -> Result<Vec<ComparableToken>> {
-        let scalar_count = self.text.chars().count();
-        let mut previous_index = 0;
-        for token in &self.unmapped {
-            if token.scalar_index > scalar_count || token.scalar_index < previous_index {
-                return Err(Error::Unresolved(
-                    "unmapped token indices must be ordered scalar offsets within the text"
-                        .to_owned(),
-                ));
-            }
-            previous_index = token.scalar_index;
-        }
-
-        let mut tokens = Vec::with_capacity(scalar_count + self.unmapped.len());
+        let (scalar_count, token_count) = self.validated_token_counts()?;
+        let mut tokens = Vec::with_capacity(token_count);
         let mut unmapped_index = 0;
 
         for (index, scalar) in self.text.chars().enumerate() {
@@ -106,7 +95,34 @@ impl MappedText {
             });
         }
 
+        debug_assert_eq!(tokens.len(), scalar_count + self.unmapped.len());
         Ok(tokens)
+    }
+
+    pub(crate) fn comparable_token_count(&self) -> Result<usize> {
+        self.validated_token_counts().map(|(_, count)| count)
+    }
+
+    fn validated_token_counts(&self) -> Result<(usize, usize)> {
+        let scalar_count = self.text.chars().count();
+        let mut previous_index = 0;
+        for token in &self.unmapped {
+            if token.scalar_index > scalar_count || token.scalar_index < previous_index {
+                return Err(Error::Unresolved(
+                    "unmapped token indices must be ordered scalar offsets within the text"
+                        .to_owned(),
+                ));
+            }
+            previous_index = token.scalar_index;
+        }
+        let token_count =
+            scalar_count
+                .checked_add(self.unmapped.len())
+                .ok_or(Error::LimitExceeded {
+                    resource: "mapped text comparable tokens",
+                    limit: usize::MAX,
+                })?;
+        Ok((scalar_count, token_count))
     }
 }
 

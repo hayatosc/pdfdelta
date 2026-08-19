@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::{Error, Result, layout::BlockId};
 
 use super::{
-    BlockFeatures, CandidateGenerator, CandidateSource, ExactAnchor,
+    BlockFeatures, BlockSeparator, CandidateGenerator, CandidateSource, ExactAnchor,
     features::exact_anchors,
     score::{GroupScore, ScoreOptions, score_groups},
 };
@@ -48,6 +48,8 @@ pub struct AlignmentSpan {
     pub score: f64,
     pub confidence: AlignmentConfidence,
     pub evidence: Vec<AlignmentEvidence>,
+    pub old_separator: Option<BlockSeparator>,
+    pub new_separator: Option<BlockSeparator>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -590,6 +592,8 @@ fn backtrack(
                     score: 0.0,
                     confidence: AlignmentConfidence::Medium,
                     evidence: Vec::new(),
+                    old_separator: None,
+                    new_separator: None,
                 });
             }
             Transition::Insertion => {
@@ -601,6 +605,8 @@ fn backtrack(
                     score: 0.0,
                     confidence: AlignmentConfidence::Medium,
                     evidence: Vec::new(),
+                    old_separator: None,
+                    new_separator: None,
                 });
             }
         }
@@ -644,6 +650,8 @@ fn match_span(
             AlignmentConfidence::Medium
         },
         evidence,
+        old_separator: score.old_separator,
+        new_separator: score.new_separator,
     }
 }
 
@@ -679,6 +687,8 @@ fn anchor_span(anchor: ExactAnchor) -> AlignmentSpan {
         score: 1.0,
         confidence: AlignmentConfidence::High,
         evidence: vec![AlignmentEvidence::ExactCanonical, AlignmentEvidence::Anchor],
+        old_separator: None,
+        new_separator: None,
     }
 }
 
@@ -694,6 +704,8 @@ fn unresolved_span(
         score: 0.0,
         confidence: AlignmentConfidence::Low,
         evidence: vec![evidence],
+        old_separator: None,
+        new_separator: None,
     }
 }
 
@@ -786,6 +798,8 @@ fn unresolved_alignment_interval(spans: &[AlignmentSpan]) -> AlignmentSpan {
         score: 0.0,
         confidence: AlignmentConfidence::Low,
         evidence: vec![AlignmentEvidence::NumericMask],
+        old_separator: None,
+        new_separator: None,
     }
 }
 

@@ -15,3 +15,4 @@ pub use ordered::{
     Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentOptions,
     AlignmentSpan, align_ordered,
 };
+pub use score::BlockSeparator;

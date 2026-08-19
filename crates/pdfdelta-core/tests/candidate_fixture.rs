@@ -12,14 +12,14 @@ use pdfdelta_core::{
 fn builds_exact_features_from_canonical_not_masked_matching_text() {
     let old = block_text(
         1,
-        "The recommended dose is 10 mg daily.",
-        "The recommended dose is <NUM> mg daily.",
+        "The archive contains 10 files.",
+        "The archive contains <NUM> files.",
         true,
     );
     let new = block_text(
         2,
-        "The recommended dose is 20 mg daily.",
-        "The recommended dose is <NUM> mg daily.",
+        "The archive contains 20 files.",
+        "The archive contains <NUM> files.",
         true,
     );
     let features = build_block_features(&[old, new], 3).expect("features should build");
@@ -95,11 +95,11 @@ fn ranks_verified_exact_matches_first_in_the_inverted_index() {
 
 #[test]
 fn masked_number_matches_are_candidates_but_never_exact_sources() {
-    let matching = "The recommended dose is <NUM> mg daily.";
+    let matching = "The archive contains <NUM> files.";
     let old = build_block_features(
         &[block_text(
             1,
-            "The recommended dose is 10 mg daily.",
+            "The archive contains 10 files.",
             matching,
             true,
         )],
@@ -109,7 +109,7 @@ fn masked_number_matches_are_candidates_but_never_exact_sources() {
     let new = build_block_features(
         &[block_text(
             2,
-            "The recommended dose is 20 mg daily.",
+            "The archive contains 20 files.",
             matching,
             true,
         )],
@@ -129,9 +129,9 @@ fn masked_number_matches_are_candidates_but_never_exact_sources() {
 
 #[test]
 fn indexes_short_blocks_as_one_content_gram() {
-    let old = build_block_features(&[block_text(1, "mg", "mg", false)], 3)
+    let old = build_block_features(&[block_text(1, "id", "id", false)], 3)
         .expect("old features should build");
-    let new = build_block_features(&[block_text(2, "mg", "mg", false)], 3)
+    let new = build_block_features(&[block_text(2, "id", "id", false)], 3)
         .expect("new features should build");
     let generator =
         InvertedIndexCandidateGenerator::new(&new).expect("index should be constructed");
@@ -146,12 +146,12 @@ fn indexes_short_blocks_as_one_content_gram() {
 
 #[test]
 fn keeps_edited_short_blocks_in_the_candidate_set() {
-    let old = build_block_features(&[block_text(1, "mg", "mg", false)], 3)
+    let old = build_block_features(&[block_text(1, "id", "id", false)], 3)
         .expect("old features should build");
     let new = build_block_features(
         &[
-            block_text(2, "ml", "ml", false),
-            block_text(3, "kg", "kg", false),
+            block_text(2, "ip", "ip", false),
+            block_text(3, "ux", "ux", false),
         ],
         3,
     )

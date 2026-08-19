@@ -20,11 +20,11 @@ fn options() -> LineOptions {
 }
 
 #[test]
-fn reconstructs_one_column_japanese_lines_in_reading_order() {
+fn reconstructs_one_column_lines_in_reading_order() {
     let document = Document::new(vec![
-        glyph(3, "次", 0, 0.0, 80.0, 10.0, 10.0, 10.0, 80.0),
-        glyph(1, "旧", 0, 0.0, 100.0, 10.0, 10.0, 10.0, 100.0),
-        glyph(2, "版", 0, 11.0, 100.0, 10.0, 10.0, 10.0, 100.0),
+        glyph(3, "C", 0, 0.0, 80.0, 10.0, 10.0, 10.0, 80.0),
+        glyph(1, "A", 0, 0.0, 100.0, 10.0, 10.0, 10.0, 100.0),
+        glyph(2, "B", 0, 11.0, 100.0, 10.0, 10.0, 10.0, 100.0),
     ]);
 
     let lines = reconstruct_lines(&document, options()).expect("line reconstruction should work");
@@ -93,7 +93,7 @@ fn rejects_non_finite_glyph_geometry() {
 
 #[test]
 fn rejects_vertical_writing_before_vertical_benchmarks_exist() {
-    let mut vertical = glyph(1, "縦", 0, 0.0, 0.0, 10.0, 10.0, 10.0, 0.0);
+    let mut vertical = glyph(1, "V", 0, 0.0, 0.0, 10.0, 10.0, 10.0, 0.0);
     vertical.direction = Vec2 { x: 0.0, y: -1.0 };
     let document = Document::new(vec![vertical]);
     let mut permissive_options = options();

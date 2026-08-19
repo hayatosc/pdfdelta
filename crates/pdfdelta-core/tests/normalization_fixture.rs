@@ -45,13 +45,13 @@ fn preserves_reversible_raw_text_and_synthetic_spaces() {
 
 #[test]
 fn resolves_cjk_and_latin_soft_line_breaks() {
-    let cjk = normalize_mapped_lines(&["旧版で", "ある"]);
-    let latin = normalize_mapped_lines(&["adult", "dose"]);
-    let explicit_space = normalize_mapped_lines(&["adult ", "dose"]);
+    let cjk = normalize_mapped_lines(&["設定を", "保存する"]);
+    let latin = normalize_mapped_lines(&["project", "report"]);
+    let explicit_space = normalize_mapped_lines(&["project ", "report"]);
 
-    assert_eq!(cjk.canonical.text, "旧版である");
-    assert_eq!(latin.canonical.text, "adult dose");
-    assert_eq!(explicit_space.canonical.text, "adult dose");
+    assert_eq!(cjk.canonical.text, "設定を保存する");
+    assert_eq!(latin.canonical.text, "project report");
+    assert_eq!(explicit_space.canonical.text, "project report");
     assert!(cjk.normalization_events.iter().any(|event| {
         event.kind == NormalizationKind::SoftLineBreak
             && event.canonical_range.start == event.canonical_range.end
@@ -152,30 +152,30 @@ fn expands_typographic_ligatures_without_losing_the_glyph_source() {
 
 #[test]
 fn keeps_compatibility_width_differences() {
-    let full_width = normalize_mapped_lines(&["１０ mg"]);
-    let ascii = normalize_mapped_lines(&["10 mg"]);
+    let full_width = normalize_mapped_lines(&["１０ files"]);
+    let ascii = normalize_mapped_lines(&["10 files"]);
 
-    assert_eq!(full_width.canonical.text, "１０ mg");
+    assert_eq!(full_width.canonical.text, "１０ files");
     assert_ne!(full_width.canonical.text, ascii.canonical.text);
     assert_eq!(full_width.matching, ascii.matching);
 }
 
 #[test]
 fn masks_sparse_numbers_for_matching_without_changing_canonical_text() {
-    let old = normalize_mapped_lines(&["The recommended adult dose is 10 mg daily."]);
-    let new = normalize_mapped_lines(&["The recommended adult dose is 20 mg daily."]);
+    let old = normalize_mapped_lines(&["The archive contains 10 files in total."]);
+    let new = normalize_mapped_lines(&["The archive contains 20 files in total."]);
 
     assert_ne!(old.canonical.text, new.canonical.text);
     assert_eq!(old.matching, new.matching);
-    assert!(old.matching.contains("<NUM> mg"));
+    assert!(old.matching.contains("<NUM> files"));
     assert!(old.numeric_mask_applied);
     assert!(new.numeric_mask_applied);
 }
 
 #[test]
 fn falls_back_to_unmasked_matching_for_number_dense_text() {
-    let old = normalize_mapped_lines(&["10 mg"]);
-    let new = normalize_mapped_lines(&["20 mg"]);
+    let old = normalize_mapped_lines(&["10"]);
+    let new = normalize_mapped_lines(&["20"]);
 
     assert_ne!(old.matching, new.matching);
     assert!(!old.numeric_mask_applied);
@@ -184,9 +184,9 @@ fn falls_back_to_unmasked_matching_for_number_dense_text() {
 
 #[test]
 fn preserves_ambiguous_line_breaks_as_unresolved_evidence() {
-    let text = normalize_mapped_lines(&["dose:", "daily"]);
+    let text = normalize_mapped_lines(&["status:", "ready"]);
 
-    assert_eq!(text.canonical.text, "dose:\ndaily");
+    assert_eq!(text.canonical.text, "status:\nready");
     assert_eq!(text.issues.len(), 1);
     assert_eq!(
         text.issues[0].kind,
@@ -238,7 +238,7 @@ fn retains_unmapped_tokens_in_comparison_order() {
 
 #[test]
 fn canonical_text_is_idempotent() {
-    let first = normalize_mapped_lines(&["oﬃce  dose"]);
+    let first = normalize_mapped_lines(&["oﬃce  report"]);
     let second = normalize_mapped_lines(&[&first.canonical.text]);
 
     assert_eq!(second.canonical.text, first.canonical.text);

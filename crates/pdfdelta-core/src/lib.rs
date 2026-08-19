@@ -1,4 +1,5 @@
 pub mod alignment;
+pub mod diff;
 pub mod error;
 pub mod layout;
 pub mod model;

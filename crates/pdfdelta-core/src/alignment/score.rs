@@ -2,6 +2,24 @@ use crate::normalize::ComparableToken;
 
 use super::{BlockFeatures, dice_similarity, features::token_ngrams};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BlockSeparator {
+    Concatenate,
+    Space,
+}
+
+impl BlockSeparator {
+    pub(crate) fn append(self, combined: &mut Vec<ComparableToken>, next: &[ComparableToken]) {
+        let insert_space = self == Self::Space
+            && !combined.last().is_some_and(is_space)
+            && !next.first().is_some_and(is_space);
+        if insert_space {
+            combined.push(ComparableToken::Scalar(' '));
+        }
+        combined.extend_from_slice(next);
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ScoreOptions {
     pub matching_weight: f64,
@@ -16,12 +34,24 @@ pub(crate) struct GroupScore {
     pub exact_canonical: bool,
     pub numeric_mask: bool,
     pub separator_ambiguous: bool,
+    pub old_separator: Option<BlockSeparator>,
+    pub new_separator: Option<BlockSeparator>,
 }
 
 #[derive(Clone)]
 struct GroupVariant {
     canonical: Vec<ComparableToken>,
     matching: Vec<ComparableToken>,
+    separator: Option<BlockSeparator>,
+}
+
+#[derive(Clone, Copy)]
+struct VariantScore {
+    score: f64,
+    canonical_similarity: f64,
+    exact_canonical: bool,
+    old_separator: Option<BlockSeparator>,
+    new_separator: Option<BlockSeparator>,
 }
 
 pub(crate) fn score_groups(
@@ -53,24 +83,38 @@ pub(crate) fn score_groups(
                 options.matching_weight * matching_similarity
                     + options.canonical_weight * canonical_similarity
             };
-            scores.push((score, canonical_similarity, exact_canonical));
+            scores.push(VariantScore {
+                score,
+                canonical_similarity,
+                exact_canonical,
+                old_separator: old.separator,
+                new_separator: new.separator,
+            });
         }
     }
 
-    scores.sort_by(|left, right| right.0.total_cmp(&left.0));
-    let best = scores.first().copied().unwrap_or((0.0, 0.0, false));
+    scores.sort_by(|left, right| right.score.total_cmp(&left.score));
+    let best = scores.first().copied().unwrap_or(VariantScore {
+        score: 0.0,
+        canonical_similarity: 0.0,
+        exact_canonical: false,
+        old_separator: None,
+        new_separator: None,
+    });
     let separator_ambiguous = split_merge
         && scores
             .get(1)
-            .is_some_and(|second| best.0 - second.0 < options.min_score_margin)
-        && !best.2;
+            .is_some_and(|second| best.score - second.score < options.min_score_margin)
+        && !best.exact_canonical;
 
     GroupScore {
-        score: best.0,
-        canonical_similarity: best.1,
-        exact_canonical: best.2,
+        score: best.score,
+        canonical_similarity: best.canonical_similarity,
+        exact_canonical: best.exact_canonical,
         numeric_mask,
         separator_ambiguous,
+        old_separator: best.old_separator,
+        new_separator: best.new_separator,
     }
 }
 
@@ -79,23 +123,43 @@ fn group_variants(features: &[BlockFeatures]) -> Vec<GroupVariant> {
         return vec![GroupVariant {
             canonical: Vec::new(),
             matching: Vec::new(),
+            separator: None,
         }];
     };
     if features.len() == 1 {
         return vec![GroupVariant {
             canonical: first.canonical_tokens.clone(),
             matching: first.matching_tokens.clone(),
+            separator: None,
         }];
     }
 
     let second = &features[1];
     let mut variants = vec![GroupVariant {
-        canonical: concatenate(&first.canonical_tokens, &second.canonical_tokens, false),
-        matching: concatenate(&first.matching_tokens, &second.matching_tokens, false),
+        canonical: concatenate(
+            &first.canonical_tokens,
+            &second.canonical_tokens,
+            BlockSeparator::Concatenate,
+        ),
+        matching: concatenate(
+            &first.matching_tokens,
+            &second.matching_tokens,
+            BlockSeparator::Concatenate,
+        ),
+        separator: Some(BlockSeparator::Concatenate),
     }];
     let with_space = GroupVariant {
-        canonical: concatenate(&first.canonical_tokens, &second.canonical_tokens, true),
-        matching: concatenate(&first.matching_tokens, &second.matching_tokens, true),
+        canonical: concatenate(
+            &first.canonical_tokens,
+            &second.canonical_tokens,
+            BlockSeparator::Space,
+        ),
+        matching: concatenate(
+            &first.matching_tokens,
+            &second.matching_tokens,
+            BlockSeparator::Space,
+        ),
+        separator: Some(BlockSeparator::Space),
     };
     if variants[0].canonical != with_space.canonical || variants[0].matching != with_space.matching
     {
@@ -107,16 +171,11 @@ fn group_variants(features: &[BlockFeatures]) -> Vec<GroupVariant> {
 fn concatenate(
     first: &[ComparableToken],
     second: &[ComparableToken],
-    with_space: bool,
+    separator: BlockSeparator,
 ) -> Vec<ComparableToken> {
-    let insert_space =
-        with_space && !first.last().is_some_and(is_space) && !second.first().is_some_and(is_space);
-    let mut combined = Vec::with_capacity(first.len() + second.len() + usize::from(insert_space));
+    let mut combined = Vec::with_capacity(first.len() + second.len() + 1);
     combined.extend_from_slice(first);
-    if insert_space {
-        combined.push(ComparableToken::Scalar(' '));
-    }
-    combined.extend_from_slice(second);
+    separator.append(&mut combined, second);
     combined
 }
 

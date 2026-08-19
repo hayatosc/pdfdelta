@@ -26,6 +26,7 @@ The current implementation provides:
 - alignment-only compatibility folding and density-limited numeric masking that never changes exact canonical text;
 - unique exact anchors plus swappable n-gram inverted-index and exhaustive candidate generators;
 - deterministic anchor-interval alignment for 1:1, insert/delete, and constrained adjacent 1:2 or 2:1 matches, with ambiguous regions preserved as unresolved;
+- an in-house Myers diff over exact canonical and unmapped tokens, with contiguous change spans, formatting-only reports, side-specific coverage, and allocation-aware limits;
 - the initial `pdfdelta --help` command surface.
 
 The first practical release is defined by five acceptance cases in [`SPEC.md`](SPEC.md): line-wrap-only and page-break-only changes produce no content changes, while replacement, paragraph insertion, and paragraph deletion each produce one exact change.
