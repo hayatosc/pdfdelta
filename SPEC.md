@@ -8,7 +8,7 @@
 pdfdelta old.pdf new.pdf
 ```
 
-旧版に「通常、成人には1日10 mgを投与する。」とあり、新版で「1日20 mg」になっていれば、これを1件の置換として検出する。
+旧版の `Release 10 remains available.` が新版で `Release 20 remains available.` になっていれば、これを1件の置換として検出する。
 一方、文章内容が変わらないまま改行位置、改ページ位置、フォントサイズ、余白、段組、生成ソフトウェアだけが変わった場合は、変更に数えない。
 
 検出対象は、PDF内部表現の差ではなく、人間が文書として認識する内容の差である。
@@ -23,7 +23,7 @@ Raw PDF Evidence → Imperfect Structure → Robust Alignment → Exact Diff
 
 - 構造化(Line/Block復元)に100%の精度を要求しない。構造化の誤りはAlignmentで救う。
 - Alignmentでは多少の文字変更を許容して対応付ける。
-- 最後のExact Diffだけは変更を一切ごまかさない。10 mg → 20 mgのような小さな変更を絶対に消さない。
+- 最後のExact Diffだけは変更を一切ごまかさない。`Release 10` → `Release 20` のような小さな変更を絶対に消さない。
 - どの段階でも、確信が持てない場合は誤った結果を返さず UNRESOLVED として報告する。
 
 ### 1.2 普通のdiffが使えない理由
@@ -182,7 +182,7 @@ pdfdelta/
 ├ fixtures/
 ├ benchmark/
 │  ├ manifests/ expected/ generated/
-│  └ realworld/           # PMDA改訂ペア等 (§12.3)
+│  └ realworld/           # 人手review済みの公開改訂ペア (§12.3)
 └ fuzz/                   # このcrateのみnightly許容 (§12.6)
 ```
 
@@ -274,6 +274,8 @@ pub struct Change {
     pub tags: Vec<ChangeTag>,         // 例: CharacterWidth, OcrConfusion
 }
 ```
+
+`TextSpan`はBlock集合、複数Blockを結合した際の`BlockSeparator`、canonical文字範囲、comparable token範囲を保持する。単一Blockではseparatorを持たず、複数Blockでは`Concatenate`または`Space`を必須とする。これにより同じBlock集合でも結合方法によって変わる範囲indexを一意に解釈できる。
 
 変更の単位は「対応付いたBlock集合の上のcanonical文字範囲」とする。範囲indexは§8のUnicode scalar indexであり、`MappedText.source_map`を通じてGlyph、page、geometryへ逆写像できる。
 「1 replacement」とは、連続するcanonical文字範囲の置換1件を指す。
@@ -459,15 +461,15 @@ canonicalで吸収するのは、文章としての同一性に影響しない�
 
 Line境界は一律に空文字へ置換しない。同一Block内のsoft line breakについて、前後がLatin letter / digitなら原則single space、CJK同士なら原則empty、line-end hyphenationならhyphenとbreakを除去する。明示spaceが既にある場合は重複させない。判定が曖昧な場合はrawを保持してUNRESOLVEDまたは低confidenceのFormatting-onlyとし、単語を黙って連結しない。Paragraph境界はBlock境界でありcanonicalから除去しない。
 
-**吸収しない**：全角/半角の差(NFKC相当の互換分解)。全角半角の統一は文書種別によっては意味のある改訂であり(医薬品文書で実例がある)、暗黙に同一視してはいけない。NFKCではなくNFCを採用するのはこのためである。
+**吸収しない**：全角/半角の差(NFKC相当の互換分解)。全角半角の統一は識別子、型番、契約番号などで意味のある改訂になり得るため、暗黙に同一視してはいけない。NFKCではなくNFCを採用するのはこのためである。
 
 canonicalで差を吸収した場合、`NormalizationEvent { kind, raw_range, canonical_range, source }`として記録する。Alignment後、対応Block集合のold/newでrawは異なるがcanonicalが等しいeventをFormatting-onlyカテゴリ(§5.3)に計上する。隣接する同種eventは一つへmergeし、Glyph数やLine分割数の違いだけで件数が増えないようにする。rawに差があったのに出力上なかったことになる、という状態を作らない。
 
 ### 8.2 matching と数値マスク
 
-matchingはAlignmentだけに使う。全角半角の同一視、および `10 mg` / `20 mg` を対応させるための数値マスク(`<NUM> mg`)をここで許可する。
+matchingはAlignmentだけに使う。全角半角の同一視、および `Release 10` / `Release 20` を対応させるための数値マスク(`Release <NUM>`)をここで許可する。
 
-**マスクの安全策**：数値密度の高いBlock(用量表など)では、マスク後の文字列が行間でほぼ同一になり、誤った1:1対応から「一見正しい誤diff」が生まれる。これを防ぐため次を仕様とする。
+**マスクの安全策**：数値密度の高いBlock(価格表やrelease一覧など)では、マスク後の文字列が行間でほぼ同一になり、誤った1:1対応から「一見正しい誤diff」が生まれる。これを防ぐため次を仕様とする。
 
 - Blockのmatching文字列に占めるマスク由来文字の割合に上限を設け(初期値30%、benchmarkで調整)、超えたBlockはマスクなしmatchingへフォールバックする。
 - マスク一致のみによる対応付けは確定させない。anchor鎖内の位置整合またはneighbor consistency(§9.6)による裏付けを必須とする。
@@ -631,13 +633,13 @@ Canonical Document Spec(YAML)からPDFを生成する。
 
 ```yaml
 document:
-  title: 医薬品安全性情報
+  title: Quarterly Service Report
   sections:
-    - id: dosage
-      heading: 用法・用量
+    - id: availability
+      heading: Service availability
       paragraphs:
-        - id: dosage-p1
-          text: 通常、成人には1日10 mgを投与する。
+        - id: availability-p1
+          text: Release 10 remains available during the transition.
 ```
 
 生成には複数系統のrendererを使う(HTML/Chromium、Typst、LaTeX、custom Rust writer)。単一writerのPDFだけでテストすると、そのwriter固有の内部構造へoverfitするためである。low-level fixtureには`pdf-writer`、通常文書fixtureには`krilla`/Typstを参考にする。
@@ -649,15 +651,15 @@ Canonical Documentへ二種類のmutationを適用する。
 - **Semantic Mutation**(正解diffを発生させる)：TextReplace、TextInsert、TextDelete、NumberReplace、ParagraphInsert、ParagraphDelete、ParagraphMove
 - **Rendering Mutation**(content diffを発生させない)：FontSizeChange、MarginChange、PageSizeChange、LineHeightChange、LineBreakChange、PageBreakChange。`ColumnChange`はC1 benchmarkで有効化する。
 
-これにより「見た目は大幅変更 + 10 mg → 20 mgだけ内容変更」のようなケースを自動生成する。
+これにより「見た目は大幅変更 + `Release 10` → `Release 20` だけ内容変更」のようなケースを自動生成する。
 
 evaluatorは、報告されたChangeと期待Changeを、kind一致 + span重なり(閾値はIoUで定義)で照合する。この照合ルールとChangeスキーマ(§5.1)が確定していることがevaluator実装の前提であり、B3より前に固定する。
 
 ### 12.3 実データベンチマーク
 
-合成データだけではpdfdelta-bench固有の癖にoverfitする。real-world評価には、PMDAの添付文書改訂ペアと公開された改訂内容をsourceとして使う。ただし公開説明が必ずしもexact spanや全変更を機械可読で与えるとは仮定せず、採用pairごとに人手でreviewしたexpected manifestを作る。
+合成データだけではpdfdelta-bench固有の癖にoverfitする。real-world評価には、公開されている規程、policy、report、manualなどの改訂ペアを、利用条件を確認した上でsourceとして使う。ただし公開説明が必ずしもexact spanや全変更を機械可読で与えるとは仮定せず、採用pairごとに人手でreviewしたexpected manifestを作る。
 
-閾値と重みのチューニングは合成benchmarkで行い、人手review済みの実添付文書pairはholdoutとして評価にのみ使う。tuning用とevaluation用のデータを混ぜない。
+閾値と重みのチューニングは合成benchmarkで行い、人手review済みのreal-world pairはholdoutとして評価にのみ使う。tuning用とevaluation用のデータを混ぜない。
 
 ### 12.4 Differential Testing / Backend Conformance
 
@@ -698,7 +700,7 @@ cargo-fuzzはnightlyを要するため、fuzz crateのみstable制約(§3.5)の�
 - index build時間、query時間、memory。
 - ParagraphMove、改ページ、margin変更時にposition featureがrecallを落としていないこと。
 
-MinHash LSHのband数、signature長、K等は合成benchmarkで調整し、PMDA等のholdoutは評価にのみ使う。LSH導入前後で最終Changeの正解率が変わった場合、candidate recall低下をbugとして扱いdefault化しない。
+MinHash LSHのband数、signature長、K等は合成benchmarkで調整し、人手review済みのreal-world holdoutは評価にのみ使う。LSH導入前後で最終Changeの正解率が変わった場合、candidate recall低下をbugとして扱いdefault化しない。
 
 ---
 

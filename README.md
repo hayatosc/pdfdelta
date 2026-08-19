@@ -29,7 +29,8 @@ The current implementation provides:
 - an in-house Myers diff over exact canonical and unmapped tokens, with contiguous change spans, formatting-only reports, side-specific coverage, and allocation-aware limits;
 - text summaries and versioned JSON reports with explicit extraction completeness, unresolved regions, coverage, and CI-oriented exit decisions;
 - a public bounded pipeline from extracted glyphs through exact comparison;
-- end-to-end CLI comparison and backend or glyph inspection.
+- end-to-end CLI comparison and backend or glyph inspection;
+- a reproducible benchmark matrix that applies the five acceptance mutations to programmatic canonical documents, renders each case through literal-`Tj` and positioned-`TJ` PDF paths, and verifies change kind plus document-global span overlap.
 
 The comparison pipeline is covered by the five acceptance classes defined in [`SPEC.md`](SPEC.md): line-wrap-only and page-break-only changes produce no content changes, while a text replacement, paragraph insertion, and paragraph deletion each produce one exact change in the generic fixtures.
 
@@ -80,6 +81,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo run --bin pdfdelta -- --help
+cargo run -p pdfdelta-bench -- verify
 ```
 
 ## Usage
@@ -92,7 +94,7 @@ pdfdelta inspect document.pdf
 pdfdelta inspect document.pdf --glyphs
 ```
 
-Text reports are written to standard output. `--json PATH` writes a versioned JSON report to a new path instead and refuses to replace an existing file. Exit code `0` means no content changes, `1` means content changes were found, `2` means the comparison could not run, and `3` means `--strict` rejected an incomplete comparison.
+Text reports are written to standard output. `--json PATH` writes a version 3 JSON report to a new path instead and refuses to replace an existing file. Exit code `0` means no content changes, `1` means content changes were found, `2` means the comparison could not run, and `3` means `--strict` rejected an incomplete comparison.
 
 ## Current limitations
 
@@ -105,6 +107,7 @@ Text reports are written to standard output. `--json PATH` writes a versioned JS
 - Region-aware partial comparison, which would compare proven-safe extracted regions while excluding only affected pages, remains future work.
 - Atomic `--json` publication requires a filesystem with same-filesystem hard-link support. Other filesystems return exit code `2` without publishing the report.
 - Formatting-only reporting is best-effort and does not claim pixel-level rendering identity.
+- The current benchmark is intentionally small and in-memory: it uses printable ASCII with Type 1 Helvetica and two deterministic PDF construction paths. YAML manifests, independent external document engines, and reviewed real-world holdouts remain future validation work.
 
 ## Contributing
 
