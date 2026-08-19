@@ -21,6 +21,9 @@ struct Cli {
 
     #[arg(long, value_name = "PATH", requires = "new")]
     json: Option<PathBuf>,
+
+    #[arg(long, requires = "new")]
+    strict: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -39,7 +42,8 @@ fn main() -> ExitCode {
             let old = cli.old.as_deref().map_or("<missing>", path_display);
             let new = cli.new.as_deref().map_or("<missing>", path_display);
             let output = cli.json.as_deref().map_or("stdout", path_display);
-            eprintln!("comparison is not implemented yet: {old} -> {new} ({output})");
+            let mode = if cli.strict { "strict" } else { "default" };
+            eprintln!("comparison is not implemented yet: {old} -> {new} ({output}, {mode})");
         }
     }
     ExitCode::from(2)
@@ -47,4 +51,26 @@ fn main() -> ExitCode {
 
 fn path_display(path: &std::path::Path) -> &str {
     path.to_str().unwrap_or("<non-UTF-8 path>")
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::Parser;
+
+    use super::Cli;
+
+    #[test]
+    fn parses_strict_comparison_mode() {
+        let cli = Cli::try_parse_from(["pdfdelta", "old.pdf", "new.pdf", "--strict"])
+            .expect("strict comparison arguments should parse");
+
+        assert!(cli.strict);
+        assert_eq!(cli.old.as_deref(), Some(std::path::Path::new("old.pdf")));
+        assert_eq!(cli.new.as_deref(), Some(std::path::Path::new("new.pdf")));
+    }
+
+    #[test]
+    fn strict_mode_requires_a_new_document() {
+        assert!(Cli::try_parse_from(["pdfdelta", "old.pdf", "--strict"]).is_err());
+    }
 }

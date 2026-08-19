@@ -160,26 +160,32 @@ pub fn compare_aligned(
                 )?;
             }
             AlignmentKind::Deletion => {
-                resolved_old += old.source_token_count(&span.old);
-                let group = old.canonical_group(&span.old, span.old_separator);
-                changes.push(Change {
-                    kind: ChangeKind::Deletion,
-                    old_span: Some(group.full_span()),
-                    new_span: None,
-                    confidence: span.confidence.into(),
-                    tags: Vec::new(),
-                });
+                let source_tokens = old.source_token_count(&span.old);
+                resolved_old += source_tokens;
+                if source_tokens > 0 {
+                    let group = old.canonical_group(&span.old, span.old_separator);
+                    changes.push(Change {
+                        kind: ChangeKind::Deletion,
+                        old_span: Some(group.full_span()),
+                        new_span: None,
+                        confidence: span.confidence.into(),
+                        tags: Vec::new(),
+                    });
+                }
             }
             AlignmentKind::Insertion => {
-                resolved_new += new.source_token_count(&span.new);
-                let group = new.canonical_group(&span.new, span.new_separator);
-                changes.push(Change {
-                    kind: ChangeKind::Insertion,
-                    old_span: None,
-                    new_span: Some(group.full_span()),
-                    confidence: span.confidence.into(),
-                    tags: Vec::new(),
-                });
+                let source_tokens = new.source_token_count(&span.new);
+                resolved_new += source_tokens;
+                if source_tokens > 0 {
+                    let group = new.canonical_group(&span.new, span.new_separator);
+                    changes.push(Change {
+                        kind: ChangeKind::Insertion,
+                        old_span: None,
+                        new_span: Some(group.full_span()),
+                        confidence: span.confidence.into(),
+                        tags: Vec::new(),
+                    });
+                }
             }
             AlignmentKind::Unresolved => unresolved_regions.push(UnresolvedRegion {
                 old_span: full_span(&old, &span.old, span.old_separator),
@@ -336,8 +342,8 @@ fn validate_alignment(old: &Side<'_>, new: &Side<'_>, alignment: &Alignment) -> 
 fn validate_span_shape(span: &AlignmentSpan) -> Result<()> {
     let valid = match span.kind {
         AlignmentKind::Match => !span.old.is_empty() && !span.new.is_empty(),
-        AlignmentKind::Deletion => !span.old.is_empty() && span.new.is_empty(),
-        AlignmentKind::Insertion => span.old.is_empty() && !span.new.is_empty(),
+        AlignmentKind::Deletion => span.old.len() == 1 && span.new.is_empty(),
+        AlignmentKind::Insertion => span.old.is_empty() && span.new.len() == 1,
         AlignmentKind::Unresolved => !span.old.is_empty() || !span.new.is_empty(),
     };
     if valid {
@@ -356,6 +362,11 @@ fn validate_separator(
     separator: Option<BlockSeparator>,
     kind: AlignmentKind,
 ) -> Result<()> {
+    if kind != AlignmentKind::Match && separator.is_some() {
+        return Err(Error::Unresolved(format!(
+            "{side} alignment separators are only valid for matched block groups"
+        )));
+    }
     if blocks.len() <= 1 && separator.is_some() {
         return Err(Error::Unresolved(format!(
             "{side} alignment separator requires multiple blocks"

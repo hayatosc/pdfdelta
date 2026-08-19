@@ -6,6 +6,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {
     Backend(String),
+    Report(String),
     InvalidConfiguration(String),
     Unsupported(String),
     Unresolved(String),
@@ -19,6 +20,7 @@ impl fmt::Display for Error {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Backend(message) => write!(formatter, "backend error: {message}"),
+            Self::Report(message) => write!(formatter, "report error: {message}"),
             Self::InvalidConfiguration(message) => {
                 write!(formatter, "invalid configuration: {message}")
             }

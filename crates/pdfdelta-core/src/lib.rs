@@ -5,6 +5,7 @@ pub mod layout;
 pub mod model;
 pub mod normalize;
 pub mod pdf;
+pub mod report;
 pub mod source;
 
 pub use error::{Error, Result};

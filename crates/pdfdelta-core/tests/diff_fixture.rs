@@ -129,6 +129,21 @@ fn reports_aligned_insertions_and_deletions_as_resolved() -> Result<()> {
 }
 
 #[test]
+fn ignores_empty_one_sided_blocks_as_content_changes() -> Result<()> {
+    let result = compare_aligned(
+        &[],
+        &[block(101, "")],
+        &aligned(vec![one_sided(AlignmentKind::Insertion, &[], &[101])]),
+        DiffOptions::default(),
+    )?;
+
+    assert!(result.changes.is_empty());
+    assert_eq!(result.new_coverage.total_tokens, 0);
+    assert_eq!(result.new_coverage.ratio, 1.0);
+    Ok(())
+}
+
+#[test]
 fn excludes_unresolved_tokens_from_side_specific_coverage() -> Result<()> {
     let old = [block(1, "A"), block(2, "hidden")];
     let new = [block(101, "A"), block(102, "unknown")];
@@ -220,6 +235,24 @@ fn rejects_out_of_order_alignment_partitions() {
         result,
         Err(Error::Unresolved(message))
             if message.contains("source index 1, expected index 0")
+    ));
+}
+
+#[test]
+fn rejects_multi_block_one_sided_alignment_spans() {
+    let mut insertion = one_sided(AlignmentKind::Insertion, &[], &[101, 102]);
+    insertion.new_separator = Some(BlockSeparator::Space);
+    let result = compare_aligned(
+        &[],
+        &[block(101, ""), block(102, "")],
+        &aligned(vec![insertion]),
+        DiffOptions::default(),
+    );
+
+    assert!(matches!(
+        result,
+        Err(Error::Unresolved(message))
+            if message.contains("invalid Insertion alignment span shape")
     ));
 }
 

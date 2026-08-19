@@ -27,6 +27,7 @@ The current implementation provides:
 - unique exact anchors plus swappable n-gram inverted-index and exhaustive candidate generators;
 - deterministic anchor-interval alignment for 1:1, insert/delete, and constrained adjacent 1:2 or 2:1 matches, with ambiguous regions preserved as unresolved;
 - an in-house Myers diff over exact canonical and unmapped tokens, with contiguous change spans, formatting-only reports, side-specific coverage, and allocation-aware limits;
+- versioned text and JSON reports with explicit extraction completeness, unresolved regions, coverage, and CI-oriented exit decisions;
 - the initial `pdfdelta --help` command surface.
 
 The first practical release is defined by five acceptance cases in [`SPEC.md`](SPEC.md): line-wrap-only and page-break-only changes produce no content changes, while replacement, paragraph insertion, and paragraph deletion each produce one exact change.
@@ -55,6 +56,8 @@ The core design rules are:
 
 Unicode conformance is delegated to the [`unicode-normalization`](https://github.com/unicode-rs/unicode-normalization) and [`unicode-segmentation`](https://github.com/unicode-rs/unicode-segmentation) crates from the `unicode-rs` organization. Their use is confined to the normalization module, and `Cargo.lock` pins the reviewed versions so either implementation can be replaced behind that boundary if its maintenance posture changes.
 
+Typed JSON serialization uses [`serde`](https://github.com/serde-rs/serde) and [`serde_json`](https://github.com/serde-rs/json). Both are confined to the report module rather than the diff model; the lockfile pins reviewed releases, and the versioned report DTO is the replacement boundary if their maintenance posture changes.
+
 See [`SPEC.md`](SPEC.md) for the authoritative technical design and roadmap.
 
 ## Workspace
@@ -82,6 +85,7 @@ The planned CLI forms are:
 pdfdelta inspect document.pdf
 pdfdelta old.pdf new.pdf
 pdfdelta old.pdf new.pdf --json result.json
+pdfdelta old.pdf new.pdf --strict
 ```
 
 These comparison and inspection operations currently return a not-implemented error. Check the status section before relying on any command beyond `--help`.
