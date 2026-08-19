@@ -1,0 +1,428 @@
+use std::collections::HashSet;
+
+use crate::{
+    Error, Result,
+    model::{Document, Glyph, GlyphId, PageId, Rect, Vec2},
+};
+
+const HORIZONTAL_DIRECTION_TOLERANCE: f64 = 1.0e-6;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct LineId(pub u64);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SyntheticSpace {
+    pub preceding: GlyphId,
+    pub following: GlyphId,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Line {
+    pub id: LineId,
+    pub page: PageId,
+    pub glyphs: Vec<GlyphId>,
+    pub synthetic_spaces: Vec<SyntheticSpace>,
+    pub bbox: Rect,
+    pub baseline: Vec2,
+    pub direction: Vec2,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LineOptions {
+    pub max_baseline_distance_ratio: f64,
+    pub min_cross_axis_overlap_ratio: f64,
+    pub min_direction_similarity: f64,
+    pub max_inline_gap_font_size_ratio: f64,
+    pub space_gap_font_size_ratio: f64,
+    pub space_gap_advance_ratio: f64,
+}
+
+impl LineOptions {
+    fn validate(self) -> Result<Self> {
+        validate_non_negative(
+            "max_baseline_distance_ratio",
+            self.max_baseline_distance_ratio,
+        )?;
+        validate_unit_interval(
+            "min_cross_axis_overlap_ratio",
+            self.min_cross_axis_overlap_ratio,
+        )?;
+        validate_unit_interval("min_direction_similarity", self.min_direction_similarity)?;
+        validate_non_negative(
+            "max_inline_gap_font_size_ratio",
+            self.max_inline_gap_font_size_ratio,
+        )?;
+        validate_non_negative("space_gap_font_size_ratio", self.space_gap_font_size_ratio)?;
+        validate_non_negative("space_gap_advance_ratio", self.space_gap_advance_ratio)?;
+        Ok(self)
+    }
+}
+
+pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Result<Vec<Line>> {
+    let options = options.validate()?;
+    let mut glyph_ids = HashSet::with_capacity(document.items().len());
+    let mut glyphs = Vec::with_capacity(document.items().len());
+
+    for glyph in document.items() {
+        validate_glyph(glyph)?;
+        if !glyph_ids.insert(glyph.id) {
+            return Err(Error::Unresolved(format!(
+                "duplicate glyph id {}",
+                glyph.id.0
+            )));
+        }
+        glyphs.push(glyph);
+    }
+
+    glyphs.sort_by(|left, right| {
+        left.page
+            .0
+            .cmp(&right.page.0)
+            .then(left.render_order.cmp(&right.render_order))
+            .then(left.id.0.cmp(&right.id.0))
+    });
+
+    let mut working_lines = Vec::<WorkingLine<'_>>::new();
+    for glyph in glyphs {
+        // deliberate: use an O(glyphs × lines) scan until B1 benchmarks show layout clustering
+        // dominates; switch to page-local spatial bins when that measured trigger is reached.
+        let mut best = None;
+        for (index, line) in working_lines.iter().enumerate() {
+            let Some(score) = line.candidate_score(glyph, options) else {
+                continue;
+            };
+            if best.is_none_or(|(_, best_score)| score < best_score) {
+                best = Some((index, score));
+            }
+        }
+
+        if let Some((index, _)) = best {
+            working_lines[index].glyphs.push(glyph);
+        } else {
+            working_lines.push(WorkingLine {
+                page: glyph.page,
+                glyphs: vec![glyph],
+            });
+        }
+    }
+
+    working_lines.sort_by(|left, right| {
+        let left_bbox = left.bbox();
+        let right_bbox = right.bbox();
+        left.page
+            .0
+            .cmp(&right.page.0)
+            .then(right_bbox.max.y.total_cmp(&left_bbox.max.y))
+            .then(left_bbox.min.x.total_cmp(&right_bbox.min.x))
+    });
+
+    Ok(working_lines
+        .into_iter()
+        .enumerate()
+        .map(|(index, line)| line.finish(LineId(index as u64), options))
+        .collect())
+}
+
+struct WorkingLine<'a> {
+    page: PageId,
+    glyphs: Vec<&'a Glyph>,
+}
+
+impl WorkingLine<'_> {
+    fn candidate_score(&self, glyph: &Glyph, options: LineOptions) -> Option<f64> {
+        if self.page != glyph.page {
+            return None;
+        }
+
+        let direction = self.direction();
+        let glyph_direction = normalize(glyph.direction);
+        let direction_similarity = dot(direction, glyph_direction);
+        if direction_similarity < options.min_direction_similarity {
+            return None;
+        }
+
+        let cross_axis = perpendicular(direction);
+        let median_height = self.median_projected_height(cross_axis);
+        let baseline = median(
+            self.glyphs
+                .iter()
+                .map(|item| dot(item.baseline, cross_axis))
+                .collect(),
+        );
+        let baseline_distance = (dot(glyph.baseline, cross_axis) - baseline).abs();
+        let baseline_close =
+            baseline_distance <= options.max_baseline_distance_ratio * median_height;
+        let cross_overlap = interval_overlap_ratio(
+            self.projected_interval(cross_axis),
+            projected_interval(glyph.bbox, cross_axis),
+        );
+        if !baseline_close && cross_overlap < options.min_cross_axis_overlap_ratio {
+            return None;
+        }
+
+        let inline_gap = interval_gap(
+            self.projected_interval(direction),
+            projected_interval(glyph.bbox, direction),
+        );
+        let median_font_size = median(self.glyphs.iter().map(|item| item.font_size).collect());
+        let gap_scale = median_font_size.max(glyph.font_size);
+        if inline_gap > options.max_inline_gap_font_size_ratio * gap_scale {
+            return None;
+        }
+
+        Some(
+            baseline_distance / median_height
+                + inline_gap / gap_scale
+                + (1.0 - direction_similarity),
+        )
+    }
+
+    fn finish(mut self, id: LineId, options: LineOptions) -> Line {
+        let direction = self.direction();
+        self.glyphs.sort_by(|left, right| {
+            projected_center(left.bbox, direction)
+                .total_cmp(&projected_center(right.bbox, direction))
+                .then(left.render_order.cmp(&right.render_order))
+        });
+
+        let synthetic_spaces = reconstruct_spaces(&self.glyphs, direction, options);
+        let bbox = self.bbox();
+        let mut baseline_anchor = self.glyphs[0];
+        for glyph in &self.glyphs[1..] {
+            if glyph.font_size > baseline_anchor.font_size {
+                baseline_anchor = glyph;
+            }
+        }
+        let baseline = baseline_anchor.baseline;
+        let glyphs = self.glyphs.into_iter().map(|glyph| glyph.id).collect();
+
+        Line {
+            id,
+            page: self.page,
+            glyphs,
+            synthetic_spaces,
+            bbox,
+            baseline,
+            direction,
+        }
+    }
+
+    fn direction(&self) -> Vec2 {
+        normalize(self.glyphs[0].direction)
+    }
+
+    fn bbox(&self) -> Rect {
+        let mut bbox = self.glyphs[0].bbox;
+        for glyph in &self.glyphs[1..] {
+            bbox.min.x = bbox.min.x.min(glyph.bbox.min.x);
+            bbox.min.y = bbox.min.y.min(glyph.bbox.min.y);
+            bbox.max.x = bbox.max.x.max(glyph.bbox.max.x);
+            bbox.max.y = bbox.max.y.max(glyph.bbox.max.y);
+        }
+        bbox
+    }
+
+    fn projected_interval(&self, axis: Vec2) -> (f64, f64) {
+        let mut interval = projected_interval(self.glyphs[0].bbox, axis);
+        for glyph in &self.glyphs[1..] {
+            let next = projected_interval(glyph.bbox, axis);
+            interval.0 = interval.0.min(next.0);
+            interval.1 = interval.1.max(next.1);
+        }
+        interval
+    }
+
+    fn median_projected_height(&self, cross_axis: Vec2) -> f64 {
+        median(
+            self.glyphs
+                .iter()
+                .map(|glyph| projected_extent(glyph.bbox, cross_axis))
+                .collect(),
+        )
+    }
+}
+
+fn reconstruct_spaces(
+    glyphs: &[&Glyph],
+    direction: Vec2,
+    options: LineOptions,
+) -> Vec<SyntheticSpace> {
+    let visible_advances: Vec<_> = glyphs
+        .iter()
+        .filter(|glyph| !is_whitespace(&glyph.text))
+        .map(|glyph| projected_extent(glyph.bbox, direction))
+        .collect();
+    let average_advance = if visible_advances.is_empty() {
+        0.0
+    } else {
+        visible_advances.iter().sum::<f64>() / visible_advances.len() as f64
+    };
+
+    glyphs
+        .windows(2)
+        .filter_map(|pair| {
+            let preceding = pair[0];
+            let following = pair[1];
+            if ends_with_whitespace(&preceding.text) || starts_with_whitespace(&following.text) {
+                return None;
+            }
+
+            let gap = interval_gap(
+                projected_interval(preceding.bbox, direction),
+                projected_interval(following.bbox, direction),
+            );
+            let font_size = (preceding.font_size + following.font_size) / 2.0;
+            let threshold = (options.space_gap_font_size_ratio * font_size)
+                .max(options.space_gap_advance_ratio * average_advance);
+            (gap > threshold).then_some(SyntheticSpace {
+                preceding: preceding.id,
+                following: following.id,
+            })
+        })
+        .collect()
+}
+
+fn validate_glyph(glyph: &Glyph) -> Result<()> {
+    let coordinates = [
+        glyph.bbox.min.x,
+        glyph.bbox.min.y,
+        glyph.bbox.max.x,
+        glyph.bbox.max.y,
+        glyph.baseline.x,
+        glyph.baseline.y,
+        glyph.direction.x,
+        glyph.direction.y,
+        glyph.font_size,
+    ];
+    if coordinates.iter().any(|value| !value.is_finite()) {
+        return Err(invalid_glyph(glyph, "non-finite geometry"));
+    }
+    if glyph.bbox.min.x > glyph.bbox.max.x || glyph.bbox.min.y > glyph.bbox.max.y {
+        return Err(invalid_glyph(glyph, "inverted bounding box"));
+    }
+    if glyph.font_size <= 0.0 {
+        return Err(invalid_glyph(glyph, "non-positive font size"));
+    }
+    if length_squared(glyph.direction) <= f64::EPSILON {
+        return Err(invalid_glyph(glyph, "zero writing direction"));
+    }
+    let direction = normalize(glyph.direction);
+    if direction.y.abs() > HORIZONTAL_DIRECTION_TOLERANCE {
+        return Err(Error::Unsupported(format!(
+            "glyph {} uses a non-horizontal writing direction",
+            glyph.id.0
+        )));
+    }
+    if projected_extent(glyph.bbox, perpendicular(direction)) <= f64::EPSILON {
+        return Err(invalid_glyph(glyph, "zero cross-axis extent"));
+    }
+    Ok(())
+}
+
+fn invalid_glyph(glyph: &Glyph, reason: &str) -> Error {
+    Error::Unresolved(format!("glyph {} has {reason}", glyph.id.0))
+}
+
+fn validate_non_negative(name: &str, value: f64) -> Result<()> {
+    if value.is_finite() && value >= 0.0 {
+        return Ok(());
+    }
+    Err(Error::InvalidConfiguration(format!(
+        "{name} must be finite and non-negative"
+    )))
+}
+
+fn validate_unit_interval(name: &str, value: f64) -> Result<()> {
+    if value.is_finite() && (0.0..=1.0).contains(&value) {
+        return Ok(());
+    }
+    Err(Error::InvalidConfiguration(format!(
+        "{name} must be between 0 and 1"
+    )))
+}
+
+fn normalize(vector: Vec2) -> Vec2 {
+    let length = length_squared(vector).sqrt();
+    Vec2 {
+        x: vector.x / length,
+        y: vector.y / length,
+    }
+}
+
+fn perpendicular(vector: Vec2) -> Vec2 {
+    Vec2 {
+        x: -vector.y,
+        y: vector.x,
+    }
+}
+
+fn length_squared(vector: Vec2) -> f64 {
+    vector.x * vector.x + vector.y * vector.y
+}
+
+fn dot(left: Vec2, right: Vec2) -> f64 {
+    left.x * right.x + left.y * right.y
+}
+
+fn projected_interval(rect: Rect, axis: Vec2) -> (f64, f64) {
+    let center = Vec2 {
+        x: (rect.min.x + rect.max.x) / 2.0,
+        y: (rect.min.y + rect.max.y) / 2.0,
+    };
+    let radius = (rect.max.x - rect.min.x) * axis.x.abs() / 2.0
+        + (rect.max.y - rect.min.y) * axis.y.abs() / 2.0;
+    let center_projection = dot(center, axis);
+    (center_projection - radius, center_projection + radius)
+}
+
+fn projected_center(rect: Rect, axis: Vec2) -> f64 {
+    let interval = projected_interval(rect, axis);
+    (interval.0 + interval.1) / 2.0
+}
+
+fn projected_extent(rect: Rect, axis: Vec2) -> f64 {
+    let interval = projected_interval(rect, axis);
+    interval.1 - interval.0
+}
+
+fn interval_gap(left: (f64, f64), right: (f64, f64)) -> f64 {
+    if left.1 < right.0 {
+        right.0 - left.1
+    } else if right.1 < left.0 {
+        left.0 - right.1
+    } else {
+        0.0
+    }
+}
+
+fn interval_overlap_ratio(left: (f64, f64), right: (f64, f64)) -> f64 {
+    let overlap = (left.1.min(right.1) - left.0.max(right.0)).max(0.0);
+    let shorter = (left.1 - left.0).min(right.1 - right.0);
+    if shorter <= f64::EPSILON {
+        0.0
+    } else {
+        overlap / shorter
+    }
+}
+
+fn median(mut values: Vec<f64>) -> f64 {
+    values.sort_by(f64::total_cmp);
+    let midpoint = values.len() / 2;
+    if values.len().is_multiple_of(2) {
+        (values[midpoint - 1] + values[midpoint]) / 2.0
+    } else {
+        values[midpoint]
+    }
+}
+
+fn is_whitespace(text: &crate::model::DecodedText) -> bool {
+    matches!(text, crate::model::DecodedText::Mapped(value) if value.chars().all(char::is_whitespace))
+}
+
+fn starts_with_whitespace(text: &crate::model::DecodedText) -> bool {
+    matches!(text, crate::model::DecodedText::Mapped(value) if value.chars().next().is_some_and(char::is_whitespace))
+}
+
+fn ends_with_whitespace(text: &crate::model::DecodedText) -> bool {
+    matches!(text, crate::model::DecodedText::Mapped(value) if value.chars().next_back().is_some_and(char::is_whitespace))
+}

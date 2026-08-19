@@ -14,6 +14,7 @@ The current implementation provides:
 - backend-neutral PDF parser and glyph extraction boundaries;
 - a lossless glyph evidence model with geometry and provenance;
 - a programmatically constructed glyph fixture test;
+- configurable Glyph-to-Line reconstruction with synthetic English spaces;
 - the initial `pdfdelta --help` command surface.
 
 The first practical release is defined by five acceptance cases in [`SPEC.md`](SPEC.md): line-wrap-only and page-break-only changes produce no content changes, while replacement, paragraph insertion, and paragraph deletion each produce one exact change.
