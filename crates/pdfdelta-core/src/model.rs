@@ -24,7 +24,7 @@ pub struct FontId(pub u32);
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FontProgramHash(pub Vec<u8>);
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum DecodedText {
     Mapped(String),
     Unmapped {

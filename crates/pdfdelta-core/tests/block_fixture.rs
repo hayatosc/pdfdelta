@@ -19,6 +19,13 @@ fn options() -> BlockOptions {
         max_indent_height_ratio: 0.5,
         min_horizontal_overlap_ratio: 0.8,
         min_font_similarity: 0.8,
+        max_cross_page_indent_height_ratio: 0.25,
+        min_cross_page_horizontal_overlap_ratio: 0.9,
+        min_cross_page_font_similarity: 0.9,
+        max_cross_page_cadence_difference: 0.1,
+        repeated_edge_line_limit: 1,
+        repeated_min_pages: 3,
+        min_repeated_margin_font_similarity: 0.95,
     }
 }
 
@@ -93,6 +100,111 @@ fn keeps_page_boundaries_split_without_cross_page_evidence() {
     assert_eq!(blocks.len(), 2);
     assert_eq!(blocks[0].lines, [LineId(1)]);
     assert_eq!(blocks[1].lines, [LineId(2)]);
+}
+
+#[test]
+fn joins_body_across_pages_when_both_line_cadences_match() {
+    let fixture = Fixture::new(vec![
+        LineSpec::body(1, 0, "page zero first", 100.0),
+        LineSpec::body(2, 0, "page zero second", 88.0),
+        LineSpec::body(3, 0, "page zero third", 76.0),
+        LineSpec::body(4, 1, "page one first", 100.0),
+        LineSpec::body(5, 1, "page one second", 88.0),
+        LineSpec::body(6, 1, "page one third", 76.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("matching page cadence should join");
+
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(
+        blocks[0].lines,
+        [
+            LineId(1),
+            LineId(2),
+            LineId(3),
+            LineId(4),
+            LineId(5),
+            LineId(6),
+        ]
+    );
+}
+
+#[test]
+fn does_not_join_across_a_missing_page() {
+    let fixture = Fixture::new(vec![
+        LineSpec::body(1, 0, "page zero first", 100.0),
+        LineSpec::body(2, 0, "page zero second", 88.0),
+        LineSpec::body(3, 0, "page zero third", 76.0),
+        LineSpec::body(4, 2, "page two first", 100.0),
+        LineSpec::body(5, 2, "page two second", 88.0),
+        LineSpec::body(6, 2, "page two third", 76.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("missing page evidence should remain conservative");
+
+    assert_eq!(blocks.len(), 2);
+    assert_eq!(blocks[0].lines, [LineId(1), LineId(2), LineId(3)]);
+    assert_eq!(blocks[1].lines, [LineId(4), LineId(5), LineId(6)]);
+}
+
+#[test]
+fn preserves_repeated_headers_and_footers_as_separate_roles() {
+    let fixture = Fixture::new(vec![
+        LineSpec::margin(1, 0, "Repeated header", 120.0),
+        LineSpec::body(2, 0, "page zero first", 100.0),
+        LineSpec::body(3, 0, "page zero second", 88.0),
+        LineSpec::margin(4, 0, "Repeated footer", 0.0),
+        LineSpec::margin(5, 1, "Repeated header", 120.0),
+        LineSpec::body(6, 1, "page one first", 100.0),
+        LineSpec::body(7, 1, "page one second", 88.0),
+        LineSpec::margin(8, 1, "Repeated footer", 0.0),
+        LineSpec::margin(9, 2, "Repeated header", 120.0),
+        LineSpec::body(10, 2, "page two first", 100.0),
+        LineSpec::body(11, 2, "page two second", 88.0),
+        LineSpec::margin(12, 2, "Repeated footer", 0.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("running matter should be classified without being dropped");
+
+    assert_eq!(
+        blocks
+            .iter()
+            .filter(|block| block.role == BlockRole::RepeatedHeader)
+            .count(),
+        3
+    );
+    assert_eq!(
+        blocks
+            .iter()
+            .filter(|block| block.role == BlockRole::RepeatedFooter)
+            .count(),
+        3
+    );
+    let body = blocks
+        .iter()
+        .find(|block| block.role == BlockRole::Body)
+        .expect("body block should remain");
+    assert_eq!(
+        body.lines,
+        [
+            LineId(2),
+            LineId(3),
+            LineId(6),
+            LineId(7),
+            LineId(10),
+            LineId(11),
+        ]
+    );
+
+    let mut preserved_lines: Vec<_> = blocks
+        .iter()
+        .flat_map(|block| block.lines.iter().copied())
+        .collect();
+    preserved_lines.sort_by_key(|line| line.0);
+    assert_eq!(preserved_lines, (1..=12).map(LineId).collect::<Vec<_>>());
 }
 
 #[test]
@@ -250,6 +362,20 @@ impl LineSpec {
             height: 10.0,
             font_size: 10.0,
             font: 1,
+        }
+    }
+
+    fn margin(id: u64, page: u32, text: &'static str, y: f64) -> Self {
+        Self {
+            id,
+            page,
+            text,
+            x: 0.0,
+            y,
+            width: 100.0,
+            height: 8.0,
+            font_size: 8.0,
+            font: 2,
         }
     }
 }

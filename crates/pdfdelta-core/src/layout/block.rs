@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     Error, Result,
-    model::{Document, FontId, Glyph, GlyphId, Rect, Vec2},
+    model::{DecodedText, Document, FontId, Glyph, GlyphId, Rect, Vec2},
 };
 
 use super::{
@@ -44,6 +44,13 @@ pub struct BlockOptions {
     pub max_indent_height_ratio: f64,
     pub min_horizontal_overlap_ratio: f64,
     pub min_font_similarity: f64,
+    pub max_cross_page_indent_height_ratio: f64,
+    pub min_cross_page_horizontal_overlap_ratio: f64,
+    pub min_cross_page_font_similarity: f64,
+    pub max_cross_page_cadence_difference: f64,
+    pub repeated_edge_line_limit: usize,
+    pub repeated_min_pages: usize,
+    pub min_repeated_margin_font_similarity: f64,
 }
 
 impl BlockOptions {
@@ -75,6 +82,31 @@ impl BlockOptions {
             self.min_horizontal_overlap_ratio,
         )?;
         validate_unit_interval("min_font_similarity", self.min_font_similarity)?;
+        validate_non_negative(
+            "max_cross_page_indent_height_ratio",
+            self.max_cross_page_indent_height_ratio,
+        )?;
+        validate_unit_interval(
+            "min_cross_page_horizontal_overlap_ratio",
+            self.min_cross_page_horizontal_overlap_ratio,
+        )?;
+        validate_unit_interval(
+            "min_cross_page_font_similarity",
+            self.min_cross_page_font_similarity,
+        )?;
+        validate_non_negative(
+            "max_cross_page_cadence_difference",
+            self.max_cross_page_cadence_difference,
+        )?;
+        if self.repeated_min_pages < 2 {
+            return Err(Error::InvalidConfiguration(
+                "repeated_min_pages must be at least 2".to_owned(),
+            ));
+        }
+        validate_unit_interval(
+            "min_repeated_margin_font_similarity",
+            self.min_repeated_margin_font_similarity,
+        )?;
         Ok(self)
     }
 }
@@ -115,37 +147,94 @@ pub fn reconstruct_blocks(
             .then(left.line.id.0.cmp(&right.line.id.0))
     });
 
-    let mut blocks = Vec::<Block>::new();
-    let mut previous = None;
-    for current in &stats {
-        let joins_previous = match previous {
-            Some(prior) => should_join(prior, current, options)?,
-            None => false,
-        };
-        if joins_previous && let Some(block) = blocks.last_mut() {
-            block.lines.push(current.line.id);
-            previous = Some(current);
+    let pages = page_groups(&stats);
+    let roles = detect_repeated_margins(&stats, &pages, options);
+    let body_indices: Vec<_> = roles
+        .iter()
+        .enumerate()
+        .filter_map(|(index, role)| (*role == BlockRole::Body).then_some(index))
+        .collect();
+
+    let mut pending = Vec::<PendingBlock>::new();
+    for (position, index) in body_indices.iter().copied().enumerate() {
+        let joins_previous =
+            position > 0 && should_join_body(&stats, &body_indices, position, options)?;
+        if joins_previous && let Some(block) = pending.last_mut() {
+            block.lines.push(stats[index].line.id);
             continue;
         }
-        blocks.push(Block {
-            id: BlockId(blocks.len() as u64),
-            lines: vec![current.line.id],
+        pending.push(PendingBlock {
+            order: index,
+            lines: vec![stats[index].line.id],
             role: BlockRole::Body,
         });
-        previous = Some(current);
     }
 
-    Ok(blocks)
+    for (index, role) in roles.into_iter().enumerate() {
+        if role != BlockRole::Body {
+            pending.push(PendingBlock {
+                order: index,
+                lines: vec![stats[index].line.id],
+                role,
+            });
+        }
+    }
+    pending.sort_by_key(|block| block.order);
+
+    Ok(pending
+        .into_iter()
+        .enumerate()
+        .map(|(index, block)| Block {
+            id: BlockId(index as u64),
+            lines: block.lines,
+            role: block.role,
+        })
+        .collect())
+}
+
+struct PendingBlock {
+    order: usize,
+    lines: Vec<LineId>,
+    role: BlockRole,
 }
 
 struct LineStats<'a> {
     line: &'a Line,
+    signature: Vec<SignatureToken>,
     direction: Vec2,
     inline_interval: (f64, f64),
     inline_start: f64,
     median_height: f64,
     median_font_size: f64,
     dominant_font: FontId,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum SignatureToken {
+    Text(DecodedText),
+    SyntheticSpace,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum MarginEdge {
+    Header,
+    Footer,
+}
+
+impl MarginEdge {
+    fn role(self) -> BlockRole {
+        match self {
+            Self::Header => BlockRole::RepeatedHeader,
+            Self::Footer => BlockRole::RepeatedFooter,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct MarginKey {
+    edge: MarginEdge,
+    ordinal: usize,
+    signature: Vec<SignatureToken>,
 }
 
 impl<'a> LineStats<'a> {
@@ -202,9 +291,11 @@ impl<'a> LineStats<'a> {
             return Err(invalid_line(line, "has non-finite derived metrics"));
         }
         let dominant_font = dominant_font(&glyphs);
+        let signature = line_signature(line, &glyphs);
 
         Ok(Self {
             line,
+            signature,
             direction,
             inline_interval,
             inline_start: inline_interval.0,
@@ -213,6 +304,193 @@ impl<'a> LineStats<'a> {
             dominant_font,
         })
     }
+}
+
+fn line_signature(line: &Line, glyphs: &[&Glyph]) -> Vec<SignatureToken> {
+    let spaces: HashSet<_> = line
+        .synthetic_spaces
+        .iter()
+        .map(|space| (space.preceding, space.following))
+        .collect();
+    let mut signature = Vec::with_capacity(glyphs.len() + spaces.len());
+    for (index, glyph) in glyphs.iter().enumerate() {
+        signature.push(SignatureToken::Text(glyph.text.clone()));
+        if let Some(following) = glyphs.get(index + 1)
+            && spaces.contains(&(glyph.id, following.id))
+        {
+            signature.push(SignatureToken::SyntheticSpace);
+        }
+    }
+    signature
+}
+
+fn page_groups(stats: &[LineStats<'_>]) -> Vec<Vec<usize>> {
+    let mut pages = Vec::<Vec<usize>>::new();
+    for (index, stat) in stats.iter().enumerate() {
+        if let Some(page) = pages.last_mut()
+            && stats[page[0]].line.page == stat.line.page
+        {
+            page.push(index);
+        } else {
+            pages.push(vec![index]);
+        }
+    }
+    pages
+}
+
+fn detect_repeated_margins(
+    stats: &[LineStats<'_>],
+    pages: &[Vec<usize>],
+    options: BlockOptions,
+) -> Vec<BlockRole> {
+    let mut roles = vec![BlockRole::Body; stats.len()];
+    if options.repeated_edge_line_limit == 0 {
+        return roles;
+    }
+
+    let mut candidates = HashMap::<MarginKey, Vec<usize>>::new();
+    for page in pages {
+        if page.len() <= options.repeated_edge_line_limit.saturating_mul(2) {
+            continue;
+        }
+        for ordinal in 0..options.repeated_edge_line_limit {
+            let header = page[ordinal];
+            candidates
+                .entry(MarginKey {
+                    edge: MarginEdge::Header,
+                    ordinal,
+                    signature: stats[header].signature.clone(),
+                })
+                .or_default()
+                .push(header);
+
+            let footer = page[page.len() - ordinal - 1];
+            candidates
+                .entry(MarginKey {
+                    edge: MarginEdge::Footer,
+                    ordinal,
+                    signature: stats[footer].signature.clone(),
+                })
+                .or_default()
+                .push(footer);
+        }
+    }
+
+    for (key, mut remaining) in candidates {
+        while let Some(reference) = remaining.pop() {
+            let mut cluster = vec![reference];
+            let mut different_style = Vec::new();
+            for candidate in remaining {
+                if font_similarity(&stats[reference], &stats[candidate])
+                    >= options.min_repeated_margin_font_similarity
+                {
+                    cluster.push(candidate);
+                } else {
+                    different_style.push(candidate);
+                }
+            }
+            if cluster.len() >= options.repeated_min_pages {
+                for index in cluster {
+                    roles[index] = key.edge.role();
+                }
+            }
+            remaining = different_style;
+        }
+    }
+
+    roles
+}
+
+fn should_join_body(
+    stats: &[LineStats<'_>],
+    body_indices: &[usize],
+    position: usize,
+    options: BlockOptions,
+) -> Result<bool> {
+    let previous = &stats[body_indices[position - 1]];
+    let current = &stats[body_indices[position]];
+    if previous.line.page == current.line.page {
+        return should_join(previous, current, options);
+    }
+
+    if previous.line.page.0.checked_add(1) != Some(current.line.page.0) {
+        return Ok(false);
+    }
+
+    let Some(previous_neighbor_position) = position.checked_sub(2) else {
+        return Ok(false);
+    };
+    let Some(current_neighbor_index) = body_indices.get(position + 1).copied() else {
+        return Ok(false);
+    };
+    let previous_neighbor = &stats[body_indices[previous_neighbor_position]];
+    let current_neighbor = &stats[current_neighbor_index];
+    if previous_neighbor.line.page != previous.line.page
+        || current_neighbor.line.page != current.line.page
+        || !should_join(previous_neighbor, previous, options)?
+        || !should_join(current, current_neighbor, options)?
+    {
+        return Ok(false);
+    }
+
+    should_join_across_page(
+        previous_neighbor,
+        previous,
+        current,
+        current_neighbor,
+        options,
+    )
+}
+
+fn should_join_across_page(
+    previous_neighbor: &LineStats<'_>,
+    previous: &LineStats<'_>,
+    current: &LineStats<'_>,
+    current_neighbor: &LineStats<'_>,
+    options: BlockOptions,
+) -> Result<bool> {
+    if dot(previous.direction, current.direction) <= 0.0 {
+        return Ok(false);
+    }
+
+    let height = (previous.median_height / 2.0 + current.median_height / 2.0).max(f64::EPSILON);
+    let horizontal_overlap =
+        interval_overlap_ratio(previous.inline_interval, current.inline_interval);
+    let indent_ratio = (previous.inline_start - current.inline_start).abs() / height;
+    let font_similarity = font_similarity(previous, current);
+    let previous_cadence = normalized_line_gap(previous_neighbor, previous);
+    let current_cadence = normalized_line_gap(current, current_neighbor);
+    let cadence_difference = (previous_cadence - current_cadence).abs();
+    let components = [
+        height,
+        horizontal_overlap,
+        indent_ratio,
+        font_similarity,
+        previous_cadence,
+        current_cadence,
+        cadence_difference,
+    ];
+    if components.iter().any(|value| !value.is_finite()) {
+        return Err(Error::Unresolved(format!(
+            "lines {} and {} produce non-finite cross-page metrics",
+            previous.line.id.0, current.line.id.0
+        )));
+    }
+
+    Ok(
+        horizontal_overlap >= options.min_cross_page_horizontal_overlap_ratio
+            && indent_ratio <= options.max_cross_page_indent_height_ratio
+            && font_similarity >= options.min_cross_page_font_similarity
+            && cadence_difference <= options.max_cross_page_cadence_difference,
+    )
+}
+
+fn normalized_line_gap(first: &LineStats<'_>, second: &LineStats<'_>) -> f64 {
+    let height = (first.median_height / 2.0 + second.median_height / 2.0).max(f64::EPSILON);
+    interval_gap(
+        (first.line.bbox.min.y, first.line.bbox.max.y),
+        (second.line.bbox.min.y, second.line.bbox.max.y),
+    ) / height
 }
 
 fn should_join(
