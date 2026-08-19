@@ -157,6 +157,29 @@ fn keeps_compatibility_width_differences() {
 
     assert_eq!(full_width.canonical.text, "１０ mg");
     assert_ne!(full_width.canonical.text, ascii.canonical.text);
+    assert_eq!(full_width.matching, ascii.matching);
+}
+
+#[test]
+fn masks_sparse_numbers_for_matching_without_changing_canonical_text() {
+    let old = normalize_mapped_lines(&["The recommended adult dose is 10 mg daily."]);
+    let new = normalize_mapped_lines(&["The recommended adult dose is 20 mg daily."]);
+
+    assert_ne!(old.canonical.text, new.canonical.text);
+    assert_eq!(old.matching, new.matching);
+    assert!(old.matching.contains("<NUM> mg"));
+    assert!(old.numeric_mask_applied);
+    assert!(new.numeric_mask_applied);
+}
+
+#[test]
+fn falls_back_to_unmasked_matching_for_number_dense_text() {
+    let old = normalize_mapped_lines(&["10 mg"]);
+    let new = normalize_mapped_lines(&["20 mg"]);
+
+    assert_ne!(old.matching, new.matching);
+    assert!(!old.numeric_mask_applied);
+    assert!(!new.numeric_mask_applied);
 }
 
 #[test]
@@ -191,6 +214,13 @@ fn retains_unmapped_tokens_in_comparison_order() {
 
     assert_eq!(text.raw.text, "AB");
     assert_eq!(text.raw.unmapped[0].scalar_index, 1);
+    assert!(matches!(
+        &text.matching_tokens[1],
+        ComparableToken::Unmapped {
+            font_hash,
+            glyph_id: 42
+        } if font_hash == &hash
+    ));
     assert_eq!(
         text.canonical
             .comparable_tokens()

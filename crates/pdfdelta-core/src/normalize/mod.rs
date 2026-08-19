@@ -9,6 +9,9 @@ use crate::{
     model::{DecodedText, Document, FontProgramHash, Glyph, GlyphId},
 };
 
+pub const DEFAULT_MAX_NUMERIC_MASK_RATIO: f64 = 0.3;
+const NUMBER_MASK: &str = "<NUM>";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ScalarRange {
     pub start: usize,
@@ -142,6 +145,8 @@ pub struct BlockText {
     pub raw: MappedText,
     pub canonical: MappedText,
     pub matching: String,
+    pub matching_tokens: Vec<ComparableToken>,
+    pub numeric_mask_applied: bool,
     pub normalization_events: Vec<NormalizationEvent>,
     pub issues: Vec<NormalizationIssue>,
 }
@@ -179,7 +184,7 @@ pub fn normalize_blocks(
             &mut assigned_lines,
             &mut assigned_glyphs,
         )?;
-        normalized.push(normalize_block(block.id, raw));
+        normalized.push(normalize_block(block.id, raw)?);
     }
 
     if assigned_lines.len() != lines.len() {
@@ -478,23 +483,126 @@ impl TextSource {
     }
 }
 
-fn normalize_block(block: BlockId, raw: RawBlock) -> BlockText {
+fn normalize_block(block: BlockId, raw: RawBlock) -> Result<BlockText> {
     let mut issues = Vec::new();
     let atoms = expand_ligatures(raw.atoms);
     let atoms = resolve_line_breaks(atoms, &mut issues);
     let atoms = collapse_whitespace(atoms);
     let pieces = normalize_nfc(atoms);
     let (canonical, events) = assemble_canonical(pieces);
-    let matching = canonical.text.clone();
+    let matching = build_matching(&canonical, DEFAULT_MAX_NUMERIC_MASK_RATIO)?;
 
-    BlockText {
+    Ok(BlockText {
         block,
         raw: raw.mapped,
         canonical,
-        matching,
+        matching: matching.text,
+        matching_tokens: matching.tokens,
+        numeric_mask_applied: matching.numeric_mask_applied,
         normalization_events: events,
         issues,
+    })
+}
+
+struct MatchingText {
+    text: String,
+    tokens: Vec<ComparableToken>,
+    numeric_mask_applied: bool,
+}
+
+fn build_matching(canonical: &MappedText, max_numeric_mask_ratio: f64) -> Result<MatchingText> {
+    let compatible = compatibility_fold(canonical.comparable_tokens()?);
+    let (masked, masked_scalar_count, contains_number) = mask_numbers(&compatible);
+    let output_scalar_count = masked
+        .iter()
+        .filter(|token| matches!(token, ComparableToken::Scalar(_)))
+        .count();
+    let numeric_mask_ratio = if output_scalar_count == 0 {
+        0.0
+    } else {
+        masked_scalar_count as f64 / output_scalar_count as f64
+    };
+    let numeric_mask_applied = contains_number && numeric_mask_ratio <= max_numeric_mask_ratio;
+    let tokens = if numeric_mask_applied {
+        masked
+    } else {
+        compatible
+    };
+    let text = tokens
+        .iter()
+        .filter_map(|token| match token {
+            ComparableToken::Scalar(scalar) => Some(*scalar),
+            ComparableToken::Unmapped { .. } => None,
+        })
+        .collect();
+
+    Ok(MatchingText {
+        text,
+        tokens,
+        numeric_mask_applied,
+    })
+}
+
+fn compatibility_fold(tokens: Vec<ComparableToken>) -> Vec<ComparableToken> {
+    let mut folded = Vec::with_capacity(tokens.len());
+    let mut scalar_run = String::new();
+
+    for token in tokens {
+        match token {
+            ComparableToken::Scalar(scalar) => scalar_run.push(scalar),
+            unmapped @ ComparableToken::Unmapped { .. } => {
+                push_compatibility_folded(&mut folded, &mut scalar_run);
+                folded.push(unmapped);
+            }
+        }
     }
+    push_compatibility_folded(&mut folded, &mut scalar_run);
+    folded
+}
+
+fn push_compatibility_folded(output: &mut Vec<ComparableToken>, input: &mut String) {
+    output.extend(input.nfkc().map(ComparableToken::Scalar));
+    input.clear();
+}
+
+fn mask_numbers(tokens: &[ComparableToken]) -> (Vec<ComparableToken>, usize, bool) {
+    let mut masked = Vec::with_capacity(tokens.len());
+    let mut masked_scalar_count = 0;
+    let mut contains_number = false;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        let Some(ComparableToken::Scalar(first)) = tokens.get(index) else {
+            masked.push(tokens[index].clone());
+            index += 1;
+            continue;
+        };
+        if !first.is_numeric() {
+            masked.push(tokens[index].clone());
+            index += 1;
+            continue;
+        }
+
+        contains_number = true;
+        index += 1;
+        while index < tokens.len() {
+            match tokens.get(index) {
+                Some(ComparableToken::Scalar(scalar)) if scalar.is_numeric() => index += 1,
+                Some(ComparableToken::Scalar('.' | ','))
+                    if tokens.get(index + 1).is_some_and(
+                        |token| matches!(token, ComparableToken::Scalar(scalar) if scalar.is_numeric()),
+                    ) =>
+                {
+                    index += 1;
+                }
+                _ => break,
+            }
+        }
+        masked.extend(NUMBER_MASK.chars().map(ComparableToken::Scalar));
+        masked_scalar_count += NUMBER_MASK.chars().count();
+    }
+
+    (masked, masked_scalar_count, contains_number)
 }
 
 fn expand_ligatures(atoms: Vec<Atom>) -> Vec<Atom> {
