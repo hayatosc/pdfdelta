@@ -12,6 +12,8 @@ edition = "2024"
 
 [workspace.dependencies]
 clap = { version = "4", features = ["derive"] }
+unicode-normalization = "0.1"
+unicode-segmentation = "1"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -22,6 +22,7 @@ The current implementation provides:
 - a programmatically constructed glyph fixture test;
 - configurable Glyph-to-Line reconstruction with synthetic English spaces;
 - relative Line-to-Block scoring across page breaks with preserved running-matter roles;
+- reversible raw/canonical normalization with scalar-indexed source maps, retained unmapped tokens, and auditable normalization events;
 - the initial `pdfdelta --help` command surface.
 
 The first practical release is defined by five acceptance cases in [`SPEC.md`](SPEC.md): line-wrap-only and page-break-only changes produce no content changes, while replacement, paragraph insertion, and paragraph deletion each produce one exact change.
@@ -47,6 +48,8 @@ The core design rules are:
 - make layout reconstruction reversible;
 - use tolerant alignment but exact final diffing;
 - report unsupported or unresolved content instead of silently treating it as empty text.
+
+Unicode conformance is delegated to the [`unicode-normalization`](https://github.com/unicode-rs/unicode-normalization) and [`unicode-segmentation`](https://github.com/unicode-rs/unicode-segmentation) crates from the `unicode-rs` organization. Their use is confined to the normalization module, and `Cargo.lock` pins the reviewed versions so either implementation can be replaced behind that boundary if its maintenance posture changes.
 
 See [`SPEC.md`](SPEC.md) for the authoritative technical design and roadmap.
 
