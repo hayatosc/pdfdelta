@@ -109,6 +109,7 @@ fn parser_backed_source_preserves_glyph_evidence() {
                 max_objects: 10,
                 max_recursion_depth: 4,
                 max_decoded_stream_bytes: 1024,
+                max_total_object_stream_bytes: 4096,
                 max_pages: 1,
             },
             ExtractionLimits {

@@ -17,7 +17,7 @@ The project is under active development and cannot compare PDF files yet.
 The current implementation provides:
 
 - a Rust 2024 workspace with separate core, CLI, and benchmark crates;
-- backend-neutral PDF parser and glyph extraction boundaries;
+- a backend-neutral PDF parser boundary with a `lopdf` adapter for classic xref tables, xref streams, object streams, incremental revisions, inherited page resources, and bounded stream decoding;
 - a lossless glyph evidence model with geometry and provenance;
 - a programmatically constructed glyph fixture test;
 - configurable Glyph-to-Line reconstruction with synthetic English spaces;
@@ -58,6 +58,8 @@ Unicode conformance is delegated to the [`unicode-normalization`](https://github
 
 Typed JSON serialization uses [`serde`](https://github.com/serde-rs/serde) and [`serde_json`](https://github.com/serde-rs/json). Both are confined to the report module rather than the diff model; the lockfile pins reviewed releases, and the versioned report DTO is the replacement boundary if their maintenance posture changes.
 
+PDF object parsing uses [`lopdf`](https://github.com/J-F-Liu/lopdf) with its default features disabled, avoiding optional date and parallel-processing dependencies. The dependency is temporarily pinned to a [reviewed fork commit](https://github.com/hayatosc/lopdf/commit/e7c8b359ab822c4ef82f5d7e0f367f5b4468ee80) while [upstream PR #559](https://github.com/J-F-Liu/lopdf/pull/559) is reviewed. That commit includes merged post-0.44.0 xref-stream fixes, adds an explicit xref-entry limit used by pdfdelta before object parsing, and preserves encoded object-stream evidence during parsing. The project can return to an upstream crates.io release after those protections are published. The crate is confined to the PDF backend adapter, `Cargo.lock` pins the reviewed dependency graph, and backend upgrades must pass capability and hostile-input fixtures before adoption. This boundary makes replacement possible if maintenance or conformance changes; it does not assume that any external project can provide a permanent maintenance guarantee.
+
 See [`SPEC.md`](SPEC.md) for the authoritative technical design and roadmap.
 
 ## Workspace
@@ -77,6 +79,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo run --bin pdfdelta -- --help
+cargo run --bin pdfdelta -- inspect document.pdf --backend-info
 ```
 
 The planned CLI forms are:
@@ -88,7 +91,7 @@ pdfdelta old.pdf new.pdf --json result.json
 pdfdelta old.pdf new.pdf --strict
 ```
 
-These comparison and inspection operations currently return a not-implemented error. Check the status section before relying on any command beyond `--help`.
+Backend inspection is implemented. Object inspection, glyph inspection, and document comparison still return a not-implemented error; check the status section before relying on those operations.
 
 ## Contributing
 

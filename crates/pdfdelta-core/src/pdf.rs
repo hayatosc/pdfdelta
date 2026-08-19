@@ -2,13 +2,31 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use crate::Result;
 
+pub mod backend;
+
+pub use backend::LopdfParser;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ParseLimits {
     pub max_input_bytes: usize,
     pub max_objects: usize,
     pub max_recursion_depth: usize,
     pub max_decoded_stream_bytes: usize,
+    pub max_total_object_stream_bytes: usize,
     pub max_pages: usize,
+}
+
+impl Default for ParseLimits {
+    fn default() -> Self {
+        Self {
+            max_input_bytes: 256 * 1024 * 1024,
+            max_objects: 1_000_000,
+            max_recursion_depth: 128,
+            max_decoded_stream_bytes: 64 * 1024 * 1024,
+            max_total_object_stream_bytes: 256 * 1024 * 1024,
+            max_pages: 100_000,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -44,13 +62,17 @@ pub enum PdfObject {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RawStream {
+    /// The original stream dictionary, including filter metadata.
     pub dictionary: PdfDict,
+    /// Stream bytes before applying any declared filters.
     pub bytes: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DecodedStream {
+    /// The original stream dictionary retained for provenance.
     pub dictionary: PdfDict,
+    /// Stream bytes after applying the declared filters.
     pub bytes: Vec<u8>,
 }
 
