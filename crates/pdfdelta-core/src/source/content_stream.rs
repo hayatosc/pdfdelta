@@ -19,15 +19,25 @@ use crate::{
     },
 };
 
-use super::{ExtractionLimits, GlyphExtractor};
+use super::{
+    ExtractionIssue, ExtractionLimits, ExtractionOutcome, ExtractionScope, GlyphExtractor,
+};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ContentStreamGlyphExtractor;
 
-impl GlyphExtractor for ContentStreamGlyphExtractor {
-    fn extract(&self, pdf: &dyn ParsedPdf, limits: ExtractionLimits) -> Result<Document<Glyph>> {
-        let pages = pdf.pages()?;
+impl ContentStreamGlyphExtractor {
+    fn extract_outcome_inner(
+        &self,
+        pdf: &dyn ParsedPdf,
+        limits: ExtractionLimits,
+    ) -> Result<ExtractionOutcome> {
+        let pages = match pdf.pages() {
+            Ok(pages) => pages,
+            Err(error) => return ExtractionOutcome::from_error(ExtractionScope::Document, error),
+        };
         let mut extraction = Extraction::new(pdf, limits);
+        let mut issues = Vec::new();
         for (index, page) in pages.into_iter().enumerate() {
             let page_id = u32::try_from(index)
                 .map(PageId)
@@ -35,9 +45,29 @@ impl GlyphExtractor for ContentStreamGlyphExtractor {
                     resource: "PDF page count address space",
                     limit: u32::MAX as usize,
                 })?;
-            extraction.extract_page(page, page_id)?;
+            let glyph_start = extraction.glyphs.len();
+            if let Err(error) = extraction.extract_page(page, page_id) {
+                let issue = ExtractionIssue::from_error(ExtractionScope::Page(page_id), error)?;
+                extraction.glyphs.truncate(glyph_start);
+                extraction.active_forms.clear();
+                issues.push(issue);
+            }
         }
-        Ok(Document::new(extraction.glyphs))
+        ExtractionOutcome::new(Document::new(extraction.glyphs), issues)
+    }
+}
+
+impl GlyphExtractor for ContentStreamGlyphExtractor {
+    fn extract(&self, pdf: &dyn ParsedPdf, limits: ExtractionLimits) -> Result<Document<Glyph>> {
+        self.extract_outcome_inner(pdf, limits)?.into_complete()
+    }
+
+    fn extract_outcome(
+        &self,
+        pdf: &dyn ParsedPdf,
+        limits: ExtractionLimits,
+    ) -> Result<ExtractionOutcome> {
+        self.extract_outcome_inner(pdf, limits)
     }
 }
 

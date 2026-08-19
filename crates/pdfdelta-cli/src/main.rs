@@ -12,11 +12,14 @@ use std::{
 use clap::{Parser, Subcommand};
 use pdfdelta_core::{
     diff::Comparison,
-    model::{DecodedText, Document, Glyph, TextRenderMode},
+    model::{DecodedText, Glyph, TextRenderMode},
     pdf::{LopdfParser, ParseLimits, PdfParser},
-    pipeline::{PipelineOptions, compare_glyph_documents},
+    pipeline::{PipelineOptions, compare_extraction_outcomes},
     report::{ExtractionStatus, exit_status, render_text, write_json},
-    source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
+    source::{
+        ContentStreamGlyphExtractor, ExtractionIssue, ExtractionIssueKind, ExtractionLimits,
+        ExtractionOutcome, ExtractionScope, ParserBackedGlyphSource,
+    },
 };
 
 static NEXT_TEMPORARY_FILE: AtomicU64 = AtomicU64::new(0);
@@ -62,6 +65,8 @@ enum Command {
 }
 
 fn main() -> ExitCode {
+    let stderr = io::stderr();
+    let mut stderr = stderr.lock();
     let cli = Cli::parse();
     match cli.command {
         Some(Command::Inspect {
@@ -71,7 +76,7 @@ fn main() -> ExitCode {
         }) => match inspect_document(&document, backend_info, glyphs) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
-                eprintln!("{error}");
+                report_fatal_error(&mut stderr, &error);
                 ExitCode::from(2)
             }
         },
@@ -80,21 +85,23 @@ fn main() -> ExitCode {
             cli.new.as_deref(),
             cli.json.as_deref(),
             cli.strict,
+            &mut stderr,
         ) {
             Ok(status) => ExitCode::from(status),
             Err(error) => {
-                eprintln!("{error}");
+                report_fatal_error(&mut stderr, &error);
                 ExitCode::from(2)
             }
         },
     }
 }
 
-fn compare_documents(
+fn compare_documents<W: Write>(
     old_path: Option<&Path>,
     new_path: Option<&Path>,
     json_path: Option<&Path>,
     strict: bool,
+    diagnostics: &mut W,
 ) -> Result<u8, String> {
     let old_path = old_path.ok_or_else(|| "cannot compare PDFs: OLD_PDF is required".to_owned())?;
     let new_path = new_path.ok_or_else(|| "cannot compare PDFs: NEW_PDF is required".to_owned())?;
@@ -104,29 +111,31 @@ fn compare_documents(
     }
 
     let parse_limits = ParseLimits::default();
-    let old = extract_comparison_document("old", old_path, parse_limits)?;
-    let new = extract_comparison_document("new", new_path, parse_limits)?;
-    let comparison =
-        compare_glyph_documents(&old, &new, PipelineOptions::default()).map_err(|error| {
+    let old = extract_comparison_outcome("old", old_path, parse_limits)?;
+    report_extraction_issues(diagnostics, "old", old_path, old.issues())?;
+    let new = extract_comparison_outcome("new", new_path, parse_limits)?;
+    report_extraction_issues(diagnostics, "new", new_path, new.issues())?;
+    let outcome =
+        compare_extraction_outcomes(old, new, PipelineOptions::default()).map_err(|error| {
             format!(
                 "cannot compare old PDF {} with new PDF {}: {error}",
                 old_path.display(),
                 new_path.display()
             )
         })?;
-    let extraction = ExtractionStatus::complete();
-    let status = exit_status(&comparison, &extraction, strict).map_err(|error| {
-        format!(
-            "cannot determine comparison status for {} and {}: {error}",
-            old_path.display(),
-            new_path.display()
-        )
-    })?;
+    let status =
+        exit_status(&outcome.comparison, &outcome.extraction, strict).map_err(|error| {
+            format!(
+                "cannot determine comparison status for {} and {}: {error}",
+                old_path.display(),
+                new_path.display()
+            )
+        })?;
 
     if let Some(json_path) = json_path {
-        write_json_atomically(json_path, &comparison, &extraction)?;
+        write_json_atomically(json_path, &outcome.comparison, &outcome.extraction)?;
     } else {
-        let report = render_text(&comparison, &extraction).map_err(|error| {
+        let report = render_text(&outcome.comparison, &outcome.extraction).map_err(|error| {
             format!(
                 "cannot render comparison report for {} and {}: {error}",
                 old_path.display(),
@@ -146,21 +155,70 @@ fn compare_documents(
     Ok(status.code())
 }
 
-fn extract_comparison_document(
+fn extract_comparison_outcome(
     side: &str,
     path: &Path,
     parse_limits: ParseLimits,
-) -> Result<Document<Glyph>, String> {
+) -> Result<ExtractionOutcome, String> {
     let bytes = read_limited(path, parse_limits.max_input_bytes)
         .map_err(|error| format!("cannot load {side} PDF {}: {error}", path.display()))?;
     ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor)
-        .extract(bytes, parse_limits, ExtractionLimits::default())
+        .extract_outcome(bytes, parse_limits, ExtractionLimits::default())
         .map_err(|error| {
             format!(
                 "cannot parse or extract {side} PDF {}: {error}",
                 path.display()
             )
         })
+}
+
+fn report_extraction_issues<W: Write>(
+    writer: &mut W,
+    side: &str,
+    path: &Path,
+    issues: &[ExtractionIssue],
+) -> Result<(), String> {
+    if issues.is_empty() {
+        return Ok(());
+    }
+    for issue in issues {
+        let kind = match issue.kind() {
+            ExtractionIssueKind::Unsupported => "unsupported",
+            ExtractionIssueKind::Unresolved => "unresolved",
+        };
+        match issue.scope() {
+            ExtractionScope::Document => writeln!(
+                writer,
+                "extraction issue for {side} PDF {} (kind={kind}, scope=document): {}",
+                path.display(),
+                issue.description()
+            ),
+            ExtractionScope::Page(page) => writeln!(
+                writer,
+                "extraction issue for {side} PDF {} (kind={kind}, scope=page, page={}): {}",
+                path.display(),
+                page.0,
+                issue.description()
+            ),
+        }
+        .map_err(|error| {
+            format!(
+                "cannot write extraction diagnostics for {side} PDF {}: {error}",
+                path.display()
+            )
+        })?;
+    }
+    writer.flush().map_err(|error| {
+        format!(
+            "cannot flush extraction diagnostics for {side} PDF {}: {error}",
+            path.display()
+        )
+    })
+}
+
+fn report_fatal_error<W: Write>(writer: &mut W, error: &str) {
+    let _ = writeln!(writer, "{error}");
+    let _ = writer.flush();
 }
 
 fn write_json_atomically(
@@ -509,9 +567,13 @@ mod tests {
             Vec2,
         },
         pdf::ObjectRef,
+        source::{ExtractionIssue, ExtractionIssueKind, ExtractionScope},
     };
 
-    use super::{Cli, Command, format_glyph, write_inspection_line};
+    use super::{
+        Cli, Command, format_glyph, report_extraction_issues, report_fatal_error,
+        write_inspection_line,
+    };
 
     struct BrokenPipeWriter;
 
@@ -522,6 +584,18 @@ mod tests {
 
         fn flush(&mut self) -> io::Result<()> {
             Ok(())
+        }
+    }
+
+    struct BrokenFlushWriter;
+
+    impl Write for BrokenFlushWriter {
+        fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+            Ok(buffer.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Err(io::Error::from(io::ErrorKind::BrokenPipe))
         }
     }
 
@@ -602,6 +676,53 @@ mod tests {
 
         assert!(error.contains("cannot write inspection output for fixture.pdf"));
         assert!(error.contains("broken pipe"));
+    }
+
+    #[test]
+    fn extraction_diagnostic_write_failure_returns_contextual_error() {
+        let issue = ExtractionIssue::new(
+            ExtractionIssueKind::Unsupported,
+            ExtractionScope::Document,
+            "fixture feature is unsupported",
+        )
+        .expect("fixture extraction issue should be valid");
+
+        let error = report_extraction_issues(
+            &mut BrokenPipeWriter,
+            "old",
+            std::path::Path::new("fixture.pdf"),
+            &[issue],
+        )
+        .expect_err("broken diagnostic writer should fail the comparison boundary");
+
+        assert!(error.contains("cannot write extraction diagnostics for old PDF fixture.pdf"));
+        assert!(error.contains("broken pipe"));
+    }
+
+    #[test]
+    fn extraction_diagnostic_flush_failure_returns_contextual_error() {
+        let issue = ExtractionIssue::new(
+            ExtractionIssueKind::Unresolved,
+            ExtractionScope::Page(PageId(4)),
+            "fixture page is unresolved",
+        )
+        .expect("fixture extraction issue should be valid");
+
+        let error = report_extraction_issues(
+            &mut BrokenFlushWriter,
+            "new",
+            std::path::Path::new("fixture.pdf"),
+            &[issue],
+        )
+        .expect_err("broken diagnostic flush should fail the comparison boundary");
+
+        assert!(error.contains("cannot flush extraction diagnostics for new PDF fixture.pdf"));
+        assert!(error.contains("broken pipe"));
+    }
+
+    #[test]
+    fn final_error_diagnostic_ignores_writer_failure() {
+        report_fatal_error(&mut BrokenPipeWriter, "comparison failed");
     }
 
     #[cfg(unix)]

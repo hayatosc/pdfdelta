@@ -1,13 +1,16 @@
 use pdfdelta_core::{
     Error, Result,
+    alignment::AlignmentOptions,
     diff::{ChangeKind, Comparison, DiffOptions, FormattingReason},
-    layout::LineOptions,
+    layout::{BlockOptions, LineOptions},
     model::{
         DecodedText, Document, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect,
         TextRenderMode, Vec2,
     },
     pdf::ObjectRef,
-    pipeline::{PipelineOptions, compare_glyph_documents},
+    pipeline::{PipelineOptions, compare_extraction_outcomes, compare_glyph_documents},
+    report::{DocumentSide, ExitStatus, exit_status, summarize},
+    source::{ExtractionIssue, ExtractionIssueKind, ExtractionOutcome, ExtractionScope},
 };
 
 #[test]
@@ -158,13 +161,98 @@ fn compares_empty_documents() -> Result<()> {
 }
 
 #[test]
+fn compares_complete_extraction_outcomes_with_the_existing_pipeline() -> Result<()> {
+    let old = ExtractionOutcome::complete(paragraphs(&[
+        "Opening paragraph establishes context",
+        "Release 10 remains available",
+        "Closing paragraph confirms context",
+    ]));
+    let new = ExtractionOutcome::complete(paragraphs(&[
+        "Opening paragraph establishes context",
+        "Release 20 remains available",
+        "Closing paragraph confirms context",
+    ]));
+
+    let outcome = compare_extraction_outcomes(old, new, PipelineOptions::default())?;
+
+    assert_single_change(&outcome.comparison, ChangeKind::Replacement);
+    assert_eq!(
+        outcome.extraction,
+        pdfdelta_core::report::ExtractionStatus::complete()
+    );
+    Ok(())
+}
+
+#[test]
+fn suppresses_all_changes_when_extraction_is_incomplete() -> Result<()> {
+    let old = ExtractionOutcome::new(
+        paragraphs(&["Retained old paragraph remains available"]),
+        vec![ExtractionIssue::new(
+            ExtractionIssueKind::Unresolved,
+            ExtractionScope::Page(PageId(1)),
+            "page structure is ambiguous",
+        )?],
+    )?;
+    let new = ExtractionOutcome::complete(paragraphs(&[
+        "Retained old paragraph remains available",
+        "Additional new paragraph is visible",
+    ]));
+
+    let outcome = compare_extraction_outcomes(old, new, PipelineOptions::default())?;
+
+    assert!(outcome.comparison.changes.is_empty());
+    assert!(outcome.comparison.formatting_changes.is_empty());
+    assert!(outcome.comparison.unresolved_regions.is_empty());
+    assert_eq!(outcome.comparison.old_coverage.ratio, 0.0);
+    assert_eq!(outcome.comparison.new_coverage.ratio, 0.0);
+    assert!(!outcome.extraction.old_complete);
+    assert!(outcome.extraction.new_complete);
+    assert_eq!(outcome.extraction.issues.len(), 1);
+    assert_eq!(outcome.extraction.issues[0].side, DocumentSide::Old);
+    assert_eq!(
+        outcome.extraction.issues[0].kind,
+        ExtractionIssueKind::Unresolved
+    );
+    let summary = summarize(&outcome.comparison, &outcome.extraction)?;
+    assert!(!summary.comparison_complete);
+    assert_eq!(summary.unresolved_extraction_issues, 1);
+    assert_eq!(
+        exit_status(&outcome.comparison, &outcome.extraction, false)?,
+        ExitStatus::NoContentChanges
+    );
+    assert_eq!(
+        exit_status(&outcome.comparison, &outcome.extraction, true)?,
+        ExitStatus::IncompleteComparison
+    );
+    Ok(())
+}
+
+#[test]
+fn does_not_infer_insertion_from_empty_document_scoped_issue() -> Result<()> {
+    let old = ExtractionOutcome::new(
+        Document::new(Vec::new()),
+        vec![ExtractionIssue::new(
+            ExtractionIssueKind::Unsupported,
+            ExtractionScope::Document,
+            "document feature is not supported",
+        )?],
+    )?;
+    let new = ExtractionOutcome::complete(paragraphs(&["Visible new paragraph remains available"]));
+
+    let outcome = compare_extraction_outcomes(old, new, PipelineOptions::default())?;
+
+    assert!(outcome.comparison.changes.is_empty());
+    assert_eq!(outcome.comparison.old_coverage.total_tokens, 0);
+    assert_eq!(outcome.comparison.old_coverage.ratio, 1.0);
+    assert!(outcome.comparison.new_coverage.total_tokens > 0);
+    assert_eq!(outcome.comparison.new_coverage.ratio, 0.0);
+    Ok(())
+}
+
+#[test]
 fn enforces_raw_token_lower_bound_before_layout() {
     let document = paragraphs(&["A generic English paragraph exceeds the token budget"]);
     let options = PipelineOptions {
-        line: LineOptions {
-            max_baseline_distance_ratio: -1.0,
-            ..LineOptions::default()
-        },
         diff: DiffOptions {
             max_tokens: 1,
             ..DiffOptions::default()
@@ -185,7 +273,6 @@ fn enforces_raw_token_lower_bound_before_layout() {
 fn enforces_exact_raw_budget_before_building_features() {
     let document = document(&[line("Generic word-", 0, 100.0), line("break", 0, 88.0)]);
     let options = PipelineOptions {
-        ngram_size: 0,
         diff: DiffOptions {
             max_tokens: 34,
             ..DiffOptions::default()
@@ -200,6 +287,90 @@ fn enforces_exact_raw_budget_before_building_features() {
             limit: 34,
         })
     ));
+}
+
+#[test]
+fn partial_outcomes_reject_every_invalid_pipeline_option_group() -> Result<()> {
+    let partial = ExtractionOutcome::new(
+        paragraphs(&["Retained partial evidence remains available"]),
+        vec![ExtractionIssue::new(
+            ExtractionIssueKind::Unresolved,
+            ExtractionScope::Page(PageId(1)),
+            "page structure is ambiguous",
+        )?],
+    )?;
+    let complete =
+        ExtractionOutcome::complete(paragraphs(&["Retained partial evidence remains available"]));
+    let cases = [
+        (
+            PipelineOptions {
+                ngram_size: 0,
+                ..PipelineOptions::default()
+            },
+            "ngram_size",
+        ),
+        (
+            PipelineOptions {
+                line: LineOptions {
+                    max_baseline_distance_ratio: -1.0,
+                    ..LineOptions::default()
+                },
+                ..PipelineOptions::default()
+            },
+            "max_baseline_distance_ratio",
+        ),
+        (
+            PipelineOptions {
+                block: BlockOptions {
+                    repeated_min_pages: 1,
+                    ..BlockOptions::default()
+                },
+                ..PipelineOptions::default()
+            },
+            "repeated_min_pages",
+        ),
+        (
+            PipelineOptions {
+                alignment: AlignmentOptions {
+                    candidate_limit: 0,
+                    ..AlignmentOptions::default()
+                },
+                ..PipelineOptions::default()
+            },
+            "candidate_limit",
+        ),
+        (
+            PipelineOptions {
+                diff: DiffOptions {
+                    max_tokens: 0,
+                    ..DiffOptions::default()
+                },
+                ..PipelineOptions::default()
+            },
+            "max_tokens",
+        ),
+        (
+            PipelineOptions {
+                max_ngram_token_elements: 0,
+                ..PipelineOptions::default()
+            },
+            "max_ngram_token_elements",
+        ),
+    ];
+
+    for (options, expected) in cases {
+        let partial_error = compare_extraction_outcomes(partial.clone(), complete.clone(), options)
+            .expect_err("partial comparison should reject invalid pipeline options");
+        let complete_error =
+            compare_glyph_documents(partial.document(), complete.document(), options)
+                .expect_err("complete comparison should reject invalid pipeline options");
+        assert_eq!(partial_error, complete_error);
+        assert!(
+            matches!(&partial_error, Error::InvalidConfiguration(message) if message.contains(expected)),
+            "expected {expected:?} in {partial_error}"
+        );
+    }
+    Ok(())
 }
 
 #[test]

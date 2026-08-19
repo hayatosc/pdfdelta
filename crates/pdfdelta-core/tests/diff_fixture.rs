@@ -295,6 +295,37 @@ fn enforces_token_and_edit_distance_limits() {
 }
 
 #[test]
+fn zero_edit_distance_limit_allows_only_identical_input() -> Result<()> {
+    let alignment = aligned(vec![matched(&[1], &[101])]);
+    let options = DiffOptions {
+        max_tokens: 10,
+        max_edit_distance: 0,
+    };
+
+    let identical = compare_aligned(
+        &[block(1, "abc")],
+        &[block(101, "abc")],
+        &alignment,
+        options,
+    )?;
+    assert!(identical.changes.is_empty());
+
+    assert!(matches!(
+        compare_aligned(
+            &[block(1, "abc")],
+            &[block(101, "abd")],
+            &alignment,
+            options,
+        ),
+        Err(Error::LimitExceeded {
+            resource: "Myers edit distance",
+            limit: 0,
+        })
+    ));
+    Ok(())
+}
+
+#[test]
 fn applies_the_token_budget_to_raw_evidence_before_diffing() {
     let result = compare_aligned(
         &[block_with_raw(1, "many raw layout spaces", "A")],

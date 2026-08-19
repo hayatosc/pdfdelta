@@ -53,29 +53,30 @@ impl Default for LineOptions {
     }
 }
 
-impl LineOptions {
-    fn validate(self) -> Result<Self> {
-        validate_non_negative(
-            "max_baseline_distance_ratio",
-            self.max_baseline_distance_ratio,
-        )?;
-        validate_unit_interval(
-            "min_cross_axis_overlap_ratio",
-            self.min_cross_axis_overlap_ratio,
-        )?;
-        validate_unit_interval("min_direction_similarity", self.min_direction_similarity)?;
-        validate_non_negative(
-            "max_inline_gap_font_size_ratio",
-            self.max_inline_gap_font_size_ratio,
-        )?;
-        validate_non_negative("space_gap_font_size_ratio", self.space_gap_font_size_ratio)?;
-        validate_non_negative("space_gap_advance_ratio", self.space_gap_advance_ratio)?;
-        Ok(self)
-    }
+pub(crate) fn validate_line_options(options: LineOptions) -> Result<()> {
+    validate_non_negative(
+        "max_baseline_distance_ratio",
+        options.max_baseline_distance_ratio,
+    )?;
+    validate_unit_interval(
+        "min_cross_axis_overlap_ratio",
+        options.min_cross_axis_overlap_ratio,
+    )?;
+    validate_unit_interval("min_direction_similarity", options.min_direction_similarity)?;
+    validate_non_negative(
+        "max_inline_gap_font_size_ratio",
+        options.max_inline_gap_font_size_ratio,
+    )?;
+    validate_non_negative(
+        "space_gap_font_size_ratio",
+        options.space_gap_font_size_ratio,
+    )?;
+    validate_non_negative("space_gap_advance_ratio", options.space_gap_advance_ratio)?;
+    Ok(())
 }
 
 pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Result<Vec<Line>> {
-    let options = options.validate()?;
+    validate_line_options(options)?;
     let mut glyph_ids = HashSet::with_capacity(document.items().len());
     let mut glyphs = Vec::with_capacity(document.items().len());
 

@@ -1,8 +1,11 @@
 mod json;
 
+use std::collections::HashSet;
+
 use crate::{
     Error, Result,
     diff::{ChangeKind, Comparison, Confidence, TextSpan},
+    source::{ExtractionIssue, ExtractionIssueKind, ExtractionScope},
 };
 
 pub use json::write_json;
@@ -14,16 +17,30 @@ pub enum DocumentSide {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct UnsupportedRegion {
+pub struct ExtractionIssueRecord {
     pub side: DocumentSide,
+    pub kind: ExtractionIssueKind,
+    pub scope: ExtractionScope,
     pub description: String,
+}
+
+impl ExtractionIssueRecord {
+    pub fn from_issue(side: DocumentSide, issue: ExtractionIssue) -> Self {
+        let (kind, scope, description) = issue.into_parts();
+        Self {
+            side,
+            kind,
+            scope,
+            description,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExtractionStatus {
     pub old_complete: bool,
     pub new_complete: bool,
-    pub unsupported_regions: Vec<UnsupportedRegion>,
+    pub issues: Vec<ExtractionIssueRecord>,
 }
 
 impl ExtractionStatus {
@@ -31,33 +48,35 @@ impl ExtractionStatus {
         Self {
             old_complete: true,
             new_complete: true,
-            unsupported_regions: Vec::new(),
+            issues: Vec::new(),
         }
     }
 
     fn validate(&self) -> Result<()> {
-        let old_regions = self
-            .unsupported_regions
+        let old_issues = self
+            .issues
             .iter()
-            .filter(|region| region.side == DocumentSide::Old)
+            .filter(|issue| issue.side == DocumentSide::Old)
             .count();
-        let new_regions = self
-            .unsupported_regions
+        let new_issues = self
+            .issues
             .iter()
-            .filter(|region| region.side == DocumentSide::New)
+            .filter(|issue| issue.side == DocumentSide::New)
             .count();
 
-        validate_side_status("old", self.old_complete, old_regions)?;
-        validate_side_status("new", self.new_complete, new_regions)?;
+        validate_side_status("old", self.old_complete, old_issues)?;
+        validate_side_status("new", self.new_complete, new_issues)?;
         if self
-            .unsupported_regions
+            .issues
             .iter()
-            .any(|region| region.description.trim().is_empty())
+            .any(|issue| issue.description.trim().is_empty())
         {
             return Err(Error::InvalidConfiguration(
-                "unsupported extraction regions require a description".to_owned(),
+                "extraction issues require a description".to_owned(),
             ));
         }
+        validate_issue_scopes("old", DocumentSide::Old, &self.issues)?;
+        validate_issue_scopes("new", DocumentSide::New, &self.issues)?;
         Ok(())
     }
 }
@@ -74,7 +93,8 @@ pub struct ReportSummary {
     pub formatting_only_changes: usize,
     pub uncertain_changes: usize,
     pub unresolved_regions: usize,
-    pub unsupported_regions: usize,
+    pub unsupported_extraction_issues: usize,
+    pub unresolved_extraction_issues: usize,
     pub old_extraction_complete: bool,
     pub new_extraction_complete: bool,
     pub old_alignment_coverage: f64,
@@ -113,6 +133,18 @@ pub fn summarize(comparison: &Comparison, extraction: &ExtractionStatus) -> Resu
         comparison.new_coverage.total_tokens,
         comparison.new_coverage.ratio,
     )?;
+    validate_document_scope_coverage(
+        "old",
+        DocumentSide::Old,
+        comparison.old_coverage.total_tokens,
+        &extraction.issues,
+    )?;
+    validate_document_scope_coverage(
+        "new",
+        DocumentSide::New,
+        comparison.new_coverage.total_tokens,
+        &extraction.issues,
+    )?;
 
     let comparison_complete = comparison.unresolved_regions.is_empty()
         && comparison.old_coverage.resolved_tokens == comparison.old_coverage.total_tokens
@@ -128,7 +160,16 @@ pub fn summarize(comparison: &Comparison, extraction: &ExtractionStatus) -> Resu
             .filter(|change| change.confidence == Confidence::Low)
             .count(),
         unresolved_regions: comparison.unresolved_regions.len(),
-        unsupported_regions: extraction.unsupported_regions.len(),
+        unsupported_extraction_issues: extraction
+            .issues
+            .iter()
+            .filter(|issue| issue.kind == ExtractionIssueKind::Unsupported)
+            .count(),
+        unresolved_extraction_issues: extraction
+            .issues
+            .iter()
+            .filter(|issue| issue.kind == ExtractionIssueKind::Unresolved)
+            .count(),
         old_extraction_complete: extraction.old_complete,
         new_extraction_complete: extraction.new_complete,
         old_alignment_coverage: comparison.old_coverage.ratio,
@@ -150,6 +191,8 @@ pub fn render_text(comparison: &Comparison, extraction: &ExtractionStatus) -> Re
          Formatting-only changes:  {}\n\
          Uncertain changes:        {}\n\
          Unresolved regions:       {}\n\
+         Unsupported extraction:   {}\n\
+         Unresolved extraction:    {}\n\
          Extraction complete:      old={}, new={}\n\
          Alignment coverage:       old={:.1}%, new={:.1}%\n\
          Comparison coverage:      {:.1}%\n",
@@ -157,19 +200,32 @@ pub fn render_text(comparison: &Comparison, extraction: &ExtractionStatus) -> Re
         summary.formatting_only_changes,
         summary.uncertain_changes,
         summary.unresolved_regions,
+        summary.unsupported_extraction_issues,
+        summary.unresolved_extraction_issues,
         yes_no(summary.old_extraction_complete),
         yes_no(summary.new_extraction_complete),
         percentage(summary.old_alignment_coverage),
         percentage(summary.new_alignment_coverage),
         percentage(summary.comparison_coverage),
     );
-    for region in &extraction.unsupported_regions {
-        writeln!(
-            output,
-            "Unsupported region ({}): {}",
-            side_name(region.side),
-            region.description
-        )
+    for issue in &extraction.issues {
+        match issue.scope {
+            ExtractionScope::Document => writeln!(
+                output,
+                "Extraction issue (side={}, kind={}, scope=document): {}",
+                side_name(issue.side),
+                issue_kind_name(issue.kind),
+                issue.description
+            ),
+            ExtractionScope::Page(page) => writeln!(
+                output,
+                "Extraction issue (side={}, kind={}, scope=page, page={}): {}",
+                side_name(issue.side),
+                issue_kind_name(issue.kind),
+                page.0,
+                issue.description
+            ),
+        }
         .map_err(|error| Error::Report(error.to_string()))?;
     }
     Ok(output)
@@ -193,12 +249,63 @@ pub fn exit_status(
 fn validate_side_status(side: &str, complete: bool, region_count: usize) -> Result<()> {
     if complete && region_count != 0 {
         return Err(Error::InvalidConfiguration(format!(
-            "{side} extraction cannot be complete with unsupported regions"
+            "{side} extraction cannot be complete with issues"
         )));
     }
     if !complete && region_count == 0 {
         return Err(Error::InvalidConfiguration(format!(
-            "incomplete {side} extraction requires an unsupported region"
+            "incomplete {side} extraction requires an issue"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_issue_scopes(
+    side_name: &str,
+    side: DocumentSide,
+    issues: &[ExtractionIssueRecord],
+) -> Result<()> {
+    let side_issues = issues
+        .iter()
+        .filter(|issue| issue.side == side)
+        .collect::<Vec<_>>();
+    let document_issues = side_issues
+        .iter()
+        .filter(|issue| issue.scope == ExtractionScope::Document)
+        .count();
+    if document_issues > 0 && side_issues.len() != 1 {
+        return Err(Error::InvalidConfiguration(format!(
+            "inconsistent {side_name} extraction issue scopes: document scope cannot be combined with other issues"
+        )));
+    }
+
+    let mut pages = HashSet::new();
+    for issue in side_issues {
+        if let ExtractionScope::Page(page) = issue.scope
+            && !pages.insert(page)
+        {
+            return Err(Error::InvalidConfiguration(format!(
+                "inconsistent {side_name} extraction issue scopes: page {} is duplicated",
+                page.0
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn validate_document_scope_coverage(
+    side_name: &str,
+    side: DocumentSide,
+    total_tokens: usize,
+    issues: &[ExtractionIssueRecord],
+) -> Result<()> {
+    if total_tokens != 0
+        && issues
+            .iter()
+            .any(|issue| issue.side == side && issue.scope == ExtractionScope::Document)
+    {
+        return Err(Error::InvalidConfiguration(format!(
+            "document-scoped {side_name} extraction issues require zero extracted alignment tokens"
         )));
     }
     Ok(())
@@ -303,5 +410,12 @@ pub(crate) fn side_name(side: DocumentSide) -> &'static str {
     match side {
         DocumentSide::Old => "old",
         DocumentSide::New => "new",
+    }
+}
+
+pub(crate) fn issue_kind_name(kind: ExtractionIssueKind) -> &'static str {
+    match kind {
+        ExtractionIssueKind::Unsupported => "unsupported",
+        ExtractionIssueKind::Unresolved => "unresolved",
     }
 }

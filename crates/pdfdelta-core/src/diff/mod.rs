@@ -117,7 +117,7 @@ pub(crate) fn enforce_diff_token_budget(
     inspect_sides_with_budget(old, new, options).map(|_| ())
 }
 
-pub(crate) fn validate_diff_token_budget(options: DiffOptions) -> Result<()> {
+pub(crate) fn validate_diff_options(options: DiffOptions) -> Result<()> {
     if options.max_tokens == 0 {
         return Err(Error::InvalidConfiguration(
             "diff max_tokens must be greater than zero".to_owned(),
@@ -131,7 +131,7 @@ pub(crate) fn enforce_diff_raw_token_budget(
     new_tokens: usize,
     options: DiffOptions,
 ) -> Result<()> {
-    validate_diff_token_budget(options)?;
+    validate_diff_options(options)?;
     enforce_combined_token_budget(
         "diff raw evidence tokens",
         old_tokens,
@@ -221,7 +221,7 @@ fn inspect_sides_with_budget<'a>(
     new: &'a [BlockText],
     options: DiffOptions,
 ) -> Result<(SidePlan<'a>, SidePlan<'a>)> {
-    validate_diff_token_budget(options)?;
+    validate_diff_options(options)?;
 
     let old = SidePlan::inspect("old", old)?;
     let new = SidePlan::inspect("new", new)?;

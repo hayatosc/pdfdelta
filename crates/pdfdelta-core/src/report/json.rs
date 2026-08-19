@@ -9,11 +9,12 @@ use crate::{
         Change, ChangeKind, ChangeTag, Comparison, Confidence, Coverage, FormattingChange,
         FormattingReason, TextSpan, UnresolvedRegion,
     },
+    source::ExtractionScope,
 };
 
-use super::{ExtractionStatus, ReportSummary, side_name, summarize};
+use super::{ExtractionStatus, ReportSummary, issue_kind_name, side_name, summarize};
 
-const SCHEMA_VERSION: u32 = 1;
+const SCHEMA_VERSION: u32 = 2;
 
 pub fn write_json<W: Write>(
     mut writer: W,
@@ -70,7 +71,8 @@ struct JsonSummary {
     formatting_only_changes: usize,
     uncertain_changes: usize,
     unresolved_regions: usize,
-    unsupported_regions: usize,
+    unsupported_extraction_issues: usize,
+    unresolved_extraction_issues: usize,
     comparison_complete: bool,
     old_alignment_coverage: JsonCoverage,
     new_alignment_coverage: JsonCoverage,
@@ -84,7 +86,8 @@ impl JsonSummary {
             formatting_only_changes: summary.formatting_only_changes,
             uncertain_changes: summary.uncertain_changes,
             unresolved_regions: summary.unresolved_regions,
-            unsupported_regions: summary.unsupported_regions,
+            unsupported_extraction_issues: summary.unsupported_extraction_issues,
+            unresolved_extraction_issues: summary.unresolved_extraction_issues,
             comparison_complete: summary.comparison_complete,
             old_alignment_coverage: comparison.old_coverage.into(),
             new_alignment_coverage: comparison.new_coverage.into(),
@@ -114,7 +117,7 @@ impl From<Coverage> for JsonCoverage {
 struct JsonExtraction<'a> {
     old_complete: bool,
     new_complete: bool,
-    unsupported_regions: Vec<JsonUnsupportedRegion<'a>>,
+    issues: Vec<JsonExtractionIssue<'a>>,
 }
 
 impl<'a> JsonExtraction<'a> {
@@ -122,12 +125,21 @@ impl<'a> JsonExtraction<'a> {
         Self {
             old_complete: extraction.old_complete,
             new_complete: extraction.new_complete,
-            unsupported_regions: extraction
-                .unsupported_regions
+            issues: extraction
+                .issues
                 .iter()
-                .map(|region| JsonUnsupportedRegion {
-                    side: side_name(region.side),
-                    description: &region.description,
+                .map(|issue| JsonExtractionIssue {
+                    side: side_name(issue.side),
+                    kind: issue_kind_name(issue.kind),
+                    scope: match issue.scope {
+                        ExtractionScope::Document => "document",
+                        ExtractionScope::Page(_) => "page",
+                    },
+                    page: match issue.scope {
+                        ExtractionScope::Document => None,
+                        ExtractionScope::Page(page) => Some(page.0),
+                    },
+                    description: &issue.description,
                 })
                 .collect(),
         }
@@ -135,8 +147,12 @@ impl<'a> JsonExtraction<'a> {
 }
 
 #[derive(Serialize)]
-struct JsonUnsupportedRegion<'a> {
+struct JsonExtractionIssue<'a> {
     side: &'static str,
+    kind: &'static str,
+    scope: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    page: Option<u32>,
     description: &'a str,
 }
 

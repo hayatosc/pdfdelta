@@ -98,8 +98,10 @@ Text reports are written to standard output. `--json PATH` writes a versioned JS
 - Input must be a born-digital PDF. OCR, scanned pages, handwriting, encrypted documents, and image comparison are not supported.
 - Extraction currently targets horizontal, mainly single-column text using supported Type 1 or TrueType simple fonts. Type 0/CID fonts, vertical writing, complex tables, and complete annotation or form handling are not implemented.
 - PDF text operators, encodings, ToUnicode maps, and Form XObjects are supported only within the bounded subset covered by the backend fixtures.
-- Extraction is currently all-or-nothing. An unsupported or unresolved extraction feature stops the command with exit code `2`; partial-document reports are not emitted yet.
-- `--strict` returns exit code `3` only when extraction succeeded but alignment coverage or unresolved comparison regions make the result incomplete.
+- Unsupported or unresolved extraction is reported as a typed document- or page-scoped issue in stderr and the text or JSON report.
+- The current conservative policy suppresses the entire diff when any extraction gap exists. The default mode returns exit code `0`, while `--strict` returns exit code `3` for the incomplete comparison.
+- Fatal I/O, backend, malformed-input, and resource-limit failures remain execution errors with exit code `2`.
+- Region-aware partial comparison, which would compare proven-safe extracted regions while excluding only affected pages, remains future work.
 - Atomic `--json` publication requires a filesystem with same-filesystem hard-link support. Other filesystems return exit code `2` without publishing the report.
 - Formatting-only reporting is best-effort and does not claim pixel-level rendering identity.
 

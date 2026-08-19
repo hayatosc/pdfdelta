@@ -6,11 +6,13 @@ use pdfdelta_core::{
         FormattingReason, TextSpan, TokenRange, UnresolvedRegion,
     },
     layout::BlockId,
+    model::PageId,
     normalize::ScalarRange,
     report::{
-        DocumentSide, ExitStatus, ExtractionStatus, UnsupportedRegion, exit_status, render_text,
-        summarize, write_json,
+        DocumentSide, ExitStatus, ExtractionIssueRecord, ExtractionStatus, exit_status,
+        render_text, summarize, write_json,
     },
+    source::{ExtractionIssueKind, ExtractionScope},
 };
 
 #[test]
@@ -23,6 +25,8 @@ fn text_report_always_states_completeness_and_coverage() -> Result<()> {
          Formatting-only changes:  0\n\
          Uncertain changes:        0\n\
          Unresolved regions:       0\n\
+         Unsupported extraction:   0\n\
+         Unresolved extraction:    0\n\
          Extraction complete:      old=yes, new=yes\n\
          Alignment coverage:       old=100.0%, new=100.0%\n\
          Comparison coverage:      100.0%\n"
@@ -95,7 +99,7 @@ fn incomplete_extraction_requires_a_described_region() {
     let missing_region = ExtractionStatus {
         old_complete: false,
         new_complete: true,
-        unsupported_regions: Vec::new(),
+        issues: Vec::new(),
     };
     assert!(matches!(
         summarize(&empty_comparison(), &missing_region),
@@ -106,14 +110,31 @@ fn incomplete_extraction_requires_a_described_region() {
     let blank_description = ExtractionStatus {
         old_complete: false,
         new_complete: true,
-        unsupported_regions: vec![UnsupportedRegion {
+        issues: vec![ExtractionIssueRecord {
             side: DocumentSide::Old,
+            kind: ExtractionIssueKind::Unsupported,
+            scope: ExtractionScope::Page(PageId(0)),
             description: "  ".to_owned(),
         }],
     };
     assert!(matches!(
         summarize(&empty_comparison(), &blank_description),
         Err(Error::InvalidConfiguration(message)) if message.contains("require a description")
+    ));
+
+    let complete_with_issue = ExtractionStatus {
+        old_complete: true,
+        new_complete: true,
+        issues: vec![ExtractionIssueRecord {
+            side: DocumentSide::Old,
+            kind: ExtractionIssueKind::Unsupported,
+            scope: ExtractionScope::Page(PageId(0)),
+            description: "unsupported page feature".to_owned(),
+        }],
+    };
+    assert!(matches!(
+        summarize(&empty_comparison(), &complete_with_issue),
+        Err(Error::InvalidConfiguration(message)) if message.contains("cannot be complete with issues")
     ));
 }
 
@@ -122,16 +143,22 @@ fn reports_incomplete_extraction_in_text_and_strict_status() -> Result<()> {
     let extraction = ExtractionStatus {
         old_complete: true,
         new_complete: false,
-        unsupported_regions: vec![UnsupportedRegion {
+        issues: vec![ExtractionIssueRecord {
             side: DocumentSide::New,
-            description: "unsupported text stream".to_owned(),
+            kind: ExtractionIssueKind::Unresolved,
+            scope: ExtractionScope::Page(PageId(2)),
+            description: "ambiguous text stream".to_owned(),
         }],
     };
 
     let report = render_text(&empty_comparison(), &extraction)?;
 
     assert!(report.contains("Extraction complete:      old=yes, new=no"));
-    assert!(report.contains("Unsupported region (new): unsupported text stream"));
+    assert!(report.contains("Unsupported extraction:   0"));
+    assert!(report.contains("Unresolved extraction:    1"));
+    assert!(report.contains(
+        "Extraction issue (side=new, kind=unresolved, scope=page, page=2): ambiguous text stream"
+    ));
     assert_eq!(
         exit_status(&empty_comparison(), &extraction, true)?,
         ExitStatus::IncompleteComparison
@@ -162,8 +189,10 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
     let extraction = ExtractionStatus {
         old_complete: false,
         new_complete: true,
-        unsupported_regions: vec![UnsupportedRegion {
+        issues: vec![ExtractionIssueRecord {
             side: DocumentSide::Old,
+            kind: ExtractionIssueKind::Unsupported,
+            scope: ExtractionScope::Page(PageId(4)),
             description: "unknown stream operator".to_owned(),
         }],
     };
@@ -173,7 +202,7 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 1);
+    assert_eq!(json["schema_version"], 2);
     assert_eq!(json["summary"]["content_changes"], 1);
     assert_eq!(
         json["summary"]["old_alignment_coverage"]["resolved_tokens"],
@@ -191,11 +220,97 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
         "candidate_source:ngram_inverted_index"
     );
     assert_eq!(json["extraction"]["old_complete"], false);
+    assert_eq!(json["extraction"]["issues"][0]["kind"], "unsupported");
+    assert_eq!(json["extraction"]["issues"][0]["scope"], "page");
+    assert_eq!(json["extraction"]["issues"][0]["page"], 4);
     assert_eq!(
-        json["extraction"]["unsupported_regions"][0]["description"],
+        json["extraction"]["issues"][0]["description"],
         "unknown stream operator"
     );
     Ok(())
+}
+
+#[test]
+fn json_report_counts_typed_extraction_issues_and_omits_document_page() -> Result<()> {
+    let extraction = ExtractionStatus {
+        old_complete: false,
+        new_complete: false,
+        issues: vec![
+            ExtractionIssueRecord {
+                side: DocumentSide::Old,
+                kind: ExtractionIssueKind::Unsupported,
+                scope: ExtractionScope::Page(PageId(3)),
+                description: "unsupported page feature".to_owned(),
+            },
+            ExtractionIssueRecord {
+                side: DocumentSide::New,
+                kind: ExtractionIssueKind::Unresolved,
+                scope: ExtractionScope::Document,
+                description: "ambiguous document structure".to_owned(),
+            },
+        ],
+    };
+    let mut output = Vec::new();
+
+    write_json(&mut output, &empty_comparison(), &extraction)?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("report should be valid JSON");
+
+    assert_eq!(json["summary"]["unsupported_extraction_issues"], 1);
+    assert_eq!(json["summary"]["unresolved_extraction_issues"], 1);
+    assert_eq!(json["extraction"]["issues"][0]["side"], "old");
+    assert_eq!(json["extraction"]["issues"][0]["page"], 3);
+    assert_eq!(json["extraction"]["issues"][1]["side"], "new");
+    assert_eq!(json["extraction"]["issues"][1]["scope"], "document");
+    assert!(json["extraction"]["issues"][1].get("page").is_none());
+    Ok(())
+}
+
+#[test]
+fn rejects_inconsistent_extraction_issue_scopes() {
+    let mixed_scopes = ExtractionStatus {
+        old_complete: false,
+        new_complete: true,
+        issues: vec![
+            ExtractionIssueRecord {
+                side: DocumentSide::Old,
+                kind: ExtractionIssueKind::Unsupported,
+                scope: ExtractionScope::Document,
+                description: "unsupported document feature".to_owned(),
+            },
+            ExtractionIssueRecord {
+                side: DocumentSide::Old,
+                kind: ExtractionIssueKind::Unresolved,
+                scope: ExtractionScope::Page(PageId(0)),
+                description: "ambiguous page content".to_owned(),
+            },
+        ],
+    };
+    assert!(matches!(
+        summarize(&empty_comparison(), &mixed_scopes),
+        Err(Error::InvalidConfiguration(message)) if message.contains("inconsistent old extraction issue scopes")
+    ));
+
+    let document_issue_with_evidence = ExtractionStatus {
+        old_complete: false,
+        new_complete: true,
+        issues: vec![ExtractionIssueRecord {
+            side: DocumentSide::Old,
+            kind: ExtractionIssueKind::Unsupported,
+            scope: ExtractionScope::Document,
+            description: "unsupported document feature".to_owned(),
+        }],
+    };
+    let mut comparison = empty_comparison();
+    comparison.old_coverage = Coverage {
+        resolved_tokens: 0,
+        total_tokens: 1,
+        ratio: 0.0,
+    };
+    assert!(matches!(
+        summarize(&comparison, &document_issue_with_evidence),
+        Err(Error::InvalidConfiguration(message)) if message.contains("document-scoped old extraction issues")
+    ));
 }
 
 #[test]

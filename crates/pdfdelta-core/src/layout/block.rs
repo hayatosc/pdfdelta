@@ -76,62 +76,67 @@ impl Default for BlockOptions {
     }
 }
 
-impl BlockOptions {
-    fn validate(self) -> Result<Self> {
-        let weights = [
-            ("vertical_proximity_weight", self.vertical_proximity_weight),
-            ("horizontal_overlap_weight", self.horizontal_overlap_weight),
-            ("indent_similarity_weight", self.indent_similarity_weight),
-            ("font_continuity_weight", self.font_continuity_weight),
-        ];
-        for (name, value) in weights {
-            validate_non_negative(name, value)?;
-        }
-        let weight_sum = weights.iter().map(|(_, value)| value).sum::<f64>();
-        if (weight_sum - 1.0).abs() > WEIGHT_SUM_TOLERANCE {
-            return Err(Error::InvalidConfiguration(
-                "block score weights must sum to 1".to_owned(),
-            ));
-        }
-
-        validate_unit_interval("min_join_score", self.min_join_score)?;
-        validate_non_negative(
-            "max_vertical_gap_height_ratio",
-            self.max_vertical_gap_height_ratio,
-        )?;
-        validate_non_negative("max_indent_height_ratio", self.max_indent_height_ratio)?;
-        validate_unit_interval(
-            "min_horizontal_overlap_ratio",
-            self.min_horizontal_overlap_ratio,
-        )?;
-        validate_unit_interval("min_font_similarity", self.min_font_similarity)?;
-        validate_non_negative(
-            "max_cross_page_indent_height_ratio",
-            self.max_cross_page_indent_height_ratio,
-        )?;
-        validate_unit_interval(
-            "min_cross_page_horizontal_overlap_ratio",
-            self.min_cross_page_horizontal_overlap_ratio,
-        )?;
-        validate_unit_interval(
-            "min_cross_page_font_similarity",
-            self.min_cross_page_font_similarity,
-        )?;
-        validate_non_negative(
-            "max_cross_page_cadence_difference",
-            self.max_cross_page_cadence_difference,
-        )?;
-        if self.repeated_min_pages < 2 {
-            return Err(Error::InvalidConfiguration(
-                "repeated_min_pages must be at least 2".to_owned(),
-            ));
-        }
-        validate_unit_interval(
-            "min_repeated_margin_font_similarity",
-            self.min_repeated_margin_font_similarity,
-        )?;
-        Ok(self)
+pub(crate) fn validate_block_options(options: BlockOptions) -> Result<()> {
+    let weights = [
+        (
+            "vertical_proximity_weight",
+            options.vertical_proximity_weight,
+        ),
+        (
+            "horizontal_overlap_weight",
+            options.horizontal_overlap_weight,
+        ),
+        ("indent_similarity_weight", options.indent_similarity_weight),
+        ("font_continuity_weight", options.font_continuity_weight),
+    ];
+    for (name, value) in weights {
+        validate_non_negative(name, value)?;
     }
+    let weight_sum = weights.iter().map(|(_, value)| value).sum::<f64>();
+    if (weight_sum - 1.0).abs() > WEIGHT_SUM_TOLERANCE {
+        return Err(Error::InvalidConfiguration(
+            "block score weights must sum to 1".to_owned(),
+        ));
+    }
+
+    validate_unit_interval("min_join_score", options.min_join_score)?;
+    validate_non_negative(
+        "max_vertical_gap_height_ratio",
+        options.max_vertical_gap_height_ratio,
+    )?;
+    validate_non_negative("max_indent_height_ratio", options.max_indent_height_ratio)?;
+    validate_unit_interval(
+        "min_horizontal_overlap_ratio",
+        options.min_horizontal_overlap_ratio,
+    )?;
+    validate_unit_interval("min_font_similarity", options.min_font_similarity)?;
+    validate_non_negative(
+        "max_cross_page_indent_height_ratio",
+        options.max_cross_page_indent_height_ratio,
+    )?;
+    validate_unit_interval(
+        "min_cross_page_horizontal_overlap_ratio",
+        options.min_cross_page_horizontal_overlap_ratio,
+    )?;
+    validate_unit_interval(
+        "min_cross_page_font_similarity",
+        options.min_cross_page_font_similarity,
+    )?;
+    validate_non_negative(
+        "max_cross_page_cadence_difference",
+        options.max_cross_page_cadence_difference,
+    )?;
+    // deliberate: repeated_edge_line_limit == 0 disables repeated-edge role detection.
+    if options.repeated_min_pages < 2 {
+        return Err(Error::InvalidConfiguration(
+            "repeated_min_pages must be at least 2".to_owned(),
+        ));
+    }
+    validate_unit_interval(
+        "min_repeated_margin_font_similarity",
+        options.min_repeated_margin_font_similarity,
+    )?;
+    Ok(())
 }
 
 pub fn reconstruct_blocks(
@@ -139,7 +144,7 @@ pub fn reconstruct_blocks(
     lines: &[Line],
     options: BlockOptions,
 ) -> Result<Vec<Block>> {
-    let options = options.validate()?;
+    validate_block_options(options)?;
     let glyphs = index_glyphs(document)?;
     let mut line_ids = HashSet::with_capacity(lines.len());
     let mut assigned_glyphs = HashSet::with_capacity(glyphs.len());

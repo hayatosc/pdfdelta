@@ -92,53 +92,51 @@ impl Default for AlignmentOptions {
     }
 }
 
-impl AlignmentOptions {
-    fn validate(self) -> Result<Self> {
-        if self.candidate_limit == 0 {
-            return Err(Error::InvalidConfiguration(
-                "alignment candidate_limit must be greater than zero".to_owned(),
-            ));
-        }
-        if self.max_candidate_visits == 0 {
-            return Err(Error::InvalidConfiguration(
-                "alignment max_candidate_visits must be greater than zero".to_owned(),
-            ));
-        }
-        if self.anchor_min_tokens == 0 {
-            return Err(Error::InvalidConfiguration(
-                "alignment anchor_min_tokens must be greater than zero".to_owned(),
-            ));
-        }
-        if self.max_dp_cells == 0 {
-            return Err(Error::InvalidConfiguration(
-                "alignment max_dp_cells must be greater than zero".to_owned(),
-            ));
-        }
-        for (name, value) in [
-            ("min_match_score", self.min_match_score),
-            ("min_score_margin", self.min_score_margin),
-            (
-                "min_masked_canonical_similarity",
-                self.min_masked_canonical_similarity,
-            ),
-        ] {
-            validate_unit_interval(name, value)?;
-        }
-        for (name, value) in [
-            ("gap_penalty", self.gap_penalty),
-            ("split_merge_penalty", self.split_merge_penalty),
-            ("matching_weight", self.matching_weight),
-            ("canonical_weight", self.canonical_weight),
-        ] {
-            validate_non_negative(name, value)?;
-        }
-        if (self.matching_weight + self.canonical_weight - 1.0).abs() > WEIGHT_SUM_TOLERANCE {
-            return Err(Error::InvalidConfiguration(
-                "alignment text weights must sum to 1".to_owned(),
-            ));
-        }
-        Ok(self)
+pub(crate) fn validate_alignment_options(options: AlignmentOptions) -> Result<()> {
+    if options.candidate_limit == 0 {
+        return Err(Error::InvalidConfiguration(
+            "alignment candidate_limit must be greater than zero".to_owned(),
+        ));
     }
+    if options.max_candidate_visits == 0 {
+        return Err(Error::InvalidConfiguration(
+            "alignment max_candidate_visits must be greater than zero".to_owned(),
+        ));
+    }
+    if options.anchor_min_tokens == 0 {
+        return Err(Error::InvalidConfiguration(
+            "alignment anchor_min_tokens must be greater than zero".to_owned(),
+        ));
+    }
+    if options.max_dp_cells == 0 {
+        return Err(Error::InvalidConfiguration(
+            "alignment max_dp_cells must be greater than zero".to_owned(),
+        ));
+    }
+    for (name, value) in [
+        ("min_match_score", options.min_match_score),
+        ("min_score_margin", options.min_score_margin),
+        (
+            "min_masked_canonical_similarity",
+            options.min_masked_canonical_similarity,
+        ),
+    ] {
+        validate_unit_interval(name, value)?;
+    }
+    for (name, value) in [
+        ("gap_penalty", options.gap_penalty),
+        ("split_merge_penalty", options.split_merge_penalty),
+        ("matching_weight", options.matching_weight),
+        ("canonical_weight", options.canonical_weight),
+    ] {
+        validate_non_negative(name, value)?;
+    }
+    if (options.matching_weight + options.canonical_weight - 1.0).abs() > WEIGHT_SUM_TOLERANCE {
+        return Err(Error::InvalidConfiguration(
+            "alignment text weights must sum to 1".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 pub fn align_ordered(
@@ -147,7 +145,7 @@ pub fn align_ordered(
     generator: &dyn CandidateGenerator,
     options: AlignmentOptions,
 ) -> Result<Alignment> {
-    let options = options.validate()?;
+    validate_alignment_options(options)?;
     validate_features("old", old)?;
     validate_features("new", new)?;
     validate_shared_ngram_size(old, new)?;

@@ -181,7 +181,7 @@ fn writes_json_report_atomically() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let json = fs::read_to_string(report).expect("JSON report should be readable");
-    assert!(json.contains("\"schema_version\": 1"));
+    assert!(json.contains("\"schema_version\": 2"));
     assert!(json.contains("\"content_changes\": 0"));
     assert_no_temporary_reports(&directory);
 }
@@ -226,6 +226,63 @@ fn malformed_old_document_exits_two_with_context() {
     assert_eq!(output.status.code(), Some(2), "{error}");
     assert!(error.contains("old PDF"), "{error}");
     assert!(error.contains(path_text(&old)), "{error}");
+}
+
+#[test]
+fn unsupported_extraction_reports_without_false_changes() {
+    let directory = TestDirectory::new();
+    let unsupported = directory.join("unsupported.pdf");
+    let complete = directory.join("complete.pdf");
+    let report_path = directory.join("unsupported.json");
+    write_type0_pdf(&unsupported, &["Unsupported page text is present"]);
+    write_pdf(&complete, &["Complete page text remains visible"]);
+
+    let default_output = compare(&unsupported, &complete, &[]);
+    let default_stderr = stderr(&default_output);
+    let default_report = stdout(&default_output);
+
+    assert_eq!(default_output.status.code(), Some(0), "{default_stderr}");
+    assert!(default_stderr.contains("extraction issue for old PDF"));
+    assert!(default_stderr.contains("kind=unsupported"));
+    assert!(default_stderr.contains("Type0/CID fonts are not implemented"));
+    assert!(default_report.contains("Content changes:          0"));
+    assert!(default_report.contains("Unsupported extraction:   1"));
+    assert!(
+        default_report
+            .contains("Extraction issue (side=old, kind=unsupported, scope=page, page=0)")
+    );
+
+    let strict_output = compare(
+        &complete,
+        &unsupported,
+        &["--strict", "--json", path_text(&report_path)],
+    );
+    let strict_stderr = stderr(&strict_output);
+
+    assert_eq!(strict_output.status.code(), Some(3), "{strict_stderr}");
+    assert!(strict_stderr.contains("extraction issue for new PDF"));
+    let report: Value = serde_json::from_slice(
+        &fs::read(report_path).expect("incomplete JSON report should be readable"),
+    )
+    .expect("incomplete JSON report should be valid");
+    assert_eq!(report["schema_version"], 2);
+    assert_eq!(report["summary"]["content_changes"], 0);
+    assert_eq!(report["summary"]["comparison_complete"], false);
+    assert_eq!(report["summary"]["unsupported_extraction_issues"], 1);
+    assert_eq!(report["summary"]["old_alignment_coverage"]["ratio"], 0.0);
+    assert_eq!(report["summary"]["new_alignment_coverage"]["ratio"], 1.0);
+    assert_eq!(
+        report["changes"]
+            .as_array()
+            .expect("changes should be an array")
+            .len(),
+        0
+    );
+    assert_eq!(report["extraction"]["new_complete"], false);
+    assert_eq!(report["extraction"]["issues"][0]["side"], "new");
+    assert_eq!(report["extraction"]["issues"][0]["kind"], "unsupported");
+    assert_eq!(report["extraction"]["issues"][0]["scope"], "page");
+    assert_eq!(report["extraction"]["issues"][0]["page"], 0);
 }
 
 #[test]
@@ -275,13 +332,26 @@ fn write_pdf(path: &Path, lines: &[&str]) {
     write_pdf_pages(path, &[lines], 30);
 }
 
+fn write_type0_pdf(path: &Path, lines: &[&str]) {
+    write_pdf_pages_with_font(path, &[lines], 30, "Type0");
+}
+
 fn write_pdf_pages(path: &Path, pages_content: &[&[&str]], line_gap: i64) {
+    write_pdf_pages_with_font(path, pages_content, line_gap, "Type1");
+}
+
+fn write_pdf_pages_with_font(
+    path: &Path,
+    pages_content: &[&[&str]],
+    line_gap: i64,
+    font_subtype: &str,
+) {
     let mut document = Document::with_version("1.7");
     let pages = document.new_object_id();
     let widths = vec![Object::Integer(500); 256];
     let font = document.add_object(dictionary! {
         "Type" => "Font",
-        "Subtype" => "Type1",
+        "Subtype" => Object::Name(font_subtype.as_bytes().to_vec()),
         "BaseFont" => "Helvetica",
         "FirstChar" => 0,
         "LastChar" => 255,
@@ -345,6 +415,7 @@ fn assert_complete_json_report(
 ) {
     let json = fs::read_to_string(report_path).expect("JSON report should be readable");
     let report: Value = serde_json::from_str(&json).expect("JSON report should be valid");
+    assert_eq!(report["schema_version"], 2, "{report:#}");
     let summary = &report["summary"];
     assert_eq!(
         summary["content_changes"].as_u64(),

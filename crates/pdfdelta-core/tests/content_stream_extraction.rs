@@ -5,7 +5,10 @@ use pdfdelta_core::{
     Error, Result,
     model::{DecodedText, Document, Glyph},
     pdf::{LopdfParser, ParseLimits, PdfParser},
-    source::{ContentStreamGlyphExtractor, ExtractionLimits, GlyphExtractor},
+    source::{
+        ContentStreamGlyphExtractor, ExtractionIssueKind, ExtractionLimits, ExtractionOutcome,
+        ExtractionScope, GlyphExtractor,
+    },
 };
 
 fn base_font(document: &mut LopdfDocument) -> lopdf::ObjectId {
@@ -64,6 +67,35 @@ fn install_page(
     document.trailer.set("Root", catalog);
 }
 
+fn install_plain_pages(document: &mut LopdfDocument, contents: &[Object], resources: Object) {
+    let pages = document.new_object_id();
+    let page_ids = contents
+        .iter()
+        .map(|contents| {
+            document.add_object(dictionary! {
+                "Type" => "Page",
+                "Parent" => pages,
+                "Contents" => contents.clone(),
+                "Resources" => resources.clone(),
+                "MediaBox" => vec![0.into(), 0.into(), 300.into(), 300.into()],
+            })
+        })
+        .collect::<Vec<_>>();
+    document.objects.insert(
+        pages,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => page_ids.into_iter().map(Object::Reference).collect::<Vec<_>>(),
+            "Count" => i64::try_from(contents.len()).expect("page count should fit in i64"),
+        }),
+    );
+    let catalog = document.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => pages,
+    });
+    document.trailer.set("Root", catalog);
+}
+
 fn extract(mut document: LopdfDocument, limits: ExtractionLimits) -> Result<Document<Glyph>> {
     let mut bytes = Vec::new();
     document
@@ -71,6 +103,18 @@ fn extract(mut document: LopdfDocument, limits: ExtractionLimits) -> Result<Docu
         .expect("fixture PDF should serialize");
     let pdf = LopdfParser.parse(Arc::from(bytes), ParseLimits::default())?;
     ContentStreamGlyphExtractor.extract(pdf.as_ref(), limits)
+}
+
+fn extract_outcome(
+    mut document: LopdfDocument,
+    limits: ExtractionLimits,
+) -> Result<ExtractionOutcome> {
+    let mut bytes = Vec::new();
+    document
+        .save_to(&mut bytes)
+        .expect("fixture PDF should serialize");
+    let pdf = LopdfParser.parse(Arc::from(bytes), ParseLimits::default())?;
+    ContentStreamGlyphExtractor.extract_outcome(pdf.as_ref(), limits)
 }
 
 fn mapped_text(glyphs: &[Glyph]) -> String {
@@ -88,6 +132,85 @@ fn assert_close(actual: f64, expected: f64) {
         (actual - expected).abs() < 1e-9,
         "expected {expected}, got {actual}"
     );
+}
+
+fn document_with_unsupported_middle_page() -> LopdfDocument {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let contents = [
+        b"BT /F1 10 Tf 1 0 0 1 30 40 Tm (A) Tj ET".as_slice(),
+        b"BT /F1 10 Tf 1 0 0 1 30 40 Tm (B) Tj ET ZZ".as_slice(),
+        b"BT /F1 10 Tf 1 0 0 1 30 40 Tm (C) Tj ET".as_slice(),
+    ]
+    .into_iter()
+    .map(|bytes| Object::Reference(pdf.add_object(Stream::new(dictionary! {}, bytes.to_vec()))))
+    .collect::<Vec<_>>();
+    let resources = Object::Dictionary(dictionary! {
+        "Font" => dictionary! { "F1" => font },
+    });
+    install_plain_pages(&mut pdf, &contents, resources);
+    pdf
+}
+
+fn document_with_unsupported_then_fatal_page() -> LopdfDocument {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let contents = [b"ZZ".as_slice(), b"q Q".as_slice()]
+        .into_iter()
+        .map(|bytes| Object::Reference(pdf.add_object(Stream::new(dictionary! {}, bytes.to_vec()))))
+        .collect::<Vec<_>>();
+    install_plain_pages(&mut pdf, &contents, Object::Dictionary(dictionary! {}));
+    pdf
+}
+
+#[test]
+fn rolls_back_unsupported_page_and_continues_later_pages() -> Result<()> {
+    let outcome = extract_outcome(
+        document_with_unsupported_middle_page(),
+        ExtractionLimits::default(),
+    )?;
+
+    assert_eq!(mapped_text(outcome.document().items()), "AC");
+    assert_eq!(
+        outcome
+            .document()
+            .items()
+            .iter()
+            .map(|glyph| glyph.page.0)
+            .collect::<Vec<_>>(),
+        [0, 2]
+    );
+    assert_eq!(outcome.issues().len(), 1);
+    assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unsupported);
+    assert_eq!(
+        outcome.issues()[0].scope(),
+        ExtractionScope::Page(pdfdelta_core::model::PageId(1))
+    );
+    assert!(outcome.issues()[0].description().contains("ZZ"));
+
+    assert!(matches!(
+        extract(
+            document_with_unsupported_middle_page(),
+            ExtractionLimits::default()
+        ),
+        Err(Error::Unsupported(message)) if message.contains("ZZ")
+    ));
+    Ok(())
+}
+
+#[test]
+fn later_fatal_page_overrides_an_earlier_unsupported_page() {
+    let limits = ExtractionLimits {
+        max_operators: 1,
+        ..ExtractionLimits::default()
+    };
+
+    assert!(matches!(
+        extract_outcome(document_with_unsupported_then_fatal_page(), limits),
+        Err(Error::LimitExceeded {
+            resource: "content operators",
+            limit: 1,
+        })
+    ));
 }
 
 #[test]

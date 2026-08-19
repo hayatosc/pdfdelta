@@ -12,6 +12,7 @@ pub use features::{
     build_block_features, dice_similarity, exact_anchors,
 };
 pub(crate) use features::{estimate_ngram_token_elements, validate_ngram_size};
+pub(crate) use ordered::validate_alignment_options;
 pub use ordered::{
     Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentOptions,
     AlignmentSpan, align_ordered,
