@@ -339,7 +339,7 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 [[package]]
 name = "lopdf"
 version = "0.44.0"
-source = "git+https://github.com/hayatosc/lopdf?rev=e7c8b359ab822c4ef82f5d7e0f367f5b4468ee80#e7c8b359ab822c4ef82f5d7e0f367f5b4468ee80"
+source = "git+https://github.com/hayatosc/lopdf?rev=94d94a98b59497caed60f2605522b21ccbe760ac#94d94a98b59497caed60f2605522b21ccbe760ac"
 dependencies = [
  "aes",
  "bitflags",
