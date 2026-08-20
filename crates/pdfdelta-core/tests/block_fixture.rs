@@ -62,6 +62,99 @@ fn separates_paragraphs_with_a_large_relative_gap() {
 }
 
 #[test]
+fn keeps_horizontal_body_and_vertical_label_in_separate_blocks() {
+    let mut fixture = Fixture::new(vec![
+        LineSpec::body(1, 0, "body", 100.0),
+        LineSpec::body(2, 0, "Print or type.", 95.0),
+    ]);
+    let mut glyphs = fixture.document.clone().into_items();
+    glyphs[1].direction = Vec2 { x: 0.0, y: 1.0 };
+    fixture.document = Document::new(glyphs);
+    fixture.lines[1].direction = Vec2 { x: 0.0, y: 1.0 };
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("axis-aligned orientations should be preserved");
+
+    assert_eq!(blocks.len(), 2);
+    assert_eq!(blocks[0].lines, [LineId(1)]);
+    assert_eq!(blocks[1].lines, [LineId(2)]);
+}
+
+#[test]
+fn keeps_cross_axis_separated_vertical_labels_in_singleton_blocks() {
+    let first = LineSpec::body(1, 0, "left label", 100.0);
+    let mut second = LineSpec::body(2, 0, "right label", 100.0);
+    second.x = 200.0;
+    let mut fixture = Fixture::new(vec![first, second]);
+    let mut glyphs = fixture.document.into_items();
+    for (glyph, line) in glyphs.iter_mut().zip(&mut fixture.lines) {
+        glyph.direction = Vec2 { x: 0.0, y: 1.0 };
+        line.direction = Vec2 { x: 0.0, y: 1.0 };
+    }
+    fixture.document = Document::new(glyphs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("separate rotated labels should remain valid");
+
+    assert_eq!(blocks.len(), 2);
+    assert_eq!(blocks[0].lines, [LineId(1)]);
+    assert_eq!(blocks[1].lines, [LineId(2)]);
+    assert!(blocks.iter().all(|block| block.role == BlockRole::Body));
+}
+
+#[test]
+fn excludes_vertical_labels_from_repeated_margin_roles() {
+    let mut fixture = Fixture::new(vec![
+        LineSpec::margin(1, 0, "Repeated label", 120.0),
+        LineSpec::body(2, 0, "page zero first", 100.0),
+        LineSpec::body(3, 0, "page zero second", 88.0),
+        LineSpec::margin(4, 0, "footer zero", 0.0),
+        LineSpec::margin(5, 1, "Repeated label", 120.0),
+        LineSpec::body(6, 1, "page one first", 100.0),
+        LineSpec::body(7, 1, "page one second", 88.0),
+        LineSpec::margin(8, 1, "footer one", 0.0),
+        LineSpec::margin(9, 2, "Repeated label", 120.0),
+        LineSpec::body(10, 2, "page two first", 100.0),
+        LineSpec::body(11, 2, "page two second", 88.0),
+        LineSpec::margin(12, 2, "footer two", 0.0),
+    ]);
+    let mut glyphs = fixture.document.into_items();
+    for index in [0, 4, 8] {
+        glyphs[index].direction = Vec2 { x: 0.0, y: 1.0 };
+        fixture.lines[index].direction = Vec2 { x: 0.0, y: 1.0 };
+    }
+    fixture.document = Document::new(glyphs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("vertical labels should not affect horizontal repeated margins");
+
+    for line in [LineId(1), LineId(5), LineId(9)] {
+        let block = blocks
+            .iter()
+            .find(|block| block.lines.contains(&line))
+            .expect("rotated label should be preserved");
+        assert_eq!(block.lines, [line]);
+        assert_eq!(block.role, BlockRole::Body);
+    }
+}
+
+#[test]
+fn rejects_opposite_direction_inside_vertical_line() {
+    let mut fixture = Fixture::new(vec![LineSpec::body(1, 0, "label", 100.0)]);
+    let mut glyphs = fixture.document.into_items();
+    glyphs[0].direction = Vec2 { x: 0.0, y: -1.0 };
+    fixture.document = Document::new(glyphs);
+    fixture.lines[0].direction = Vec2 { x: 0.0, y: 1.0 };
+
+    let error = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect_err("opposite glyph direction must be rejected");
+
+    assert!(
+        matches!(error, Error::Unresolved(message) if message.contains("inconsistent direction"))
+    );
+}
+
+#[test]
 fn separates_a_heading_from_body_text_by_font_continuity() {
     let fixture = Fixture::new(vec![
         LineSpec {

@@ -8,8 +8,9 @@ use crate::{
 use super::{
     Line, LineId,
     geometry::{
-        dot, interval_gap, interval_overlap_ratio, is_horizontal, length_squared, median,
-        normalize, perpendicular, projected_extent, projected_interval,
+        directions_are_compatible, interval_gap, interval_overlap_ratio, is_axis_aligned,
+        is_horizontal, length_squared, median, normalize, perpendicular, projected_extent,
+        projected_interval,
     },
 };
 
@@ -378,11 +379,16 @@ fn detect_repeated_margins(
 
     let mut candidates = HashMap::<MarginKey, Vec<usize>>::new();
     for page in pages {
-        if page.len() <= options.repeated_edge_line_limit.saturating_mul(2) {
+        let horizontal: Vec<_> = page
+            .iter()
+            .copied()
+            .filter(|index| is_horizontal(stats[*index].direction))
+            .collect();
+        if horizontal.len() <= options.repeated_edge_line_limit.saturating_mul(2) {
             continue;
         }
         for ordinal in 0..options.repeated_edge_line_limit {
-            let header = page[ordinal];
+            let header = horizontal[ordinal];
             candidates
                 .entry(MarginKey {
                     edge: MarginEdge::Header,
@@ -392,7 +398,7 @@ fn detect_repeated_margins(
                 .or_default()
                 .push(header);
 
-            let footer = page[page.len() - ordinal - 1];
+            let footer = horizontal[horizontal.len() - ordinal - 1];
             candidates
                 .entry(MarginKey {
                     edge: MarginEdge::Footer,
@@ -477,7 +483,10 @@ fn should_join_across_page(
     current_neighbor: &LineStats<'_>,
     options: BlockOptions,
 ) -> Result<bool> {
-    if dot(previous.direction, current.direction) <= 0.0 {
+    if !is_horizontal(previous.direction)
+        || !is_horizontal(current.direction)
+        || !directions_are_compatible(previous.direction, current.direction)
+    {
         return Ok(false);
     }
 
@@ -526,7 +535,10 @@ fn should_join(
     current: &LineStats<'_>,
     options: BlockOptions,
 ) -> Result<bool> {
-    if previous.line.page != current.line.page || dot(previous.direction, current.direction) <= 0.0
+    if previous.line.page != current.line.page
+        || !is_horizontal(previous.direction)
+        || !is_horizontal(current.direction)
+        || !directions_are_compatible(previous.direction, current.direction)
     {
         return Ok(false);
     }
@@ -612,9 +624,9 @@ fn validate_line_geometry(line: &Line) -> Result<()> {
     if length_squared(line.direction) <= f64::EPSILON {
         return Err(invalid_line(line, "has zero writing direction"));
     }
-    if !is_horizontal(line.direction) {
+    if !is_axis_aligned(line.direction) {
         return Err(Error::Unsupported(format!(
-            "line {} uses a non-horizontal writing direction",
+            "line {} uses a non-axis-aligned writing direction",
             line.id.0
         )));
     }
@@ -648,8 +660,8 @@ fn validate_line_glyph(line: &Line, glyph: &Glyph) -> Result<()> {
             &format!("contains glyph {} with invalid geometry", glyph.id.0),
         ));
     }
-    if !is_horizontal(glyph.direction)
-        || dot(normalize(line.direction), normalize(glyph.direction)) <= 0.0
+    if !is_axis_aligned(glyph.direction)
+        || !directions_are_compatible(line.direction, glyph.direction)
     {
         return Err(invalid_line(
             line,

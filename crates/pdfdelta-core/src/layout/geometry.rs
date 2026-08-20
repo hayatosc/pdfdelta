@@ -1,6 +1,6 @@
 use crate::model::{Rect, Vec2};
 
-const HORIZONTAL_DIRECTION_TOLERANCE: f64 = 1.0e-6;
+const AXIS_ALIGNMENT_TOLERANCE: f64 = 1.0e-6;
 
 pub(super) fn normalize(vector: Vec2) -> Vec2 {
     let length = length_squared(vector).sqrt();
@@ -17,8 +17,17 @@ pub(super) fn perpendicular(vector: Vec2) -> Vec2 {
     }
 }
 
+pub(super) fn is_axis_aligned(vector: Vec2) -> bool {
+    let direction = normalize(vector);
+    direction.x.abs() <= AXIS_ALIGNMENT_TOLERANCE || is_horizontal(direction)
+}
+
 pub(super) fn is_horizontal(vector: Vec2) -> bool {
-    normalize(vector).y.abs() <= HORIZONTAL_DIRECTION_TOLERANCE
+    normalize(vector).y.abs() <= AXIS_ALIGNMENT_TOLERANCE
+}
+
+pub(super) fn directions_are_compatible(left: Vec2, right: Vec2) -> bool {
+    dot(normalize(left), normalize(right)) >= 1.0 - AXIS_ALIGNMENT_TOLERANCE
 }
 
 pub(super) fn length_squared(vector: Vec2) -> f64 {

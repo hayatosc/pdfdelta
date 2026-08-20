@@ -92,17 +92,44 @@ fn rejects_non_finite_glyph_geometry() {
 }
 
 #[test]
-fn rejects_vertical_writing_before_vertical_benchmarks_exist() {
-    let mut vertical = glyph(1, "V", 0, 0.0, 0.0, 10.0, 10.0, 10.0, 0.0);
-    vertical.direction = Vec2 { x: 0.0, y: -1.0 };
-    let document = Document::new(vec![vertical]);
+fn reconstructs_axis_aligned_vertical_glyphs_in_reading_order() {
+    let mut first = glyph(1, "A", 0, 0.0, 0.0, 10.0, 5.0, 10.0, 0.0);
+    first.direction = Vec2 { x: 0.0, y: 1.0 };
+    let mut second = glyph(2, "B", 0, 0.0, 6.0, 10.0, 5.0, 10.0, 6.0);
+    second.direction = Vec2 { x: 0.0, y: 1.0 };
+    let document = Document::new(vec![second, first]);
+
+    let lines = reconstruct_lines(&document, options()).expect("vertical label should be resolved");
+
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0].glyphs, [GlyphId(1), GlyphId(2)]);
+    assert_eq!(lines[0].direction, Vec2 { x: 0.0, y: 1.0 });
+}
+
+#[test]
+fn rejects_diagonal_writing_direction() {
+    let mut diagonal = glyph(1, "V", 0, 0.0, 0.0, 10.0, 10.0, 10.0, 0.0);
+    diagonal.direction = Vec2 { x: 1.0, y: 1.0 };
+    let document = Document::new(vec![diagonal]);
+
+    let error = reconstruct_lines(&document, options()).expect_err("diagonal text is unsupported");
+
+    assert!(matches!(error, Error::Unsupported(message) if message.contains("non-axis-aligned")));
+}
+
+#[test]
+fn keeps_orthogonal_directions_out_of_the_same_line() {
+    let horizontal = glyph(1, "A", 0, 0.0, 0.0, 5.0, 10.0, 10.0, 0.0);
+    let mut vertical = glyph(2, "B", 0, 0.0, 0.0, 10.0, 5.0, 10.0, 0.0);
+    vertical.direction = Vec2 { x: 0.0, y: 1.0 };
+    let document = Document::new(vec![horizontal, vertical]);
     let mut permissive_options = options();
     permissive_options.min_direction_similarity = 0.0;
 
-    let error = reconstruct_lines(&document, permissive_options)
-        .expect_err("vertical text is not supported");
+    let lines = reconstruct_lines(&document, permissive_options)
+        .expect("orthogonal axis-aligned glyphs are independently supported");
 
-    assert!(matches!(error, Error::Unsupported(message) if message.contains("non-horizontal")));
+    assert_eq!(lines.len(), 2);
 }
 
 #[test]

@@ -80,6 +80,43 @@ fn reports_one_generic_numeric_replacement() -> Result<()> {
 }
 
 #[test]
+fn compares_mixed_axis_aligned_orientations() -> Result<()> {
+    let document = document(&[
+        line("Body text remains stable", 0, 100.0),
+        vertical_line("Print or type.", 0, 20.0, 20.0),
+    ]);
+
+    let comparison = compare_glyph_documents(&document, &document, PipelineOptions::default())?;
+
+    assert_no_content_changes(&comparison);
+    Ok(())
+}
+
+#[test]
+fn reports_content_change_in_rotated_label() -> Result<()> {
+    let old = document(&[vertical_line("Print or type.", 0, 20.0, 20.0)]);
+    let new = document(&[vertical_line("Print or tyqe.", 0, 20.0, 20.0)]);
+
+    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+
+    assert_single_change(&comparison, ChangeKind::Replacement);
+    assert!(comparison.changes[0].old_span.is_some());
+    assert!(comparison.changes[0].new_span.is_some());
+    Ok(())
+}
+
+#[test]
+fn moved_rotated_label_remains_content_equivalent() -> Result<()> {
+    let old = document(&[vertical_line("Print or type.", 0, 20.0, 20.0)]);
+    let new = document(&[vertical_line("Print or type.", 0, 80.0, 120.0)]);
+
+    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+
+    assert_no_content_changes(&comparison);
+    Ok(())
+}
+
+#[test]
 fn reports_one_generic_paragraph_insertion() -> Result<()> {
     let old = paragraphs(&[
         "Opening paragraph remains stable",
@@ -453,7 +490,9 @@ fn paragraphs(text: &[&str]) -> Document<Glyph> {
 struct LineSpec<'a> {
     text: &'a str,
     page: u32,
+    x: f64,
     y: f64,
+    direction: Vec2,
     render_mode: TextRenderMode,
 }
 
@@ -468,7 +507,20 @@ fn line(text: &str, page: u32, y: f64) -> LineSpec<'_> {
     LineSpec {
         text,
         page,
+        x: 0.0,
         y,
+        direction: Vec2 { x: 1.0, y: 0.0 },
+        render_mode: TextRenderMode::Fill,
+    }
+}
+
+fn vertical_line(text: &str, page: u32, x: f64, y: f64) -> LineSpec<'_> {
+    LineSpec {
+        text,
+        page,
+        x,
+        y,
+        direction: Vec2 { x: 0.0, y: 1.0 },
         render_mode: TextRenderMode::Fill,
     }
 }
@@ -477,12 +529,20 @@ fn document(lines: &[LineSpec<'_>]) -> Document<Glyph> {
     let mut glyphs = Vec::new();
     let mut next_id = 1_u64;
     for (line_index, line) in lines.iter().enumerate() {
-        let mut x = 0.0;
+        let mut inline_offset = 0.0;
         for character in line.text.chars() {
             if character == ' ' {
-                x += 5.0;
+                inline_offset += 5.0;
                 continue;
             }
+
+            let x = line.x + inline_offset * line.direction.x;
+            let y = line.y + inline_offset * line.direction.y;
+            let (width, height) = if line.direction.x == 0.0 {
+                (10.0, 5.0)
+            } else {
+                (5.0, 10.0)
+            };
 
             let id = GlyphId(next_id);
             glyphs.push(Glyph {
@@ -491,14 +551,14 @@ fn document(lines: &[LineSpec<'_>]) -> Document<Glyph> {
                 raw_code: character.to_string().into_bytes(),
                 page: PageId(line.page),
                 bbox: Rect {
-                    min: Vec2 { x, y: line.y },
+                    min: Vec2 { x, y },
                     max: Vec2 {
-                        x: x + 5.0,
-                        y: line.y + 10.0,
+                        x: x + width,
+                        y: y + height,
                     },
                 },
-                baseline: Vec2 { x, y: line.y },
-                direction: Vec2 { x: 1.0, y: 0.0 },
+                baseline: Vec2 { x, y },
+                direction: line.direction,
                 font_id: FontId(1),
                 font_size: 10.0,
                 render_order: u32::try_from(next_id).expect("fixture glyph id should fit in u32"),
@@ -514,7 +574,7 @@ fn document(lines: &[LineSpec<'_>]) -> Document<Glyph> {
                 },
             });
             next_id += 1;
-            x += 6.0;
+            inline_offset += 6.0;
         }
     }
     Document::new(glyphs)

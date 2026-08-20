@@ -6,8 +6,9 @@ use crate::{
 };
 
 use super::geometry::{
-    dot, interval_gap, interval_overlap_ratio, is_horizontal, length_squared, median, normalize,
-    perpendicular, projected_center, projected_extent, projected_interval,
+    directions_are_compatible, dot, interval_gap, interval_overlap_ratio, is_axis_aligned,
+    length_squared, median, normalize, perpendicular, projected_center, projected_extent,
+    projected_interval,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -154,7 +155,9 @@ impl WorkingLine<'_> {
         let direction = self.direction();
         let glyph_direction = normalize(glyph.direction);
         let direction_similarity = dot(direction, glyph_direction);
-        if direction_similarity < options.min_direction_similarity {
+        if !directions_are_compatible(direction, glyph_direction)
+            || direction_similarity < options.min_direction_similarity
+        {
             return None;
         }
 
@@ -324,9 +327,9 @@ fn validate_glyph(glyph: &Glyph) -> Result<()> {
         return Err(invalid_glyph(glyph, "zero writing direction"));
     }
     let direction = normalize(glyph.direction);
-    if !is_horizontal(direction) {
+    if !is_axis_aligned(direction) {
         return Err(Error::Unsupported(format!(
-            "glyph {} uses a non-horizontal writing direction",
+            "glyph {} uses a non-axis-aligned writing direction",
             glyph.id.0
         )));
     }
