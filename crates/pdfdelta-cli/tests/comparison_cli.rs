@@ -214,6 +214,105 @@ fn writes_json_report_atomically() {
 }
 
 #[test]
+fn writes_complete_phase_trace_separately_from_the_report() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let report = directory.join("comparison.json");
+    let trace = directory.join("trace.json");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let output = compare(
+        &old,
+        &new,
+        &[
+            "--json",
+            path_text(&report),
+            "--trace-json",
+            path_text(&trace),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert!(output.stdout.is_empty());
+    let trace = read_json(&trace);
+    assert_eq!(trace["trace_schema_version"], 1);
+    assert_eq!(trace["command"]["kind"], "compare");
+    assert_eq!(trace["result"]["status"], "completed");
+    assert_eq!(trace["result"]["exit_code"], 0);
+    assert!(
+        phase(&trace, "input_read", Some("old"))["metrics"]["input_bytes"]
+            .as_u64()
+            .is_some()
+    );
+    assert_eq!(
+        phase(&trace, "line_reconstruction", Some("old"))["status"],
+        "completed"
+    );
+    assert_eq!(phase(&trace, "alignment", None)["status"], "completed");
+    assert_eq!(phase(&trace, "exact_diff", None)["status"], "completed");
+    assert_eq!(phase(&trace, "report", None)["status"], "completed");
+    assert_no_temporary_reports(&directory);
+}
+
+#[test]
+fn writes_failure_trace_when_pdf_parsing_stops_the_pipeline() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let trace = directory.join("trace.json");
+    fs::write(&old, b"not a PDF").expect("malformed fixture should be written");
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let output = compare(&old, &new, &["--trace-json", path_text(&trace)]);
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    let trace = read_json(&trace);
+    assert_eq!(trace["result"]["status"], "failed");
+    assert_eq!(trace["result"]["exit_code"], 2);
+    let parse = phase(&trace, "pdf_parse", Some("old"));
+    assert_eq!(parse["status"], "failed");
+    assert_eq!(parse["error"]["kind"], "backend");
+    assert_eq!(
+        phase(&trace, "glyph_extraction", Some("old"))["status"],
+        "skipped"
+    );
+    assert_eq!(phase(&trace, "alignment", None)["status"], "skipped");
+    assert_no_temporary_reports(&directory);
+}
+
+#[test]
+fn traces_incomplete_extraction_without_calling_it_a_fatal_failure() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let malformed = directory.join("malformed-type0.pdf");
+    let trace = directory.join("trace.json");
+    write_pdf(&old, &["Complete page text remains visible"]);
+    write_type0_pdf(&malformed, &["Malformed page text is present"]);
+
+    let output = compare(
+        &old,
+        &malformed,
+        &["--strict", "--trace-json", path_text(&trace)],
+    );
+
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    let trace = read_json(&trace);
+    assert_eq!(trace["result"]["status"], "incomplete");
+    assert_eq!(trace["result"]["exit_code"], 3);
+    assert_eq!(
+        phase(&trace, "glyph_extraction", Some("new"))["status"],
+        "incomplete"
+    );
+    assert_eq!(
+        phase(&trace, "completeness_gate", None)["status"],
+        "incomplete"
+    );
+    assert_eq!(phase(&trace, "alignment", None)["status"], "skipped");
+}
+
+#[test]
 fn preserves_existing_json_report_on_publish_collision() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
@@ -236,6 +335,32 @@ fn preserves_existing_json_report_on_publish_collision() {
         fs::read(report).expect("existing report should remain readable"),
         existing_report
     );
+    assert_no_temporary_reports(&directory);
+}
+
+#[test]
+fn rejects_trace_and_report_output_aliases_before_processing() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let output_path = directory.join("output.json");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let output = compare(
+        &old,
+        &new,
+        &[
+            "--json",
+            path_text(&output_path),
+            "--trace-json",
+            path_text(&output_path),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(stderr(&output).contains("refusing trace output"));
+    assert!(!output_path.exists());
     assert_no_temporary_reports(&directory);
 }
 
@@ -322,13 +447,22 @@ fn strict_unresolved_comparison_exits_three() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
     let new = directory.join("new.pdf");
+    let trace_path = directory.join("trace.json");
     write_pdf(&old, &["The archive contains 10 files"]);
     write_pdf(&new, &["The archive contains 20 files"]);
 
-    let output = compare(&old, &new, &["--strict"]);
+    let output = compare(
+        &old,
+        &new,
+        &["--strict", "--trace-json", path_text(&trace_path)],
+    );
 
     assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
     assert!(stdout(&output).contains("Unresolved regions:       1"));
+    let trace = read_json(&trace_path);
+    assert_eq!(trace["result"]["status"], "incomplete");
+    assert_eq!(trace["result"]["exit_code"], 3);
+    assert_eq!(phase(&trace, "exact_diff", None)["status"], "completed");
 }
 
 #[test]
@@ -336,17 +470,34 @@ fn rejects_json_output_that_aliases_an_input() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
     let new = directory.join("new.pdf");
+    let trace_path = directory.join("trace.json");
     write_pdf(&old, &["A generic paragraph remains stable"]);
     write_pdf(&new, &["A generic paragraph remains stable"]);
     let original = fs::read(&old).expect("old fixture should be readable");
 
-    let output = compare(&old, &new, &["--json", path_text(&old)]);
+    let output = compare(
+        &old,
+        &new,
+        &[
+            "--json",
+            path_text(&old),
+            "--trace-json",
+            path_text(&trace_path),
+        ],
+    );
 
     assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
     assert!(stderr(&output).contains("refusing JSON output"));
     assert_eq!(
         fs::read(&old).expect("old fixture should remain readable"),
         original
+    );
+    let trace = read_json(&trace_path);
+    assert_eq!(trace["result"]["status"], "failed");
+    assert_eq!(phase(&trace, "output_validation", None)["status"], "failed");
+    assert_eq!(
+        phase(&trace, "input_read", Some("old"))["status"],
+        "skipped"
     );
     assert_no_temporary_reports(&directory);
 }
@@ -533,6 +684,26 @@ fn assert_complete_json_report(
             "{report:#}"
         );
     }
+}
+
+fn read_json(path: &Path) -> Value {
+    serde_json::from_slice(&fs::read(path).expect("JSON file should be readable"))
+        .expect("JSON file should be valid")
+}
+
+fn phase<'a>(trace: &'a Value, name: &str, side: Option<&str>) -> &'a Value {
+    trace["phases"]
+        .as_array()
+        .expect("trace phases should be an array")
+        .iter()
+        .find(|phase| {
+            phase["name"].as_str() == Some(name)
+                && match side {
+                    Some(side) => phase["side"].as_str() == Some(side),
+                    None => phase.get("side").is_none(),
+                }
+        })
+        .expect("trace phase should exist")
 }
 
 fn assert_no_temporary_reports(directory: &TestDirectory) {

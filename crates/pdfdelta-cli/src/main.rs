@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     fs::{self, File, OpenOptions},
     io::{self, Read, Write},
     path::{Path, PathBuf},
@@ -11,16 +12,23 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use pdfdelta_core::{
+    Error,
     diff::Comparison,
-    model::{DecodedText, Glyph, TextRenderMode},
+    model::{DecodedText, Document, Glyph, TextRenderMode},
     pdf::{LopdfParser, ParseLimits, PdfParser},
-    pipeline::{PipelineOptions, compare_extraction_outcomes},
-    report::{ExtractionStatus, exit_status, render_text, write_json},
+    pipeline::{
+        PipelineDiagnostics, PipelineOptions, compare_extraction_outcomes_with_diagnostics,
+    },
+    report::{ExtractionStatus, exit_status, render_text, summarize, write_json},
     source::{
         ContentStreamGlyphExtractor, ExtractionIssue, ExtractionIssueKind, ExtractionLimits,
-        ExtractionOutcome, ExtractionScope, ParserBackedGlyphSource,
+        ExtractionOutcome, ExtractionScope, GlyphExtractor, ParserBackedGlyphSource,
     },
 };
+
+use crate::trace::{ExecutionTrace, TraceSide};
+
+mod trace;
 
 static NEXT_TEMPORARY_FILE: AtomicU64 = AtomicU64::new(0);
 
@@ -43,6 +51,10 @@ struct Cli {
 
     #[arg(long, value_name = "PATH", requires = "new")]
     json: Option<PathBuf>,
+
+    /// Write a phase-by-phase diagnostic trace to a new JSON file.
+    #[arg(long, value_name = "PATH", requires = "new")]
+    trace_json: Option<PathBuf>,
 
     #[arg(long, requires = "new")]
     strict: bool,
@@ -84,6 +96,7 @@ fn main() -> ExitCode {
             cli.old.as_deref(),
             cli.new.as_deref(),
             cli.json.as_deref(),
+            cli.trace_json.as_deref(),
             cli.strict,
             &mut stderr,
         ) {
@@ -100,29 +113,105 @@ fn compare_documents<W: Write>(
     old_path: Option<&Path>,
     new_path: Option<&Path>,
     json_path: Option<&Path>,
+    trace_path: Option<&Path>,
     strict: bool,
     diagnostics: &mut W,
 ) -> Result<u8, String> {
     let old_path = old_path.ok_or_else(|| "cannot compare PDFs: OLD_PDF is required".to_owned())?;
     let new_path = new_path.ok_or_else(|| "cannot compare PDFs: NEW_PDF is required".to_owned())?;
 
-    if let Some(json_path) = json_path {
-        ensure_output_does_not_alias_input(json_path, old_path, new_path)?;
+    if let Some(trace_path) = trace_path {
+        ensure_trace_does_not_alias_input(trace_path, old_path, new_path)?;
+    }
+    if let (Some(json_path), Some(trace_path)) = (json_path, trace_path)
+        && paths_refer_to_same_file(trace_path, json_path, "trace/report output collision")?
+    {
+        return Err(format!(
+            "refusing trace output {} because it refers to the JSON report {}",
+            trace_path.display(),
+            json_path.display()
+        ));
     }
 
+    let mut trace = ExecutionTrace::new(old_path, new_path, strict);
+    let output_validation: Result<(), String> = (|| {
+        if let Some(json_path) = json_path {
+            ensure_output_does_not_alias_input(json_path, old_path, new_path)?;
+        }
+        Ok(())
+    })();
+    if let Err(primary) = output_validation {
+        trace.fail_message("output_validation", None, "invalid_configuration", &primary);
+        trace.finish(Err(()), false);
+        return match trace_path {
+            Some(path) => match write_trace_atomically(path, &trace) {
+                Ok(()) => Err(primary),
+                Err(trace_error) => Err(format!("{primary}; additionally, {trace_error}")),
+            },
+            None => Err(primary),
+        };
+    }
+    trace.complete("output_validation", None, []);
+    let comparison = compare_documents_traced(
+        old_path,
+        new_path,
+        json_path,
+        strict,
+        diagnostics,
+        &mut trace,
+    );
+    let incomplete = comparison
+        .as_ref()
+        .map(|(_, incomplete)| *incomplete)
+        .unwrap_or(false);
+    trace.finish(
+        comparison
+            .as_ref()
+            .map(|(status, _)| *status)
+            .map_err(|_| ()),
+        incomplete,
+    );
+    let trace_result = match trace_path {
+        Some(path) => write_trace_atomically(path, &trace),
+        None => Ok(()),
+    };
+
+    match (comparison, trace_result) {
+        (Ok((status, _)), Ok(())) => Ok(status),
+        (Err(primary), Ok(())) => Err(primary),
+        (Ok(_), Err(trace_error)) => Err(trace_error),
+        (Err(primary), Err(trace_error)) => Err(format!("{primary}; additionally, {trace_error}")),
+    }
+}
+
+fn compare_documents_traced<W: Write>(
+    old_path: &Path,
+    new_path: &Path,
+    json_path: Option<&Path>,
+    strict: bool,
+    diagnostics: &mut W,
+    trace: &mut ExecutionTrace,
+) -> Result<(u8, bool), String> {
     let parse_limits = ParseLimits::default();
-    let old = extract_comparison_outcome("old", old_path, parse_limits)?;
+    let old = extract_comparison_outcome("old", TraceSide::Old, old_path, parse_limits, trace)?;
     report_extraction_issues(diagnostics, "old", old_path, old.issues())?;
-    let new = extract_comparison_outcome("new", new_path, parse_limits)?;
+    let new = extract_comparison_outcome("new", TraceSide::New, new_path, parse_limits, trace)?;
     report_extraction_issues(diagnostics, "new", new_path, new.issues())?;
-    let outcome =
-        compare_extraction_outcomes(old, new, PipelineOptions::default()).map_err(|error| {
-            format!(
-                "cannot compare old PDF {} with new PDF {}: {error}",
-                old_path.display(),
-                new_path.display()
-            )
-        })?;
+    let mut pipeline_diagnostics = PipelineDiagnostics::new();
+    let outcome_result = compare_extraction_outcomes_with_diagnostics(
+        old,
+        new,
+        PipelineOptions::default(),
+        &mut pipeline_diagnostics,
+    );
+    trace.extend_pipeline(&pipeline_diagnostics);
+    let outcome = outcome_result.map_err(|error| {
+        format!(
+            "cannot compare old PDF {} with new PDF {}: {error}",
+            old_path.display(),
+            new_path.display()
+        )
+    })?;
     let status =
         exit_status(&outcome.comparison, &outcome.extraction, strict).map_err(|error| {
             format!(
@@ -131,45 +220,171 @@ fn compare_documents<W: Write>(
                 new_path.display()
             )
         })?;
+    let summary = summarize(&outcome.comparison, &outcome.extraction).map_err(|error| {
+        format!(
+            "cannot summarize comparison for {} and {}: {error}",
+            old_path.display(),
+            new_path.display()
+        )
+    })?;
 
-    if let Some(json_path) = json_path {
-        write_json_atomically(json_path, &outcome.comparison, &outcome.extraction)?;
+    let report_result = if let Some(json_path) = json_path {
+        write_json_atomically(json_path, &outcome.comparison, &outcome.extraction)
     } else {
-        let report = render_text(&outcome.comparison, &outcome.extraction).map_err(|error| {
-            format!(
-                "cannot render comparison report for {} and {}: {error}",
-                old_path.display(),
-                new_path.display()
-            )
-        })?;
-        let stdout = io::stdout();
-        let mut stdout = stdout.lock();
-        stdout
-            .write_all(report.as_bytes())
-            .map_err(|error| format!("cannot write comparison report to stdout: {error}"))?;
-        stdout
-            .flush()
-            .map_err(|error| format!("cannot flush comparison report to stdout: {error}"))?;
+        render_text(&outcome.comparison, &outcome.extraction)
+            .map_err(|error| {
+                format!(
+                    "cannot render comparison report for {} and {}: {error}",
+                    old_path.display(),
+                    new_path.display()
+                )
+            })
+            .and_then(|report| {
+                let stdout = io::stdout();
+                let mut stdout = stdout.lock();
+                stdout.write_all(report.as_bytes()).map_err(|error| {
+                    format!("cannot write comparison report to stdout: {error}")
+                })?;
+                stdout
+                    .flush()
+                    .map_err(|error| format!("cannot flush comparison report to stdout: {error}"))
+            })
+    };
+    if let Err(error) = report_result {
+        trace.fail_message("report", None, "report", &error);
+        return Err(error);
     }
+    trace.complete("report", None, []);
 
-    Ok(status.code())
+    Ok((status.code(), !summary.comparison_complete))
 }
 
 fn extract_comparison_outcome(
     side: &str,
+    trace_side: TraceSide,
     path: &Path,
     parse_limits: ParseLimits,
+    trace: &mut ExecutionTrace,
 ) -> Result<ExtractionOutcome, String> {
-    let bytes = read_limited(path, parse_limits.max_input_bytes)
-        .map_err(|error| format!("cannot load {side} PDF {}: {error}", path.display()))?;
-    ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor)
-        .extract_outcome(bytes, parse_limits, ExtractionLimits::default())
-        .map_err(|error| {
-            format!(
+    let bytes = match read_limited_typed(path, parse_limits.max_input_bytes) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            match &error {
+                InputReadError::Io(_) => {
+                    trace.fail_message("input_read", Some(trace_side), "io", &error.to_string());
+                }
+                InputReadError::InvalidConfiguration(_) => trace.fail_message(
+                    "input_read",
+                    Some(trace_side),
+                    "invalid_configuration",
+                    &error.to_string(),
+                ),
+                InputReadError::LimitExceeded { limit, .. } => trace.fail_limit(
+                    "input_read",
+                    Some(trace_side),
+                    &error.to_string(),
+                    "PDF input bytes",
+                    *limit,
+                ),
+            }
+            return Err(format!(
+                "cannot load {side} PDF {}: {error}",
+                path.display()
+            ));
+        }
+    };
+    trace.complete(
+        "input_read",
+        Some(trace_side),
+        [("input_bytes", bytes.len())],
+    );
+
+    let parsed = match LopdfParser.parse(bytes, parse_limits) {
+        Ok(parsed) => {
+            let version = parsed.version();
+            trace.complete(
+                "pdf_parse",
+                Some(trace_side),
+                [
+                    ("pdf_version_major", usize::from(version.major)),
+                    ("pdf_version_minor", usize::from(version.minor)),
+                ],
+            );
+            parsed
+        }
+        Err(error @ (Error::Unsupported(_) | Error::Unresolved(_))) => {
+            trace.incomplete_core("pdf_parse", Some(trace_side), &error);
+            return document_issue_outcome(error).map_err(|error| {
+                format!(
+                    "cannot parse or extract {side} PDF {}: {error}",
+                    path.display()
+                )
+            });
+        }
+        Err(error) => {
+            trace.fail_core("pdf_parse", Some(trace_side), &error);
+            return Err(format!(
                 "cannot parse or extract {side} PDF {}: {error}",
                 path.display()
-            )
-        })
+            ));
+        }
+    };
+
+    match ContentStreamGlyphExtractor.extract_outcome(parsed.as_ref(), ExtractionLimits::default())
+    {
+        Ok(outcome) => {
+            if outcome.is_complete() {
+                trace.complete(
+                    "glyph_extraction",
+                    Some(trace_side),
+                    [("glyphs", outcome.document().items().len()), ("issues", 0)],
+                );
+            } else {
+                trace.incomplete_extraction(
+                    trace_side,
+                    outcome.document().items().len(),
+                    outcome.issues(),
+                );
+            }
+            Ok(outcome)
+        }
+        Err(error) => {
+            trace.fail_core("glyph_extraction", Some(trace_side), &error);
+            Err(format!(
+                "cannot parse or extract {side} PDF {}: {error}",
+                path.display()
+            ))
+        }
+    }
+}
+
+fn document_issue_outcome(error: Error) -> Result<ExtractionOutcome, Error> {
+    let (kind, description, fallback) = match error {
+        Error::Unsupported(description) => (
+            ExtractionIssueKind::Unsupported,
+            description,
+            "unsupported extraction feature",
+        ),
+        Error::Unresolved(description) => (
+            ExtractionIssueKind::Unresolved,
+            description,
+            "unresolved extraction content",
+        ),
+        error => return Err(error),
+    };
+    let description = if description.trim().is_empty() {
+        fallback.to_owned()
+    } else {
+        description
+    };
+    ExtractionOutcome::new(
+        Document::new(Vec::new()),
+        vec![ExtractionIssue::new(
+            kind,
+            ExtractionScope::Document,
+            description,
+        )?],
+    )
 }
 
 fn report_extraction_issues<W: Write>(
@@ -226,23 +441,45 @@ fn write_json_atomically(
     comparison: &Comparison,
     extraction: &ExtractionStatus,
 ) -> Result<(), String> {
-    let (temporary_path, mut temporary_file) = create_temporary_output(output_path)?;
-    let prepare_result = (|| {
-        write_json(&mut temporary_file, comparison, extraction).map_err(|error| {
+    write_output_atomically(output_path, "JSON report", |temporary_file| {
+        write_json(temporary_file, comparison, extraction).map_err(|error| {
             format!(
                 "cannot render JSON comparison report for {}: {error}",
                 output_path.display()
             )
-        })?;
+        })
+    })
+}
+
+fn write_trace_atomically(output_path: &Path, trace: &ExecutionTrace) -> Result<(), String> {
+    write_output_atomically(output_path, "trace report", |temporary_file| {
+        trace.write_json(temporary_file).map_err(|error| {
+            format!(
+                "cannot render diagnostic trace for {}: {error}",
+                output_path.display()
+            )
+        })
+    })
+}
+
+fn write_output_atomically(
+    output_path: &Path,
+    output_kind: &'static str,
+    write: impl FnOnce(&mut File) -> Result<(), String>,
+) -> Result<(), String> {
+    let (temporary_path, mut temporary_file) =
+        create_temporary_output_for(output_path, output_kind)?;
+    let prepare_result = (|| {
+        write(&mut temporary_file)?;
         temporary_file.flush().map_err(|error| {
             format!(
-                "cannot flush temporary JSON report for {}: {error}",
+                "cannot flush temporary {output_kind} for {}: {error}",
                 output_path.display()
             )
         })?;
         temporary_file.sync_all().map_err(|error| {
             format!(
-                "cannot sync temporary JSON report for {}: {error}",
+                "cannot sync temporary {output_kind} for {}: {error}",
                 output_path.display()
             )
         })
@@ -250,47 +487,67 @@ fn write_json_atomically(
     drop(temporary_file);
 
     if let Err(error) = prepare_result {
-        return Err(error_with_temporary_cleanup(&temporary_path, error));
+        return Err(error_with_temporary_cleanup(
+            &temporary_path,
+            output_kind,
+            error,
+        ));
     }
 
     if let Err(error) = fs::hard_link(&temporary_path, output_path) {
         let message = if error.kind() == io::ErrorKind::AlreadyExists {
             format!(
-                "refusing to overwrite existing JSON report {}: output path already exists",
+                "refusing to overwrite existing {output_kind} {}: output path already exists",
                 output_path.display()
             )
         } else {
             format!(
-                "cannot publish JSON report {} atomically without replacing an existing file: {error}",
+                "cannot publish {output_kind} {} atomically without replacing an existing file: {error}",
                 output_path.display()
             )
         };
-        return Err(error_with_temporary_cleanup(&temporary_path, message));
+        return Err(error_with_temporary_cleanup(
+            &temporary_path,
+            output_kind,
+            message,
+        ));
     }
 
     fs::remove_file(&temporary_path).map_err(|error| {
         format!(
-            "JSON report {} was published without overwriting an existing file, but temporary report {} could not be removed: {error}",
+            "{output_kind} {} was published without overwriting an existing file, but temporary output {} could not be removed: {error}",
             output_path.display(),
             temporary_path.display()
         )
     })
 }
 
-fn error_with_temporary_cleanup(temporary_path: &Path, primary_error: String) -> String {
+fn error_with_temporary_cleanup(
+    temporary_path: &Path,
+    output_kind: &str,
+    primary_error: String,
+) -> String {
     match fs::remove_file(temporary_path) {
         Ok(()) => primary_error,
         Err(cleanup_error) => format!(
-            "{primary_error}; temporary JSON report {} could not be removed: {cleanup_error}",
+            "{primary_error}; temporary {output_kind} {} could not be removed: {cleanup_error}",
             temporary_path.display()
         ),
     }
 }
 
+#[cfg(test)]
 fn create_temporary_output(output_path: &Path) -> Result<(PathBuf, File), String> {
+    create_temporary_output_for(output_path, "JSON report")
+}
+
+fn create_temporary_output_for(
+    output_path: &Path,
+    output_kind: &str,
+) -> Result<(PathBuf, File), String> {
     output_path.file_name().ok_or_else(|| {
         format!(
-            "JSON output path must name a file: {}",
+            "{output_kind} path must name a file: {}",
             output_path.display()
         )
     })?;
@@ -316,7 +573,7 @@ fn create_temporary_output(output_path: &Path) -> Result<(PathBuf, File), String
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
             Err(error) => {
                 return Err(format!(
-                    "cannot create temporary JSON report next to {}: {error}",
+                    "cannot create temporary {output_kind} next to {}: {error}",
                     output_path.display()
                 ));
             }
@@ -324,7 +581,7 @@ fn create_temporary_output(output_path: &Path) -> Result<(PathBuf, File), String
     }
 
     Err(format!(
-        "cannot create a unique temporary JSON report next to {}",
+        "cannot create a unique temporary {output_kind} next to {}",
         output_path.display()
     ))
 }
@@ -334,10 +591,27 @@ fn ensure_output_does_not_alias_input(
     old_path: &Path,
     new_path: &Path,
 ) -> Result<(), String> {
+    ensure_named_output_does_not_alias_input("JSON output", output_path, old_path, new_path)
+}
+
+fn ensure_trace_does_not_alias_input(
+    output_path: &Path,
+    old_path: &Path,
+    new_path: &Path,
+) -> Result<(), String> {
+    ensure_named_output_does_not_alias_input("trace output", output_path, old_path, new_path)
+}
+
+fn ensure_named_output_does_not_alias_input(
+    output_kind: &str,
+    output_path: &Path,
+    old_path: &Path,
+    new_path: &Path,
+) -> Result<(), String> {
     for (side, input_path) in [("old", old_path), ("new", new_path)] {
-        if paths_refer_to_same_file(output_path, input_path)? {
+        if paths_refer_to_same_file(output_path, input_path, "input collision")? {
             return Err(format!(
-                "refusing JSON output {} because it refers to the {side} PDF {}",
+                "refusing {output_kind} {} because it refers to the {side} PDF {}",
                 output_path.display(),
                 input_path.display()
             ));
@@ -346,7 +620,11 @@ fn ensure_output_does_not_alias_input(
     Ok(())
 }
 
-fn paths_refer_to_same_file(output_path: &Path, input_path: &Path) -> Result<bool, String> {
+fn paths_refer_to_same_file(
+    output_path: &Path,
+    input_path: &Path,
+    context: &str,
+) -> Result<bool, String> {
     if output_path == input_path {
         return Ok(true);
     }
@@ -356,14 +634,14 @@ fn paths_refer_to_same_file(output_path: &Path, input_path: &Path) -> Result<boo
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
         Err(error) => {
             return Err(format!(
-                "cannot inspect JSON output path {} for input collision: {error}",
+                "cannot inspect output path {} for {context}: {error}",
                 output_path.display()
             ));
         }
     };
     let input_metadata = fs::metadata(input_path).map_err(|error| {
         format!(
-            "cannot inspect input path {} for JSON output collision: {error}",
+            "cannot inspect input path {} for {context}: {error}",
             input_path.display()
         )
     })?;
@@ -381,13 +659,13 @@ fn paths_refer_to_same_file(output_path: &Path, input_path: &Path) -> Result<boo
 
     let output_canonical = fs::canonicalize(output_path).map_err(|error| {
         format!(
-            "cannot resolve JSON output path {} for input collision: {error}",
+            "cannot resolve output path {} for {context}: {error}",
             output_path.display()
         )
     })?;
     let input_canonical = fs::canonicalize(input_path).map_err(|error| {
         format!(
-            "cannot resolve input path {} for JSON output collision: {error}",
+            "cannot resolve input path {} for {context}: {error}",
             input_path.display()
         )
     })?;
@@ -533,22 +811,50 @@ fn render_mode_name(mode: TextRenderMode) -> &'static str {
     }
 }
 
+#[derive(Debug)]
+enum InputReadError {
+    Io(String),
+    InvalidConfiguration(String),
+    LimitExceeded { message: String, limit: usize },
+}
+
+impl fmt::Display for InputReadError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Io(message)
+            | Self::InvalidConfiguration(message)
+            | Self::LimitExceeded { message, .. } => formatter.write_str(message),
+        }
+    }
+}
+
 fn read_limited(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, String> {
-    let file =
-        File::open(path).map_err(|error| format!("cannot open {}: {error}", path.display()))?;
+    read_limited_typed(path, max_bytes).map_err(|error| error.to_string())
+}
+
+fn read_limited_typed(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, InputReadError> {
+    let file = File::open(path)
+        .map_err(|error| InputReadError::Io(format!("cannot open {}: {error}", path.display())))?;
     let read_limit = u64::try_from(max_bytes)
-        .map_err(|_| "configured PDF input limit does not fit in u64".to_owned())?
+        .map_err(|_| {
+            InputReadError::InvalidConfiguration(
+                "configured PDF input limit does not fit in u64".to_owned(),
+            )
+        })?
         .saturating_add(1);
     let mut reader = file.take(read_limit);
     let mut bytes = Vec::new();
     reader
         .read_to_end(&mut bytes)
-        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+        .map_err(|error| InputReadError::Io(format!("cannot read {}: {error}", path.display())))?;
     if bytes.len() > max_bytes {
-        return Err(format!(
-            "cannot read {}: PDF input exceeds the {max_bytes}-byte limit",
-            path.display()
-        ));
+        return Err(InputReadError::LimitExceeded {
+            message: format!(
+                "cannot read {}: PDF input exceeds the {max_bytes}-byte limit",
+                path.display()
+            ),
+            limit: max_bytes,
+        });
     }
     Ok(Arc::from(bytes))
 }
@@ -568,8 +874,8 @@ mod tests {
     };
 
     use super::{
-        Cli, Command, format_glyph, report_extraction_issues, report_fatal_error,
-        write_inspection_line,
+        Cli, Command, InputReadError, format_glyph, read_limited_typed, report_extraction_issues,
+        report_fatal_error, write_inspection_line,
     };
 
     struct BrokenPipeWriter;
@@ -720,6 +1026,23 @@ mod tests {
     #[test]
     fn final_error_diagnostic_ignores_writer_failure() {
         report_fatal_error(&mut BrokenPipeWriter, "comparison failed");
+    }
+
+    #[test]
+    fn classifies_input_size_limits_separately_from_io_failures() {
+        let path = std::env::temp_dir().join(format!(
+            "pdfdelta-input-limit-test-{}.pdf",
+            std::process::id()
+        ));
+        std::fs::write(&path, b"four").expect("input limit fixture should be written");
+
+        let error = read_limited_typed(&path, 3).expect_err("input should exceed the limit");
+        std::fs::remove_file(path).expect("input limit fixture should be removed");
+
+        assert!(matches!(
+            error,
+            InputReadError::LimitExceeded { limit: 3, .. }
+        ));
     }
 
     #[cfg(unix)]
