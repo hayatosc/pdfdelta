@@ -4,8 +4,8 @@ use pdfdelta_core::{
     Error, Result,
     alignment::{
         Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentOptions,
-        BlockFeatures, BlockSeparator, Candidate, CandidateGenerator, CandidateSource, ExactHash,
-        InvertedIndexCandidateGenerator, align_ordered, build_block_features,
+        BlockFeatures, BlockSeparator, Candidate, CandidateGenerator, CandidateSource, ExactAnchor,
+        ExactHash, InvertedIndexCandidateGenerator, align_ordered, build_block_features,
     },
     diff::{DiffOptions, compare_aligned},
     layout::BlockId,
@@ -43,6 +43,7 @@ fn aligns_ordered_exact_blocks_as_identity() {
             .all(|span| span.kind == AlignmentKind::Match && span.score == 1.0)
     );
     assert_eq!(alignment.main_anchors.len(), 3);
+    assert_anchor_evidence_matches_main_anchors(&alignment);
 }
 
 #[test]
@@ -146,6 +147,98 @@ fn leaves_duplicate_tie_regions_unresolved() {
     assert_eq!(alignment.spans[1].kind, AlignmentKind::Unresolved);
     assert_eq!(alignment.spans[1].old, [BlockId(2)]);
     assert_eq!(alignment.spans[1].new, [BlockId(102), BlockId(103)]);
+}
+
+#[test]
+fn preserves_a_short_unique_match_outside_the_primary_anchor_policy() {
+    let old = build_block_features(&[block_text(1, "stable"), block_text(2, "old only")], 3)
+        .expect("old features should build");
+    let new = build_block_features(&[block_text(101, "stable"), block_text(102, "new only")], 3)
+        .expect("new features should build");
+    let mut options = options();
+    options.anchor_min_tokens = 100;
+
+    let alignment =
+        align_ordered(&old, &new, &EmptyGenerator, options).expect("alignment should succeed");
+
+    assert!(alignment.main_anchors.is_empty());
+    assert!(alignment.move_candidates.is_empty());
+    assert_anchor_evidence_matches_main_anchors(&alignment);
+    assert_eq!(alignment.spans.len(), 2);
+    assert_eq!(alignment.spans[0].kind, AlignmentKind::Match);
+    assert_eq!(alignment.spans[0].old, [BlockId(1)]);
+    assert_eq!(alignment.spans[0].new, [BlockId(101)]);
+    assert_eq!(alignment.spans[1].kind, AlignmentKind::Unresolved);
+    assert_eq!(alignment.spans[1].old, [BlockId(2)]);
+    assert_eq!(alignment.spans[1].new, [BlockId(102)]);
+}
+
+#[test]
+fn preserves_multiple_short_unique_matches_between_ambiguous_edits() {
+    let old = build_block_features(
+        &[
+            block_text(1, "alpha"),
+            block_text(2, "old first"),
+            block_text(3, "beta"),
+            block_text(4, "old second"),
+        ],
+        3,
+    )
+    .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text(101, "alpha"),
+            block_text(102, "new first"),
+            block_text(103, "beta"),
+            block_text(104, "new second"),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    let mut options = options();
+    options.anchor_min_tokens = 100;
+
+    let alignment =
+        align_ordered(&old, &new, &EmptyGenerator, options).expect("alignment should succeed");
+
+    for (old, new) in [(1, 101), (3, 103)] {
+        assert!(alignment.spans.iter().any(|span| {
+            span.kind == AlignmentKind::Match
+                && span.old == [BlockId(old)]
+                && span.new == [BlockId(new)]
+        }));
+    }
+    assert_eq!(
+        alignment
+            .spans
+            .iter()
+            .filter(|span| span.kind == AlignmentKind::Unresolved)
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn selects_a_monotonic_subset_of_crossing_short_exact_matches() {
+    let old = build_block_features(&[block_text(1, "alpha"), block_text(2, "beta")], 3)
+        .expect("old features should build");
+    let new = build_block_features(&[block_text(101, "beta"), block_text(102, "alpha")], 3)
+        .expect("new features should build");
+    let mut options = options();
+    options.anchor_min_tokens = 100;
+
+    let alignment =
+        align_ordered(&old, &new, &EmptyGenerator, options).expect("alignment should succeed");
+
+    assert_eq!(
+        alignment
+            .spans
+            .iter()
+            .filter(|span| span.kind == AlignmentKind::Match)
+            .count(),
+        1
+    );
+    assert!(alignment.move_candidates.is_empty());
 }
 
 #[test]
@@ -761,6 +854,30 @@ fn bounds_aggregate_dp_cells_across_anchor_intervals() {
 }
 
 #[test]
+fn charges_partition_fallback_against_the_same_dp_cell_budget() {
+    let old = build_block_features(&[block_text(1, "stable"), block_text(2, "old only")], 3)
+        .expect("old features should build");
+    let new = build_block_features(&[block_text(101, "stable"), block_text(102, "new only")], 3)
+        .expect("new features should build");
+    let mut at_limit = options();
+    at_limit.anchor_min_tokens = 100;
+    at_limit.max_dp_cells = 13;
+
+    align_ordered(&old, &new, &EmptyGenerator, at_limit)
+        .expect("initial and fallback cells should fit exactly");
+
+    let mut over_limit = at_limit;
+    over_limit.max_dp_cells = 12;
+    assert!(matches!(
+        align_ordered(&old, &new, &EmptyGenerator, over_limit),
+        Err(Error::LimitExceeded {
+            resource: "alignment DP cells",
+            limit: 12,
+        })
+    ));
+}
+
+#[test]
 fn bounds_aggregate_candidate_visits_before_generation() {
     let old = build_block_features(&[block_text(1, "id"), block_text(2, "id")], 3)
         .expect("old features should build");
@@ -829,6 +946,54 @@ fn skips_candidate_work_for_identical_unique_anchors() {
     assert_eq!(alignment.main_anchors.len(), 2);
     assert!(tracking.estimated.borrow().is_empty());
     assert!(tracking.generated.borrow().is_empty());
+}
+
+#[test]
+fn queries_secondary_partitions_before_ambiguity_fallback() {
+    let old = build_block_features(&[block_text(1, "stable"), block_text(2, "old only")], 3)
+        .expect("old features should build");
+    let new = build_block_features(&[block_text(101, "stable"), block_text(102, "new only")], 3)
+        .expect("new features should build");
+    let tracking = TrackingGenerator::new(1);
+    let mut options = options();
+    options.anchor_min_tokens = 100;
+
+    align_ordered(&old, &new, &tracking, options).expect("alignment should succeed");
+
+    assert_eq!(*tracking.estimated.borrow(), [BlockId(1), BlockId(2)]);
+    assert_eq!(*tracking.generated.borrow(), [BlockId(1), BlockId(2)]);
+}
+
+#[test]
+fn leaves_a_non_ambiguous_short_exact_candidate_on_the_normal_path() {
+    let old =
+        build_block_features(&[block_text(1, "stable")], 3).expect("old features should build");
+    let new =
+        build_block_features(&[block_text(101, "stable")], 3).expect("new features should build");
+    let tracking = TrackingMatchGenerator::new(BlockId(101));
+    let mut options = options();
+    options.anchor_min_tokens = 100;
+
+    let alignment =
+        align_ordered(&old, &new, &tracking, options).expect("alignment should succeed");
+
+    assert!(alignment.main_anchors.is_empty());
+    assert_eq!(*tracking.estimated.borrow(), [BlockId(1)]);
+    assert_eq!(*tracking.generated.borrow(), [BlockId(1)]);
+    assert_eq!(alignment.spans.len(), 1);
+    assert_eq!(alignment.spans[0].kind, AlignmentKind::Match);
+    assert!(
+        alignment.spans[0]
+            .evidence
+            .contains(&AlignmentEvidence::CandidateSource(
+                CandidateSource::ShortBlockFallback
+            ))
+    );
+    assert!(
+        !alignment.spans[0]
+            .evidence
+            .contains(&AlignmentEvidence::Anchor)
+    );
 }
 
 #[test]
@@ -966,6 +1131,19 @@ fn align(old: Vec<BlockText>, new: Vec<BlockText>) -> Alignment {
     align_ordered(&old, &new, &generator, options()).expect("alignment should succeed")
 }
 
+fn assert_anchor_evidence_matches_main_anchors(alignment: &Alignment) {
+    let evidenced = alignment
+        .spans
+        .iter()
+        .filter(|span| span.evidence.contains(&AlignmentEvidence::Anchor))
+        .map(|span| ExactAnchor {
+            old: span.old[0],
+            new: span.new[0],
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(evidenced, alignment.main_anchors);
+}
+
 fn options() -> AlignmentOptions {
     AlignmentOptions {
         anchor_min_tokens: 12,
@@ -1002,6 +1180,38 @@ struct TrackingGenerator {
     visits: usize,
     estimated: RefCell<Vec<BlockId>>,
     generated: RefCell<Vec<BlockId>>,
+}
+
+struct TrackingMatchGenerator {
+    candidate: BlockId,
+    estimated: RefCell<Vec<BlockId>>,
+    generated: RefCell<Vec<BlockId>>,
+}
+
+impl TrackingMatchGenerator {
+    fn new(candidate: BlockId) -> Self {
+        Self {
+            candidate,
+            estimated: RefCell::new(Vec::new()),
+            generated: RefCell::new(Vec::new()),
+        }
+    }
+}
+
+impl CandidateGenerator for TrackingMatchGenerator {
+    fn estimated_visits(&self, old: &BlockFeatures, _limit: usize) -> Result<usize> {
+        self.estimated.borrow_mut().push(old.block);
+        Ok(1)
+    }
+
+    fn candidates(&self, old: &BlockFeatures, _limit: usize) -> Result<Vec<Candidate>> {
+        self.generated.borrow_mut().push(old.block);
+        Ok(vec![Candidate {
+            block: self.candidate,
+            sources: vec![CandidateSource::ShortBlockFallback],
+            coarse_score: 1.0,
+        }])
+    }
 }
 
 impl TrackingGenerator {

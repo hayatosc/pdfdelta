@@ -155,8 +155,21 @@ pub fn align_ordered(
         .enumerate()
         .map(|(index, features)| (features.block, index))
         .collect::<HashMap<_, _>>();
+    let old_indices = old
+        .iter()
+        .enumerate()
+        .map(|(index, features)| (features.block, index))
+        .collect::<HashMap<_, _>>();
     let all_anchors = exact_anchors(old, new, options.anchor_min_tokens)?;
     let (main_anchors, move_candidates) = anchor_chain(&all_anchors, old, &new_indices)?;
+    let secondary_chains = secondary_anchor_chains(
+        old,
+        new,
+        &all_anchors,
+        &main_anchors,
+        &old_indices,
+        &new_indices,
+    )?;
     let main_anchor_old = main_anchors
         .iter()
         .map(|anchor| anchor.old)
@@ -169,11 +182,6 @@ pub fn align_ordered(
         options.candidate_limit,
         options.max_candidate_visits,
     )?;
-    let old_indices = old
-        .iter()
-        .enumerate()
-        .map(|(index, features)| (features.block, index))
-        .collect::<HashMap<_, _>>();
     let move_old = move_candidates
         .iter()
         .map(|anchor| anchor.old)
@@ -188,10 +196,11 @@ pub fn align_ordered(
     let mut new_start = 0;
     let mut has_left_anchor = false;
     let mut remaining_dp_cells = options.max_dp_cells;
-    for anchor in &main_anchors {
+    let mut partition_old = HashSet::new();
+    for (interval_index, anchor) in main_anchors.iter().enumerate() {
         let old_anchor = old_indices[&anchor.old];
         let new_anchor = new_indices[&anchor.new];
-        spans.extend(align_interval(
+        spans.extend(align_interval_with_partition_fallback(
             &old[old_start..old_anchor],
             &new[new_start..new_anchor],
             &candidate_map,
@@ -202,13 +211,21 @@ pub fn align_ordered(
                 move_old: &move_old,
                 move_new: &move_new,
             },
+            PartitionFallback {
+                anchors: &secondary_chains[interval_index],
+                old_offset: old_start,
+                new_offset: new_start,
+                old_indices: &old_indices,
+                new_indices: &new_indices,
+                used_old: &mut partition_old,
+            },
         )?);
         spans.push(anchor_span(*anchor));
         old_start = old_anchor + 1;
         new_start = new_anchor + 1;
         has_left_anchor = true;
     }
-    spans.extend(align_interval(
+    spans.extend(align_interval_with_partition_fallback(
         &old[old_start..],
         &new[new_start..],
         &candidate_map,
@@ -219,14 +236,150 @@ pub fn align_ordered(
             move_old: &move_old,
             move_new: &move_new,
         },
+        PartitionFallback {
+            anchors: &secondary_chains[main_anchors.len()],
+            old_offset: old_start,
+            new_offset: new_start,
+            old_indices: &old_indices,
+            new_indices: &new_indices,
+            used_old: &mut partition_old,
+        },
     )?);
-    refine_masked_matches(&mut spans);
+    refine_masked_matches(&mut spans, &partition_old);
 
     Ok(Alignment {
         spans,
         main_anchors,
         move_candidates,
     })
+}
+
+fn secondary_anchor_chains(
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    primary_anchors: &[ExactAnchor],
+    main_anchors: &[ExactAnchor],
+    old_indices: &HashMap<BlockId, usize>,
+    new_indices: &HashMap<BlockId, usize>,
+) -> Result<Vec<Vec<ExactAnchor>>> {
+    let primary_old = primary_anchors
+        .iter()
+        .map(|anchor| anchor.old)
+        .collect::<HashSet<_>>();
+    let old_boundaries = main_anchors
+        .iter()
+        .map(|anchor| old_indices[&anchor.old])
+        .collect::<Vec<_>>();
+    let new_boundaries = main_anchors
+        .iter()
+        .map(|anchor| new_indices[&anchor.new])
+        .collect::<Vec<_>>();
+    let mut candidates = vec![Vec::new(); main_anchors.len() + 1];
+    for anchor in exact_anchors(old, new, 1)?
+        .into_iter()
+        .filter(|anchor| !primary_old.contains(&anchor.old))
+    {
+        let old_interval =
+            old_boundaries.partition_point(|index| index < &old_indices[&anchor.old]);
+        let new_interval =
+            new_boundaries.partition_point(|index| index < &new_indices[&anchor.new]);
+        if old_interval == new_interval {
+            candidates[old_interval].push(anchor);
+        }
+    }
+
+    candidates
+        .iter()
+        .map(|anchors| {
+            if anchors.is_empty() {
+                Ok(Vec::new())
+            } else {
+                anchor_chain(anchors, old, new_indices).map(|(selected, _)| selected)
+            }
+        })
+        .collect()
+}
+
+struct PartitionFallback<'a> {
+    anchors: &'a [ExactAnchor],
+    old_offset: usize,
+    new_offset: usize,
+    old_indices: &'a HashMap<BlockId, usize>,
+    new_indices: &'a HashMap<BlockId, usize>,
+    used_old: &'a mut HashSet<BlockId>,
+}
+
+fn align_interval_with_partition_fallback(
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    candidates: &CandidateMap,
+    options: AlignmentOptions,
+    remaining_dp_cells: &mut usize,
+    context: IntervalContext<'_>,
+    fallback: PartitionFallback<'_>,
+) -> Result<Vec<AlignmentSpan>> {
+    let initial = align_interval(old, new, candidates, options, remaining_dp_cells, context)?;
+    if fallback.anchors.is_empty() || !is_full_text_similarity_collapse(&initial, old, new) {
+        return Ok(initial);
+    }
+
+    let retry_context = IntervalContext {
+        bounded_by_anchors: false,
+        move_old: context.move_old,
+        move_new: context.move_new,
+    };
+    let mut spans = Vec::new();
+    let mut old_start = 0;
+    let mut new_start = 0;
+    for anchor in fallback.anchors {
+        let old_anchor = fallback.old_indices[&anchor.old] - fallback.old_offset;
+        let new_anchor = fallback.new_indices[&anchor.new] - fallback.new_offset;
+        spans.extend(align_interval(
+            &old[old_start..old_anchor],
+            &new[new_start..new_anchor],
+            candidates,
+            options,
+            remaining_dp_cells,
+            retry_context,
+        )?);
+        spans.push(partition_span(*anchor));
+        old_start = old_anchor + 1;
+        new_start = new_anchor + 1;
+    }
+    spans.extend(align_interval(
+        &old[old_start..],
+        &new[new_start..],
+        candidates,
+        options,
+        remaining_dp_cells,
+        retry_context,
+    )?);
+    fallback
+        .used_old
+        .extend(fallback.anchors.iter().map(|anchor| anchor.old));
+    Ok(spans)
+}
+
+fn is_full_text_similarity_collapse(
+    spans: &[AlignmentSpan],
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+) -> bool {
+    let [span] = spans else {
+        return false;
+    };
+    span.kind == AlignmentKind::Unresolved
+        && span.evidence == [AlignmentEvidence::TextSimilarity]
+        && span
+            .old
+            .iter()
+            .copied()
+            .eq(old.iter().map(|features| features.block))
+        && span
+            .new
+            .iter()
+            .copied()
+            .eq(new.iter().map(|features| features.block))
 }
 
 type CandidateMap = HashMap<BlockId, HashMap<BlockId, Vec<CandidateSource>>>;
@@ -898,6 +1051,19 @@ fn anchor_span(anchor: ExactAnchor) -> AlignmentSpan {
     }
 }
 
+fn partition_span(anchor: ExactAnchor) -> AlignmentSpan {
+    AlignmentSpan {
+        kind: AlignmentKind::Match,
+        old: vec![anchor.old],
+        new: vec![anchor.new],
+        score: 1.0,
+        confidence: AlignmentConfidence::High,
+        evidence: vec![AlignmentEvidence::ExactCanonical],
+        old_separator: None,
+        new_separator: None,
+    }
+}
+
 fn unresolved_span(
     old: &[BlockFeatures],
     new: &[BlockFeatures],
@@ -964,11 +1130,12 @@ fn contains_affected(
     })
 }
 
-fn refine_masked_matches(spans: &mut Vec<AlignmentSpan>) {
+fn refine_masked_matches(spans: &mut Vec<AlignmentSpan>, partition_old: &HashSet<BlockId>) {
     let independently_supported = spans
         .iter()
         .map(|span| {
             span.kind == AlignmentKind::Match
+                && !is_partition_span(span, partition_old)
                 && (!span.evidence.contains(&AlignmentEvidence::NumericMask)
                     || span.evidence.contains(&AlignmentEvidence::ExactCanonical)
                     || span.evidence.contains(&AlignmentEvidence::AnchorInterval))
@@ -1008,16 +1175,13 @@ fn refine_masked_matches(spans: &mut Vec<AlignmentSpan>) {
     let mut refined = Vec::with_capacity(original.len());
     let mut start = 0;
     while start < original.len() {
-        if original[start]
-            .evidence
-            .contains(&AlignmentEvidence::Anchor)
-        {
+        if is_refinement_boundary(&original[start], partition_old) {
             refined.push(original[start].clone());
             start += 1;
             continue;
         }
         let mut end = start + 1;
-        while end < original.len() && !original[end].evidence.contains(&AlignmentEvidence::Anchor) {
+        while end < original.len() && !is_refinement_boundary(&original[end], partition_old) {
             end += 1;
         }
         if unsupported[start..end]
@@ -1037,6 +1201,14 @@ fn refine_masked_matches(spans: &mut Vec<AlignmentSpan>) {
         start = end;
     }
     *spans = refined;
+}
+
+fn is_refinement_boundary(span: &AlignmentSpan, partition_old: &HashSet<BlockId>) -> bool {
+    span.evidence.contains(&AlignmentEvidence::Anchor) || is_partition_span(span, partition_old)
+}
+
+fn is_partition_span(span: &AlignmentSpan, partition_old: &HashSet<BlockId>) -> bool {
+    span.old.len() == 1 && partition_old.contains(&span.old[0])
 }
 
 fn unresolved_alignment_interval(spans: &[AlignmentSpan]) -> AlignmentSpan {
