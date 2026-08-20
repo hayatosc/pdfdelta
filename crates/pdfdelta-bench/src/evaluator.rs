@@ -495,6 +495,7 @@ fn extraction_limits() -> ExtractionLimits {
         max_operand_nodes: 32 * 1024,
         max_fonts: 16,
         max_cmap_entries: 4 * 1024,
+        max_cid_width_entries: 4 * 1024,
         max_string_bytes: 16 * 1024,
     }
 }

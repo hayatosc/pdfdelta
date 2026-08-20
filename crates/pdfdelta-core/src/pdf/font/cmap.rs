@@ -232,7 +232,9 @@ impl Parser<'_> {
                     pending_count = None;
                 }
                 Token::Word(b"usecmap" | b"begincidchar" | b"begincidrange") => {
-                    return unresolved("CMap inheritance and CID mappings are not supported");
+                    return Err(Error::Unsupported(
+                        "CMap inheritance and CID mappings are not supported".into(),
+                    ));
                 }
                 Token::Word(word) if word.starts_with(b"end") => {
                     return unresolved("unexpected CMap block terminator");
@@ -827,14 +829,19 @@ mod tests {
             "endcodespacerange",
             "endbfchar",
             "endbfrange",
-            "/Parent usecmap",
-            "0 begincidchar",
-            "0 begincidrange",
         ] {
             let input = format!("{valid_mapping} {suffix}");
             assert!(matches!(
                 parse_to_unicode(input.as_bytes(), LIMITS),
                 Err(Error::Unresolved(_))
+            ));
+        }
+
+        for suffix in ["/Parent usecmap", "0 begincidchar", "0 begincidrange"] {
+            let input = format!("{valid_mapping} {suffix}");
+            assert!(matches!(
+                parse_to_unicode(input.as_bytes(), LIMITS),
+                Err(Error::Unsupported(_))
             ));
         }
 

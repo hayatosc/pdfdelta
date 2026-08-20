@@ -22,6 +22,7 @@ pub struct ExtractionLimits {
     pub max_operand_nodes: usize,
     pub max_fonts: usize,
     pub max_cmap_entries: usize,
+    pub max_cid_width_entries: usize,
     pub max_string_bytes: usize,
 }
 
@@ -38,6 +39,9 @@ impl Default for ExtractionLimits {
             max_operand_nodes: 1_000_000,
             max_fonts: 100_000,
             max_cmap_entries: 1_000_000,
+            // One complete u16 CID space globally. Multiplying this by max_fonts would
+            // permit billions of entries by default; callers can raise it deliberately.
+            max_cid_width_entries: usize::from(u16::MAX) + 1,
             max_string_bytes: 64 * 1024 * 1024,
         }
     }

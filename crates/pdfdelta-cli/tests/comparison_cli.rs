@@ -256,34 +256,33 @@ fn malformed_old_document_exits_two_with_context() {
 }
 
 #[test]
-fn unsupported_extraction_reports_without_false_changes() {
+fn malformed_type0_extraction_reports_without_false_changes() {
     let directory = TestDirectory::new();
-    let unsupported = directory.join("unsupported.pdf");
+    let malformed = directory.join("malformed-type0.pdf");
     let complete = directory.join("complete.pdf");
-    let report_path = directory.join("unsupported.json");
-    write_type0_pdf(&unsupported, &["Unsupported page text is present"]);
+    let report_path = directory.join("unresolved.json");
+    write_type0_pdf(&malformed, &["Malformed page text is present"]);
     write_pdf(&complete, &["Complete page text remains visible"]);
 
-    let default_output = compare(&unsupported, &complete, &[]);
+    let default_output = compare(&malformed, &complete, &[]);
     let default_stderr = stderr(&default_output);
     let default_report = stdout(&default_output);
 
     assert_eq!(default_output.status.code(), Some(0), "{default_stderr}");
     assert!(default_stderr.contains("extraction issue for old PDF"));
-    assert!(default_stderr.contains("kind=unsupported"));
-    assert!(default_stderr.contains("Type0/CID fonts are not implemented"));
+    assert!(default_stderr.contains("kind=unresolved"));
+    assert!(default_stderr.contains("Type0 font has no Encoding"));
     assert!(default_report.contains("Content changes:          0"));
-    assert!(default_report.contains("Unsupported extraction:   1"));
+    assert!(default_report.contains("Unresolved extraction:    1"));
     assert!(default_report.contains("Alignment coverage:       old=unknown, new=0.0%"));
     assert!(default_report.contains("Comparison coverage:      unknown"));
     assert!(
-        default_report
-            .contains("Extraction issue (side=old, kind=unsupported, scope=page, page=0)")
+        default_report.contains("Extraction issue (side=old, kind=unresolved, scope=page, page=0)")
     );
 
     let strict_output = compare(
         &complete,
-        &unsupported,
+        &malformed,
         &["--strict", "--json", path_text(&report_path)],
     );
     let strict_stderr = stderr(&strict_output);
@@ -297,7 +296,7 @@ fn unsupported_extraction_reports_without_false_changes() {
     assert_eq!(report["schema_version"], 4);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["comparison_complete"], false);
-    assert_eq!(report["summary"]["unsupported_extraction_issues"], 1);
+    assert_eq!(report["summary"]["unresolved_extraction_issues"], 1);
     assert_eq!(report["summary"]["old_alignment_coverage"]["ratio"], 0.0);
     assert_eq!(
         report["summary"]["new_alignment_coverage"]["ratio"],
@@ -313,7 +312,7 @@ fn unsupported_extraction_reports_without_false_changes() {
     );
     assert_eq!(report["extraction"]["new_complete"], false);
     assert_eq!(report["extraction"]["issues"][0]["side"], "new");
-    assert_eq!(report["extraction"]["issues"][0]["kind"], "unsupported");
+    assert_eq!(report["extraction"]["issues"][0]["kind"], "unresolved");
     assert_eq!(report["extraction"]["issues"][0]["scope"], "page");
     assert_eq!(report["extraction"]["issues"][0]["page"], 0);
 }

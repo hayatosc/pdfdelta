@@ -412,6 +412,7 @@ fn fixture_extraction_limits() -> ExtractionLimits {
         max_operand_nodes: 64,
         max_fonts: 4,
         max_cmap_entries: 16,
+        max_cid_width_entries: 16,
         max_string_bytes: 1024,
     }
 }

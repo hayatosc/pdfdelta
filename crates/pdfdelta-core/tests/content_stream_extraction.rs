@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use lopdf::{Document as LopdfDocument, Object, Stream, dictionary};
+use lopdf::{Document as LopdfDocument, Object, ObjectId, Stream, dictionary};
 use pdfdelta_core::{
     Error, Result,
     model::{DecodedText, Document, Glyph},
@@ -27,6 +27,34 @@ fn base_font(document: &mut LopdfDocument) -> lopdf::ObjectId {
             "Descent" => -200,
             "MissingWidth" => 500,
         },
+    })
+}
+
+fn identity_h_font(
+    document: &mut LopdfDocument,
+    to_unicode: ObjectId,
+    widths: Vec<Object>,
+) -> ObjectId {
+    let descendant = document.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "CIDFontType2",
+        "BaseFont" => "FixtureSans",
+        "DW" => 900,
+        "W" => widths,
+        "FontDescriptor" => dictionary! {
+            "Type" => "FontDescriptor",
+            "FontName" => "FixtureSans",
+            "Ascent" => 800,
+            "Descent" => -200,
+        },
+    });
+    document.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type0",
+        "BaseFont" => "FixtureSans",
+        "Encoding" => "Identity-H",
+        "DescendantFonts" => vec![Object::Reference(descendant)],
+        "ToUnicode" => to_unicode,
     })
 }
 
@@ -712,6 +740,141 @@ fn extracts_encoding_differences_without_changing_codes_or_widths() -> Result<()
     assert_close(glyphs[1].baseline.x, 26.0);
     assert_close(glyphs[2].baseline.x, 33.0);
     Ok(())
+}
+
+#[test]
+fn extracts_identity_h_type0_glyphs_with_cid_geometry_and_shared_cache() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap_bytes = b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
+        3 beginbfchar <0001> <0041> <0002> <0042> <0003> <0043> endbfchar"
+        .to_vec();
+    let cmap = pdf.add_object(Stream::new(dictionary! {}, cmap_bytes));
+    let font = identity_h_font(
+        &mut pdf,
+        cmap,
+        vec![
+            Object::Integer(1),
+            Object::Array(vec![Object::Integer(500), Object::Integer(700)]),
+        ],
+    );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm <00010002> Tj /F2 10 Tf <0003> Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font, "F2" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(
+        pdf,
+        ExtractionLimits {
+            max_fonts: 1,
+            max_cmap_entries: 4,
+            max_cid_width_entries: 2,
+            ..ExtractionLimits::default()
+        },
+    )?;
+    let glyphs = document.items();
+    assert_eq!(mapped_text(glyphs), "ABC");
+    assert_eq!(glyphs[0].raw_code, [0, 1]);
+    assert_eq!(glyphs[1].raw_code, [0, 2]);
+    assert_eq!(glyphs[2].raw_code, [0, 3]);
+    assert_eq!(glyphs[0].font_id, glyphs[2].font_id);
+    assert_close(glyphs[0].baseline.x, 20.0);
+    assert_close(glyphs[1].baseline.x, 25.0);
+    assert_close(glyphs[2].baseline.x, 32.0);
+    assert_eq!(glyphs[0].provenance.content_stream.object_number, content.0);
+    assert_eq!(glyphs[0].provenance.operator_index, 3);
+    assert_eq!(glyphs[2].provenance.operator_index, 5);
+    Ok(())
+}
+
+#[test]
+fn accepts_more_than_256_cid_width_entries() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
+          1 beginbfchar <0001> <0041> endbfchar"
+            .to_vec(),
+    ));
+    let font = identity_h_font(
+        &mut pdf,
+        cmap,
+        vec![
+            Object::Integer(0),
+            Object::Integer(256),
+            Object::Integer(500),
+        ],
+    );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm <0001> Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! { "Font" => dictionary! { "F1" => font } }),
+        None,
+        None,
+    );
+
+    let document = extract(
+        pdf,
+        ExtractionLimits {
+            max_cid_width_entries: 257,
+            ..ExtractionLimits::default()
+        },
+    )?;
+    assert_eq!(mapped_text(document.items()), "A");
+    Ok(())
+}
+
+#[test]
+fn bounds_aggregate_cid_width_entries_across_distinct_fonts() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
+          1 beginbfchar <0001> <0041> endbfchar"
+            .to_vec(),
+    ));
+    let widths = vec![Object::Integer(1), Object::Integer(2), Object::Integer(500)];
+    let first_font = identity_h_font(&mut pdf, cmap, widths.clone());
+    let second_font = identity_h_font(&mut pdf, cmap, widths);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm <0001> Tj /F2 10 Tf <0001> Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => first_font, "F2" => second_font },
+        }),
+        None,
+        None,
+    );
+
+    assert!(matches!(
+        extract(
+            pdf,
+            ExtractionLimits {
+                max_cid_width_entries: 3,
+                ..ExtractionLimits::default()
+            }
+        ),
+        Err(Error::LimitExceeded {
+            resource: "CID width entries",
+            limit: 3,
+        })
+    ));
 }
 
 #[test]

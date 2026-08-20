@@ -90,6 +90,7 @@ struct Extraction<'a> {
     operator_budget: OperatorBudget,
     operand_budget: OperandBudget,
     cmap_entries: usize,
+    cid_width_entries: usize,
     next_font_id: u32,
     next_scope_id: u64,
     render_order: u32,
@@ -118,6 +119,7 @@ impl<'a> Extraction<'a> {
             operator_budget,
             operand_budget,
             cmap_entries: 0,
+            cid_width_entries: 0,
             next_font_id: 0,
             next_scope_id: 0,
             render_order: 0,
@@ -633,12 +635,17 @@ impl Extraction<'_> {
                 .limits
                 .max_cmap_entries
                 .saturating_sub(self.cmap_entries);
+            let remaining_cid_width_entries = self
+                .limits
+                .max_cid_width_entries
+                .saturating_sub(self.cid_width_entries);
             let loaded = FontDecoder::load(
                 self.pdf,
                 selection.object.as_ref(),
                 FontDecoderLimits {
                     max_indirections: self.limits.max_nesting_depth,
-                    max_width_entries: 256,
+                    max_simple_width_entries: 256,
+                    max_cid_width_entries: remaining_cid_width_entries,
                     max_to_unicode_bytes: remaining_bytes,
                     cmap: CMapLimits {
                         max_entries: remaining_entries,
@@ -646,8 +653,19 @@ impl Extraction<'_> {
                         max_output_scalars: self.limits.max_string_bytes,
                     },
                 },
-            )?;
+            )
+            .map_err(|error| match error {
+                Error::LimitExceeded {
+                    resource: "CID width entries",
+                    ..
+                } => Error::LimitExceeded {
+                    resource: "CID width entries",
+                    limit: self.limits.max_cid_width_entries,
+                },
+                error => error,
+            })?;
             self.account_decoded_bytes(loaded.decoded_cmap_bytes)?;
+            self.account_cid_width_entries(loaded.cid_width_entries)?;
             self.cmap_entries = self
                 .cmap_entries
                 .checked_add(loaded.decoder.cmap_entry_count())
@@ -982,6 +1000,23 @@ impl Extraction<'_> {
             return Err(Error::LimitExceeded {
                 resource: "decoded extraction bytes",
                 limit: self.limits.max_total_decoded_bytes,
+            });
+        }
+        Ok(())
+    }
+
+    fn account_cid_width_entries(&mut self, entries: usize) -> Result<()> {
+        self.cid_width_entries =
+            self.cid_width_entries
+                .checked_add(entries)
+                .ok_or(Error::LimitExceeded {
+                    resource: "CID width entries",
+                    limit: self.limits.max_cid_width_entries,
+                })?;
+        if self.cid_width_entries > self.limits.max_cid_width_entries {
+            return Err(Error::LimitExceeded {
+                resource: "CID width entries",
+                limit: self.limits.max_cid_width_entries,
             });
         }
         Ok(())

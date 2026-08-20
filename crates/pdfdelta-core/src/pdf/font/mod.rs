@@ -1,5 +1,7 @@
 mod agl;
 pub(crate) mod cmap;
+mod common;
+mod composite;
 mod decoder;
 mod metrics;
 mod simple;

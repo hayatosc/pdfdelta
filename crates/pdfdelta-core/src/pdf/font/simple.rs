@@ -5,7 +5,8 @@ use crate::{
     pdf::{ParsedPdf, PdfDict, PdfObject},
 };
 
-use super::cmap::{ToUnicodeCMap, UnicodeMapping, parse_to_unicode};
+use super::cmap::{ToUnicodeCMap, UnicodeMapping};
+use super::common::{load_to_unicode, non_negative_number, optional_number, resolve_object};
 use super::decoder::{DecodedGlyph, FontDecoderLimits};
 use super::metrics;
 
@@ -393,7 +394,7 @@ fn validate_subtype(dictionary: &PdfDict) -> Result<()> {
     match dictionary.get(b"Subtype".as_slice()) {
         Some(PdfObject::Name(name)) if matches!(name.as_slice(), b"Type1" | b"TrueType") => Ok(()),
         Some(PdfObject::Name(name)) if name.as_slice() == b"Type0" => Err(Error::Unsupported(
-            "Type0/CID fonts are not implemented".into(),
+            "Type0 font cannot be decoded as a simple font".into(),
         )),
         Some(PdfObject::Name(name)) => Err(Error::Unsupported(format!(
             "font subtype /{} is not supported",
@@ -539,10 +540,10 @@ fn load_widths(
     let PdfObject::Array(widths) = widths else {
         return unresolved("font Widths is not an array");
     };
-    if widths.len() > limits.max_width_entries {
+    if widths.len() > limits.max_simple_width_entries {
         return Err(Error::LimitExceeded {
             resource: "simple-font width entries",
-            limit: limits.max_width_entries,
+            limit: limits.max_simple_width_entries,
         });
     }
     if usize::from(first_char)
@@ -582,104 +583,6 @@ fn load_descriptor(
         .get(b"MissingWidth".as_slice())
         .map_or(Ok(0.0), |value| non_negative_number(value, "MissingWidth"))?;
     Ok((ascent, descent, missing_width))
-}
-
-fn load_to_unicode(
-    pdf: &dyn ParsedPdf,
-    dictionary: &PdfDict,
-    limits: FontDecoderLimits,
-) -> Result<(Option<ToUnicodeCMap>, usize)> {
-    let Some(to_unicode) = dictionary.get(b"ToUnicode".as_slice()) else {
-        return Ok((None, 0));
-    };
-    let reference = resolve_stream_reference(pdf, to_unicode, limits.max_indirections)?;
-    let stream = pdf.decoded_stream(reference)?;
-    if stream.bytes.len() > limits.max_to_unicode_bytes {
-        return Err(Error::LimitExceeded {
-            resource: "decoded ToUnicode bytes",
-            limit: limits.max_to_unicode_bytes,
-        });
-    }
-    let byte_count = stream.bytes.len();
-    let cmap = parse_to_unicode(&stream.bytes, limits.cmap)?;
-    Ok((Some(cmap), byte_count))
-}
-
-fn resolve_stream_reference(
-    pdf: &dyn ParsedPdf,
-    object: &PdfObject,
-    max_indirections: usize,
-) -> Result<crate::pdf::ObjectRef> {
-    let mut current = object.clone();
-    for depth in 0..=max_indirections {
-        let PdfObject::Reference(reference) = current else {
-            return match current {
-                PdfObject::Stream(_) => Err(Error::Unsupported(
-                    "direct ToUnicode streams are unavailable through the PDF facade".into(),
-                )),
-                _ => unresolved("ToUnicode is not a stream reference"),
-            };
-        };
-        if depth == max_indirections {
-            return limit_indirections(max_indirections);
-        }
-        current = pdf.resolve(reference)?;
-        if matches!(current, PdfObject::Stream(_)) {
-            return Ok(reference);
-        }
-    }
-    limit_indirections(max_indirections)
-}
-
-fn resolve_object(
-    pdf: &dyn ParsedPdf,
-    mut object: PdfObject,
-    max_indirections: usize,
-) -> Result<PdfObject> {
-    for depth in 0..=max_indirections {
-        let PdfObject::Reference(reference) = object else {
-            return Ok(object);
-        };
-        if depth == max_indirections {
-            return limit_indirections(max_indirections);
-        }
-        object = pdf.resolve(reference)?;
-    }
-    limit_indirections(max_indirections)
-}
-
-fn limit_indirections<T>(limit: usize) -> Result<T> {
-    Err(Error::LimitExceeded {
-        resource: "font object indirections",
-        limit,
-    })
-}
-
-fn optional_number(dictionary: &PdfDict, key: &[u8]) -> Result<Option<f64>> {
-    dictionary
-        .get(key)
-        .map(|value| finite_number(value, "font metric"))
-        .transpose()
-}
-
-fn non_negative_number(object: &PdfObject, context: &str) -> Result<f64> {
-    let value = finite_number(object, context)?;
-    if value < 0.0 {
-        return unresolved(&format!("{context} is negative"));
-    }
-    Ok(value)
-}
-
-fn finite_number(object: &PdfObject, context: &str) -> Result<f64> {
-    let value = match object {
-        PdfObject::Integer(value) => *value as f64,
-        PdfObject::Real(value) => *value,
-        _ => return unresolved(&format!("{context} is not numeric")),
-    };
-    if !value.is_finite() {
-        return unresolved(&format!("{context} is not finite"));
-    }
-    Ok(value)
 }
 
 fn glyph_name_mapping(name: &[u8]) -> DifferenceMapping {
@@ -879,7 +782,8 @@ mod tests {
 
     const LIMITS: FontDecoderLimits = FontDecoderLimits {
         max_indirections: 4,
-        max_width_entries: 256,
+        max_simple_width_entries: 256,
+        max_cid_width_entries: 16,
         max_to_unicode_bytes: 4096,
         cmap: CMapLimits {
             max_entries: 64,
@@ -1275,7 +1179,7 @@ mod tests {
                 &pdf,
                 &too_many_widths,
                 FontDecoderLimits {
-                    max_width_entries: 1,
+                    max_simple_width_entries: 1,
                     ..LIMITS
                 }
             ),
