@@ -59,26 +59,201 @@ pub struct ComparisonOutcome {
     pub extraction: ExtractionStatus,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PipelinePhase {
+    ConfigurationValidation,
+    CompletenessGate,
+    PreLayoutBudget,
+    LineReconstruction,
+    BlockReconstruction,
+    Normalization,
+    DiffTokenBudget,
+    NgramBudget,
+    FeatureBuild,
+    CandidateIndex,
+    Alignment,
+    ExactDiff,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PipelinePhaseStatus {
+    Completed,
+    Incomplete,
+    Failed,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PipelineMetrics {
+    pub painting_glyphs: Option<usize>,
+    pub lines: Option<usize>,
+    pub blocks: Option<usize>,
+    pub normalized_blocks: Option<usize>,
+    pub raw_tokens: Option<usize>,
+    pub ngram_token_elements: Option<usize>,
+    pub features: Option<usize>,
+    pub indexed_features: Option<usize>,
+    pub alignment_spans: Option<usize>,
+    pub changes: Option<usize>,
+    pub formatting_changes: Option<usize>,
+    pub unresolved_regions: Option<usize>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PipelineErrorKind {
+    Backend,
+    Report,
+    InvalidConfiguration,
+    Unsupported,
+    Unresolved,
+    LimitExceeded,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PipelineErrorSnapshot {
+    pub kind: PipelineErrorKind,
+    pub message: String,
+    pub resource: Option<&'static str>,
+    pub limit: Option<usize>,
+}
+
+impl From<&Error> for PipelineErrorSnapshot {
+    fn from(error: &Error) -> Self {
+        let (kind, resource, limit) = match error {
+            Error::Backend(_) => (PipelineErrorKind::Backend, None, None),
+            Error::Report(_) => (PipelineErrorKind::Report, None, None),
+            Error::InvalidConfiguration(_) => (PipelineErrorKind::InvalidConfiguration, None, None),
+            Error::Unsupported(_) => (PipelineErrorKind::Unsupported, None, None),
+            Error::Unresolved(_) => (PipelineErrorKind::Unresolved, None, None),
+            Error::LimitExceeded { resource, limit } => (
+                PipelineErrorKind::LimitExceeded,
+                Some(*resource),
+                Some(*limit),
+            ),
+        };
+        Self {
+            kind,
+            message: error.to_string(),
+            resource,
+            limit,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PipelineDiagnosticRecord {
+    pub phase: PipelinePhase,
+    pub side: Option<DocumentSide>,
+    pub status: PipelinePhaseStatus,
+    pub metrics: PipelineMetrics,
+    pub error: Option<PipelineErrorSnapshot>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PipelineDiagnostics {
+    records: Vec<PipelineDiagnosticRecord>,
+}
+
+impl PipelineDiagnostics {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn records(&self) -> &[PipelineDiagnosticRecord] {
+        &self.records
+    }
+
+    fn begin(&mut self) {
+        self.records.clear();
+    }
+
+    fn completed(
+        &mut self,
+        phase: PipelinePhase,
+        side: Option<DocumentSide>,
+        metrics: PipelineMetrics,
+    ) {
+        self.records.push(PipelineDiagnosticRecord {
+            phase,
+            side,
+            status: PipelinePhaseStatus::Completed,
+            metrics,
+            error: None,
+        });
+    }
+
+    fn incomplete(&mut self, phase: PipelinePhase) {
+        self.records.push(PipelineDiagnosticRecord {
+            phase,
+            side: None,
+            status: PipelinePhaseStatus::Incomplete,
+            metrics: PipelineMetrics::default(),
+            error: None,
+        });
+    }
+
+    fn failed(&mut self, phase: PipelinePhase, side: Option<DocumentSide>, error: &Error) {
+        self.records.push(PipelineDiagnosticRecord {
+            phase,
+            side,
+            status: PipelinePhaseStatus::Failed,
+            metrics: PipelineMetrics::default(),
+            error: Some(error.into()),
+        });
+    }
+}
+
 pub fn compare_extraction_outcomes(
     old: ExtractionOutcome,
     new: ExtractionOutcome,
     options: PipelineOptions,
 ) -> Result<ComparisonOutcome> {
-    let options = options.validate()?;
+    compare_extraction_outcomes_with_diagnostics(old, new, options, &mut PipelineDiagnostics::new())
+}
+
+pub fn compare_extraction_outcomes_with_diagnostics(
+    old: ExtractionOutcome,
+    new: ExtractionOutcome,
+    options: PipelineOptions,
+    diagnostics: &mut PipelineDiagnostics,
+) -> Result<ComparisonOutcome> {
+    diagnostics.begin();
+    let options = match options.validate() {
+        Ok(options) => options,
+        Err(error) => {
+            diagnostics.failed(PipelinePhase::ConfigurationValidation, None, &error);
+            return Err(error);
+        }
+    };
+    diagnostics.completed(
+        PipelinePhase::ConfigurationValidation,
+        None,
+        PipelineMetrics::default(),
+    );
     let old_complete = old.is_complete();
     let new_complete = new.is_complete();
     let (old_document, old_issues) = old.into_parts();
     let (new_document, new_issues) = new.into_parts();
     if old_complete && new_complete {
+        diagnostics.completed(
+            PipelinePhase::CompletenessGate,
+            None,
+            PipelineMetrics::default(),
+        );
         return Ok(ComparisonOutcome {
-            comparison: compare_validated_glyph_documents(&old_document, &new_document, options)?,
+            comparison: compare_validated_glyph_documents(
+                &old_document,
+                &new_document,
+                options,
+                diagnostics,
+            )?,
             extraction: ExtractionStatus::complete(),
         });
     }
 
-    let old_tokens = painting_raw_token_lower_bound(&old_document, options.diff.max_tokens)?;
-    let new_tokens = painting_raw_token_lower_bound(&new_document, options.diff.max_tokens)?;
-    enforce_diff_raw_token_budget(old_tokens, new_tokens, options.diff)?;
+    diagnostics.incomplete(PipelinePhase::CompletenessGate);
+
+    let (old_tokens, new_tokens) =
+        record_pre_layout_token_counts(&old_document, &new_document, options.diff, diagnostics)?;
     let issues = old_issues
         .into_iter()
         .map(|issue| ExtractionIssueRecord::from_issue(DocumentSide::Old, issue))
@@ -113,24 +288,119 @@ pub fn compare_glyph_documents(
     options: PipelineOptions,
 ) -> Result<Comparison> {
     let options = options.validate()?;
-    compare_validated_glyph_documents(old, new, options)
+    compare_validated_glyph_documents(old, new, options, &mut PipelineDiagnostics::new())
 }
 
 fn compare_validated_glyph_documents(
     old: &Document<Glyph>,
     new: &Document<Glyph>,
     options: PipelineOptions,
+    diagnostics: &mut PipelineDiagnostics,
 ) -> Result<Comparison> {
-    enforce_pre_layout_token_budget(old, new, options.diff)?;
-    let old = prepare(old, options)?;
-    let new = prepare(new, options)?;
-    enforce_diff_token_budget(&old, &new, options.diff)?;
-    enforce_ngram_token_element_budget(&old, &new, options)?;
-    let old_features = build_block_features(&old, options.ngram_size)?;
-    let new_features = build_block_features(&new, options.ngram_size)?;
-    let candidates = InvertedIndexCandidateGenerator::new(&new_features)?;
-    let alignment = align_ordered(&old_features, &new_features, &candidates, options.alignment)?;
-    compare_aligned(&old, &new, &alignment, options.diff)
+    record_pre_layout_token_counts(old, new, options.diff, diagnostics)?;
+    let old = prepare(old, options, DocumentSide::Old, diagnostics)?;
+    let new = prepare(new, options, DocumentSide::New, diagnostics)?;
+    phase_result(
+        diagnostics,
+        PipelinePhase::DiffTokenBudget,
+        None,
+        enforce_diff_token_budget(&old, &new, options.diff),
+    )?;
+    diagnostics.completed(
+        PipelinePhase::DiffTokenBudget,
+        None,
+        PipelineMetrics {
+            normalized_blocks: Some(old.len().saturating_add(new.len())),
+            ..PipelineMetrics::default()
+        },
+    );
+    record_ngram_token_element_budget(&old, &new, options, diagnostics)?;
+    let old_features = phase_result(
+        diagnostics,
+        PipelinePhase::FeatureBuild,
+        Some(DocumentSide::Old),
+        build_block_features(&old, options.ngram_size),
+    )?;
+    diagnostics.completed(
+        PipelinePhase::FeatureBuild,
+        Some(DocumentSide::Old),
+        PipelineMetrics {
+            normalized_blocks: Some(old.len()),
+            features: Some(old_features.len()),
+            ..PipelineMetrics::default()
+        },
+    );
+    let new_features = phase_result(
+        diagnostics,
+        PipelinePhase::FeatureBuild,
+        Some(DocumentSide::New),
+        build_block_features(&new, options.ngram_size),
+    )?;
+    diagnostics.completed(
+        PipelinePhase::FeatureBuild,
+        Some(DocumentSide::New),
+        PipelineMetrics {
+            normalized_blocks: Some(new.len()),
+            features: Some(new_features.len()),
+            ..PipelineMetrics::default()
+        },
+    );
+    let candidates = phase_result(
+        diagnostics,
+        PipelinePhase::CandidateIndex,
+        Some(DocumentSide::New),
+        InvertedIndexCandidateGenerator::new(&new_features),
+    )?;
+    diagnostics.completed(
+        PipelinePhase::CandidateIndex,
+        Some(DocumentSide::New),
+        PipelineMetrics {
+            indexed_features: Some(new_features.len()),
+            ..PipelineMetrics::default()
+        },
+    );
+    let alignment = phase_result(
+        diagnostics,
+        PipelinePhase::Alignment,
+        None,
+        align_ordered(&old_features, &new_features, &candidates, options.alignment),
+    )?;
+    diagnostics.completed(
+        PipelinePhase::Alignment,
+        None,
+        PipelineMetrics {
+            alignment_spans: Some(alignment.spans.len()),
+            ..PipelineMetrics::default()
+        },
+    );
+    let comparison = phase_result(
+        diagnostics,
+        PipelinePhase::ExactDiff,
+        None,
+        compare_aligned(&old, &new, &alignment, options.diff),
+    )?;
+    diagnostics.completed(
+        PipelinePhase::ExactDiff,
+        None,
+        PipelineMetrics {
+            changes: Some(comparison.changes.len()),
+            formatting_changes: Some(comparison.formatting_changes.len()),
+            unresolved_regions: Some(comparison.unresolved_regions.len()),
+            ..PipelineMetrics::default()
+        },
+    );
+    Ok(comparison)
+}
+
+fn phase_result<T>(
+    diagnostics: &mut PipelineDiagnostics,
+    phase: PipelinePhase,
+    side: Option<DocumentSide>,
+    result: Result<T>,
+) -> Result<T> {
+    result.inspect_err(|error| {
+        diagnostics.failed(phase, side, error);
+    })
 }
 
 fn conservative_coverage(total_tokens: usize, extraction_complete: bool) -> crate::diff::Coverage {
@@ -141,29 +411,57 @@ fn conservative_coverage(total_tokens: usize, extraction_complete: bool) -> crat
     }
 }
 
-fn enforce_ngram_token_element_budget(
+fn record_ngram_token_element_budget(
     old: &[BlockText],
     new: &[BlockText],
     options: PipelineOptions,
+    diagnostics: &mut PipelineDiagnostics,
 ) -> Result<()> {
-    validate_ngram_size(options.ngram_size)?;
-    validate_ngram_token_element_limit(options.max_ngram_token_elements)?;
-    let old_elements =
-        estimate_ngram_token_elements(old, options.ngram_size, options.max_ngram_token_elements)?;
-    let new_elements =
-        estimate_ngram_token_elements(new, options.ngram_size, options.max_ngram_token_elements)?;
-    let total = old_elements
+    let old_elements = phase_result(
+        diagnostics,
+        PipelinePhase::NgramBudget,
+        Some(DocumentSide::Old),
+        estimate_ngram_token_elements(old, options.ngram_size, options.max_ngram_token_elements),
+    )?;
+    diagnostics.completed(
+        PipelinePhase::NgramBudget,
+        Some(DocumentSide::Old),
+        PipelineMetrics {
+            ngram_token_elements: Some(old_elements),
+            ..PipelineMetrics::default()
+        },
+    );
+    let new_elements = phase_result(
+        diagnostics,
+        PipelinePhase::NgramBudget,
+        Some(DocumentSide::New),
+        estimate_ngram_token_elements(new, options.ngram_size, options.max_ngram_token_elements),
+    )?;
+    diagnostics.completed(
+        PipelinePhase::NgramBudget,
+        Some(DocumentSide::New),
+        PipelineMetrics {
+            ngram_token_elements: Some(new_elements),
+            ..PipelineMetrics::default()
+        },
+    );
+    let aggregate = old_elements
         .checked_add(new_elements)
         .ok_or(Error::LimitExceeded {
             resource: "alignment n-gram token elements",
             limit: options.max_ngram_token_elements,
-        })?;
-    if total > options.max_ngram_token_elements {
-        return Err(Error::LimitExceeded {
-            resource: "alignment n-gram token elements",
-            limit: options.max_ngram_token_elements,
+        })
+        .and_then(|total| {
+            if total > options.max_ngram_token_elements {
+                Err(Error::LimitExceeded {
+                    resource: "alignment n-gram token elements",
+                    limit: options.max_ngram_token_elements,
+                })
+            } else {
+                Ok(())
+            }
         });
-    }
+    phase_result(diagnostics, PipelinePhase::NgramBudget, None, aggregate)?;
     Ok(())
 }
 
@@ -176,15 +474,69 @@ fn validate_ngram_token_element_limit(limit: usize) -> Result<()> {
     Ok(())
 }
 
-fn enforce_pre_layout_token_budget(
+fn record_pre_layout_token_counts(
     old: &Document<Glyph>,
     new: &Document<Glyph>,
     options: DiffOptions,
-) -> Result<()> {
-    validate_diff_options(options)?;
-    let old_tokens = painting_raw_token_lower_bound(old, options.max_tokens)?;
-    let new_tokens = painting_raw_token_lower_bound(new, options.max_tokens)?;
-    enforce_diff_raw_token_budget(old_tokens, new_tokens, options)
+    diagnostics: &mut PipelineDiagnostics,
+) -> Result<(usize, usize)> {
+    let old_tokens = phase_result(
+        diagnostics,
+        PipelinePhase::PreLayoutBudget,
+        Some(DocumentSide::Old),
+        painting_raw_token_lower_bound(old, options.max_tokens),
+    )?;
+    if old_tokens > options.max_tokens {
+        return phase_result(
+            diagnostics,
+            PipelinePhase::PreLayoutBudget,
+            Some(DocumentSide::Old),
+            Err(Error::LimitExceeded {
+                resource: "diff raw evidence tokens",
+                limit: options.max_tokens,
+            }),
+        );
+    }
+    diagnostics.completed(
+        PipelinePhase::PreLayoutBudget,
+        Some(DocumentSide::Old),
+        PipelineMetrics {
+            raw_tokens: Some(old_tokens),
+            ..PipelineMetrics::default()
+        },
+    );
+    let new_tokens = phase_result(
+        diagnostics,
+        PipelinePhase::PreLayoutBudget,
+        Some(DocumentSide::New),
+        painting_raw_token_lower_bound(new, options.max_tokens),
+    )?;
+    if new_tokens > options.max_tokens {
+        return phase_result(
+            diagnostics,
+            PipelinePhase::PreLayoutBudget,
+            Some(DocumentSide::New),
+            Err(Error::LimitExceeded {
+                resource: "diff raw evidence tokens",
+                limit: options.max_tokens,
+            }),
+        );
+    }
+    diagnostics.completed(
+        PipelinePhase::PreLayoutBudget,
+        Some(DocumentSide::New),
+        PipelineMetrics {
+            raw_tokens: Some(new_tokens),
+            ..PipelineMetrics::default()
+        },
+    );
+    phase_result(
+        diagnostics,
+        PipelinePhase::PreLayoutBudget,
+        None,
+        enforce_diff_raw_token_budget(old_tokens, new_tokens, options),
+    )?;
+    Ok((old_tokens, new_tokens))
 }
 
 fn painting_raw_token_lower_bound(document: &Document<Glyph>, limit: usize) -> Result<usize> {
@@ -208,7 +560,12 @@ fn painting_raw_token_lower_bound(document: &Document<Glyph>, limit: usize) -> R
     Ok(tokens)
 }
 
-fn prepare(document: &Document<Glyph>, options: PipelineOptions) -> Result<Vec<BlockText>> {
+fn prepare(
+    document: &Document<Glyph>,
+    options: PipelineOptions,
+    side: DocumentSide,
+    diagnostics: &mut PipelineDiagnostics,
+) -> Result<Vec<BlockText>> {
     let document = Document::new(
         document
             .items()
@@ -217,9 +574,54 @@ fn prepare(document: &Document<Glyph>, options: PipelineOptions) -> Result<Vec<B
             .cloned()
             .collect(),
     );
-    let lines = reconstruct_lines(&document, options.line)?;
-    let blocks = reconstruct_blocks(&document, &lines, options.block)?;
-    normalize_blocks(&document, &lines, &blocks)
+    let painting_glyphs = document.items().len();
+    let lines = phase_result(
+        diagnostics,
+        PipelinePhase::LineReconstruction,
+        Some(side),
+        reconstruct_lines(&document, options.line),
+    )?;
+    diagnostics.completed(
+        PipelinePhase::LineReconstruction,
+        Some(side),
+        PipelineMetrics {
+            painting_glyphs: Some(painting_glyphs),
+            lines: Some(lines.len()),
+            ..PipelineMetrics::default()
+        },
+    );
+    let blocks = phase_result(
+        diagnostics,
+        PipelinePhase::BlockReconstruction,
+        Some(side),
+        reconstruct_blocks(&document, &lines, options.block),
+    )?;
+    diagnostics.completed(
+        PipelinePhase::BlockReconstruction,
+        Some(side),
+        PipelineMetrics {
+            painting_glyphs: Some(painting_glyphs),
+            lines: Some(lines.len()),
+            blocks: Some(blocks.len()),
+            ..PipelineMetrics::default()
+        },
+    );
+    let normalized = phase_result(
+        diagnostics,
+        PipelinePhase::Normalization,
+        Some(side),
+        normalize_blocks(&document, &lines, &blocks),
+    )?;
+    diagnostics.completed(
+        PipelinePhase::Normalization,
+        Some(side),
+        PipelineMetrics {
+            blocks: Some(blocks.len()),
+            normalized_blocks: Some(normalized.len()),
+            ..PipelineMetrics::default()
+        },
+    );
+    Ok(normalized)
 }
 
 fn is_painting(mode: TextRenderMode) -> bool {

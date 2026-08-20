@@ -8,7 +8,11 @@ use pdfdelta_core::{
         TextRenderMode, Vec2,
     },
     pdf::ObjectRef,
-    pipeline::{PipelineOptions, compare_extraction_outcomes, compare_glyph_documents},
+    pipeline::{
+        PipelineDiagnostics, PipelineErrorKind, PipelineOptions, PipelinePhase,
+        PipelinePhaseStatus, compare_extraction_outcomes,
+        compare_extraction_outcomes_with_diagnostics, compare_glyph_documents,
+    },
     report::{DocumentSide, ExitStatus, exit_status, summarize},
     source::{ExtractionIssue, ExtractionIssueKind, ExtractionOutcome, ExtractionScope},
 };
@@ -218,6 +222,233 @@ fn compares_complete_extraction_outcomes_with_the_existing_pipeline() -> Result<
         pdfdelta_core::report::ExtractionStatus::complete()
     );
     Ok(())
+}
+
+#[test]
+fn records_each_completed_pipeline_phase_with_bounded_metrics() -> Result<()> {
+    let old = ExtractionOutcome::complete(paragraphs(&["Stable old paragraph remains visible"]));
+    let new = ExtractionOutcome::complete(paragraphs(&["Stable new paragraph remains visible"]));
+    let mut diagnostics = PipelineDiagnostics::new();
+
+    compare_extraction_outcomes_with_diagnostics(
+        old,
+        new,
+        PipelineOptions::default(),
+        &mut diagnostics,
+    )?;
+
+    let records = diagnostics.records();
+    assert!(records.len() <= 20, "diagnostics must remain phase-bounded");
+    assert!(records.iter().all(|record| {
+        record.status == PipelinePhaseStatus::Completed && record.error.is_none()
+    }));
+    for phase in [
+        PipelinePhase::ConfigurationValidation,
+        PipelinePhase::CompletenessGate,
+        PipelinePhase::PreLayoutBudget,
+        PipelinePhase::LineReconstruction,
+        PipelinePhase::BlockReconstruction,
+        PipelinePhase::Normalization,
+        PipelinePhase::DiffTokenBudget,
+        PipelinePhase::NgramBudget,
+        PipelinePhase::FeatureBuild,
+        PipelinePhase::CandidateIndex,
+        PipelinePhase::Alignment,
+        PipelinePhase::ExactDiff,
+    ] {
+        assert!(records.iter().any(|record| record.phase == phase));
+    }
+    let old_lines = records
+        .iter()
+        .find(|record| {
+            record.phase == PipelinePhase::LineReconstruction
+                && record.side == Some(DocumentSide::Old)
+        })
+        .expect("old line reconstruction should be recorded");
+    assert!(
+        old_lines
+            .metrics
+            .painting_glyphs
+            .expect("painting glyph count should be recorded")
+            > 0
+    );
+    assert_eq!(old_lines.metrics.lines, Some(1));
+    let exact_diff = records
+        .iter()
+        .find(|record| record.phase == PipelinePhase::ExactDiff)
+        .expect("exact diff should be recorded");
+    assert_eq!(exact_diff.metrics.changes, Some(1));
+    Ok(())
+}
+
+#[test]
+fn records_incomplete_gate_without_downstream_successes() -> Result<()> {
+    let old = ExtractionOutcome::new(
+        paragraphs(&["Partial evidence remains visible"]),
+        vec![ExtractionIssue::new(
+            ExtractionIssueKind::Unresolved,
+            ExtractionScope::Page(PageId(1)),
+            "document evidence is incomplete",
+        )?],
+    )?;
+    let new = ExtractionOutcome::complete(paragraphs(&["Complete evidence remains visible"]));
+    let mut diagnostics = PipelineDiagnostics::new();
+
+    compare_extraction_outcomes_with_diagnostics(
+        old,
+        new,
+        PipelineOptions::default(),
+        &mut diagnostics,
+    )?;
+
+    assert_eq!(diagnostics.records().len(), 4);
+    assert_eq!(
+        diagnostics.records()[0].phase,
+        PipelinePhase::ConfigurationValidation
+    );
+    assert_eq!(
+        diagnostics.records()[1].phase,
+        PipelinePhase::CompletenessGate
+    );
+    assert_eq!(
+        diagnostics.records()[1].status,
+        PipelinePhaseStatus::Incomplete
+    );
+    for (record, side) in diagnostics.records()[2..]
+        .iter()
+        .zip([DocumentSide::Old, DocumentSide::New])
+    {
+        assert_eq!(record.phase, PipelinePhase::PreLayoutBudget);
+        assert_eq!(record.side, Some(side));
+        assert_eq!(record.status, PipelinePhaseStatus::Completed);
+        assert!(record.metrics.raw_tokens.is_some());
+    }
+    Ok(())
+}
+
+#[test]
+fn retains_the_active_phase_error_snapshot() {
+    let document = paragraphs(&["A generic English paragraph exceeds the token budget"]);
+    let old = ExtractionOutcome::complete(document.clone());
+    let new = ExtractionOutcome::complete(document);
+    let options = PipelineOptions {
+        diff: DiffOptions {
+            max_tokens: 1,
+            ..DiffOptions::default()
+        },
+        ..PipelineOptions::default()
+    };
+    let mut diagnostics = PipelineDiagnostics::new();
+
+    assert!(
+        compare_extraction_outcomes_with_diagnostics(old, new, options, &mut diagnostics).is_err()
+    );
+
+    let failure = diagnostics
+        .records()
+        .last()
+        .expect("failed phase should be retained");
+    assert_eq!(failure.phase, PipelinePhase::PreLayoutBudget);
+    assert_eq!(failure.side, Some(DocumentSide::Old));
+    assert_eq!(failure.status, PipelinePhaseStatus::Failed);
+    let error = failure
+        .error
+        .as_ref()
+        .expect("failure should include an error");
+    assert_eq!(error.kind, PipelineErrorKind::LimitExceeded);
+    assert_eq!(error.resource, Some("diff raw evidence tokens"));
+    assert_eq!(error.limit, Some(1));
+    assert!(error.message.contains("exceeded its limit"));
+}
+
+#[test]
+fn attributes_invalid_options_to_configuration_validation() {
+    let document = paragraphs(&["Stable evidence"]);
+    let options = PipelineOptions {
+        ngram_size: 0,
+        ..PipelineOptions::default()
+    };
+    let mut diagnostics = PipelineDiagnostics::new();
+
+    assert!(
+        compare_extraction_outcomes_with_diagnostics(
+            ExtractionOutcome::complete(document.clone()),
+            ExtractionOutcome::complete(document),
+            options,
+            &mut diagnostics,
+        )
+        .is_err()
+    );
+    assert_eq!(diagnostics.records().len(), 1);
+    assert_eq!(
+        diagnostics.records()[0].phase,
+        PipelinePhase::ConfigurationValidation
+    );
+    assert_eq!(diagnostics.records()[0].status, PipelinePhaseStatus::Failed);
+}
+
+#[test]
+fn retains_completed_old_budget_when_new_side_exceeds_limit() {
+    let options = PipelineOptions {
+        diff: DiffOptions {
+            max_tokens: 5,
+            ..DiffOptions::default()
+        },
+        ..PipelineOptions::default()
+    };
+    let mut diagnostics = PipelineDiagnostics::new();
+
+    assert!(
+        compare_extraction_outcomes_with_diagnostics(
+            ExtractionOutcome::complete(paragraphs(&["id"])),
+            ExtractionOutcome::complete(paragraphs(&["longtext"])),
+            options,
+            &mut diagnostics,
+        )
+        .is_err()
+    );
+    let budgets = diagnostics
+        .records()
+        .iter()
+        .filter(|record| record.phase == PipelinePhase::PreLayoutBudget)
+        .collect::<Vec<_>>();
+    assert_eq!(budgets.len(), 2);
+    assert_eq!(budgets[0].side, Some(DocumentSide::Old));
+    assert_eq!(budgets[0].status, PipelinePhaseStatus::Completed);
+    assert_eq!(budgets[1].side, Some(DocumentSide::New));
+    assert_eq!(budgets[1].status, PipelinePhaseStatus::Failed);
+}
+
+#[test]
+fn retains_completed_side_estimates_when_aggregate_ngram_budget_fails() {
+    let options = PipelineOptions {
+        ngram_size: 3,
+        max_ngram_token_elements: 7,
+        ..PipelineOptions::default()
+    };
+    let mut diagnostics = PipelineDiagnostics::new();
+
+    assert!(
+        compare_extraction_outcomes_with_diagnostics(
+            ExtractionOutcome::complete(paragraphs(&["id"])),
+            ExtractionOutcome::complete(paragraphs(&["id"])),
+            options,
+            &mut diagnostics,
+        )
+        .is_err()
+    );
+    let budgets = diagnostics
+        .records()
+        .iter()
+        .filter(|record| record.phase == PipelinePhase::NgramBudget)
+        .collect::<Vec<_>>();
+    assert_eq!(budgets.len(), 3);
+    assert_eq!(budgets[0].side, Some(DocumentSide::Old));
+    assert_eq!(budgets[0].status, PipelinePhaseStatus::Completed);
+    assert_eq!(budgets[1].side, Some(DocumentSide::New));
+    assert_eq!(budgets[1].status, PipelinePhaseStatus::Completed);
+    assert_eq!(budgets[2].side, None);
+    assert_eq!(budgets[2].status, PipelinePhaseStatus::Failed);
 }
 
 #[test]
