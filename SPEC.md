@@ -200,9 +200,9 @@ crate名とバイナリ名は次の対応とする。
 
 stable Rust、Rust 2024 Editionを前提とする(例外はfuzz crateのみ)。
 
-**自前実装するもの**：parser library adapterと中立facade、Content Stream / Text State解釈、ToUnicode/CMapの必要部分、Glyph geometry復元、Glyph→Line→Block→Regionの構造化、Normalization、Anchor検出、candidate generation、Alignment(1:N/N:1、move検出、confidence/coverage算出)、Myers Diff。
+**自前実装するもの**：parser library adapterと中立facade、Content Stream / Text State解釈、ToUnicode/CMapの必要部分、Glyph geometry復元、Glyph→Line→Block→Regionの構造化、§8.1と§8.2のcanonical/matching規則、soft line break policy、normalization event記録、Anchor検出、candidate generation、Alignment(1:N/N:1、move検出、confidence/coverage算出)、Myers Diff。
 
-**production dependencyとして使ってよいもの**：A0で選定した既存PDF object parser backend(初期候補`lopdf`)、CLI parsing(`clap`)、JSON(`serde`/`serde_json`)、logging、error整形、必要なstream decode。圧縮アルゴリズムや汎用PDF object parserの再実装は初期目的から外れる。
+**production dependencyとして使ってよいもの**：A0で選定した既存PDF object parser backend(初期候補`lopdf`)、CLI parsing(`clap`)、JSON(`serde`/`serde_json`)、logging、error整形、必要なstream decode、decode済みtextに対するNFCとgrapheme/word segmentationを提供するUnicode character-data crate(`unicode-normalization`、`unicode-segmentation`)。Unicode crateへ委ねるのは文字dataとこれらのprimitiveに限り、§8.1と§8.2の規則、soft line break policy、normalization event記録は自前実装に保つ。圧縮アルゴリズムや汎用PDF object parserの再実装は初期目的から外れる。
 
 **dev / test dependency**：非選定のparser候補(`pdf-rs`等)、`pdf-extract`、`pdf-inspector`、property-based testing(`proptest`)、benchmarking。特定のextractorが`GlyphExtractor`契約に十分なgeometryとprovenanceを返せる場合に限り、実験実装として接続してよいが、production設計をその出力形式へ合わせない。
 

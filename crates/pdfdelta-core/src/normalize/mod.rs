@@ -691,6 +691,8 @@ fn resolve_line_breaks(atoms: Vec<Atom>, issues: &mut Vec<NormalizationIssue>) -
             ));
         } else if previous_scalar.is_some_and(is_horizontal_whitespace)
             || following_scalar.is_some_and(is_horizontal_whitespace)
+            // deliberate: CJK classification takes precedence over numeric classification for
+            // fullwidth forms, so Japanese soft-line-break policy wins for those scalars.
             || previous_scalar.is_some_and(is_cjk) && following_scalar.is_some_and(is_cjk)
         {
             resolved.push(changed_atom(
@@ -1022,12 +1024,14 @@ fn is_latin_letter_or_digit(scalar: char) -> bool {
 fn is_cjk(scalar: char) -> bool {
     matches!(
         scalar,
-        '\u{3040}'..='\u{30ff}'
+        '\u{3000}'..='\u{303f}'
+            | '\u{3040}'..='\u{30ff}'
             | '\u{31f0}'..='\u{31ff}'
             | '\u{3400}'..='\u{4dbf}'
             | '\u{4e00}'..='\u{9fff}'
             | '\u{ac00}'..='\u{d7af}'
             | '\u{f900}'..='\u{faff}'
+            | '\u{ff00}'..='\u{ffef}'
             | '\u{20000}'..='\u{2ffff}'
             | '\u{30000}'..='\u{3134f}'
     )

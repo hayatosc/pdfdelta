@@ -51,8 +51,8 @@ pub struct EvaluationRecord {
     pub formatting_only_changes: usize,
     pub extraction_complete: bool,
     pub comparison_complete: bool,
-    pub old_coverage: f64,
-    pub new_coverage: f64,
+    pub old_coverage: Option<f64>,
+    pub new_coverage: Option<f64>,
     pub passed: bool,
     pub detail: String,
 }
@@ -111,10 +111,10 @@ pub fn evaluate(
         .map(|change| change.kind)
         .collect::<Vec<_>>();
     let extraction_complete = outcome.extraction.old_complete && outcome.extraction.new_complete;
-    let full_old_coverage = outcome.comparison.old_coverage.ratio == 1.0
+    let full_old_coverage = outcome.comparison.old_coverage.ratio == Some(1.0)
         && outcome.comparison.old_coverage.resolved_tokens
             == outcome.comparison.old_coverage.total_tokens;
-    let full_new_coverage = outcome.comparison.new_coverage.ratio == 1.0
+    let full_new_coverage = outcome.comparison.new_coverage.ratio == Some(1.0)
         && outcome.comparison.new_coverage.resolved_tokens
             == outcome.comparison.new_coverage.total_tokens;
     let expected_change = matches_expectation(
@@ -139,7 +139,8 @@ pub fn evaluate(
     if !full_old_coverage || !full_new_coverage {
         failures.push(format!(
             "coverage is old={} new={}",
-            outcome.comparison.old_coverage.ratio, outcome.comparison.new_coverage.ratio
+            coverage_label(outcome.comparison.old_coverage.ratio),
+            coverage_label(outcome.comparison.new_coverage.ratio)
         ));
     }
     if !expected_change {
@@ -170,6 +171,10 @@ pub fn evaluate(
             failures.join("; ")
         },
     })
+}
+
+fn coverage_label(ratio: Option<f64>) -> String {
+    ratio.map_or_else(|| "unknown".to_owned(), |ratio| ratio.to_string())
 }
 
 fn matches_expectation(

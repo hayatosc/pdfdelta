@@ -194,12 +194,8 @@ pub fn align_ordered(
             &mut remaining_dp_cells,
             IntervalContext {
                 bounded_by_anchors: has_left_anchor,
-                contains_move_candidate: contains_move_candidate(
-                    &old[old_start..old_anchor],
-                    &new[new_start..new_anchor],
-                    &move_old,
-                    &move_new,
-                ),
+                move_old: &move_old,
+                move_new: &move_new,
             },
         )?);
         spans.push(anchor_span(*anchor));
@@ -215,12 +211,8 @@ pub fn align_ordered(
         &mut remaining_dp_cells,
         IntervalContext {
             bounded_by_anchors: false,
-            contains_move_candidate: contains_move_candidate(
-                &old[old_start..],
-                &new[new_start..],
-                &move_old,
-                &move_new,
-            ),
+            move_old: &move_old,
+            move_new: &move_new,
         },
     )?);
     refine_masked_matches(&mut spans);
@@ -396,9 +388,10 @@ fn preferred_chain_tip(current: Option<ChainTip>, candidate: Option<ChainTip>) -
 }
 
 #[derive(Clone, Copy)]
-struct IntervalContext {
+struct IntervalContext<'a> {
     bounded_by_anchors: bool,
-    contains_move_candidate: bool,
+    move_old: &'a HashSet<BlockId>,
+    move_new: &'a HashSet<BlockId>,
 }
 
 fn align_interval(
@@ -407,28 +400,10 @@ fn align_interval(
     candidates: &CandidateMap,
     options: AlignmentOptions,
     remaining_dp_cells: &mut usize,
-    context: IntervalContext,
+    context: IntervalContext<'_>,
 ) -> Result<Vec<AlignmentSpan>> {
     if old.is_empty() && new.is_empty() {
         return Ok(Vec::new());
-    }
-    if context.contains_move_candidate {
-        return Ok(vec![unresolved_span(
-            old,
-            new,
-            AlignmentEvidence::MoveCandidate,
-        )]);
-    }
-    if old
-        .iter()
-        .chain(new)
-        .any(|features| features.has_normalization_issues)
-    {
-        return Ok(vec![unresolved_span(
-            old,
-            new,
-            AlignmentEvidence::NormalizationIssue,
-        )]);
     }
 
     let width = new.len().checked_add(1).ok_or(Error::LimitExceeded {
@@ -464,6 +439,25 @@ fn align_interval(
         for new_index in 0..=new.len() {
             let from = old_index * width + new_index;
             if !cells[from].best.is_finite() {
+                continue;
+            }
+            let (old_affected, new_affected, evidence) =
+                affected_at(old.get(old_index), new.get(new_index), context);
+            if old_affected || new_affected {
+                let old_count = usize::from(old_affected);
+                let new_count = usize::from(new_affected);
+                let affected_count = u8::from(old_affected) + u8::from(new_affected);
+                propose(
+                    &mut cells,
+                    from,
+                    (old_index + old_count) * width + new_index + new_count,
+                    -options.gap_penalty * f64::from(affected_count),
+                    Transition::Unresolved {
+                        old_count,
+                        new_count,
+                        evidence,
+                    },
+                );
                 continue;
             }
             if old_index < old.len() {
@@ -505,6 +499,11 @@ fn align_interval(
             if context.bounded_by_anchors
                 && old_index < old.len()
                 && new_index + 1 < new.len()
+                && !contains_affected(
+                    &old[old_index..old_index + 1],
+                    &new[new_index..new_index + 2],
+                    context,
+                )
                 && let Some(sources) = group_candidate_sources(
                     &old[old_index..old_index + 1],
                     &new[new_index..new_index + 2],
@@ -524,6 +523,11 @@ fn align_interval(
             if context.bounded_by_anchors
                 && old_index + 1 < old.len()
                 && new_index < new.len()
+                && !contains_affected(
+                    &old[old_index..old_index + 2],
+                    &new[new_index..new_index + 1],
+                    context,
+                )
                 && let Some(sources) = group_candidate_sources(
                     &old[old_index..old_index + 2],
                     &new[new_index..new_index + 1],
@@ -563,6 +567,11 @@ enum Transition {
         new_count: usize,
         group_score: GroupScore,
         sources: Vec<CandidateSource>,
+    },
+    Unresolved {
+        old_count: usize,
+        new_count: usize,
+        evidence: Vec<AlignmentEvidence>,
     },
     Deletion,
     Insertion,
@@ -655,7 +664,7 @@ fn backtrack(
     new: &[BlockFeatures],
     cells: &[Cell],
     width: usize,
-    context: IntervalContext,
+    context: IntervalContext<'_>,
 ) -> Result<Vec<AlignmentSpan>> {
     let mut old_index = old.len();
     let mut new_index = new.len();
@@ -682,6 +691,32 @@ fn backtrack(
                     sources,
                     context,
                 ));
+                old_index = old_start;
+                new_index = new_start;
+            }
+            Transition::Unresolved {
+                old_count,
+                new_count,
+                evidence,
+            } => {
+                let old_start = old_index - old_count;
+                let new_start = new_index - new_count;
+                reversed.push(AlignmentSpan {
+                    kind: AlignmentKind::Unresolved,
+                    old: old[old_start..old_index]
+                        .iter()
+                        .map(|features| features.block)
+                        .collect(),
+                    new: new[new_start..new_index]
+                        .iter()
+                        .map(|features| features.block)
+                        .collect(),
+                    score: 0.0,
+                    confidence: AlignmentConfidence::Low,
+                    evidence,
+                    old_separator: None,
+                    new_separator: None,
+                });
                 old_index = old_start;
                 new_index = new_start;
             }
@@ -722,7 +757,7 @@ fn match_span(
     new: &[BlockFeatures],
     score: GroupScore,
     sources: Vec<CandidateSource>,
-    context: IntervalContext,
+    context: IntervalContext<'_>,
 ) -> AlignmentSpan {
     let split_merge = old.len() != new.len();
     let mut evidence = vec![if score.exact_canonical {
@@ -809,6 +844,41 @@ fn unresolved_span(
         old_separator: None,
         new_separator: None,
     }
+}
+
+fn affected_at(
+    old: Option<&BlockFeatures>,
+    new: Option<&BlockFeatures>,
+    context: IntervalContext<'_>,
+) -> (bool, bool, Vec<AlignmentEvidence>) {
+    let old_normalization = old.is_some_and(|features| features.has_normalization_issues);
+    let new_normalization = new.is_some_and(|features| features.has_normalization_issues);
+    let old_move = old.is_some_and(|features| context.move_old.contains(&features.block));
+    let new_move = new.is_some_and(|features| context.move_new.contains(&features.block));
+    let mut evidence = Vec::with_capacity(2);
+    if old_normalization || new_normalization {
+        evidence.push(AlignmentEvidence::NormalizationIssue);
+    }
+    if old_move || new_move {
+        evidence.push(AlignmentEvidence::MoveCandidate);
+    }
+    (
+        old_normalization || old_move,
+        new_normalization || new_move,
+        evidence,
+    )
+}
+
+fn contains_affected(
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    context: IntervalContext<'_>,
+) -> bool {
+    old.iter().any(|features| {
+        features.has_normalization_issues || context.move_old.contains(&features.block)
+    }) || new.iter().any(|features| {
+        features.has_normalization_issues || context.move_new.contains(&features.block)
+    })
 }
 
 fn refine_masked_matches(spans: &mut Vec<AlignmentSpan>) {
@@ -903,19 +973,6 @@ fn unresolved_alignment_interval(spans: &[AlignmentSpan]) -> AlignmentSpan {
         old_separator: None,
         new_separator: None,
     }
-}
-
-fn contains_move_candidate(
-    old: &[BlockFeatures],
-    new: &[BlockFeatures],
-    move_old: &HashSet<BlockId>,
-    move_new: &HashSet<BlockId>,
-) -> bool {
-    old.iter()
-        .any(|features| move_old.contains(&features.block))
-        || new
-            .iter()
-            .any(|features| move_new.contains(&features.block))
 }
 
 fn validate_features(side: &str, features: &[BlockFeatures]) -> Result<()> {

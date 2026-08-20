@@ -546,8 +546,8 @@ fn built_in_matrix_passes_all_ten_cells() {
             assert!(record.passed, "{}", record.detail);
             assert!(record.extraction_complete);
             assert!(record.comparison_complete);
-            assert_eq!(record.old_coverage, 1.0);
-            assert_eq!(record.new_coverage, 1.0);
+            assert_eq!(record.old_coverage, Some(1.0));
+            assert_eq!(record.new_coverage, Some(1.0));
             count += 1;
         }
     }

@@ -14,7 +14,7 @@ use crate::{
 
 use super::{ExtractionStatus, ReportSummary, issue_kind_name, side_name, summarize};
 
-const SCHEMA_VERSION: u32 = 3;
+const SCHEMA_VERSION: u32 = 4;
 
 pub fn write_json<W: Write>(
     mut writer: W,
@@ -76,7 +76,7 @@ struct JsonSummary {
     comparison_complete: bool,
     old_alignment_coverage: JsonCoverage,
     new_alignment_coverage: JsonCoverage,
-    comparison_coverage_ratio: f64,
+    comparison_coverage_ratio: Option<f64>,
 }
 
 impl JsonSummary {
@@ -100,7 +100,7 @@ impl JsonSummary {
 struct JsonCoverage {
     resolved_tokens: usize,
     total_tokens: usize,
-    ratio: f64,
+    ratio: Option<f64>,
 }
 
 impl From<Coverage> for JsonCoverage {

@@ -611,6 +611,57 @@ fn decodes_japanese_only_where_tounicode_behavior_is_required() -> Result<()> {
 }
 
 #[test]
+fn uses_tounicode_when_the_fallback_encoding_has_differences() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 begincodespacerange <00> <FF> endcodespacerange\n\
+          1 beginbfchar <41> <005A> endbfchar"
+            .to_vec(),
+    ));
+    let font = base_font(&mut pdf);
+    pdf.objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set(
+            "Encoding",
+            dictionary! {
+                "Type" => "Encoding",
+                "BaseEncoding" => "WinAnsiEncoding",
+                "Differences" => vec![
+                    Object::Integer(65),
+                    Object::Name(b"CustomA".to_vec()),
+                ],
+            },
+        );
+    pdf.objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set("ToUnicode", cmap);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (A) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    assert_eq!(mapped_text(document.items()), "Z");
+    Ok(())
+}
+
+#[test]
 fn bounds_repeated_tounicode_output_before_cloning_each_mapping() {
     let mut pdf = LopdfDocument::with_version("1.7");
     let cmap_bytes = b"1 begincodespacerange <00> <FF> endcodespacerange\n\

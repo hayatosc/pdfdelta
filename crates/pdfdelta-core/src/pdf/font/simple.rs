@@ -79,7 +79,6 @@ impl SimpleFontDecoder {
         validate_subtype(&dictionary)?;
 
         let base14 = load_base14(&dictionary)?;
-        let fallback = load_encoding(pdf, &dictionary, limits.max_indirections, base14)?;
         let (first_char, widths) = load_widths(pdf, &dictionary, limits)?;
         let (ascent, descent, missing_width) =
             load_descriptor(pdf, &dictionary, limits.max_indirections, base14)?;
@@ -90,15 +89,24 @@ impl SimpleFontDecoder {
             ascent.ok_or_else(|| Error::Unresolved("simple font has no ascent metric".into()))?;
         let descent =
             descent.ok_or_else(|| Error::Unresolved("simple font has no descent metric".into()))?;
-        if base14.is_none()
-            && !dictionary.contains_key(b"Encoding".as_slice())
-            && !dictionary.contains_key(b"ToUnicode".as_slice())
-        {
-            return unresolved(
-                "non-standard simple font has neither an Encoding nor a ToUnicode CMap",
-            );
-        }
         let (to_unicode, decoded_to_unicode_bytes) = load_to_unicode(pdf, &dictionary, limits)?;
+        let fallback = if to_unicode.is_some() {
+            // deliberate: ToUnicode supplies text mappings, but Standard 14 fonts without
+            // explicit Widths still need their base encoding for metric lookup. Differences do
+            // not prevent that narrower use of BaseEncoding.
+            if widths.is_none() && base14.is_some() {
+                load_encoding(pdf, &dictionary, limits.max_indirections, base14, true)?
+            } else {
+                FallbackEncoding::Standard
+            }
+        } else {
+            if base14.is_none() && !dictionary.contains_key(b"Encoding".as_slice()) {
+                return unresolved(
+                    "non-standard simple font has neither an Encoding nor a ToUnicode CMap",
+                );
+            }
+            load_encoding(pdf, &dictionary, limits.max_indirections, base14, false)?
+        };
 
         Ok(LoadedSimpleFont {
             decoder: Self {
@@ -303,6 +311,7 @@ fn load_encoding(
     dictionary: &PdfDict,
     max_indirections: usize,
     base14: Option<Base14>,
+    allow_differences: bool,
 ) -> Result<FallbackEncoding> {
     let Some(encoding) = dictionary.get(b"Encoding".as_slice()) else {
         return Ok(match base14 {
@@ -314,7 +323,7 @@ fn load_encoding(
     match resolve_object(pdf, encoding.clone(), max_indirections)? {
         PdfObject::Name(name) => encoding_name(&name),
         PdfObject::Dictionary(encoding) => {
-            if encoding.contains_key(b"Differences".as_slice()) {
+            if encoding.contains_key(b"Differences".as_slice()) && !allow_differences {
                 return Err(Error::Unsupported(
                     "simple-font Encoding Differences are not implemented".into(),
                 ));
@@ -707,6 +716,35 @@ mod tests {
         assert_eq!(glyphs[1], glyph(0x80, "€", 480.0));
         assert_eq!(glyphs[2].mapping, UnicodeMapping::Unmapped);
         Ok(())
+    }
+
+    #[test]
+    fn rejects_encoding_differences_without_to_unicode() {
+        let font = PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+            (b"BaseFont".to_vec(), PdfObject::Name(b"Helvetica".to_vec())),
+            (
+                b"Encoding".to_vec(),
+                PdfObject::Dictionary(PdfDict::from([
+                    (
+                        b"BaseEncoding".to_vec(),
+                        PdfObject::Name(b"WinAnsiEncoding".to_vec()),
+                    ),
+                    (
+                        b"Differences".to_vec(),
+                        PdfObject::Array(vec![
+                            PdfObject::Integer(65),
+                            PdfObject::Name(b"CustomA".to_vec()),
+                        ]),
+                    ),
+                ])),
+            ),
+        ]));
+
+        assert!(matches!(
+            SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS),
+            Err(Error::Unsupported(message)) if message.contains("Encoding Differences")
+        ));
     }
 
     #[test]

@@ -59,6 +59,22 @@ fn resolves_cjk_and_latin_soft_line_breaks() {
 }
 
 #[test]
+fn joins_wraps_after_japanese_line_end_punctuation_without_ambiguity() {
+    let full_stop = normalize_mapped_lines(&["設定を保存した。", "次の画面を開く"]);
+    let comma = normalize_mapped_lines(&["ファイルを選び、", "処理を続ける"]);
+
+    assert_eq!(full_stop.canonical.text, "設定を保存した。次の画面を開く");
+    assert_eq!(comma.canonical.text, "ファイルを選び、処理を続ける");
+    for text in [&full_stop, &comma] {
+        assert!(
+            text.issues
+                .iter()
+                .all(|issue| issue.kind != NormalizationIssueKind::AmbiguousLineBreak)
+        );
+    }
+}
+
+#[test]
 fn joins_line_end_hyphenation_and_records_deleted_evidence() {
     let text = normalize_mapped_lines(&["adminis-", "tration"]);
 

@@ -94,7 +94,7 @@ pdfdelta inspect document.pdf
 pdfdelta inspect document.pdf --glyphs
 ```
 
-Text reports are written to standard output. `--json PATH` writes a version 3 JSON report to a new path instead and refuses to replace an existing file. Exit code `0` means no content changes, `1` means content changes were found, `2` means the comparison could not run, and `3` means `--strict` rejected an incomplete comparison.
+Text reports are written to standard output. `--json PATH` writes a version 4 JSON report to a new path instead and refuses to replace an existing file. Exit code `0` means no content changes, `1` means content changes were found, `2` means the comparison could not run, and `3` means `--strict` rejected an incomplete comparison.
 
 ## Current limitations
 

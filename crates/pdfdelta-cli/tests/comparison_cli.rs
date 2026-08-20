@@ -208,7 +208,7 @@ fn writes_json_report_atomically() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let json = fs::read_to_string(report).expect("JSON report should be readable");
-    assert!(json.contains("\"schema_version\": 3"));
+    assert!(json.contains("\"schema_version\": 4"));
     assert!(json.contains("\"content_changes\": 0"));
     assert_no_temporary_reports(&directory);
 }
@@ -274,6 +274,8 @@ fn unsupported_extraction_reports_without_false_changes() {
     assert!(default_stderr.contains("Type0/CID fonts are not implemented"));
     assert!(default_report.contains("Content changes:          0"));
     assert!(default_report.contains("Unsupported extraction:   1"));
+    assert!(default_report.contains("Alignment coverage:       old=unknown, new=0.0%"));
+    assert!(default_report.contains("Comparison coverage:      unknown"));
     assert!(
         default_report
             .contains("Extraction issue (side=old, kind=unsupported, scope=page, page=0)")
@@ -292,12 +294,16 @@ fn unsupported_extraction_reports_without_false_changes() {
         &fs::read(report_path).expect("incomplete JSON report should be readable"),
     )
     .expect("incomplete JSON report should be valid");
-    assert_eq!(report["schema_version"], 3);
+    assert_eq!(report["schema_version"], 4);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["comparison_complete"], false);
     assert_eq!(report["summary"]["unsupported_extraction_issues"], 1);
     assert_eq!(report["summary"]["old_alignment_coverage"]["ratio"], 0.0);
-    assert_eq!(report["summary"]["new_alignment_coverage"]["ratio"], 1.0);
+    assert_eq!(
+        report["summary"]["new_alignment_coverage"]["ratio"],
+        Value::Null
+    );
+    assert_eq!(report["summary"]["comparison_coverage_ratio"], Value::Null);
     assert_eq!(
         report["changes"]
             .as_array()
@@ -484,7 +490,7 @@ fn assert_complete_json_report(
 ) {
     let json = fs::read_to_string(report_path).expect("JSON report should be readable");
     let report: Value = serde_json::from_str(&json).expect("JSON report should be valid");
-    assert_eq!(report["schema_version"], 3, "{report:#}");
+    assert_eq!(report["schema_version"], 4, "{report:#}");
     let summary = &report["summary"];
     assert_eq!(
         summary["content_changes"].as_u64(),

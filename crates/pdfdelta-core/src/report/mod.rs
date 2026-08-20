@@ -97,9 +97,9 @@ pub struct ReportSummary {
     pub unresolved_extraction_issues: usize,
     pub old_extraction_complete: bool,
     pub new_extraction_complete: bool,
-    pub old_alignment_coverage: f64,
-    pub new_alignment_coverage: f64,
-    pub comparison_coverage: f64,
+    pub old_alignment_coverage: Option<f64>,
+    pub new_alignment_coverage: Option<f64>,
+    pub comparison_coverage: Option<f64>,
     pub comparison_complete: bool,
 }
 
@@ -126,12 +126,14 @@ pub fn summarize(comparison: &Comparison, extraction: &ExtractionStatus) -> Resu
         comparison.old_coverage.resolved_tokens,
         comparison.old_coverage.total_tokens,
         comparison.old_coverage.ratio,
+        extraction.old_complete,
     )?;
     validate_coverage(
         "new",
         comparison.new_coverage.resolved_tokens,
         comparison.new_coverage.total_tokens,
         comparison.new_coverage.ratio,
+        extraction.new_complete,
     )?;
     validate_document_scope_coverage(
         "old",
@@ -177,7 +179,8 @@ pub fn summarize(comparison: &Comparison, extraction: &ExtractionStatus) -> Resu
         comparison_coverage: comparison
             .old_coverage
             .ratio
-            .min(comparison.new_coverage.ratio),
+            .zip(comparison.new_coverage.ratio)
+            .map(|(old, new)| old.min(new)),
         comparison_complete,
     })
 }
@@ -194,8 +197,8 @@ pub fn render_text(comparison: &Comparison, extraction: &ExtractionStatus) -> Re
          Unsupported extraction:   {}\n\
          Unresolved extraction:    {}\n\
          Extraction complete:      old={}, new={}\n\
-         Alignment coverage:       old={:.1}%, new={:.1}%\n\
-         Comparison coverage:      {:.1}%\n",
+         Alignment coverage:       old={}, new={}\n\
+         Comparison coverage:      {}\n",
         summary.content_changes,
         summary.formatting_only_changes,
         summary.uncertain_changes,
@@ -390,17 +393,28 @@ fn validate_text_span(context: &str, span: &TextSpan) -> Result<()> {
     Ok(())
 }
 
-fn validate_coverage(side: &str, resolved: usize, total: usize, ratio: f64) -> Result<()> {
+fn validate_coverage(
+    side: &str,
+    resolved: usize,
+    total: usize,
+    ratio: Option<f64>,
+    extraction_complete: bool,
+) -> Result<()> {
     let expected_ratio = if total == 0 {
         1.0
     } else {
         resolved as f64 / total as f64
     };
-    if resolved > total
-        || !ratio.is_finite()
-        || !(0.0..=1.0).contains(&ratio)
-        || (ratio - expected_ratio).abs() > 1.0e-12
-    {
+    let ratio_is_valid = if extraction_complete {
+        ratio.is_some_and(|ratio| {
+            ratio.is_finite()
+                && (0.0..=1.0).contains(&ratio)
+                && (ratio - expected_ratio).abs() <= 1.0e-12
+        })
+    } else {
+        ratio.is_none()
+    };
+    if resolved > total || !ratio_is_valid {
         return Err(Error::InvalidConfiguration(format!(
             "invalid {side} alignment coverage"
         )));
@@ -408,8 +422,11 @@ fn validate_coverage(side: &str, resolved: usize, total: usize, ratio: f64) -> R
     Ok(())
 }
 
-fn percentage(ratio: f64) -> f64 {
-    ratio * 100.0
+fn percentage(ratio: Option<f64>) -> String {
+    ratio.map_or_else(
+        || "unknown".to_owned(),
+        |ratio| format!("{:.1}%", ratio * 100.0),
+    )
 }
 
 fn yes_no(value: bool) -> &'static str {

@@ -96,8 +96,8 @@ pub fn compare_extraction_outcomes(
             changes: Vec::new(),
             formatting_changes: Vec::new(),
             unresolved_regions: Vec::new(),
-            old_coverage: conservative_coverage(old_tokens),
-            new_coverage: conservative_coverage(new_tokens),
+            old_coverage: conservative_coverage(old_tokens, old_complete),
+            new_coverage: conservative_coverage(new_tokens, new_complete),
         },
         extraction: ExtractionStatus {
             old_complete,
@@ -133,11 +133,11 @@ fn compare_validated_glyph_documents(
     compare_aligned(&old, &new, &alignment, options.diff)
 }
 
-fn conservative_coverage(total_tokens: usize) -> crate::diff::Coverage {
+fn conservative_coverage(total_tokens: usize, extraction_complete: bool) -> crate::diff::Coverage {
     crate::diff::Coverage {
         resolved_tokens: 0,
         total_tokens,
-        ratio: if total_tokens == 0 { 1.0 } else { 0.0 },
+        ratio: extraction_complete.then_some(if total_tokens == 0 { 1.0 } else { 0.0 }),
     }
 }
 

@@ -203,8 +203,8 @@ fn suppresses_all_changes_when_extraction_is_incomplete() -> Result<()> {
     assert!(outcome.comparison.changes.is_empty());
     assert!(outcome.comparison.formatting_changes.is_empty());
     assert!(outcome.comparison.unresolved_regions.is_empty());
-    assert_eq!(outcome.comparison.old_coverage.ratio, 0.0);
-    assert_eq!(outcome.comparison.new_coverage.ratio, 0.0);
+    assert_eq!(outcome.comparison.old_coverage.ratio, None);
+    assert_eq!(outcome.comparison.new_coverage.ratio, Some(0.0));
     assert!(!outcome.extraction.old_complete);
     assert!(outcome.extraction.new_complete);
     assert_eq!(outcome.extraction.issues.len(), 1);
@@ -243,9 +243,9 @@ fn does_not_infer_insertion_from_empty_document_scoped_issue() -> Result<()> {
 
     assert!(outcome.comparison.changes.is_empty());
     assert_eq!(outcome.comparison.old_coverage.total_tokens, 0);
-    assert_eq!(outcome.comparison.old_coverage.ratio, 1.0);
+    assert_eq!(outcome.comparison.old_coverage.ratio, None);
     assert!(outcome.comparison.new_coverage.total_tokens > 0);
-    assert_eq!(outcome.comparison.new_coverage.ratio, 0.0);
+    assert_eq!(outcome.comparison.new_coverage.ratio, Some(0.0));
     Ok(())
 }
 
@@ -428,16 +428,16 @@ fn validates_ngram_pipeline_configuration_in_feature_order() {
 fn assert_no_content_changes(comparison: &Comparison) {
     assert!(comparison.changes.is_empty());
     assert!(comparison.unresolved_regions.is_empty());
-    assert_eq!(comparison.old_coverage.ratio, 1.0);
-    assert_eq!(comparison.new_coverage.ratio, 1.0);
+    assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
 }
 
 fn assert_single_change(comparison: &Comparison, kind: ChangeKind) {
     assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");
     assert_eq!(comparison.changes[0].kind, kind);
     assert!(comparison.unresolved_regions.is_empty());
-    assert_eq!(comparison.old_coverage.ratio, 1.0);
-    assert_eq!(comparison.new_coverage.ratio, 1.0);
+    assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
 }
 
 fn paragraphs(text: &[&str]) -> Document<Glyph> {

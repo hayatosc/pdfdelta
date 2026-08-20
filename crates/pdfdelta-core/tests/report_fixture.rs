@@ -80,7 +80,7 @@ fn strict_mode_rejects_incomplete_alignment_coverage() -> Result<()> {
     comparison.old_coverage = Coverage {
         resolved_tokens: 1,
         total_tokens: 2,
-        ratio: 0.5,
+        ratio: Some(0.5),
     };
 
     assert_eq!(
@@ -151,16 +151,20 @@ fn reports_incomplete_extraction_in_text_and_strict_status() -> Result<()> {
         }],
     };
 
-    let report = render_text(&empty_comparison(), &extraction)?;
+    let mut comparison = empty_comparison();
+    comparison.new_coverage.ratio = None;
+    let report = render_text(&comparison, &extraction)?;
 
     assert!(report.contains("Extraction complete:      old=yes, new=no"));
     assert!(report.contains("Unsupported extraction:   0"));
     assert!(report.contains("Unresolved extraction:    1"));
+    assert!(report.contains("Alignment coverage:       old=100.0%, new=unknown"));
+    assert!(report.contains("Comparison coverage:      unknown"));
     assert!(report.contains(
         "Extraction issue (side=new, kind=unresolved, scope=page, page=2): ambiguous text stream"
     ));
     assert_eq!(
-        exit_status(&empty_comparison(), &extraction, true)?,
+        exit_status(&comparison, &extraction, true)?,
         ExitStatus::IncompleteComparison
     );
     Ok(())
@@ -172,12 +176,12 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
     comparison.old_coverage = Coverage {
         resolved_tokens: 2,
         total_tokens: 3,
-        ratio: 2.0 / 3.0,
+        ratio: None,
     };
     comparison.new_coverage = Coverage {
         resolved_tokens: 1,
         total_tokens: 2,
-        ratio: 0.5,
+        ratio: Some(0.5),
     };
     comparison.unresolved_regions.push(UnresolvedRegion {
         old_span: Some(span(2, 0, 1, 0, 1)),
@@ -202,11 +206,19 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 3);
+    assert_eq!(json["schema_version"], 4);
     assert_eq!(json["summary"]["content_changes"], 1);
     assert_eq!(
         json["summary"]["old_alignment_coverage"]["resolved_tokens"],
         2
+    );
+    assert_eq!(
+        json["summary"]["old_alignment_coverage"]["ratio"],
+        serde_json::Value::Null
+    );
+    assert_eq!(
+        json["summary"]["comparison_coverage_ratio"],
+        serde_json::Value::Null
     );
     assert_eq!(json["summary"]["new_alignment_coverage"]["total_tokens"], 2);
     assert_eq!(json["changes"][0]["kind"], "replacement");
@@ -249,7 +261,7 @@ fn json_report_serializes_multi_block_separators() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 3);
+    assert_eq!(json["schema_version"], 4);
     assert_eq!(
         json["formatting_only_changes"][0]["old_span"]["block_separator"],
         "space"
@@ -281,9 +293,12 @@ fn json_report_counts_typed_extraction_issues_and_omits_document_page() -> Resul
             },
         ],
     };
+    let mut comparison = empty_comparison();
+    comparison.old_coverage.ratio = None;
+    comparison.new_coverage.ratio = None;
     let mut output = Vec::new();
 
-    write_json(&mut output, &empty_comparison(), &extraction)?;
+    write_json(&mut output, &comparison, &extraction)?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
@@ -336,7 +351,7 @@ fn rejects_inconsistent_extraction_issue_scopes() {
     comparison.old_coverage = Coverage {
         resolved_tokens: 0,
         total_tokens: 1,
-        ratio: 0.0,
+        ratio: None,
     };
     assert!(matches!(
         summarize(&comparison, &document_issue_with_evidence),
@@ -350,7 +365,7 @@ fn rejects_inconsistent_coverage_before_rendering() {
     comparison.old_coverage = Coverage {
         resolved_tokens: 1,
         total_tokens: 2,
-        ratio: 1.0,
+        ratio: Some(1.0),
     };
 
     assert!(matches!(
@@ -477,12 +492,12 @@ fn empty_comparison() -> Comparison {
         old_coverage: Coverage {
             resolved_tokens: 0,
             total_tokens: 0,
-            ratio: 1.0,
+            ratio: Some(1.0),
         },
         new_coverage: Coverage {
             resolved_tokens: 0,
             total_tokens: 0,
-            ratio: 1.0,
+            ratio: Some(1.0),
         },
     }
 }

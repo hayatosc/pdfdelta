@@ -36,8 +36,8 @@ fn exact_diff_never_uses_masked_matching_text() -> Result<()> {
             .canonical_range,
         ScalarRange { start: 7, end: 8 }
     );
-    assert_eq!(result.old_coverage.ratio, 1.0);
-    assert_eq!(result.new_coverage.ratio, 1.0);
+    assert_eq!(result.old_coverage.ratio, Some(1.0));
+    assert_eq!(result.new_coverage.ratio, Some(1.0));
     Ok(())
 }
 
@@ -184,7 +184,7 @@ fn ignores_empty_one_sided_blocks_as_content_changes() -> Result<()> {
 
     assert!(result.changes.is_empty());
     assert_eq!(result.new_coverage.total_tokens, 0);
-    assert_eq!(result.new_coverage.ratio, 1.0);
+    assert_eq!(result.new_coverage.ratio, Some(1.0));
     Ok(())
 }
 
@@ -425,8 +425,8 @@ fn applies_the_token_budget_to_raw_evidence_before_diffing() {
 fn empty_documents_have_complete_alignment_coverage() -> Result<()> {
     let result = compare_aligned(&[], &[], &aligned(Vec::new()), DiffOptions::default())?;
 
-    assert_eq!(result.old_coverage.ratio, 1.0);
-    assert_eq!(result.new_coverage.ratio, 1.0);
+    assert_eq!(result.old_coverage.ratio, Some(1.0));
+    assert_eq!(result.new_coverage.ratio, Some(1.0));
     Ok(())
 }
 

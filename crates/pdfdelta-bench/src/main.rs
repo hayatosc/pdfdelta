@@ -99,16 +99,20 @@ fn write_record<W: Write>(writer: &mut W, record: &EvaluationRecord) -> Result<(
     let status = if record.passed { "PASS" } else { "FAIL" };
     writeln!(
         writer,
-        "{status} case={} renderer={} expected={} actual={} coverage={:.3}/{:.3} detail={}",
+        "{status} case={} renderer={} expected={} actual={} coverage={}/{} detail={}",
         record.case_name,
         record.renderer.name(),
         record.expected.label(),
         actual_label(&record.actual_kinds),
-        record.old_coverage,
-        record.new_coverage,
+        coverage_label(record.old_coverage),
+        coverage_label(record.new_coverage),
         record.detail
     )
     .map_err(|error| format!("cannot write benchmark result: {error}"))
+}
+
+fn coverage_label(ratio: Option<f64>) -> String {
+    ratio.map_or_else(|| "unknown".to_owned(), |ratio| format!("{ratio:.3}"))
 }
 
 fn actual_label(kinds: &[ChangeKind]) -> String {

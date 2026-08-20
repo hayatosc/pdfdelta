@@ -295,6 +295,120 @@ fn preserves_crossing_exact_anchors_as_move_candidates() {
 }
 
 #[test]
+fn confines_an_off_lis_anchor_to_move_candidate_spans() {
+    let moved = "Moved unique anchor paragraph";
+    let boundary = "Stable boundary anchor paragraph";
+    let alignment = align(
+        vec![
+            block_text(1, OPENING),
+            block_text(2, moved),
+            block_text(3, "Alpha stays"),
+            block_text(4, "Beta stays"),
+            block_text(5, "Gamma stays"),
+            block_text(6, boundary),
+            block_text(7, CLOSING),
+        ],
+        vec![
+            block_text(101, OPENING),
+            block_text(103, "Alpha stays"),
+            block_text(104, "Beta stays"),
+            block_text(105, "Gamma stays"),
+            block_text(106, boundary),
+            block_text(107, CLOSING),
+            block_text(102, moved),
+        ],
+    );
+
+    assert_eq!(
+        alignment.move_candidates,
+        [pdfdelta_core::alignment::ExactAnchor {
+            old: BlockId(2),
+            new: BlockId(102),
+        }]
+    );
+    for (old, new) in [(3, 103), (4, 104), (5, 105)] {
+        assert!(alignment.spans.iter().any(|span| {
+            span.kind == AlignmentKind::Match
+                && span.old == [BlockId(old)]
+                && span.new == [BlockId(new)]
+        }));
+    }
+    let unresolved = alignment
+        .spans
+        .iter()
+        .filter(|span| span.kind == AlignmentKind::Unresolved)
+        .collect::<Vec<_>>();
+    assert_eq!(unresolved.len(), 2, "{:#?}", alignment.spans);
+    assert_eq!(
+        unresolved
+            .iter()
+            .flat_map(|span| span.old.iter().copied())
+            .collect::<Vec<_>>(),
+        [BlockId(2)]
+    );
+    assert_eq!(
+        unresolved
+            .iter()
+            .flat_map(|span| span.new.iter().copied())
+            .collect::<Vec<_>>(),
+        [BlockId(102)]
+    );
+    assert!(
+        unresolved
+            .iter()
+            .all(|span| { span.evidence.contains(&AlignmentEvidence::MoveCandidate) })
+    );
+}
+
+#[test]
+fn confines_normalization_issues_to_the_affected_blocks() {
+    let old_text = [
+        block_text(1, OPENING),
+        block_text(2, "Alpha stays"),
+        block_text(3, "Ambiguous wrapped paragraph"),
+        block_text(4, "Beta stays"),
+        block_text(5, CLOSING),
+    ];
+    let new_text = [
+        block_text(101, OPENING),
+        block_text(102, "Alpha stays"),
+        block_text(103, "Ambiguous wrapped paragraph"),
+        block_text(104, "Beta stays"),
+        block_text(105, CLOSING),
+    ];
+    let mut old = build_block_features(&old_text, 3).expect("old features should build");
+    let mut new = build_block_features(&new_text, 3).expect("new features should build");
+    old[2].has_normalization_issues = true;
+    new[2].has_normalization_issues = true;
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("candidate index should build");
+
+    let alignment =
+        align_ordered(&old, &new, &generator, options()).expect("alignment should succeed");
+
+    for (old, new) in [(2, 102), (4, 104)] {
+        assert!(alignment.spans.iter().any(|span| {
+            span.kind == AlignmentKind::Match
+                && span.old == [BlockId(old)]
+                && span.new == [BlockId(new)]
+        }));
+    }
+    let unresolved = alignment
+        .spans
+        .iter()
+        .filter(|span| span.kind == AlignmentKind::Unresolved)
+        .collect::<Vec<_>>();
+    assert_eq!(unresolved.len(), 1, "{:#?}", alignment.spans);
+    assert_eq!(unresolved[0].old, [BlockId(3)]);
+    assert_eq!(unresolved[0].new, [BlockId(103)]);
+    assert!(
+        unresolved[0]
+            .evidence
+            .contains(&AlignmentEvidence::NormalizationIssue)
+    );
+}
+
+#[test]
 fn ignores_misleading_candidate_scores_when_text_does_not_match() {
     let old = build_block_features(&[block_text(1, "Completely different old paragraph")], 3)
         .expect("old features should build");

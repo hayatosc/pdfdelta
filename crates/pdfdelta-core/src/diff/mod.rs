@@ -83,7 +83,7 @@ pub struct UnresolvedRegion {
 pub struct Coverage {
     pub resolved_tokens: usize,
     pub total_tokens: usize,
-    pub ratio: f64,
+    pub ratio: Option<f64>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -468,11 +468,11 @@ fn coverage(resolved_tokens: usize, total_tokens: usize) -> Coverage {
     Coverage {
         resolved_tokens,
         total_tokens,
-        ratio: if total_tokens == 0 {
+        ratio: Some(if total_tokens == 0 {
             1.0
         } else {
             resolved_tokens as f64 / total_tokens as f64
-        },
+        }),
     }
 }
 
