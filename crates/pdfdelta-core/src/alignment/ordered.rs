@@ -443,24 +443,53 @@ fn align_interval(
             }
             let (old_affected, new_affected, evidence) =
                 affected_at(old.get(old_index), new.get(new_index), context);
-            if old_affected || new_affected {
-                let old_count = usize::from(old_affected);
-                let new_count = usize::from(new_affected);
-                let affected_count = u8::from(old_affected) + u8::from(new_affected);
+            let exact_normalization = old
+                .get(old_index)
+                .zip(new.get(new_index))
+                .filter(|(old, new)| is_exact_normalization_pair(old, new, context));
+            if let Some((old, new)) = exact_normalization {
                 propose(
                     &mut cells,
                     from,
-                    (old_index + old_count) * width + new_index + new_count,
-                    -options.gap_penalty * f64::from(affected_count),
+                    (old_index + 1) * width + new_index + 1,
+                    1.0,
+                    Transition::Match {
+                        old_count: 1,
+                        new_count: 1,
+                        group_score: GroupScore {
+                            score: 1.0,
+                            canonical_similarity: 1.0,
+                            exact_canonical: true,
+                            numeric_mask: old.numeric_mask_applied || new.numeric_mask_applied,
+                            separator_ambiguous: false,
+                            old_separator: None,
+                            new_separator: None,
+                        },
+                        sources: Vec::new(),
+                    },
+                );
+            }
+            // Retain shift alternatives, but prefer the current exact pair by more than the
+            // configured ambiguity margin when duplicate issue blocks are interchangeable.
+            let skip_exact_penalty = if exact_normalization.is_some() {
+                options.min_score_margin + 2.0 * SCORE_TOLERANCE
+            } else {
+                0.0
+            };
+            if old_affected {
+                let (_, _, evidence) = affected_at(old.get(old_index), None, context);
+                propose(
+                    &mut cells,
+                    from,
+                    (old_index + 1) * width + new_index,
+                    -options.gap_penalty - skip_exact_penalty,
                     Transition::Unresolved {
-                        old_count,
-                        new_count,
+                        old_count: 1,
+                        new_count: 0,
                         evidence,
                     },
                 );
-                continue;
-            }
-            if old_index < old.len() {
+            } else if old_index < old.len() {
                 propose(
                     &mut cells,
                     from,
@@ -469,7 +498,20 @@ fn align_interval(
                     Transition::Deletion,
                 );
             }
-            if new_index < new.len() {
+            if new_affected {
+                let (_, _, evidence) = affected_at(None, new.get(new_index), context);
+                propose(
+                    &mut cells,
+                    from,
+                    old_index * width + new_index + 1,
+                    -options.gap_penalty - skip_exact_penalty,
+                    Transition::Unresolved {
+                        old_count: 0,
+                        new_count: 1,
+                        evidence,
+                    },
+                );
+            } else if new_index < new.len() {
                 propose(
                     &mut cells,
                     from,
@@ -478,8 +520,23 @@ fn align_interval(
                     Transition::Insertion,
                 );
             }
+            if (old_affected || new_affected) && old_index < old.len() && new_index < new.len() {
+                propose(
+                    &mut cells,
+                    from,
+                    (old_index + 1) * width + new_index + 1,
+                    -options.gap_penalty,
+                    Transition::Unresolved {
+                        old_count: 1,
+                        new_count: 1,
+                        evidence,
+                    },
+                );
+            }
             if old_index < old.len()
                 && new_index < new.len()
+                && !old_affected
+                && !new_affected
                 && let Some(sources) = group_candidate_sources(
                     &old[old_index..old_index + 1],
                     &new[new_index..new_index + 1],
@@ -867,6 +924,20 @@ fn affected_at(
         new_normalization || new_move,
         evidence,
     )
+}
+
+fn is_exact_normalization_pair(
+    old: &BlockFeatures,
+    new: &BlockFeatures,
+    context: IntervalContext<'_>,
+) -> bool {
+    old.has_normalization_issues
+        && new.has_normalization_issues
+        && !old.canonical_tokens.is_empty()
+        && !new.canonical_tokens.is_empty()
+        && !context.move_old.contains(&old.block)
+        && !context.move_new.contains(&new.block)
+        && old.canonical_tokens == new.canonical_tokens
 }
 
 fn contains_affected(

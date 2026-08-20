@@ -3,12 +3,18 @@ use std::cell::Cell;
 use pdfdelta_core::{
     Error, Result,
     alignment::{
-        Alignment, AlignmentEvidence, AlignmentKind, AlignmentOptions, BlockFeatures,
-        BlockSeparator, Candidate, CandidateGenerator, CandidateSource, ExactHash,
+        Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentOptions,
+        BlockFeatures, BlockSeparator, Candidate, CandidateGenerator, CandidateSource, ExactHash,
         InvertedIndexCandidateGenerator, align_ordered, build_block_features,
     },
+    diff::{DiffOptions, compare_aligned},
     layout::BlockId,
-    normalize::{BlockText, ComparableToken, MappedText},
+    model::FontProgramHash,
+    normalize::{
+        BlockText, ComparableToken, MappedText, NormalizationIssue, NormalizationIssueKind,
+        ScalarRange, TextSource,
+    },
+    report::{ExtractionStatus, summarize},
 };
 
 const OPENING: &str = "Opening anchor paragraph";
@@ -393,19 +399,266 @@ fn confines_normalization_issues_to_the_affected_blocks() {
                 && span.new == [BlockId(new)]
         }));
     }
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Match
+            && span.old == [BlockId(3)]
+            && span.new == [BlockId(103)]
+            && span.evidence.contains(&AlignmentEvidence::ExactCanonical)
+    }));
+    assert!(
+        alignment
+            .spans
+            .iter()
+            .all(|span| span.kind == AlignmentKind::Match)
+    );
+}
+
+#[test]
+fn keeps_unequal_normalization_issue_blocks_unresolved() {
+    let old_text = [block_text(1, "Ambiguous old paragraph")];
+    let new_text = [block_text(101, "Ambiguous new paragraph")];
+    let mut old = build_block_features(&old_text, 3).expect("old features should build");
+    let mut new = build_block_features(&new_text, 3).expect("new features should build");
+    old[0].has_normalization_issues = true;
+    new[0].has_normalization_issues = true;
+    new[0].exact_hash = old[0].exact_hash;
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("candidate index should build");
+
+    let alignment =
+        align_ordered(&old, &new, &generator, options()).expect("alignment should succeed");
+
+    assert_eq!(alignment.spans.len(), 1);
+    assert_eq!(alignment.spans[0].kind, AlignmentKind::Unresolved);
+    assert!(
+        alignment.spans[0]
+            .evidence
+            .contains(&AlignmentEvidence::NormalizationIssue)
+    );
+}
+
+#[test]
+fn keeps_one_sided_normalization_issue_unresolved() {
+    let old_text = [block_text(1, "Ambiguous paragraph")];
+    let new_text = [block_text(101, "Ambiguous paragraph")];
+    let mut old = build_block_features(&old_text, 3).expect("old features should build");
+    let new = build_block_features(&new_text, 3).expect("new features should build");
+    old[0].has_normalization_issues = true;
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("candidate index should build");
+
+    let alignment =
+        align_ordered(&old, &new, &generator, options()).expect("alignment should succeed");
+
+    assert!(
+        alignment.spans.iter().any(|span| {
+            span.kind == AlignmentKind::Unresolved
+                && span.old == [BlockId(1)]
+                && span.new == [BlockId(101)]
+                && span
+                    .evidence
+                    .contains(&AlignmentEvidence::NormalizationIssue)
+        }),
+        "{:#?}",
+        alignment.spans
+    );
+}
+
+#[test]
+fn matches_stable_unmapped_tokens_with_issues_by_exact_vector() {
+    let token = ComparableToken::Unmapped {
+        font_hash: FontProgramHash(vec![1, 2, 3]),
+        glyph_id: 42,
+    };
+    let mut old = anchor_feature(1, 1);
+    old.canonical_tokens = vec![token.clone()];
+    old.matching_tokens = vec![token.clone()];
+    old.has_normalization_issues = true;
+    let mut new = anchor_feature(101, 2);
+    new.canonical_tokens = vec![token.clone()];
+    new.matching_tokens = vec![token];
+    new.has_normalization_issues = true;
+
+    let alignment = align_ordered(&[old], &[new], &EmptyGenerator, options())
+        .expect("stable unmapped evidence should align");
+
+    assert_eq!(alignment.spans.len(), 1);
+    assert_eq!(alignment.spans[0].kind, AlignmentKind::Match);
+    assert_eq!(alignment.spans[0].score, 1.0);
+    assert_eq!(
+        alignment.spans[0].evidence,
+        [AlignmentEvidence::ExactCanonical]
+    );
+}
+
+#[test]
+fn keeps_empty_normalization_issue_evidence_unresolved() {
+    let issue = NormalizationIssue {
+        kind: NormalizationIssueKind::AmbiguousLineBreak,
+        raw_range: ScalarRange { start: 0, end: 0 },
+        source: TextSource { atoms: Vec::new() },
+    };
+    let mut old_text = block_text(1, "");
+    old_text.issues.push(issue.clone());
+    let mut new_text = block_text(101, "");
+    new_text.issues.push(issue);
+    let old = build_block_features(std::slice::from_ref(&old_text), 3)
+        .expect("old features should build");
+    let new = build_block_features(std::slice::from_ref(&new_text), 3)
+        .expect("new features should build");
+
+    let alignment = align_ordered(&old, &new, &EmptyGenerator, options())
+        .expect("empty issue evidence should remain classifiable");
+
+    assert_eq!(alignment.spans.len(), 1);
+    assert_eq!(alignment.spans[0].kind, AlignmentKind::Unresolved);
+    assert_eq!(alignment.spans[0].confidence, AlignmentConfidence::Low);
+    assert!(
+        alignment.spans[0]
+            .evidence
+            .contains(&AlignmentEvidence::NormalizationIssue)
+    );
+    assert!(
+        !alignment.spans[0]
+            .evidence
+            .contains(&AlignmentEvidence::ExactCanonical)
+    );
+    let comparison = compare_aligned(&[old_text], &[new_text], &alignment, DiffOptions::default())
+        .expect("empty unresolved evidence should remain reportable");
+    assert_eq!(comparison.unresolved_regions.len(), 1);
+    assert!(
+        !summarize(&comparison, &ExtractionStatus::complete())
+            .expect("comparison summary should validate")
+            .comparison_complete
+    );
+}
+
+#[test]
+fn aligns_duplicate_normalization_issues_around_an_insertion() {
+    let mut old = build_block_features(&[block_text(1, "A"), block_text(2, "B")], 3)
+        .expect("old features should build");
+    let mut new = build_block_features(
+        &[
+            block_text(101, "A"),
+            block_text(102, "A"),
+            block_text(103, "B"),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    old.iter_mut()
+        .chain(&mut new)
+        .for_each(|features| features.has_normalization_issues = true);
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("candidate index should build");
+
+    let alignment =
+        align_ordered(&old, &new, &generator, options()).expect("alignment should succeed");
+
+    assert!(
+        alignment.spans.iter().any(|span| {
+            span.kind == AlignmentKind::Match
+                && span.old == [BlockId(1)]
+                && span.new == [BlockId(101)]
+        }),
+        "{:#?}",
+        alignment.spans
+    );
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Match && span.old == [BlockId(2)] && span.new == [BlockId(103)]
+    }));
     let unresolved = alignment
         .spans
         .iter()
         .filter(|span| span.kind == AlignmentKind::Unresolved)
         .collect::<Vec<_>>();
     assert_eq!(unresolved.len(), 1, "{:#?}", alignment.spans);
-    assert_eq!(unresolved[0].old, [BlockId(3)]);
-    assert_eq!(unresolved[0].new, [BlockId(103)]);
+    assert!(unresolved[0].old.is_empty());
+    assert_eq!(unresolved[0].new, [BlockId(102)]);
     assert!(
         unresolved[0]
             .evidence
             .contains(&AlignmentEvidence::NormalizationIssue)
     );
+}
+
+#[test]
+fn aligns_duplicate_normalization_issues_around_a_deletion() {
+    let mut old = build_block_features(
+        &[block_text(1, "A"), block_text(2, "A"), block_text(3, "B")],
+        3,
+    )
+    .expect("old features should build");
+    let mut new = build_block_features(&[block_text(101, "A"), block_text(102, "B")], 3)
+        .expect("new features should build");
+    old.iter_mut()
+        .chain(&mut new)
+        .for_each(|features| features.has_normalization_issues = true);
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("candidate index should build");
+
+    let alignment =
+        align_ordered(&old, &new, &generator, options()).expect("alignment should succeed");
+
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Match && span.old == [BlockId(1)] && span.new == [BlockId(101)]
+    }));
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Match && span.old == [BlockId(3)] && span.new == [BlockId(102)]
+    }));
+    let unresolved = alignment
+        .spans
+        .iter()
+        .filter(|span| span.kind == AlignmentKind::Unresolved)
+        .collect::<Vec<_>>();
+    assert_eq!(unresolved.len(), 1, "{:#?}", alignment.spans);
+    assert_eq!(unresolved[0].old, [BlockId(2)]);
+    assert!(unresolved[0].new.is_empty());
+    assert!(
+        unresolved[0]
+            .evidence
+            .contains(&AlignmentEvidence::NormalizationIssue)
+    );
+}
+
+#[test]
+fn preserves_move_candidates_beside_exact_normalization_matches() {
+    let moved = "Moved unique anchor paragraph";
+    let mut old = build_block_features(
+        &[
+            block_text(1, OPENING),
+            block_text(2, "Ambiguous stable paragraph"),
+            block_text(3, moved),
+            block_text(4, CLOSING),
+        ],
+        3,
+    )
+    .expect("old features should build");
+    let mut new = build_block_features(
+        &[
+            block_text(101, OPENING),
+            block_text(102, "Ambiguous stable paragraph"),
+            block_text(104, CLOSING),
+            block_text(103, moved),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    old[1].has_normalization_issues = true;
+    new[1].has_normalization_issues = true;
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("candidate index should build");
+
+    let alignment =
+        align_ordered(&old, &new, &generator, options()).expect("alignment should succeed");
+
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Match && span.old == [BlockId(2)] && span.new == [BlockId(102)]
+    }));
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Unresolved
+            && span.evidence.contains(&AlignmentEvidence::MoveCandidate)
+    }));
 }
 
 #[test]
