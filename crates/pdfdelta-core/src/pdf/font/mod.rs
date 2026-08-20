@@ -1,3 +1,4 @@
+mod agl;
 pub(crate) mod cmap;
 mod metrics;
 pub(crate) mod simple;

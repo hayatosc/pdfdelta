@@ -662,6 +662,96 @@ fn uses_tounicode_when_the_fallback_encoding_has_differences() -> Result<()> {
 }
 
 #[test]
+fn extracts_encoding_differences_without_changing_codes_or_widths() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let mut widths = vec![Object::Integer(500); 256];
+    widths[65] = Object::Integer(600);
+    widths[66] = Object::Integer(700);
+    widths[67] = Object::Integer(800);
+    let font_dictionary = pdf
+        .objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary");
+    font_dictionary.set("Widths", widths);
+    font_dictionary.set(
+        "Encoding",
+        dictionary! {
+            "BaseEncoding" => "WinAnsiEncoding",
+            "Differences" => vec![
+                Object::Integer(65),
+                Object::Name(b"fi".to_vec()),
+                Object::Name(b"bullet".to_vec()),
+                Object::Name(b"fl".to_vec()),
+            ],
+        },
+    );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (ABC) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(mapped_text(glyphs), "ﬁ•ﬂ");
+    assert_eq!(glyphs[0].raw_code, b"A");
+    assert_eq!(glyphs[1].raw_code, b"B");
+    assert_eq!(glyphs[2].raw_code, b"C");
+    assert_close(glyphs[0].baseline.x, 20.0);
+    assert_close(glyphs[1].baseline.x, 26.0);
+    assert_close(glyphs[2].baseline.x, 33.0);
+    Ok(())
+}
+
+#[test]
+fn uses_difference_glyph_metrics_without_explicit_widths() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = pdf.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+        "Encoding" => dictionary! {
+            "Differences" => vec![
+                Object::Integer(65),
+                Object::Name(b"i".to_vec()),
+            ],
+        },
+    });
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (AB) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(mapped_text(glyphs), "iB");
+    assert_eq!(glyphs[0].raw_code, b"A");
+    assert_close(glyphs[0].baseline.x, 20.0);
+    assert_close(glyphs[1].baseline.x, 22.22);
+    Ok(())
+}
+
+#[test]
 fn bounds_repeated_tounicode_output_before_cloning_each_mapping() {
     let mut pdf = LopdfDocument::with_version("1.7");
     let cmap_bytes = b"1 begincodespacerange <00> <FF> endcodespacerange\n\

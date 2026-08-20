@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::{
     Error, Result,
     pdf::{ParsedPdf, PdfDict, PdfObject},
@@ -5,6 +7,8 @@ use crate::{
 
 use super::cmap::{CMapLimits, ToUnicodeCMap, UnicodeMapping, parse_to_unicode};
 use super::metrics;
+
+const MAX_ENCODING_DIFFERENCE_ELEMENTS: usize = 512;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SimpleFontLimits {
@@ -26,6 +30,7 @@ pub(crate) struct DecodedGlyph {
 pub(crate) struct SimpleFontDecoder {
     to_unicode: Option<ToUnicodeCMap>,
     fallback: FallbackEncoding,
+    differences: BTreeMap<u8, DifferenceMapping>,
     first_char: u8,
     widths: Option<Vec<f64>>,
     missing_width: f64,
@@ -40,12 +45,33 @@ pub(crate) struct LoadedSimpleFont {
     pub(crate) decoded_to_unicode_bytes: usize,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FallbackEncoding {
     Standard,
     WinAnsi,
     Symbol,
     ZapfDingbats,
+    Unknown,
+}
+
+struct LoadedEncoding {
+    base: FallbackEncoding,
+    differences: BTreeMap<u8, DifferenceMapping>,
+}
+
+#[derive(Clone, Debug)]
+struct DifferenceMapping {
+    unicode: UnicodeMapping,
+    metric_scalar: Option<char>,
+}
+
+impl LoadedEncoding {
+    fn standard() -> Self {
+        Self {
+            base: FallbackEncoding::Standard,
+            differences: BTreeMap::new(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -90,14 +116,14 @@ impl SimpleFontDecoder {
         let descent =
             descent.ok_or_else(|| Error::Unresolved("simple font has no descent metric".into()))?;
         let (to_unicode, decoded_to_unicode_bytes) = load_to_unicode(pdf, &dictionary, limits)?;
-        let fallback = if to_unicode.is_some() {
+        let encoding = if to_unicode.is_some() {
             // deliberate: ToUnicode supplies text mappings, but Standard 14 fonts without
             // explicit Widths still need their base encoding for metric lookup. Differences do
             // not prevent that narrower use of BaseEncoding.
             if widths.is_none() && base14.is_some() {
-                load_encoding(pdf, &dictionary, limits.max_indirections, base14, true)?
+                load_encoding(pdf, &dictionary, limits, base14)?
             } else {
-                FallbackEncoding::Standard
+                LoadedEncoding::standard()
             }
         } else {
             if base14.is_none() && !dictionary.contains_key(b"Encoding".as_slice()) {
@@ -105,13 +131,15 @@ impl SimpleFontDecoder {
                     "non-standard simple font has neither an Encoding nor a ToUnicode CMap",
                 );
             }
-            load_encoding(pdf, &dictionary, limits.max_indirections, base14, false)?
+            load_encoding(pdf, &dictionary, limits, base14)?
         };
+        validate_difference_metrics(base14, widths.as_deref(), &encoding.differences)?;
 
         Ok(LoadedSimpleFont {
             decoder: Self {
                 to_unicode,
-                fallback,
+                fallback: encoding.base,
+                differences: encoding.differences,
                 first_char,
                 widths,
                 missing_width,
@@ -151,24 +179,31 @@ impl SimpleFontDecoder {
         let mut glyphs = Vec::with_capacity(input.len());
         let mut mapped_text_bytes = 0usize;
         for code in input {
-            let mapping = match fallback_char(self.fallback, *code) {
-                Some(character) => {
-                    mapped_text_bytes = mapped_text_bytes.checked_add(character.len_utf8()).ok_or(
-                        Error::LimitExceeded {
+            let mapping = self
+                .differences
+                .get(code)
+                .map(|difference| difference.unicode.clone())
+                .unwrap_or_else(|| {
+                    fallback_char(self.fallback, *code)
+                        .map_or(UnicodeMapping::Unmapped, |character| {
+                            UnicodeMapping::Mapped(character.into())
+                        })
+                });
+            if let UnicodeMapping::Mapped(text) = &mapping {
+                mapped_text_bytes =
+                    mapped_text_bytes
+                        .checked_add(text.len())
+                        .ok_or(Error::LimitExceeded {
                             resource: "decoded Unicode text bytes",
                             limit: max_mapped_text_bytes,
-                        },
-                    )?;
-                    if mapped_text_bytes > max_mapped_text_bytes {
-                        return Err(Error::LimitExceeded {
-                            resource: "decoded Unicode text bytes",
-                            limit: max_mapped_text_bytes,
-                        });
-                    }
-                    UnicodeMapping::Mapped(character.into())
+                        })?;
+                if mapped_text_bytes > max_mapped_text_bytes {
+                    return Err(Error::LimitExceeded {
+                        resource: "decoded Unicode text bytes",
+                        limit: max_mapped_text_bytes,
+                    });
                 }
-                None => UnicodeMapping::Unmapped,
-            };
+            }
             glyphs.push(self.decoded_glyph(*code, mapping));
         }
         Ok(glyphs)
@@ -199,6 +234,12 @@ impl SimpleFontDecoder {
 
     fn width(&self, code: u8) -> f64 {
         let Some(widths) = &self.widths else {
+            if let Some(difference) = self.differences.get(&code) {
+                return difference
+                    .metric_scalar
+                    .and_then(|scalar| self.base14.and_then(|font| font.glyph_width(scalar)))
+                    .unwrap_or(self.missing_width);
+            }
             return self
                 .base14
                 .map_or(self.missing_width, |font| font.width(self.fallback, code));
@@ -208,6 +249,30 @@ impl SimpleFontDecoder {
             .copied()
             .unwrap_or(self.missing_width)
     }
+}
+
+fn validate_difference_metrics(
+    base14: Option<Base14>,
+    widths: Option<&[f64]>,
+    differences: &BTreeMap<u8, DifferenceMapping>,
+) -> Result<()> {
+    let Some(base14 @ (Base14::Symbol | Base14::ZapfDingbats)) = base14 else {
+        return Ok(());
+    };
+    if widths.is_some() {
+        return Ok(());
+    }
+    if differences.values().any(|difference| {
+        difference
+            .metric_scalar
+            .and_then(|scalar| base14.glyph_width(scalar))
+            .is_none()
+    }) {
+        return Err(Error::Unsupported(
+            "Standard 14 Symbol/ZapfDingbats Differences metrics are not supported".into(),
+        ));
+    }
+    Ok(())
 }
 
 impl Base14 {
@@ -247,6 +312,43 @@ impl Base14 {
         f64::from(widths[index])
     }
 
+    fn glyph_width(self, scalar: char) -> Option<f64> {
+        if matches!(
+            self,
+            Self::Courier | Self::CourierBold | Self::CourierOblique | Self::CourierBoldOblique
+        ) {
+            return Some(600.0);
+        }
+        let (standard, win_ansi) = match self {
+            Self::Helvetica | Self::HelveticaOblique => {
+                (&metrics::HELVETICA_STANDARD, &metrics::HELVETICA_WIN_ANSI)
+            }
+            Self::HelveticaBold | Self::HelveticaBoldOblique => (
+                &metrics::HELVETICA_BOLD_STANDARD,
+                &metrics::HELVETICA_BOLD_WIN_ANSI,
+            ),
+            Self::TimesRoman => (
+                &metrics::TIMES_ROMAN_STANDARD,
+                &metrics::TIMES_ROMAN_WIN_ANSI,
+            ),
+            Self::TimesBold => (&metrics::TIMES_BOLD_STANDARD, &metrics::TIMES_BOLD_WIN_ANSI),
+            Self::TimesItalic => (
+                &metrics::TIMES_ITALIC_STANDARD,
+                &metrics::TIMES_ITALIC_WIN_ANSI,
+            ),
+            Self::TimesBoldItalic => (
+                &metrics::TIMES_BOLD_ITALIC_STANDARD,
+                &metrics::TIMES_BOLD_ITALIC_WIN_ANSI,
+            ),
+            Self::Symbol | Self::ZapfDingbats => return None,
+            Self::Courier | Self::CourierBold | Self::CourierOblique | Self::CourierBoldOblique => {
+                unreachable!()
+            }
+        };
+        encoded_scalar_width(FallbackEncoding::Standard, standard, scalar)
+            .or_else(|| encoded_scalar_width(FallbackEncoding::WinAnsi, win_ansi, scalar))
+    }
+
     fn vertical_metrics(self) -> (f64, f64) {
         match self {
             Self::Courier | Self::CourierBold | Self::CourierOblique | Self::CourierBoldOblique => {
@@ -264,6 +366,16 @@ impl Base14 {
             Self::ZapfDingbats => (820.0, -143.0),
         }
     }
+}
+
+fn encoded_scalar_width(
+    encoding: FallbackEncoding,
+    widths: &[u16; 256],
+    scalar: char,
+) -> Option<f64> {
+    (0..=u8::MAX)
+        .position(|code| fallback_char(encoding, code) == Some(scalar))
+        .map(|code| f64::from(widths[code]))
 }
 
 fn load_base14(dictionary: &PdfDict) -> Result<Option<Base14>> {
@@ -309,33 +421,109 @@ fn validate_subtype(dictionary: &PdfDict) -> Result<()> {
 fn load_encoding(
     pdf: &dyn ParsedPdf,
     dictionary: &PdfDict,
-    max_indirections: usize,
+    limits: SimpleFontLimits,
     base14: Option<Base14>,
-    allow_differences: bool,
-) -> Result<FallbackEncoding> {
+) -> Result<LoadedEncoding> {
     let Some(encoding) = dictionary.get(b"Encoding".as_slice()) else {
-        return Ok(match base14 {
+        let base = match base14 {
             Some(Base14::Symbol) => FallbackEncoding::Symbol,
             Some(Base14::ZapfDingbats) => FallbackEncoding::ZapfDingbats,
             _ => FallbackEncoding::Standard,
+        };
+        return Ok(LoadedEncoding {
+            base,
+            differences: BTreeMap::new(),
         });
     };
-    match resolve_object(pdf, encoding.clone(), max_indirections)? {
-        PdfObject::Name(name) => encoding_name(&name),
+    match resolve_object(pdf, encoding.clone(), limits.max_indirections)? {
+        PdfObject::Name(name) => Ok(LoadedEncoding {
+            base: encoding_name(&name)?,
+            differences: BTreeMap::new(),
+        }),
         PdfObject::Dictionary(encoding) => {
-            if encoding.contains_key(b"Differences".as_slice()) && !allow_differences {
-                return Err(Error::Unsupported(
-                    "simple-font Encoding Differences are not implemented".into(),
-                ));
-            }
-            match encoding.get(b"BaseEncoding".as_slice()) {
-                Some(PdfObject::Name(name)) => encoding_name(name),
-                None => Ok(FallbackEncoding::Standard),
-                _ => unresolved("font BaseEncoding is not a name"),
-            }
+            let base = match encoding.get(b"BaseEncoding".as_slice()) {
+                Some(base) => match resolve_object(pdf, base.clone(), limits.max_indirections)? {
+                    PdfObject::Name(name) => encoding_name(&name)?,
+                    _ => return unresolved("font BaseEncoding is not a name"),
+                },
+                None => built_in_encoding(base14),
+            };
+            let differences = match encoding.get(b"Differences".as_slice()) {
+                Some(differences) => {
+                    let differences =
+                        resolve_object(pdf, differences.clone(), limits.max_indirections)?;
+                    let PdfObject::Array(differences) = differences else {
+                        return unresolved("font Encoding Differences is not an array");
+                    };
+                    if differences.len() > MAX_ENCODING_DIFFERENCE_ELEMENTS {
+                        return Err(Error::LimitExceeded {
+                            resource: "simple-font Encoding Differences elements",
+                            limit: MAX_ENCODING_DIFFERENCE_ELEMENTS,
+                        });
+                    }
+                    parse_differences(pdf, &differences, limits.max_indirections)?
+                }
+                None => BTreeMap::new(),
+            };
+            Ok(LoadedEncoding { base, differences })
         }
         _ => unresolved("font Encoding is not a name or dictionary"),
     }
+}
+
+fn built_in_encoding(base14: Option<Base14>) -> FallbackEncoding {
+    match base14 {
+        Some(Base14::Symbol) => FallbackEncoding::Symbol,
+        Some(Base14::ZapfDingbats) => FallbackEncoding::ZapfDingbats,
+        Some(_) => FallbackEncoding::Standard,
+        None => FallbackEncoding::Unknown,
+    }
+}
+
+fn parse_differences(
+    pdf: &dyn ParsedPdf,
+    differences: &[PdfObject],
+    max_indirections: usize,
+) -> Result<BTreeMap<u8, DifferenceMapping>> {
+    let mut mappings = BTreeMap::new();
+    let mut next_code = None;
+    let mut needs_name = false;
+
+    for difference in differences {
+        let difference = resolve_object(pdf, difference.clone(), max_indirections)?;
+        match difference {
+            PdfObject::Integer(code) => {
+                if needs_name {
+                    return unresolved("font Encoding Differences code has no following name");
+                }
+                next_code = Some(u16::from(u8::try_from(code).map_err(|_| {
+                    Error::Unresolved(
+                        "font Encoding Differences code is outside the byte range".into(),
+                    )
+                })?));
+                needs_name = true;
+            }
+            PdfObject::Name(name) => {
+                let code = next_code.ok_or_else(|| {
+                    Error::Unresolved("font Encoding Differences name precedes a code".into())
+                })?;
+                let code = u8::try_from(code).map_err(|_| {
+                    Error::Unresolved("font Encoding Differences extends beyond code 255".into())
+                })?;
+                let mapping = glyph_name_mapping(&name);
+                mappings.insert(code, mapping);
+                next_code = Some(u16::from(code) + 1);
+                needs_name = false;
+            }
+            _ => {
+                return unresolved("font Encoding Differences contains a non-integer/non-name");
+            }
+        }
+    }
+    if needs_name {
+        return unresolved("font Encoding Differences code has no following name");
+    }
+    Ok(mappings)
 }
 
 fn encoding_name(name: &[u8]) -> Result<FallbackEncoding> {
@@ -509,10 +697,87 @@ fn finite_number(object: &PdfObject, context: &str) -> Result<f64> {
     Ok(value)
 }
 
+fn glyph_name_mapping(name: &[u8]) -> DifferenceMapping {
+    let Some((unicode, metric_scalar)) = adobe_glyph_name(name) else {
+        return DifferenceMapping {
+            unicode: UnicodeMapping::Unmapped,
+            metric_scalar: None,
+        };
+    };
+    DifferenceMapping {
+        unicode: UnicodeMapping::Mapped(unicode),
+        metric_scalar,
+    }
+}
+
+fn adobe_glyph_name(name: &[u8]) -> Option<(String, Option<char>)> {
+    if name.len() > super::agl::MAX_GLYPH_NAME_BYTES {
+        return None;
+    }
+    let base = name.split(|byte| *byte == b'.').next()?;
+    if base.is_empty() {
+        return None;
+    }
+
+    let mut text = String::new();
+    let mut metric_scalar = None;
+    let mut components = 0usize;
+    for component in base.split(|byte| *byte == b'_') {
+        let component_text = adobe_glyph_component(component)?;
+        if component_text.chars().count() == 1 {
+            metric_scalar = component_text.chars().next();
+        }
+        text.push_str(&component_text);
+        components += 1;
+    }
+    if components != 1 {
+        metric_scalar = None;
+    }
+    Some((text, metric_scalar))
+}
+
+fn adobe_glyph_component(name: &[u8]) -> Option<String> {
+    if name.is_empty() {
+        return None;
+    }
+    if let Some(text) = super::agl::lookup(name) {
+        return Some(text.into());
+    }
+    if let Some(hex) = name.strip_prefix(b"uni")
+        && !hex.is_empty()
+        && hex.len().is_multiple_of(4)
+    {
+        let mut text = String::new();
+        for digits in hex.chunks_exact(4) {
+            text.push(parse_unicode_scalar(digits)?);
+        }
+        return Some(text);
+    }
+    if let Some(hex) = name.strip_prefix(b"u")
+        && (4..=6).contains(&hex.len())
+    {
+        return Some(parse_unicode_scalar(hex)?.into());
+    }
+    None
+}
+
+fn parse_unicode_scalar(hex: &[u8]) -> Option<char> {
+    if !hex
+        .iter()
+        .all(|digit| digit.is_ascii_digit() || matches!(digit, b'A'..=b'F'))
+    {
+        return None;
+    }
+    let value = u32::from_str_radix(std::str::from_utf8(hex).ok()?, 16).ok()?;
+    char::from_u32(value)
+}
+
 fn fallback_char(encoding: FallbackEncoding, code: u8) -> Option<char> {
     match encoding {
         FallbackEncoding::Standard => return standard_encoding_char(code),
-        FallbackEncoding::Symbol | FallbackEncoding::ZapfDingbats => return None,
+        FallbackEncoding::Symbol | FallbackEncoding::ZapfDingbats | FallbackEncoding::Unknown => {
+            return None;
+        }
         FallbackEncoding::WinAnsi => {}
     }
     if code.is_ascii_graphic() || code == b' ' {
@@ -719,31 +984,283 @@ mod tests {
     }
 
     #[test]
-    fn rejects_encoding_differences_without_to_unicode() {
-        let font = PdfObject::Dictionary(PdfDict::from([
-            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
-            (b"BaseFont".to_vec(), PdfObject::Name(b"Helvetica".to_vec())),
-            (
-                b"Encoding".to_vec(),
-                PdfObject::Dictionary(PdfDict::from([
-                    (
-                        b"BaseEncoding".to_vec(),
-                        PdfObject::Name(b"WinAnsiEncoding".to_vec()),
-                    ),
-                    (
-                        b"Differences".to_vec(),
-                        PdfObject::Array(vec![
-                            PdfObject::Integer(65),
-                            PdfObject::Name(b"CustomA".to_vec()),
-                        ]),
-                    ),
-                ])),
-            ),
+    fn decodes_encoding_differences_with_resets_ligatures_and_fallback() -> Result<()> {
+        let font = font_with_differences(PdfObject::Array(vec![
+            PdfObject::Integer(65),
+            PdfObject::Name(b"Aacute".to_vec()),
+            PdfObject::Name(b"fi".to_vec()),
+            PdfObject::Integer(70),
+            PdfObject::Name(b"fl".to_vec()),
+            PdfObject::Integer(80),
+            PdfObject::Name(b"Lslash".to_vec()),
+            PdfObject::Name(b"bullet".to_vec()),
+            PdfObject::Name(b"endash".to_vec()),
+            PdfObject::Integer(90),
+            PdfObject::Name(b"adieresis".to_vec()),
+            PdfObject::Name(b"UnknownGlyph".to_vec()),
         ]));
 
+        let loaded = SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)?;
+        let glyphs =
+            loaded
+                .decoder
+                .decode(&[65, 66, 67, 70, 71, 80, 81, 82, 90, 91], 10, usize::MAX)?;
+
+        let mappings = glyphs
+            .iter()
+            .map(|glyph| glyph.mapping.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            mappings,
+            [
+                mapped_text("Á"),
+                mapped_text("ﬁ"),
+                mapped_text("C"),
+                mapped_text("ﬂ"),
+                mapped_text("G"),
+                mapped_text("Ł"),
+                mapped_text("•"),
+                mapped_text("–"),
+                mapped_text("ä"),
+                UnicodeMapping::Unmapped,
+            ]
+        );
         assert!(matches!(
-            SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS),
-            Err(Error::Unsupported(message)) if message.contains("Encoding Differences")
+            loaded.decoder.decode(&[66], 1, 1),
+            Err(Error::LimitExceeded {
+                resource: "decoded Unicode text bytes",
+                limit: 1,
+            })
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_adobe_glyph_names_and_algorithmic_forms() {
+        assert_eq!(adobe_glyph_name(b"Euro"), Some(("€".into(), Some('€'))));
+        assert_eq!(adobe_glyph_name(b"uni20AC"), Some(("€".into(), Some('€'))));
+        assert_eq!(adobe_glyph_name(b"u1F600"), Some(("😀".into(), Some('😀'))));
+        assert_eq!(adobe_glyph_name(b"A.swash"), Some(("A".into(), Some('A'))));
+        assert_eq!(adobe_glyph_name(b"A_Euro"), Some(("A€".into(), None)));
+        assert_eq!(adobe_glyph_name(b"fi"), Some(("ﬁ".into(), Some('ﬁ'))));
+        assert_eq!(adobe_glyph_name(b"fl"), Some(("ﬂ".into(), Some('ﬂ'))));
+        assert_eq!(adobe_glyph_name(b"uni20ac"), None);
+        assert_eq!(adobe_glyph_name(b"u1f600"), None);
+
+        let overlong_composite = std::iter::repeat_n("A", 33).collect::<Vec<_>>().join("_");
+        assert!(overlong_composite.len() > super::super::agl::MAX_GLYPH_NAME_BYTES);
+        assert_eq!(adobe_glyph_name(overlong_composite.as_bytes()), None);
+
+        for invalid in [b"UnknownGlyph".as_slice(), b"uniD800", b"u110000", b"A__B"] {
+            assert_eq!(adobe_glyph_name(invalid), None);
+            assert!(matches!(
+                glyph_name_mapping(invalid).unicode,
+                UnicodeMapping::Unmapped
+            ));
+        }
+    }
+
+    #[test]
+    fn rejects_unavailable_difference_metrics_without_explicit_widths() -> Result<()> {
+        let encoding = PdfObject::Dictionary(PdfDict::from([(
+            b"Differences".to_vec(),
+            PdfObject::Array(vec![
+                PdfObject::Integer(65),
+                PdfObject::Name(b"space".to_vec()),
+            ]),
+        )]));
+        let without_widths = PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+            (b"BaseFont".to_vec(), PdfObject::Name(b"Symbol".to_vec())),
+            (b"Encoding".to_vec(), encoding.clone()),
+        ]));
+        assert!(matches!(
+            SimpleFontDecoder::load(&MockPdf::default(), &without_widths, LIMITS),
+            Err(Error::Unsupported(message))
+                if message
+                    == "Standard 14 Symbol/ZapfDingbats Differences metrics are not supported"
+        ));
+
+        let with_widths = PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+            (b"BaseFont".to_vec(), PdfObject::Name(b"Symbol".to_vec())),
+            (b"Encoding".to_vec(), encoding),
+            (b"FirstChar".to_vec(), PdfObject::Integer(65)),
+            (
+                b"Widths".to_vec(),
+                PdfObject::Array(vec![PdfObject::Integer(321)]),
+            ),
+        ]));
+        let loaded = SimpleFontDecoder::load(&MockPdf::default(), &with_widths, LIMITS)?;
+        assert_eq!(
+            loaded.decoder.decode(b"A", 1, usize::MAX)?,
+            [glyph(b'A', " ", 321.0)]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_indirect_encoding_and_differences() -> Result<()> {
+        let mut pdf = MockPdf::default();
+        pdf.objects.insert(
+            object_ref(1),
+            PdfObject::Dictionary(PdfDict::from([
+                (
+                    b"BaseEncoding".to_vec(),
+                    PdfObject::Reference(object_ref(3)),
+                ),
+                (b"Differences".to_vec(), PdfObject::Reference(object_ref(2))),
+            ])),
+        );
+        pdf.objects.insert(
+            object_ref(2),
+            PdfObject::Array(vec![
+                PdfObject::Reference(object_ref(4)),
+                PdfObject::Reference(object_ref(5)),
+            ]),
+        );
+        pdf.objects
+            .insert(object_ref(3), PdfObject::Name(b"StandardEncoding".to_vec()));
+        pdf.objects.insert(object_ref(4), PdfObject::Integer(65));
+        pdf.objects
+            .insert(object_ref(5), PdfObject::Name(b"fi".to_vec()));
+        let font = font_with_encoding(PdfObject::Reference(object_ref(1)));
+
+        let loaded = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+        assert_eq!(
+            loaded.decoder.decode(b"AB", 2, usize::MAX)?,
+            [glyph(b'A', "ﬁ", 500.0), glyph(b'B', "B", 667.0)]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn differences_without_base_encoding_use_only_known_builtins() -> Result<()> {
+        let standard = font_with_encoding(PdfObject::Dictionary(PdfDict::from([(
+            b"Differences".to_vec(),
+            PdfObject::Array(vec![PdfObject::Integer(65), PdfObject::Name(b"i".to_vec())]),
+        )])));
+        let loaded = SimpleFontDecoder::load(&MockPdf::default(), &standard, LIMITS)?;
+        assert_eq!(
+            loaded.decoder.decode(b"AB", 2, usize::MAX)?,
+            [glyph(b'A', "i", 222.0), glyph(b'B', "B", 667.0)]
+        );
+
+        let nonstandard = PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+            (
+                b"BaseFont".to_vec(),
+                PdfObject::Name(b"CustomFont".to_vec()),
+            ),
+            (b"FirstChar".to_vec(), PdfObject::Integer(65)),
+            (
+                b"Widths".to_vec(),
+                PdfObject::Array(vec![PdfObject::Integer(610), PdfObject::Integer(620)]),
+            ),
+            (
+                b"FontDescriptor".to_vec(),
+                PdfObject::Dictionary(PdfDict::from([
+                    (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                    (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                ])),
+            ),
+            (
+                b"Encoding".to_vec(),
+                PdfObject::Dictionary(PdfDict::from([(
+                    b"Differences".to_vec(),
+                    PdfObject::Array(vec![PdfObject::Integer(65), PdfObject::Name(b"A".to_vec())]),
+                )])),
+            ),
+        ]));
+        let loaded = SimpleFontDecoder::load(&MockPdf::default(), &nonstandard, LIMITS)?;
+        let glyphs = loaded.decoder.decode(b"AB", 2, usize::MAX)?;
+        assert_eq!(glyphs[0], glyph(b'A', "A", 610.0));
+        assert_eq!(glyphs[1].mapping, UnicodeMapping::Unmapped);
+        assert_eq!(glyphs[1].width_1000_em, 620.0);
+
+        for (name, expected) in [
+            (b"Helvetica".as_slice(), FallbackEncoding::Standard),
+            (b"Symbol".as_slice(), FallbackEncoding::Symbol),
+            (b"ZapfDingbats".as_slice(), FallbackEncoding::ZapfDingbats),
+        ] {
+            let loaded =
+                SimpleFontDecoder::load(&MockPdf::default(), &standard_font(name), LIMITS)?;
+            assert_eq!(loaded.decoder.fallback, expected);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_malformed_encoding_differences() {
+        let malformed = [
+            PdfObject::Array(vec![PdfObject::Name(b"A".to_vec())]),
+            PdfObject::Array(vec![PdfObject::Integer(-1), PdfObject::Name(b"A".to_vec())]),
+            PdfObject::Array(vec![
+                PdfObject::Integer(256),
+                PdfObject::Name(b"A".to_vec()),
+            ]),
+            PdfObject::Array(vec![PdfObject::Integer(65), PdfObject::Integer(66)]),
+            PdfObject::Array(vec![PdfObject::Integer(65)]),
+            PdfObject::Array(vec![
+                PdfObject::Integer(255),
+                PdfObject::Name(b"A".to_vec()),
+                PdfObject::Name(b"B".to_vec()),
+            ]),
+            PdfObject::Array(vec![PdfObject::Integer(65), PdfObject::Array(Vec::new())]),
+            PdfObject::Name(b"not-an-array".to_vec()),
+        ];
+
+        for differences in malformed {
+            assert!(matches!(
+                SimpleFontDecoder::load(
+                    &MockPdf::default(),
+                    &font_with_differences(differences),
+                    LIMITS
+                ),
+                Err(Error::Unresolved(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn bounds_and_indirectly_resolves_encoding_differences() {
+        let too_many = PdfObject::Array(
+            (0..=MAX_ENCODING_DIFFERENCE_ELEMENTS)
+                .map(|_| PdfObject::Integer(0))
+                .collect(),
+        );
+        assert!(matches!(
+            SimpleFontDecoder::load(
+                &MockPdf::default(),
+                &font_with_differences(too_many),
+                LIMITS
+            ),
+            Err(Error::LimitExceeded {
+                resource: "simple-font Encoding Differences elements",
+                limit: MAX_ENCODING_DIFFERENCE_ELEMENTS,
+            })
+        ));
+
+        let mut pdf = MockPdf::default();
+        pdf.objects.insert(
+            object_ref(1),
+            PdfObject::Dictionary(PdfDict::from([(
+                b"Differences".to_vec(),
+                PdfObject::Array(vec![PdfObject::Reference(object_ref(2))]),
+            )])),
+        );
+        pdf.objects
+            .insert(object_ref(2), PdfObject::Reference(object_ref(2)));
+        assert!(matches!(
+            SimpleFontDecoder::load(
+                &pdf,
+                &font_with_encoding(PdfObject::Reference(object_ref(1))),
+                LIMITS
+            ),
+            Err(Error::LimitExceeded {
+                resource: "font object indirections",
+                limit: 4,
+            })
         ));
     }
 
@@ -903,6 +1420,28 @@ mod tests {
             glyph_id: u16::from(code),
             width_1000_em: width,
         }
+    }
+
+    fn mapped_text(text: &str) -> UnicodeMapping {
+        UnicodeMapping::Mapped(text.into())
+    }
+
+    fn font_with_differences(differences: PdfObject) -> PdfObject {
+        font_with_encoding(PdfObject::Dictionary(PdfDict::from([
+            (
+                b"BaseEncoding".to_vec(),
+                PdfObject::Name(b"WinAnsiEncoding".to_vec()),
+            ),
+            (b"Differences".to_vec(), differences),
+        ])))
+    }
+
+    fn font_with_encoding(encoding: PdfObject) -> PdfObject {
+        PdfObject::Dictionary(PdfDict::from([
+            (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+            (b"BaseFont".to_vec(), PdfObject::Name(b"Helvetica".to_vec())),
+            (b"Encoding".to_vec(), encoding),
+        ]))
     }
 
     fn standard_font(name: &[u8]) -> PdfObject {
