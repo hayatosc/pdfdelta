@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::cell::RefCell;
 
 use pdfdelta_core::{
     Error, Result,
@@ -793,7 +793,8 @@ fn bounds_aggregate_candidate_visits_before_generation() {
 
     let tracking = TrackingGenerator {
         visits: 15,
-        calls: Cell::new(0),
+        estimated: RefCell::new(Vec::new()),
+        generated: RefCell::new(Vec::new()),
     };
     assert!(matches!(
         align_ordered(&old, &new, &tracking, over_limit),
@@ -802,7 +803,7 @@ fn bounds_aggregate_candidate_visits_before_generation() {
             limit: 29,
         })
     ));
-    assert_eq!(tracking.calls.get(), 0);
+    assert!(tracking.generated.borrow().is_empty());
 
     let mut zero_limit = at_limit;
     zero_limit.max_candidate_visits = 0;
@@ -810,6 +811,121 @@ fn bounds_aggregate_candidate_visits_before_generation() {
         align_ordered(&old, &new, &generator, zero_limit),
         Err(Error::InvalidConfiguration(message)) if message.contains("max_candidate_visits")
     ));
+}
+
+#[test]
+fn skips_candidate_work_for_identical_unique_anchors() {
+    let old = build_block_features(&[block_text(1, OPENING), block_text(2, CLOSING)], 3)
+        .expect("old features should build");
+    let new = build_block_features(&[block_text(101, OPENING), block_text(102, CLOSING)], 3)
+        .expect("new features should build");
+    let tracking = TrackingGenerator::new(usize::MAX);
+    let mut low_limit = options();
+    low_limit.max_candidate_visits = 1;
+
+    let alignment = align_ordered(&old, &new, &tracking, low_limit)
+        .expect("main anchors should not consume candidate visits");
+
+    assert_eq!(alignment.main_anchors.len(), 2);
+    assert!(tracking.estimated.borrow().is_empty());
+    assert!(tracking.generated.borrow().is_empty());
+}
+
+#[test]
+fn queries_only_unanchored_interval_blocks() {
+    let old = build_block_features(
+        &[
+            block_text(1, OPENING),
+            block_text(2, "Old interval"),
+            block_text(3, CLOSING),
+        ],
+        3,
+    )
+    .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text(101, OPENING),
+            block_text(102, "New interval"),
+            block_text(103, CLOSING),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    let tracking = TrackingGenerator::new(1);
+
+    align_ordered(&old, &new, &tracking, options()).expect("alignment should succeed");
+
+    assert_eq!(*tracking.estimated.borrow(), [BlockId(2)]);
+    assert_eq!(*tracking.generated.borrow(), [BlockId(2)]);
+}
+
+#[test]
+fn preflights_remaining_candidate_visits_atomically_at_the_boundary() {
+    let old = build_block_features(
+        &[
+            block_text(1, OPENING),
+            block_text(2, "Old interval one"),
+            block_text(3, CLOSING),
+            block_text(4, "Old interval two"),
+            block_text(5, "Final unique anchor paragraph"),
+        ],
+        3,
+    )
+    .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text(101, OPENING),
+            block_text(102, "New interval one"),
+            block_text(103, CLOSING),
+            block_text(104, "New interval two"),
+            block_text(105, "Final unique anchor paragraph"),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    let over_limit = TrackingGenerator::new(6);
+    let mut options = options();
+    options.max_candidate_visits = 11;
+
+    assert!(matches!(
+        align_ordered(&old, &new, &over_limit, options),
+        Err(Error::LimitExceeded {
+            resource: "alignment candidate visits",
+            limit: 11,
+        })
+    ));
+    assert_eq!(*over_limit.estimated.borrow(), [BlockId(2), BlockId(4)]);
+    assert!(over_limit.generated.borrow().is_empty());
+
+    let at_limit = TrackingGenerator::new(6);
+    options.max_candidate_visits = 12;
+    align_ordered(&old, &new, &at_limit, options)
+        .expect("remaining candidate estimates should fit exactly");
+    assert_eq!(*at_limit.estimated.borrow(), [BlockId(2), BlockId(4)]);
+    assert_eq!(*at_limit.generated.borrow(), [BlockId(2), BlockId(4)]);
+}
+
+#[test]
+fn still_queries_off_lis_exact_move_anchors() {
+    let first = "First unique anchor paragraph";
+    let second = "Second unique anchor paragraph";
+    let old = build_block_features(&[block_text(1, first), block_text(2, second)], 3)
+        .expect("old features should build");
+    let new = build_block_features(&[block_text(101, second), block_text(102, first)], 3)
+        .expect("new features should build");
+    let tracking = TrackingGenerator::new(1);
+
+    let alignment =
+        align_ordered(&old, &new, &tracking, options()).expect("move should remain classifiable");
+
+    let move_old = alignment
+        .move_candidates
+        .iter()
+        .map(|anchor| anchor.old)
+        .collect::<Vec<_>>();
+    assert_eq!(*tracking.estimated.borrow(), move_old);
+    assert_eq!(*tracking.generated.borrow(), move_old);
+    assert_eq!(move_old.len(), 1);
 }
 
 #[test]
@@ -884,16 +1000,28 @@ struct OrderedGenerator {
 
 struct TrackingGenerator {
     visits: usize,
-    calls: Cell<usize>,
+    estimated: RefCell<Vec<BlockId>>,
+    generated: RefCell<Vec<BlockId>>,
+}
+
+impl TrackingGenerator {
+    fn new(visits: usize) -> Self {
+        Self {
+            visits,
+            estimated: RefCell::new(Vec::new()),
+            generated: RefCell::new(Vec::new()),
+        }
+    }
 }
 
 impl CandidateGenerator for TrackingGenerator {
-    fn estimated_visits(&self, _old: &BlockFeatures, _limit: usize) -> Result<usize> {
+    fn estimated_visits(&self, old: &BlockFeatures, _limit: usize) -> Result<usize> {
+        self.estimated.borrow_mut().push(old.block);
         Ok(self.visits)
     }
 
-    fn candidates(&self, _old: &BlockFeatures, _limit: usize) -> Result<Vec<Candidate>> {
-        self.calls.set(self.calls.get() + 1);
+    fn candidates(&self, old: &BlockFeatures, _limit: usize) -> Result<Vec<Candidate>> {
+        self.generated.borrow_mut().push(old.block);
         Ok(Vec::new())
     }
 }

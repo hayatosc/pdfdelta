@@ -155,15 +155,20 @@ pub fn align_ordered(
         .enumerate()
         .map(|(index, features)| (features.block, index))
         .collect::<HashMap<_, _>>();
+    let all_anchors = exact_anchors(old, new, options.anchor_min_tokens)?;
+    let (main_anchors, move_candidates) = anchor_chain(&all_anchors, old, &new_indices)?;
+    let main_anchor_old = main_anchors
+        .iter()
+        .map(|anchor| anchor.old)
+        .collect::<HashSet<_>>();
     let candidate_map = collect_candidates(
         old,
         &new_indices,
+        &main_anchor_old,
         generator,
         options.candidate_limit,
         options.max_candidate_visits,
     )?;
-    let all_anchors = exact_anchors(old, new, options.anchor_min_tokens)?;
-    let (main_anchors, move_candidates) = anchor_chain(&all_anchors, old, &new_indices)?;
     let old_indices = old
         .iter()
         .enumerate()
@@ -229,12 +234,16 @@ type CandidateMap = HashMap<BlockId, HashMap<BlockId, Vec<CandidateSource>>>;
 fn collect_candidates(
     old: &[BlockFeatures],
     new_indices: &HashMap<BlockId, usize>,
+    main_anchor_old: &HashSet<BlockId>,
     generator: &dyn CandidateGenerator,
     limit: usize,
     max_visits: usize,
 ) -> Result<CandidateMap> {
     let mut remaining_visits = max_visits;
-    for features in old {
+    for features in old
+        .iter()
+        .filter(|features| !main_anchor_old.contains(&features.block))
+    {
         let visits = generator.estimated_visits(features, limit)?;
         remaining_visits = remaining_visits
             .checked_sub(visits)
@@ -244,8 +253,11 @@ fn collect_candidates(
             })?;
     }
 
-    let mut all = HashMap::with_capacity(old.len());
-    for features in old {
+    let mut all = HashMap::with_capacity(old.len().saturating_sub(main_anchor_old.len()));
+    for features in old
+        .iter()
+        .filter(|features| !main_anchor_old.contains(&features.block))
+    {
         let mut by_block = HashMap::<BlockId, Vec<CandidateSource>>::new();
         for candidate in generator
             .candidates(features, limit)?
