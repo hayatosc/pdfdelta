@@ -1,7 +1,8 @@
 mod agl;
 pub(crate) mod cmap;
+mod decoder;
 mod metrics;
-pub(crate) mod simple;
+mod simple;
 
 pub(crate) use cmap::UnicodeMapping;
-pub(crate) use simple::{DecodedGlyph, SimpleFontDecoder, SimpleFontLimits};
+pub(crate) use decoder::{DecodedGlyph, FontDecoder, FontDecoderLimits};

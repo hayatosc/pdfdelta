@@ -5,26 +5,11 @@ use crate::{
     pdf::{ParsedPdf, PdfDict, PdfObject},
 };
 
-use super::cmap::{CMapLimits, ToUnicodeCMap, UnicodeMapping, parse_to_unicode};
+use super::cmap::{ToUnicodeCMap, UnicodeMapping, parse_to_unicode};
+use super::decoder::{DecodedGlyph, FontDecoderLimits};
 use super::metrics;
 
 const MAX_ENCODING_DIFFERENCE_ELEMENTS: usize = 512;
-
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct SimpleFontLimits {
-    pub(crate) max_indirections: usize,
-    pub(crate) max_width_entries: usize,
-    pub(crate) max_to_unicode_bytes: usize,
-    pub(crate) cmap: CMapLimits,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct DecodedGlyph {
-    pub(crate) raw_code: Vec<u8>,
-    pub(crate) mapping: UnicodeMapping,
-    pub(crate) glyph_id: u16,
-    pub(crate) width_1000_em: f64,
-}
 
 #[derive(Clone, Debug)]
 pub(crate) struct SimpleFontDecoder {
@@ -96,7 +81,7 @@ impl SimpleFontDecoder {
     pub(crate) fn load(
         pdf: &dyn ParsedPdf,
         font: &PdfObject,
-        limits: SimpleFontLimits,
+        limits: FontDecoderLimits,
     ) -> Result<LoadedSimpleFont> {
         let font = resolve_object(pdf, font.clone(), limits.max_indirections)?;
         let PdfObject::Dictionary(dictionary) = font else {
@@ -421,7 +406,7 @@ fn validate_subtype(dictionary: &PdfDict) -> Result<()> {
 fn load_encoding(
     pdf: &dyn ParsedPdf,
     dictionary: &PdfDict,
-    limits: SimpleFontLimits,
+    limits: FontDecoderLimits,
     base14: Option<Base14>,
 ) -> Result<LoadedEncoding> {
     let Some(encoding) = dictionary.get(b"Encoding".as_slice()) else {
@@ -540,7 +525,7 @@ fn encoding_name(name: &[u8]) -> Result<FallbackEncoding> {
 fn load_widths(
     pdf: &dyn ParsedPdf,
     dictionary: &PdfDict,
-    limits: SimpleFontLimits,
+    limits: FontDecoderLimits,
 ) -> Result<(u8, Option<Vec<f64>>)> {
     let Some(widths) = dictionary.get(b"Widths".as_slice()) else {
         return Ok((0, None));
@@ -602,7 +587,7 @@ fn load_descriptor(
 fn load_to_unicode(
     pdf: &dyn ParsedPdf,
     dictionary: &PdfDict,
-    limits: SimpleFontLimits,
+    limits: FontDecoderLimits,
 ) -> Result<(Option<ToUnicodeCMap>, usize)> {
     let Some(to_unicode) = dictionary.get(b"ToUnicode".as_slice()) else {
         return Ok((None, 0));
@@ -887,11 +872,12 @@ fn unresolved<T>(message: &str) -> Result<T> {
 mod tests {
     use std::collections::HashMap;
 
+    use crate::pdf::font::cmap::CMapLimits;
     use crate::pdf::{DecodedStream, ObjectRef, PageRef, PdfVersion, RawStream};
 
     use super::*;
 
-    const LIMITS: SimpleFontLimits = SimpleFontLimits {
+    const LIMITS: FontDecoderLimits = FontDecoderLimits {
         max_indirections: 4,
         max_width_entries: 256,
         max_to_unicode_bytes: 4096,
@@ -1288,7 +1274,7 @@ mod tests {
             SimpleFontDecoder::load(
                 &pdf,
                 &too_many_widths,
-                SimpleFontLimits {
+                FontDecoderLimits {
                     max_width_entries: 1,
                     ..LIMITS
                 }

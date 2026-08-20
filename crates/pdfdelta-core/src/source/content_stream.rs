@@ -15,7 +15,7 @@ use crate::{
             ContentLimits, ContentParser, Matrix, Operand, OperandBudget, Operation, OperatorBudget,
         },
         font::cmap::CMapLimits,
-        font::{DecodedGlyph as FontGlyph, SimpleFontDecoder, SimpleFontLimits, UnicodeMapping},
+        font::{DecodedGlyph as FontGlyph, FontDecoder, FontDecoderLimits, UnicodeMapping},
     },
 };
 
@@ -633,10 +633,10 @@ impl Extraction<'_> {
                 .limits
                 .max_cmap_entries
                 .saturating_sub(self.cmap_entries);
-            let loaded = SimpleFontDecoder::load(
+            let loaded = FontDecoder::load(
                 self.pdf,
                 selection.object.as_ref(),
-                SimpleFontLimits {
+                FontDecoderLimits {
                     max_indirections: self.limits.max_nesting_depth,
                     max_width_entries: 256,
                     max_to_unicode_bytes: remaining_bytes,
@@ -647,7 +647,7 @@ impl Extraction<'_> {
                     },
                 },
             )?;
-            self.account_decoded_bytes(loaded.decoded_to_unicode_bytes)?;
+            self.account_decoded_bytes(loaded.decoded_cmap_bytes)?;
             self.cmap_entries = self
                 .cmap_entries
                 .checked_add(loaded.decoder.cmap_entry_count())
@@ -1669,7 +1669,7 @@ enum FontCacheKey {
 
 struct CachedFont {
     id: FontId,
-    decoder: SimpleFontDecoder,
+    decoder: FontDecoder,
 }
 
 struct DecodedRun {
