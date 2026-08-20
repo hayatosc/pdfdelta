@@ -128,23 +128,105 @@ struct Parser<'a> {
     output_scalars: usize,
 }
 
+#[derive(Clone, Copy)]
+enum WrapperState {
+    Bare,
+    Abbreviated,
+    Prolog {
+        outer_depth: usize,
+    },
+    CMap {
+        outer_depth: usize,
+        inner_depth: usize,
+    },
+    Epilog {
+        outer_depth: usize,
+    },
+}
+
 impl Parser<'_> {
     fn parse(mut self) -> Result<ToUnicodeCMap> {
         let mut pending_count = None;
+        let mut wrapper = WrapperState::Bare;
 
         while let Some(token) = self.lexer.next_token()? {
             match token {
+                Token::Word(b"begin") => {
+                    wrapper = match wrapper {
+                        WrapperState::Bare => WrapperState::Prolog { outer_depth: 1 },
+                        WrapperState::Prolog { outer_depth } => WrapperState::Prolog {
+                            outer_depth: increment_depth(outer_depth)?,
+                        },
+                        WrapperState::CMap {
+                            outer_depth,
+                            inner_depth,
+                        } => WrapperState::CMap {
+                            outer_depth,
+                            inner_depth: increment_depth(inner_depth)?,
+                        },
+                        WrapperState::Abbreviated | WrapperState::Epilog { .. } => {
+                            return unresolved("CMap wrapper has an invalid begin transition");
+                        }
+                    };
+                    pending_count = None;
+                }
+                Token::Word(b"begincmap") => {
+                    wrapper = match wrapper {
+                        WrapperState::Bare => WrapperState::CMap {
+                            outer_depth: 0,
+                            inner_depth: 0,
+                        },
+                        WrapperState::Prolog { outer_depth } => WrapperState::CMap {
+                            outer_depth,
+                            inner_depth: 0,
+                        },
+                        _ => return unresolved("CMap wrapper has an invalid begincmap transition"),
+                    };
+                    pending_count = None;
+                }
+                Token::Word(b"endcmap") => {
+                    let WrapperState::CMap {
+                        outer_depth,
+                        inner_depth: 0,
+                    } = wrapper
+                    else {
+                        return unresolved("unexpected CMap block terminator");
+                    };
+                    wrapper = WrapperState::Epilog { outer_depth };
+                    pending_count = None;
+                }
+                Token::Word(b"end") => {
+                    wrapper = match wrapper {
+                        WrapperState::CMap {
+                            outer_depth,
+                            inner_depth,
+                        } if inner_depth > 0 => WrapperState::CMap {
+                            outer_depth,
+                            inner_depth: inner_depth - 1,
+                        },
+                        WrapperState::Epilog { outer_depth } if outer_depth > 0 => {
+                            WrapperState::Epilog {
+                                outer_depth: outer_depth - 1,
+                            }
+                        }
+                        _ => return unresolved("unexpected CMap block terminator"),
+                    };
+                    pending_count = None;
+                }
                 Token::Word(b"begincodespacerange") => {
+                    wrapper = mapping_wrapper_state(wrapper)?;
                     let count = required_count(pending_count, "begincodespacerange")?;
                     self.parse_codespaces(count)?;
                     pending_count = None;
                 }
                 Token::Word(b"beginbfchar") => {
+                    wrapper = mapping_wrapper_state(wrapper)?;
                     let count = required_count(pending_count, "beginbfchar")?;
                     self.parse_bfchars(count)?;
                     pending_count = None;
                 }
                 Token::Word(b"beginbfrange") => {
+                    wrapper = mapping_wrapper_state(wrapper)?;
                     let count = required_count(pending_count, "beginbfrange")?;
                     self.parse_bfranges(count)?;
                     pending_count = None;
@@ -158,6 +240,13 @@ impl Parser<'_> {
                 Token::Word(word) => pending_count = parse_decimal(word),
                 _ => pending_count = None,
             }
+        }
+
+        if !matches!(
+            wrapper,
+            WrapperState::Abbreviated | WrapperState::Epilog { outer_depth: 0 }
+        ) {
+            return unresolved("CMap wrapper has an unclosed scope");
         }
 
         if self.cmap.codespaces.iter().all(Vec::is_empty) {
@@ -342,6 +431,22 @@ impl Parser<'_> {
         match self.lexer.next_token()? {
             Some(Token::Word(actual)) if actual == expected => Ok(()),
             _ => unresolved("CMap block has a missing or misplaced terminator"),
+        }
+    }
+}
+
+fn increment_depth(depth: usize) -> Result<usize> {
+    depth
+        .checked_add(1)
+        .ok_or_else(|| Error::Unresolved("CMap wrapper nesting is too deep".into()))
+}
+
+fn mapping_wrapper_state(wrapper: WrapperState) -> Result<WrapperState> {
+    match wrapper {
+        WrapperState::Bare | WrapperState::Abbreviated => Ok(WrapperState::Abbreviated),
+        WrapperState::CMap { .. } => Ok(wrapper),
+        WrapperState::Prolog { .. } | WrapperState::Epilog { .. } => {
+            unresolved("CMap mapping block appears outside begincmap")
         }
     }
 }
@@ -663,6 +768,108 @@ mod tests {
             ]
         );
         Ok(())
+    }
+
+    #[test]
+    fn parses_standard_postscript_wrapper() -> Result<()> {
+        let cmap = parse_to_unicode(
+            br#"
+                /CIDInit /ProcSet findresource begin
+                12 dict begin
+                begincmap
+                1 begincodespacerange <00> <FF> endcodespacerange
+                1 beginbfchar <41> <0041> endbfchar
+                endcmap
+                CMapName currentdict /CMap defineresource pop
+                end
+                end
+            "#,
+            LIMITS,
+        )?;
+
+        assert_eq!(cmap.decode(b"A", usize::MAX)?, vec![mapped(b"A", "A")]);
+        Ok(())
+    }
+
+    #[test]
+    fn parses_cid_system_info_dictionary_inside_cmap() -> Result<()> {
+        let cmap = parse_to_unicode(
+            br#"
+                /CIDInit /ProcSet findresource begin
+                12 dict begin
+                begincmap
+                /CIDSystemInfo 3 dict dup begin
+                /Registry (Adobe) def
+                /Ordering (UCS) def
+                /Supplement 0 def
+                end def
+                1 begincodespacerange <00> <FF> endcodespacerange
+                1 beginbfchar <41> <0041> endbfchar
+                endcmap
+                CMapName currentdict /CMap defineresource pop
+                end
+                end
+            "#,
+            LIMITS,
+        )?;
+
+        assert_eq!(cmap.decode(b"A", usize::MAX)?, vec![mapped(b"A", "A")]);
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_stray_or_unbalanced_wrapper_terminators() {
+        let valid_mapping =
+            "1 begincodespacerange <00> <FF> endcodespacerange 1 beginbfchar <41> <0041> endbfchar";
+        for suffix in [
+            "endcmap",
+            "end",
+            "endcodespacerange",
+            "endbfchar",
+            "endbfrange",
+            "/Parent usecmap",
+            "0 begincidchar",
+            "0 begincidrange",
+        ] {
+            let input = format!("{valid_mapping} {suffix}");
+            assert!(matches!(
+                parse_to_unicode(input.as_bytes(), LIMITS),
+                Err(Error::Unresolved(_))
+            ));
+        }
+
+        let unclosed_wrapper = format!("begin begincmap {valid_mapping} endcmap");
+        assert!(matches!(
+            parse_to_unicode(unclosed_wrapper.as_bytes(), LIMITS),
+            Err(Error::Unresolved(_))
+        ));
+
+        let unclosed_inner_dictionary = format!("begincmap 3 dict begin {valid_mapping} endcmap");
+        assert!(matches!(
+            parse_to_unicode(unclosed_inner_dictionary.as_bytes(), LIMITS),
+            Err(Error::Unresolved(_))
+        ));
+
+        let mapping_in_prolog = format!("begin {valid_mapping} begincmap endcmap end");
+        assert!(matches!(
+            parse_to_unicode(mapping_in_prolog.as_bytes(), LIMITS),
+            Err(Error::Unresolved(_))
+        ));
+
+        let mapping_before_wrapper = format!("{valid_mapping} begincmap endcmap");
+        assert!(matches!(
+            parse_to_unicode(mapping_before_wrapper.as_bytes(), LIMITS),
+            Err(Error::Unresolved(_))
+        ));
+
+        assert!(parse_to_unicode(valid_mapping.as_bytes(), LIMITS).is_ok());
+
+        let mapping_after_endcmap =
+            format!("begincmap {valid_mapping} endcmap 0 beginbfchar endbfchar");
+        assert!(matches!(
+            parse_to_unicode(mapping_after_endcmap.as_bytes(), LIMITS),
+            Err(Error::Unresolved(_))
+        ));
     }
 
     #[test]
