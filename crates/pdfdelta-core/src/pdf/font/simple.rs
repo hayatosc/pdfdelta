@@ -6,7 +6,10 @@ use crate::{
 };
 
 use super::cmap::{ToUnicodeCMap, UnicodeMapping};
-use super::common::{load_to_unicode, non_negative_number, optional_number, resolve_object};
+use super::common::{
+    FontIdentityDomain, FontIdentitySource, load_to_unicode, non_negative_number, optional_number,
+    resolve_font_identity_source, resolve_object,
+};
 use super::decoder::{DecodedGlyph, FontDecoderLimits};
 use super::metrics;
 
@@ -28,7 +31,8 @@ pub(crate) struct SimpleFontDecoder {
 #[derive(Clone, Debug)]
 pub(crate) struct LoadedSimpleFont {
     pub(crate) decoder: SimpleFontDecoder,
-    pub(crate) decoded_to_unicode_bytes: usize,
+    pub(crate) identity_source: Option<FontIdentitySource>,
+    pub(crate) decoded_font_bytes: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -78,6 +82,12 @@ enum Base14 {
     ZapfDingbats,
 }
 
+#[derive(Clone, Copy)]
+enum SimpleSubtype {
+    Type1,
+    TrueType,
+}
+
 impl SimpleFontDecoder {
     pub(crate) fn load(
         pdf: &dyn ParsedPdf,
@@ -88,7 +98,7 @@ impl SimpleFontDecoder {
         let PdfObject::Dictionary(dictionary) = font else {
             return unresolved("font resource is not a dictionary");
         };
-        validate_subtype(&dictionary)?;
+        let subtype = validate_subtype(&dictionary)?;
 
         let base14 = load_base14(&dictionary)?;
         let (first_char, widths) = load_widths(pdf, &dictionary, limits)?;
@@ -102,6 +112,16 @@ impl SimpleFontDecoder {
         let descent =
             descent.ok_or_else(|| Error::Unresolved("simple font has no descent metric".into()))?;
         let (to_unicode, decoded_to_unicode_bytes) = load_to_unicode(pdf, &dictionary, limits)?;
+        let identity_source = if dictionary.contains_key(b"Encoding".as_slice()) {
+            None
+        } else {
+            identity_domain(pdf, &dictionary, limits.max_indirections, subtype)?
+                .map(|domain| {
+                    resolve_font_identity_source(pdf, &dictionary, limits.max_indirections, domain)
+                })
+                .transpose()?
+                .flatten()
+        };
         let encoding = if to_unicode.is_some() {
             // deliberate: ToUnicode supplies text mappings, but Standard 14 fonts without
             // explicit Widths still need their base encoding for metric lookup. Differences do
@@ -112,11 +132,6 @@ impl SimpleFontDecoder {
                 LoadedEncoding::standard()
             }
         } else {
-            if base14.is_none() && !dictionary.contains_key(b"Encoding".as_slice()) {
-                return unresolved(
-                    "non-standard simple font has neither an Encoding nor a ToUnicode CMap",
-                );
-            }
             load_encoding(pdf, &dictionary, limits, base14)?
         };
         validate_difference_metrics(base14, widths.as_deref(), &encoding.differences)?;
@@ -133,7 +148,8 @@ impl SimpleFontDecoder {
                 ascent,
                 descent,
             },
-            decoded_to_unicode_bytes,
+            identity_source,
+            decoded_font_bytes: decoded_to_unicode_bytes,
         })
     }
 
@@ -390,9 +406,12 @@ fn load_base14(dictionary: &PdfDict) -> Result<Option<Base14>> {
     })
 }
 
-fn validate_subtype(dictionary: &PdfDict) -> Result<()> {
+fn validate_subtype(dictionary: &PdfDict) -> Result<SimpleSubtype> {
     match dictionary.get(b"Subtype".as_slice()) {
-        Some(PdfObject::Name(name)) if matches!(name.as_slice(), b"Type1" | b"TrueType") => Ok(()),
+        Some(PdfObject::Name(name)) if name.as_slice() == b"Type1" => Ok(SimpleSubtype::Type1),
+        Some(PdfObject::Name(name)) if name.as_slice() == b"TrueType" => {
+            Ok(SimpleSubtype::TrueType)
+        }
         Some(PdfObject::Name(name)) if name.as_slice() == b"Type0" => Err(Error::Unsupported(
             "Type0 font cannot be decoded as a simple font".into(),
         )),
@@ -402,6 +421,41 @@ fn validate_subtype(dictionary: &PdfDict) -> Result<()> {
         ))),
         _ => unresolved("font dictionary has no valid Subtype"),
     }
+}
+
+fn identity_domain(
+    pdf: &dyn ParsedPdf,
+    dictionary: &PdfDict,
+    max_indirections: usize,
+    subtype: SimpleSubtype,
+) -> Result<Option<FontIdentityDomain>> {
+    if matches!(subtype, SimpleSubtype::Type1) {
+        return Ok(Some(FontIdentityDomain::SimpleType1BuiltIn));
+    }
+    let Some(descriptor) = dictionary.get(b"FontDescriptor".as_slice()) else {
+        return Ok(None);
+    };
+    let descriptor = resolve_object(pdf, descriptor.clone(), max_indirections)?;
+    let PdfObject::Dictionary(descriptor) = descriptor else {
+        return Ok(None);
+    };
+    let Some(flags) = descriptor.get(b"Flags".as_slice()) else {
+        return Ok(None);
+    };
+    let flags = resolve_object(pdf, flags.clone(), max_indirections)?;
+    let PdfObject::Integer(flags) = flags else {
+        return Ok(None);
+    };
+    let Ok(flags) = u32::try_from(flags) else {
+        return Ok(None);
+    };
+    let symbolic = flags & 4 != 0;
+    let nonsymbolic = flags & 32 != 0;
+    Ok(match (symbolic, nonsymbolic) {
+        (true, false) => Some(FontIdentityDomain::SimpleTrueTypeSymbolic),
+        (false, true) => Some(FontIdentityDomain::SimpleTrueTypeNonsymbolic),
+        _ => None,
+    })
 }
 
 fn load_encoding(
@@ -414,7 +468,8 @@ fn load_encoding(
         let base = match base14 {
             Some(Base14::Symbol) => FallbackEncoding::Symbol,
             Some(Base14::ZapfDingbats) => FallbackEncoding::ZapfDingbats,
-            _ => FallbackEncoding::Standard,
+            Some(_) => FallbackEncoding::Standard,
+            None => FallbackEncoding::Unknown,
         };
         return Ok(LoadedEncoding {
             base,
@@ -776,6 +831,7 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::pdf::font::cmap::CMapLimits;
+    use crate::pdf::font::load_font_identity;
     use crate::pdf::{DecodedStream, ObjectRef, PageRef, PdfVersion, RawStream};
 
     use super::*;
@@ -784,7 +840,7 @@ mod tests {
         max_indirections: 4,
         max_simple_width_entries: 256,
         max_cid_width_entries: 16,
-        max_to_unicode_bytes: 4096,
+        max_decoded_font_bytes: 4096,
         cmap: CMapLimits {
             max_entries: 64,
             max_code_bytes: 4,
@@ -814,11 +870,12 @@ mod tests {
         ]));
 
         let loaded = SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)?;
+        assert!(loaded.identity_source.is_none());
         let glyphs = loaded
             .decoder
             .decode(&[b'A', b'B', 0x80, 0x81], 4, usize::MAX)?;
 
-        assert_eq!(loaded.decoded_to_unicode_bytes, 0);
+        assert_eq!(loaded.decoded_font_bytes, 0);
         assert_eq!(loaded.decoder.cmap_entry_count(), 0);
         assert_eq!(loaded.decoder.ascent_1000_em(), 700.0);
         assert_eq!(loaded.decoder.descent_1000_em(), -200.0);
@@ -827,6 +884,104 @@ mod tests {
         assert_eq!(glyphs[2], glyph(0x80, "€", 500.0));
         assert_eq!(glyphs[3].mapping, UnicodeMapping::Unmapped);
         assert_eq!(glyphs[3].width_1000_em, 500.0);
+        Ok(())
+    }
+
+    #[test]
+    fn explicit_encodings_never_claim_program_selector_identity() -> Result<()> {
+        let font = |encoding: &[u8]| {
+            PdfObject::Dictionary(PdfDict::from([
+                (b"Subtype".to_vec(), PdfObject::Name(b"TrueType".to_vec())),
+                (
+                    b"BaseFont".to_vec(),
+                    PdfObject::Name(b"FixtureEmbedded".to_vec()),
+                ),
+                (b"Encoding".to_vec(), PdfObject::Name(encoding.to_vec())),
+                (b"FirstChar".to_vec(), PdfObject::Integer(65)),
+                (
+                    b"Widths".to_vec(),
+                    PdfObject::Array(vec![PdfObject::Integer(600)]),
+                ),
+                (
+                    b"FontDescriptor".to_vec(),
+                    PdfObject::Dictionary(PdfDict::from([
+                        (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                        (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                        (b"FontFile2".to_vec(), PdfObject::Reference(object_ref(99))),
+                    ])),
+                ),
+            ]))
+        };
+
+        let win_ansi =
+            SimpleFontDecoder::load(&MockPdf::default(), &font(b"WinAnsiEncoding"), LIMITS)?;
+        let standard =
+            SimpleFontDecoder::load(&MockPdf::default(), &font(b"StandardEncoding"), LIMITS)?;
+
+        assert!(win_ansi.identity_source.is_none());
+        assert!(standard.identity_source.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn truetype_symbolic_policy_separates_identity_and_rejects_ambiguous_flags() -> Result<()> {
+        let pdf = MockPdf {
+            objects: HashMap::from([(object_ref(1), PdfObject::Stream(PdfDict::new()))]),
+            streams: HashMap::from([(object_ref(1), b"same TrueType program".to_vec())]),
+        };
+        let font = |flags: Option<PdfObject>| {
+            let mut descriptor = PdfDict::from([
+                (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                (b"FontFile2".to_vec(), PdfObject::Reference(object_ref(1))),
+            ]);
+            if let Some(flags) = flags {
+                descriptor.insert(b"Flags".to_vec(), flags);
+            }
+            PdfObject::Dictionary(PdfDict::from([
+                (b"Subtype".to_vec(), PdfObject::Name(b"TrueType".to_vec())),
+                (
+                    b"BaseFont".to_vec(),
+                    PdfObject::Name(b"FixtureEmbedded".to_vec()),
+                ),
+                (b"FirstChar".to_vec(), PdfObject::Integer(65)),
+                (
+                    b"Widths".to_vec(),
+                    PdfObject::Array(vec![PdfObject::Integer(600)]),
+                ),
+                (
+                    b"FontDescriptor".to_vec(),
+                    PdfObject::Dictionary(descriptor),
+                ),
+            ]))
+        };
+        let symbolic_font =
+            SimpleFontDecoder::load(&pdf, &font(Some(PdfObject::Integer(4))), LIMITS)?;
+        let nonsymbolic_font =
+            SimpleFontDecoder::load(&pdf, &font(Some(PdfObject::Integer(32))), LIMITS)?;
+        assert_eq!(
+            symbolic_font.decoder.decode(b"A", 1, usize::MAX)?[0].glyph_id,
+            nonsymbolic_font.decoder.decode(b"A", 1, usize::MAX)?[0].glyph_id
+        );
+        let symbolic = symbolic_font
+            .identity_source
+            .ok_or_else(|| Error::Unresolved("symbolic fixture should have identity".into()))?;
+        let nonsymbolic = nonsymbolic_font
+            .identity_source
+            .ok_or_else(|| Error::Unresolved("nonsymbolic fixture should have identity".into()))?;
+
+        let symbolic = load_font_identity(&pdf, &symbolic, usize::MAX)?;
+        let nonsymbolic = load_font_identity(&pdf, &nonsymbolic, usize::MAX)?;
+        assert_ne!(symbolic.hash, nonsymbolic.hash);
+
+        for flags in [
+            None,
+            Some(PdfObject::Integer(0)),
+            Some(PdfObject::Integer(36)),
+        ] {
+            let loaded = SimpleFontDecoder::load(&pdf, &font(flags), LIMITS)?;
+            assert!(loaded.identity_source.is_none());
+        }
         Ok(())
     }
 
@@ -865,7 +1020,7 @@ mod tests {
         let loaded = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
         let glyphs = loaded.decoder.decode(&[b'A', 0x80, b'B'], 3, usize::MAX)?;
 
-        assert_eq!(loaded.decoded_to_unicode_bytes, cmap.len());
+        assert_eq!(loaded.decoded_font_bytes, cmap.len());
         assert_eq!(loaded.decoder.cmap_entry_count(), 3);
         assert_eq!(glyphs[0], glyph(b'A', "A", 620.0));
         assert_eq!(glyphs[1], glyph(0x80, "€", 480.0));

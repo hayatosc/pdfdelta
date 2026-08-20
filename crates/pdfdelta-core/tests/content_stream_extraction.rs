@@ -30,6 +30,62 @@ fn base_font(document: &mut LopdfDocument) -> lopdf::ObjectId {
     })
 }
 
+fn embedded_simple_font(
+    document: &mut LopdfDocument,
+    program_bytes: &[u8],
+    compressed: bool,
+    to_unicode: Option<ObjectId>,
+) -> ObjectId {
+    let mut program = Stream::new(dictionary! {}, program_bytes.to_vec());
+    if compressed {
+        program.compress().expect("fixture font should compress");
+    }
+    let program = document.add_object(program);
+    let descriptor = document.add_object(dictionary! {
+        "Type" => "FontDescriptor",
+        "FontName" => "FixtureEmbedded",
+        "Ascent" => 800,
+        "Descent" => -200,
+        "MissingWidth" => 500,
+        "Flags" => 32,
+        "FontFile2" => program,
+    });
+    let mut font = dictionary! {
+        "Type" => "Font",
+        "Subtype" => "TrueType",
+        "BaseFont" => "FixtureEmbedded",
+        "FirstChar" => 65,
+        "LastChar" => 66,
+        "Widths" => vec![Object::Integer(600), Object::Integer(700)],
+        "FontDescriptor" => descriptor,
+    };
+    if let Some(to_unicode) = to_unicode {
+        font.set("ToUnicode", to_unicode);
+    }
+    document.add_object(font)
+}
+
+fn embedded_font_program(document: &LopdfDocument, font: ObjectId) -> ObjectId {
+    let descriptor = embedded_font_descriptor(document, font);
+    document.objects[&descriptor]
+        .as_dict()
+        .expect("fixture descriptor should be a dictionary")
+        .get(b"FontFile2")
+        .expect("fixture descriptor should have a font program")
+        .as_reference()
+        .expect("fixture font program should be indirect")
+}
+
+fn embedded_font_descriptor(document: &LopdfDocument, font: ObjectId) -> ObjectId {
+    document.objects[&font]
+        .as_dict()
+        .expect("fixture font should be a dictionary")
+        .get(b"FontDescriptor")
+        .expect("fixture font should have a descriptor")
+        .as_reference()
+        .expect("fixture descriptor should be indirect")
+}
+
 fn identity_h_font(
     document: &mut LopdfDocument,
     to_unicode: ObjectId,
@@ -52,6 +108,43 @@ fn identity_h_font(
         "Type" => "Font",
         "Subtype" => "Type0",
         "BaseFont" => "FixtureSans",
+        "Encoding" => "Identity-H",
+        "DescendantFonts" => vec![Object::Reference(descendant)],
+        "ToUnicode" => to_unicode,
+    })
+}
+
+fn embedded_identity_h_font(
+    document: &mut LopdfDocument,
+    to_unicode: ObjectId,
+    cid_to_gid_map: Option<Object>,
+) -> ObjectId {
+    let program = document.add_object(Stream::new(dictionary! {}, b"embedded CID font".to_vec()));
+    let mut descendant = dictionary! {
+        "Type" => "Font",
+        "Subtype" => "CIDFontType2",
+        "BaseFont" => "FixtureCidEmbedded",
+        "DW" => 900,
+        "W" => vec![
+            Object::Integer(1),
+            Object::Array(vec![Object::Integer(500), Object::Integer(700)]),
+        ],
+        "FontDescriptor" => dictionary! {
+            "Type" => "FontDescriptor",
+            "FontName" => "FixtureCidEmbedded",
+            "Ascent" => 800,
+            "Descent" => -200,
+            "FontFile2" => program,
+        },
+    };
+    if let Some(cid_to_gid_map) = cid_to_gid_map {
+        descendant.set("CIDToGIDMap", cid_to_gid_map);
+    }
+    let descendant = document.add_object(descendant);
+    document.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type0",
+        "BaseFont" => "FixtureCidEmbedded",
         "Encoding" => "Identity-H",
         "DescendantFonts" => vec![Object::Reference(descendant)],
         "ToUnicode" => to_unicode,
@@ -639,6 +732,371 @@ fn decodes_japanese_only_where_tounicode_behavior_is_required() -> Result<()> {
 }
 
 #[test]
+fn emits_stable_unmapped_tokens_from_decoded_embedded_font_programs() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let first_font = embedded_simple_font(&mut pdf, b"same decoded font", false, None);
+    let second_font = embedded_simple_font(&mut pdf, b"same decoded font", true, None);
+    let third_font = embedded_simple_font(&mut pdf, b"different decoded font", false, None);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (A) Tj /F2 10 Tf 1 0 0 1 30 30 Tm (A) Tj /F3 10 Tf 1 0 0 1 40 30 Tm (B) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! {
+                "F1" => first_font,
+                "F2" => second_font,
+                "F3" => third_font,
+            },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    let tokens = glyphs
+        .iter()
+        .map(|glyph| match &glyph.text {
+            DecodedText::Unmapped {
+                font_hash,
+                glyph_id,
+            } => Ok((font_hash, *glyph_id)),
+            DecodedText::Mapped(_) => Err(Error::Unresolved(
+                "fixture glyph should remain unmapped".into(),
+            )),
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    assert_eq!(tokens[0].0.0.len(), 32);
+    assert_eq!(tokens[0].0, tokens[1].0);
+    assert_ne!(tokens[0].0, tokens[2].0);
+    assert_eq!(
+        tokens.iter().map(|token| token.1).collect::<Vec<_>>(),
+        [65, 65, 66]
+    );
+    assert_eq!(glyphs[0].raw_code, b"A");
+    assert_eq!(glyphs[2].raw_code, b"B");
+    assert_close(glyphs[0].baseline.x, 20.0);
+    assert_close(glyphs[0].bbox.min.y, 28.0);
+    assert_close(glyphs[0].bbox.max.y, 38.0);
+    assert_close(glyphs[0].bbox.max.x, 26.0);
+    assert_eq!(glyphs[0].provenance.content_stream.object_number, content.0);
+    assert_eq!(glyphs[0].provenance.content_stream.generation, content.1);
+    assert_eq!(glyphs[0].render_order, 0);
+    Ok(())
+}
+
+#[test]
+fn preserves_partial_tounicode_gaps_as_embedded_font_tokens() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 begincodespacerange <00> <FF> endcodespacerange \
+          1 beginbfchar <41> <005A> endbfchar"
+            .to_vec(),
+    ));
+    let font = embedded_simple_font(&mut pdf, b"partial cmap font", false, Some(cmap));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (AB) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs[0].text, DecodedText::Mapped("Z".into()));
+    assert!(matches!(
+        &glyphs[1].text,
+        DecodedText::Unmapped {
+            font_hash,
+            glyph_id: 66,
+        } if font_hash.0.len() == 32
+    ));
+    assert_eq!(glyphs[1].raw_code, b"B");
+    assert_close(glyphs[1].baseline.x, 26.0);
+    Ok(())
+}
+
+#[test]
+fn keeps_unknown_explicit_encoding_differences_contextually_unresolved() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = embedded_simple_font(&mut pdf, b"differences font", false, None);
+    pdf.objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set(
+            "Encoding",
+            dictionary! {
+                "BaseEncoding" => "WinAnsiEncoding",
+                "Differences" => vec![
+                    Object::Integer(65),
+                    Object::Name(b"Aacute".to_vec()),
+                    Object::Name(b"UnknownGlyph".to_vec()),
+                ],
+            },
+        );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (AB) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    assert!(matches!(
+        extract(pdf, ExtractionLimits::default()),
+        Err(Error::Unresolved(message))
+            if message.contains("content operator Tj")
+                && message.contains("no Unicode mapping or stable font identity")
+    ));
+}
+
+#[test]
+fn keeps_unmapped_codes_contextually_unresolved_without_a_font_program() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 begincodespacerange <00> <FF> endcodespacerange \
+          1 beginbfchar <41> <0041> endbfchar"
+            .to_vec(),
+    ));
+    let font = base_font(&mut pdf);
+    pdf.objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set("ToUnicode", cmap);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (B) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    assert!(matches!(
+        extract(pdf, ExtractionLimits::default()),
+        Err(Error::Unresolved(message))
+            if message.contains("content operator Tj")
+                && message.contains("no Unicode mapping or stable font identity")
+    ));
+}
+
+#[test]
+fn keeps_mismatched_embedded_program_keys_contextually_unresolved() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = embedded_simple_font(&mut pdf, b"mismatched TrueType program", false, None);
+    let descriptor = embedded_font_descriptor(&pdf, font);
+    let program = embedded_font_program(&pdf, font);
+    let descriptor = pdf
+        .objects
+        .get_mut(&descriptor)
+        .expect("fixture descriptor should exist")
+        .as_dict_mut()
+        .expect("fixture descriptor should be a dictionary");
+    descriptor.remove(b"FontFile2");
+    descriptor.set("FontFile", program);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (A) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    assert!(matches!(
+        extract(pdf, ExtractionLimits::default()),
+        Err(Error::Unresolved(message))
+            if message.contains("content operator Tj")
+                && message.contains("no Unicode mapping or stable font identity")
+    ));
+}
+
+#[test]
+fn reports_unsupported_embedded_font_filters_without_fabricating_identity() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = embedded_simple_font(&mut pdf, b"encoded font bytes", false, None);
+    let program = embedded_font_program(&pdf, font);
+    pdf.objects
+        .get_mut(&program)
+        .expect("fixture font program should exist")
+        .as_stream_mut()
+        .expect("fixture font program should be a stream")
+        .dict
+        .set("Filter", "UnsupportedFontFilter");
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (A) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let result = extract(pdf, ExtractionLimits::default());
+    assert!(
+        matches!(
+            &result,
+            Err(Error::Unsupported(message)) if message.contains("decoding stream")
+        ),
+        "unexpected extraction result: {result:?}"
+    );
+}
+
+#[test]
+fn fully_mapped_tounicode_never_decodes_an_unreadable_font_program() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 begincodespacerange <00> <FF> endcodespacerange \
+          1 beginbfchar <41> <0041> endbfchar"
+            .to_vec(),
+    ));
+    let font = embedded_simple_font(&mut pdf, b"encoded font bytes", false, Some(cmap));
+    let program = embedded_font_program(&pdf, font);
+    pdf.objects
+        .get_mut(&program)
+        .expect("fixture font program should exist")
+        .as_stream_mut()
+        .expect("fixture font program should be a stream")
+        .dict
+        .set("Filter", "UnsupportedFontFilter");
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (A) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+
+    assert_eq!(mapped_text(document.items()), "A");
+    Ok(())
+}
+
+#[test]
+fn fully_mapped_tounicode_ignores_font_program_bytes_outside_the_remaining_budget() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap_bytes = b"1 begincodespacerange <00> <FF> endcodespacerange \
+        1 beginbfchar <41> <0041> endbfchar"
+        .to_vec();
+    let cmap = pdf.add_object(Stream::new(dictionary! {}, cmap_bytes.clone()));
+    let font = embedded_simple_font(&mut pdf, &vec![0x5a; 8192], false, Some(cmap));
+    let content_bytes = b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (A) Tj ET".to_vec();
+    let content = pdf.add_object(Stream::new(dictionary! {}, content_bytes.clone()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(
+        pdf,
+        ExtractionLimits {
+            max_total_decoded_bytes: content_bytes.len() + cmap_bytes.len() + 1,
+            ..ExtractionLimits::default()
+        },
+    )?;
+
+    assert_eq!(mapped_text(document.items()), "A");
+    Ok(())
+}
+
+#[test]
+fn accounts_an_embedded_font_program_once_per_cached_font() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let program_bytes = b"cached embedded font";
+    let font = embedded_simple_font(&mut pdf, program_bytes, false, None);
+    let content_bytes = b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (A) Tj /F2 10 Tf (B) Tj ET".to_vec();
+    let content = pdf.add_object(Stream::new(dictionary! {}, content_bytes.clone()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font, "F2" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(
+        pdf,
+        ExtractionLimits {
+            max_total_decoded_bytes: content_bytes.len() + program_bytes.len(),
+            ..ExtractionLimits::default()
+        },
+    )?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 2);
+    assert_eq!(glyphs[0].font_id, glyphs[1].font_id);
+    let (
+        DecodedText::Unmapped {
+            font_hash: first_hash,
+            ..
+        },
+        DecodedText::Unmapped {
+            font_hash: second_hash,
+            ..
+        },
+    ) = (&glyphs[0].text, &glyphs[1].text)
+    else {
+        return Err(Error::Unresolved(
+            "fixture glyphs should remain unmapped".into(),
+        ));
+    };
+    assert_eq!(first_hash, second_hash);
+    Ok(())
+}
+
+#[test]
 fn uses_tounicode_when_the_fallback_encoding_has_differences() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let cmap = pdf.add_object(Stream::new(
@@ -793,6 +1251,79 @@ fn extracts_identity_h_type0_glyphs_with_cid_geometry_and_shared_cache() -> Resu
     assert_eq!(glyphs[0].provenance.operator_index, 3);
     assert_eq!(glyphs[2].provenance.operator_index, 5);
     Ok(())
+}
+
+#[test]
+fn preserves_partial_identity_h_tounicode_gaps_with_descendant_font_identity() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
+          1 beginbfchar <0001> <0041> endbfchar"
+            .to_vec(),
+    ));
+    let font = embedded_identity_h_font(&mut pdf, cmap, None);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm <00010002> Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs[0].text, DecodedText::Mapped("A".into()));
+    assert!(matches!(
+        &glyphs[1].text,
+        DecodedText::Unmapped {
+            font_hash,
+            glyph_id: 2,
+        } if font_hash.0.len() == 32
+    ));
+    assert_eq!(glyphs[1].raw_code, [0, 2]);
+    assert_close(glyphs[1].baseline.x, 25.0);
+    assert_close(glyphs[1].bbox.max.x, 32.0);
+    Ok(())
+}
+
+#[test]
+fn keeps_custom_cid_to_gid_map_gaps_contextually_unresolved() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
+          1 beginbfchar <0001> <0041> endbfchar"
+            .to_vec(),
+    ));
+    let cid_to_gid_map = pdf.add_object(Stream::new(dictionary! {}, vec![0, 0, 0, 9]));
+    let font = embedded_identity_h_font(&mut pdf, cmap, Some(Object::Reference(cid_to_gid_map)));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm <0002> Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    assert!(matches!(
+        extract(pdf, ExtractionLimits::default()),
+        Err(Error::Unresolved(message))
+            if message.contains("content operator Tj")
+                && message.contains("no Unicode mapping or stable font identity")
+    ));
 }
 
 #[test]

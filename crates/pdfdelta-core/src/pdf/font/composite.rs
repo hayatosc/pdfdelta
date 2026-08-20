@@ -7,7 +7,10 @@ use crate::{
 
 use super::{
     cmap::ToUnicodeCMap,
-    common::{finite_number, load_to_unicode, non_negative_number, resolve_object},
+    common::{
+        FontIdentityDomain, FontIdentitySource, finite_number, load_to_unicode,
+        non_negative_number, resolve_font_identity_source, resolve_object,
+    },
     decoder::{DecodedGlyph, FontDecoderLimits},
 };
 
@@ -22,7 +25,8 @@ pub(crate) struct CompositeFontDecoder {
 
 pub(super) struct LoadedCompositeFont {
     pub(super) decoder: CompositeFontDecoder,
-    pub(super) decoded_to_unicode_bytes: usize,
+    pub(super) identity_source: Option<FontIdentitySource>,
+    pub(super) decoded_font_bytes: usize,
     pub(super) cid_width_entries: usize,
 }
 
@@ -41,6 +45,12 @@ impl CompositeFontDecoder {
         let to_unicode = to_unicode.ok_or_else(|| {
             Error::Unsupported("Identity-H Type0 fonts without ToUnicode are not supported".into())
         })?;
+        let identity_source = identity_domain(pdf, &descendant, limits.max_indirections)?
+            .map(|domain| {
+                resolve_font_identity_source(pdf, &descendant, limits.max_indirections, domain)
+            })
+            .transpose()?
+            .flatten();
 
         Ok(LoadedCompositeFont {
             cid_width_entries: widths.len(),
@@ -51,7 +61,8 @@ impl CompositeFontDecoder {
                 ascent,
                 descent,
             },
-            decoded_to_unicode_bytes,
+            identity_source,
+            decoded_font_bytes: decoded_to_unicode_bytes,
         })
     }
 
@@ -170,6 +181,30 @@ fn load_descendant(
         _ => return unresolved("Type0 descendant font has no valid Subtype"),
     }
     Ok(descendant)
+}
+
+fn identity_domain(
+    pdf: &dyn ParsedPdf,
+    descendant: &PdfDict,
+    max_indirections: usize,
+) -> Result<Option<FontIdentityDomain>> {
+    match descendant.get(b"Subtype".as_slice()) {
+        Some(PdfObject::Name(name)) if name.as_slice() == b"CIDFontType0" => {
+            Ok(Some(FontIdentityDomain::CidFontType0))
+        }
+        Some(PdfObject::Name(name)) if name.as_slice() == b"CIDFontType2" => {
+            let Some(mapping) = descendant.get(b"CIDToGIDMap".as_slice()) else {
+                return Ok(Some(FontIdentityDomain::CidFontType2Identity));
+            };
+            match resolve_object(pdf, mapping.clone(), max_indirections)? {
+                PdfObject::Name(name) if name.as_slice() == b"Identity" => {
+                    Ok(Some(FontIdentityDomain::CidFontType2Identity))
+                }
+                _ => Ok(None),
+            }
+        }
+        _ => unresolved("Type0 descendant font has no valid Subtype"),
+    }
 }
 
 fn load_default_width(
@@ -342,7 +377,7 @@ mod tests {
         max_indirections: 4,
         max_simple_width_entries: 256,
         max_cid_width_entries: 16,
-        max_to_unicode_bytes: 4096,
+        max_decoded_font_bytes: 4096,
         cmap: CMapLimits {
             max_entries: 16,
             max_code_bytes: 4,
@@ -367,7 +402,7 @@ mod tests {
             .decoder
             .decode(&[0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6], 6, usize::MAX)?;
 
-        assert_eq!(loaded.decoded_to_unicode_bytes, TO_UNICODE.len());
+        assert_eq!(loaded.decoded_font_bytes, TO_UNICODE.len());
         assert_eq!(loaded.decoder.cmap_entry_count(), 6);
         assert_eq!(loaded.decoder.ascent_1000_em(), 880.0);
         assert_eq!(loaded.decoder.descent_1000_em(), -120.0);
@@ -432,6 +467,37 @@ mod tests {
             CompositeFontDecoder::load(&pdf, &without_to_unicode, LIMITS),
             Err(Error::Unsupported(message)) if message.contains("without ToUnicode")
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn custom_cid_to_gid_maps_never_claim_cid_selector_identity() -> Result<()> {
+        let mut pdf =
+            MockPdf::with_descendant(descendant_with_widths(PdfObject::Array(Vec::new())));
+        let PdfObject::Dictionary(descendant) = pdf
+            .objects
+            .get_mut(&object_ref(2))
+            .expect("fixture descendant should exist")
+        else {
+            unreachable!();
+        };
+        descendant.insert(
+            b"Subtype".to_vec(),
+            PdfObject::Name(b"CIDFontType2".to_vec()),
+        );
+        descendant.insert(b"CIDToGIDMap".to_vec(), PdfObject::Reference(object_ref(3)));
+        let Some(PdfObject::Dictionary(descriptor)) =
+            descendant.get_mut(b"FontDescriptor".as_slice())
+        else {
+            unreachable!();
+        };
+        descriptor.insert(b"FontFile2".to_vec(), PdfObject::Reference(object_ref(99)));
+        pdf.objects
+            .insert(object_ref(3), PdfObject::Stream(PdfDict::new()));
+
+        let loaded = CompositeFontDecoder::load(&pdf, &font_dictionary(), LIMITS)?;
+
+        assert!(loaded.identity_source.is_none());
         Ok(())
     }
 

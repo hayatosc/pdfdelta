@@ -6,8 +6,8 @@ use std::{
 use crate::{
     Error, Result,
     model::{
-        DecodedText, Document, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect,
-        TextRenderMode, Vec2,
+        DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphId, GlyphProvenance, PageId,
+        Rect, TextRenderMode, Vec2,
     },
     pdf::{
         ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject,
@@ -15,7 +15,10 @@ use crate::{
             ContentLimits, ContentParser, Matrix, Operand, OperandBudget, Operation, OperatorBudget,
         },
         font::cmap::CMapLimits,
-        font::{DecodedGlyph as FontGlyph, FontDecoder, FontDecoderLimits, UnicodeMapping},
+        font::{
+            DecodedGlyph as FontGlyph, FontDecoder, FontDecoderLimits, FontIdentitySource,
+            UnicodeMapping, load_font_identity,
+        },
     },
 };
 
@@ -450,6 +453,7 @@ impl Extraction<'_> {
                 run.font_id,
                 run.ascent,
                 run.descent,
+                run.font_hash.as_ref(),
                 operation,
                 stream,
                 page,
@@ -513,6 +517,7 @@ impl Extraction<'_> {
         font_id: FontId,
         ascent: f64,
         descent: f64,
+        font_hash: Option<&FontProgramHash>,
         operation: &Operation,
         stream: ObjectRef,
         page: PageId,
@@ -525,14 +530,18 @@ impl Extraction<'_> {
                 limit: self.limits.max_glyphs,
             });
         }
+        let glyph_id = glyph.glyph_id;
         let text = match glyph.mapping {
             UnicodeMapping::Mapped(text) => DecodedText::Mapped(text),
-            UnicodeMapping::Unmapped => {
-                return Err(operation_error(
-                    operation,
-                    "font code has no Unicode mapping or stable font identity",
-                ));
-            }
+            UnicodeMapping::Unmapped => DecodedText::Unmapped {
+                font_hash: font_hash.cloned().ok_or_else(|| {
+                    operation_error(
+                        operation,
+                        "font code has no Unicode mapping or stable font identity",
+                    )
+                })?,
+                glyph_id,
+            },
         };
         let scale = Matrix::new(
             state.graphics.font_size * state.graphics.horizontal_scale,
@@ -646,7 +655,7 @@ impl Extraction<'_> {
                     max_indirections: self.limits.max_nesting_depth,
                     max_simple_width_entries: 256,
                     max_cid_width_entries: remaining_cid_width_entries,
-                    max_to_unicode_bytes: remaining_bytes,
+                    max_decoded_font_bytes: remaining_bytes,
                     cmap: CMapLimits {
                         max_entries: remaining_entries,
                         max_code_bytes: 4,
@@ -664,7 +673,7 @@ impl Extraction<'_> {
                 },
                 error => error,
             })?;
-            self.account_decoded_bytes(loaded.decoded_cmap_bytes)?;
+            self.account_decoded_bytes(loaded.decoded_font_bytes)?;
             self.account_cid_width_entries(loaded.cid_width_entries)?;
             self.cmap_entries = self
                 .cmap_entries
@@ -692,6 +701,8 @@ impl Extraction<'_> {
                 CachedFont {
                     id,
                     decoder: loaded.decoder,
+                    identity_source: loaded.identity_source,
+                    font_hash: None,
                 },
             );
         }
@@ -724,9 +735,50 @@ impl Extraction<'_> {
                 limit: remaining_mapped_text_bytes,
             })
         })?;
-        self.account_decoded_bytes(mapped_text_bytes)?;
+        let needs_identity = glyphs
+            .iter()
+            .any(|glyph| matches!(glyph.mapping, UnicodeMapping::Unmapped));
+        let mut loaded_identity = None;
+        let font_hash = if needs_identity {
+            let cached = self.font_cache.get(key).ok_or_else(|| {
+                Error::Unresolved("loaded font disappeared from the extraction cache".into())
+            })?;
+            if let Some(hash) = &cached.font_hash {
+                Some(hash.clone())
+            } else if let Some(source) = &cached.identity_source {
+                let identity = load_font_identity(
+                    self.pdf,
+                    source,
+                    remaining_mapped_text_bytes.saturating_sub(mapped_text_bytes),
+                )?;
+                let hash = identity.hash.clone();
+                loaded_identity = Some(identity);
+                Some(hash)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let decoded_identity_bytes = loaded_identity
+            .as_ref()
+            .map_or(0, |identity| identity.decoded_bytes);
+        let decoded_bytes = mapped_text_bytes
+            .checked_add(decoded_identity_bytes)
+            .ok_or(Error::LimitExceeded {
+                resource: "decoded font and Unicode text bytes",
+                limit: remaining_mapped_text_bytes,
+            })?;
+        self.account_decoded_bytes(decoded_bytes)?;
+        if let Some(identity) = loaded_identity {
+            let cached = self.font_cache.get_mut(key).ok_or_else(|| {
+                Error::Unresolved("loaded font disappeared from the extraction cache".into())
+            })?;
+            cached.font_hash = Some(identity.hash);
+        }
         Ok(DecodedRun {
             font_id,
+            font_hash,
             ascent,
             descent,
             glyphs,
@@ -1705,10 +1757,13 @@ enum FontCacheKey {
 struct CachedFont {
     id: FontId,
     decoder: FontDecoder,
+    identity_source: Option<FontIdentitySource>,
+    font_hash: Option<FontProgramHash>,
 }
 
 struct DecodedRun {
     font_id: FontId,
+    font_hash: Option<FontProgramHash>,
     ascent: f64,
     descent: f64,
     glyphs: Vec<FontGlyph>,

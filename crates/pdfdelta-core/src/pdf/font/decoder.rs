@@ -6,7 +6,7 @@ use crate::{
 use super::{
     UnicodeMapping,
     cmap::CMapLimits,
-    common::resolve_object,
+    common::{FontIdentitySource, resolve_object},
     composite::{CompositeFontDecoder, LoadedCompositeFont},
     simple::{LoadedSimpleFont, SimpleFontDecoder},
 };
@@ -16,7 +16,7 @@ pub(crate) struct FontDecoderLimits {
     pub(crate) max_indirections: usize,
     pub(crate) max_simple_width_entries: usize,
     pub(crate) max_cid_width_entries: usize,
-    pub(crate) max_to_unicode_bytes: usize,
+    pub(crate) max_decoded_font_bytes: usize,
     pub(crate) cmap: CMapLimits,
 }
 
@@ -36,7 +36,8 @@ pub(crate) enum FontDecoder {
 
 pub(crate) struct LoadedFont {
     pub(crate) decoder: FontDecoder,
-    pub(crate) decoded_cmap_bytes: usize,
+    pub(crate) identity_source: Option<FontIdentitySource>,
+    pub(crate) decoded_font_bytes: usize,
     pub(crate) cid_width_entries: usize,
 }
 
@@ -52,22 +53,26 @@ impl FontDecoder {
         {
             let LoadedCompositeFont {
                 decoder,
-                decoded_to_unicode_bytes,
+                identity_source,
+                decoded_font_bytes,
                 cid_width_entries,
             } = CompositeFontDecoder::load(pdf, dictionary, limits)?;
             return Ok(LoadedFont {
                 decoder: Self::Composite(decoder),
-                decoded_cmap_bytes: decoded_to_unicode_bytes,
+                identity_source,
+                decoded_font_bytes,
                 cid_width_entries,
             });
         }
         let LoadedSimpleFont {
             decoder,
-            decoded_to_unicode_bytes,
+            identity_source,
+            decoded_font_bytes,
         } = SimpleFontDecoder::load(pdf, font, limits)?;
         Ok(LoadedFont {
             decoder: Self::Simple(decoder),
-            decoded_cmap_bytes: decoded_to_unicode_bytes,
+            identity_source,
+            decoded_font_bytes,
             cid_width_entries: 0,
         })
     }
