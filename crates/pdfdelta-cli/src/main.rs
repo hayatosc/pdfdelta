@@ -124,7 +124,7 @@ fn compare_documents<W: Write>(
         ensure_trace_does_not_alias_input(trace_path, old_path, new_path)?;
     }
     if let (Some(json_path), Some(trace_path)) = (json_path, trace_path)
-        && paths_refer_to_same_file(trace_path, json_path, "trace/report output collision")?
+        && output_paths_refer_to_same_file(trace_path, json_path, "trace/report output collision")?
     {
         return Err(format!(
             "refusing trace output {} because it refers to the JSON report {}",
@@ -670,6 +670,24 @@ fn paths_refer_to_same_file(
         )
     })?;
     Ok(output_canonical == input_canonical)
+}
+
+fn output_paths_refer_to_same_file(
+    first_path: &Path,
+    second_path: &Path,
+    context: &str,
+) -> Result<bool, String> {
+    if first_path == second_path {
+        return Ok(true);
+    }
+    match fs::metadata(second_path) {
+        Ok(_) => paths_refer_to_same_file(first_path, second_path, context),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!(
+            "cannot inspect output path {} for {context}: {error}",
+            second_path.display()
+        )),
+    }
 }
 
 fn inspect_document(path: &Path, backend_info: bool, glyphs: bool) -> Result<(), String> {

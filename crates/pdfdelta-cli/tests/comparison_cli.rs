@@ -365,6 +365,41 @@ fn rejects_trace_and_report_output_aliases_before_processing() {
 }
 
 #[test]
+fn handles_a_missing_report_path_when_the_trace_already_exists() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let report = directory.join("report.json");
+    let trace = directory.join("trace.json");
+    let existing_trace = b"{\"preserved\":true}\n";
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    fs::write(&trace, existing_trace).expect("existing trace should be written");
+
+    let output = compare(
+        &old,
+        &new,
+        &[
+            "--json",
+            path_text(&report),
+            "--trace-json",
+            path_text(&trace),
+        ],
+    );
+    let error = stderr(&output);
+
+    assert_eq!(output.status.code(), Some(2), "{error}");
+    assert!(error.contains("refusing to overwrite existing trace report"));
+    assert!(!error.contains("cannot inspect input path"));
+    assert!(report.exists());
+    assert_eq!(
+        fs::read(trace).expect("existing trace should remain readable"),
+        existing_trace
+    );
+    assert_no_temporary_reports(&directory);
+}
+
+#[test]
 fn malformed_old_document_exits_two_with_context() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
