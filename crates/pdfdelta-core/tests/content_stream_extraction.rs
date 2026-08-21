@@ -399,6 +399,52 @@ fn extracts_rotated_simple_font_glyphs_with_provenance() -> Result<()> {
 }
 
 #[test]
+fn normalizes_reversed_page_box_coordinates_before_rotation() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 30 40 Tm (A) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        Some([210, 120, 10, 20]),
+        Some(90),
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyph = &document.items()[0];
+    assert_close(glyph.baseline.x, 20.0);
+    assert_close(glyph.baseline.y, 180.0);
+    assert_close(glyph.direction.x, 0.0);
+    assert_close(glyph.direction.y, -1.0);
+    Ok(())
+}
+
+#[test]
+fn rejects_zero_page_box_dimensions_after_normalization() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let content = pdf.add_object(Stream::new(dictionary! {}, b"q Q".to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {}),
+        Some([10, 120, 10, 20]),
+        None,
+    );
+
+    assert!(matches!(
+        extract(pdf, ExtractionLimits::default()),
+        Err(Error::Unresolved(message))
+            if message.contains("page box must have finite positive dimensions")
+    ));
+}
+
+#[test]
 fn preserves_text_state_across_ordered_content_streams() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let font = base_font(&mut pdf);
@@ -517,6 +563,95 @@ fn applies_form_matrix_and_form_resources() -> Result<()> {
     assert_close(glyphs[0].baseline.y, 36.0);
     assert_close(glyphs[0].font_size, 20.0);
     Ok(())
+}
+
+#[test]
+fn discards_residual_form_graphics_saves_without_changing_caller_state() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 100.into(), 100.into()],
+        },
+        b"q 2 0 0 2 50 0 cm BT /F1 10 Tf 1 0 0 1 0 20 Tm (A) Tj ET".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"/X1 Do BT /F1 10 Tf 1 0 0 1 10 20 Tm (B) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+            "XObject" => dictionary! { "X1" => form },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(mapped_text(glyphs), "AB");
+    assert_close(glyphs[0].baseline.x, 50.0);
+    assert_close(glyphs[0].baseline.y, 40.0);
+    assert_close(glyphs[0].font_size, 20.0);
+    assert_close(glyphs[1].baseline.x, 10.0);
+    assert_close(glyphs[1].baseline.y, 20.0);
+    assert_close(glyphs[1].font_size, 10.0);
+    Ok(())
+}
+
+#[test]
+fn keeps_form_graphics_stack_underflow_unresolved() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 10.into(), 10.into()],
+        },
+        b"Q".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(dictionary! {}, b"/X1 Do".to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "XObject" => dictionary! { "X1" => form },
+        }),
+        None,
+        None,
+    );
+
+    assert!(matches!(
+        extract(pdf, ExtractionLimits::default()),
+        Err(Error::Unresolved(message))
+            if message.contains("content operator Q")
+                && message.contains("graphics-state stack underflow")
+    ));
+}
+
+#[test]
+fn keeps_page_graphics_stack_imbalance_unresolved() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let content = pdf.add_object(Stream::new(dictionary! {}, b"q".to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {}),
+        None,
+        None,
+    );
+
+    assert!(matches!(
+        extract(pdf, ExtractionLimits::default()),
+        Err(Error::Unresolved(message))
+            if message.contains("page")
+                && message.contains("unbalanced graphics-state stack")
+    ));
 }
 
 #[test]
@@ -895,7 +1030,7 @@ fn keeps_unknown_explicit_encoding_differences_contextually_unresolved() {
 }
 
 #[test]
-fn keeps_unmapped_codes_contextually_unresolved_without_a_font_program() {
+fn falls_back_to_standard_encoding_for_partial_to_unicode() -> Result<()> {
     let mut pdf = LopdfDocument::with_version("1.7");
     let cmap = pdf.add_object(Stream::new(
         dictionary! {},
@@ -924,12 +1059,9 @@ fn keeps_unmapped_codes_contextually_unresolved_without_a_font_program() {
         None,
     );
 
-    assert!(matches!(
-        extract(pdf, ExtractionLimits::default()),
-        Err(Error::Unresolved(message))
-            if message.contains("content operator Tj")
-                && message.contains("no Unicode mapping or stable font identity")
-    ));
+    let document = extract(pdf, ExtractionLimits::default())?;
+    assert_eq!(mapped_text(document.items()), "B");
+    Ok(())
 }
 
 #[test]
@@ -1693,6 +1825,11 @@ fn shares_the_operand_node_budget_across_page_and_nested_form_parsers() {
             limit: 3,
         })
     ));
+}
+
+#[test]
+fn defaults_to_the_corpus_measured_operand_node_budget() {
+    assert_eq!(ExtractionLimits::default().max_operand_nodes, 10_000_000);
 }
 
 #[test]

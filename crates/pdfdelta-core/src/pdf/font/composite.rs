@@ -6,7 +6,7 @@ use crate::{
 };
 
 use super::{
-    cmap::ToUnicodeCMap,
+    cmap::{ToUnicodeCMap, UnicodeMapping},
     common::{
         FontIdentityDomain, FontIdentitySource, finite_number, load_to_unicode,
         non_negative_number, resolve_font_identity_source, resolve_object,
@@ -22,7 +22,7 @@ struct DefaultVerticalMetrics {
 
 #[derive(Clone, Debug)]
 pub(crate) struct CompositeFontDecoder {
-    to_unicode: ToUnicodeCMap,
+    to_unicode: Option<ToUnicodeCMap>,
     widths: BTreeMap<u16, f64>,
     default_width: f64,
     ascent: f64,
@@ -57,16 +57,13 @@ impl CompositeFontDecoder {
             &widths,
         )?;
         let (ascent, descent) = load_metrics(pdf, &descendant, limits.max_indirections)?;
-        let (to_unicode, decoded_to_unicode_bytes) = load_to_unicode(pdf, dictionary, limits, 2)?;
-        let to_unicode = to_unicode.ok_or_else(|| {
-            Error::Unsupported("Identity Type0 fonts without ToUnicode are not supported".into())
-        })?;
         let identity_source = identity_domain(pdf, &descendant, limits.max_indirections)?
             .map(|domain| {
                 resolve_font_identity_source(pdf, &descendant, limits.max_indirections, domain)
             })
             .transpose()?
             .flatten();
+        let (to_unicode, decoded_to_unicode_bytes) = load_to_unicode(pdf, dictionary, limits, 2)?;
 
         Ok(LoadedCompositeFont {
             cid_width_entries: widths.len(),
@@ -101,41 +98,55 @@ impl CompositeFontDecoder {
             });
         }
 
-        let decoded = self.to_unicode.decode(input, max_mapped_text_bytes)?;
-        if decoded.len() != glyph_count || decoded.iter().any(|code| code.source.len() != 2) {
-            return unresolved("Identity Type0 ToUnicode source code is not two bytes");
+        let mut glyphs = Vec::with_capacity(glyph_count);
+        let mut mapped_text_bytes = 0usize;
+        for source in input.chunks_exact(2) {
+            let raw_code = [source[0], source[1]];
+            let glyph_id = u16::from_be_bytes(raw_code);
+            let mapping = self
+                .to_unicode
+                .as_ref()
+                .and_then(|cmap| cmap.exact_mapping_entry(source))
+                .unwrap_or(UnicodeMapping::Unmapped);
+            if let UnicodeMapping::Mapped(text) = &mapping {
+                mapped_text_bytes =
+                    mapped_text_bytes
+                        .checked_add(text.len())
+                        .ok_or(Error::LimitExceeded {
+                            resource: "decoded Unicode text bytes",
+                            limit: max_mapped_text_bytes,
+                        })?;
+                if mapped_text_bytes > max_mapped_text_bytes {
+                    return Err(Error::LimitExceeded {
+                        resource: "decoded Unicode text bytes",
+                        limit: max_mapped_text_bytes,
+                    });
+                }
+            }
+            let width_1000_em = self
+                .widths
+                .get(&glyph_id)
+                .copied()
+                .unwrap_or(self.default_width);
+            glyphs.push(DecodedGlyph {
+                raw_code: raw_code.to_vec(),
+                mapping,
+                glyph_id,
+                width_1000_em,
+                vertical: self.vertical.map(|vertical| VerticalGlyphMetrics {
+                    displacement_y_1000_em: vertical.displacement_y_1000_em,
+                    origin_x_1000_em: width_1000_em / 2.0,
+                    origin_y_1000_em: vertical.origin_y_1000_em,
+                }),
+            });
         }
-        decoded
-            .into_iter()
-            .map(|decoded| {
-                let raw_code: [u8; 2] = decoded.source.as_slice().try_into().map_err(|_| {
-                    Error::Unresolved(
-                        "Identity Type0 ToUnicode source code is not two bytes".into(),
-                    )
-                })?;
-                let glyph_id = u16::from_be_bytes(raw_code);
-                let width_1000_em = self
-                    .widths
-                    .get(&glyph_id)
-                    .copied()
-                    .unwrap_or(self.default_width);
-                Ok(DecodedGlyph {
-                    raw_code: decoded.source,
-                    mapping: decoded.mapping,
-                    glyph_id,
-                    width_1000_em,
-                    vertical: self.vertical.map(|vertical| VerticalGlyphMetrics {
-                        displacement_y_1000_em: vertical.displacement_y_1000_em,
-                        origin_x_1000_em: width_1000_em / 2.0,
-                        origin_y_1000_em: vertical.origin_y_1000_em,
-                    }),
-                })
-            })
-            .collect()
+        Ok(glyphs)
     }
 
     pub(super) fn cmap_entry_count(&self) -> usize {
-        self.to_unicode.entry_count()
+        self.to_unicode
+            .as_ref()
+            .map_or(0, ToUnicodeCMap::entry_count)
     }
 
     pub(super) fn writing_mode(&self) -> WritingMode {
@@ -513,6 +524,38 @@ mod tests {
     }
 
     #[test]
+    fn identity_encodings_use_fixed_width_for_sparse_and_explicit_unmapped_entries() -> Result<()> {
+        let mut pdf =
+            MockPdf::with_descendant(descendant_with_widths(PdfObject::Array(Vec::new())));
+        pdf.streams.insert(
+            object_ref(1),
+            b"1 begincodespacerange <0001> <0002> endcodespacerange \
+              2 beginbfchar <0001> <0041> <0002> <D800> endbfchar"
+                .to_vec(),
+        );
+
+        for encoding in [b"Identity-H".as_slice(), b"Identity-V".as_slice()] {
+            let mut font = font_dictionary();
+            font.insert(b"Encoding".to_vec(), PdfObject::Name(encoding.to_vec()));
+            let loaded = CompositeFontDecoder::load(&pdf, &font, LIMITS)?;
+            let glyphs =
+                loaded
+                    .decoder
+                    .decode(&[0x00, 0x01, 0x00, 0x02, 0x00, 0x03], 3, usize::MAX)?;
+
+            assert_eq!(glyphs[0].raw_code, [0x00, 0x01]);
+            assert_eq!(glyphs[0].mapping, mapped("A"));
+            assert_eq!(glyphs[1].raw_code, [0x00, 0x02]);
+            assert_eq!(glyphs[1].glyph_id, 2);
+            assert_eq!(glyphs[1].mapping, UnicodeMapping::Unmapped);
+            assert_eq!(glyphs[2].raw_code, [0x00, 0x03]);
+            assert_eq!(glyphs[2].glyph_id, 3);
+            assert_eq!(glyphs[2].mapping, UnicodeMapping::Unmapped);
+        }
+        Ok(())
+    }
+
+    #[test]
     fn rejects_odd_identity_h_input_and_bounds_glyphs() -> Result<()> {
         let pdf = MockPdf::with_descendant(descendant_with_widths(PdfObject::Array(Vec::new())));
         let loaded = CompositeFontDecoder::load(&pdf, &font_dictionary(), LIMITS)?;
@@ -532,7 +575,7 @@ mod tests {
     }
 
     #[test]
-    fn defaults_cid_width_and_requires_to_unicode() -> Result<()> {
+    fn defaults_cid_width_and_allows_missing_to_unicode() -> Result<()> {
         let mut descendant = descendant_with_widths(PdfObject::Array(Vec::new()));
         let PdfObject::Dictionary(ref mut dictionary) = descendant else {
             unreachable!();
@@ -547,10 +590,53 @@ mod tests {
 
         let mut without_to_unicode = font_dictionary();
         without_to_unicode.remove(b"ToUnicode".as_slice());
-        assert!(matches!(
-            CompositeFontDecoder::load(&pdf, &without_to_unicode, LIMITS),
-            Err(Error::Unsupported(message)) if message.contains("without ToUnicode")
-        ));
+        let loaded = CompositeFontDecoder::load(&pdf, &without_to_unicode, LIMITS)?;
+        let glyph = &loaded.decoder.decode(&[0x12, 0x34], 1, usize::MAX)?[0];
+        assert!(loaded.identity_source.is_none());
+        assert_eq!(loaded.decoded_font_bytes, 0);
+        assert_eq!(loaded.decoder.cmap_entry_count(), 0);
+        assert_eq!(glyph.raw_code, [0x12, 0x34]);
+        assert_eq!(glyph.glyph_id, 0x1234);
+        assert_eq!(glyph.mapping, UnicodeMapping::Unmapped);
+        Ok(())
+    }
+
+    #[test]
+    fn allows_missing_to_unicode_with_stable_descendant_identity() -> Result<()> {
+        let mut descendant = descendant_with_widths(PdfObject::Array(Vec::new()));
+        let PdfObject::Dictionary(descendant) = &mut descendant else {
+            unreachable!();
+        };
+        descendant.insert(
+            b"Subtype".to_vec(),
+            PdfObject::Name(b"CIDFontType2".to_vec()),
+        );
+        let Some(PdfObject::Dictionary(descriptor)) =
+            descendant.get_mut(b"FontDescriptor".as_slice())
+        else {
+            unreachable!();
+        };
+        descriptor.insert(b"FontFile2".to_vec(), PdfObject::Reference(object_ref(3)));
+        let mut pdf = MockPdf::with_descendant(PdfObject::Dictionary(descendant.clone()));
+        pdf.objects
+            .insert(object_ref(3), PdfObject::Stream(PdfDict::new()));
+        let mut font = font_dictionary();
+        font.remove(b"ToUnicode".as_slice());
+
+        let loaded = CompositeFontDecoder::load(&pdf, &font, LIMITS)?;
+        let glyphs = loaded
+            .decoder
+            .decode(&[0x12, 0x34, 0xAB, 0xCD], 2, usize::MAX)?;
+
+        assert!(loaded.identity_source.is_some());
+        assert_eq!(loaded.decoded_font_bytes, 0);
+        assert_eq!(loaded.decoder.cmap_entry_count(), 0);
+        assert_eq!(glyphs[0].raw_code, [0x12, 0x34]);
+        assert_eq!(glyphs[0].glyph_id, 0x1234);
+        assert_eq!(glyphs[0].mapping, UnicodeMapping::Unmapped);
+        assert_eq!(glyphs[1].raw_code, [0xAB, 0xCD]);
+        assert_eq!(glyphs[1].glyph_id, 0xABCD);
+        assert_eq!(glyphs[1].mapping, UnicodeMapping::Unmapped);
         Ok(())
     }
 

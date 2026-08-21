@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::{
     Error, Result,
     model::FontProgramHash,
@@ -36,6 +38,7 @@ pub(super) fn load_to_unicode(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum FontIdentityDomain {
     SimpleType1BuiltIn,
+    SimpleType1C,
     SimpleTrueTypeSymbolic,
     SimpleTrueTypeNonsymbolic,
     CidFontType0,
@@ -46,6 +49,7 @@ impl FontIdentityDomain {
     fn tag(self) -> &'static [u8] {
         match self {
             Self::SimpleType1BuiltIn => b"simple-type1-built-in",
+            Self::SimpleType1C => b"simple-type1c",
             Self::SimpleTrueTypeSymbolic => b"simple-truetype-symbolic",
             Self::SimpleTrueTypeNonsymbolic => b"simple-truetype-nonsymbolic",
             Self::CidFontType0 => b"cidfont-type0-cid",
@@ -56,6 +60,7 @@ impl FontIdentityDomain {
     fn program_key(self) -> &'static [u8] {
         match self {
             Self::SimpleType1BuiltIn => b"FontFile",
+            Self::SimpleType1C => b"FontFile3",
             Self::SimpleTrueTypeSymbolic | Self::SimpleTrueTypeNonsymbolic => b"FontFile2",
             Self::CidFontType0 => b"FontFile3",
             Self::CidFontType2Identity => b"FontFile2",
@@ -64,6 +69,7 @@ impl FontIdentityDomain {
 
     fn font_file3_subtype(self) -> Option<&'static [u8]> {
         match self {
+            Self::SimpleType1C => Some(b"Type1C"),
             Self::CidFontType0 => Some(b"CIDFontType0C"),
             _ => None,
         }
@@ -72,8 +78,29 @@ impl FontIdentityDomain {
 
 #[derive(Clone, Debug)]
 pub(crate) struct FontIdentitySource {
+    kind: FontIdentitySourceKind,
+}
+
+#[derive(Clone, Debug)]
+enum FontIdentitySourceKind {
+    Embedded {
+        reference: ObjectRef,
+        domain: FontIdentityDomain,
+    },
+    Type3 {
+        char_procs: Vec<Type3CharProcIdentitySource>,
+    },
+}
+
+#[derive(Clone, Debug)]
+struct Type3CharProcIdentitySource {
+    name: Vec<u8>,
     reference: ObjectRef,
-    domain: FontIdentityDomain,
+}
+
+pub(super) struct Type3FontIdentityBinding {
+    pub(super) source: FontIdentitySource,
+    pub(super) glyph_ids_by_name: BTreeMap<Vec<u8>, u16>,
 }
 
 pub(crate) struct LoadedFontIdentity {
@@ -117,7 +144,47 @@ pub(super) fn resolve_font_identity_source(
     {
         return Ok(None);
     }
-    Ok(Some(FontIdentitySource { reference, domain }))
+    Ok(Some(FontIdentitySource {
+        kind: FontIdentitySourceKind::Embedded { reference, domain },
+    }))
+}
+
+pub(super) fn type3_font_identity_source(
+    pdf: &dyn ParsedPdf,
+    char_procs: &PdfDict,
+    max_indirections: usize,
+) -> Result<Option<Type3FontIdentityBinding>> {
+    if char_procs.is_empty() {
+        return Ok(None);
+    }
+    let mut sources = Vec::with_capacity(char_procs.len());
+    let mut glyph_ids = BTreeMap::new();
+    // PdfDict's bytewise name order gives each CharProc a stable glyph ID. Encoding codes only
+    // select that ID, so equivalent fonts remain comparable when codes are reassigned.
+    for (index, (name, object)) in char_procs.iter().enumerate() {
+        let Some((reference, _)) =
+            resolve_identity_stream_reference(pdf, object, max_indirections)?
+        else {
+            return Ok(None);
+        };
+        let glyph_id = u16::try_from(index).map_err(|_| Error::LimitExceeded {
+            resource: "Type 3 CharProcs entries",
+            limit: usize::from(u16::MAX) + 1,
+        })?;
+        sources.push(Type3CharProcIdentitySource {
+            name: name.clone(),
+            reference,
+        });
+        glyph_ids.insert(name.clone(), glyph_id);
+    }
+    Ok(Some(Type3FontIdentityBinding {
+        source: FontIdentitySource {
+            kind: FontIdentitySourceKind::Type3 {
+                char_procs: sources,
+            },
+        },
+        glyph_ids_by_name: glyph_ids,
+    }))
 }
 
 pub(crate) fn load_font_identity(
@@ -125,25 +192,79 @@ pub(crate) fn load_font_identity(
     source: &FontIdentitySource,
     max_decoded_bytes: usize,
 ) -> Result<LoadedFontIdentity> {
-    let reference = source.reference;
-    let stream = pdf.decoded_stream(reference)?;
-    if stream.bytes.len() > max_decoded_bytes {
-        return Err(Error::LimitExceeded {
-            resource: "decoded embedded font bytes",
-            limit: max_decoded_bytes,
-        });
-    }
-    let decoded_bytes = stream.bytes.len();
-    let mut digest = Sha256::new();
-    digest.update(b"pdfdelta-font-glyph-identity\0v1\0");
-    digest.update(source.domain.tag());
-    digest.update(b"\0");
-    digest.update(&stream.bytes);
+    let mut digest = identity_digest();
+    let decoded_bytes = match &source.kind {
+        FontIdentitySourceKind::Embedded { reference, domain } => {
+            let stream = pdf.decoded_stream(*reference)?;
+            if stream.bytes.len() > max_decoded_bytes {
+                return Err(Error::LimitExceeded {
+                    resource: "decoded embedded font bytes",
+                    limit: max_decoded_bytes,
+                });
+            }
+            digest.update(domain.tag());
+            digest.update(b"\0");
+            digest.update(&stream.bytes);
+            stream.bytes.len()
+        }
+        FontIdentitySourceKind::Type3 { char_procs } => {
+            // FontMatrix and Widths are geometry evidence, not glyph-token identity. CharProc
+            // names and decoded programs are framed and hashed without interpreting operators.
+            digest.update(b"simple-type3-charprocs\0");
+            let mut decoded_bytes = 0usize;
+            for char_proc in char_procs {
+                decoded_bytes = decoded_bytes.checked_add(char_proc.name.len()).ok_or(
+                    Error::LimitExceeded {
+                        resource: "decoded Type 3 font identity bytes",
+                        limit: max_decoded_bytes,
+                    },
+                )?;
+                ensure_identity_bytes(decoded_bytes, max_decoded_bytes)?;
+                let stream =
+                    pdf.decoded_stream(char_proc.reference)
+                        .map_err(|error| match error {
+                            Error::Unsupported(message) => Error::Unresolved(format!(
+                                "Type 3 CharProc cannot be decoded for stable identity: {message}"
+                            )),
+                            error => error,
+                        })?;
+                decoded_bytes =
+                    decoded_bytes
+                        .checked_add(stream.bytes.len())
+                        .ok_or(Error::LimitExceeded {
+                            resource: "decoded Type 3 font identity bytes",
+                            limit: max_decoded_bytes,
+                        })?;
+                ensure_identity_bytes(decoded_bytes, max_decoded_bytes)?;
+                digest.update((char_proc.name.len() as u64).to_be_bytes());
+                digest.update(&char_proc.name);
+                digest.update((stream.bytes.len() as u64).to_be_bytes());
+                digest.update(&stream.bytes);
+            }
+            decoded_bytes
+        }
+    };
     let hash = FontProgramHash(digest.finalize().to_vec());
     Ok(LoadedFontIdentity {
         hash,
         decoded_bytes,
     })
+}
+
+fn identity_digest() -> Sha256 {
+    let mut digest = Sha256::new();
+    digest.update(b"pdfdelta-font-glyph-identity\0v1\0");
+    digest
+}
+
+fn ensure_identity_bytes(decoded_bytes: usize, limit: usize) -> Result<()> {
+    if decoded_bytes > limit {
+        return Err(Error::LimitExceeded {
+            resource: "decoded Type 3 font identity bytes",
+            limit,
+        });
+    }
+    Ok(())
 }
 
 fn resolve_stream_reference(
@@ -301,25 +422,43 @@ mod tests {
     #[test]
     fn separates_identical_programs_across_mapping_domains() -> Result<()> {
         let pdf = MockPdf {
-            objects: HashMap::from([(
-                object_ref(1),
-                PdfObject::Stream(PdfDict::from([(
-                    b"Subtype".to_vec(),
-                    PdfObject::Name(b"CIDFontType0C".to_vec()),
-                )])),
-            )]),
-            streams: HashMap::from([(object_ref(1), b"same program".to_vec())]),
+            objects: HashMap::from([
+                (
+                    object_ref(1),
+                    PdfObject::Stream(PdfDict::from([(
+                        b"Subtype".to_vec(),
+                        PdfObject::Name(b"CIDFontType0C".to_vec()),
+                    )])),
+                ),
+                (
+                    object_ref(2),
+                    PdfObject::Stream(PdfDict::from([(
+                        b"Subtype".to_vec(),
+                        PdfObject::Name(b"Type1C".to_vec()),
+                    )])),
+                ),
+            ]),
+            streams: HashMap::from([
+                (object_ref(1), b"same program".to_vec()),
+                (object_ref(2), b"same program".to_vec()),
+            ]),
             ..MockPdf::default()
         };
         let mut hashes = Vec::new();
         for domain in [
             FontIdentityDomain::SimpleType1BuiltIn,
+            FontIdentityDomain::SimpleType1C,
             FontIdentityDomain::SimpleTrueTypeSymbolic,
             FontIdentityDomain::SimpleTrueTypeNonsymbolic,
             FontIdentityDomain::CidFontType0,
             FontIdentityDomain::CidFontType2Identity,
         ] {
-            let font = font_with_program_reference(domain, object_ref(1));
+            let reference = if matches!(domain, FontIdentityDomain::SimpleType1C) {
+                object_ref(2)
+            } else {
+                object_ref(1)
+            };
+            let font = font_with_program_reference(domain, reference);
             let source = resolve_font_identity_source(&pdf, &font, 4, domain)?
                 .ok_or_else(|| Error::Unresolved("fixture should contain a font program".into()))?;
             hashes.push(load_font_identity(&pdf, &source, usize::MAX)?.hash);
@@ -327,7 +466,110 @@ mod tests {
         hashes.sort();
         hashes.dedup();
 
-        assert_eq!(hashes.len(), 5);
+        assert_eq!(hashes.len(), 6);
+        Ok(())
+    }
+
+    #[test]
+    fn type3_identity_is_deterministic_bounded_and_domain_separated() -> Result<()> {
+        let first_pdf = MockPdf {
+            objects: HashMap::from([
+                (object_ref(11), PdfObject::Stream(PdfDict::new())),
+                (object_ref(12), PdfObject::Stream(PdfDict::new())),
+            ]),
+            streams: HashMap::from([
+                (object_ref(11), b"first proc".to_vec()),
+                (object_ref(12), b"second proc".to_vec()),
+            ]),
+            ..MockPdf::default()
+        };
+        let first_char_procs = PdfDict::from([
+            (b"c3".to_vec(), PdfObject::Reference(object_ref(11))),
+            (b"c8".to_vec(), PdfObject::Reference(object_ref(12))),
+        ]);
+        let first_binding = type3_font_identity_source(&first_pdf, &first_char_procs, 4)?
+            .ok_or_else(|| Error::Unresolved("fixture should have Type 3 identity".into()))?;
+        let first = load_font_identity(&first_pdf, &first_binding.source, usize::MAX)?;
+
+        let second_pdf = MockPdf {
+            objects: HashMap::from([
+                (object_ref(91), PdfObject::Stream(PdfDict::new())),
+                (object_ref(92), PdfObject::Stream(PdfDict::new())),
+            ]),
+            streams: HashMap::from([
+                (object_ref(91), b"second proc".to_vec()),
+                (object_ref(92), b"first proc".to_vec()),
+            ]),
+            ..MockPdf::default()
+        };
+        let second_char_procs = PdfDict::from([
+            (b"c8".to_vec(), PdfObject::Reference(object_ref(91))),
+            (b"c3".to_vec(), PdfObject::Reference(object_ref(92))),
+        ]);
+        let second_binding = type3_font_identity_source(&second_pdf, &second_char_procs, 4)?
+            .ok_or_else(|| Error::Unresolved("fixture should have Type 3 identity".into()))?;
+        let second = load_font_identity(&second_pdf, &second_binding.source, usize::MAX)?;
+
+        assert_eq!(first.hash, second.hash);
+        assert_eq!(
+            first_binding.glyph_ids_by_name,
+            second_binding.glyph_ids_by_name
+        );
+        assert_eq!(
+            first.decoded_bytes,
+            4 + b"first proc".len() + b"second proc".len()
+        );
+        assert!(matches!(
+            load_font_identity(&first_pdf, &first_binding.source, first.decoded_bytes - 1,),
+            Err(Error::LimitExceeded {
+                resource: "decoded Type 3 font identity bytes",
+                ..
+            })
+        ));
+
+        let embedded_pdf = MockPdf {
+            objects: HashMap::from([(object_ref(1), PdfObject::Stream(PdfDict::new()))]),
+            streams: HashMap::from([(
+                object_ref(1),
+                [b"first proc".as_slice(), b"second proc"].concat(),
+            )]),
+            ..MockPdf::default()
+        };
+        let embedded_font =
+            font_with_program_reference(FontIdentityDomain::SimpleType1BuiltIn, object_ref(1));
+        let embedded_source = resolve_font_identity_source(
+            &embedded_pdf,
+            &embedded_font,
+            4,
+            FontIdentityDomain::SimpleType1BuiltIn,
+        )?
+        .ok_or_else(|| Error::Unresolved("fixture should have embedded identity".into()))?;
+        assert_ne!(
+            first.hash,
+            load_font_identity(&embedded_pdf, &embedded_source, usize::MAX)?.hash
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn type3_identity_requires_indirect_decodable_char_procs() -> Result<()> {
+        let direct = PdfDict::from([(b"c3".to_vec(), PdfObject::Stream(PdfDict::new()))]);
+        assert!(type3_font_identity_source(&MockPdf::default(), &direct, 4)?.is_none());
+
+        let pdf = MockPdf {
+            objects: HashMap::from([(object_ref(1), PdfObject::Stream(PdfDict::new()))]),
+            streams: HashMap::from([(object_ref(1), b"proc".to_vec())]),
+            unsupported_decoding: true,
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let char_procs = PdfDict::from([(b"c3".to_vec(), PdfObject::Reference(object_ref(1)))]);
+        let binding = type3_font_identity_source(&pdf, &char_procs, 4)?
+            .ok_or_else(|| Error::Unresolved("fixture should have Type 3 identity".into()))?;
+        assert!(matches!(
+            load_font_identity(&pdf, &binding.source, usize::MAX),
+            Err(Error::Unresolved(message))
+                if message.contains("CharProc cannot be decoded for stable identity")
+        ));
         Ok(())
     }
 
@@ -373,6 +615,23 @@ mod tests {
             ),
             Ok(None)
         ));
+
+        let ambiguous_type1c = PdfDict::from([(
+            b"FontDescriptor".to_vec(),
+            PdfObject::Dictionary(PdfDict::from([
+                (b"FontFile".to_vec(), PdfObject::Reference(object_ref(1))),
+                (b"FontFile3".to_vec(), PdfObject::Reference(object_ref(2))),
+            ])),
+        )]);
+        assert!(matches!(
+            resolve_font_identity_source(
+                &pdf,
+                &ambiguous_type1c,
+                4,
+                FontIdentityDomain::SimpleType1C,
+            ),
+            Ok(None)
+        ));
         Ok(())
     }
 
@@ -395,11 +654,26 @@ mod tests {
                         PdfObject::Name(b"CIDFontType0C".to_vec()),
                     )])),
                 ),
+                (
+                    object_ref(4),
+                    PdfObject::Stream(PdfDict::from([(
+                        b"Subtype".to_vec(),
+                        PdfObject::Name(b"Type1C".to_vec()),
+                    )])),
+                ),
             ]),
             ..MockPdf::default()
         };
         let type1_with_font_file2 =
             font_with_program_reference(FontIdentityDomain::SimpleTrueTypeSymbolic, object_ref(1));
+        let type1c_with_font_file =
+            font_with_program_reference(FontIdentityDomain::SimpleType1BuiltIn, object_ref(1));
+        let type1c_without_subtype =
+            font_with_program_reference(FontIdentityDomain::SimpleType1C, object_ref(1));
+        let type1c_with_wrong_subtype =
+            font_with_program_reference(FontIdentityDomain::SimpleType1C, object_ref(2));
+        let type1c_with_valid_subtype =
+            font_with_program_reference(FontIdentityDomain::SimpleType1C, object_ref(4));
         let cid_without_subtype =
             font_with_program_reference(FontIdentityDomain::CidFontType0, object_ref(1));
         let cid_with_wrong_subtype =
@@ -415,6 +689,42 @@ mod tests {
                 FontIdentityDomain::SimpleType1BuiltIn,
             )?
             .is_none()
+        );
+        assert!(
+            resolve_font_identity_source(
+                &pdf,
+                &type1c_with_font_file,
+                4,
+                FontIdentityDomain::SimpleType1C,
+            )?
+            .is_none()
+        );
+        assert!(
+            resolve_font_identity_source(
+                &pdf,
+                &type1c_without_subtype,
+                4,
+                FontIdentityDomain::SimpleType1C,
+            )?
+            .is_none()
+        );
+        assert!(
+            resolve_font_identity_source(
+                &pdf,
+                &type1c_with_wrong_subtype,
+                4,
+                FontIdentityDomain::SimpleType1C,
+            )?
+            .is_none()
+        );
+        assert!(
+            resolve_font_identity_source(
+                &pdf,
+                &type1c_with_valid_subtype,
+                4,
+                FontIdentityDomain::SimpleType1C,
+            )?
+            .is_some()
         );
         assert!(
             resolve_font_identity_source(

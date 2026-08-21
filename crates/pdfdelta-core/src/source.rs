@@ -36,7 +36,8 @@ impl Default for ExtractionLimits {
             max_stream_invocations: 5_000_000,
             max_total_decoded_bytes: 512 * 1024 * 1024,
             max_operand_stack: 4_096,
-            max_operand_nodes: 1_000_000,
+            // The measured multilingual corpus peaks at 8,732,907 operand nodes.
+            max_operand_nodes: 10_000_000,
             max_fonts: 100_000,
             max_cmap_entries: 1_000_000,
             // One complete u16 CID space globally. Multiplying this by max_fonts would

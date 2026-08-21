@@ -97,6 +97,7 @@ pub struct Comparison {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DiffOptions {
+    /// Maximum comparable or raw evidence tokens across both document sides.
     pub max_tokens: usize,
     pub max_edit_distance: usize,
 }
@@ -104,7 +105,8 @@ pub struct DiffOptions {
 impl Default for DiffOptions {
     fn default() -> Self {
         Self {
-            max_tokens: 1_000_000,
+            // The measured Unicode Standard corpus peaks at 5,001,224 post-layout raw tokens.
+            max_tokens: 5_100_000,
             max_edit_distance: 2_048,
         }
     }

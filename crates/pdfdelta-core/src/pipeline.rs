@@ -23,6 +23,7 @@ pub struct PipelineOptions {
     pub line: LineOptions,
     pub block: BlockOptions,
     pub ngram_size: usize,
+    /// Maximum retained n-gram token elements across both document sides.
     pub max_ngram_token_elements: usize,
     pub alignment: AlignmentOptions,
     pub diff: DiffOptions,
@@ -34,7 +35,8 @@ impl Default for PipelineOptions {
             line: LineOptions::default(),
             block: BlockOptions::default(),
             ngram_size: 3,
-            max_ngram_token_elements: 4_000_000,
+            // Three elements per token bounds the default 3-gram representation.
+            max_ngram_token_elements: 15_300_000,
             alignment: AlignmentOptions::default(),
             diff: DiffOptions::default(),
         }

@@ -17,6 +17,7 @@ pub(crate) enum UnicodeMapping {
     Unmapped,
 }
 
+#[cfg(test)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DecodedCode {
     pub(crate) source: Vec<u8>,
@@ -26,7 +27,7 @@ pub(crate) struct DecodedCode {
 #[derive(Clone, Debug)]
 pub(crate) struct ToUnicodeCMap {
     codespaces: [Vec<CodeSpace>; MAX_PDF_CODE_BYTES],
-    mappings: BTreeMap<Vec<u8>, String>,
+    mappings: BTreeMap<Vec<u8>, UnicodeMapping>,
     total_entries: usize,
 }
 
@@ -83,6 +84,7 @@ impl ToUnicodeCMap {
         self.total_entries
     }
 
+    #[cfg(test)]
     pub(crate) fn decode(
         &self,
         input: &[u8],
@@ -106,8 +108,11 @@ impl ToUnicodeCMap {
             };
 
             let source = remaining[..width].to_vec();
-            let mapping = match self.mappings.get(&source) {
-                Some(text) => {
+            let mapping = match self
+                .exact_mapping_entry(&source)
+                .unwrap_or(UnicodeMapping::Unmapped)
+            {
+                UnicodeMapping::Mapped(text) => {
                     mapped_text_bytes =
                         mapped_text_bytes
                             .checked_add(text.len())
@@ -121,15 +126,19 @@ impl ToUnicodeCMap {
                             limit: max_mapped_text_bytes,
                         });
                     }
-                    UnicodeMapping::Mapped(text.clone())
+                    UnicodeMapping::Mapped(text)
                 }
-                None => UnicodeMapping::Unmapped,
+                UnicodeMapping::Unmapped => UnicodeMapping::Unmapped,
             };
             decoded.push(DecodedCode { source, mapping });
             cursor += width;
         }
 
         Ok(decoded)
+    }
+
+    pub(crate) fn exact_mapping_entry(&self, source: &[u8]) -> Option<UnicodeMapping> {
+        self.mappings.get(source).cloned()
     }
 
     fn contains_code(&self, code: &[u8]) -> bool {
@@ -139,6 +148,7 @@ impl ToUnicodeCMap {
             .is_some_and(|spaces| interval_contains(spaces, code))
     }
 
+    #[cfg(test)]
     fn is_truncated_prefix(&self, code: &[u8]) -> bool {
         self.codespaces
             .iter()
@@ -153,6 +163,11 @@ struct Parser<'a> {
     source_width: Option<usize>,
     cmap: ToUnicodeCMap,
     entries: usize,
+    output_scalars: usize,
+}
+
+struct DecodedDestination {
+    mapping: UnicodeMapping,
     output_scalars: usize,
 }
 
@@ -407,7 +422,7 @@ impl Parser<'_> {
         }
     }
 
-    fn destination(&mut self) -> Result<String> {
+    fn destination(&mut self) -> Result<DecodedDestination> {
         let Some(Token::Hex(raw)) = self.lexer.next_token()? else {
             return unresolved("expected hexadecimal UTF-16BE destination");
         };
@@ -424,7 +439,7 @@ impl Parser<'_> {
         decode_hex(raw, byte_len)
     }
 
-    fn decode_destination(&self, bytes: &[u8]) -> Result<String> {
+    fn decode_destination(&self, bytes: &[u8]) -> Result<DecodedDestination> {
         decode_utf16(
             bytes,
             self.limits
@@ -434,11 +449,10 @@ impl Parser<'_> {
         )
     }
 
-    fn insert_mapping(&mut self, source: Vec<u8>, destination: String) -> Result<()> {
-        let scalars = destination.chars().count();
+    fn insert_mapping(&mut self, source: Vec<u8>, destination: DecodedDestination) -> Result<()> {
         let next = self
             .output_scalars
-            .checked_add(scalars)
+            .checked_add(destination.output_scalars)
             .ok_or(Error::LimitExceeded {
                 resource: "CMap output Unicode scalars",
                 limit: self.limits.max_output_scalars,
@@ -453,7 +467,7 @@ impl Parser<'_> {
             return unresolved("duplicate CMap source mapping");
         }
         self.output_scalars = next;
-        self.cmap.mappings.insert(source, destination);
+        self.cmap.mappings.insert(source, destination.mapping);
         Ok(())
     }
 
@@ -566,6 +580,7 @@ fn interval_contains(spaces: &[CodeSpace], code: &[u8]) -> bool {
         .is_ok()
 }
 
+#[cfg(test)]
 fn interval_contains_prefix(spaces: &[CodeSpace], prefix: &[u8]) -> bool {
     spaces
         .binary_search_by(|space| {
@@ -669,30 +684,40 @@ fn hex_digit(digit: u8) -> Result<u8> {
     }
 }
 
-fn decode_utf16(bytes: &[u8], scalar_limit: usize, configured_limit: usize) -> Result<String> {
+fn decode_utf16(
+    bytes: &[u8],
+    scalar_limit: usize,
+    configured_limit: usize,
+) -> Result<DecodedDestination> {
     if bytes.is_empty() || !bytes.len().is_multiple_of(2) {
         return unresolved("UTF-16BE destination must contain complete, non-empty code units");
     }
-    let units = || {
-        bytes
-            .chunks_exact(2)
-            .map(|pair| u16::from_be_bytes([pair[0], pair[1]]))
-    };
+    let units = bytes
+        .chunks_exact(2)
+        .map(|pair| u16::from_be_bytes([pair[0], pair[1]]));
     let mut scalar_count = 0usize;
-    for scalar in char::decode_utf16(units()) {
-        scalar.map_err(|_| Error::Unresolved("invalid UTF-16BE destination".into()))?;
+    let mut text = String::new();
+    let mut valid = true;
+    for scalar in char::decode_utf16(units) {
         scalar_count = scalar_count
             .checked_add(1)
             .ok_or_else(|| output_limit_error(configured_limit))?;
         if scalar_count > scalar_limit {
             return Err(output_limit_error(configured_limit));
         }
+        match scalar {
+            Ok(scalar) => text.push(scalar),
+            Err(_) => valid = false,
+        }
     }
-    let mut text = String::new();
-    for scalar in char::decode_utf16(units()) {
-        text.push(scalar.map_err(|_| Error::Unresolved("invalid UTF-16BE destination".into()))?);
-    }
-    Ok(text)
+    Ok(DecodedDestination {
+        mapping: if valid {
+            UnicodeMapping::Mapped(text)
+        } else {
+            UnicodeMapping::Unmapped
+        },
+        output_scalars: scalar_count,
+    })
 }
 
 fn output_limit_error(limit: usize) -> Error {
@@ -980,6 +1005,57 @@ mod tests {
     }
 
     #[test]
+    fn preserves_tesseract_full_bmp_surrogates_as_unmapped() -> Result<()> {
+        const FULL_BMP_ENTRIES: usize = 65_537;
+        const FULL_BMP_SCALARS: usize = 65_536;
+        const TESSERACT_CMAP: &[u8] = b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
+              1 beginbfrange <0000> <FFFF> <0000> endbfrange";
+        let limits = CMapLimits {
+            max_entries: FULL_BMP_ENTRIES,
+            max_code_bytes: 4,
+            max_output_scalars: FULL_BMP_SCALARS,
+        };
+        let cmap = parse_to_unicode_for_width(TESSERACT_CMAP, limits, 2)?;
+
+        assert_eq!(cmap.entry_count(), FULL_BMP_ENTRIES);
+        assert_eq!(
+            cmap.decode(
+                &[0x00, 0x41, 0xD8, 0x00, 0xDC, 0x00, 0xE0, 0x00],
+                usize::MAX
+            )?,
+            vec![
+                mapped(&[0x00, 0x41], "A"),
+                DecodedCode {
+                    source: vec![0xD8, 0x00],
+                    mapping: UnicodeMapping::Unmapped,
+                },
+                DecodedCode {
+                    source: vec![0xDC, 0x00],
+                    mapping: UnicodeMapping::Unmapped,
+                },
+                mapped(&[0xE0, 0x00], "\u{E000}"),
+            ]
+        );
+
+        for constrained in [
+            CMapLimits {
+                max_entries: FULL_BMP_ENTRIES - 1,
+                ..limits
+            },
+            CMapLimits {
+                max_output_scalars: FULL_BMP_SCALARS - 1,
+                ..limits
+            },
+        ] {
+            assert!(matches!(
+                parse_to_unicode_for_width(TESSERACT_CMAP, constrained, 2),
+                Err(Error::LimitExceeded { .. })
+            ));
+        }
+        Ok(())
+    }
+
+    #[test]
     fn reconciles_zero_extended_sources_to_decoder_width() -> Result<()> {
         let simple = parse_to_unicode_for_width(
             b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
@@ -1102,13 +1178,48 @@ mod tests {
     }
 
     #[test]
-    fn rejects_malformed_utf16_and_enforces_limits() {
+    fn preserves_isolated_surrogates_and_enforces_limits() {
         let invalid_utf16 = parse_to_unicode(
             b"1 begincodespacerange <00> <FF> endcodespacerange \
               1 beginbfchar <41> <D800> endbfchar",
             LIMITS,
+        )
+        .expect("isolated surrogate destination should remain explicitly unmapped");
+        assert_eq!(
+            invalid_utf16.exact_mapping_entry(b"A"),
+            Some(UnicodeMapping::Unmapped)
         );
-        assert!(matches!(invalid_utf16, Err(Error::Unresolved(_))));
+        assert_eq!(invalid_utf16.exact_mapping_entry(b"B"), None);
+        assert_eq!(
+            invalid_utf16
+                .decode(b"AB", usize::MAX)
+                .expect("mapped and absent source codes should remain decodable"),
+            vec![
+                DecodedCode {
+                    source: b"A".to_vec(),
+                    mapping: UnicodeMapping::Unmapped,
+                },
+                DecodedCode {
+                    source: b"B".to_vec(),
+                    mapping: UnicodeMapping::Unmapped,
+                },
+            ]
+        );
+
+        for malformed in [b"<>".as_slice(), b"<0>", b"<GG>"] {
+            let input = [
+                b"1 begincodespacerange <00> <FF> endcodespacerange \
+                  1 beginbfchar <41> "
+                    .as_slice(),
+                malformed,
+                b" endbfchar",
+            ]
+            .concat();
+            assert!(matches!(
+                parse_to_unicode(&input, LIMITS),
+                Err(Error::Unresolved(_))
+            ));
+        }
 
         let entry_limit = parse_to_unicode(
             b"1 begincodespacerange <00> <FF> endcodespacerange \

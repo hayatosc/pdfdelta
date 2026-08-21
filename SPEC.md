@@ -367,9 +367,11 @@ BT ET Tf Tm Td TD T* TL Tj TJ ' " Tc Tw Tz Ts Tr
 Do
 ```
 
-`q` / `Q` / `cm`でGraphics StateとCTMを追跡する。`Do`ではXObject subtypeを判定し、Form XObjectだけResourcesとMatrixをstackへ積んで再帰上限付きで解釈する。Image XObjectは画像内容比較のscope外として明示的にskipする。`'`と`"`は対応する複合operatorへ展開してから処理する。
+`q` / `Q` / `cm`でGraphics StateとCTMを追跡する。`Do`ではXObject subtypeを解決し、ResourcesとMatrixのstackに上限を設けた上で、Form XObjectだけを再帰的に解釈する。Formは呼び出し元から分離したstate snapshotで実行するため、対応する`Q`がない`q`はForm境界でのみ破棄してよい。一方、`Q`のunderflowとPage単位のstack不均衡はUNRESOLVEDのままにする。Image XObjectは画像比較が初期scope外であるため明示的にskipする。`'`と`"`は対応する複合text operationへ展開してから解釈する。
 
-Pageの`/Contents`が複数streamのarrayである場合は指定順に解釈し、stream境界でtokenが連結しないよう論理的なseparatorを置く。inline imageの`BI` / `ID` / `EI`は画像としてskipしつつ、後続operatorとの同期を失わない専用lexer処理を持つ。
+Pageの`/Contents`が複数streamのarrayである場合は指定順に解釈し、完成済みtokenをstream境界で連結しない。pending operandはarray全体で保持し、dictionary keyのvalueが次のstreamから始まる場合だけ限定的に回復する。未完成operandのbufferと再parseは1回に制限し、次のstreamでも完成しなければ、同じprefixを繰り返し処理せずUNRESOLVEDとする。末尾sequenceに対する投機的なoperand node課金はrollbackし、parse成功時に1回だけ課金する。sequence末尾でvalueが欠ける場合、通常の不正operand、resource limit超過はerrorのままにする。`BI` / `ID` / `EI`は専用inline-image lexerで処理し、後続operatorから解釈を再開する。
+
+Page boxは`/Rotate`を適用する前に各axisを`min`と`max`で正規化する。有限な座標の大小が逆転している場合は受理し、面積がゼロまたは非有限のboxはUNRESOLVEDとする。
 
 CTM、Text Matrix、Text Line Matrix、Font Matrix、horizontal scaling、character / word spacing、text riseを追跡し、最終Glyph座標とadvanceを求める。Text Render Modeは初期から記録する。non-painting modeのGlyphはevidenceとして保持するが、初期のvisible-content比較からは除外する。clipping、alpha、白塗り上書き等を含む完全なvisibility判定は§10.3で追加する。
 
@@ -403,16 +405,18 @@ font programが異なりUnicodeにも戻せない場合、その領域はUNRESOL
 
 simple fontの`FontDescriptor`で`Ascent <= Descent`となりcross-axis extentを構成できない場合は、妥当な`FontBBox`があればそのtop/bottomをfont-wide vertical metricとして用いる。どちらからも正のextentを得られない場合だけUNRESOLVEDとし、ゼロ面積Glyphを後段へ渡さない。
 
-Type 3 fontは、次の条件をすべて満たすbounded subsetだけをsimple-font経路で扱う。
+simple fontではcodeごとに完全一致するToUnicode entryを優先し、entryが存在しない場合だけDifferencesから宣言済みのStandard、WinAnsi、MacRoman encodingの順にfallbackする。明示された不正entryは`Unmapped`のまま保持し、fallbackしてはならない。明示された未知のDifferencesもunmappedのままとし、font identityで暗黙に回復してはならない。Type1Cのidentityは、subtypeが`Type1C`である単一の`FontFile3` streamを必要とする。MMType1はvariation axisを解釈せず、宣言済みsimple-font encodingとmetricsだけを使う。選択されたdesign instanceをidentityへ含められるまでは、unmapped glyphにstable identityを与えない。
 
-- `FontMatrix`は`[0.001 0 0 0.001 0 0]`であり、既存の1000-em width・vertical metric計算と一致する。
-- `FirstChar`、`LastChar`、`Widths`、`FontBBox`、`Encoding`、`CharProcs`を持ち、既存のentry・indirection・decoded-byte上限内に収まる。vertical metricはType 3 font全体の宣言領域である`FontBBox`から得る。
-- text mappingはToUnicodeまたはEncoding DifferencesのAdobe glyph name mappingから得る。未写像glyphを空文字へ潰さない。
-- Encoding Differencesで参照されるglyph nameは`CharProcs`に存在しなければならない。CharProcの描画operatorはtext extractionでは実行しない。
+Identity-HとIdentity-Vは常に固定2-byte codeとしてcontentを分割する。ToUnicodeは完全一致で参照し、疎なcodespace rangeによって分割幅を変えない。entry欠落、孤立したUTF-16 surrogate destination、ToUnicode自体の欠落は`Unmapped`とする。一方、空、奇数長、非hexのdestinationはerrorのままにする。Unmapped entryもCMap entry数、work量、出力scalar数のbudgetへ課金する。unmapped codeを比較可能にするのはdescendant fontがstable identityを提供できる場合だけとし、それ以外は実際にcodeが使われた箇所を文脈付きUNRESOLVEDとする。
 
-non-standard `FontMatrix`、missing metrics、missing CharProc、CharProcのvisual interpretationが必要なfontはUNSUPPORTEDまたはUNRESOLVEDとする。Type 3の可視形状ではなく、PDFが宣言したwidth・font metricsからreversible layout evidenceを構成する。
+Type 3 fontは、次の上限付きsimple-font subsetだけを扱う。
 
-`Identity-V`は、2-byte code、単一のCIDFontType0/CIDFontType2 descendant、usableなToUnicodeを持ち、per-CIDの`W2` overrideを持たないsubsetを扱う。`DW2`は省略時の`[880 -1000]`または有限な2要素arrayを受理し、downward displacementでなければUNSUPPORTEDとする。glyphのvertical originは`(horizontal_width / 2, DW2[0])`、advanceは`DW2[1]`から構成し、bbox、direction、character/word spacing、`TJ` adjustmentをvertical axisへ適用する。`W2`、custom vertical CMap、ToUnicodeを持たないIdentity-Vは初期scope外とする。
+- `FontMatrix`は有限かつ非退化で、`a > 0`、`d != 0`を満たすaxis-alignedな`[a 0 0 d 0 0]`とする。WidthsとMissingWidthは`a * 1000`、FontBBoxのvertical座標は`d * 1000`で正規化する。`d`が負の場合は宣言されたvertical axisを反転し、extentを失わないよう上下を入れ替える。
+- `FirstChar`、`LastChar`、`Widths`、`FontBBox`、`Encoding`、`CharProcs`を必須とし、既存のentry、indirection、decoded byte、glyphの各上限を適用する。rotation、shear、translation、horizontal reversalを含むmatrixはUNSUPPORTEDのままにする。
+- Unicode mappingにはToUnicodeと既知のAdobe glyph nameを使い、未知nameはunmappedのままにする。DifferencesのnameはCharProcsへ解決できなければならない。text extractionではCharProcのdrawing operatorを解釈しない。
+- unmapped glyphでは、間接参照されたdecode済みCharProc streamをglyph nameのbyte順に並べ、Type 3専用domainでhashする。この安定したname順をglyph IDに使い、dictionary順、object ID、Encoding codeの再配置にidentityが依存しないようにする。font Resourcesが欠落または空、もしくは標準`ProcSet` nameの上限付きarrayだけを持つ場合に限ってidentityを生成する。named resourceへ依存する場合は、同じCharProc bytesが別programへ解決され得るためidentityを生成しない。CharProcが欠落、direct、decode不能、曖昧、上限超過の場合もidentityを生成しない。FontMatrixとWidthsはglyph token identityではなくgeometry evidenceとして扱う。
+
+Identity-Vは、単一のCIDFontType0/CIDFontType2 descendant、固定2-byte code、完全一致で参照する任意のToUnicode、per-CIDの`W2`を持たないsubsetを扱う。`DW2`は省略時の`[880 -1000]`またはdownward displacementを持つ有限な2要素arrayを受理する。vertical originは`(horizontal_width / 2, DW2[0])`、advanceは`DW2[1]`から構成し、bbox、direction、character / word spacing、`TJ` adjustmentをvertical axisへ適用する。custom vertical CMap、per-CIDの`W2`、一般的なvertical reading orderは初期scope外とする。
 
 ---
 
@@ -703,6 +707,8 @@ PDFはuntrusted inputとして扱う。default parser adapter入口、中立obje
 
 既存parser libraryを使う場合も安全性をlibraryへ丸投げしない。adapter前後で入力size、decode budget、page/object budgetを管理し、panicやlimit超過をfatal errorまたはUNSUPPORTEDへ分類する。
 
+default limitは有限かつ設定可能な状態を維持する。今回の公開corpus実測に基づき、Content Stream operand nodeはdocument-globalで10,000,000、rawまたはcomparable diff tokenはold/new pair-globalで5,100,000、defaultの3-gram表現はpair-global token elementで15,300,000を上限とする。明示的に低いlimitを指定した場合は、同じ課金境界で必ず失敗させる。default値の再調整は再現可能なfixtureまたはcorpusの証拠に基づく場合だけ行い、文書を通すためにlimit自体を削除してはならない。
+
 cargo-fuzzはnightlyを要するため、fuzz crateのみstable制約(§3.5)の例外とする。
 
 ### 12.7 Candidate Generation評価
@@ -766,3 +772,30 @@ parser backendの最終選択は§6.2のcapability fixtureで決める。library
 ```
 
 ロードマップ(§11)自体もこの原則に従う。Track Aは既存parserを起点にraw evidenceを復元し、custom parserは失敗によってのみ駆動する。Track Bはcorrectnessを先に成立させ、LSH等の近似indexはcandidate recallを保てることが確認できた後に導入する。この順序を守ることで、小さく開始しながら初期実装を捨てずに高精度なPDF Diff Engineへ成長させる。
+
+---
+
+## 15. 仕様変更履歴
+
+この節は、仕様を変更した理由と変更箇所を`SPEC.md`自身に残すための記録である。過去分は`git log --follow -- SPEC.md`と各commitのdiffから復元した。詳細な差分は`git show <commit> -- SPEC.md`で確認する。
+
+### 2026-08-21 今回の変更
+
+- §6.3：Form XObjectのstate分離を明文化し、Form内に残った`q`だけを境界で破棄する一方、`Q` underflowとPage単位のstack不均衡はUNRESOLVEDとした。
+- §6.3：`/Contents` arrayをまたぐdictionary valueの回復条件、operand nodeの一回課金、再parseを次の1 streamまでに制限する二次時間対策を追加した。
+- §6.3：大小が逆転した有限page boxを正規化し、ゼロ面積または非有限boxを拒否する規則を追加した。
+- §6.4：simple fontの部分ToUnicode、Standard / WinAnsi / MacRoman fallback、明示的な不正mappingとentry欠落の区別を追加した。
+- §6.4：Identity-H / Identity-Vの固定2-byte分割、疎なToUnicodeの完全一致参照、ToUnicode欠落時のstable font identity条件を追加した。
+- §6.4：Type1CとMMType1のidentity境界を追加し、design instanceを表現できないMMType1はunmapped identityを生成しないことにした。
+- §6.4：Type 3の対応範囲をaxis-alignedな有限`FontMatrix`へ拡張し、CharProcを使うstable identityと、named Resourcesへ依存する場合はidentityを生成しない安全条件を追加した。
+- §12.6：公開PDF corpusの実測に基づく有限なoperand node、diff token、3-gram elementのdefault上限と、明示的な低上限を維持する原則を追加した。
+
+### 過去の変更
+
+| 日付 | Commit | 変更した仕様 |
+|---|---|---|
+| 2026-08-21 | `111ffd5` | §2.1にempty user passwordで復号できるPDFを追加し、§6.2にpassword・security handler・秘密情報の境界を定義した。§6.4にFontBBox fallback、初期Type 3 subset、Identity-V subsetを追加した。 |
+| 2026-08-20 | `cf1156e` | §3.6でcanonical / matching規則、soft line break、normalization eventを自前実装の責務として明確化し、Unicode crateへ委ねる範囲をNFCとsegmentation primitiveに限定した。 |
+| 2026-08-20 | `c95378d` | §1と§2.2の例を一般的なrelease変更へ差し替え、§5.1に複数Blockのseparatorを含む`TextSpan`規則を追加した。§8と§12では数値mask例、benchmark fixture、公開real-world pair、holdout運用を一般化した。 |
+| 2026-08-20 | `1db8dd1` | §2.2の受け入れ条件3を`Release 10`から`Release 20`への1 replacementとして明文化した。 |
+| 2026-08-19 | `2324f4c` | 初版SPECを追加し、目的、scope、architecture、data model、pipeline、roadmap、benchmark、resource limitの基本方針を定義した。 |

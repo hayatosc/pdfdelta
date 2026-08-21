@@ -994,12 +994,9 @@ impl Extraction<'_> {
                 form_depth + 1,
             )?;
             parser.finish()?;
-            if !form_state.graphics_stack.is_empty() {
-                return Err(Error::Unresolved(format!(
-                    "Form XObject {} has an unbalanced graphics-state stack",
-                    reference.object_number
-                )));
-            }
+            // Form execution is isolated from its caller, so unmatched saves can be
+            // discarded at the boundary without leaking graphics state.
+            form_state.graphics_stack.clear();
             if form_state.in_text != initial_text_state {
                 return Err(Error::Unresolved(format!(
                     "Form XObject {} changes the enclosing text-object state",
@@ -1520,8 +1517,12 @@ impl Extraction<'_> {
             .or_else(|| dictionary.get(b"MediaBox".as_slice()))
             .ok_or_else(|| Error::Unresolved("page has no CropBox or MediaBox".into()))?;
         let [x0, y0, x1, y1] = self.rectangle_value(bounds, "page box")?;
-        let width = x1 - x0;
-        let height = y1 - y0;
+        let min_x = x0.min(x1);
+        let min_y = y0.min(y1);
+        let max_x = x0.max(x1);
+        let max_y = y0.max(y1);
+        let width = max_x - min_x;
+        let height = max_y - min_y;
         if !width.is_finite() || !height.is_finite() || width <= 0.0 || height <= 0.0 {
             return Err(Error::Unresolved(
                 "page box must have finite positive dimensions".into(),
@@ -1537,7 +1538,7 @@ impl Extraction<'_> {
                 "page rotation {rotation} is not a multiple of 90 degrees"
             )));
         }
-        let crop = Matrix::translation(-x0, -y0)?;
+        let crop = Matrix::translation(-min_x, -min_y)?;
         let rotation = match normalized {
             0 => Matrix::IDENTITY,
             90 => Matrix::new(0.0, -1.0, 1.0, 0.0, 0.0, width)?,
@@ -2108,6 +2109,33 @@ mod tests {
                 .expect("cloned font should remain selected")
         ));
         assert!(Arc::ptr_eq(&resources.fonts, &cloned_resources.fonts));
+    }
+
+    #[test]
+    fn rejects_non_finite_page_box_coordinates() {
+        let pdf = CountingPdf {
+            objects: HashMap::new(),
+            terminals: HashMap::new(),
+            bytes: Vec::new(),
+            resolve_calls: AtomicUsize::new(0),
+            terminal_calls: AtomicUsize::new(0),
+            decoded_calls: AtomicUsize::new(0),
+        };
+        let extraction = Extraction::new(&pdf, ExtractionLimits::default());
+        let page = PdfDict::from([(
+            b"CropBox".to_vec(),
+            PdfObject::Array(vec![
+                PdfObject::Real(f64::NAN),
+                PdfObject::Integer(0),
+                PdfObject::Integer(100),
+                PdfObject::Integer(100),
+            ]),
+        )]);
+
+        assert!(matches!(
+            extraction.page_transform(&page),
+            Err(Error::Unresolved(message)) if message.contains("non-finite")
+        ));
     }
 
     #[test]

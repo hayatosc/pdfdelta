@@ -1,0 +1,31 @@
+# Non-vendored public PDF corpus captured on 2026-08-21.
+# Validate byte_count and sha256 after download. For archive sources, `!` separates the member path.
+# Each recorded file passed `pdfdelta --strict --json REPORT FILE FILE` with exit code 0.
+file_name	byte_count	sha256	feature	source
+pdfassoc_image_bpc.pdf	8989	fc517dd0d4c72d1b11e3449acc3e816d2719dc14e69a7e14b84da02808103370	pdf20-image-bpc	https://raw.githubusercontent.com/pdf-association/pdf20examples/master/PDF%202.0%20image%20with%20BPC.pdf
+pdfassoc_incremental_save.pdf	5607	9b25d59d07034634a990e79db6ef82b9f86769d9b94d8d8635f20d06aaec9d18	incremental-revision	https://raw.githubusercontent.com/pdf-association/pdf20examples/master/PDF%202.0%20via%20incremental%20save.pdf
+qpdf_attachment_fields.pdf	2242	7dff78a9b17d4a9381c42090bca248a31054b15e12a993f3e2d58ad75426ee71	embedded-attachment	https://raw.githubusercontent.com/qpdf/qpdf/main/qpdf/qtest/qpdf/attachment-fields.pdf
+qpdf_digitally_signed.pdf	68846	05e969415b03d9782b0b132f147b86cb42eafddf6176aaf2710334a9cc643c3c	digital-signature-linearized-objstm	https://raw.githubusercontent.com/qpdf/qpdf/main/qpdf/qtest/qpdf/digitally-signed.pdf
+qpdf_linearized.pdf	11325	135cee6bd018c06d40c8c46c4a0230b2799adb90f502e214a347b3855039a24e	linearized-xref-stream	https://raw.githubusercontent.com/qpdf/qpdf/main/qpdf/qtest/qpdf/c-linearized.pdf
+qpdf_nested_form_xobjects.pdf	2841	8a8c86f4d0cae7a43bd8d7280283b4671b392d6dd0d43486fd2c2b0de815725f	nested-form-inline-image	https://raw.githubusercontent.com/qpdf/qpdf/main/qpdf/qtest/qpdf/nested-form-xobjects-inline-images.pdf
+qpdf_objstm_xref.pdf	743	7aa4aea24328616ce247cc4132efa3b8f53d2844179d17b51383f8771d2de358	objstm-xref-stream	https://raw.githubusercontent.com/qpdf/qpdf/main/qpdf/qtest/qpdf/compress-objstm-xref.pdf
+qpdf_rotated.pdf	7319	698f6e15b2ac77e17a9677977ac1b4d657d1c7c29fde69cd46f4702ecf19c911	page-rotation	https://raw.githubusercontent.com/qpdf/qpdf/main/qpdf/qtest/qpdf/rotated.pdf
+verapdf_tagged_pass.pdf	3447	b5d194c0e6d91119f0f99354f3d1078877406b695cecf75fb0b5cb51b18c14fd	pdfa1a-tagged	https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_A-1a/6.8%20Logical%20structure/6.8.2%20Tagged%20PDF/6.8.2.2%20Mark%20information%20dictionary/veraPDF%20test%20suite%206-8-2-2-t01-pass-a.pdf
+zenodo_scanned_ocr.pdf	899516	dcccd505a54c6efe2dba433c9642f4f2488de5050d58c9bfdc80b3d1d5d6929e	scanned-image-ocr-layer	https://zenodo.org/records/16506766/files/frz.1784-01-03-OCR.pdf?download=1
+arabic_vision2030_report.pdf	17260658	c8b9a2783495a6620aa794e413e323d5551cf94da3ea87b8741af19157ef27c2	arabic-cross-stream-dictionary	https://www.vision2030.gov.sa/media/emkoktrd/ntp_arabic_annual_report_2024.pdf
+cjk_horizontal_chinese_whitepaper.pdf	2231654	02c81f9374e9a1f342941b3e3a19e9848a5ff000267462014bd445ba440fd795	cjk-horizontal-form-state	https://www.cac.gov.cn/files/pdf/baipishu/ITwhitepaper.pdf
+cjk_vertical_robust.pdf	1240944	d773a21a350f5f7d85e6cc7755688b8559037fb9212edf6df75cfc66fcb5884f	cjk-vertical-type1c	https://www.unicode.org/notes/tn22/RobustVerticalLayout.pdf
+cyrillic_unicode_chart.pdf	331124	e4826212f05102a07885a9b56edc334a67465bf8c39eb8fabd10661a0fc0240a	cyrillic-identity-font	https://www.unicode.org/charts/PDF/U0400.pdf
+devanagari_unicode_chart.pdf	141518	1275e1737ac9d1fe843a8fb420cc359e75a35bd166a322948fd0325fc80d7680	devanagari-identity-font	https://www.unicode.org/charts/PDF/U0900.pdf
+hebrew_knesset_braille.pdf	116130	b99bf3a01dc8cc92502dab9fa355ac0cb7d1e778fd44dfedf69d27b414b33ef9	hebrew-policy-report	https://fs.knesset.gov.il/globaldocs/MMM/a6eb6d8d-f1f7-e411-80c8-00155d01107c/2_a6eb6d8d-f1f7-e411-80c8-00155d01107c_11_9058.pdf
+korean_hallyu_whitepaper.pdf	17303574	a70ddbf612ad6eededf3db408b9b934a57bb82948dea63a91edc63f56387e51a	korean-large-report	https://www.korea.kr/common/download.do?fileId=144732232
+mixed_unicode_standard.pdf	14151539	d394812f8eba54745c7dd067ca7b4db196c8f1aee84a72d51b0d8f3c5afe082a	multilingual-large-document	https://www.unicode.org/versions/Unicode17.0.0/UnicodeStandard-17.0.pdf
+thai_unicode_chart.pdf	116446	af2d55b865d344015cb30f97fa9f37bea919083d2688c2368a696c0087f9b39f	thai-sparse-tounicode	https://www.unicode.org/charts/PDF/U0E00.pdf
+canada-imm1344e-xfa.pdf	960355	98196e0654afd8fe21ce207f5e248f9ae3a2339d0553c5e5458515dfb8a6a149	xfa-reversed-page-box	https://www.canada.ca/content/dam/ircc/documents/pdf/english/kits/forms/imm1344/01-09-2024/imm1344e.pdf
+facturx-en16931-pdfa3.pdf	150485	4ba38507902813c6d2f9b733e9e056dea45b29adf375b5106e563314dea6bf80	facturx-en16931-pdfa3	https://www.invoicexml.com/samples/facturx/facturx-en16931.pdf
+gwg-output-test-v50-x4.pdf	15454633	6d9686303ea9049350bc1b3253c22a3cc8578bd7dfcc6afeaef89cbbe37d4cbe	pdfx4-type3-macroman	https://gwg.org/?wpdmdl=9080!Ghent_PDF_Output_Suite_V50_Testpages/Ghent_PDF-Output-Test-V50_ALL_X4.pdf
+irs-f1040.pdf	220237	3d31c226df0d189ced80e039d01cf0f8820c1019681a0f0ca6264de277b7e982	acroform-tagged-annotations	https://www.irs.gov/pub/irs-pdf/f1040.pdf
+usgs-anacostia-geopdf.pdf	18573352	c164a2c2f3d21787b6c2d47585b38928440e5680c56a81a5325716f6fdba68e8	geopdf-ocg-large	https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/USTopo/PDF/DC/DC_Anacostia_20110621_TM_geo.pdf
+verapdf-pdfa3-embedded-pass.pdf	4976	5b8fdee7090f0a0fb7266d10dd0f6f1f8a37d286e3c06b1aa82e01d6d4f0a8a4	pdfa3b-embedded-file	https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_A-3b/6.8%20Embedded%20files/veraPDF%20test%20suite%206-8-t02-pass-a.pdf
+verapdf-pdfua1-annotation-pass.pdf	35457	b48f1f6eff429bf13d314ff4f3b066edb5094550a4545ffdc45d51b1f8b1fbe9	pdfua1-tagged-annotation	https://raw.githubusercontent.com/veraPDF/veraPDF-corpus/staging/PDF_UA-1/7.18%20Annotations/7.18.1%20General/7.18.1-t01-pass-a.pdf
+w3c-link-annotation-tagged.pdf	50163	a5176056c466398f2cff7f270448e14baaade8309ce57109f26e9576a16eaa20	tagged-link-annotation	https://www.w3.org/WAI/WCAG21/working-examples/pdf-link-alt-text/link-text-oo.pdf

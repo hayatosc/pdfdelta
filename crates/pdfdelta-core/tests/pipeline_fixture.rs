@@ -685,6 +685,14 @@ fn bounds_short_and_windowed_ngram_token_elements() -> Result<()> {
 }
 
 #[test]
+fn defaults_cover_measured_unicode_standard_budgets() {
+    let options = PipelineOptions::default();
+
+    assert_eq!(options.diff.max_tokens, 5_100_000);
+    assert_eq!(options.max_ngram_token_elements, 15_300_000);
+}
+
+#[test]
 fn validates_ngram_pipeline_configuration_in_feature_order() {
     let empty = Document::new(Vec::new());
     let invalid_size = PipelineOptions {

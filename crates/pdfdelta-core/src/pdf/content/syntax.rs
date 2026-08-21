@@ -52,8 +52,14 @@ fn parse_operations(input: &[u8], limits: ContentLimits) -> Result<Vec<Operation
 pub(crate) struct ContentParser {
     limits: ContentLimits,
     pending_operands: Vec<Operand>,
+    pending_fragment: Vec<u8>,
     operator_budget: OperatorBudget,
     operand_budget: OperandBudget,
+}
+
+struct ParsedFragment {
+    operations: Vec<Operation>,
+    incomplete_operand_start: Option<usize>,
 }
 
 #[derive(Clone)]
@@ -84,24 +90,49 @@ impl ContentParser {
         Self {
             limits,
             pending_operands: Vec::new(),
+            pending_fragment: Vec::new(),
             operator_budget,
             operand_budget,
         }
     }
 
     pub(crate) fn parse_fragment(&mut self, input: &[u8]) -> Result<Vec<Operation>> {
-        let operations = Parser::new(
+        let retrying_incomplete_operand = !self.pending_fragment.is_empty();
+        let buffered = if retrying_incomplete_operand {
+            let mut buffered = std::mem::take(&mut self.pending_fragment);
+            // Page content streams are separate lexical segments. LF both separates
+            // adjacent tokens and terminates a comment at the prior stream boundary.
+            buffered.push(b'\n');
+            buffered.extend_from_slice(input);
+            Some(buffered)
+        } else {
+            None
+        };
+        let input = buffered.as_deref().unwrap_or(input);
+        let parsed = Parser::new(
             input,
             self.limits,
             self.operator_budget.clone(),
             self.operand_budget.clone(),
         )
         .parse_fragment(&mut self.pending_operands)?;
-        Ok(operations)
+        if let Some(start) = parsed.incomplete_operand_start {
+            if retrying_incomplete_operand {
+                return Err(Error::Unresolved(
+                    "dictionary value remains incomplete in the next content stream".to_owned(),
+                ));
+            }
+            self.pending_fragment.extend_from_slice(&input[start..]);
+        }
+        Ok(parsed.operations)
     }
 
     pub(crate) fn finish(self) -> Result<()> {
-        if self.pending_operands.is_empty() {
+        if !self.pending_fragment.is_empty() {
+            Err(Error::Unresolved(
+                "content stream sequence ends with an incomplete dictionary value".to_owned(),
+            ))
+        } else if self.pending_operands.is_empty() {
             Ok(())
         } else {
             Err(Error::Unresolved(
@@ -151,6 +182,10 @@ impl OperandBudget {
         self.remaining.set(remaining - 1);
         Ok(())
     }
+
+    fn restore(&self, remaining: usize) {
+        self.remaining.set(remaining);
+    }
 }
 
 struct Parser<'a> {
@@ -160,6 +195,7 @@ struct Parser<'a> {
     operator_count: usize,
     operator_budget: OperatorBudget,
     operand_budget: OperandBudget,
+    incomplete_dictionary_value: bool,
 }
 
 impl<'a> Parser<'a> {
@@ -176,10 +212,11 @@ impl<'a> Parser<'a> {
             operator_count: 0,
             operator_budget,
             operand_budget,
+            incomplete_dictionary_value: false,
         }
     }
 
-    fn parse_fragment(mut self, operands: &mut Vec<Operand>) -> Result<Vec<Operation>> {
+    fn parse_fragment(mut self, operands: &mut Vec<Operand>) -> Result<ParsedFragment> {
         let mut operations = Vec::new();
 
         loop {
@@ -189,7 +226,24 @@ impl<'a> Parser<'a> {
             };
 
             if self.starts_operand(byte) {
-                let operand = self.parse_operand(0)?;
+                let checkpoint = (
+                    self.position,
+                    self.operand_budget.remaining.get(),
+                    operands.len(),
+                );
+                let operand = match self.parse_operand(0) {
+                    Ok(operand) => operand,
+                    Err(Error::Unresolved(_)) if self.incomplete_dictionary_value => {
+                        let (start, remaining, operand_count) = checkpoint;
+                        self.operand_budget.restore(remaining);
+                        operands.truncate(operand_count);
+                        return Ok(ParsedFragment {
+                            operations,
+                            incomplete_operand_start: Some(start),
+                        });
+                    }
+                    Err(error) => return Err(error),
+                };
                 self.push_operand(operands, operand)?;
                 continue;
             }
@@ -224,7 +278,10 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Ok(operations)
+        Ok(ParsedFragment {
+            operations,
+            incomplete_operand_start: None,
+        })
     }
 
     fn parse_operand(&mut self, depth: usize) -> Result<Operand> {
@@ -296,6 +353,9 @@ impl<'a> Parser<'a> {
             self.skip_space_and_comments();
             if self.input[self.position..].starts_with(b">>") {
                 return self.unresolved("dictionary key is missing a value");
+            }
+            if self.peek().is_none() {
+                self.incomplete_dictionary_value = true;
             }
             let value = self.parse_operand(depth + 1)?;
             if entries.len() >= self.limits.max_operand_stack {
@@ -750,6 +810,166 @@ mod tests {
     }
 
     #[test]
+    fn carries_a_dictionary_value_across_fragments() -> Result<()> {
+        let mut parser = ContentParser::new(limits());
+
+        let first = parser.parse_fragment(b"q /Span << /ActualText ")?;
+        let second = parser.parse_fragment(b"<FEFF0031>>> BDC Q")?;
+        parser.finish()?;
+
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].operator, b"q");
+        assert_eq!(
+            second[0].operands,
+            vec![
+                Operand::Name(b"Span".to_vec()),
+                Operand::Dictionary(vec![(
+                    b"ActualText".to_vec(),
+                    Operand::String(vec![0xfe, 0xff, 0x00, 0x31]),
+                )]),
+            ]
+        );
+        assert_eq!(second[0].operator, b"BDC");
+        assert_eq!(second[1].operator, b"Q");
+        Ok(())
+    }
+
+    #[test]
+    fn carries_prior_operands_before_a_cross_fragment_dictionary() -> Result<()> {
+        let mut constrained = limits();
+        constrained.max_operand_nodes = 3;
+        let mut parser = ContentParser::new(constrained);
+
+        assert!(parser.parse_fragment(b"/Span")?.is_empty());
+        assert!(parser.parse_fragment(b"<< /ActualText ")?.is_empty());
+        let operations = parser.parse_fragment(b"<0031>>> BDC")?;
+        parser.finish()?;
+
+        assert_eq!(
+            operations[0].operands,
+            vec![
+                Operand::Name(b"Span".to_vec()),
+                Operand::Dictionary(vec![(
+                    b"ActualText".to_vec(),
+                    Operand::String(vec![0x00, 0x31]),
+                )]),
+            ]
+        );
+        assert_eq!(operations[0].operator, b"BDC");
+        Ok(())
+    }
+
+    #[test]
+    fn separates_a_dictionary_name_key_from_its_numeric_value() -> Result<()> {
+        let mut parser = ContentParser::new(limits());
+
+        assert!(parser.parse_fragment(b"/Span << /MCID")?.is_empty());
+        let operations = parser.parse_fragment(b"0 >> BDC")?;
+        parser.finish()?;
+
+        assert_eq!(
+            operations[0].operands,
+            vec![
+                Operand::Name(b"Span".to_vec()),
+                Operand::Dictionary(vec![(b"MCID".to_vec(), Operand::Number(0.0))]),
+            ]
+        );
+        assert_eq!(operations[0].operator, b"BDC");
+        Ok(())
+    }
+
+    #[test]
+    fn terminates_a_comment_at_the_content_stream_boundary() -> Result<()> {
+        let mut parser = ContentParser::new(limits());
+
+        assert!(
+            parser
+                .parse_fragment(b"/Span << /MCID % trailing comment")?
+                .is_empty()
+        );
+        let operations = parser.parse_fragment(b"0 >> BDC")?;
+        parser.finish()?;
+
+        assert_eq!(
+            operations[0].operands,
+            vec![
+                Operand::Name(b"Span".to_vec()),
+                Operand::Dictionary(vec![(b"MCID".to_vec(), Operand::Number(0.0))]),
+            ]
+        );
+        assert_eq!(operations[0].operator, b"BDC");
+        Ok(())
+    }
+
+    #[test]
+    fn counts_a_cross_fragment_dictionary_operand_once() -> Result<()> {
+        let mut constrained = limits();
+        constrained.max_operand_nodes = 3;
+        let mut parser = ContentParser::new(constrained);
+
+        assert!(parser.parse_fragment(b"/Span << /ActualText ")?.is_empty());
+        assert_eq!(parser.parse_fragment(b"<0031>>> BDC")?.len(), 1);
+        parser.finish()?;
+        Ok(())
+    }
+
+    #[test]
+    fn does_not_hide_a_low_operand_limit_at_a_fragment_boundary() {
+        let mut constrained = limits();
+        constrained.max_operand_nodes = 2;
+        let mut parser = ContentParser::new(constrained);
+
+        assert!(matches!(
+            parser.parse_fragment(b"/Span << /ActualText "),
+            Err(Error::LimitExceeded {
+                resource: "content operand nodes",
+                limit: 2,
+            })
+        ));
+    }
+
+    #[test]
+    fn rejects_a_dictionary_value_still_missing_after_the_boundary() -> Result<()> {
+        let mut parser = ContentParser::new(limits());
+
+        assert!(
+            parser
+                .parse_fragment(b"/Span << /ActualText ")
+                .is_ok_and(|operations| operations.is_empty())
+        );
+        assert!(matches!(
+            parser.parse_fragment(b">> BDC"),
+            Err(Error::Unresolved(message))
+                if message.contains("dictionary key is missing a value")
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_a_dictionary_value_incomplete_in_two_fragments() -> Result<()> {
+        let mut parser = ContentParser::new(limits());
+        assert!(parser.parse_fragment(b"/Span << /ActualText ")?.is_empty());
+
+        assert!(matches!(
+            parser.parse_fragment(b" "),
+            Err(Error::Unresolved(message))
+                if message.contains("remains incomplete in the next content stream")
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_the_first_of_many_empty_continuation_fragments() -> Result<()> {
+        let mut parser = ContentParser::new(limits());
+        assert!(parser.parse_fragment(b"/Span << /ActualText ")?.is_empty());
+
+        let attempted = std::iter::repeat_n(b"".as_slice(), 1_000)
+            .position(|fragment| parser.parse_fragment(fragment).is_err());
+        assert_eq!(attempted, Some(0));
+        Ok(())
+    }
+
+    #[test]
     fn enforces_pending_operand_limit_between_fragments() -> Result<()> {
         let mut constrained = limits();
         constrained.max_operand_stack = 1;
@@ -858,6 +1078,19 @@ mod tests {
             parser.parse_fragment(b"(unfinished"),
             Err(Error::Unresolved(_))
         ));
+    }
+
+    #[test]
+    fn rejects_an_unfinished_cross_fragment_dictionary_at_sequence_end() -> Result<()> {
+        let mut parser = ContentParser::new(limits());
+        assert!(parser.parse_fragment(b"/Span << /ActualText ")?.is_empty());
+
+        assert!(matches!(
+            parser.finish(),
+            Err(Error::Unresolved(message))
+                if message.contains("incomplete dictionary value")
+        ));
+        Ok(())
     }
 
     #[test]

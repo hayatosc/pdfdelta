@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use crate::{
     Error, Result,
@@ -8,13 +8,32 @@ use crate::{
 use super::cmap::{ToUnicodeCMap, UnicodeMapping};
 use super::common::{
     FontIdentityDomain, FontIdentitySource, finite_number, load_to_unicode, non_negative_number,
-    optional_number, resolve_font_identity_source, resolve_object,
+    optional_number, resolve_font_identity_source, resolve_object, type3_font_identity_source,
 };
 use super::decoder::{DecodedGlyph, FontDecoderLimits};
 use super::metrics;
 
 const MAX_ENCODING_DIFFERENCE_ELEMENTS: usize = 512;
-const TYPE3_MATRIX_TOLERANCE: f64 = 1e-8;
+
+#[rustfmt::skip]
+const MAC_ROMAN_UNICODE: [u16; 128] = [
+    0x00C4, 0x00C5, 0x00C7, 0x00C9, 0x00D1, 0x00D6, 0x00DC, 0x00E1,
+    0x00E0, 0x00E2, 0x00E4, 0x00E3, 0x00E5, 0x00E7, 0x00E9, 0x00E8,
+    0x00EA, 0x00EB, 0x00ED, 0x00EC, 0x00EE, 0x00EF, 0x00F1, 0x00F3,
+    0x00F2, 0x00F4, 0x00F6, 0x00F5, 0x00FA, 0x00F9, 0x00FB, 0x00FC,
+    0x2020, 0x00B0, 0x00A2, 0x00A3, 0x00A7, 0x2022, 0x00B6, 0x00DF,
+    0x00AE, 0x00A9, 0x2122, 0x00B4, 0x00A8, 0x2260, 0x00C6, 0x00D8,
+    0x221E, 0x00B1, 0x2264, 0x2265, 0x00A5, 0x00B5, 0x2202, 0x2211,
+    0x220F, 0x03C0, 0x222B, 0x00AA, 0x00BA, 0x03A9, 0x00E6, 0x00F8,
+    0x00BF, 0x00A1, 0x00AC, 0x221A, 0x0192, 0x2248, 0x2206, 0x00AB,
+    0x00BB, 0x2026, 0x0020, 0x00C0, 0x00C3, 0x00D5, 0x0152, 0x0153,
+    0x2013, 0x2014, 0x201C, 0x201D, 0x2018, 0x2019, 0x00F7, 0x25CA,
+    0x00FF, 0x0178, 0x2044, 0x00A4, 0x2039, 0x203A, 0xFB01, 0xFB02,
+    0x2021, 0x00B7, 0x201A, 0x201E, 0x2030, 0x00C2, 0x00CA, 0x00C1,
+    0x00CB, 0x00C8, 0x00CD, 0x00CE, 0x00CF, 0x00CC, 0x00D3, 0x00D4,
+    0xF8FF, 0x00D2, 0x00DA, 0x00DB, 0x00D9, 0x0131, 0x02C6, 0x02DC,
+    0x00AF, 0x02D8, 0x02D9, 0x02DA, 0x00B8, 0x02DD, 0x02DB, 0x02C7,
+];
 
 #[derive(Clone, Debug)]
 pub(crate) struct SimpleFontDecoder {
@@ -25,6 +44,7 @@ pub(crate) struct SimpleFontDecoder {
     widths: Option<Vec<f64>>,
     missing_width: f64,
     base14: Option<Base14>,
+    type3_identity_glyph_ids: Option<BTreeMap<u8, u16>>,
     ascent: f64,
     descent: f64,
 }
@@ -40,6 +60,7 @@ pub(crate) struct LoadedSimpleFont {
 enum FallbackEncoding {
     Standard,
     WinAnsi,
+    MacRoman,
     Symbol,
     ZapfDingbats,
     Unknown,
@@ -48,27 +69,22 @@ enum FallbackEncoding {
 struct LoadedEncoding {
     base: FallbackEncoding,
     differences: BTreeMap<u8, DifferenceMapping>,
+    identity_ambiguous: bool,
 }
 
 struct Type3Metadata {
-    char_proc_names: BTreeSet<Vec<u8>>,
+    char_procs: PdfDict,
+    identity_resources_are_safe: bool,
+    horizontal_scale_1000_em: f64,
     ascent: f64,
     descent: f64,
 }
 
 #[derive(Clone, Debug)]
 struct DifferenceMapping {
+    glyph_name: Vec<u8>,
     unicode: UnicodeMapping,
     metric_scalar: Option<char>,
-}
-
-impl LoadedEncoding {
-    fn standard() -> Self {
-        Self {
-            base: FallbackEncoding::Standard,
-            differences: BTreeMap::new(),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,6 +108,7 @@ enum Base14 {
 #[derive(Clone, Copy)]
 enum SimpleSubtype {
     Type1,
+    MMType1,
     TrueType,
     Type3,
 }
@@ -113,7 +130,7 @@ impl SimpleFontDecoder {
         } else {
             load_base14(&dictionary)?
         };
-        let (first_char, widths) = load_widths(pdf, &dictionary, limits)?;
+        let (first_char, mut widths) = load_widths(pdf, &dictionary, limits)?;
         let type3 = if matches!(subtype, SimpleSubtype::Type3) {
             Some(validate_type3(
                 pdf,
@@ -125,11 +142,22 @@ impl SimpleFontDecoder {
         } else {
             None
         };
-        let (mut ascent, mut descent, missing_width) =
+        let (mut ascent, mut descent, mut missing_width) =
             load_descriptor(pdf, &dictionary, limits.max_indirections, base14)?;
         if let Some(type3) = &type3 {
             ascent = Some(type3.ascent);
             descent = Some(type3.descent);
+            if let Some(widths) = &mut widths {
+                for width in widths {
+                    *width =
+                        scale_type3_metric(*width, type3.horizontal_scale_1000_em, "Type 3 width")?;
+                }
+            }
+            missing_width = scale_type3_metric(
+                missing_width,
+                type3.horizontal_scale_1000_em,
+                "Type 3 MissingWidth",
+            )?;
         }
         if widths.is_none() && base14.is_none() {
             return unresolved("font without Widths is not a recognized Standard 14 font");
@@ -139,35 +167,58 @@ impl SimpleFontDecoder {
         let descent =
             descent.ok_or_else(|| Error::Unresolved("simple font has no descent metric".into()))?;
         let (to_unicode, decoded_to_unicode_bytes) = load_to_unicode(pdf, &dictionary, limits, 1)?;
-        let identity_source = if dictionary.contains_key(b"Encoding".as_slice()) {
-            None
-        } else {
-            identity_domain(pdf, &dictionary, limits.max_indirections, subtype)?
-                .map(|domain| {
-                    resolve_font_identity_source(pdf, &dictionary, limits.max_indirections, domain)
-                })
-                .transpose()?
-                .flatten()
-        };
-        let encoding = if to_unicode.is_some() && !matches!(subtype, SimpleSubtype::Type3) {
-            // deliberate: ToUnicode supplies text mappings, but Standard 14 fonts without
-            // explicit Widths still need their base encoding for metric lookup. Differences do
-            // not prevent that narrower use of BaseEncoding.
-            if widths.is_none() && base14.is_some() {
-                load_encoding(pdf, &dictionary, limits, base14, None)?
+        let encoding = load_encoding(
+            pdf,
+            &dictionary,
+            limits,
+            base14,
+            type3.as_ref().map(|type3| &type3.char_procs),
+        )?;
+        validate_difference_metrics(base14, widths.as_deref(), &encoding.differences)?;
+        let (identity_source, type3_identity_glyph_ids) = if let Some(type3) = &type3 {
+            if encoding.identity_ambiguous || !type3.identity_resources_are_safe {
+                (None, None)
+            } else if let Some(binding) =
+                type3_font_identity_source(pdf, &type3.char_procs, limits.max_indirections)?
+            {
+                let glyph_ids = encoding
+                    .differences
+                    .iter()
+                    .map(|(code, mapping)| {
+                        binding
+                            .glyph_ids_by_name
+                            .get(&mapping.glyph_name)
+                            .copied()
+                            .map(|glyph_id| (*code, glyph_id))
+                            .ok_or_else(|| {
+                                Error::Unresolved(
+                                    "Type 3 encoding identity references a missing CharProc".into(),
+                                )
+                            })
+                    })
+                    .collect::<Result<BTreeMap<_, _>>>()?;
+                (Some(binding.source), Some(glyph_ids))
             } else {
-                LoadedEncoding::standard()
+                (None, None)
             }
         } else {
-            load_encoding(
-                pdf,
-                &dictionary,
-                limits,
-                base14,
-                type3.as_ref().map(|type3| &type3.char_proc_names),
-            )?
+            let source = if dictionary.contains_key(b"Encoding".as_slice()) {
+                None
+            } else {
+                identity_domain(pdf, &dictionary, limits.max_indirections, subtype)?
+                    .map(|domain| {
+                        resolve_font_identity_source(
+                            pdf,
+                            &dictionary,
+                            limits.max_indirections,
+                            domain,
+                        )
+                    })
+                    .transpose()?
+                    .flatten()
+            };
+            (source, None)
         };
-        validate_difference_metrics(base14, widths.as_deref(), &encoding.differences)?;
 
         Ok(LoadedSimpleFont {
             decoder: Self {
@@ -178,6 +229,7 @@ impl SimpleFontDecoder {
                 widths,
                 missing_width,
                 base14,
+                type3_identity_glyph_ids,
                 ascent,
                 descent,
             },
@@ -198,32 +250,9 @@ impl SimpleFontDecoder {
                 limit: max_output_glyphs,
             });
         }
-        if let Some(cmap) = &self.to_unicode {
-            return cmap
-                .decode(input, max_mapped_text_bytes)?
-                .into_iter()
-                .map(|decoded| {
-                    if decoded.source.len() != 1 {
-                        return unresolved("simple-font ToUnicode source code is not one byte");
-                    }
-                    Ok(self.decoded_glyph(decoded.source[0], decoded.mapping))
-                })
-                .collect();
-        }
-
         let mut glyphs = Vec::with_capacity(input.len());
         let mut mapped_text_bytes = 0usize;
-        for code in input {
-            let mapping = self
-                .differences
-                .get(code)
-                .map(|difference| difference.unicode.clone())
-                .unwrap_or_else(|| {
-                    fallback_char(self.fallback, *code)
-                        .map_or(UnicodeMapping::Unmapped, |character| {
-                            UnicodeMapping::Mapped(character.into())
-                        })
-                });
+        let mut push_glyph = |code, mapping: UnicodeMapping| -> Result<()> {
             if let UnicodeMapping::Mapped(text) = &mapping {
                 mapped_text_bytes =
                     mapped_text_bytes
@@ -239,7 +268,22 @@ impl SimpleFontDecoder {
                     });
                 }
             }
-            glyphs.push(self.decoded_glyph(*code, mapping));
+            glyphs.push(self.decoded_glyph(code, mapping)?);
+            Ok(())
+        };
+
+        if let Some(cmap) = &self.to_unicode {
+            for code in input {
+                let source = [*code];
+                let mapping = cmap
+                    .exact_mapping_entry(&source)
+                    .unwrap_or_else(|| self.fallback_mapping(*code));
+                push_glyph(*code, mapping)?;
+            }
+        } else {
+            for code in input {
+                push_glyph(*code, self.fallback_mapping(*code))?;
+            }
         }
         Ok(glyphs)
     }
@@ -258,14 +302,40 @@ impl SimpleFontDecoder {
         self.descent
     }
 
-    fn decoded_glyph(&self, code: u8, mapping: UnicodeMapping) -> DecodedGlyph {
-        DecodedGlyph {
+    fn decoded_glyph(&self, code: u8, mapping: UnicodeMapping) -> Result<DecodedGlyph> {
+        let glyph_id = if matches!(mapping, UnicodeMapping::Unmapped) {
+            self.type3_identity_glyph_ids
+                .as_ref()
+                .map(|glyph_ids| {
+                    glyph_ids.get(&code).copied().ok_or_else(|| {
+                        Error::Unresolved(
+                            "Type 3 font code has no unambiguous CharProc identity".into(),
+                        )
+                    })
+                })
+                .transpose()?
+                .unwrap_or_else(|| u16::from(code))
+        } else {
+            u16::from(code)
+        };
+        Ok(DecodedGlyph {
             raw_code: vec![code],
             mapping,
-            glyph_id: u16::from(code),
+            glyph_id,
             width_1000_em: self.width(code),
             vertical: None,
-        }
+        })
+    }
+
+    fn fallback_mapping(&self, code: u8) -> UnicodeMapping {
+        self.differences
+            .get(&code)
+            .map(|difference| difference.unicode.clone())
+            .unwrap_or_else(|| {
+                fallback_char(self.fallback, code).map_or(UnicodeMapping::Unmapped, |character| {
+                    UnicodeMapping::Mapped(character.into())
+                })
+            })
     }
 
     fn width(&self, code: u8) -> f64 {
@@ -278,7 +348,8 @@ impl SimpleFontDecoder {
             }
             return self
                 .base14
-                .map_or(self.missing_width, |font| font.width(self.fallback, code));
+                .and_then(|font| font.width(self.fallback, code))
+                .unwrap_or(self.missing_width);
         };
         code.checked_sub(self.first_char)
             .and_then(|index| widths.get(usize::from(index)))
@@ -312,11 +383,14 @@ fn validate_difference_metrics(
 }
 
 impl Base14 {
-    fn width(self, encoding: FallbackEncoding, code: u8) -> f64 {
+    fn width(self, encoding: FallbackEncoding, code: u8) -> Option<f64> {
+        if matches!(encoding, FallbackEncoding::MacRoman) {
+            return fallback_char(encoding, code).and_then(|scalar| self.glyph_width(scalar));
+        }
         let index = usize::from(code);
         let widths = match self {
             Self::Courier | Self::CourierBold | Self::CourierOblique | Self::CourierBoldOblique => {
-                return 600.0;
+                return Some(600.0);
             }
             Self::Helvetica | Self::HelveticaOblique => match encoding {
                 FallbackEncoding::WinAnsi => &metrics::HELVETICA_WIN_ANSI,
@@ -345,7 +419,7 @@ impl Base14 {
             Self::Symbol => &metrics::SYMBOL,
             Self::ZapfDingbats => &metrics::ZAPF_DINGBATS,
         };
-        f64::from(widths[index])
+        Some(f64::from(widths[index]))
     }
 
     fn glyph_width(self, scalar: char) -> Option<f64> {
@@ -443,6 +517,9 @@ fn load_base14(dictionary: &PdfDict) -> Result<Option<Base14>> {
 fn validate_subtype(dictionary: &PdfDict) -> Result<SimpleSubtype> {
     match dictionary.get(b"Subtype".as_slice()) {
         Some(PdfObject::Name(name)) if name.as_slice() == b"Type1" => Ok(SimpleSubtype::Type1),
+        // deliberate: MMType1 uses declared encoding and metrics, but cannot claim program
+        // identity until the selected variation instance is represented in the identity input.
+        Some(PdfObject::Name(name)) if name.as_slice() == b"MMType1" => Ok(SimpleSubtype::MMType1),
         Some(PdfObject::Name(name)) if name.as_slice() == b"TrueType" => {
             Ok(SimpleSubtype::TrueType)
         }
@@ -464,11 +541,26 @@ fn identity_domain(
     max_indirections: usize,
     subtype: SimpleSubtype,
 ) -> Result<Option<FontIdentityDomain>> {
-    if matches!(subtype, SimpleSubtype::Type3) {
+    if matches!(subtype, SimpleSubtype::Type3 | SimpleSubtype::MMType1) {
         return Ok(None);
     }
     if matches!(subtype, SimpleSubtype::Type1) {
-        return Ok(Some(FontIdentityDomain::SimpleType1BuiltIn));
+        let domain = dictionary
+            .get(b"FontDescriptor".as_slice())
+            .map(|descriptor| resolve_object(pdf, descriptor.clone(), max_indirections))
+            .transpose()?
+            .and_then(|descriptor| match descriptor {
+                PdfObject::Dictionary(descriptor)
+                    if descriptor.contains_key(b"FontFile3".as_slice())
+                        && !descriptor.contains_key(b"FontFile".as_slice())
+                        && !descriptor.contains_key(b"FontFile2".as_slice()) =>
+                {
+                    Some(FontIdentityDomain::SimpleType1C)
+                }
+                _ => None,
+            })
+            .unwrap_or(FontIdentityDomain::SimpleType1BuiltIn);
+        return Ok(Some(domain));
     }
     let Some(descriptor) = dictionary.get(b"FontDescriptor".as_slice()) else {
         return Ok(None);
@@ -503,6 +595,7 @@ fn validate_type3(
     first_char: u8,
     widths: Option<&[f64]>,
 ) -> Result<Type3Metadata> {
+    let identity_resources_are_safe = type3_resources_are_identity_safe(pdf, dictionary, limits);
     let matrix = dictionary
         .get(b"FontMatrix".as_slice())
         .ok_or_else(|| Error::Unresolved("Type 3 font has no FontMatrix".into()))?;
@@ -520,16 +613,25 @@ fn validate_type3(
             finite_number(&value, "Type 3 FontMatrix value")
         })
         .collect::<Result<Vec<_>>>()?;
-    let expected = [0.001, 0.0, 0.0, 0.001, 0.0, 0.0];
-    if matrix
-        .iter()
-        .zip(expected)
-        .any(|(actual, expected)| (actual - expected).abs() > TYPE3_MATRIX_TOLERANCE)
-    {
+    let [a, b, c, d, e, f] = matrix.as_slice() else {
+        unreachable!();
+    };
+    let determinant = a.mul_add(*d, -(b * c));
+    if !determinant.is_finite() {
+        return unresolved("Type 3 FontMatrix determinant is not finite");
+    }
+    if determinant == 0.0 {
+        return unresolved("Type 3 FontMatrix is degenerate");
+    }
+    // deliberate: accept only axis-aligned scales in the horizontal simple-font model; add
+    // rotation, shear, translation, or reversed advance after fixtures require a full matrix.
+    if *b != 0.0 || *c != 0.0 || *e != 0.0 || *f != 0.0 || *a < 0.0 {
         return Err(Error::Unsupported(
-            "Type 3 font with a non-standard FontMatrix is not supported".into(),
+            "Type 3 FontMatrix cannot be represented by horizontal simple-font metrics".into(),
         ));
     }
+    let horizontal_scale_1000_em = scale_type3_axis(*a, "horizontal")?;
+    let vertical_scale_1000_em = scale_type3_axis(*d, "vertical")?;
 
     let font_bbox = dictionary
         .get(b"FontBBox".as_slice())
@@ -550,6 +652,21 @@ fn validate_type3(
         .collect::<Result<Vec<_>>>()?;
     if font_bbox[0] > font_bbox[2] || font_bbox[1] >= font_bbox[3] {
         return unresolved("Type 3 FontBBox has invalid bounds");
+    }
+    let y0 = scale_type3_metric(
+        font_bbox[1],
+        vertical_scale_1000_em,
+        "Type 3 FontBBox y-coordinate",
+    )?;
+    let y1 = scale_type3_metric(
+        font_bbox[3],
+        vertical_scale_1000_em,
+        "Type 3 FontBBox y-coordinate",
+    )?;
+    let descent = y0.min(y1);
+    let ascent = y0.max(y1);
+    if ascent <= descent {
+        return unresolved("Type 3 FontMatrix collapses the FontBBox vertical extent");
     }
 
     if !dictionary.contains_key(b"Encoding".as_slice()) {
@@ -589,10 +706,70 @@ fn validate_type3(
         }
     }
     Ok(Type3Metadata {
-        char_proc_names: char_procs.into_keys().collect(),
-        ascent: font_bbox[3],
-        descent: font_bbox[1],
+        char_procs,
+        identity_resources_are_safe,
+        horizontal_scale_1000_em,
+        ascent,
+        descent,
     })
+}
+
+fn type3_resources_are_identity_safe(
+    pdf: &dyn ParsedPdf,
+    dictionary: &PdfDict,
+    limits: FontDecoderLimits,
+) -> bool {
+    let Some(resources) = dictionary.get(b"Resources".as_slice()) else {
+        return true;
+    };
+    let Ok(PdfObject::Dictionary(resources)) =
+        resolve_object(pdf, resources.clone(), limits.max_indirections)
+    else {
+        return false;
+    };
+    if resources.is_empty() {
+        return true;
+    }
+    if resources.len() != 1 {
+        return false;
+    }
+    let Some(proc_set) = resources.get(b"ProcSet".as_slice()) else {
+        return false;
+    };
+    let Ok(PdfObject::Array(proc_set)) =
+        resolve_object(pdf, proc_set.clone(), limits.max_indirections)
+    else {
+        return false;
+    };
+    proc_set.len() <= limits.max_simple_width_entries
+        && proc_set.into_iter().all(|name| {
+            matches!(
+                resolve_object(pdf, name, limits.max_indirections),
+                Ok(PdfObject::Name(name))
+                    if matches!(
+                        name.as_slice(),
+                        b"PDF" | b"Text" | b"ImageB" | b"ImageC" | b"ImageI"
+                    )
+            )
+        })
+}
+
+fn scale_type3_axis(scale: f64, axis: &str) -> Result<f64> {
+    let normalized = scale * 1000.0;
+    if !normalized.is_finite() || normalized == 0.0 {
+        return unresolved(&format!(
+            "Type 3 FontMatrix {axis} scale cannot be represented in 1000-em units"
+        ));
+    }
+    Ok(normalized)
+}
+
+fn scale_type3_metric(value: f64, scale_1000_em: f64, context: &str) -> Result<f64> {
+    let scaled = value * scale_1000_em;
+    if !scaled.is_finite() {
+        return unresolved(&format!("{context} is not finite after FontMatrix scaling"));
+    }
+    Ok(scaled)
 }
 
 fn load_encoding(
@@ -600,7 +777,7 @@ fn load_encoding(
     dictionary: &PdfDict,
     limits: FontDecoderLimits,
     base14: Option<Base14>,
-    allowed_difference_names: Option<&BTreeSet<Vec<u8>>>,
+    allowed_difference_names: Option<&PdfDict>,
 ) -> Result<LoadedEncoding> {
     let Some(encoding) = dictionary.get(b"Encoding".as_slice()) else {
         let base = match base14 {
@@ -612,12 +789,14 @@ fn load_encoding(
         return Ok(LoadedEncoding {
             base,
             differences: BTreeMap::new(),
+            identity_ambiguous: false,
         });
     };
     match resolve_object(pdf, encoding.clone(), limits.max_indirections)? {
         PdfObject::Name(name) => Ok(LoadedEncoding {
             base: encoding_name(&name)?,
             differences: BTreeMap::new(),
+            identity_ambiguous: false,
         }),
         PdfObject::Dictionary(encoding) => {
             let base = match encoding.get(b"BaseEncoding".as_slice()) {
@@ -627,7 +806,7 @@ fn load_encoding(
                 },
                 None => built_in_encoding(base14),
             };
-            let differences = match encoding.get(b"Differences".as_slice()) {
+            let (differences, identity_ambiguous) = match encoding.get(b"Differences".as_slice()) {
                 Some(differences) => {
                     let differences =
                         resolve_object(pdf, differences.clone(), limits.max_indirections)?;
@@ -647,9 +826,13 @@ fn load_encoding(
                         allowed_difference_names,
                     )?
                 }
-                None => BTreeMap::new(),
+                None => (BTreeMap::new(), false),
             };
-            Ok(LoadedEncoding { base, differences })
+            Ok(LoadedEncoding {
+                base,
+                differences,
+                identity_ambiguous,
+            })
         }
         _ => unresolved("font Encoding is not a name or dictionary"),
     }
@@ -668,9 +851,10 @@ fn parse_differences(
     pdf: &dyn ParsedPdf,
     differences: &[PdfObject],
     max_indirections: usize,
-    allowed_names: Option<&BTreeSet<Vec<u8>>>,
-) -> Result<BTreeMap<u8, DifferenceMapping>> {
+    allowed_names: Option<&PdfDict>,
+) -> Result<(BTreeMap<u8, DifferenceMapping>, bool)> {
     let mut mappings = BTreeMap::new();
+    let mut identity_ambiguous = false;
     let mut next_code = None;
     let mut needs_name = false;
 
@@ -689,7 +873,7 @@ fn parse_differences(
                 needs_name = true;
             }
             PdfObject::Name(name) => {
-                if allowed_names.is_some_and(|allowed| !allowed.contains(&name)) {
+                if allowed_names.is_some_and(|allowed| !allowed.contains_key(&name)) {
                     return unresolved("Type 3 Encoding Differences references a missing CharProc");
                 }
                 let code = next_code.ok_or_else(|| {
@@ -699,7 +883,7 @@ fn parse_differences(
                     Error::Unresolved("font Encoding Differences extends beyond code 255".into())
                 })?;
                 let mapping = glyph_name_mapping(&name);
-                mappings.insert(code, mapping);
+                identity_ambiguous |= mappings.insert(code, mapping).is_some();
                 next_code = Some(u16::from(code) + 1);
                 needs_name = false;
             }
@@ -711,12 +895,13 @@ fn parse_differences(
     if needs_name {
         return unresolved("font Encoding Differences code has no following name");
     }
-    Ok(mappings)
+    Ok((mappings, identity_ambiguous))
 }
 
 fn encoding_name(name: &[u8]) -> Result<FallbackEncoding> {
     match name {
         b"WinAnsiEncoding" => Ok(FallbackEncoding::WinAnsi),
+        b"MacRomanEncoding" => Ok(FallbackEncoding::MacRoman),
         b"StandardEncoding" => Ok(FallbackEncoding::Standard),
         _ => Err(Error::Unsupported(format!(
             "simple-font encoding /{} is not supported",
@@ -828,11 +1013,13 @@ fn load_descriptor_bbox(
 fn glyph_name_mapping(name: &[u8]) -> DifferenceMapping {
     let Some((unicode, metric_scalar)) = adobe_glyph_name(name) else {
         return DifferenceMapping {
+            glyph_name: name.to_vec(),
             unicode: UnicodeMapping::Unmapped,
             metric_scalar: None,
         };
     };
     DifferenceMapping {
+        glyph_name: name.to_vec(),
         unicode: UnicodeMapping::Mapped(unicode),
         metric_scalar,
     }
@@ -903,6 +1090,7 @@ fn parse_unicode_scalar(hex: &[u8]) -> Option<char> {
 fn fallback_char(encoding: FallbackEncoding, code: u8) -> Option<char> {
     match encoding {
         FallbackEncoding::Standard => return standard_encoding_char(code),
+        FallbackEncoding::MacRoman => return mac_roman_encoding_char(code),
         FallbackEncoding::Symbol | FallbackEncoding::ZapfDingbats | FallbackEncoding::Unknown => {
             return None;
         }
@@ -940,6 +1128,14 @@ fn fallback_char(encoding: FallbackEncoding, code: u8) -> Option<char> {
         0x9e => Some('\u{017e}'),
         0x9f => Some('\u{0178}'),
         0xa0..=0xff => char::from_u32(u32::from(code)),
+        _ => None,
+    }
+}
+
+fn mac_roman_encoding_char(code: u8) -> Option<char> {
+    match code {
+        b' '..=b'~' => Some(char::from(code)),
+        0x80..=0xff => char::from_u32(u32::from(MAC_ROMAN_UNICODE[usize::from(code - 0x80)])),
         _ => None,
     }
 }
@@ -1073,6 +1269,39 @@ mod tests {
     }
 
     #[test]
+    fn decodes_pdf_mac_roman_and_uses_glyph_metrics() -> Result<()> {
+        let font = font_with_encoding(PdfObject::Name(b"MacRomanEncoding".to_vec()));
+        let loaded = SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)?;
+        let glyphs = loaded
+            .decoder
+            .decode(&[0x87, 0xca, 0xdb, 0xde, 0xf0], 5, usize::MAX)?;
+
+        assert_eq!(
+            glyphs
+                .iter()
+                .map(|glyph| glyph.mapping.clone())
+                .collect::<Vec<_>>(),
+            [
+                mapped_text("á"),
+                mapped_text(" "),
+                mapped_text("¤"),
+                mapped_text("ﬁ"),
+                mapped_text("\u{f8ff}"),
+            ]
+        );
+        for (glyph, scalar) in glyphs.iter().zip(['á', ' ', '¤', 'ﬁ']) {
+            assert_eq!(
+                glyph.width_1000_em,
+                Base14::Helvetica
+                    .glyph_width(scalar)
+                    .ok_or_else(|| Error::Unresolved("fixture glyph should have metrics".into()))?
+            );
+        }
+        assert_eq!(glyphs[4].width_1000_em, 0.0);
+        Ok(())
+    }
+
+    #[test]
     fn uses_descriptor_bbox_when_vertical_metrics_are_degenerate() -> Result<()> {
         let font = PdfObject::Dictionary(PdfDict::from([
             (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
@@ -1139,6 +1368,113 @@ mod tests {
 
         assert!(win_ansi.identity_source.is_none());
         assert!(standard.identity_source.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn selects_type1c_identity_but_keeps_explicit_encodings_unidentified() -> Result<()> {
+        let pdf = MockPdf {
+            objects: HashMap::from([(
+                object_ref(1),
+                PdfObject::Stream(PdfDict::from([(
+                    b"Subtype".to_vec(),
+                    PdfObject::Name(b"Type1C".to_vec()),
+                )])),
+            )]),
+            streams: HashMap::from([(object_ref(1), b"Type1C program".to_vec())]),
+        };
+        let font = |encoding: Option<PdfObject>| {
+            let mut dictionary = PdfDict::from([
+                (b"Subtype".to_vec(), PdfObject::Name(b"Type1".to_vec())),
+                (b"FirstChar".to_vec(), PdfObject::Integer(65)),
+                (
+                    b"Widths".to_vec(),
+                    PdfObject::Array(vec![PdfObject::Integer(600)]),
+                ),
+                (
+                    b"FontDescriptor".to_vec(),
+                    PdfObject::Dictionary(PdfDict::from([
+                        (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                        (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                        (b"FontFile3".to_vec(), PdfObject::Reference(object_ref(1))),
+                    ])),
+                ),
+            ]);
+            if let Some(encoding) = encoding {
+                dictionary.insert(b"Encoding".to_vec(), encoding);
+            }
+            PdfObject::Dictionary(dictionary)
+        };
+
+        let implicit = SimpleFontDecoder::load(&pdf, &font(None), LIMITS)?;
+        let source = implicit
+            .identity_source
+            .ok_or_else(|| Error::Unresolved("Type1C fixture should have identity".into()))?;
+        assert_eq!(
+            load_font_identity(&pdf, &source, usize::MAX)?.decoded_bytes,
+            b"Type1C program".len()
+        );
+
+        let explicit = SimpleFontDecoder::load(
+            &pdf,
+            &font(Some(PdfObject::Name(b"StandardEncoding".to_vec()))),
+            LIMITS,
+        )?;
+        assert!(explicit.identity_source.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn accepts_mm_type1_through_the_declared_simple_font_path() -> Result<()> {
+        let mut font = standard_font(b"Helvetica");
+        let PdfObject::Dictionary(dictionary) = &mut font else {
+            unreachable!();
+        };
+        dictionary.insert(b"Subtype".to_vec(), PdfObject::Name(b"MMType1".to_vec()));
+
+        let loaded = SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)?;
+        assert!(loaded.identity_source.is_none());
+        assert_eq!(
+            loaded.decoder.decode(b"A", 1, usize::MAX)?,
+            [glyph(b'A', "A", 667.0)]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn mm_type1_instances_never_claim_embedded_program_identity() -> Result<()> {
+        let pdf = MockPdf {
+            objects: HashMap::from([(object_ref(1), PdfObject::Stream(PdfDict::new()))]),
+            streams: HashMap::from([(object_ref(1), b"shared MMType1 program".to_vec())]),
+        };
+        let font = |base_font: &[u8]| {
+            PdfObject::Dictionary(PdfDict::from([
+                (b"Subtype".to_vec(), PdfObject::Name(b"MMType1".to_vec())),
+                (b"BaseFont".to_vec(), PdfObject::Name(base_font.to_vec())),
+                (b"FirstChar".to_vec(), PdfObject::Integer(65)),
+                (
+                    b"Widths".to_vec(),
+                    PdfObject::Array(vec![PdfObject::Integer(600)]),
+                ),
+                (
+                    b"FontDescriptor".to_vec(),
+                    PdfObject::Dictionary(PdfDict::from([
+                        (b"Ascent".to_vec(), PdfObject::Integer(700)),
+                        (b"Descent".to_vec(), PdfObject::Integer(-200)),
+                        (b"FontFile".to_vec(), PdfObject::Reference(object_ref(1))),
+                    ])),
+                ),
+            ]))
+        };
+
+        for instance in [b"FixtureMM-Light".as_slice(), b"FixtureMM-Bold"] {
+            let loaded = SimpleFontDecoder::load(&pdf, &font(instance), LIMITS)?;
+            assert!(loaded.identity_source.is_none());
+            assert_eq!(
+                loaded.decoder.decode(b"A", 1, usize::MAX)?[0].mapping,
+                UnicodeMapping::Unmapped
+            );
+        }
         Ok(())
     }
 
@@ -1244,6 +1580,106 @@ mod tests {
         assert_eq!(glyphs[0], glyph(b'A', "A", 620.0));
         assert_eq!(glyphs[1], glyph(0x80, "€", 480.0));
         assert_eq!(glyphs[2].mapping, UnicodeMapping::Unmapped);
+        Ok(())
+    }
+
+    #[test]
+    fn partial_to_unicode_prefers_mappings_then_falls_back_with_aggregate_limits() -> Result<()> {
+        let cmap = b"1 begincodespacerange <00> <FF> endcodespacerange \
+                     1 beginbfchar <41> <005A> endbfchar"
+            .to_vec();
+        let mut pdf = MockPdf::default();
+        pdf.objects
+            .insert(object_ref(1), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(object_ref(1), cmap);
+        let mut font = font_with_encoding(PdfObject::Name(b"WinAnsiEncoding".to_vec()));
+        let PdfObject::Dictionary(dictionary) = &mut font else {
+            unreachable!();
+        };
+        dictionary.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(1)));
+
+        let loaded = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+        assert_eq!(
+            loaded.decoder.decode(b"AB", 2, usize::MAX)?,
+            [glyph(b'A', "Z", 667.0), glyph(b'B', "B", 667.0)]
+        );
+        assert!(matches!(
+            loaded.decoder.decode(b"AB", 2, 1),
+            Err(Error::LimitExceeded {
+                resource: "decoded Unicode text bytes",
+                limit: 1,
+            })
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn partial_to_unicode_falls_back_outside_a_narrow_codespace() -> Result<()> {
+        let cmap = b"1 begincodespacerange <41> <41> endcodespacerange \
+                     1 beginbfchar <41> <005A> endbfchar"
+            .to_vec();
+        let mut pdf = MockPdf::default();
+        pdf.objects
+            .insert(object_ref(1), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(object_ref(1), cmap);
+        let mut font = font_with_encoding(PdfObject::Name(b"StandardEncoding".to_vec()));
+        let PdfObject::Dictionary(dictionary) = &mut font else {
+            unreachable!();
+        };
+        dictionary.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(1)));
+
+        let loaded = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+        assert_eq!(
+            loaded.decoder.decode(b"AB", 2, usize::MAX)?,
+            [glyph(b'A', "Z", 667.0), glyph(b'B', "B", 667.0)]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn explicit_unmapped_to_unicode_entry_does_not_fall_back() -> Result<()> {
+        let cmap = b"1 begincodespacerange <41> <42> endcodespacerange \
+                     2 beginbfchar <41> <005A> <42> <D800> endbfchar"
+            .to_vec();
+        let mut pdf = MockPdf::default();
+        pdf.objects
+            .insert(object_ref(1), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(object_ref(1), cmap);
+        let mut font = font_with_encoding(PdfObject::Name(b"StandardEncoding".to_vec()));
+        let PdfObject::Dictionary(dictionary) = &mut font else {
+            unreachable!();
+        };
+        dictionary.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(1)));
+
+        let loaded = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+        let glyphs = loaded.decoder.decode(b"AB", 2, usize::MAX)?;
+        assert_eq!(glyphs[0], glyph(b'A', "Z", 667.0));
+        assert_eq!(glyphs[1].mapping, UnicodeMapping::Unmapped);
+        Ok(())
+    }
+
+    #[test]
+    fn partial_to_unicode_does_not_guess_unknown_differences() -> Result<()> {
+        let cmap = b"1 begincodespacerange <00> <FF> endcodespacerange \
+                     1 beginbfchar <41> <005A> endbfchar"
+            .to_vec();
+        let mut pdf = MockPdf::default();
+        pdf.objects
+            .insert(object_ref(1), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(object_ref(1), cmap);
+        let mut font = font_with_differences(PdfObject::Array(vec![
+            PdfObject::Integer(66),
+            PdfObject::Name(b"UnknownGlyph".to_vec()),
+        ]));
+        let PdfObject::Dictionary(dictionary) = &mut font else {
+            unreachable!();
+        };
+        dictionary.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(1)));
+
+        let loaded = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+        let glyphs = loaded.decoder.decode(b"AB", 2, usize::MAX)?;
+        assert_eq!(glyphs[0], glyph(b'A', "Z", 667.0));
+        assert_eq!(glyphs[1].mapping, UnicodeMapping::Unmapped);
         Ok(())
     }
 
@@ -1692,28 +2128,331 @@ mod tests {
     }
 
     #[test]
-    fn rejects_type3_fonts_outside_the_bounded_subset() {
-        let mut nonstandard_matrix = standard_type3_font();
-        let PdfObject::Dictionary(dictionary) = &mut nonstandard_matrix else {
+    fn binds_type3_encoding_names_to_stable_char_proc_glyph_ids() -> Result<()> {
+        let pdf = MockPdf {
+            objects: HashMap::from([
+                (object_ref(11), PdfObject::Stream(PdfDict::new())),
+                (object_ref(12), PdfObject::Stream(PdfDict::new())),
+            ]),
+            streams: HashMap::from([
+                (object_ref(11), b"c3 program".to_vec()),
+                (object_ref(12), b"c8 program".to_vec()),
+            ]),
+        };
+        let mut font = standard_type3_font();
+        set_type3_encoding_and_char_procs(
+            &mut font,
+            vec![
+                PdfObject::Integer(65),
+                PdfObject::Name(b"c3".to_vec()),
+                PdfObject::Name(b"c8".to_vec()),
+            ],
+            PdfDict::from([
+                (b"c3".to_vec(), PdfObject::Reference(object_ref(11))),
+                (b"c8".to_vec(), PdfObject::Reference(object_ref(12))),
+            ]),
+        );
+        let first = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+        let first_glyphs = first.decoder.decode(b"AB", 2, usize::MAX)?;
+        let first_identity = load_font_identity(
+            &pdf,
+            first
+                .identity_source
+                .as_ref()
+                .ok_or_else(|| Error::Unresolved("fixture should have Type 3 identity".into()))?,
+            usize::MAX,
+        )?;
+
+        let second_pdf = MockPdf {
+            objects: HashMap::from([
+                (object_ref(91), PdfObject::Stream(PdfDict::new())),
+                (object_ref(92), PdfObject::Stream(PdfDict::new())),
+            ]),
+            streams: HashMap::from([
+                (object_ref(91), b"c8 program".to_vec()),
+                (object_ref(92), b"c3 program".to_vec()),
+            ]),
+        };
+        let mut remapped_font = standard_type3_font();
+        set_type3_encoding_and_char_procs(
+            &mut remapped_font,
+            vec![
+                PdfObject::Integer(65),
+                PdfObject::Name(b"c8".to_vec()),
+                PdfObject::Name(b"c3".to_vec()),
+            ],
+            PdfDict::from([
+                (b"c8".to_vec(), PdfObject::Reference(object_ref(91))),
+                (b"c3".to_vec(), PdfObject::Reference(object_ref(92))),
+            ]),
+        );
+        let second = SimpleFontDecoder::load(&second_pdf, &remapped_font, LIMITS)?;
+        let second_glyphs = second.decoder.decode(b"AB", 2, usize::MAX)?;
+        let second_identity = load_font_identity(
+            &second_pdf,
+            second
+                .identity_source
+                .as_ref()
+                .ok_or_else(|| Error::Unresolved("fixture should have Type 3 identity".into()))?,
+            usize::MAX,
+        )?;
+
+        assert_eq!(first_identity.hash, second_identity.hash);
+        assert_eq!(first_glyphs[0].mapping, UnicodeMapping::Unmapped);
+        assert_eq!(first_glyphs[1].mapping, UnicodeMapping::Unmapped);
+        assert_eq!(first_glyphs[0].glyph_id, second_glyphs[1].glyph_id);
+        assert_eq!(first_glyphs[1].glyph_id, second_glyphs[0].glyph_id);
+        assert_ne!(first_glyphs[0].glyph_id, first_glyphs[1].glyph_id);
+        Ok(())
+    }
+
+    #[test]
+    fn type3_identity_accepts_only_resource_independent_proc_sets() -> Result<()> {
+        let pdf = MockPdf {
+            objects: HashMap::from([
+                (object_ref(1), PdfObject::Stream(PdfDict::new())),
+                (object_ref(2), PdfObject::Stream(PdfDict::new())),
+                (
+                    object_ref(3),
+                    PdfObject::Dictionary(PdfDict::from([(
+                        b"ProcSet".to_vec(),
+                        PdfObject::Reference(object_ref(4)),
+                    )])),
+                ),
+                (
+                    object_ref(4),
+                    PdfObject::Array(vec![
+                        PdfObject::Name(b"PDF".to_vec()),
+                        PdfObject::Reference(object_ref(5)),
+                    ]),
+                ),
+                (object_ref(5), PdfObject::Name(b"Text".to_vec())),
+            ]),
+            streams: HashMap::from([
+                (object_ref(1), b"c3 program".to_vec()),
+                (object_ref(2), b"c8 program".to_vec()),
+            ]),
+        };
+        let mut font = standard_type3_font();
+        set_type3_encoding_and_char_procs(
+            &mut font,
+            vec![
+                PdfObject::Integer(65),
+                PdfObject::Name(b"c3".to_vec()),
+                PdfObject::Name(b"c8".to_vec()),
+            ],
+            PdfDict::from([
+                (b"c3".to_vec(), PdfObject::Reference(object_ref(1))),
+                (b"c8".to_vec(), PdfObject::Reference(object_ref(2))),
+            ]),
+        );
+        let PdfObject::Dictionary(dictionary) = &mut font else {
+            unreachable!();
+        };
+        dictionary.insert(b"Resources".to_vec(), PdfObject::Reference(object_ref(3)));
+        assert!(
+            SimpleFontDecoder::load(&pdf, &font, LIMITS)?
+                .identity_source
+                .is_some()
+        );
+
+        let unsafe_resources = [
+            PdfObject::Dictionary(PdfDict::from([(
+                b"XObject".to_vec(),
+                PdfObject::Dictionary(PdfDict::new()),
+            )])),
+            PdfObject::Dictionary(PdfDict::from([(
+                b"ProcSet".to_vec(),
+                PdfObject::Array(vec![PdfObject::Name(b"Unknown".to_vec())]),
+            )])),
+            PdfObject::Dictionary(PdfDict::from([(
+                b"ProcSet".to_vec(),
+                PdfObject::Array(vec![PdfObject::Integer(1)]),
+            )])),
+            PdfObject::Dictionary(PdfDict::from([(
+                b"ProcSet".to_vec(),
+                PdfObject::Array(vec![PdfObject::Name(b"PDF".to_vec()); 257]),
+            )])),
+            PdfObject::Reference(object_ref(99)),
+        ];
+        for resources in unsafe_resources {
+            let mut unsafe_font = font.clone();
+            let PdfObject::Dictionary(dictionary) = &mut unsafe_font else {
+                unreachable!();
+            };
+            dictionary.insert(b"Resources".to_vec(), resources);
+            let loaded = SimpleFontDecoder::load(&pdf, &unsafe_font, LIMITS)?;
+            assert!(loaded.identity_source.is_none());
+            assert_eq!(
+                loaded.decoder.decode(b"A", 1, usize::MAX)?[0].mapping,
+                UnicodeMapping::Unmapped
+            );
+        }
+
+        let mut mapped_font = standard_type3_font();
+        let PdfObject::Dictionary(dictionary) = &mut mapped_font else {
             unreachable!();
         };
         dictionary.insert(
-            b"FontMatrix".to_vec(),
-            PdfObject::Array(vec![
-                PdfObject::Integer(1),
-                PdfObject::Integer(0),
-                PdfObject::Integer(0),
-                PdfObject::Integer(1),
-                PdfObject::Integer(0),
-                PdfObject::Integer(0),
+            b"Resources".to_vec(),
+            PdfObject::Dictionary(PdfDict::from([(
+                b"XObject".to_vec(),
+                PdfObject::Dictionary(PdfDict::new()),
+            )])),
+        );
+        let mapped = SimpleFontDecoder::load(&MockPdf::default(), &mapped_font, LIMITS)?;
+        assert!(mapped.identity_source.is_none());
+        assert_eq!(
+            mapped.decoder.decode(b"A", 1, usize::MAX)?[0].mapping,
+            mapped_text("A")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn type3_to_unicode_wins_and_ambiguous_encoding_has_no_identity() -> Result<()> {
+        let cmap = b"1 begincodespacerange <00> <FF> endcodespacerange \
+                     1 beginbfchar <41> <005A> endbfchar"
+            .to_vec();
+        let pdf = MockPdf {
+            objects: HashMap::from([
+                (object_ref(1), PdfObject::Stream(PdfDict::new())),
+                (object_ref(2), PdfObject::Stream(PdfDict::new())),
+                (object_ref(3), PdfObject::Stream(PdfDict::new())),
+            ]),
+            streams: HashMap::from([
+                (object_ref(1), b"c3 program".to_vec()),
+                (object_ref(2), b"c8 program".to_vec()),
+                (object_ref(3), cmap),
+            ]),
+        };
+        let mut font = standard_type3_font();
+        set_type3_encoding_and_char_procs(
+            &mut font,
+            vec![
+                PdfObject::Integer(65),
+                PdfObject::Name(b"c3".to_vec()),
+                PdfObject::Name(b"c8".to_vec()),
+            ],
+            PdfDict::from([
+                (b"c3".to_vec(), PdfObject::Reference(object_ref(1))),
+                (b"c8".to_vec(), PdfObject::Reference(object_ref(2))),
             ]),
         );
-        assert!(matches!(
-            SimpleFontDecoder::load(&MockPdf::default(), &nonstandard_matrix, LIMITS),
-            Err(Error::Unsupported(message))
-                if message == "Type 3 font with a non-standard FontMatrix is not supported"
-        ));
+        let PdfObject::Dictionary(dictionary) = &mut font else {
+            unreachable!();
+        };
+        dictionary.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(3)));
+        let loaded = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+        let glyphs = loaded.decoder.decode(b"AB", 2, usize::MAX)?;
+        assert!(loaded.identity_source.is_some());
+        assert_eq!(glyphs[0].mapping, mapped_text("Z"));
+        assert_eq!(glyphs[1].mapping, UnicodeMapping::Unmapped);
 
+        set_type3_encoding_and_char_procs(
+            &mut font,
+            vec![
+                PdfObject::Integer(65),
+                PdfObject::Name(b"c3".to_vec()),
+                PdfObject::Integer(65),
+                PdfObject::Name(b"c8".to_vec()),
+            ],
+            PdfDict::from([
+                (b"c3".to_vec(), PdfObject::Reference(object_ref(1))),
+                (b"c8".to_vec(), PdfObject::Reference(object_ref(2))),
+            ]),
+        );
+        let ambiguous = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+        assert!(ambiguous.identity_source.is_none());
+        assert_eq!(
+            ambiguous.decoder.decode(b"A", 1, usize::MAX)?[0].mapping,
+            mapped_text("Z")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn normalizes_axis_aligned_type3_font_matrices_to_1000_em() -> Result<()> {
+        let mut font = standard_type3_font();
+        set_type3_numbers(
+            &mut font,
+            b"FontMatrix",
+            [0.0200043, 0.0, 0.0, 0.0200043, 0.0, 0.0],
+        );
+        set_type3_numbers(&mut font, b"FontBBox", [-6.0, -11.0, 44.0, 38.0]);
+        set_type3_numbers(&mut font, b"Widths", [30.0, 47.0]);
+
+        let loaded = SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)?;
+        let scale = 0.0200043 * 1000.0;
+        let glyphs = loaded.decoder.decode(b"AB", 2, usize::MAX)?;
+        assert_eq!(glyphs[0], glyph(b'A', "A", 30.0 * scale));
+        assert_eq!(glyphs[1], glyph(b'B', "B", 47.0 * scale));
+        assert_eq!(loaded.decoder.ascent_1000_em(), 38.0 * scale);
+        assert_eq!(loaded.decoder.descent_1000_em(), -11.0 * scale);
+
+        set_type3_numbers(
+            &mut font,
+            b"FontMatrix",
+            [0.00999451, 0.0, 0.0, 0.00999451, 0.0, 0.0],
+        );
+        set_type3_numbers(&mut font, b"FontBBox", [-20.8, -30.2, 131.4, 88.0]);
+        set_type3_numbers(&mut font, b"Widths", [50.0, 118.8]);
+        let second = SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)?;
+        let second_scale = 0.00999451 * 1000.0;
+        assert_eq!(
+            second.decoder.decode(b"B", 1, usize::MAX)?[0].width_1000_em,
+            118.8 * second_scale
+        );
+        assert_eq!(second.decoder.ascent_1000_em(), 88.0 * second_scale);
+        assert_eq!(second.decoder.descent_1000_em(), -30.2 * second_scale);
+
+        set_type3_numbers(&mut font, b"FontMatrix", [0.02, 0.0, 0.0, -0.01, 0.0, 0.0]);
+        set_type3_numbers(&mut font, b"FontBBox", [-6.0, -11.0, 44.0, 38.0]);
+        set_type3_numbers(&mut font, b"Widths", [30.0, 47.0]);
+        let reflected = SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)?;
+        assert_eq!(reflected.decoder.ascent_1000_em(), 110.0);
+        assert_eq!(reflected.decoder.descent_1000_em(), -380.0);
+        assert_eq!(
+            reflected.decoder.decode(b"A", 1, usize::MAX)?[0].width_1000_em,
+            600.0
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn classifies_unrepresentable_and_degenerate_type3_font_matrices() {
+        let load = |matrix| {
+            let mut font = standard_type3_font();
+            set_type3_numbers(&mut font, b"FontMatrix", matrix);
+            SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS)
+        };
+
+        for matrix in [
+            [0.0, 0.001, -0.001, 0.0, 0.0, 0.0],
+            [0.001, 0.0001, 0.0, 0.001, 0.0, 0.0],
+            [0.001, 0.0, 0.0, 0.001, 1.0, 0.0],
+            [-0.001, 0.0, 0.0, 0.001, 0.0, 0.0],
+        ] {
+            assert!(matches!(
+                load(matrix),
+                Err(Error::Unsupported(message))
+                    if message
+                        == "Type 3 FontMatrix cannot be represented by horizontal simple-font metrics"
+            ));
+        }
+
+        for matrix in [
+            [0.001, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [1.0, 1.0, 1.0, 1.0, 0.0, 0.0],
+            [f64::NAN, 0.0, 0.0, 0.001, 0.0, 0.0],
+            [f64::MAX, 0.0, 0.0, 1.0, 0.0, 0.0],
+        ] {
+            assert!(matches!(load(matrix), Err(Error::Unresolved(_))));
+        }
+    }
+
+    #[test]
+    fn rejects_type3_fonts_with_missing_char_procs() {
         let mut missing_char_proc = standard_type3_font();
         let PdfObject::Dictionary(dictionary) = &mut missing_char_proc else {
             unreachable!();
@@ -1730,6 +2469,34 @@ mod tests {
             Err(Error::Unresolved(message))
                 if message == "Type 3 Encoding Differences references a missing CharProc"
         ));
+    }
+
+    fn set_type3_numbers<const N: usize>(font: &mut PdfObject, key: &[u8], values: [f64; N]) {
+        let PdfObject::Dictionary(dictionary) = font else {
+            unreachable!();
+        };
+        dictionary.insert(
+            key.to_vec(),
+            PdfObject::Array(values.into_iter().map(PdfObject::Real).collect()),
+        );
+    }
+
+    fn set_type3_encoding_and_char_procs(
+        font: &mut PdfObject,
+        differences: Vec<PdfObject>,
+        char_procs: PdfDict,
+    ) {
+        let PdfObject::Dictionary(dictionary) = font else {
+            unreachable!();
+        };
+        dictionary.insert(
+            b"Encoding".to_vec(),
+            PdfObject::Dictionary(PdfDict::from([(
+                b"Differences".to_vec(),
+                PdfObject::Array(differences),
+            )])),
+        );
+        dictionary.insert(b"CharProcs".to_vec(), PdfObject::Dictionary(char_procs));
     }
 
     fn glyph(code: u8, text: &str, width: f64) -> DecodedGlyph {
