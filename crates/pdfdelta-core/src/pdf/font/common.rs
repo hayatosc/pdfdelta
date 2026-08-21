@@ -83,6 +83,10 @@ pub(crate) struct FontIdentitySource {
 
 #[derive(Clone, Debug)]
 enum FontIdentitySourceKind {
+    Standard14 {
+        name: &'static [u8],
+        encoding: &'static [u8],
+    },
     Embedded {
         reference: ObjectRef,
         domain: FontIdentityDomain,
@@ -90,6 +94,14 @@ enum FontIdentitySourceKind {
     Type3 {
         char_procs: Vec<Type3CharProcIdentitySource>,
     },
+}
+
+impl FontIdentitySource {
+    pub(super) fn standard14(name: &'static [u8], encoding: &'static [u8]) -> Self {
+        Self {
+            kind: FontIdentitySourceKind::Standard14 { name, encoding },
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -194,6 +206,13 @@ pub(crate) fn load_font_identity(
 ) -> Result<LoadedFontIdentity> {
     let mut digest = identity_digest();
     let decoded_bytes = match &source.kind {
+        FontIdentitySourceKind::Standard14 { name, encoding } => {
+            digest.update(b"standard-14\0");
+            digest.update(name);
+            digest.update(b"\0");
+            digest.update(encoding);
+            0
+        }
         FontIdentitySourceKind::Embedded { reference, domain } => {
             let stream = pdf.decoded_stream(*reference)?;
             if stream.bytes.len() > max_decoded_bytes {
@@ -267,7 +286,7 @@ fn ensure_identity_bytes(decoded_bytes: usize, limit: usize) -> Result<()> {
     Ok(())
 }
 
-fn resolve_stream_reference(
+pub(super) fn resolve_stream_reference(
     pdf: &dyn ParsedPdf,
     object: &PdfObject,
     max_indirections: usize,
@@ -344,6 +363,34 @@ pub(super) fn optional_number(dictionary: &PdfDict, key: &[u8]) -> Result<Option
         .get(key)
         .map(|value| finite_number(value, "font metric"))
         .transpose()
+}
+
+pub(super) fn load_descriptor_bbox(
+    pdf: &dyn ParsedPdf,
+    descriptor: &PdfDict,
+    max_indirections: usize,
+) -> Result<Option<(f64, f64)>> {
+    let Some(font_bbox) = descriptor.get(b"FontBBox".as_slice()) else {
+        return Ok(None);
+    };
+    let font_bbox = resolve_object(pdf, font_bbox.clone(), max_indirections)?;
+    let PdfObject::Array(font_bbox) = font_bbox else {
+        return unresolved("FontDescriptor FontBBox is not an array");
+    };
+    if font_bbox.len() != 4 {
+        return unresolved("FontDescriptor FontBBox does not contain four numbers");
+    }
+    let font_bbox = font_bbox
+        .into_iter()
+        .map(|value| {
+            let value = resolve_object(pdf, value, max_indirections)?;
+            finite_number(&value, "FontDescriptor FontBBox value")
+        })
+        .collect::<Result<Vec<_>>>()?;
+    if font_bbox[0] > font_bbox[2] || font_bbox[1] >= font_bbox[3] {
+        return unresolved("FontDescriptor FontBBox has invalid bounds");
+    }
+    Ok(Some((font_bbox[3], font_bbox[1])))
 }
 
 pub(super) fn non_negative_number(object: &PdfObject, context: &str) -> Result<f64> {

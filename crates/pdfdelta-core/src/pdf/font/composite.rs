@@ -6,10 +6,11 @@ use crate::{
 };
 
 use super::{
-    cmap::{ToUnicodeCMap, UnicodeMapping},
+    cmap::{ToUnicodeCMap, UnicodeMapping, parse_identity_cid_encoding},
     common::{
-        FontIdentityDomain, FontIdentitySource, finite_number, load_to_unicode,
-        non_negative_number, resolve_font_identity_source, resolve_object,
+        FontIdentityDomain, FontIdentitySource, finite_number, load_descriptor_bbox,
+        load_to_unicode, non_negative_number, resolve_font_identity_source, resolve_object,
+        resolve_stream_reference,
     },
     decoder::{DecodedGlyph, FontDecoderLimits, VerticalGlyphMetrics, WritingMode},
 };
@@ -27,8 +28,16 @@ pub(crate) struct CompositeFontDecoder {
     default_width: f64,
     ascent: f64,
     descent: f64,
+    source_width: usize,
     writing_mode: WritingMode,
     vertical: Option<DefaultVerticalMetrics>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct LoadedEncoding {
+    writing_mode: WritingMode,
+    source_width: usize,
+    decoded_bytes: usize,
 }
 
 pub(super) struct LoadedCompositeFont {
@@ -44,7 +53,8 @@ impl CompositeFontDecoder {
         dictionary: &PdfDict,
         limits: FontDecoderLimits,
     ) -> Result<LoadedCompositeFont> {
-        let writing_mode = validate_encoding(pdf, dictionary, limits.max_indirections)?;
+        let encoding = load_encoding(pdf, dictionary, limits)?;
+        let writing_mode = encoding.writing_mode;
         let descendant = load_descendant(pdf, dictionary, limits.max_indirections)?;
         let default_width = load_default_width(pdf, &descendant, limits.max_indirections)?;
         let widths = load_widths(pdf, &descendant, limits)?;
@@ -63,7 +73,26 @@ impl CompositeFontDecoder {
             })
             .transpose()?
             .flatten();
-        let (to_unicode, decoded_to_unicode_bytes) = load_to_unicode(pdf, dictionary, limits, 2)?;
+        let remaining_font_bytes = limits
+            .max_decoded_font_bytes
+            .checked_sub(encoding.decoded_bytes)
+            .ok_or(Error::LimitExceeded {
+                resource: "decoded font bytes",
+                limit: limits.max_decoded_font_bytes,
+            })?;
+        let to_unicode_limits = FontDecoderLimits {
+            max_decoded_font_bytes: remaining_font_bytes,
+            ..limits
+        };
+        let (to_unicode, decoded_to_unicode_bytes) =
+            load_to_unicode(pdf, dictionary, to_unicode_limits, encoding.source_width)?;
+        let decoded_font_bytes = encoding
+            .decoded_bytes
+            .checked_add(decoded_to_unicode_bytes)
+            .ok_or(Error::LimitExceeded {
+                resource: "decoded font bytes",
+                limit: limits.max_decoded_font_bytes,
+            })?;
 
         Ok(LoadedCompositeFont {
             cid_width_entries: widths.len(),
@@ -73,11 +102,12 @@ impl CompositeFontDecoder {
                 default_width,
                 ascent,
                 descent,
+                source_width: encoding.source_width,
                 writing_mode,
                 vertical,
             },
             identity_source,
-            decoded_font_bytes: decoded_to_unicode_bytes,
+            decoded_font_bytes,
         })
     }
 
@@ -87,10 +117,14 @@ impl CompositeFontDecoder {
         max_output_glyphs: usize,
         max_mapped_text_bytes: usize,
     ) -> Result<Vec<DecodedGlyph>> {
-        if !input.len().is_multiple_of(2) {
-            return unresolved("Identity Type0 text code has an odd number of bytes");
+        if !input.len().is_multiple_of(self.source_width) {
+            return if self.source_width == 2 {
+                unresolved("Identity Type0 text code has an odd number of bytes")
+            } else {
+                unresolved("Type0 text bytes are truncated for the encoding width")
+            };
         }
-        let glyph_count = input.len() / 2;
+        let glyph_count = input.len() / self.source_width;
         if glyph_count > max_output_glyphs {
             return Err(Error::LimitExceeded {
                 resource: "decoded composite-font glyphs",
@@ -100,9 +134,13 @@ impl CompositeFontDecoder {
 
         let mut glyphs = Vec::with_capacity(glyph_count);
         let mut mapped_text_bytes = 0usize;
-        for source in input.chunks_exact(2) {
-            let raw_code = [source[0], source[1]];
-            let glyph_id = u16::from_be_bytes(raw_code);
+        for source in input.chunks_exact(self.source_width) {
+            let glyph_id = u16::try_from(
+                source
+                    .iter()
+                    .fold(0_u32, |value, byte| (value << 8) | u32::from(*byte)),
+            )
+            .map_err(|_| Error::Unresolved("Type0 character code exceeds the CID range".into()))?;
             let mapping = self
                 .to_unicode
                 .as_ref()
@@ -129,7 +167,7 @@ impl CompositeFontDecoder {
                 .copied()
                 .unwrap_or(self.default_width);
             glyphs.push(DecodedGlyph {
-                raw_code: raw_code.to_vec(),
+                raw_code: source.to_vec(),
                 mapping,
                 glyph_id,
                 width_1000_em,
@@ -162,23 +200,52 @@ impl CompositeFontDecoder {
     }
 }
 
-fn validate_encoding(
+fn load_encoding(
     pdf: &dyn ParsedPdf,
     dictionary: &PdfDict,
-    max_indirections: usize,
-) -> Result<WritingMode> {
+    limits: FontDecoderLimits,
+) -> Result<LoadedEncoding> {
     let encoding = dictionary
         .get(b"Encoding".as_slice())
         .ok_or_else(|| Error::Unresolved("Type0 font has no Encoding".into()))?;
-    match resolve_object(pdf, encoding.clone(), max_indirections)? {
-        PdfObject::Name(name) if name.as_slice() == b"Identity-H" => Ok(WritingMode::Horizontal),
-        PdfObject::Name(name) if name.as_slice() == b"Identity-V" => Ok(WritingMode::Vertical),
+    match resolve_object(pdf, encoding.clone(), limits.max_indirections)? {
+        PdfObject::Name(name) if name.as_slice() == b"Identity-H" => Ok(LoadedEncoding {
+            writing_mode: WritingMode::Horizontal,
+            source_width: 2,
+            decoded_bytes: 0,
+        }),
+        PdfObject::Name(name) if name.as_slice() == b"Identity-V" => Ok(LoadedEncoding {
+            writing_mode: WritingMode::Vertical,
+            source_width: 2,
+            decoded_bytes: 0,
+        }),
         PdfObject::Name(name) => Err(Error::Unsupported(format!(
             "Type0 encoding /{} is not supported",
             String::from_utf8_lossy(&name)
         ))),
-        PdfObject::Dictionary(_) | PdfObject::Stream(_) => Err(Error::Unsupported(
-            "custom Type0 encoding CMaps are not supported".into(),
+        PdfObject::Stream(_) => {
+            let reference =
+                resolve_stream_reference(pdf, encoding, limits.max_indirections, "Type0 Encoding")?;
+            let stream = pdf.decoded_stream(reference)?;
+            if stream.bytes.len() > limits.max_decoded_font_bytes {
+                return Err(Error::LimitExceeded {
+                    resource: "decoded Type0 Encoding bytes",
+                    limit: limits.max_decoded_font_bytes,
+                });
+            }
+            let parsed = parse_identity_cid_encoding(&stream.bytes, limits.cmap)?;
+            Ok(LoadedEncoding {
+                writing_mode: if parsed.vertical {
+                    WritingMode::Vertical
+                } else {
+                    WritingMode::Horizontal
+                },
+                source_width: parsed.source_width,
+                decoded_bytes: stream.bytes.len(),
+            })
+        }
+        PdfObject::Dictionary(_) => Err(Error::Unsupported(
+            "direct custom Type0 encoding CMaps are not supported".into(),
         )),
         _ => unresolved("Type0 Encoding is not a name or CMap"),
     }
@@ -434,23 +501,38 @@ fn load_metrics(
     let PdfObject::Dictionary(descriptor) = descriptor else {
         return unresolved("CID FontDescriptor is not a dictionary");
     };
-    let ascent = load_metric(pdf, &descriptor, b"Ascent", "ascent", max_indirections)?;
-    let descent = load_metric(pdf, &descriptor, b"Descent", "descent", max_indirections)?;
+    let mut ascent = load_optional_metric(pdf, &descriptor, b"Ascent", "ascent", max_indirections)?;
+    let mut descent =
+        load_optional_metric(pdf, &descriptor, b"Descent", "descent", max_indirections)?;
+    if ascent
+        .zip(descent)
+        .is_none_or(|(ascent, descent)| ascent <= descent)
+        && let Some((bbox_ascent, bbox_descent)) =
+            load_descriptor_bbox(pdf, &descriptor, max_indirections)?
+    {
+        ascent = Some(bbox_ascent);
+        descent = Some(bbox_descent);
+    }
+    let ascent = ascent.ok_or_else(|| Error::Unresolved("CID font has no ascent metric".into()))?;
+    let descent =
+        descent.ok_or_else(|| Error::Unresolved("CID font has no descent metric".into()))?;
     Ok((ascent, descent))
 }
 
-fn load_metric(
+fn load_optional_metric(
     pdf: &dyn ParsedPdf,
     descriptor: &PdfDict,
     key: &[u8],
     context: &str,
     max_indirections: usize,
-) -> Result<f64> {
-    let value = descriptor
+) -> Result<Option<f64>> {
+    descriptor
         .get(key)
-        .ok_or_else(|| Error::Unresolved(format!("CID font has no {context} metric")))?;
-    let value = resolve_object(pdf, value.clone(), max_indirections)?;
-    finite_number(&value, context)
+        .map(|value| {
+            let value = resolve_object(pdf, value.clone(), max_indirections)?;
+            finite_number(&value, context)
+        })
+        .transpose()
 }
 
 fn unresolved<T>(message: &str) -> Result<T> {
@@ -520,6 +602,66 @@ mod tests {
                 (vec![0, 6], 6, UnicodeMapping::Unmapped, 900.0),
             ]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn decodes_bounded_one_byte_identity_cmap_streams() -> Result<()> {
+        const ENCODING: &[u8] = b"/WMode 0 def \
+            1 begincodespacerange <00> <FF> endcodespacerange \
+            1 begincidrange <00> <FF> 0 endcidrange";
+        let mut pdf =
+            MockPdf::with_descendant(descendant_with_widths(PdfObject::Array(Vec::new())));
+        pdf.objects
+            .insert(object_ref(3), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(object_ref(3), ENCODING.to_vec());
+        let mut font = font_dictionary();
+        font.insert(b"Encoding".to_vec(), PdfObject::Reference(object_ref(3)));
+        let limits = FontDecoderLimits {
+            cmap: CMapLimits {
+                max_entries: 300,
+                ..LIMITS.cmap
+            },
+            ..LIMITS
+        };
+
+        let loaded = CompositeFontDecoder::load(&pdf, &font, limits)?;
+        let glyphs = loaded.decoder.decode(&[1, 2, 6], 3, usize::MAX)?;
+
+        assert_eq!(loaded.decoded_font_bytes, ENCODING.len() + TO_UNICODE.len());
+        assert_eq!(loaded.decoder.writing_mode(), WritingMode::Horizontal);
+        assert_eq!(glyphs[0].raw_code, [1]);
+        assert_eq!(glyphs[0].glyph_id, 1);
+        assert_eq!(glyphs[0].mapping, mapped("A"));
+        assert_eq!(glyphs[1].mapping, mapped("B"));
+        assert_eq!(glyphs[2].mapping, UnicodeMapping::Unmapped);
+        Ok(())
+    }
+
+    #[test]
+    fn uses_descriptor_bbox_when_cid_vertical_metrics_are_missing() -> Result<()> {
+        let mut descendant = descendant_with_widths(PdfObject::Array(Vec::new()));
+        let PdfObject::Dictionary(dictionary) = &mut descendant else {
+            unreachable!();
+        };
+        dictionary.insert(
+            b"FontDescriptor".to_vec(),
+            PdfObject::Dictionary(PdfDict::from([(
+                b"FontBBox".to_vec(),
+                PdfObject::Array(vec![
+                    PdfObject::Integer(-600),
+                    PdfObject::Integer(-200),
+                    PdfObject::Integer(1300),
+                    PdfObject::Integer(1000),
+                ]),
+            )])),
+        );
+        let pdf = MockPdf::with_descendant(descendant);
+
+        let loaded = CompositeFontDecoder::load(&pdf, &font_dictionary(), LIMITS)?;
+
+        assert_eq!(loaded.decoder.ascent_1000_em(), 1000.0);
+        assert_eq!(loaded.decoder.descent_1000_em(), -200.0);
         Ok(())
     }
 

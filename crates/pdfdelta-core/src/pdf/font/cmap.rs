@@ -31,6 +31,12 @@ pub(crate) struct ToUnicodeCMap {
     total_entries: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct IdentityCidEncoding {
+    pub(crate) source_width: usize,
+    pub(crate) vertical: bool,
+}
+
 #[derive(Clone, Debug)]
 struct CodeSpace {
     low: Vec<u8>,
@@ -57,6 +63,221 @@ pub(crate) fn parse_to_unicode_for_width(
         });
     }
     parse_to_unicode_with_width(input, limits, Some(source_width))
+}
+
+pub(crate) fn parse_identity_cid_encoding(
+    input: &[u8],
+    limits: CMapLimits,
+) -> Result<IdentityCidEncoding> {
+    let mut lexer = Lexer::new(input);
+    let mut pending_count = None;
+    let mut wrapper = WrapperState::Bare;
+    let mut codespace = None;
+    let mut cid_range = None;
+    let mut vertical = None;
+
+    while let Some(token) = lexer.next_token()? {
+        match token {
+            Token::Word(b"begin") => {
+                wrapper = match wrapper {
+                    WrapperState::Bare => WrapperState::Prolog { outer_depth: 1 },
+                    WrapperState::Prolog { outer_depth } => WrapperState::Prolog {
+                        outer_depth: increment_depth(outer_depth)?,
+                    },
+                    WrapperState::CMap {
+                        outer_depth,
+                        inner_depth,
+                    } => WrapperState::CMap {
+                        outer_depth,
+                        inner_depth: increment_depth(inner_depth)?,
+                    },
+                    WrapperState::Abbreviated | WrapperState::Epilog { .. } => {
+                        return unresolved("CMap wrapper has an invalid begin transition");
+                    }
+                };
+                pending_count = None;
+            }
+            Token::Word(b"begincmap") => {
+                wrapper = match wrapper {
+                    WrapperState::Bare => WrapperState::CMap {
+                        outer_depth: 0,
+                        inner_depth: 0,
+                    },
+                    WrapperState::Prolog { outer_depth } => WrapperState::CMap {
+                        outer_depth,
+                        inner_depth: 0,
+                    },
+                    _ => return unresolved("CMap wrapper has an invalid begincmap transition"),
+                };
+                pending_count = None;
+            }
+            Token::Word(b"endcmap") => {
+                let WrapperState::CMap {
+                    outer_depth,
+                    inner_depth: 0,
+                } = wrapper
+                else {
+                    return unresolved("unexpected CMap block terminator");
+                };
+                wrapper = WrapperState::Epilog { outer_depth };
+                pending_count = None;
+            }
+            Token::Word(b"end") => {
+                wrapper = match wrapper {
+                    WrapperState::CMap {
+                        outer_depth,
+                        inner_depth,
+                    } if inner_depth > 0 => WrapperState::CMap {
+                        outer_depth,
+                        inner_depth: inner_depth - 1,
+                    },
+                    WrapperState::Epilog { outer_depth } if outer_depth > 0 => {
+                        WrapperState::Epilog {
+                            outer_depth: outer_depth - 1,
+                        }
+                    }
+                    _ => return unresolved("unexpected CMap block terminator"),
+                };
+                pending_count = None;
+            }
+            Token::Word(b"/WMode") => {
+                if vertical.is_some() {
+                    return unresolved("custom Type0 CMap defines WMode more than once");
+                }
+                let mode = match lexer.next_token()? {
+                    Some(Token::Word(b"0")) => false,
+                    Some(Token::Word(b"1")) => true,
+                    _ => return unresolved("custom Type0 CMap WMode is not zero or one"),
+                };
+                match lexer.next_token()? {
+                    Some(Token::Word(b"def")) => {}
+                    _ => return unresolved("custom Type0 CMap WMode is not defined"),
+                }
+                vertical = Some(mode);
+                pending_count = None;
+            }
+            Token::Word(b"begincodespacerange") => {
+                wrapper = mapping_wrapper_state(wrapper)?;
+                let count = required_count(pending_count, "begincodespacerange")?;
+                if count != 1 || codespace.is_some() {
+                    return Err(Error::Unsupported(
+                        "custom Type0 CMap must contain one identity codespace".into(),
+                    ));
+                }
+                let low = cmap_source_hex(&mut lexer, limits)?;
+                let high = cmap_source_hex(&mut lexer, limits)?;
+                expect_lexer_word(&mut lexer, b"endcodespacerange")?;
+                codespace = Some((low, high));
+                pending_count = None;
+            }
+            Token::Word(b"begincidrange") => {
+                wrapper = mapping_wrapper_state(wrapper)?;
+                let count = required_count(pending_count, "begincidrange")?;
+                if count != 1 || cid_range.is_some() {
+                    return Err(Error::Unsupported(
+                        "custom Type0 CMap must contain one identity CID range".into(),
+                    ));
+                }
+                let low = cmap_source_hex(&mut lexer, limits)?;
+                let high = cmap_source_hex(&mut lexer, limits)?;
+                let destination = match lexer.next_token()? {
+                    Some(Token::Word(word)) => parse_decimal(word)
+                        .and_then(|value| u16::try_from(value).ok())
+                        .ok_or_else(|| {
+                            Error::Unresolved("custom Type0 CMap CID destination is invalid".into())
+                        })?,
+                    _ => return unresolved("custom Type0 CMap CID destination is missing"),
+                };
+                expect_lexer_word(&mut lexer, b"endcidrange")?;
+                cid_range = Some((low, high, destination));
+                pending_count = None;
+            }
+            Token::Word(
+                b"usecmap" | b"begincidchar" | b"beginnotdefchar" | b"beginnotdefrange",
+            ) => {
+                return Err(Error::Unsupported(
+                    "custom Type0 CMap inheritance and non-identity CID mappings are not supported"
+                        .into(),
+                ));
+            }
+            Token::Word(b"beginbfchar" | b"beginbfrange") => {
+                return unresolved("Type0 encoding CMap contains Unicode mappings");
+            }
+            Token::Word(word) if word.starts_with(b"end") => {
+                return unresolved("unexpected CMap block terminator");
+            }
+            Token::Word(word) => pending_count = parse_decimal(word),
+            _ => pending_count = None,
+        }
+    }
+
+    if !matches!(
+        wrapper,
+        WrapperState::Abbreviated | WrapperState::Epilog { outer_depth: 0 }
+    ) {
+        return unresolved("CMap wrapper has an unclosed scope");
+    }
+    let Some((space_low, space_high)) = codespace else {
+        return unresolved("custom Type0 CMap has no codespace range");
+    };
+    let Some((range_low, range_high, destination)) = cid_range else {
+        return unresolved("custom Type0 CMap has no CID range");
+    };
+    if space_low != range_low || space_high != range_high {
+        return Err(Error::Unsupported(
+            "custom Type0 CMap codespace and CID range differ".into(),
+        ));
+    }
+    let source_width = space_low.len();
+    if !matches!(source_width, 1 | 2)
+        || space_high.len() != source_width
+        || space_low.iter().any(|byte| *byte != 0)
+        || space_high.iter().any(|byte| *byte != u8::MAX)
+        || destination != 0
+    {
+        return Err(Error::Unsupported(
+            "custom Type0 CMap is not a full-domain identity mapping".into(),
+        ));
+    }
+    let mapped_entries = range_len(&space_low, &space_high)?;
+    let entries = mapped_entries.checked_add(1).ok_or(Error::LimitExceeded {
+        resource: "CMap entries",
+        limit: limits.max_entries,
+    })?;
+    if entries > limits.max_entries {
+        return Err(Error::LimitExceeded {
+            resource: "CMap entries",
+            limit: limits.max_entries,
+        });
+    }
+    Ok(IdentityCidEncoding {
+        source_width,
+        vertical: vertical.unwrap_or(false),
+    })
+}
+
+fn cmap_source_hex(lexer: &mut Lexer<'_>, limits: CMapLimits) -> Result<Vec<u8>> {
+    let Some(Token::Hex(raw)) = lexer.next_token()? else {
+        return unresolved("expected hexadecimal CMap source code");
+    };
+    let byte_len = hex_byte_len(raw)?;
+    if byte_len == 0 || byte_len > MAX_PDF_CODE_BYTES {
+        return unresolved("CMap source code must be one to four bytes");
+    }
+    if byte_len > limits.max_code_bytes {
+        return Err(Error::LimitExceeded {
+            resource: "CMap source code bytes",
+            limit: limits.max_code_bytes,
+        });
+    }
+    decode_hex(raw, byte_len)
+}
+
+fn expect_lexer_word(lexer: &mut Lexer<'_>, expected: &[u8]) -> Result<()> {
+    match lexer.next_token()? {
+        Some(Token::Word(word)) if word == expected => Ok(()),
+        _ => unresolved("unexpected or missing CMap section terminator"),
+    }
 }
 
 fn parse_to_unicode_with_width(
@@ -316,10 +537,13 @@ impl Parser<'_> {
         for _ in 0..count {
             let low = self.source_hex()?;
             let high = self.source_hex()?;
-            let (low, high) = match self.source_width {
+            let reconciled = match self.source_width {
                 Some(width) => reconcile_codespace(low, high, width)?,
-                None if low.len() == high.len() && low <= high => (low, high),
+                None if low.len() == high.len() && low <= high => Some((low, high)),
                 None => return unresolved("invalid codespace range"),
+            };
+            let Some((low, high)) = reconciled else {
+                continue;
             };
             let candidate = CodeSpace { low, high };
             self.cmap.codespaces[candidate.low.len() - 1].push(candidate);
@@ -613,7 +837,11 @@ fn reconcile_source(mut source: Vec<u8>, width: usize) -> Result<Vec<u8>> {
     }
 }
 
-fn reconcile_codespace(low: Vec<u8>, high: Vec<u8>, width: usize) -> Result<(Vec<u8>, Vec<u8>)> {
+fn reconcile_codespace(
+    low: Vec<u8>,
+    high: Vec<u8>,
+    width: usize,
+) -> Result<Option<(Vec<u8>, Vec<u8>)>> {
     let low = code_value(&low);
     let high = code_value(&high);
     if low > high {
@@ -622,12 +850,12 @@ fn reconcile_codespace(low: Vec<u8>, high: Vec<u8>, width: usize) -> Result<(Vec
 
     let max = (1u64 << (width * 8)) - 1;
     if low > max {
-        return unresolved("CMap codespace does not contain the decoder source width");
+        return Ok(None);
     }
-    Ok((
+    Ok(Some((
         fixed_width_code(low, width),
         fixed_width_code(high.min(max), width),
-    ))
+    )))
 }
 
 fn fixed_width_code(value: u64, width: usize) -> Vec<u8> {
@@ -1079,6 +1307,79 @@ mod tests {
             range.decode(&[0xae, 0xff], usize::MAX)?,
             vec![mapped(&[0xae], "®"), mapped(&[0xff], "ÿ"),]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn parses_bounded_full_domain_identity_cid_encodings() -> Result<()> {
+        let limits = CMapLimits {
+            max_entries: 300,
+            ..LIMITS
+        };
+        let encoding = parse_identity_cid_encoding(
+            b"begincmap /WMode 1 def \
+              1 begincodespacerange <00> <FF> endcodespacerange \
+              1 begincidrange <00> <FF> 0 endcidrange endcmap",
+            limits,
+        )?;
+
+        assert_eq!(
+            encoding,
+            IdentityCidEncoding {
+                source_width: 1,
+                vertical: true,
+            }
+        );
+        assert!(matches!(
+            parse_identity_cid_encoding(
+                b"1 begincodespacerange <00> <FF> endcodespacerange \
+                  1 begincidrange <00> <FF> 1 endcidrange",
+                limits,
+            ),
+            Err(Error::Unsupported(_))
+        ));
+        assert!(matches!(
+            parse_identity_cid_encoding(
+                b"/WMode 0 def /WMode 1 def \
+                  1 begincodespacerange <00> <FF> endcodespacerange \
+                  1 begincidrange <00> <FF> 0 endcidrange",
+                limits,
+            ),
+            Err(Error::Unresolved(_))
+        ));
+        assert!(matches!(
+            parse_identity_cid_encoding(
+                b"1 begincodespacerange <00> <FF> endcodespacerange \
+                  1 begincidrange <00> <FF> 0 endcidrange \
+                  1 beginnotdefrange <00> <00> 0 endnotdefrange",
+                limits,
+            ),
+            Err(Error::Unsupported(_))
+        ));
+        assert!(matches!(
+            parse_identity_cid_encoding(
+                b"1 begincodespacerange <00> <FF> endcodespacerange \
+                  1 begincidrange <00> <FF> 0 endcidrange",
+                CMapLimits {
+                    max_entries: 256,
+                    ..limits
+                },
+            ),
+            Err(Error::LimitExceeded { .. })
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn ignores_codespaces_outside_the_decoder_domain_when_a_usable_range_remains() -> Result<()> {
+        let cmap = parse_to_unicode_for_width(
+            b"2 begincodespacerange <00> <EF> <F000> <FFFF> endcodespacerange \
+              1 beginbfchar <41> <0041> endbfchar",
+            LIMITS,
+            1,
+        )?;
+
+        assert_eq!(cmap.decode(b"A", usize::MAX)?, vec![mapped(b"A", "A")]);
         Ok(())
     }
 

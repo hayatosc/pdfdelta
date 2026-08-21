@@ -7,8 +7,9 @@ use crate::{
 
 use super::cmap::{ToUnicodeCMap, UnicodeMapping};
 use super::common::{
-    FontIdentityDomain, FontIdentitySource, finite_number, load_to_unicode, non_negative_number,
-    optional_number, resolve_font_identity_source, resolve_object, type3_font_identity_source,
+    FontIdentityDomain, FontIdentitySource, finite_number, load_descriptor_bbox, load_to_unicode,
+    non_negative_number, optional_number, resolve_font_identity_source, resolve_object,
+    type3_font_identity_source,
 };
 use super::decoder::{DecodedGlyph, FontDecoderLimits};
 use super::metrics;
@@ -70,6 +71,7 @@ struct LoadedEncoding {
     base: FallbackEncoding,
     differences: BTreeMap<u8, DifferenceMapping>,
     identity_ambiguous: bool,
+    standard14_identity_encoding: Option<&'static [u8]>,
 }
 
 struct Type3Metadata {
@@ -202,7 +204,15 @@ impl SimpleFontDecoder {
                 (None, None)
             }
         } else {
-            let source = if dictionary.contains_key(b"Encoding".as_slice()) {
+            let source = if let (Some(base14), Some(identity_encoding)) = (
+                base14.filter(|_| !matches!(subtype, SimpleSubtype::MMType1)),
+                encoding.standard14_identity_encoding,
+            ) {
+                Some(FontIdentitySource::standard14(
+                    base14.identity_name(),
+                    identity_encoding,
+                ))
+            } else if dictionary.contains_key(b"Encoding".as_slice()) {
                 None
             } else {
                 identity_domain(pdf, &dictionary, limits.max_indirections, subtype)?
@@ -383,6 +393,25 @@ fn validate_difference_metrics(
 }
 
 impl Base14 {
+    fn identity_name(self) -> &'static [u8] {
+        match self {
+            Self::Courier => b"Courier",
+            Self::CourierBold => b"Courier-Bold",
+            Self::CourierOblique => b"Courier-Oblique",
+            Self::CourierBoldOblique => b"Courier-BoldOblique",
+            Self::Helvetica => b"Helvetica",
+            Self::HelveticaBold => b"Helvetica-Bold",
+            Self::HelveticaOblique => b"Helvetica-Oblique",
+            Self::HelveticaBoldOblique => b"Helvetica-BoldOblique",
+            Self::TimesRoman => b"Times-Roman",
+            Self::TimesBold => b"Times-Bold",
+            Self::TimesItalic => b"Times-Italic",
+            Self::TimesBoldItalic => b"Times-BoldItalic",
+            Self::Symbol => b"Symbol",
+            Self::ZapfDingbats => b"ZapfDingbats",
+        }
+    }
+
     fn width(self, encoding: FallbackEncoding, code: u8) -> Option<f64> {
         if matches!(encoding, FallbackEncoding::MacRoman) {
             return fallback_char(encoding, code).and_then(|scalar| self.glyph_width(scalar));
@@ -790,14 +819,19 @@ fn load_encoding(
             base,
             differences: BTreeMap::new(),
             identity_ambiguous: false,
+            standard14_identity_encoding: Some(base.identity_name()),
         });
     };
     match resolve_object(pdf, encoding.clone(), limits.max_indirections)? {
-        PdfObject::Name(name) => Ok(LoadedEncoding {
-            base: encoding_name(&name)?,
-            differences: BTreeMap::new(),
-            identity_ambiguous: false,
-        }),
+        PdfObject::Name(name) => {
+            let base = encoding_name(&name)?;
+            Ok(LoadedEncoding {
+                base,
+                differences: BTreeMap::new(),
+                identity_ambiguous: false,
+                standard14_identity_encoding: Some(base.identity_name()),
+            })
+        }
         PdfObject::Dictionary(encoding) => {
             let base = match encoding.get(b"BaseEncoding".as_slice()) {
                 Some(base) => match resolve_object(pdf, base.clone(), limits.max_indirections)? {
@@ -832,9 +866,23 @@ fn load_encoding(
                 base,
                 differences,
                 identity_ambiguous,
+                standard14_identity_encoding: None,
             })
         }
         _ => unresolved("font Encoding is not a name or dictionary"),
+    }
+}
+
+impl FallbackEncoding {
+    fn identity_name(self) -> &'static [u8] {
+        match self {
+            Self::Standard => b"standard",
+            Self::WinAnsi => b"win-ansi",
+            Self::MacRoman => b"mac-roman",
+            Self::Symbol => b"symbol-built-in",
+            Self::ZapfDingbats => b"zapf-dingbats-built-in",
+            Self::Unknown => b"unknown",
+        }
     }
 }
 
@@ -980,34 +1028,6 @@ fn load_descriptor(
         .get(b"MissingWidth".as_slice())
         .map_or(Ok(0.0), |value| non_negative_number(value, "MissingWidth"))?;
     Ok((ascent, descent, missing_width))
-}
-
-fn load_descriptor_bbox(
-    pdf: &dyn ParsedPdf,
-    descriptor: &PdfDict,
-    max_indirections: usize,
-) -> Result<Option<(f64, f64)>> {
-    let Some(font_bbox) = descriptor.get(b"FontBBox".as_slice()) else {
-        return Ok(None);
-    };
-    let font_bbox = resolve_object(pdf, font_bbox.clone(), max_indirections)?;
-    let PdfObject::Array(font_bbox) = font_bbox else {
-        return unresolved("FontDescriptor FontBBox is not an array");
-    };
-    if font_bbox.len() != 4 {
-        return unresolved("FontDescriptor FontBBox does not contain four numbers");
-    }
-    let font_bbox = font_bbox
-        .into_iter()
-        .map(|value| {
-            let value = resolve_object(pdf, value, max_indirections)?;
-            finite_number(&value, "FontDescriptor FontBBox value")
-        })
-        .collect::<Result<Vec<_>>>()?;
-    if font_bbox[0] > font_bbox[2] || font_bbox[1] >= font_bbox[3] {
-        return unresolved("FontDescriptor FontBBox has invalid bounds");
-    }
-    Ok(Some((font_bbox[3], font_bbox[1])))
 }
 
 fn glyph_name_mapping(name: &[u8]) -> DifferenceMapping {
@@ -2066,6 +2086,67 @@ mod tests {
             SimpleFontDecoder::load(&MockPdf::default(), &unknown, LIMITS),
             Err(Error::Unresolved(_))
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn unencoded_standard_14_fonts_have_canonical_glyph_identity() -> Result<()> {
+        let pdf = MockPdf::default();
+        let symbol = SimpleFontDecoder::load(&pdf, &standard_font(b"Symbol"), LIMITS)?;
+        let dingbats = SimpleFontDecoder::load(&pdf, &standard_font(b"ZapfDingbats"), LIMITS)?;
+
+        assert_eq!(
+            symbol.decoder.decode(b"A", 1, usize::MAX)?[0].mapping,
+            UnicodeMapping::Unmapped
+        );
+        let symbol_identity = load_font_identity(
+            &pdf,
+            &symbol
+                .identity_source
+                .ok_or_else(|| Error::Unresolved("Symbol should have identity".into()))?,
+            usize::MAX,
+        )?;
+        let dingbats_identity = load_font_identity(
+            &pdf,
+            &dingbats
+                .identity_source
+                .ok_or_else(|| Error::Unresolved("ZapfDingbats should have identity".into()))?,
+            usize::MAX,
+        )?;
+
+        assert_eq!(symbol_identity.decoded_bytes, 0);
+        assert_ne!(symbol_identity.hash, dingbats_identity.hash);
+        Ok(())
+    }
+
+    #[test]
+    fn named_standard_14_encodings_are_part_of_canonical_identity() -> Result<()> {
+        let pdf = MockPdf::default();
+        let load = |encoding: &[u8]| {
+            let mut font = standard_font(b"Helvetica");
+            let PdfObject::Dictionary(dictionary) = &mut font else {
+                unreachable!();
+            };
+            dictionary.insert(b"Encoding".to_vec(), PdfObject::Name(encoding.to_vec()));
+            SimpleFontDecoder::load(&pdf, &font, LIMITS)
+        };
+        let win_ansi = load_font_identity(
+            &pdf,
+            &load(b"WinAnsiEncoding")?
+                .identity_source
+                .ok_or_else(|| Error::Unresolved("WinAnsi identity is missing".into()))?,
+            usize::MAX,
+        )?;
+        let standard = load_font_identity(
+            &pdf,
+            &load(b"StandardEncoding")?
+                .identity_source
+                .ok_or_else(|| Error::Unresolved("Standard identity is missing".into()))?,
+            usize::MAX,
+        )?;
+
+        assert_eq!(win_ansi.decoded_bytes, 0);
+        assert_ne!(win_ansi.hash, standard.hash);
         Ok(())
     }
 

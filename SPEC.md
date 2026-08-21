@@ -403,11 +403,13 @@ Unicodeへ戻せないglyphをU+FFFDや空文字で潰さず、`Unmapped`とし�
 
 font programが異なりUnicodeにも戻せない場合、その領域はUNRESOLVEDとする。raw code、font object、Content Stream上のprovenanceはreport/debug用に保持する。
 
-simple fontの`FontDescriptor`で`Ascent <= Descent`となりcross-axis extentを構成できない場合は、妥当な`FontBBox`があればそのtop/bottomをfont-wide vertical metricとして用いる。どちらからも正のextentを得られない場合だけUNRESOLVEDとし、ゼロ面積Glyphを後段へ渡さない。
+simple fontおよびCID descendantの`FontDescriptor`でAscent / Descentが欠落するか、`Ascent <= Descent`となってcross-axis extentを構成できない場合は、妥当な`FontBBox`があればそのtop/bottomをfont-wide vertical metricとして用いる。どちらからも正のextentを得られない場合だけUNRESOLVEDとし、ゼロ面積Glyphを後段へ渡さない。
 
-simple fontではcodeごとに完全一致するToUnicode entryを優先し、entryが存在しない場合だけDifferencesから宣言済みのStandard、WinAnsi、MacRoman encodingの順にfallbackする。明示された不正entryは`Unmapped`のまま保持し、fallbackしてはならない。明示された未知のDifferencesもunmappedのままとし、font identityで暗黙に回復してはならない。Type1Cのidentityは、subtypeが`Type1C`である単一の`FontFile3` streamを必要とする。MMType1はvariation axisを解釈せず、宣言済みsimple-font encodingとmetricsだけを使う。選択されたdesign instanceをidentityへ含められるまでは、unmapped glyphにstable identityを与えない。
+simple fontではcodeごとに完全一致するToUnicode entryを優先し、entryが存在しない場合だけDifferencesから宣言済みのStandard、WinAnsi、MacRoman encodingの順にfallbackする。明示された不正entryは`Unmapped`のまま保持し、fallbackしてはならない。明示された未知のDifferencesもunmappedのままとし、font identityで暗黙に回復してはならない。Standard 14 fontではcanonicalなBaseFont名と、組み込みencodingまたは明示されたStandard / WinAnsi / MacRoman encoding名をstable identityへ含める。Differences dictionaryはcode selectorの意味を変えるため、このcanonical identityの対象にしない。Type1Cのidentityは、subtypeが`Type1C`である単一の`FontFile3` streamを必要とする。MMType1はvariation axisを解釈せず、宣言済みsimple-font encodingとmetricsだけを使う。選択されたdesign instanceをidentityへ含められるまでは、unmapped glyphにstable identityを与えない。
 
-Identity-HとIdentity-Vは常に固定2-byte codeとしてcontentを分割する。ToUnicodeは完全一致で参照し、疎なcodespace rangeによって分割幅を変えない。entry欠落、孤立したUTF-16 surrogate destination、ToUnicode自体の欠落は`Unmapped`とする。一方、空、奇数長、非hexのdestinationはerrorのままにする。Unmapped entryもCMap entry数、work量、出力scalar数のbudgetへ課金する。unmapped codeを比較可能にするのはdescendant fontがstable identityを提供できる場合だけとし、それ以外は実際にcodeが使われた箇所を文脈付きUNRESOLVEDとする。
+定義済みIdentity-HとIdentity-Vは常に固定2-byte codeとしてcontentを分割する。custom Type0 Encoding CMapは、`WMode`が0または1で、単一のfull-domain codespace (`<00> <FF>`または`<0000> <FFFF>`) と、同じ範囲をCID 0から写す単一のidentity `begincidrange`だけを持つ場合に限り、固定1-byteまたは2-byte codeとして扱う。domain全体をentry budgetへ課金し、`usecmap`、`begincidchar`、複数range、非identity mappingはUNSUPPORTEDとする。
+
+ToUnicodeはdecoderの固定幅で完全一致参照する。decoder幅のdomainから完全に外れたcodespaceは、利用可能な同幅codespaceが別に存在する場合だけ無視し、実際の分割幅を変えない。利用可能なcodespaceが一つも残らない場合はUNRESOLVEDとする。entry欠落、孤立したUTF-16 surrogate destination、ToUnicode自体の欠落は`Unmapped`とする。一方、空、奇数長、非hexのdestinationはerrorのままにする。Unmapped entryもCMap entry数、work量、出力scalar数のbudgetへ課金する。unmapped codeを比較可能にするのはdescendant fontがstable identityを提供できる場合だけとし、それ以外は実際にcodeが使われた箇所を文脈付きUNRESOLVEDとする。埋め込みfont programもToUnicodeもないCID fontは、BaseFont名だけでglyph同一性を推測しない。
 
 Type 3 fontは、次の上限付きsimple-font subsetだけを扱う。
 
@@ -416,7 +418,7 @@ Type 3 fontは、次の上限付きsimple-font subsetだけを扱う。
 - Unicode mappingにはToUnicodeと既知のAdobe glyph nameを使い、未知nameはunmappedのままにする。DifferencesのnameはCharProcsへ解決できなければならない。text extractionではCharProcのdrawing operatorを解釈しない。
 - unmapped glyphでは、間接参照されたdecode済みCharProc streamをglyph nameのbyte順に並べ、Type 3専用domainでhashする。この安定したname順をglyph IDに使い、dictionary順、object ID、Encoding codeの再配置にidentityが依存しないようにする。font Resourcesが欠落または空、もしくは標準`ProcSet` nameの上限付きarrayだけを持つ場合に限ってidentityを生成する。named resourceへ依存する場合は、同じCharProc bytesが別programへ解決され得るためidentityを生成しない。CharProcが欠落、direct、decode不能、曖昧、上限超過の場合もidentityを生成しない。FontMatrixとWidthsはglyph token identityではなくgeometry evidenceとして扱う。
 
-Identity-Vは、単一のCIDFontType0/CIDFontType2 descendant、固定2-byte code、完全一致で参照する任意のToUnicode、per-CIDの`W2`を持たないsubsetを扱う。`DW2`は省略時の`[880 -1000]`またはdownward displacementを持つ有限な2要素arrayを受理する。vertical originは`(horizontal_width / 2, DW2[0])`、advanceは`DW2[1]`から構成し、bbox、direction、character / word spacing、`TJ` adjustmentをvertical axisへ適用する。custom vertical CMap、per-CIDの`W2`、一般的なvertical reading orderは初期scope外とする。
+Identity-Vは、単一のCIDFontType0/CIDFontType2 descendant、固定2-byte code、完全一致で参照する任意のToUnicode、per-CIDの`W2`を持たないsubsetを扱う。前述のfull-domain identity条件を満たすcustom Type0 CMapでは、`WMode 1`も同じvertical subsetへ接続する。`DW2`は省略時の`[880 -1000]`またはdownward displacementを持つ有限な2要素arrayを受理する。vertical originは`(horizontal_width / 2, DW2[0])`、advanceは`DW2[1]`から構成し、bbox、direction、character / word spacing、`TJ` adjustmentをvertical axisへ適用する。一般のcustom vertical CMap、per-CIDの`W2`、一般的なvertical reading orderは初期scope外とする。
 
 ---
 
@@ -779,7 +781,17 @@ parser backendの最終選択は§6.2のcapability fixtureで決める。library
 
 この節は、仕様を変更した理由と変更箇所を`SPEC.md`自身に残すための記録である。過去分は`git log --follow -- SPEC.md`と各commitのdiffから復元した。詳細な差分は`git show <commit> -- SPEC.md`で確認する。
 
-### 2026-08-21 今回の変更
+### 2026-08-21 追加コーパス第2回（本変更）
+
+- §6.4：decoder幅のdomain外にある余分なToUnicode codespaceを、安全に無視できる条件を追加した。異なる幅のrangeを併記するsimple fontを実測したためである。
+- §6.4：1-byte / 2-byteのfull-domain identityに限定してcustom Type0 Encoding CMapを受理し、domain全体をresource budgetへ課金する規則を追加した。
+- §6.4：CID FontDescriptorのAscent / Descent欠落時にもFontBBoxを使うfallbackを追加した。
+- §6.4：Standard 14 fontのcanonical identityへ明示されたnamed encodingを含め、Unicodeへ戻せないcodeも安全に保持できる範囲を拡張した。
+- §6.4：未埋め込みCID font、resource依存Type 3、非identity custom CMapは、名前やraw codeだけからglyph同一性を推測せずUNRESOLVEDとする境界を明記した。
+- §6.2および§6.4の既存境界を追加コーパスで再確認した。password必須暗号、非標準Brotli prototype、循環Page Tree、Length 0と実streamが矛盾する壊れたXObjectは、成功扱いせずUNSUPPORTED / UNRESOLVED / fatal errorを維持する。
+- 実測結果は`fixtures/manifests/real-world-pipeline-round2.tsv`に期待exit codeとともに固定した。38件中32件はstrict自己比較を完走し、6件は上記の明示的な境界を再現した。
+
+### 2026-08-21 公開PDFコーパス第1回（`ce93776`）
 
 - §6.3：Form XObjectのstate分離を明文化し、Form内に残った`q`だけを境界で破棄する一方、`Q` underflowとPage単位のstack不均衡はUNRESOLVEDとした。
 - §6.3：`/Contents` arrayをまたぐdictionary valueの回復条件、operand nodeの一回課金、再parseを次の1 streamまでに制限する二次時間対策を追加した。
