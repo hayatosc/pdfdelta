@@ -11,8 +11,14 @@ use super::{
         FontIdentityDomain, FontIdentitySource, finite_number, load_to_unicode,
         non_negative_number, resolve_font_identity_source, resolve_object,
     },
-    decoder::{DecodedGlyph, FontDecoderLimits},
+    decoder::{DecodedGlyph, FontDecoderLimits, VerticalGlyphMetrics, WritingMode},
 };
+
+#[derive(Clone, Copy, Debug)]
+struct DefaultVerticalMetrics {
+    displacement_y_1000_em: f64,
+    origin_y_1000_em: f64,
+}
 
 #[derive(Clone, Debug)]
 pub(crate) struct CompositeFontDecoder {
@@ -21,6 +27,8 @@ pub(crate) struct CompositeFontDecoder {
     default_width: f64,
     ascent: f64,
     descent: f64,
+    writing_mode: WritingMode,
+    vertical: Option<DefaultVerticalMetrics>,
 }
 
 pub(super) struct LoadedCompositeFont {
@@ -36,14 +44,22 @@ impl CompositeFontDecoder {
         dictionary: &PdfDict,
         limits: FontDecoderLimits,
     ) -> Result<LoadedCompositeFont> {
-        validate_encoding(pdf, dictionary, limits.max_indirections)?;
+        let writing_mode = validate_encoding(pdf, dictionary, limits.max_indirections)?;
         let descendant = load_descendant(pdf, dictionary, limits.max_indirections)?;
         let default_width = load_default_width(pdf, &descendant, limits.max_indirections)?;
         let widths = load_widths(pdf, &descendant, limits)?;
+        let vertical = load_vertical_metrics(
+            pdf,
+            &descendant,
+            limits.max_indirections,
+            writing_mode,
+            default_width,
+            &widths,
+        )?;
         let (ascent, descent) = load_metrics(pdf, &descendant, limits.max_indirections)?;
         let (to_unicode, decoded_to_unicode_bytes) = load_to_unicode(pdf, dictionary, limits, 2)?;
         let to_unicode = to_unicode.ok_or_else(|| {
-            Error::Unsupported("Identity-H Type0 fonts without ToUnicode are not supported".into())
+            Error::Unsupported("Identity Type0 fonts without ToUnicode are not supported".into())
         })?;
         let identity_source = identity_domain(pdf, &descendant, limits.max_indirections)?
             .map(|domain| {
@@ -60,6 +76,8 @@ impl CompositeFontDecoder {
                 default_width,
                 ascent,
                 descent,
+                writing_mode,
+                vertical,
             },
             identity_source,
             decoded_font_bytes: decoded_to_unicode_bytes,
@@ -73,7 +91,7 @@ impl CompositeFontDecoder {
         max_mapped_text_bytes: usize,
     ) -> Result<Vec<DecodedGlyph>> {
         if !input.len().is_multiple_of(2) {
-            return unresolved("Identity-H text code has an odd number of bytes");
+            return unresolved("Identity Type0 text code has an odd number of bytes");
         }
         let glyph_count = input.len() / 2;
         if glyph_count > max_output_glyphs {
@@ -85,24 +103,32 @@ impl CompositeFontDecoder {
 
         let decoded = self.to_unicode.decode(input, max_mapped_text_bytes)?;
         if decoded.len() != glyph_count || decoded.iter().any(|code| code.source.len() != 2) {
-            return unresolved("Identity-H ToUnicode source code is not two bytes");
+            return unresolved("Identity Type0 ToUnicode source code is not two bytes");
         }
         decoded
             .into_iter()
             .map(|decoded| {
                 let raw_code: [u8; 2] = decoded.source.as_slice().try_into().map_err(|_| {
-                    Error::Unresolved("Identity-H ToUnicode source code is not two bytes".into())
+                    Error::Unresolved(
+                        "Identity Type0 ToUnicode source code is not two bytes".into(),
+                    )
                 })?;
                 let glyph_id = u16::from_be_bytes(raw_code);
+                let width_1000_em = self
+                    .widths
+                    .get(&glyph_id)
+                    .copied()
+                    .unwrap_or(self.default_width);
                 Ok(DecodedGlyph {
                     raw_code: decoded.source,
                     mapping: decoded.mapping,
                     glyph_id,
-                    width_1000_em: self
-                        .widths
-                        .get(&glyph_id)
-                        .copied()
-                        .unwrap_or(self.default_width),
+                    width_1000_em,
+                    vertical: self.vertical.map(|vertical| VerticalGlyphMetrics {
+                        displacement_y_1000_em: vertical.displacement_y_1000_em,
+                        origin_x_1000_em: width_1000_em / 2.0,
+                        origin_y_1000_em: vertical.origin_y_1000_em,
+                    }),
                 })
             })
             .collect()
@@ -110,6 +136,10 @@ impl CompositeFontDecoder {
 
     pub(super) fn cmap_entry_count(&self) -> usize {
         self.to_unicode.entry_count()
+    }
+
+    pub(super) fn writing_mode(&self) -> WritingMode {
+        self.writing_mode
     }
 
     pub(super) fn ascent_1000_em(&self) -> f64 {
@@ -125,15 +155,13 @@ fn validate_encoding(
     pdf: &dyn ParsedPdf,
     dictionary: &PdfDict,
     max_indirections: usize,
-) -> Result<()> {
+) -> Result<WritingMode> {
     let encoding = dictionary
         .get(b"Encoding".as_slice())
         .ok_or_else(|| Error::Unresolved("Type0 font has no Encoding".into()))?;
     match resolve_object(pdf, encoding.clone(), max_indirections)? {
-        PdfObject::Name(name) if name.as_slice() == b"Identity-H" => Ok(()),
-        PdfObject::Name(name) if name.as_slice() == b"Identity-V" => Err(Error::Unsupported(
-            "vertical Type0 encoding /Identity-V is not supported".into(),
-        )),
+        PdfObject::Name(name) if name.as_slice() == b"Identity-H" => Ok(WritingMode::Horizontal),
+        PdfObject::Name(name) if name.as_slice() == b"Identity-V" => Ok(WritingMode::Vertical),
         PdfObject::Name(name) => Err(Error::Unsupported(format!(
             "Type0 encoding /{} is not supported",
             String::from_utf8_lossy(&name)
@@ -295,6 +323,62 @@ fn load_widths(
         }
     }
     Ok(parsed)
+}
+
+fn load_vertical_metrics(
+    pdf: &dyn ParsedPdf,
+    descendant: &PdfDict,
+    max_indirections: usize,
+    writing_mode: WritingMode,
+    default_width: f64,
+    widths: &BTreeMap<u16, f64>,
+) -> Result<Option<DefaultVerticalMetrics>> {
+    if matches!(writing_mode, WritingMode::Horizontal) {
+        return Ok(None);
+    }
+    if descendant.contains_key(b"W2".as_slice()) {
+        return Err(Error::Unsupported(
+            "Identity-V fonts with per-CID W2 metrics are not supported".into(),
+        ));
+    }
+    if default_width <= 0.0 || widths.values().any(|width| *width <= 0.0) {
+        return unresolved("Identity-V font has a non-positive horizontal width");
+    }
+
+    let (origin_y_1000_em, displacement_y_1000_em) = match descendant.get(b"DW2".as_slice()) {
+        None => (880.0, -1000.0),
+        Some(metrics) => {
+            let metrics = resolve_object(pdf, metrics.clone(), max_indirections)?;
+            let PdfObject::Array(metrics) = metrics else {
+                return unresolved("CID font DW2 is not an array");
+            };
+            if metrics.len() != 2 {
+                return unresolved("CID font DW2 does not contain two numbers");
+            }
+            let mut metrics = metrics.into_iter();
+            let origin_y = metrics
+                .next()
+                .ok_or_else(|| Error::Unresolved("CID font DW2 is truncated".into()))?;
+            let displacement_y = metrics
+                .next()
+                .ok_or_else(|| Error::Unresolved("CID font DW2 is truncated".into()))?;
+            let origin_y = resolve_object(pdf, origin_y, max_indirections)?;
+            let displacement_y = resolve_object(pdf, displacement_y, max_indirections)?;
+            (
+                finite_number(&origin_y, "CID default vertical origin")?,
+                finite_number(&displacement_y, "CID default vertical displacement")?,
+            )
+        }
+    };
+    if displacement_y_1000_em >= 0.0 {
+        return Err(Error::Unsupported(
+            "Identity-V fonts with non-downward default displacement are not supported".into(),
+        ));
+    }
+    Ok(Some(DefaultVerticalMetrics {
+        displacement_y_1000_em,
+        origin_y_1000_em,
+    }))
 }
 
 fn resolve_cid(
@@ -471,6 +555,58 @@ mod tests {
     }
 
     #[test]
+    fn decodes_identity_v_with_default_vertical_metrics() -> Result<()> {
+        let mut descendant = descendant_with_widths(PdfObject::Array(Vec::new()));
+        let PdfObject::Dictionary(dictionary) = &mut descendant else {
+            unreachable!();
+        };
+        dictionary.insert(
+            b"DW2".to_vec(),
+            PdfObject::Array(vec![PdfObject::Integer(880), PdfObject::Integer(-1000)]),
+        );
+        let pdf = MockPdf::with_descendant(descendant);
+        let mut font = font_dictionary();
+        font.insert(
+            b"Encoding".to_vec(),
+            PdfObject::Name(b"Identity-V".to_vec()),
+        );
+
+        let loaded = CompositeFontDecoder::load(&pdf, &font, LIMITS)?;
+        let glyph = loaded.decoder.decode(&[0, 1], 1, usize::MAX)?[0].clone();
+
+        assert_eq!(loaded.decoder.writing_mode(), WritingMode::Vertical);
+        assert_eq!(
+            glyph.vertical,
+            Some(VerticalGlyphMetrics {
+                displacement_y_1000_em: -1000.0,
+                origin_x_1000_em: 450.0,
+                origin_y_1000_em: 880.0,
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_identity_v_per_cid_vertical_metrics() {
+        let mut descendant = descendant_with_widths(PdfObject::Array(Vec::new()));
+        let PdfObject::Dictionary(dictionary) = &mut descendant else {
+            unreachable!();
+        };
+        dictionary.insert(b"W2".to_vec(), PdfObject::Array(Vec::new()));
+        let pdf = MockPdf::with_descendant(descendant);
+        let mut font = font_dictionary();
+        font.insert(
+            b"Encoding".to_vec(),
+            PdfObject::Name(b"Identity-V".to_vec()),
+        );
+
+        assert!(matches!(
+            CompositeFontDecoder::load(&pdf, &font, LIMITS),
+            Err(Error::Unsupported(message)) if message.contains("per-CID W2")
+        ));
+    }
+
+    #[test]
     fn custom_cid_to_gid_maps_never_claim_cid_selector_identity() -> Result<()> {
         let mut pdf =
             MockPdf::with_descendant(descendant_with_widths(PdfObject::Array(Vec::new())));
@@ -512,7 +648,6 @@ mod tests {
         ));
 
         for encoding in [
-            PdfObject::Name(b"Identity-V".to_vec()),
             PdfObject::Name(b"Adobe-Japan1-UCS2".to_vec()),
             PdfObject::Dictionary(PdfDict::new()),
         ] {

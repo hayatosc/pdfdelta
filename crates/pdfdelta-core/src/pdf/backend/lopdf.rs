@@ -59,9 +59,9 @@ impl PdfParser for LopdfParser {
         }
         let document = loaded.map_err(|error| map_lopdf_error(error, "parsing PDF", limits))?;
 
-        if document.is_encrypted() || document.was_encrypted() {
+        if document.is_encrypted() {
             return Err(Error::Unsupported(
-                "encrypted PDF documents are not supported".into(),
+                "PDF documents that require a password are not supported".into(),
             ));
         }
         if document.objects.len() > limits.max_objects {
@@ -775,7 +775,7 @@ fn map_lopdf_error(error: lopdf::Error, context: &str, limits: ParseLimits) -> E
         | lopdf::Error::AlreadyEncrypted
         | lopdf::Error::Decryption(_)
         | lopdf::Error::UnsupportedSecurityHandler(_) => {
-            Error::Unsupported("encrypted PDF documents are not supported".into())
+            Error::Unsupported("PDF documents that require a password are not supported".into())
         }
         _ => Error::Backend(format!("{context}: {error}")),
     }

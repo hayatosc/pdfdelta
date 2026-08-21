@@ -49,7 +49,8 @@ born-digital PDFに限定する。
 | 日本語・英語(初期完成条件は横書き) | 縦書きの完全対応、OCR、スキャンPDF、手書き |
 | 1段組の複数ページ文書 | AcroForm、高度なannotation |
 | 基本的なフォント(ToUnicodeあり/なし両方。§6.4参照) | 複雑な表、画像内容比較 |
-| xref stream / object stream を含む現代的なPDF | 暗号化PDF、PDF 2.0固有機能の網羅 |
+| xref stream / object stream を含む現代的なPDF | PDF 2.0固有機能の網羅 |
+| empty user passwordで自動復号できる暗号化PDF | password入力を要する暗号化PDF、未対応security handler |
 
 非対応機能に遭遇した場合は、誤った結果を返すのではなく UNSUPPORTED / UNRESOLVED として扱う。
 
@@ -349,7 +350,7 @@ PDFからplain textを取り出すことではなく、後から検証可能なr
 - Page Tree走査とResourcesの継承。
 - raw stream metadataとdecoded stream bytesの取得。
 - 初期必須filterとしてFlateDecode。未対応filterは空文字へ潰さずUNSUPPORTEDにする。
-- 暗号化の検出。初期scopeでは復号せずUNSUPPORTEDにする。
+- 暗号化の検出。既存backendがempty user passwordで自動復号を完了した場合だけ受理する。password入力を要する文書、復号後も`Encrypt`が残る文書、未対応security handlerはUNSUPPORTEDにする。CLI/APIはpasswordを受け取らず、秘密情報をreportやtraceへ保持しない。
 - object count、recursion、decompressed size等のresource limitと、error categoryの保持。
 
 adapterはobject id、generation、dictionary key、stream filter、Content Stream順序を保持する。library独自型は`pdf/backend/`内で中立型へ変換し、後段へ漏らさない。
@@ -399,6 +400,19 @@ Unicodeへ戻せないglyphをU+FFFDや空文字で潰さず、`Unmapped`とし�
 これには理由がある。born-digital PDFでも、subset fontでToUnicodeを持たないものはある。これらを一律UNRESOLVEDに落とすとCoverageが実用にならない文書が出る。一方、diffツールに必要なのは必ずしも「読める文字列」ではなく「同一性判定」である。old/newが同一のfont programを埋め込んでいれば、`(font_hash, glyph_id)`を比較tokenとしてmatchingとdiffが成立する。
 
 font programが異なりUnicodeにも戻せない場合、その領域はUNRESOLVEDとする。raw code、font object、Content Stream上のprovenanceはreport/debug用に保持する。
+
+simple fontの`FontDescriptor`で`Ascent <= Descent`となりcross-axis extentを構成できない場合は、妥当な`FontBBox`があればそのtop/bottomをfont-wide vertical metricとして用いる。どちらからも正のextentを得られない場合だけUNRESOLVEDとし、ゼロ面積Glyphを後段へ渡さない。
+
+Type 3 fontは、次の条件をすべて満たすbounded subsetだけをsimple-font経路で扱う。
+
+- `FontMatrix`は`[0.001 0 0 0.001 0 0]`であり、既存の1000-em width・vertical metric計算と一致する。
+- `FirstChar`、`LastChar`、`Widths`、`FontBBox`、`Encoding`、`CharProcs`を持ち、既存のentry・indirection・decoded-byte上限内に収まる。vertical metricはType 3 font全体の宣言領域である`FontBBox`から得る。
+- text mappingはToUnicodeまたはEncoding DifferencesのAdobe glyph name mappingから得る。未写像glyphを空文字へ潰さない。
+- Encoding Differencesで参照されるglyph nameは`CharProcs`に存在しなければならない。CharProcの描画operatorはtext extractionでは実行しない。
+
+non-standard `FontMatrix`、missing metrics、missing CharProc、CharProcのvisual interpretationが必要なfontはUNSUPPORTEDまたはUNRESOLVEDとする。Type 3の可視形状ではなく、PDFが宣言したwidth・font metricsからreversible layout evidenceを構成する。
+
+`Identity-V`は、2-byte code、単一のCIDFontType0/CIDFontType2 descendant、usableなToUnicodeを持ち、per-CIDの`W2` overrideを持たないsubsetを扱う。`DW2`は省略時の`[880 -1000]`または有限な2要素arrayを受理し、downward displacementでなければUNSUPPORTEDとする。glyphのvertical originは`(horizontal_width / 2, DW2[0])`、advanceは`DW2[1]`から構成し、bbox、direction、character/word spacing、`TJ` adjustmentをvertical axisへ適用する。`W2`、custom vertical CMap、ToUnicodeを持たないIdentity-Vは初期scope外とする。
 
 ---
 

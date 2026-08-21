@@ -20,12 +20,26 @@ pub(crate) struct FontDecoderLimits {
     pub(crate) cmap: CMapLimits,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WritingMode {
+    Horizontal,
+    Vertical,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct VerticalGlyphMetrics {
+    pub(crate) displacement_y_1000_em: f64,
+    pub(crate) origin_x_1000_em: f64,
+    pub(crate) origin_y_1000_em: f64,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct DecodedGlyph {
     pub(crate) raw_code: Vec<u8>,
     pub(crate) mapping: UnicodeMapping,
     pub(crate) glyph_id: u16,
     pub(crate) width_1000_em: f64,
+    pub(crate) vertical: Option<VerticalGlyphMetrics>,
 }
 
 #[derive(Clone, Debug)]
@@ -97,6 +111,13 @@ impl FontDecoder {
         match self {
             Self::Composite(decoder) => decoder.cmap_entry_count(),
             Self::Simple(decoder) => decoder.cmap_entry_count(),
+        }
+    }
+
+    pub(crate) fn writing_mode(&self) -> WritingMode {
+        match self {
+            Self::Composite(decoder) => decoder.writing_mode(),
+            Self::Simple(_) => WritingMode::Horizontal,
         }
     }
 

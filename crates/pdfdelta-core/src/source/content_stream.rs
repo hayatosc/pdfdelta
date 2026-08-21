@@ -17,7 +17,7 @@ use crate::{
         font::cmap::CMapLimits,
         font::{
             DecodedGlyph as FontGlyph, FontDecoder, FontDecoderLimits, FontIdentitySource,
-            UnicodeMapping, load_font_identity,
+            UnicodeMapping, WritingMode, load_font_identity,
         },
     },
 };
@@ -480,6 +480,11 @@ impl Extraction<'_> {
                 "expected one text-array operand",
             ));
         };
+        let font =
+            state.graphics.font.clone().ok_or_else(|| {
+                operation_error(operation, "text is shown before selecting a font")
+            })?;
+        let writing_mode = self.decode_font(&font, &[])?.writing_mode;
         for item in items {
             match item {
                 Operand::String(bytes) => self.show_text(
@@ -492,12 +497,20 @@ impl Extraction<'_> {
                     state,
                 )?,
                 Operand::Number(adjustment) if adjustment.is_finite() => {
-                    let offset = -(adjustment / 1000.0)
-                        * state.graphics.font_size
-                        * state.graphics.horizontal_scale;
+                    let (offset_x, offset_y) = match writing_mode {
+                        WritingMode::Horizontal => (
+                            -(adjustment / 1000.0)
+                                * state.graphics.font_size
+                                * state.graphics.horizontal_scale,
+                            0.0,
+                        ),
+                        WritingMode::Vertical => {
+                            (0.0, -(adjustment / 1000.0) * state.graphics.font_size)
+                        }
+                    };
                     state.text_matrix = state
                         .text_matrix
-                        .concatenate(Matrix::translation(offset, 0.0)?)?;
+                        .concatenate(Matrix::translation(offset_x, offset_y)?)?;
                 }
                 _ => {
                     return Err(operation_error(
@@ -555,15 +568,30 @@ impl Extraction<'_> {
             .concatenate(state.graphics.ctm)?
             .concatenate(state.text_matrix)?
             .concatenate(scale)?;
-        let bbox = transformed_rect(
-            text_rendering,
-            0.0,
-            descent / 1000.0,
-            glyph.width_1000_em / 1000.0,
-            ascent / 1000.0,
-        )?;
+        let (left, bottom, right, top, direction_x, direction_y) =
+            if let Some(vertical) = glyph.vertical {
+                (
+                    -vertical.origin_x_1000_em / 1000.0,
+                    (descent - vertical.origin_y_1000_em) / 1000.0,
+                    (glyph.width_1000_em - vertical.origin_x_1000_em) / 1000.0,
+                    (ascent - vertical.origin_y_1000_em) / 1000.0,
+                    0.0,
+                    -1.0,
+                )
+            } else {
+                (
+                    0.0,
+                    descent / 1000.0,
+                    glyph.width_1000_em / 1000.0,
+                    ascent / 1000.0,
+                    1.0,
+                    0.0,
+                )
+            };
+        let bbox = transformed_rect(text_rendering, left, bottom, right, top)?;
         let (baseline_x, baseline_y) = text_rendering.transform_point(0.0, 0.0)?;
-        let (direction_x, direction_y) = text_rendering.transform_vector(1.0, 0.0)?;
+        let (direction_x, direction_y) =
+            text_rendering.transform_vector(direction_x, direction_y)?;
         let direction = normalized_vector(direction_x, direction_y, operation)?;
         let (font_x, font_y) = text_rendering.transform_vector(0.0, 1.0)?;
         let effective_font_size = font_x.hypot(font_y);
@@ -616,13 +644,25 @@ impl Extraction<'_> {
         } else {
             0.0
         };
-        let advance = ((glyph.width_1000_em / 1000.0) * state.graphics.font_size
-            + state.graphics.character_spacing
-            + word_spacing)
-            * state.graphics.horizontal_scale;
+        let (advance_x, advance_y) = if let Some(vertical) = glyph.vertical {
+            (
+                0.0,
+                (vertical.displacement_y_1000_em / 1000.0) * state.graphics.font_size
+                    + state.graphics.character_spacing
+                    + word_spacing,
+            )
+        } else {
+            (
+                ((glyph.width_1000_em / 1000.0) * state.graphics.font_size
+                    + state.graphics.character_spacing
+                    + word_spacing)
+                    * state.graphics.horizontal_scale,
+                0.0,
+            )
+        };
         state.text_matrix = state
             .text_matrix
-            .concatenate(Matrix::translation(advance, 0.0)?)?;
+            .concatenate(Matrix::translation(advance_x, advance_y)?)?;
         Ok(())
     }
 
@@ -712,7 +752,7 @@ impl Extraction<'_> {
             .limits
             .max_total_decoded_bytes
             .saturating_sub(self.decoded_bytes);
-        let (font_id, ascent, descent, glyphs) = {
+        let (font_id, ascent, descent, writing_mode, glyphs) = {
             let cached = self.font_cache.get(key).ok_or_else(|| {
                 Error::Unresolved("loaded font disappeared from the extraction cache".into())
             })?;
@@ -720,6 +760,7 @@ impl Extraction<'_> {
                 cached.id,
                 cached.decoder.ascent_1000_em(),
                 cached.decoder.descent_1000_em(),
+                cached.decoder.writing_mode(),
                 cached
                     .decoder
                     .decode(bytes, remaining_glyphs, remaining_mapped_text_bytes)?,
@@ -781,6 +822,7 @@ impl Extraction<'_> {
             font_hash,
             ascent,
             descent,
+            writing_mode,
             glyphs,
         })
     }
@@ -1766,6 +1808,7 @@ struct DecodedRun {
     font_hash: Option<FontProgramHash>,
     ascent: f64,
     descent: f64,
+    writing_mode: WritingMode,
     glyphs: Vec<FontGlyph>,
 }
 

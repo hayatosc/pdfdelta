@@ -102,6 +102,32 @@ fn classic_fixture(page_count: usize) -> (Vec<u8>, FixtureIds) {
     (serialize_classic(document), ids)
 }
 
+fn encrypted_fixture(user_password: &str) -> (Vec<u8>, FixtureIds) {
+    let (mut document, ids) = fixture_document(1);
+    document.trailer.set(
+        "ID",
+        Object::Array(vec![
+            Object::string_literal(vec![1_u8; 16]),
+            Object::string_literal(vec![2_u8; 16]),
+        ]),
+    );
+    let encryption = EncryptionState::try_from(EncryptionVersion::V1 {
+        document: &document,
+        owner_password: "owner",
+        user_password,
+        permissions: Permissions::all(),
+    })
+    .expect("fixture encryption state should build");
+    document
+        .encrypt(&encryption)
+        .expect("fixture should encrypt");
+    let mut bytes = Vec::new();
+    document
+        .save_to(&mut bytes)
+        .expect("encrypted fixture should serialize");
+    (bytes, ids)
+}
+
 fn serialize_classic(mut document: Document) -> Vec<u8> {
     document.reference_table.cross_reference_type = XrefType::CrossReferenceTable;
     let mut bytes = Vec::new();
@@ -573,36 +599,30 @@ fn resolves_the_latest_incremental_revision() {
 }
 
 #[test]
-fn rejects_encrypted_documents_as_unsupported() {
-    for user_password in ["user", ""] {
-        let (mut document, _) = fixture_document(1);
-        document.trailer.set(
-            "ID",
-            Object::Array(vec![
-                Object::string_literal(vec![1_u8; 16]),
-                Object::string_literal(vec![2_u8; 16]),
-            ]),
-        );
-        let encryption = EncryptionState::try_from(EncryptionVersion::V1 {
-            document: &document,
-            owner_password: "owner",
-            user_password,
-            permissions: Permissions::all(),
-        })
-        .expect("fixture encryption state should build");
-        document
-            .encrypt(&encryption)
-            .expect("fixture should encrypt");
-        let mut bytes = Vec::new();
-        document
-            .save_to(&mut bytes)
-            .expect("encrypted fixture should serialize");
+fn rejects_password_required_documents_as_unsupported() {
+    let (bytes, _) = encrypted_fixture("user");
 
-        let Err(error) = parse(bytes, limits()) else {
-            panic!("encrypted PDF should be unsupported");
-        };
-        assert!(matches!(error, Error::Unsupported(_)));
-    }
+    let Err(error) = parse(bytes, limits()) else {
+        panic!("password-required PDF should be unsupported");
+    };
+    assert!(matches!(error, Error::Unsupported(_)));
+}
+
+#[test]
+fn accepts_documents_decrypted_with_an_empty_user_password() {
+    let (bytes, ids) = encrypted_fixture("");
+
+    let pdf = parse(bytes, limits()).expect("empty-password PDF should be decrypted");
+    let marker = pdf
+        .resolve(object_ref(ids.marker))
+        .expect("decrypted marker should resolve");
+    let PdfObject::Dictionary(marker) = marker else {
+        panic!("marker should remain a dictionary");
+    };
+    assert_eq!(
+        marker.get(b"Value".as_slice()),
+        Some(&PdfObject::String(b"initial".to_vec()))
+    );
 }
 
 #[test]

@@ -114,6 +114,30 @@ fn identity_h_font(
     })
 }
 
+fn identity_v_font(document: &mut LopdfDocument, to_unicode: ObjectId) -> ObjectId {
+    let descendant = document.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "CIDFontType0",
+        "BaseFont" => "FixtureVertical",
+        "DW" => 1000,
+        "DW2" => vec![Object::Integer(880), Object::Integer(-1000)],
+        "FontDescriptor" => dictionary! {
+            "Type" => "FontDescriptor",
+            "FontName" => "FixtureVertical",
+            "Ascent" => 1179,
+            "Descent" => -179,
+        },
+    });
+    document.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type0",
+        "BaseFont" => "FixtureVertical",
+        "Encoding" => "Identity-V",
+        "DescendantFonts" => vec![Object::Reference(descendant)],
+        "ToUnicode" => to_unicode,
+    })
+}
+
 fn embedded_identity_h_font(
     document: &mut LopdfDocument,
     to_unicode: ObjectId,
@@ -1250,6 +1274,47 @@ fn extracts_identity_h_type0_glyphs_with_cid_geometry_and_shared_cache() -> Resu
     assert_eq!(glyphs[0].provenance.content_stream.object_number, content.0);
     assert_eq!(glyphs[0].provenance.operator_index, 3);
     assert_eq!(glyphs[2].provenance.operator_index, 5);
+    Ok(())
+}
+
+#[test]
+fn extracts_identity_v_glyphs_with_vertical_geometry_and_tj_adjustments() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
+          3 beginbfchar <0001> <0041> <0002> <0042> <0003> <0043> endbfchar"
+            .to_vec(),
+    ));
+    let font = identity_v_font(&mut pdf, cmap);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 100 Tm [<00010002> -250 <0003>] TJ ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+
+    assert_eq!(mapped_text(glyphs), "ABC");
+    assert_close(glyphs[0].baseline.x, 20.0);
+    assert_close(glyphs[0].baseline.y, 100.0);
+    assert_close(glyphs[1].baseline.y, 90.0);
+    assert_close(glyphs[2].baseline.y, 82.5);
+    assert_close(glyphs[0].direction.x, 0.0);
+    assert_close(glyphs[0].direction.y, -1.0);
+    assert_close(glyphs[0].bbox.min.x, 15.0);
+    assert_close(glyphs[0].bbox.max.x, 25.0);
+    assert_close(glyphs[0].bbox.min.y, 89.41);
+    assert_close(glyphs[0].bbox.max.y, 102.99);
     Ok(())
 }
 

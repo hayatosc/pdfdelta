@@ -17,9 +17,9 @@ The project now has a limited end-to-end initial version. It can compare support
 The current implementation provides:
 
 - a Rust 2024 workspace with separate core, CLI, and benchmark crates;
-- a backend-neutral PDF parser boundary with a `lopdf` adapter for classic xref tables, xref streams, object streams, incremental revisions, inherited page resources, and bounded stream decoding;
+- a backend-neutral PDF parser boundary with a `lopdf` adapter for classic xref tables, xref streams, object streams, incremental revisions, inherited page resources, empty-user-password decryption, and bounded stream decoding;
 - a lossless glyph evidence model with geometry and provenance;
-- bounded Content Stream glyph extraction for supported text operators, Type 1 and TrueType simple fonts, an Identity-H Type 0/CID subset, inherited resources, and Form XObjects;
+- bounded Content Stream glyph extraction for supported text operators, Type 1, TrueType, and standard-matrix Type 3 simple fonts, an Identity-H Type 0/CID subset, inherited resources, and Form XObjects;
 - standard ToUnicode resource wrappers, simple-font Encoding Differences, and stable embedded-font identities for safely comparable unmapped glyphs;
 - configurable Glyph-to-Line reconstruction with synthetic English spaces and preserved arbitrary-angle text lines;
 - relative Line-to-Block scoring across page breaks with preserved running-matter roles;
@@ -103,8 +103,8 @@ Text reports are written to standard output. `--json PATH` writes a version 4 JS
 
 ## Current limitations
 
-- Input must be a born-digital PDF. OCR, scanned pages, handwriting, encrypted documents, and image comparison are not supported.
-- Extraction currently targets mainly single-column text using supported Type 1 or TrueType simple fonts, plus Type 0 fonts limited to Identity-H, one CIDFontType0/CIDFontType2 descendant, a usable ToUnicode map, and bounded horizontal metrics. Custom or vertical CMaps, Identity-V, general vertical writing, complex tables, and complete annotation or form handling are not implemented. Non-horizontal text lines at arbitrary angles are preserved as independent blocks. Mixed horizontal and non-horizontal lines still use page/top/left ordering, so a tilted line may interleave with body blocks; direction-aware block joining and reading order are not implemented yet.
+- Input must be a born-digital PDF. OCR, scanned pages, handwriting, password-required encrypted documents, and image comparison are not supported. Encrypted PDFs are accepted only when the backend can decrypt them with an empty user password; the CLI does not accept passwords.
+- Extraction currently targets mainly single-column text using supported Type 1 or TrueType simple fonts, a standard-matrix Type 3 subset with declared widths, FontBBox metrics, Encoding/ToUnicode, and bounded CharProcs, plus Type 0 fonts with one CIDFontType0/CIDFontType2 descendant, a usable ToUnicode map, and bounded metrics. Identity-H and an Identity-V subset using only default DW2 metrics are supported. Type 3 CharProc drawing operators are not interpreted. Custom CMaps, per-CID W2 vertical metrics, general vertical-writing reading order, complex tables, and complete annotation or form handling are not implemented. Non-horizontal text lines at arbitrary angles are preserved as independent blocks. Mixed horizontal and non-horizontal lines still use page/top/left ordering, so a tilted line may interleave with body blocks; direction-aware block joining and reading order are not implemented yet.
 - PDF text operators, encodings, ToUnicode maps, and Form XObjects are supported only within the bounded subset covered by the backend fixtures.
 - Unsupported or unresolved extraction is reported as a typed document- or page-scoped issue in stderr and the text or JSON report.
 - The current conservative policy suppresses the entire diff when any extraction gap exists. The default mode returns exit code `0`, while `--strict` returns exit code `3` for the incomplete comparison.
