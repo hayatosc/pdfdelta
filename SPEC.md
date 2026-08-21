@@ -416,7 +416,7 @@ Type 3 fontは、次の上限付きsimple-font subsetだけを扱う。
 - `FontMatrix`は有限かつ非退化で、`a > 0`、`d != 0`を満たすaxis-alignedな`[a 0 0 d 0 0]`とする。WidthsとMissingWidthは`a * 1000`、FontBBoxのvertical座標は`d * 1000`で正規化する。`d`が負の場合は宣言されたvertical axisを反転し、extentを失わないよう上下を入れ替える。
 - `FirstChar`、`LastChar`、`Widths`、`FontBBox`、`Encoding`、`CharProcs`を必須とし、既存のentry、indirection、decoded byte、glyphの各上限を適用する。rotation、shear、translation、horizontal reversalを含むmatrixはUNSUPPORTEDのままにする。
 - Unicode mappingにはToUnicodeと既知のAdobe glyph nameを使い、未知nameはunmappedのままにする。DifferencesのnameはCharProcsへ解決できなければならない。text extractionではCharProcのdrawing operatorを解釈しない。
-- unmapped glyphでは、間接参照されたdecode済みCharProc streamをglyph nameのbyte順に並べ、Type 3専用domainでhashする。この安定したname順をglyph IDに使い、dictionary順、object ID、Encoding codeの再配置にidentityが依存しないようにする。font Resourcesが欠落または空、もしくは標準`ProcSet` nameの上限付きarrayだけを持つ場合に限ってidentityを生成する。named resourceへ依存する場合は、同じCharProc bytesが別programへ解決され得るためidentityを生成しない。CharProcが欠落、direct、decode不能、曖昧、上限超過の場合もidentityを生成しない。FontMatrixとWidthsはglyph token identityではなくgeometry evidenceとして扱う。
+- unmapped glyphでは、間接参照されたdecode済みCharProc streamをglyph nameのbyte順に並べ、Type 3専用domainでhashする。この安定したname順をglyph IDに使い、dictionary順、object ID、Encoding codeの再配置にidentityが依存しないようにする。font Resourcesが欠落または空、もしくは標準`ProcSet` nameの上限付きarrayだけを持つ場合は、CharProcだけからidentityを生成する。named resourceへ依存する場合は、参照先をobject IDに依存しないcanonical graphとしてhashし、dictionary key、name、scalar、array、decode済みstream bytesをidentityへ含める。streamの`Length`、`Filter`、`DecodeParms`はdecode後の描画内容を変えないtransport情報として除外する。参照先はmemoizeし、循環、graph深度、identity byte数を明示的な上限で拒否する。resource graph内のfontは、FontDescriptorを持たないStandard 14 Type 1か、同じ規則でgraph全体をhashできるType 3に限定する。未埋め込みの非Standard 14 font、direct stream、decode不能stream、CharProcの欠落・曖昧・上限超過がある場合はidentityを生成しない。FontMatrixとWidthsはglyph token identityではなくgeometry evidenceとして扱う。
 
 Identity-Vは、単一のCIDFontType0/CIDFontType2 descendant、固定2-byte code、完全一致で参照する任意のToUnicode、per-CIDの`W2`を持たないsubsetを扱う。前述のfull-domain identity条件を満たすcustom Type0 CMapでは、`WMode 1`も同じvertical subsetへ接続する。`DW2`は省略時の`[880 -1000]`またはdownward displacementを持つ有限な2要素arrayを受理する。vertical originは`(horizontal_width / 2, DW2[0])`、advanceは`DW2[1]`から構成し、bbox、direction、character / word spacing、`TJ` adjustmentをvertical axisへ適用する。一般のcustom vertical CMap、per-CIDの`W2`、一般的なvertical reading orderは初期scope外とする。
 
@@ -781,7 +781,13 @@ parser backendの最終選択は§6.2のcapability fixtureで決める。library
 
 この節は、仕様を変更した理由と変更箇所を`SPEC.md`自身に残すための記録である。過去分は`git log --follow -- SPEC.md`と各commitのdiffから復元した。詳細な差分は`git show <commit> -- SPEC.md`で確認する。
 
-### 2026-08-21 追加コーパス第2回（本変更）
+### 2026-08-21 残存6件の再検証（本変更）
+
+- §6.4：named Resourcesへ依存するType 3 fontを一律UNRESOLVEDとする境界を狭め、参照先を上限付きcanonical graphとしてidentityへ含められるsubsetを追加した。参照循環と未埋め込み非Standard 14 fontは引き続きUNRESOLVEDにする。
+- `ContentStreamNoCycleType3insideType3.pdf`で、入れ子のType 3、Standard 14 font、Pattern streamを含む有限なresource graphがstrict自己比較を完走することを確認した。
+- `fixtures/manifests/real-world-pipeline-round2.tsv`の期待値を更新した。38件中33件がstrict自己比較を完走し、残る5件はpassword必須暗号、非標準Brotli filter、循環Page Tree、Length 0と実streamが矛盾する壊れたXObject、埋め込みprogramもToUnicodeもないCID fontという明示的な境界である。
+
+### 2026-08-21 追加コーパス第2回（`fe2830a`）
 
 - §6.4：decoder幅のdomain外にある余分なToUnicode codespaceを、安全に無視できる条件を追加した。異なる幅のrangeを併記するsimple fontを実測したためである。
 - §6.4：1-byte / 2-byteのfull-domain identityに限定してcustom Type0 Encoding CMapを受理し、domain全体をresource budgetへ課金する規則を追加した。

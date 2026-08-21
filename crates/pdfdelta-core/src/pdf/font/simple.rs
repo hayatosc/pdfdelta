@@ -76,10 +76,16 @@ struct LoadedEncoding {
 
 struct Type3Metadata {
     char_procs: PdfDict,
-    identity_resources_are_safe: bool,
+    identity_resources: Type3IdentityResources,
     horizontal_scale_1000_em: f64,
     ascent: f64,
     descent: f64,
+}
+
+enum Type3IdentityResources {
+    Independent,
+    Dependent(PdfObject),
+    Unavailable,
 }
 
 #[derive(Clone, Debug)]
@@ -178,11 +184,24 @@ impl SimpleFontDecoder {
         )?;
         validate_difference_metrics(base14, widths.as_deref(), &encoding.differences)?;
         let (identity_source, type3_identity_glyph_ids) = if let Some(type3) = &type3 {
-            if encoding.identity_ambiguous || !type3.identity_resources_are_safe {
-                (None, None)
-            } else if let Some(binding) =
-                type3_font_identity_source(pdf, &type3.char_procs, limits.max_indirections)?
+            if encoding.identity_ambiguous
+                || matches!(
+                    type3.identity_resources,
+                    Type3IdentityResources::Unavailable
+                )
             {
+                (None, None)
+            } else if let Some(binding) = type3_font_identity_source(
+                pdf,
+                &type3.char_procs,
+                match &type3.identity_resources {
+                    Type3IdentityResources::Dependent(resources) => Some(resources),
+                    Type3IdentityResources::Independent | Type3IdentityResources::Unavailable => {
+                        None
+                    }
+                },
+                limits.max_indirections,
+            )? {
                 let glyph_ids = encoding
                     .differences
                     .iter()
@@ -624,7 +643,7 @@ fn validate_type3(
     first_char: u8,
     widths: Option<&[f64]>,
 ) -> Result<Type3Metadata> {
-    let identity_resources_are_safe = type3_resources_are_identity_safe(pdf, dictionary, limits);
+    let identity_resources = type3_identity_resources(pdf, dictionary, limits);
     let matrix = dictionary
         .get(b"FontMatrix".as_slice())
         .ok_or_else(|| Error::Unresolved("Type 3 font has no FontMatrix".into()))?;
@@ -736,51 +755,54 @@ fn validate_type3(
     }
     Ok(Type3Metadata {
         char_procs,
-        identity_resources_are_safe,
+        identity_resources,
         horizontal_scale_1000_em,
         ascent,
         descent,
     })
 }
 
-fn type3_resources_are_identity_safe(
+fn type3_identity_resources(
     pdf: &dyn ParsedPdf,
     dictionary: &PdfDict,
     limits: FontDecoderLimits,
-) -> bool {
+) -> Type3IdentityResources {
     let Some(resources) = dictionary.get(b"Resources".as_slice()) else {
-        return true;
+        return Type3IdentityResources::Independent;
     };
-    let Ok(PdfObject::Dictionary(resources)) =
+    let Ok(PdfObject::Dictionary(mut resources)) =
         resolve_object(pdf, resources.clone(), limits.max_indirections)
     else {
-        return false;
+        return Type3IdentityResources::Unavailable;
     };
     if resources.is_empty() {
-        return true;
+        return Type3IdentityResources::Independent;
     }
-    if resources.len() != 1 {
-        return false;
+    if let Some(proc_set) = resources.remove(b"ProcSet".as_slice()) {
+        let Ok(PdfObject::Array(proc_set)) = resolve_object(pdf, proc_set, limits.max_indirections)
+        else {
+            return Type3IdentityResources::Unavailable;
+        };
+        if proc_set.len() > limits.max_simple_width_entries
+            || !proc_set.into_iter().all(|name| {
+                matches!(
+                    resolve_object(pdf, name, limits.max_indirections),
+                    Ok(PdfObject::Name(name))
+                        if matches!(
+                            name.as_slice(),
+                            b"PDF" | b"Text" | b"ImageB" | b"ImageC" | b"ImageI"
+                        )
+                )
+            })
+        {
+            return Type3IdentityResources::Unavailable;
+        }
     }
-    let Some(proc_set) = resources.get(b"ProcSet".as_slice()) else {
-        return false;
-    };
-    let Ok(PdfObject::Array(proc_set)) =
-        resolve_object(pdf, proc_set.clone(), limits.max_indirections)
-    else {
-        return false;
-    };
-    proc_set.len() <= limits.max_simple_width_entries
-        && proc_set.into_iter().all(|name| {
-            matches!(
-                resolve_object(pdf, name, limits.max_indirections),
-                Ok(PdfObject::Name(name))
-                    if matches!(
-                        name.as_slice(),
-                        b"PDF" | b"Text" | b"ImageB" | b"ImageC" | b"ImageI"
-                    )
-            )
-        })
+    if resources.is_empty() {
+        Type3IdentityResources::Independent
+    } else {
+        Type3IdentityResources::Dependent(PdfObject::Dictionary(resources))
+    }
 }
 
 fn scale_type3_axis(scale: f64, axis: &str) -> Result<f64> {
@@ -2288,7 +2310,7 @@ mod tests {
     }
 
     #[test]
-    fn type3_identity_accepts_only_resource_independent_proc_sets() -> Result<()> {
+    fn type3_identity_tracks_resources_and_rejects_invalid_proc_sets() -> Result<()> {
         let pdf = MockPdf {
             objects: HashMap::from([
                 (object_ref(1), PdfObject::Stream(PdfDict::new())),
@@ -2338,10 +2360,6 @@ mod tests {
         );
 
         let unsafe_resources = [
-            PdfObject::Dictionary(PdfDict::from([(
-                b"XObject".to_vec(),
-                PdfObject::Dictionary(PdfDict::new()),
-            )])),
             PdfObject::Dictionary(PdfDict::from([(
                 b"ProcSet".to_vec(),
                 PdfObject::Array(vec![PdfObject::Name(b"Unknown".to_vec())]),
