@@ -43,6 +43,7 @@ struct LoadedEncoding {
 pub(super) struct LoadedCompositeFont {
     pub(super) decoder: CompositeFontDecoder,
     pub(super) identity_source: Option<FontIdentitySource>,
+    pub(super) external_identity_allowed: bool,
     pub(super) decoded_font_bytes: usize,
     pub(super) cid_width_entries: usize,
 }
@@ -67,7 +68,9 @@ impl CompositeFontDecoder {
             &widths,
         )?;
         let (ascent, descent) = load_metrics(pdf, &descendant, limits.max_indirections)?;
-        let identity_source = identity_domain(pdf, &descendant, limits.max_indirections)?
+        let identity_domain = identity_domain(pdf, &descendant, limits.max_indirections)?;
+        let external_identity_allowed = identity_domain.is_some();
+        let identity_source = identity_domain
             .map(|domain| {
                 resolve_font_identity_source(pdf, &descendant, limits.max_indirections, domain)
             })
@@ -107,6 +110,7 @@ impl CompositeFontDecoder {
                 vertical,
             },
             identity_source,
+            external_identity_allowed,
             decoded_font_bytes,
         })
     }

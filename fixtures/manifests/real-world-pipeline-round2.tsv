@@ -1,6 +1,9 @@
 # Non-vendored public PDF corpus captured on 2026-08-21.
 # Validate byte_count and sha256 after download, then compare each file with itself using --strict.
 # expected_exit records supported completion and intentionally explicit unsupported, unresolved, or fatal boundaries.
+# print_protection requires both password-file options with the public fixture password.
+# thuluth-features requires matching `TraditionalArabic` font-identity assertions for both sides.
+# pages-tree-refs exits 0 without --strict after retaining one valid page; strict remains incomplete.
 file_name	byte_count	sha256	feature	expected_exit	expected_result	source
 arxiv-attention.pdf	2215244	bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697	large-latex-research-paper	0	complete	https://arxiv.org/pdf/1706.03762
 digital-agency-summary-ja.pdf	1038572	c12ca72449c8a98b619a89559437e4de673c8877b49288138d9130749095b243	japanese-government-slides	0	complete	https://www.digital.go.jp/assets/contents/node/basic_page/field_ref_resources/b51af10d-39ff-44bf-9e1c-6a332e6bf4ea/d39a8ff0/20221109_meeting_administrative_research_working_group_outline_01.pdf
@@ -17,17 +20,17 @@ pdfjs-multimedia-annotations.pdf	115662	c3d4d2c0f75d99e297d32713303f52b099f34bba
 pdfjs-multiple-filters-zero-length.pdf	18374	7988a74a1a2a383c42a80631ce196d1a895ce88fe9b16d0bf9fdab9c6d63542f	malformed-zero-length-stream	3	unresolved-malformed-stream	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/multiple-filters-length-zero.pdf
 pdfjs-nested-type3-no-cycle.pdf	2440	cffddca28e1b55dba97257a3045bfc83f6daf800dcecbed58697057d493f5dd6	resource-dependent-nested-type3	0	complete	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/ContentStreamNoCycleType3insideType3.pdf
 pdfjs-openoffice.pdf	10388	5c9841d641406b074f16087442a62f652057a607364b7aa82f8b4851f7e2acfc	openoffice-generator	0	complete	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/openoffice.pdf
-pdfjs-pages-tree-refs.pdf	1098	77c8817ea016296ea59e0991ea1a6d1440ef2480cdcd9acb59106938b649233f	malformed-page-tree-cycle	2	fatal-malformed-page-tree	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/Pages-tree-refs.pdf
+pdfjs-pages-tree-refs.pdf	1098	77c8817ea016296ea59e0991ea1a6d1440ef2480cdcd9acb59106938b649233f	malformed-page-tree-cycle	3	partial-malformed-page-tree	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/Pages-tree-refs.pdf
 pdfjs-pattern-text-font.pdf	2662	0d87537cfba850b7501db8010801bebe62b9cc19776ae387f9dafc61e00b1699	pattern-text-embedded-font	0	complete	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/pattern_text_embedded_font.pdf
 pdfjs-pdfkit-compressed.pdf	8286	920b8491769e72567e5c40ef9249f1e9fccacad244a82264c28b97fc97d5ef73	pdfkit-compressed	0	complete	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/pdfkit_compressed.pdf
-pdfjs-print-protection.pdf	10832	e5497249e49832011090c5d7a757787192af4231fbd82980f87683e4e5e4e3fa	password-required-encryption	3	unsupported-password	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/print_protection.pdf
+pdfjs-print-protection.pdf	10832	e5497249e49832011090c5d7a757787192af4231fbd82980f87683e4e5e4e3fa	password-required-encryption	0	complete-with-password-file	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/print_protection.pdf
 pdfjs-showtext-shading-pattern.pdf	4671	13ac785e8445fbf01d5a8200e0e899daa204cdbe723b02f38f8af61ac48707bb	text-in-shading-pattern	0	complete	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/ShowText-ShadingPattern.pdf
 pdfjs-simfang-variant.pdf	4108	e6c6e3fb472f06a3d812bef23afc026e90b33497408122b61d577e0f7df49418	cjk-simfang-variant	0	complete	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/SimFang-variant.pdf
 pdfjs-skia.pdf	19535	f4b7720c007b23834df923502e8f8ccb22b38be867417085e26eb6b81a44bc69	skia-generator	0	complete	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/issue20504_skia.pdf
 pdfjs-standard-fonts.pdf	94800	4d48fc12e619a823bf70b3a4d8e9d916a85683ecb176d138af66a57351bd21f9	standard14-named-encodings	0	complete	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/standard_fonts.pdf
 pdfjs-tagged-stamp.pdf	18885	0ce2c20e36b70558eea45511a2c307ce7e22ad0d51be1216b27f7085c0311198	tagged-stamp-annotation	0	complete	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/tagged_stamp.pdf
 pdfjs-text-clip-cff-cid.pdf	7393	81aaf48f55c659d29d7a533cd913bd9d028ffad183b46580a2122eebe5187506	text-clip-cff-cid	0	complete	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/text_clip_cff_cid.pdf
-pdfjs-thuluth-features.pdf	117677	752304c24a50834d111793fc038cafc892c071d04f214072729c41a178c161e7	unembedded-arabic-cid-font	3	unresolved-font-identity	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/ThuluthFeatures.pdf
+pdfjs-thuluth-features.pdf	117677	752304c24a50834d111793fc038cafc892c071d04f214072729c41a178c161e7	unembedded-arabic-cid-font	0	complete-with-external-font-identity	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/ThuluthFeatures.pdf
 pdfjs-truetype-no-cmap.pdf	3989	3e111eef52ce9c0d0b1da043290df4b49a5670c89891fcb3db6962edb12e35aa	truetype-without-cmap	0	complete	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/TrueType_without_cmap.pdf
 pdfjs-vertical.pdf	6905	514511143db12309893fb69cdf98c76f2361c20da394f79fdff2c119ed7a4393	vertical-writing	0	complete	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/vertical.pdf
 pdfjs-word-math.pdf	46285	e03f741a8d0f6b6bbc811b39616f28d09ffb5098ab0f9ea89a0dfbd3f22e51b9	word-math-layout	0	complete	https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/bug1937438_from_word.pdf

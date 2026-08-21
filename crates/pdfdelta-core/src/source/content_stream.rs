@@ -23,7 +23,8 @@ use crate::{
 };
 
 use super::{
-    ExtractionIssue, ExtractionLimits, ExtractionOutcome, ExtractionScope, GlyphExtractor,
+    ExternalFontIdentities, ExtractionIssue, ExtractionLimits, ExtractionOutcome, ExtractionScope,
+    GlyphExtractor,
 };
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -34,13 +35,19 @@ impl ContentStreamGlyphExtractor {
         &self,
         pdf: &dyn ParsedPdf,
         limits: ExtractionLimits,
+        external_font_identities: &ExternalFontIdentities,
     ) -> Result<ExtractionOutcome> {
         let pages = match pdf.pages() {
             Ok(pages) => pages,
             Err(error) => return ExtractionOutcome::from_error(ExtractionScope::Document, error),
         };
-        let mut extraction = Extraction::new(pdf, limits);
-        let mut issues = Vec::new();
+        let mut extraction =
+            Extraction::new_with_external_font_identities(pdf, limits, external_font_identities);
+        let mut issues = pdf
+            .issues()
+            .iter()
+            .map(ExtractionIssue::from_pdf_issue)
+            .collect::<Result<Vec<_>>>()?;
         for (index, page) in pages.into_iter().enumerate() {
             let page_id = u32::try_from(index)
                 .map(PageId)
@@ -58,11 +65,21 @@ impl ContentStreamGlyphExtractor {
         }
         ExtractionOutcome::new(Document::new(extraction.glyphs), issues)
     }
+
+    pub fn extract_outcome_with_external_font_identities(
+        &self,
+        pdf: &dyn ParsedPdf,
+        limits: ExtractionLimits,
+        external_font_identities: &ExternalFontIdentities,
+    ) -> Result<ExtractionOutcome> {
+        self.extract_outcome_inner(pdf, limits, external_font_identities)
+    }
 }
 
 impl GlyphExtractor for ContentStreamGlyphExtractor {
     fn extract(&self, pdf: &dyn ParsedPdf, limits: ExtractionLimits) -> Result<Document<Glyph>> {
-        self.extract_outcome_inner(pdf, limits)?.into_complete()
+        self.extract_outcome_inner(pdf, limits, &ExternalFontIdentities::default())?
+            .into_complete()
     }
 
     fn extract_outcome(
@@ -70,12 +87,13 @@ impl GlyphExtractor for ContentStreamGlyphExtractor {
         pdf: &dyn ParsedPdf,
         limits: ExtractionLimits,
     ) -> Result<ExtractionOutcome> {
-        self.extract_outcome_inner(pdf, limits)
+        self.extract_outcome_inner(pdf, limits, &ExternalFontIdentities::default())
     }
 }
 
 struct Extraction<'a> {
     pdf: &'a dyn ParsedPdf,
+    external_font_identities: Option<&'a ExternalFontIdentities>,
     limits: ExtractionLimits,
     glyphs: Vec<Glyph>,
     font_cache: HashMap<FontCacheKey, CachedFont>,
@@ -105,6 +123,7 @@ impl<'a> Extraction<'a> {
         let operand_budget = OperandBudget::new(limits.max_operand_nodes);
         Self {
             pdf,
+            external_font_identities: None,
             limits,
             glyphs: Vec::new(),
             font_cache: HashMap::new(),
@@ -127,6 +146,16 @@ impl<'a> Extraction<'a> {
             next_scope_id: 0,
             render_order: 0,
         }
+    }
+
+    fn new_with_external_font_identities(
+        pdf: &'a dyn ParsedPdf,
+        limits: ExtractionLimits,
+        external_font_identities: &'a ExternalFontIdentities,
+    ) -> Self {
+        let mut extraction = Self::new(pdf, limits);
+        extraction.external_font_identities = Some(external_font_identities);
+        extraction
     }
 
     fn extract_page(&mut self, page: PageRef, page_id: PageId) -> Result<()> {
@@ -736,13 +765,21 @@ impl Extraction<'_> {
                     resource: "font identifier address space",
                     limit: u32::MAX as usize,
                 })?;
+            let external_font_hash = loaded
+                .external_base_font
+                .as_deref()
+                .and_then(|base_font| {
+                    self.external_font_identities
+                        .and_then(|identities| identities.get(base_font))
+                })
+                .cloned();
             self.font_cache.insert(
                 key.clone(),
                 CachedFont {
                     id,
                     decoder: loaded.decoder,
                     identity_source: loaded.identity_source,
-                    font_hash: None,
+                    font_hash: external_font_hash,
                 },
             );
         }

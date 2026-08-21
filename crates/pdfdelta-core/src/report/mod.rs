@@ -135,18 +135,6 @@ pub fn summarize(comparison: &Comparison, extraction: &ExtractionStatus) -> Resu
         comparison.new_coverage.ratio,
         extraction.new_complete,
     )?;
-    validate_document_scope_coverage(
-        "old",
-        DocumentSide::Old,
-        comparison.old_coverage.total_tokens,
-        &extraction.issues,
-    )?;
-    validate_document_scope_coverage(
-        "new",
-        DocumentSide::New,
-        comparison.new_coverage.total_tokens,
-        &extraction.issues,
-    )?;
 
     let comparison_complete = comparison.unresolved_regions.is_empty()
         && comparison.old_coverage.resolved_tokens == comparison.old_coverage.total_tokens
@@ -272,16 +260,6 @@ fn validate_issue_scopes(
         .iter()
         .filter(|issue| issue.side == side)
         .collect::<Vec<_>>();
-    let document_issues = side_issues
-        .iter()
-        .filter(|issue| issue.scope == ExtractionScope::Document)
-        .count();
-    if document_issues > 0 && side_issues.len() != 1 {
-        return Err(Error::InvalidConfiguration(format!(
-            "inconsistent {side_name} extraction issue scopes: document scope cannot be combined with other issues"
-        )));
-    }
-
     let mut pages = HashSet::new();
     for issue in side_issues {
         if let ExtractionScope::Page(page) = issue.scope
@@ -292,24 +270,6 @@ fn validate_issue_scopes(
                 page.0
             )));
         }
-    }
-    Ok(())
-}
-
-fn validate_document_scope_coverage(
-    side_name: &str,
-    side: DocumentSide,
-    total_tokens: usize,
-    issues: &[ExtractionIssueRecord],
-) -> Result<()> {
-    if total_tokens != 0
-        && issues
-            .iter()
-            .any(|issue| issue.side == side && issue.scope == ExtractionScope::Document)
-    {
-        return Err(Error::InvalidConfiguration(format!(
-            "document-scoped {side_name} extraction issues require zero extracted alignment tokens"
-        )));
     }
     Ok(())
 }

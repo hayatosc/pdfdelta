@@ -51,6 +51,7 @@ pub(crate) enum FontDecoder {
 pub(crate) struct LoadedFont {
     pub(crate) decoder: FontDecoder,
     pub(crate) identity_source: Option<FontIdentitySource>,
+    pub(crate) external_base_font: Option<Vec<u8>>,
     pub(crate) decoded_font_bytes: usize,
     pub(crate) cid_width_entries: usize,
 }
@@ -68,12 +69,24 @@ impl FontDecoder {
             let LoadedCompositeFont {
                 decoder,
                 identity_source,
+                external_identity_allowed,
                 decoded_font_bytes,
                 cid_width_entries,
             } = CompositeFontDecoder::load(pdf, dictionary, limits)?;
+            let external_base_font = if identity_source.is_none() && external_identity_allowed {
+                dictionary
+                    .get(b"BaseFont".as_slice())
+                    .and_then(|value| match value {
+                        PdfObject::Name(name) => Some(name.clone()),
+                        _ => None,
+                    })
+            } else {
+                None
+            };
             return Ok(LoadedFont {
                 decoder: Self::Composite(decoder),
                 identity_source,
+                external_base_font,
                 decoded_font_bytes,
                 cid_width_entries,
             });
@@ -86,6 +99,7 @@ impl FontDecoder {
         Ok(LoadedFont {
             decoder: Self::Simple(decoder),
             identity_source,
+            external_base_font: None,
             decoded_font_bytes,
             cid_width_entries: 0,
         })

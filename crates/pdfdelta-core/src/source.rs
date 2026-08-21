@@ -1,9 +1,14 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+};
+
+use sha2::{Digest, Sha256};
 
 use crate::{
     Error, Result,
-    model::{Document, Glyph, PageId},
-    pdf::{ParseLimits, ParsedPdf, PdfParser},
+    model::{Document, FontProgramHash, Glyph, PageId},
+    pdf::{ParseLimits, ParsedPdf, PdfIssue, PdfParser},
 };
 
 mod content_stream;
@@ -45,6 +50,57 @@ impl Default for ExtractionLimits {
             max_cid_width_entries: usize::from(u16::MAX) + 1,
             max_string_bytes: 64 * 1024 * 1024,
         }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ExternalFontIdentities {
+    identities: BTreeMap<Vec<u8>, FontProgramHash>,
+}
+
+impl ExternalFontIdentities {
+    pub const MAX_ENTRIES: usize = 1_024;
+    pub const MAX_BASE_FONT_BYTES: usize = 127;
+    pub const MAX_IDENTITY_BYTES: usize = 4_096;
+
+    pub fn insert(&mut self, base_font: &[u8], identity: &[u8]) -> Result<()> {
+        if base_font.is_empty() || base_font.len() > Self::MAX_BASE_FONT_BYTES {
+            return Err(Error::InvalidConfiguration(format!(
+                "external BaseFont names must contain 1..={} bytes",
+                Self::MAX_BASE_FONT_BYTES
+            )));
+        }
+        if identity.is_empty() || identity.len() > Self::MAX_IDENTITY_BYTES {
+            return Err(Error::InvalidConfiguration(format!(
+                "external font identities must contain 1..={} bytes",
+                Self::MAX_IDENTITY_BYTES
+            )));
+        }
+        if self.identities.contains_key(base_font) {
+            return Err(Error::InvalidConfiguration(format!(
+                "duplicate external font identity for /{}",
+                String::from_utf8_lossy(base_font)
+            )));
+        }
+        if self.identities.len() == Self::MAX_ENTRIES {
+            return Err(Error::LimitExceeded {
+                resource: "external font identity entries",
+                limit: Self::MAX_ENTRIES,
+            });
+        }
+        let mut digest = Sha256::new();
+        digest.update(b"pdfdelta-external-font-identity\0v1\0");
+        digest.update((identity.len() as u64).to_be_bytes());
+        digest.update(identity);
+        self.identities.insert(
+            base_font.to_vec(),
+            FontProgramHash(digest.finalize().to_vec()),
+        );
+        Ok(())
+    }
+
+    pub(crate) fn get(&self, base_font: &[u8]) -> Option<&FontProgramHash> {
+        self.identities.get(base_font)
     }
 }
 
@@ -118,6 +174,14 @@ impl ExtractionIssue {
         }
     }
 
+    fn from_pdf_issue(issue: &PdfIssue) -> Result<Self> {
+        Self::new(
+            ExtractionIssueKind::Unresolved,
+            ExtractionScope::Document,
+            issue.description(),
+        )
+    }
+
     fn into_error(self) -> Error {
         match self.kind {
             ExtractionIssueKind::Unsupported => Error::Unsupported(self.description),
@@ -145,19 +209,7 @@ impl ExtractionOutcome {
         let mut pages = HashSet::with_capacity(issues.len());
         for issue in &issues {
             match issue.scope() {
-                ExtractionScope::Document => {
-                    if !document.items().is_empty() {
-                        return Err(Error::InvalidConfiguration(
-                            "a document-scoped extraction issue requires an empty document"
-                                .to_owned(),
-                        ));
-                    }
-                    if issues.len() != 1 {
-                        return Err(Error::InvalidConfiguration(
-                            "a document-scoped extraction issue must be the sole issue".to_owned(),
-                        ));
-                    }
-                }
+                ExtractionScope::Document => {}
                 ExtractionScope::Page(page) if !pages.insert(page) => {
                     return Err(Error::InvalidConfiguration(format!(
                         "duplicate extraction issue scope for page {}",
@@ -264,6 +316,21 @@ where
         extraction_limits: ExtractionLimits,
     ) -> Result<ExtractionOutcome> {
         let parsed = match self.parser.parse(pdf, parse_limits) {
+            Ok(parsed) => parsed,
+            Err(error) => return ExtractionOutcome::from_error(ExtractionScope::Document, error),
+        };
+        self.extractor
+            .extract_outcome(parsed.as_ref(), extraction_limits)
+    }
+
+    pub fn extract_outcome_with_password(
+        &self,
+        pdf: Arc<[u8]>,
+        parse_limits: ParseLimits,
+        extraction_limits: ExtractionLimits,
+        password: &str,
+    ) -> Result<ExtractionOutcome> {
+        let parsed = match self.parser.parse_with_password(pdf, parse_limits, password) {
             Ok(parsed) => parsed,
             Err(error) => return ExtractionOutcome::from_error(ExtractionScope::Document, error),
         };

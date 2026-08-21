@@ -316,20 +316,21 @@ fn extraction_issue_requires_a_description() {
 }
 
 #[test]
-fn document_scoped_outcome_requires_empty_evidence_and_one_issue() -> Result<()> {
-    let issue = ExtractionIssue::new(
+fn document_scoped_outcome_can_retain_partial_evidence_and_multiple_issues() -> Result<()> {
+    let first = ExtractionIssue::new(
         ExtractionIssueKind::Unsupported,
         ExtractionScope::Document,
         "document feature is not supported",
     )?;
-    assert!(matches!(
-        ExtractionOutcome::new(Document::new(vec![fixture_glyph()]), vec![issue.clone()]),
-        Err(Error::InvalidConfiguration(message)) if message.contains("requires an empty document")
-    ));
-    assert!(matches!(
-        ExtractionOutcome::new(Document::new(Vec::new()), vec![issue.clone(), issue]),
-        Err(Error::InvalidConfiguration(message)) if message.contains("sole issue")
-    ));
+    let second = ExtractionIssue::new(
+        ExtractionIssueKind::Unresolved,
+        ExtractionScope::Document,
+        "another document structure is unresolved",
+    )?;
+    let outcome =
+        ExtractionOutcome::new(Document::new(vec![fixture_glyph()]), vec![first, second])?;
+    assert_eq!(outcome.document().items(), [fixture_glyph()]);
+    assert_eq!(outcome.issues().len(), 2);
     Ok(())
 }
 

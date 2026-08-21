@@ -609,6 +609,31 @@ fn rejects_password_required_documents_as_unsupported() {
 }
 
 #[test]
+fn accepts_a_configured_user_password_without_retaining_it() {
+    let (bytes, ids) = encrypted_fixture("user");
+
+    let pdf = LopdfParser
+        .parse_with_password(Arc::from(bytes), limits(), "user")
+        .expect("configured user password should decrypt the PDF");
+    let marker = pdf
+        .resolve(object_ref(ids.marker))
+        .expect("decrypted marker should resolve");
+    let PdfObject::Dictionary(marker) = marker else {
+        panic!("marker should remain a dictionary");
+    };
+    assert_eq!(
+        marker.get(b"Value".as_slice()),
+        Some(&PdfObject::String(b"initial".to_vec()))
+    );
+
+    let (bytes, _) = encrypted_fixture("user");
+    assert!(matches!(
+        LopdfParser.parse_with_password(Arc::from(bytes), limits(), "wrong"),
+        Err(Error::Unsupported(_))
+    ));
+}
+
+#[test]
 fn accepts_documents_decrypted_with_an_empty_user_password() {
     let (bytes, ids) = encrypted_fixture("");
 
@@ -699,8 +724,20 @@ fn applies_a_higher_catalog_version() {
 }
 
 #[test]
-fn rejects_a_page_parent_outside_the_traversed_tree() {
-    let (mut document, ids) = fixture_document(1);
+fn recovers_valid_page_tree_branches_and_reports_inconsistent_parents() {
+    let (mut document, ids) = fixture_document(2);
+    let invalid_page = document
+        .objects
+        .get(&ids.pages)
+        .expect("Pages root should exist")
+        .as_dict()
+        .expect("Pages root should be a dictionary")
+        .get(b"Kids")
+        .expect("Pages root should contain Kids")
+        .as_array()
+        .expect("Kids should be an array")[1]
+        .as_reference()
+        .expect("Kid should be a reference");
     let unrelated_pages = document.add_object(dictionary! {
         "Type" => "Pages",
         "Kids" => Vec::<Object>::new(),
@@ -710,16 +747,28 @@ fn rejects_a_page_parent_outside_the_traversed_tree() {
     });
     document
         .objects
-        .get_mut(&ids.page)
+        .get_mut(&invalid_page)
         .expect("page should exist")
         .as_dict_mut()
         .expect("page should be a dictionary")
         .set("Parent", unrelated_pages);
 
-    assert!(matches!(
-        parse(serialize_classic(document), limits()),
-        Err(Error::Backend(message)) if message.contains("inconsistent Parent")
-    ));
+    let pdf = parse(serialize_classic(document), limits())
+        .expect("invalid page branch should produce a partial parsed PDF");
+    assert_eq!(
+        pdf.pages().expect("pages should remain available"),
+        vec![pdfdelta_core::pdf::PageRef(object_ref(ids.page))]
+    );
+    assert!(
+        pdf.issues()
+            .iter()
+            .any(|issue| issue.description().contains("inconsistent Parent"))
+    );
+    assert!(
+        pdf.issues()
+            .iter()
+            .any(|issue| issue.description().contains("only 1 valid pages"))
+    );
 }
 
 #[test]

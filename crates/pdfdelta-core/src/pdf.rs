@@ -91,6 +91,27 @@ pub struct ParsedPage {
     pub resources: Option<Arc<PdfObject>>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PdfIssue {
+    description: String,
+}
+
+impl PdfIssue {
+    pub fn unresolved(description: impl Into<String>) -> Result<Self> {
+        let description = description.into();
+        if description.trim().is_empty() {
+            return Err(crate::Error::InvalidConfiguration(
+                "PDF issues require a description".to_owned(),
+            ));
+        }
+        Ok(Self { description })
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+}
+
 pub trait ParsedPdf: Send + Sync {
     fn version(&self) -> PdfVersion;
     fn trailer(&self) -> Result<PdfDict>;
@@ -117,8 +138,26 @@ pub trait ParsedPdf: Send + Sync {
     }
     fn raw_stream(&self, reference: ObjectRef) -> Result<RawStream>;
     fn decoded_stream(&self, reference: ObjectRef) -> Result<DecodedStream>;
+    fn issues(&self) -> &[PdfIssue] {
+        &[]
+    }
 }
 
 pub trait PdfParser: Send + Sync {
     fn parse(&self, pdf: Arc<[u8]>, limits: ParseLimits) -> Result<Box<dyn ParsedPdf>>;
+
+    fn parse_with_password(
+        &self,
+        pdf: Arc<[u8]>,
+        limits: ParseLimits,
+        password: &str,
+    ) -> Result<Box<dyn ParsedPdf>> {
+        if password.is_empty() {
+            self.parse(pdf, limits)
+        } else {
+            Err(crate::Error::Unsupported(
+                "configured PDF passwords are not supported by this parser".into(),
+            ))
+        }
+    }
 }

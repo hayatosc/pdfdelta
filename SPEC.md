@@ -50,7 +50,7 @@ born-digital PDFに限定する。
 | 1段組の複数ページ文書 | AcroForm、高度なannotation |
 | 基本的なフォント(ToUnicodeあり/なし両方。§6.4参照) | 複雑な表、画像内容比較 |
 | xref stream / object stream を含む現代的なPDF | PDF 2.0固有機能の網羅 |
-| empty user passwordで自動復号できる暗号化PDF | password入力を要する暗号化PDF、未対応security handler |
+| empty user passwordまたは明示passwordで復号できる暗号化PDF | password不明の暗号化PDF、未対応security handler |
 
 非対応機能に遭遇した場合は、誤った結果を返すのではなく UNSUPPORTED / UNRESOLVED として扱う。
 
@@ -113,6 +113,13 @@ pub trait PdfParser: Send + Sync {
         pdf: Arc<[u8]>,
         limits: ParseLimits,
     ) -> Result<Box<dyn ParsedPdf>>;
+
+    fn parse_with_password(
+        &self,
+        pdf: Arc<[u8]>,
+        limits: ParseLimits,
+        password: &str,
+    ) -> Result<Box<dyn ParsedPdf>>;
 }
 
 pub trait ParsedPdf: Send + Sync {
@@ -123,6 +130,7 @@ pub trait ParsedPdf: Send + Sync {
     fn page_dict(&self, page: PageRef) -> Result<PdfDict>;
     fn raw_stream(&self, reference: ObjectRef) -> Result<RawStream>;
     fn decoded_stream(&self, reference: ObjectRef) -> Result<DecodedStream>;
+    fn issues(&self) -> &[PdfIssue];
 }
 
 pub trait GlyphExtractor: Send + Sync {
@@ -316,9 +324,13 @@ Comparison coverage:      97.4%
 pdfdelta inspect document.pdf
 pdfdelta old.pdf new.pdf
 pdfdelta old.pdf new.pdf --json result.json
+pdfdelta old.pdf new.pdf --old-password-file old.secret --new-password-file new.secret
+pdfdelta old.pdf new.pdf --old-font-identity FontName=identity --new-font-identity FontName=identity
 ```
 
 `inspect`にはbackend確認用の`--backend-info`、object確認用の`--objects`、Glyph確認用の`--glyphs`を段階的に追加する。
+
+passwordはargvへ直接渡さず、sideごとのpassword fileから最大4096 byteを読み、一つの末尾改行を除いてbackendへ借用する。password本文はerror、report、traceへ書かない。`--old-font-identity` / `--new-font-identity`は`BaseFont=identity`形式のcaller assertionであり、identity文字列をdomain-separated hashへ変換した後は保持しない。同じ外部font programを使うとcallerが保証できる場合だけ指定する。
 
 exit codeはCI利用を前提に定義する。
 
@@ -347,10 +359,10 @@ PDFからplain textを取り出すことではなく、後から検証可能なr
 - classic xref tableとxref stream。
 - object stream(ObjStm)。
 - trailer chainとincremental updateのlatest revision解決。
-- Page Tree走査とResourcesの継承。
+- Page Tree走査とResourcesの継承。壊れた枝にParent不整合または参照循環があっても、独立して検証できた正常枝は保持し、欠落枝とroot `Count`不一致をdocument-scoped UNRESOLVEDとして返す。通常実行は部分証拠からreportを生成できるが、`--strict`はcomparison不完全としてexit 3を維持する。
 - raw stream metadataとdecoded stream bytesの取得。
 - 初期必須filterとしてFlateDecode。未対応filterは空文字へ潰さずUNSUPPORTEDにする。
-- 暗号化の検出。既存backendがempty user passwordで自動復号を完了した場合だけ受理する。password入力を要する文書、復号後も`Encrypt`が残る文書、未対応security handlerはUNSUPPORTEDにする。CLI/APIはpasswordを受け取らず、秘密情報をreportやtraceへ保持しない。
+- 暗号化の検出。既存backendがempty user passwordで自動復号を完了した場合、またはcallerが明示passwordを借用で渡して復号できた場合だけ受理する。password欠落・不一致、復号後も`Encrypt`が残る文書、未対応security handlerはUNSUPPORTEDにする。CLIはpassword fileのpathだけを受け取り、password本文をreportやtraceへ保持しない。
 - object count、recursion、decompressed size等のresource limitと、error categoryの保持。
 
 adapterはobject id、generation、dictionary key、stream filter、Content Stream順序を保持する。library独自型は`pdf/backend/`内で中立型へ変換し、後段へ漏らさない。
@@ -409,7 +421,7 @@ simple fontではcodeごとに完全一致するToUnicode entryを優先し、en
 
 定義済みIdentity-HとIdentity-Vは常に固定2-byte codeとしてcontentを分割する。custom Type0 Encoding CMapは、`WMode`が0または1で、単一のfull-domain codespace (`<00> <FF>`または`<0000> <FFFF>`) と、同じ範囲をCID 0から写す単一のidentity `begincidrange`だけを持つ場合に限り、固定1-byteまたは2-byte codeとして扱う。domain全体をentry budgetへ課金し、`usecmap`、`begincidchar`、複数range、非identity mappingはUNSUPPORTEDとする。
 
-ToUnicodeはdecoderの固定幅で完全一致参照する。decoder幅のdomainから完全に外れたcodespaceは、利用可能な同幅codespaceが別に存在する場合だけ無視し、実際の分割幅を変えない。利用可能なcodespaceが一つも残らない場合はUNRESOLVEDとする。entry欠落、孤立したUTF-16 surrogate destination、ToUnicode自体の欠落は`Unmapped`とする。一方、空、奇数長、非hexのdestinationはerrorのままにする。Unmapped entryもCMap entry数、work量、出力scalar数のbudgetへ課金する。unmapped codeを比較可能にするのはdescendant fontがstable identityを提供できる場合だけとし、それ以外は実際にcodeが使われた箇所を文脈付きUNRESOLVEDとする。埋め込みfont programもToUnicodeもないCID fontは、BaseFont名だけでglyph同一性を推測しない。
+ToUnicodeはdecoderの固定幅で完全一致参照する。decoder幅のdomainから完全に外れたcodespaceは、利用可能な同幅codespaceが別に存在する場合だけ無視し、実際の分割幅を変えない。利用可能なcodespaceが一つも残らない場合はUNRESOLVEDとする。entry欠落、孤立したUTF-16 surrogate destination、ToUnicode自体の欠落は`Unmapped`とする。一方、空、奇数長、非hexのdestinationはerrorのままにする。Unmapped entryもCMap entry数、work量、出力scalar数のbudgetへ課金する。unmapped codeを比較可能にするのはdescendant fontがstable identityを提供できる場合だけとし、それ以外は実際にcodeが使われた箇所を文脈付きUNRESOLVEDとする。埋め込みfont programもToUnicodeもないCID fontは、BaseFont名だけでglyph同一性を推測しない。ただしcallerがsideごとに同じBaseFontへ同じ外部font identityを明示した場合は、そのidentityを専用domainでhashし、unmapped glyphのfont identityとして使用できる。これはfont discoveryではなくcaller assertionであり、未指定font、異なるidentity、simple fontには適用しない。entry数、BaseFont byte数、identity byte数に上限を設ける。
 
 Type 3 fontは、次の上限付きsimple-font subsetだけを扱う。
 
@@ -781,7 +793,14 @@ parser backendの最終選択は§6.2のcapability fixtureで決める。library
 
 この節は、仕様を変更した理由と変更箇所を`SPEC.md`自身に残すための記録である。過去分は`git log --follow -- SPEC.md`と各commitのdiffから復元した。詳細な差分は`git show <commit> -- SPEC.md`で確認する。
 
-### 2026-08-21 残存6件の再検証（本変更）
+### 2026-08-21 残存5件の入力付き対応（本変更）
+
+- §2.1、§3.2、§5.4、§6.2：借用password APIとside別password file入力を追加し、password本文をargv、report、traceへ残さない規則を定義した。`print_protection.pdf`は公開testで指定されたpassword fileを使いstrict自己比較を完走した。
+- §6.2：Page Treeの正常枝を保持し、壊れた枝とroot Count不一致をdocument-scoped UNRESOLVEDとして部分成功へ変換する規則を追加した。`Pages-tree-refs.pdf`は通常実行でreport生成まで完走し、strictでは完全性を偽らずexit 3になる。
+- §5.4、§6.4：未埋め込みCID fontへside別の明示external identityを与えるcaller assertionを追加した。`ThuluthFeatures.pdf`は`TraditionalArabic`へ同一identityを指定してstrict自己比較を完走した。
+- round2 corpusは、明示入力付きstrict完走35件、通常実行のみ部分成功1件、backend対応待ち2件になった。非標準Brotli filterとLength 0が実streamと矛盾するXObjectは、`lopdf` fork / vendorを変更しない決定により本変更では保留した。
+
+### 2026-08-21 残存6件の再検証（`f670b1c`）
 
 - §6.4：named Resourcesへ依存するType 3 fontを一律UNRESOLVEDとする境界を狭め、参照先を上限付きcanonical graphとしてidentityへ含められるsubsetを追加した。参照循環と未埋め込み非Standard 14 fontは引き続きUNRESOLVEDにする。
 - `ContentStreamNoCycleType3insideType3.pdf`で、入れ子のType 3、Standard 14 font、Pattern streamを含む有限なresource graphがstrict自己比較を完走することを確認した。

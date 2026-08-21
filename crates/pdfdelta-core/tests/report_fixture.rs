@@ -313,7 +313,7 @@ fn json_report_counts_typed_extraction_issues_and_omits_document_page() -> Resul
 }
 
 #[test]
-fn rejects_inconsistent_extraction_issue_scopes() {
+fn accepts_document_issues_with_partial_evidence() {
     let mixed_scopes = ExtractionStatus {
         old_complete: false,
         new_complete: true,
@@ -332,10 +332,13 @@ fn rejects_inconsistent_extraction_issue_scopes() {
             },
         ],
     };
-    assert!(matches!(
-        summarize(&empty_comparison(), &mixed_scopes),
-        Err(Error::InvalidConfiguration(message)) if message.contains("inconsistent old extraction issue scopes")
-    ));
+    let mut mixed_comparison = empty_comparison();
+    mixed_comparison.old_coverage.ratio = None;
+    let summary = summarize(&mixed_comparison, &mixed_scopes)
+        .expect("document and page issues may coexist for partial evidence");
+    assert!(!summary.comparison_complete);
+    assert_eq!(summary.unsupported_extraction_issues, 1);
+    assert_eq!(summary.unresolved_extraction_issues, 1);
 
     let document_issue_with_evidence = ExtractionStatus {
         old_complete: false,
@@ -353,10 +356,10 @@ fn rejects_inconsistent_extraction_issue_scopes() {
         total_tokens: 1,
         ratio: None,
     };
-    assert!(matches!(
-        summarize(&comparison, &document_issue_with_evidence),
-        Err(Error::InvalidConfiguration(message)) if message.contains("document-scoped old extraction issues")
-    ));
+    let summary = summarize(&comparison, &document_issue_with_evidence)
+        .expect("document issues may retain extracted alignment evidence");
+    assert!(!summary.comparison_complete);
+    assert_eq!(summary.old_alignment_coverage, None);
 }
 
 #[test]

@@ -8,8 +8,8 @@ use lopdf::{Dictionary, Document, LoadOptions, Object};
 use crate::{
     Error, Result,
     pdf::{
-        DecodedStream, ObjectRef, PageRef, ParseLimits, ParsedPage, ParsedPdf, PdfDict, PdfObject,
-        PdfParser, PdfVersion, RawStream, ResolvedObject,
+        DecodedStream, ObjectRef, PageRef, ParseLimits, ParsedPage, ParsedPdf, PdfDict, PdfIssue,
+        PdfObject, PdfParser, PdfVersion, RawStream, ResolvedObject,
     },
 };
 
@@ -36,10 +36,13 @@ pub struct LopdfParser;
 
 impl LopdfParser {
     pub const NAME: &str = "lopdf";
-}
 
-impl PdfParser for LopdfParser {
-    fn parse(&self, pdf: Arc<[u8]>, limits: ParseLimits) -> Result<Box<dyn ParsedPdf>> {
+    fn parse_inner(
+        &self,
+        pdf: Arc<[u8]>,
+        limits: ParseLimits,
+        password: Option<&str>,
+    ) -> Result<Box<dyn ParsedPdf>> {
         validate_limits(limits)?;
         if pdf.len() > limits.max_input_bytes {
             return Err(limit_error("PDF input bytes", limits.max_input_bytes));
@@ -48,6 +51,7 @@ impl PdfParser for LopdfParser {
         let parser_lock = lock_unpoisoned(&LOPDF_PARSE_LOCK);
         let budget = ObjectBudgetGuard::install(limits);
         let mut options = LoadOptions::with_max_decompressed_size(limits.max_decoded_stream_bytes);
+        options.password = password.map(str::to_owned);
         options.max_xref_entries = Some(limits.max_objects);
         options.filter = Some(limit_loaded_objects);
         let loaded = Document::load_mem_with_options(&pdf, options);
@@ -61,7 +65,7 @@ impl PdfParser for LopdfParser {
 
         if document.is_encrypted() {
             return Err(Error::Unsupported(
-                "PDF documents that require a password are not supported".into(),
+                "PDF password is missing, invalid, or unsupported".into(),
             ));
         }
         if document.objects.len() > limits.max_objects {
@@ -78,9 +82,25 @@ impl PdfParser for LopdfParser {
             pages: page_tree.pages,
             page_index,
             page_parents: page_tree.parents,
+            issues: page_tree.issues,
             resource_cache: Mutex::new(HashMap::new()),
             version,
         }))
+    }
+}
+
+impl PdfParser for LopdfParser {
+    fn parse(&self, pdf: Arc<[u8]>, limits: ParseLimits) -> Result<Box<dyn ParsedPdf>> {
+        self.parse_inner(pdf, limits, None)
+    }
+
+    fn parse_with_password(
+        &self,
+        pdf: Arc<[u8]>,
+        limits: ParseLimits,
+        password: &str,
+    ) -> Result<Box<dyn ParsedPdf>> {
+        self.parse_inner(pdf, limits, Some(password))
     }
 }
 
@@ -90,6 +110,7 @@ struct LopdfParsedPdf {
     pages: Vec<PageRef>,
     page_index: HashSet<PageRef>,
     page_parents: HashMap<lopdf::ObjectId, Option<lopdf::ObjectId>>,
+    issues: Vec<PdfIssue>,
     resource_cache: Mutex<HashMap<lopdf::ObjectId, Arc<PdfObject>>>,
     version: PdfVersion,
 }
@@ -306,6 +327,10 @@ impl ParsedPdf for LopdfParsedPdf {
             dictionary: self.convert_dictionary(&stream.dict)?,
             bytes,
         })
+    }
+
+    fn issues(&self) -> &[PdfIssue] {
+        &self.issues
     }
 }
 
@@ -549,6 +574,7 @@ fn effective_version(document: &Document, limits: ParseLimits) -> Result<PdfVers
 struct PageTree {
     pages: Vec<PageRef>,
     parents: HashMap<lopdf::ObjectId, Option<lopdf::ObjectId>>,
+    issues: Vec<PdfIssue>,
 }
 
 fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
@@ -561,6 +587,8 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
     let mut seen = HashSet::new();
     let mut pages = Vec::new();
     let mut parents = HashMap::new();
+    let mut issues = Vec::new();
+    let mut declared_root_count = None;
     let max_nodes = limits.max_objects.min(
         limits
             .max_pages
@@ -577,10 +605,11 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
             ));
         }
         if !seen.insert(reference) {
-            return Err(Error::Backend(format!(
+            issues.push(PdfIssue::unresolved(format!(
                 "walking page tree: repeated object {} {}",
                 reference.0, reference.1
-            )));
+            ))?);
+            continue;
         }
 
         let dictionary = resolve_document_object(document, reference, limits, "walking page tree")?
@@ -589,10 +618,11 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
         let declared_parent =
             optional_reference(dictionary, b"Parent", "reading page tree Parent")?;
         if declared_parent != expected_parent {
-            return Err(Error::Backend(format!(
+            issues.push(PdfIssue::unresolved(format!(
                 "walking page tree: object {} {} has an inconsistent Parent",
                 reference.0, reference.1
-            )));
+            ))?);
+            continue;
         }
         parents.insert(reference, expected_parent);
         let node_type = dictionary
@@ -621,6 +651,9 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
                     .map_err(|_| limit_error("PDF page count", limits.max_pages))?;
                 if declared_count > limits.max_pages {
                     return Err(limit_error("PDF page count", limits.max_pages));
+                }
+                if reference == pages_root {
+                    declared_root_count = Some(declared_count);
                 }
                 let kids = dictionary
                     .get(b"Kids")
@@ -653,7 +686,20 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
         }
     }
 
-    Ok(PageTree { pages, parents })
+    if let Some(declared) = declared_root_count
+        && declared != pages.len()
+    {
+        issues.push(PdfIssue::unresolved(format!(
+            "walking page tree: root declares {declared} pages but only {} valid pages were recovered",
+            pages.len()
+        ))?);
+    }
+
+    Ok(PageTree {
+        pages,
+        parents,
+        issues,
+    })
 }
 
 fn resolve_document_object<'a>(
@@ -775,7 +821,7 @@ fn map_lopdf_error(error: lopdf::Error, context: &str, limits: ParseLimits) -> E
         | lopdf::Error::AlreadyEncrypted
         | lopdf::Error::Decryption(_)
         | lopdf::Error::UnsupportedSecurityHandler(_) => {
-            Error::Unsupported("PDF documents that require a password are not supported".into())
+            Error::Unsupported("PDF password is missing, invalid, or unsupported".into())
         }
         _ => Error::Backend(format!("{context}: {error}")),
     }

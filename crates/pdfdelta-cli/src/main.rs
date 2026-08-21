@@ -21,8 +21,8 @@ use pdfdelta_core::{
     },
     report::{ExtractionStatus, exit_status, render_text, summarize, write_json},
     source::{
-        ContentStreamGlyphExtractor, ExtractionIssue, ExtractionIssueKind, ExtractionLimits,
-        ExtractionOutcome, ExtractionScope, GlyphExtractor, ParserBackedGlyphSource,
+        ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssue, ExtractionIssueKind,
+        ExtractionLimits, ExtractionOutcome, ExtractionScope,
     },
 };
 
@@ -58,6 +58,22 @@ struct Cli {
 
     #[arg(long, requires = "new")]
     strict: bool,
+
+    /// Read the old PDF password from a file.
+    #[arg(long, value_name = "PATH", requires = "new")]
+    old_password_file: Option<PathBuf>,
+
+    /// Read the new PDF password from a file.
+    #[arg(long, value_name = "PATH", requires = "new")]
+    new_password_file: Option<PathBuf>,
+
+    /// Assert an external font identity as BASE_FONT=IDENTITY for the old PDF.
+    #[arg(long, value_name = "BASE_FONT=IDENTITY", requires = "new")]
+    old_font_identity: Vec<String>,
+
+    /// Assert an external font identity as BASE_FONT=IDENTITY for the new PDF.
+    #[arg(long, value_name = "BASE_FONT=IDENTITY", requires = "new")]
+    new_font_identity: Vec<String>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -73,7 +89,35 @@ enum Command {
         /// Print extracted glyph evidence.
         #[arg(long)]
         glyphs: bool,
+
+        /// Read the PDF password from a file.
+        #[arg(long, value_name = "PATH")]
+        password_file: Option<PathBuf>,
+
+        /// Assert an external font identity as BASE_FONT=IDENTITY.
+        #[arg(long, value_name = "BASE_FONT=IDENTITY")]
+        font_identity: Vec<String>,
     },
+}
+
+#[derive(Clone, Copy)]
+struct CompareCommand<'a> {
+    old_path: Option<&'a Path>,
+    new_path: Option<&'a Path>,
+    json_path: Option<&'a Path>,
+    trace_path: Option<&'a Path>,
+    strict: bool,
+    old_password_file: Option<&'a Path>,
+    new_password_file: Option<&'a Path>,
+    old_font_identities: &'a [String],
+    new_font_identities: &'a [String],
+}
+
+#[derive(Clone, Copy)]
+struct ComparisonInput<'a> {
+    path: &'a Path,
+    password_file: Option<&'a Path>,
+    font_identities: &'a [String],
 }
 
 fn main() -> ExitCode {
@@ -85,7 +129,15 @@ fn main() -> ExitCode {
             document,
             backend_info,
             glyphs,
-        }) => match inspect_document(&document, backend_info, glyphs) {
+            password_file,
+            font_identity,
+        }) => match inspect_document(
+            &document,
+            backend_info,
+            glyphs,
+            password_file.as_deref(),
+            &font_identity,
+        ) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
                 report_fatal_error(&mut stderr, &error);
@@ -93,11 +145,17 @@ fn main() -> ExitCode {
             }
         },
         None => match compare_documents(
-            cli.old.as_deref(),
-            cli.new.as_deref(),
-            cli.json.as_deref(),
-            cli.trace_json.as_deref(),
-            cli.strict,
+            CompareCommand {
+                old_path: cli.old.as_deref(),
+                new_path: cli.new.as_deref(),
+                json_path: cli.json.as_deref(),
+                trace_path: cli.trace_json.as_deref(),
+                strict: cli.strict,
+                old_password_file: cli.old_password_file.as_deref(),
+                new_password_file: cli.new_password_file.as_deref(),
+                old_font_identities: &cli.old_font_identity,
+                new_font_identities: &cli.new_font_identity,
+            },
             &mut stderr,
         ) {
             Ok(status) => ExitCode::from(status),
@@ -110,20 +168,30 @@ fn main() -> ExitCode {
 }
 
 fn compare_documents<W: Write>(
-    old_path: Option<&Path>,
-    new_path: Option<&Path>,
-    json_path: Option<&Path>,
-    trace_path: Option<&Path>,
-    strict: bool,
+    command: CompareCommand<'_>,
     diagnostics: &mut W,
 ) -> Result<u8, String> {
-    let old_path = old_path.ok_or_else(|| "cannot compare PDFs: OLD_PDF is required".to_owned())?;
-    let new_path = new_path.ok_or_else(|| "cannot compare PDFs: NEW_PDF is required".to_owned())?;
+    let old_path = command
+        .old_path
+        .ok_or_else(|| "cannot compare PDFs: OLD_PDF is required".to_owned())?;
+    let new_path = command
+        .new_path
+        .ok_or_else(|| "cannot compare PDFs: NEW_PDF is required".to_owned())?;
+    let old_input = ComparisonInput {
+        path: old_path,
+        password_file: command.old_password_file,
+        font_identities: command.old_font_identities,
+    };
+    let new_input = ComparisonInput {
+        path: new_path,
+        password_file: command.new_password_file,
+        font_identities: command.new_font_identities,
+    };
 
-    if let Some(trace_path) = trace_path {
+    if let Some(trace_path) = command.trace_path {
         ensure_trace_does_not_alias_input(trace_path, old_path, new_path)?;
     }
-    if let (Some(json_path), Some(trace_path)) = (json_path, trace_path)
+    if let (Some(json_path), Some(trace_path)) = (command.json_path, command.trace_path)
         && output_paths_refer_to_same_file(trace_path, json_path, "trace/report output collision")?
     {
         return Err(format!(
@@ -133,9 +201,9 @@ fn compare_documents<W: Write>(
         ));
     }
 
-    let mut trace = ExecutionTrace::new(old_path, new_path, strict);
+    let mut trace = ExecutionTrace::new(old_path, new_path, command.strict);
     let output_validation: Result<(), String> = (|| {
-        if let Some(json_path) = json_path {
+        if let Some(json_path) = command.json_path {
             ensure_output_does_not_alias_input(json_path, old_path, new_path)?;
         }
         Ok(())
@@ -143,7 +211,7 @@ fn compare_documents<W: Write>(
     if let Err(primary) = output_validation {
         trace.fail_message("output_validation", None, "invalid_configuration", &primary);
         trace.finish(Err(()), false);
-        return match trace_path {
+        return match command.trace_path {
             Some(path) => match write_trace_atomically(path, &trace) {
                 Ok(()) => Err(primary),
                 Err(trace_error) => Err(format!("{primary}; additionally, {trace_error}")),
@@ -153,10 +221,10 @@ fn compare_documents<W: Write>(
     }
     trace.complete("output_validation", None, []);
     let comparison = compare_documents_traced(
-        old_path,
-        new_path,
-        json_path,
-        strict,
+        old_input,
+        new_input,
+        command.json_path,
+        command.strict,
         diagnostics,
         &mut trace,
     );
@@ -171,7 +239,7 @@ fn compare_documents<W: Write>(
             .map_err(|_| ()),
         incomplete,
     );
-    let trace_result = match trace_path {
+    let trace_result = match command.trace_path {
         Some(path) => write_trace_atomically(path, &trace),
         None => Ok(()),
     };
@@ -185,18 +253,44 @@ fn compare_documents<W: Write>(
 }
 
 fn compare_documents_traced<W: Write>(
-    old_path: &Path,
-    new_path: &Path,
+    old_input: ComparisonInput<'_>,
+    new_input: ComparisonInput<'_>,
     json_path: Option<&Path>,
     strict: bool,
     diagnostics: &mut W,
     trace: &mut ExecutionTrace,
 ) -> Result<(u8, bool), String> {
     let parse_limits = ParseLimits::default();
-    let old = extract_comparison_outcome("old", TraceSide::Old, old_path, parse_limits, trace)?;
-    report_extraction_issues(diagnostics, "old", old_path, old.issues())?;
-    let new = extract_comparison_outcome("new", TraceSide::New, new_path, parse_limits, trace)?;
-    report_extraction_issues(diagnostics, "new", new_path, new.issues())?;
+    let old_password = old_input
+        .password_file
+        .map(read_password_file)
+        .transpose()?;
+    let new_password = new_input
+        .password_file
+        .map(read_password_file)
+        .transpose()?;
+    let old_font_identities = parse_external_font_identities(old_input.font_identities)?;
+    let new_font_identities = parse_external_font_identities(new_input.font_identities)?;
+    let old = extract_comparison_outcome(
+        "old",
+        TraceSide::Old,
+        old_input.path,
+        parse_limits,
+        old_password.as_deref(),
+        &old_font_identities,
+        trace,
+    )?;
+    report_extraction_issues(diagnostics, "old", old_input.path, old.issues())?;
+    let new = extract_comparison_outcome(
+        "new",
+        TraceSide::New,
+        new_input.path,
+        parse_limits,
+        new_password.as_deref(),
+        &new_font_identities,
+        trace,
+    )?;
+    report_extraction_issues(diagnostics, "new", new_input.path, new.issues())?;
     let mut pipeline_diagnostics = PipelineDiagnostics::new();
     let outcome_result = compare_extraction_outcomes_with_diagnostics(
         old,
@@ -208,23 +302,23 @@ fn compare_documents_traced<W: Write>(
     let outcome = outcome_result.map_err(|error| {
         format!(
             "cannot compare old PDF {} with new PDF {}: {error}",
-            old_path.display(),
-            new_path.display()
+            old_input.path.display(),
+            new_input.path.display()
         )
     })?;
     let status =
         exit_status(&outcome.comparison, &outcome.extraction, strict).map_err(|error| {
             format!(
                 "cannot determine comparison status for {} and {}: {error}",
-                old_path.display(),
-                new_path.display()
+                old_input.path.display(),
+                new_input.path.display()
             )
         })?;
     let summary = summarize(&outcome.comparison, &outcome.extraction).map_err(|error| {
         format!(
             "cannot summarize comparison for {} and {}: {error}",
-            old_path.display(),
-            new_path.display()
+            old_input.path.display(),
+            new_input.path.display()
         )
     })?;
 
@@ -235,8 +329,8 @@ fn compare_documents_traced<W: Write>(
             .map_err(|error| {
                 format!(
                     "cannot render comparison report for {} and {}: {error}",
-                    old_path.display(),
-                    new_path.display()
+                    old_input.path.display(),
+                    new_input.path.display()
                 )
             })
             .and_then(|report| {
@@ -264,6 +358,8 @@ fn extract_comparison_outcome(
     trace_side: TraceSide,
     path: &Path,
     parse_limits: ParseLimits,
+    password: Option<&str>,
+    external_font_identities: &ExternalFontIdentities,
     trace: &mut ExecutionTrace,
 ) -> Result<ExtractionOutcome, String> {
     let bytes = match read_limited_typed(path, parse_limits.max_input_bytes) {
@@ -299,7 +395,7 @@ fn extract_comparison_outcome(
         [("input_bytes", bytes.len())],
     );
 
-    let parsed = match LopdfParser.parse(bytes, parse_limits) {
+    let parsed = match parse_lopdf(bytes, parse_limits, password) {
         Ok(parsed) => {
             let version = parsed.version();
             trace.complete(
@@ -330,8 +426,11 @@ fn extract_comparison_outcome(
         }
     };
 
-    match ContentStreamGlyphExtractor.extract_outcome(parsed.as_ref(), ExtractionLimits::default())
-    {
+    match ContentStreamGlyphExtractor.extract_outcome_with_external_font_identities(
+        parsed.as_ref(),
+        ExtractionLimits::default(),
+        external_font_identities,
+    ) {
         Ok(outcome) => {
             if outcome.is_complete() {
                 trace.complete(
@@ -690,17 +789,38 @@ fn output_paths_refer_to_same_file(
     }
 }
 
-fn inspect_document(path: &Path, backend_info: bool, glyphs: bool) -> Result<(), String> {
+fn inspect_document(
+    path: &Path,
+    backend_info: bool,
+    glyphs: bool,
+    password_file: Option<&Path>,
+    font_identity: &[String],
+) -> Result<(), String> {
     let backend_info = backend_info || !glyphs;
     let limits = ParseLimits::default();
     let bytes = read_limited(path, limits.max_input_bytes)?;
+    let password = password_file.map(read_password_file).transpose()?;
+    let external_font_identities = parse_external_font_identities(font_identity)?;
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
     if backend_info {
-        inspect_backend(path, Arc::clone(&bytes), limits, &mut stdout)?;
+        inspect_backend(
+            path,
+            Arc::clone(&bytes),
+            limits,
+            password.as_deref(),
+            &mut stdout,
+        )?;
     }
     if glyphs {
-        inspect_glyphs(path, bytes, limits, &mut stdout)?;
+        inspect_glyphs(
+            path,
+            bytes,
+            limits,
+            password.as_deref(),
+            &external_font_identities,
+            &mut stdout,
+        )?;
     }
     stdout.flush().map_err(|error| {
         format!(
@@ -714,10 +834,10 @@ fn inspect_backend<W: Write>(
     path: &Path,
     bytes: Arc<[u8]>,
     limits: ParseLimits,
+    password: Option<&str>,
     writer: &mut W,
 ) -> Result<(), String> {
-    let pdf = LopdfParser
-        .parse(bytes, limits)
+    let pdf = parse_lopdf(bytes, limits, password)
         .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
     let version = pdf.version();
     let page_count = pdf
@@ -732,6 +852,13 @@ fn inspect_backend<W: Write>(
         format_args!("pdf-version: {}.{}", version.major, version.minor),
     )?;
     write_inspection_line(writer, path, format_args!("pages: {page_count}"))?;
+    for issue in pdf.issues() {
+        write_inspection_line(
+            writer,
+            path,
+            format_args!("parser-issue: unresolved: {}", issue.description()),
+        )?;
+    }
     Ok(())
 }
 
@@ -739,12 +866,31 @@ fn inspect_glyphs<W: Write>(
     path: &Path,
     bytes: Arc<[u8]>,
     parse_limits: ParseLimits,
+    password: Option<&str>,
+    external_font_identities: &ExternalFontIdentities,
     writer: &mut W,
 ) -> Result<(), String> {
-    let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
-    let document = source
-        .extract(bytes, parse_limits, ExtractionLimits::default())
+    let pdf = parse_lopdf(bytes, parse_limits, password)
         .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+    let outcome = ContentStreamGlyphExtractor
+        .extract_outcome_with_external_font_identities(
+            pdf.as_ref(),
+            ExtractionLimits::default(),
+            external_font_identities,
+        )
+        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+    for issue in outcome.issues() {
+        write_inspection_line(
+            writer,
+            path,
+            format_args!(
+                "extraction-issue: {:?}: {}",
+                issue.scope(),
+                issue.description()
+            ),
+        )?;
+    }
+    let document = outcome.document();
 
     write_inspection_line(
         writer,
@@ -850,6 +996,47 @@ fn read_limited(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, String> {
     read_limited_typed(path, max_bytes).map_err(|error| error.to_string())
 }
 
+const MAX_PASSWORD_FILE_BYTES: usize = 4_096;
+
+fn read_password_file(path: &Path) -> Result<String, String> {
+    let bytes = read_limited_typed(path, MAX_PASSWORD_FILE_BYTES)
+        .map_err(|error| format!("cannot read password file {}: {error}", path.display()))?;
+    let mut bytes = bytes.as_ref();
+    if let Some(without_newline) = bytes.strip_suffix(b"\r\n") {
+        bytes = without_newline;
+    } else if let Some(without_newline) = bytes.strip_suffix(b"\n") {
+        bytes = without_newline;
+    }
+    std::str::from_utf8(bytes)
+        .map(str::to_owned)
+        .map_err(|_| format!("password file {} is not valid UTF-8", path.display()))
+}
+
+fn parse_external_font_identities(values: &[String]) -> Result<ExternalFontIdentities, String> {
+    let mut identities = ExternalFontIdentities::default();
+    for value in values {
+        let (base_font, identity) = value.split_once('=').ok_or_else(|| {
+            format!("external font identity must use BASE_FONT=IDENTITY, got {value:?}")
+        })?;
+        let base_font = base_font.strip_prefix('/').unwrap_or(base_font);
+        identities
+            .insert(base_font.as_bytes(), identity.as_bytes())
+            .map_err(|error| format!("invalid external font identity for /{base_font}: {error}"))?;
+    }
+    Ok(identities)
+}
+
+fn parse_lopdf(
+    bytes: Arc<[u8]>,
+    limits: ParseLimits,
+    password: Option<&str>,
+) -> pdfdelta_core::Result<Box<dyn pdfdelta_core::pdf::ParsedPdf>> {
+    match password {
+        Some(password) => LopdfParser.parse_with_password(bytes, limits, password),
+        None => LopdfParser.parse(bytes, limits),
+    }
+}
+
 fn read_limited_typed(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, InputReadError> {
     let file = File::open(path)
         .map_err(|error| InputReadError::Io(format!("cannot open {}: {error}", path.display())))?;
@@ -936,6 +1123,35 @@ mod tests {
     }
 
     #[test]
+    fn parses_side_specific_password_and_font_identity_inputs() {
+        let cli = Cli::try_parse_from([
+            "pdfdelta",
+            "old.pdf",
+            "new.pdf",
+            "--old-password-file",
+            "old.password",
+            "--new-password-file",
+            "new.password",
+            "--old-font-identity",
+            "TraditionalArabic=windows-v1",
+            "--new-font-identity",
+            "TraditionalArabic=windows-v1",
+        ])
+        .expect("explicit comparison identities should parse");
+
+        assert_eq!(
+            cli.old_password_file.as_deref(),
+            Some(std::path::Path::new("old.password"))
+        );
+        assert_eq!(
+            cli.new_password_file.as_deref(),
+            Some(std::path::Path::new("new.password"))
+        );
+        assert_eq!(cli.old_font_identity, ["TraditionalArabic=windows-v1"]);
+        assert_eq!(cli.new_font_identity, ["TraditionalArabic=windows-v1"]);
+    }
+
+    #[test]
     fn parses_backend_info_inspection() {
         let cli = Cli::try_parse_from(["pdfdelta", "inspect", "document.pdf", "--backend-info"])
             .expect("backend inspection arguments should parse");
@@ -962,6 +1178,31 @@ mod tests {
                 glyphs: true,
                 ..
             })
+        ));
+    }
+
+    #[test]
+    fn parses_inspection_password_and_font_identity_inputs() {
+        let cli = Cli::try_parse_from([
+            "pdfdelta",
+            "inspect",
+            "document.pdf",
+            "--glyphs",
+            "--password-file",
+            "document.password",
+            "--font-identity",
+            "TraditionalArabic=windows-v1",
+        ])
+        .expect("inspection identity inputs should parse");
+
+        assert!(matches!(
+            cli.command,
+            Some(Command::Inspect {
+                password_file: Some(path),
+                font_identity,
+                ..
+            }) if path == std::path::Path::new("document.password")
+                && font_identity == ["TraditionalArabic=windows-v1"]
         ));
     }
 

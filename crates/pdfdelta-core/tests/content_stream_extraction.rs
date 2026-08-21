@@ -6,8 +6,8 @@ use pdfdelta_core::{
     model::{DecodedText, Document, Glyph},
     pdf::{LopdfParser, ParseLimits, PdfParser},
     source::{
-        ContentStreamGlyphExtractor, ExtractionIssueKind, ExtractionLimits, ExtractionOutcome,
-        ExtractionScope, GlyphExtractor,
+        ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssueKind, ExtractionLimits,
+        ExtractionOutcome, ExtractionScope, GlyphExtractor,
     },
 };
 
@@ -260,6 +260,21 @@ fn extract_outcome(
         .expect("fixture PDF should serialize");
     let pdf = LopdfParser.parse(Arc::from(bytes), ParseLimits::default())?;
     ContentStreamGlyphExtractor.extract_outcome(pdf.as_ref(), limits)
+}
+
+fn extract_with_external_font_identities(
+    mut document: LopdfDocument,
+    limits: ExtractionLimits,
+    identities: &ExternalFontIdentities,
+) -> Result<Document<Glyph>> {
+    let mut bytes = Vec::new();
+    document
+        .save_to(&mut bytes)
+        .expect("fixture PDF should serialize");
+    let pdf = LopdfParser.parse(Arc::from(bytes), ParseLimits::default())?;
+    ContentStreamGlyphExtractor
+        .extract_outcome_with_external_font_identities(pdf.as_ref(), limits, identities)?
+        .into_complete()
 }
 
 fn mapped_text(glyphs: &[Glyph]) -> String {
@@ -1491,7 +1506,7 @@ fn preserves_partial_identity_h_tounicode_gaps_with_descendant_font_identity() -
 }
 
 #[test]
-fn keeps_custom_cid_to_gid_map_gaps_contextually_unresolved() {
+fn keeps_custom_cid_to_gid_map_gaps_unresolved_with_an_external_identity() {
     let mut pdf = LopdfDocument::with_version("1.7");
     let cmap = pdf.add_object(Stream::new(
         dictionary! {},
@@ -1515,12 +1530,61 @@ fn keeps_custom_cid_to_gid_map_gaps_contextually_unresolved() {
         None,
     );
 
+    let mut identities = ExternalFontIdentities::default();
+    identities
+        .insert(b"FixtureCidEmbedded", b"fixture-font-program-v1")
+        .expect("external identity should be valid");
     assert!(matches!(
-        extract(pdf, ExtractionLimits::default()),
+        extract_with_external_font_identities(pdf, ExtractionLimits::default(), &identities),
         Err(Error::Unresolved(message))
             if message.contains("content operator Tj")
                 && message.contains("no Unicode mapping or stable font identity")
     ));
+}
+
+#[test]
+fn uses_an_explicit_external_identity_for_unembedded_cid_glyphs() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
+          1 beginbfchar <0001> <0041> endbfchar"
+            .to_vec(),
+    ));
+    let font = identity_h_font(
+        &mut pdf,
+        cmap,
+        vec![
+            Object::Integer(1),
+            Object::Array(vec![Object::Integer(500), Object::Integer(700)]),
+        ],
+    );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm <0002> Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+    let mut identities = ExternalFontIdentities::default();
+    identities.insert(b"FixtureSans", b"fixture-font-program-v1")?;
+
+    let document =
+        extract_with_external_font_identities(pdf, ExtractionLimits::default(), &identities)?;
+    assert!(matches!(
+        &document.items()[0].text,
+        DecodedText::Unmapped {
+            font_hash,
+            glyph_id: 2,
+        } if font_hash.0.len() == 32
+    ));
+    Ok(())
 }
 
 #[test]
