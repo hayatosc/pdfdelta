@@ -6,9 +6,8 @@ use crate::{
 };
 
 use super::geometry::{
-    directions_are_compatible, dot, interval_gap, interval_overlap_ratio, is_axis_aligned,
-    length_squared, median, normalize, perpendicular, projected_center, projected_extent,
-    projected_interval,
+    directions_are_compatible, dot, interval_gap, interval_overlap_ratio, length_squared, median,
+    normalize, perpendicular, projected_center, projected_extent, projected_interval,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -327,12 +326,6 @@ fn validate_glyph(glyph: &Glyph) -> Result<()> {
         return Err(invalid_glyph(glyph, "zero writing direction"));
     }
     let direction = normalize(glyph.direction);
-    if !is_axis_aligned(direction) {
-        return Err(Error::Unsupported(format!(
-            "glyph {} uses a non-axis-aligned writing direction",
-            glyph.id.0
-        )));
-    }
     let inline_extent = projected_extent(glyph.bbox, direction);
     let cross_extent = projected_extent(glyph.bbox, perpendicular(direction));
     if !inline_extent.is_finite() || !cross_extent.is_finite() {

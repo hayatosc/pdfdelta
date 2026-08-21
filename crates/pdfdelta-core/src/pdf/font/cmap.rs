@@ -36,10 +36,37 @@ struct CodeSpace {
     high: Vec<u8>,
 }
 
+#[cfg(test)]
 pub(crate) fn parse_to_unicode(input: &[u8], limits: CMapLimits) -> Result<ToUnicodeCMap> {
+    parse_to_unicode_with_width(input, limits, None)
+}
+
+pub(crate) fn parse_to_unicode_for_width(
+    input: &[u8],
+    limits: CMapLimits,
+    source_width: usize,
+) -> Result<ToUnicodeCMap> {
+    if source_width == 0 || source_width > MAX_PDF_CODE_BYTES {
+        return unresolved("expected CMap source width must be one to four bytes");
+    }
+    if source_width > limits.max_code_bytes {
+        return Err(Error::LimitExceeded {
+            resource: "CMap source code bytes",
+            limit: limits.max_code_bytes,
+        });
+    }
+    parse_to_unicode_with_width(input, limits, Some(source_width))
+}
+
+fn parse_to_unicode_with_width(
+    input: &[u8],
+    limits: CMapLimits,
+    source_width: Option<usize>,
+) -> Result<ToUnicodeCMap> {
     let parser = Parser {
         lexer: Lexer::new(input),
         limits,
+        source_width,
         cmap: ToUnicodeCMap {
             codespaces: std::array::from_fn(|_| Vec::new()),
             mappings: BTreeMap::new(),
@@ -123,6 +150,7 @@ impl ToUnicodeCMap {
 struct Parser<'a> {
     lexer: Lexer<'a>,
     limits: CMapLimits,
+    source_width: Option<usize>,
     cmap: ToUnicodeCMap,
     entries: usize,
     output_scalars: usize,
@@ -273,9 +301,11 @@ impl Parser<'_> {
         for _ in 0..count {
             let low = self.source_hex()?;
             let high = self.source_hex()?;
-            if low.len() != high.len() || low > high {
-                return unresolved("invalid codespace range");
-            }
+            let (low, high) = match self.source_width {
+                Some(width) => reconcile_codespace(low, high, width)?,
+                None if low.len() == high.len() && low <= high => (low, high),
+                None => return unresolved("invalid codespace range"),
+            };
             let candidate = CodeSpace { low, high };
             self.cmap.codespaces[candidate.low.len() - 1].push(candidate);
         }
@@ -286,6 +316,7 @@ impl Parser<'_> {
         self.reserve_entries(count)?;
         for _ in 0..count {
             let source = self.source_hex()?;
+            let source = self.reconcile_source(source)?;
             let destination = self.destination()?;
             self.insert_mapping(source, destination)?;
         }
@@ -296,7 +327,15 @@ impl Parser<'_> {
         for _ in 0..declarations {
             let low = self.source_hex()?;
             let high = self.source_hex()?;
-            if low.len() != high.len() || low > high {
+            let (low, high) = match self.source_width {
+                Some(width) => (
+                    reconcile_source(low, width)?,
+                    reconcile_source(high, width)?,
+                ),
+                None if low.len() == high.len() => (low, high),
+                None => return unresolved("invalid bf range"),
+            };
+            if low > high {
                 return unresolved("invalid bf range");
             }
             let count = range_len(&low, &high)?;
@@ -359,6 +398,13 @@ impl Parser<'_> {
             });
         }
         decode_hex(raw, byte_len)
+    }
+
+    fn reconcile_source(&self, source: Vec<u8>) -> Result<Vec<u8>> {
+        match self.source_width {
+            Some(width) => reconcile_source(source, width),
+            None => Ok(source),
+        }
     }
 
     fn destination(&mut self) -> Result<String> {
@@ -532,6 +578,45 @@ fn interval_contains_prefix(spaces: &[CodeSpace], prefix: &[u8]) -> bool {
             }
         })
         .is_ok()
+}
+
+fn reconcile_source(mut source: Vec<u8>, width: usize) -> Result<Vec<u8>> {
+    match source.len().cmp(&width) {
+        std::cmp::Ordering::Less => {
+            let mut reconciled = vec![0; width - source.len()];
+            reconciled.append(&mut source);
+            Ok(reconciled)
+        }
+        std::cmp::Ordering::Equal => Ok(source),
+        std::cmp::Ordering::Greater => {
+            let prefix_len = source.len() - width;
+            if source[..prefix_len].iter().any(|byte| *byte != 0) {
+                return unresolved("CMap source width requires non-zero truncation");
+            }
+            Ok(source.split_off(prefix_len))
+        }
+    }
+}
+
+fn reconcile_codespace(low: Vec<u8>, high: Vec<u8>, width: usize) -> Result<(Vec<u8>, Vec<u8>)> {
+    let low = code_value(&low);
+    let high = code_value(&high);
+    if low > high {
+        return unresolved("invalid codespace range");
+    }
+
+    let max = (1u64 << (width * 8)) - 1;
+    if low > max {
+        return unresolved("CMap codespace does not contain the decoder source width");
+    }
+    Ok((
+        fixed_width_code(low, width),
+        fixed_width_code(high.min(max), width),
+    ))
+}
+
+fn fixed_width_code(value: u64, width: usize) -> Vec<u8> {
+    value.to_be_bytes()[size_of::<u64>() - width..].to_vec()
 }
 
 fn range_len(low: &[u8], high: &[u8]) -> Result<usize> {
@@ -892,6 +977,67 @@ mod tests {
             vec![mapped(&[0x12, 0x34], "日"), mapped(&[0x12, 0x35], "😀")]
         );
         Ok(())
+    }
+
+    #[test]
+    fn reconciles_zero_extended_sources_to_decoder_width() -> Result<()> {
+        let simple = parse_to_unicode_for_width(
+            b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
+              1 beginbfchar <20> <0020> endbfchar",
+            LIMITS,
+            1,
+        )?;
+        assert_eq!(simple.decode(b" ", usize::MAX)?, vec![mapped(b" ", " ")]);
+
+        let range = parse_to_unicode_for_width(
+            b"1 begincodespacerange <00> <FF> endcodespacerange \
+              1 beginbfrange <ae> <00ff> <00AE> endbfrange",
+            CMapLimits {
+                max_entries: 128,
+                max_output_scalars: 128,
+                ..LIMITS
+            },
+            1,
+        )?;
+        assert_eq!(
+            range.decode(&[0xae, 0xff], usize::MAX)?,
+            vec![mapped(&[0xae], "®"), mapped(&[0xff], "ÿ"),]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_unsafe_or_ambiguous_width_reconciliation() {
+        let non_zero_truncation = parse_to_unicode_for_width(
+            b"1 begincodespacerange <00> <FF> endcodespacerange \
+              1 beginbfchar <0120> <0020> endbfchar",
+            LIMITS,
+            1,
+        );
+        assert!(matches!(non_zero_truncation, Err(Error::Unresolved(_))));
+
+        let duplicate = parse_to_unicode_for_width(
+            b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
+              2 beginbfchar <20> <0020> <0020> <0041> endbfchar",
+            LIMITS,
+            1,
+        );
+        assert!(matches!(duplicate, Err(Error::Unresolved(_))));
+
+        let outside_decoder_domain = parse_to_unicode_for_width(
+            b"1 begincodespacerange <0100> <FFFF> endcodespacerange",
+            LIMITS,
+            1,
+        );
+        assert!(matches!(outside_decoder_domain, Err(Error::Unresolved(_))));
+
+        let outside_codespace = parse_to_unicode_for_width(
+            b"1 begincodespacerange <0020> <0030> endcodespacerange \
+              1 beginbfchar <31> <0031> endbfchar",
+            LIMITS,
+            1,
+        );
+        assert!(matches!(outside_codespace, Err(Error::Unresolved(_))));
     }
 
     #[test]

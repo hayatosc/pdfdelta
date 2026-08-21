@@ -111,7 +111,7 @@ impl SimpleFontDecoder {
             ascent.ok_or_else(|| Error::Unresolved("simple font has no ascent metric".into()))?;
         let descent =
             descent.ok_or_else(|| Error::Unresolved("simple font has no descent metric".into()))?;
-        let (to_unicode, decoded_to_unicode_bytes) = load_to_unicode(pdf, &dictionary, limits)?;
+        let (to_unicode, decoded_to_unicode_bytes) = load_to_unicode(pdf, &dictionary, limits, 1)?;
         let identity_source = if dictionary.contains_key(b"Encoding".as_slice()) {
             None
         } else {
@@ -987,7 +987,7 @@ mod tests {
 
     #[test]
     fn resolves_indirect_font_parts_and_uses_to_unicode() -> Result<()> {
-        let cmap = b"1 begincodespacerange <00> <FF> endcodespacerange \
+        let cmap = b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
                      2 beginbfchar <41> <0041> <80> <20AC> endbfchar"
             .to_vec();
         let mut pdf = MockPdf::default();

@@ -97,6 +97,21 @@ fn compares_mixed_axis_aligned_orientations() -> Result<()> {
 }
 
 #[test]
+fn self_compares_tilted_text() -> Result<()> {
+    let mut tilted = line("Tilted text remains stable", 0, 80.0);
+    tilted.direction = Vec2 {
+        x: 0.999_657_376_647_797_5,
+        y: 0.026_174_974_950_197_414,
+    };
+    let document = document(&[line("Body text remains stable", 0, 100.0), tilted]);
+
+    let comparison = compare_glyph_documents(&document, &document, PipelineOptions::default())?;
+
+    assert_no_content_changes(&comparison);
+    Ok(())
+}
+
+#[test]
 fn reports_content_change_in_rotated_label() -> Result<()> {
     let old = document(&[vertical_line("Print or type.", 0, 20.0, 20.0)]);
     let new = document(&[vertical_line("Print or tyqe.", 0, 20.0, 20.0)]);

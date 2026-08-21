@@ -48,6 +48,9 @@ pub fn build_block_features(blocks: &[BlockText], ngram_size: usize) -> Result<V
         }
         let canonical_tokens = block.canonical.comparable_tokens()?;
         let matching_tokens = block.matching_tokens.clone();
+        let has_unmapped_tokens = canonical_tokens
+            .iter()
+            .any(|token| matches!(token, ComparableToken::Unmapped { .. }));
         features.push(BlockFeatures {
             block: block.block,
             exact_hash: exact_hash(&canonical_tokens),
@@ -56,7 +59,7 @@ pub fn build_block_features(blocks: &[BlockText], ngram_size: usize) -> Result<V
             matching_tokens,
             ngram_size,
             numeric_mask_applied: block.numeric_mask_applied,
-            has_normalization_issues: !block.issues.is_empty(),
+            has_normalization_issues: !block.issues.is_empty() || has_unmapped_tokens,
         });
     }
     Ok(features)

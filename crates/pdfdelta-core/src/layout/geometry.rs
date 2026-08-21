@@ -17,11 +17,6 @@ pub(super) fn perpendicular(vector: Vec2) -> Vec2 {
     }
 }
 
-pub(super) fn is_axis_aligned(vector: Vec2) -> bool {
-    let direction = normalize(vector);
-    direction.x.abs() <= AXIS_ALIGNMENT_TOLERANCE || is_horizontal(direction)
-}
-
 pub(super) fn is_horizontal(vector: Vec2) -> bool {
     normalize(vector).y.abs() <= AXIS_ALIGNMENT_TOLERANCE
 }

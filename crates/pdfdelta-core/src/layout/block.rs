@@ -8,9 +8,8 @@ use crate::{
 use super::{
     Line, LineId,
     geometry::{
-        directions_are_compatible, interval_gap, interval_overlap_ratio, is_axis_aligned,
-        is_horizontal, length_squared, median, normalize, perpendicular, projected_extent,
-        projected_interval,
+        directions_are_compatible, interval_gap, interval_overlap_ratio, is_horizontal,
+        length_squared, median, normalize, perpendicular, projected_extent, projected_interval,
     },
 };
 
@@ -624,12 +623,6 @@ fn validate_line_geometry(line: &Line) -> Result<()> {
     if length_squared(line.direction) <= f64::EPSILON {
         return Err(invalid_line(line, "has zero writing direction"));
     }
-    if !is_axis_aligned(line.direction) {
-        return Err(Error::Unsupported(format!(
-            "line {} uses a non-axis-aligned writing direction",
-            line.id.0
-        )));
-    }
     Ok(())
 }
 
@@ -660,9 +653,7 @@ fn validate_line_glyph(line: &Line, glyph: &Glyph) -> Result<()> {
             &format!("contains glyph {} with invalid geometry", glyph.id.0),
         ));
     }
-    if !is_axis_aligned(glyph.direction)
-        || !directions_are_compatible(line.direction, glyph.direction)
-    {
+    if !directions_are_compatible(line.direction, glyph.direction) {
         return Err(invalid_line(
             line,
             &format!("contains glyph {} with inconsistent direction", glyph.id.0),

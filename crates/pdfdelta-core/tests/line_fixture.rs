@@ -107,14 +107,32 @@ fn reconstructs_axis_aligned_vertical_glyphs_in_reading_order() {
 }
 
 #[test]
-fn rejects_diagonal_writing_direction() {
-    let mut diagonal = glyph(1, "V", 0, 0.0, 0.0, 10.0, 10.0, 10.0, 0.0);
-    diagonal.direction = Vec2 { x: 1.0, y: 1.0 };
-    let document = Document::new(vec![diagonal]);
+fn reconstructs_tilted_glyphs_in_projected_order() {
+    let direction = Vec2 {
+        x: 0.999_657_376_647_797_5,
+        y: 0.026_174_974_950_197_414,
+    };
+    let mut later = glyph(
+        1,
+        "B",
+        0,
+        10.0 * direction.x,
+        10.0 * direction.y,
+        5.0,
+        10.0,
+        10.0,
+        10.0 * direction.y,
+    );
+    later.direction = direction;
+    let mut earlier = glyph(2, "A", 0, 0.0, 0.0, 5.0, 10.0, 10.0, 0.0);
+    earlier.direction = direction;
+    let document = Document::new(vec![later, earlier]);
 
-    let error = reconstruct_lines(&document, options()).expect_err("diagonal text is unsupported");
+    let lines = reconstruct_lines(&document, options()).expect("tilted text should be resolved");
 
-    assert!(matches!(error, Error::Unsupported(message) if message.contains("non-axis-aligned")));
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0].glyphs, [GlyphId(2), GlyphId(1)]);
+    assert_eq!(lines[0].direction, direction);
 }
 
 #[test]
@@ -123,10 +141,8 @@ fn keeps_orthogonal_directions_out_of_the_same_line() {
     let mut vertical = glyph(2, "B", 0, 0.0, 0.0, 10.0, 5.0, 10.0, 0.0);
     vertical.direction = Vec2 { x: 0.0, y: 1.0 };
     let document = Document::new(vec![horizontal, vertical]);
-    let mut permissive_options = options();
-    permissive_options.min_direction_similarity = 0.0;
 
-    let lines = reconstruct_lines(&document, permissive_options)
+    let lines = reconstruct_lines(&document, options())
         .expect("orthogonal axis-aligned glyphs are independently supported");
 
     assert_eq!(lines.len(), 2);

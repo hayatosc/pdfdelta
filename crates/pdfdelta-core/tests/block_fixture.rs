@@ -81,6 +81,31 @@ fn keeps_horizontal_body_and_vertical_label_in_separate_blocks() {
 }
 
 #[test]
+fn keeps_tilted_lines_in_separate_blocks() {
+    let mut fixture = Fixture::new(vec![
+        LineSpec::body(1, 0, "first tilted line", 100.0),
+        LineSpec::body(2, 0, "second tilted line", 95.0),
+    ]);
+    let direction = Vec2 {
+        x: 0.999_657_376_647_797_5,
+        y: 0.026_174_974_950_197_414,
+    };
+    let mut glyphs = fixture.document.into_items();
+    for (glyph, line) in glyphs.iter_mut().zip(&mut fixture.lines) {
+        glyph.direction = direction;
+        line.direction = direction;
+    }
+    fixture.document = Document::new(glyphs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("tilted lines should be preserved");
+
+    assert_eq!(blocks.len(), 2);
+    assert_eq!(blocks[0].lines, [LineId(1)]);
+    assert_eq!(blocks[1].lines, [LineId(2)]);
+}
+
+#[test]
 fn keeps_cross_axis_separated_vertical_labels_in_singleton_blocks() {
     let first = LineSpec::body(1, 0, "left label", 100.0);
     let mut second = LineSpec::body(2, 0, "right label", 100.0);

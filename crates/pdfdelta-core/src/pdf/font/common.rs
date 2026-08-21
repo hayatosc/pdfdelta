@@ -6,7 +6,7 @@ use crate::{
 use sha2::{Digest, Sha256};
 
 use super::{
-    cmap::{ToUnicodeCMap, parse_to_unicode},
+    cmap::{ToUnicodeCMap, parse_to_unicode_for_width},
     decoder::FontDecoderLimits,
 };
 
@@ -14,6 +14,7 @@ pub(super) fn load_to_unicode(
     pdf: &dyn ParsedPdf,
     dictionary: &PdfDict,
     limits: FontDecoderLimits,
+    source_width: usize,
 ) -> Result<(Option<ToUnicodeCMap>, usize)> {
     let Some(to_unicode) = dictionary.get(b"ToUnicode".as_slice()) else {
         return Ok((None, 0));
@@ -28,7 +29,7 @@ pub(super) fn load_to_unicode(
         });
     }
     let byte_count = stream.bytes.len();
-    let cmap = parse_to_unicode(&stream.bytes, limits.cmap)?;
+    let cmap = parse_to_unicode_for_width(&stream.bytes, limits.cmap, source_width)?;
     Ok((Some(cmap), byte_count))
 }
 

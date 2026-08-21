@@ -41,7 +41,7 @@ impl CompositeFontDecoder {
         let default_width = load_default_width(pdf, &descendant, limits.max_indirections)?;
         let widths = load_widths(pdf, &descendant, limits)?;
         let (ascent, descent) = load_metrics(pdf, &descendant, limits.max_indirections)?;
-        let (to_unicode, decoded_to_unicode_bytes) = load_to_unicode(pdf, dictionary, limits)?;
+        let (to_unicode, decoded_to_unicode_bytes) = load_to_unicode(pdf, dictionary, limits, 2)?;
         let to_unicode = to_unicode.ok_or_else(|| {
             Error::Unsupported("Identity-H Type0 fonts without ToUnicode are not supported".into())
         })?;
@@ -385,7 +385,7 @@ mod tests {
         },
     };
     const TO_UNICODE: &[u8] = b"1 begincodespacerange <0000> <FFFF> endcodespacerange \
-        1 beginbfrange <0001> <0005> <0041> endbfrange";
+        1 beginbfrange <01> <0005> <0041> endbfrange";
 
     #[test]
     fn decodes_identity_h_codes_with_cid_widths_and_metrics() -> Result<()> {

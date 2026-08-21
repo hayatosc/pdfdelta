@@ -12,7 +12,7 @@ use pdfdelta_core::{
     model::FontProgramHash,
     normalize::{
         BlockText, ComparableToken, MappedText, NormalizationIssue, NormalizationIssueKind,
-        ScalarRange, TextSource,
+        ScalarRange, TextSource, UnmappedToken,
     },
     report::{ExtractionStatus, summarize},
 };
@@ -44,6 +44,36 @@ fn aligns_ordered_exact_blocks_as_identity() {
     );
     assert_eq!(alignment.main_anchors.len(), 3);
     assert_anchor_evidence_matches_main_anchors(&alignment);
+}
+
+#[test]
+fn aligns_identical_repeated_short_features_as_identity() {
+    let features = build_block_features(
+        &[
+            block_text(1, "same"),
+            block_text(2, "same"),
+            block_text(3, "same"),
+        ],
+        3,
+    )
+    .expect("features should build");
+
+    let alignment = align_ordered(&features, &features, &EmptyGenerator, options())
+        .expect("identical features should align");
+
+    assert!(alignment.main_anchors.is_empty());
+    assert!(alignment.move_candidates.is_empty());
+    assert_eq!(alignment.spans.len(), features.len());
+    for (span, features) in alignment.spans.iter().zip(&features) {
+        assert_eq!(span.kind, AlignmentKind::Match);
+        assert_eq!(span.old, [features.block]);
+        assert_eq!(span.new, [features.block]);
+        assert_eq!(span.score, 1.0);
+        assert_eq!(span.confidence, AlignmentConfidence::High);
+        assert_eq!(span.evidence, [AlignmentEvidence::ExactCanonical]);
+        assert_eq!(span.old_separator, None);
+        assert_eq!(span.new_separator, None);
+    }
 }
 
 #[test]
@@ -559,20 +589,15 @@ fn keeps_one_sided_normalization_issue_unresolved() {
 
 #[test]
 fn matches_stable_unmapped_tokens_with_issues_by_exact_vector() {
-    let token = ComparableToken::Unmapped {
-        font_hash: FontProgramHash(vec![1, 2, 3]),
-        glyph_id: 42,
-    };
-    let mut old = anchor_feature(1, 1);
-    old.canonical_tokens = vec![token.clone()];
-    old.matching_tokens = vec![token.clone()];
-    old.has_normalization_issues = true;
-    let mut new = anchor_feature(101, 2);
-    new.canonical_tokens = vec![token.clone()];
-    new.matching_tokens = vec![token];
-    new.has_normalization_issues = true;
+    let old = build_block_features(&[unmapped_block_text(1, vec![1, 2, 3], 42)], 3)
+        .expect("old features should build");
+    let new = build_block_features(&[unmapped_block_text(101, vec![1, 2, 3], 42)], 3)
+        .expect("new features should build");
 
-    let alignment = align_ordered(&[old], &[new], &EmptyGenerator, options())
+    assert!(old[0].has_normalization_issues);
+    assert!(new[0].has_normalization_issues);
+
+    let alignment = align_ordered(&old, &new, &EmptyGenerator, options())
         .expect("stable unmapped evidence should align");
 
     assert_eq!(alignment.spans.len(), 1);
@@ -581,6 +606,27 @@ fn matches_stable_unmapped_tokens_with_issues_by_exact_vector() {
     assert_eq!(
         alignment.spans[0].evidence,
         [AlignmentEvidence::ExactCanonical]
+    );
+}
+
+#[test]
+fn keeps_changed_unmapped_font_programs_unresolved() {
+    let old = build_block_features(&[unmapped_block_text(1, vec![1, 2, 3], 42)], 3)
+        .expect("old features should build");
+    let new = build_block_features(&[unmapped_block_text(101, vec![4, 5, 6], 42)], 3)
+        .expect("new features should build");
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("candidate index should build");
+
+    let alignment =
+        align_ordered(&old, &new, &generator, options()).expect("alignment should succeed");
+
+    assert_eq!(alignment.spans.len(), 1);
+    assert_eq!(alignment.spans[0].kind, AlignmentKind::Unresolved);
+    assert!(
+        alignment.spans[0]
+            .evidence
+            .contains(&AlignmentEvidence::NormalizationIssue)
     );
 }
 
@@ -1269,6 +1315,34 @@ impl CandidateGenerator for OrderedGenerator {
 
 fn block_text(id: u64, text: &str) -> BlockText {
     block_text_with_matching(id, text, text, false)
+}
+
+fn unmapped_block_text(id: u64, font_hash: Vec<u8>, glyph_id: u16) -> BlockText {
+    let font_hash = FontProgramHash(font_hash);
+    let unmapped = UnmappedToken {
+        scalar_index: 0,
+        font_hash: font_hash.clone(),
+        glyph_id,
+        source: TextSource { atoms: vec![] },
+    };
+    let mapped = MappedText {
+        text: String::new(),
+        source_map: vec![],
+        unmapped: vec![unmapped],
+    };
+    BlockText {
+        block: BlockId(id),
+        raw: mapped.clone(),
+        canonical: mapped,
+        matching: String::new(),
+        matching_tokens: vec![ComparableToken::Unmapped {
+            font_hash,
+            glyph_id,
+        }],
+        numeric_mask_applied: false,
+        normalization_events: vec![],
+        issues: vec![],
+    }
 }
 
 fn anchor_feature(block: u64, key: usize) -> BlockFeatures {
