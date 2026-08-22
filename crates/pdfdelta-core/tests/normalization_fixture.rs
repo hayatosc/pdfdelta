@@ -59,6 +59,29 @@ fn resolves_cjk_and_latin_soft_line_breaks() {
 }
 
 #[test]
+fn joins_mixed_script_boundaries_without_flagging_ambiguity() {
+    let latin_then_cjk = normalize_mapped_lines(&["更新されたPDF", "ファイルを開く"]);
+    let wrapped = normalize_mapped_lines(&["更新されたPDFファ", "イルを開く"]);
+    let cjk_then_latin = normalize_mapped_lines(&["バックエンドの", "statusを確認"]);
+
+    assert_eq!(latin_then_cjk.canonical.text, "更新されたPDFファイルを開く");
+    assert_eq!(cjk_then_latin.canonical.text, "バックエンドのstatusを確認");
+    assert_eq!(wrapped.canonical.text, "更新されたPDFファイルを開く");
+    assert!(
+        wrapped
+            .issues
+            .iter()
+            .all(|issue| issue.kind != NormalizationIssueKind::AmbiguousLineBreak)
+    );
+    assert!(
+        wrapped
+            .normalization_events
+            .iter()
+            .any(|event| event.kind == NormalizationKind::SoftLineBreak)
+    );
+}
+
+#[test]
 fn joins_wraps_after_japanese_line_end_punctuation_without_ambiguity() {
     let full_stop = normalize_mapped_lines(&["設定を保存した。", "次の画面を開く"]);
     let comma = normalize_mapped_lines(&["ファイルを選び、", "処理を続ける"]);

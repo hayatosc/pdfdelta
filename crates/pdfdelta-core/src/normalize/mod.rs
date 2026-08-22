@@ -706,6 +706,15 @@ fn resolve_line_breaks(atoms: Vec<Atom>, issues: &mut Vec<NormalizationIssue>) -
             // classification whenever both sides are not decimal digits, so
             // kanji-to-fullwidth-digit boundaries still join without a space.
             || previous_scalar.is_some_and(is_cjk) && following_scalar.is_some_and(is_cjk)
+            // deliberate: Japanese typesetting sets no visible space between
+            // CJK and an adjacent Latin or digit run, so a soft break there
+            // joins like CJK-CJK instead of flagging the whole block as an
+            // ambiguous boundary and excluding it from fuzzy alignment. The
+            // deleted break stays auditable as a SoftLineBreak event.
+            || previous_scalar.is_some_and(is_cjk)
+                && following_scalar.is_some_and(is_latin_letter_or_digit)
+            || previous_scalar.is_some_and(is_latin_letter_or_digit)
+                && following_scalar.is_some_and(is_cjk)
         {
             resolved.push(changed_atom(
                 &atoms[index],
