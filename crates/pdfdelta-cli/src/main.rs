@@ -612,13 +612,20 @@ fn write_output_atomically(
         ));
     }
 
-    fs::remove_file(&temporary_path).map_err(|error| {
-        format!(
-            "{output_kind} {} was published without overwriting an existing file, but temporary output {} could not be removed: {error}",
-            output_path.display(),
-            temporary_path.display()
-        )
-    })
+    match fs::remove_file(&temporary_path) {
+        Ok(()) => Ok(()),
+        // The output was already published successfully; failing to delete
+        // the temporary file is a leftover-file nuisance, not an execution
+        // error, so it must not flip the exit code.
+        Err(error) => {
+            eprintln!(
+                "warning: {output_kind} {} was published without overwriting an existing file, but temporary output {} could not be removed: {error}",
+                output_path.display(),
+                temporary_path.display()
+            );
+            Ok(())
+        }
+    }
 }
 
 fn error_with_temporary_cleanup(
