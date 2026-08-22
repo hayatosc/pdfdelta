@@ -167,7 +167,8 @@ impl WorkingLine<'_> {
                 .iter()
                 .map(|item| dot(item.baseline, cross_axis))
                 .collect(),
-        );
+        )
+        .expect("a line candidate holds at least one glyph");
         let baseline_distance = (dot(glyph.baseline, cross_axis) - baseline).abs();
         let baseline_close =
             baseline_distance <= options.max_baseline_distance_ratio * median_height;
@@ -183,7 +184,8 @@ impl WorkingLine<'_> {
             self.projected_interval(direction),
             projected_interval(glyph.bbox, direction),
         );
-        let median_font_size = median(self.glyphs.iter().map(|item| item.font_size).collect());
+        let median_font_size = median(self.glyphs.iter().map(|item| item.font_size).collect())
+            .expect("a line candidate holds at least one glyph");
         let gap_scale = median_font_size.max(glyph.font_size);
         if inline_gap > options.max_inline_gap_font_size_ratio * gap_scale {
             return None;
@@ -258,6 +260,7 @@ impl WorkingLine<'_> {
                 .map(|glyph| projected_extent(glyph.bbox, cross_axis))
                 .collect(),
         )
+        .expect("a line candidate holds at least one glyph")
     }
 }
 

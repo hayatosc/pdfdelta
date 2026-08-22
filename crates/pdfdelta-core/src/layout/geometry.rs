@@ -75,12 +75,28 @@ pub(super) fn interval_overlap_ratio(left: (f64, f64), right: (f64, f64)) -> f64
     }
 }
 
-pub(super) fn median(mut values: Vec<f64>) -> f64 {
+pub(super) fn median(mut values: Vec<f64>) -> Option<f64> {
+    if values.is_empty() {
+        return None;
+    }
     values.sort_by(f64::total_cmp);
     let midpoint = values.len() / 2;
-    if values.len().is_multiple_of(2) {
+    Some(if values.len().is_multiple_of(2) {
         values[midpoint - 1] / 2.0 + values[midpoint] / 2.0
     } else {
         values[midpoint]
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::median;
+
+    #[test]
+    fn computes_medians_and_rejects_empty_input_without_panicking() {
+        assert_eq!(median(Vec::new()), None);
+        assert_eq!(median(vec![3.0]), Some(3.0));
+        assert_eq!(median(vec![4.0, 1.0]), Some(2.5));
+        assert_eq!(median(vec![5.0, 1.0, 3.0]), Some(3.0));
     }
 }

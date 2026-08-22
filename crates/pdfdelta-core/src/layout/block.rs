@@ -291,6 +291,9 @@ impl<'a> LineStats<'a> {
             glyphs.push(glyph);
         }
         validate_synthetic_spaces(line)?;
+        if glyphs.is_empty() {
+            return Err(invalid_line(line, "contains no glyphs"));
+        }
         let glyph_bbox = glyph_union(&glyphs);
         if !rect_approximately_equal(line.bbox, glyph_bbox) {
             return Err(invalid_line(
@@ -313,8 +316,10 @@ impl<'a> LineStats<'a> {
                 .iter()
                 .map(|glyph| glyph.bbox.max.y - glyph.bbox.min.y)
                 .collect(),
-        );
-        let median_font_size = median(glyphs.iter().map(|glyph| glyph.font_size).collect());
+        )
+        .expect("validated lines contain at least one glyph");
+        let median_font_size = median(glyphs.iter().map(|glyph| glyph.font_size).collect())
+            .expect("validated lines contain at least one glyph");
         if !median_height.is_finite() || !median_font_size.is_finite() {
             return Err(invalid_line(line, "has non-finite derived metrics"));
         }
