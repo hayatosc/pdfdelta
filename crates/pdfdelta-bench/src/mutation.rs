@@ -61,6 +61,25 @@ pub enum Mutation {
         paragraph_id: String,
         new_text: String,
     },
+    /// Inserts characters at a Unicode scalar offset inside a paragraph,
+    /// exercising pure insertions that keep both paragraph neighbours intact.
+    TextInsert {
+        paragraph_id: String,
+        at: usize,
+        text: String,
+    },
+    /// Deletes the half-open scalar range [start, end) inside a paragraph.
+    TextDelete {
+        paragraph_id: String,
+        start: usize,
+        end: usize,
+    },
+    /// Replaces the first ASCII decimal run inside a paragraph so the
+    /// numeric-mask matching path is exercised by an expected replacement.
+    NumberReplace {
+        paragraph_id: String,
+        new_number: String,
+    },
     ParagraphInsert {
         index: usize,
         paragraph: Paragraph,
@@ -217,6 +236,20 @@ impl Mutation {
                 paragraph_id,
                 new_text,
             } => apply_text_replace(document, paragraph_id, new_text, line_gap),
+            Self::TextInsert {
+                paragraph_id,
+                at,
+                text,
+            } => apply_text_insert(document, paragraph_id, *at, text, line_gap),
+            Self::TextDelete {
+                paragraph_id,
+                start,
+                end,
+            } => apply_text_delete(document, paragraph_id, *start, *end, line_gap),
+            Self::NumberReplace {
+                paragraph_id,
+                new_number,
+            } => apply_number_replace(document, paragraph_id, new_number, line_gap),
             Self::ParagraphInsert { index, paragraph } => {
                 apply_paragraph_insert(document, *index, paragraph, line_gap)
             }
@@ -291,12 +324,120 @@ fn apply_text_replace(
 ) -> Result<MutationPlan> {
     validate_paragraph_id(paragraph_id)?;
     let index = paragraph_index(document, paragraph_id)?;
-    let replacement = Paragraph::new(paragraph_id, new_text)?;
-    let old_text = document.paragraphs()[index].text();
-    if old_text == new_text {
+    if document.paragraphs()[index].text() == new_text {
         return Err(BenchError::InvalidInput(format!(
             "text replacement for paragraph {paragraph_id:?} must change its text"
         )));
+    }
+    finish_paragraph_text_change(document, index, new_text.to_owned(), line_gap)
+}
+
+fn apply_text_insert(
+    document: &CanonicalDocument,
+    paragraph_id: &str,
+    at: usize,
+    text: &str,
+    line_gap: u16,
+) -> Result<MutationPlan> {
+    validate_paragraph_id(paragraph_id)?;
+    let index = paragraph_index(document, paragraph_id)?;
+    let old_text = document.paragraphs()[index].text();
+    let char_count = old_text.chars().count();
+    if text.is_empty() {
+        return Err(BenchError::InvalidInput(
+            "text insertion must contain characters".to_owned(),
+        ));
+    }
+    if at > char_count {
+        return Err(BenchError::InvalidInput(format!(
+            "text insertion offset {at} exceeds paragraph {paragraph_id:?} length {char_count}"
+        )));
+    }
+    let mut chars = old_text.chars().collect::<Vec<_>>();
+    for (offset, inserted) in text.chars().enumerate() {
+        chars.insert(at + offset, inserted);
+    }
+    finish_paragraph_text_change(document, index, chars.into_iter().collect(), line_gap)
+}
+
+fn apply_text_delete(
+    document: &CanonicalDocument,
+    paragraph_id: &str,
+    start: usize,
+    end: usize,
+    line_gap: u16,
+) -> Result<MutationPlan> {
+    validate_paragraph_id(paragraph_id)?;
+    let index = paragraph_index(document, paragraph_id)?;
+    let char_count = document.paragraphs()[index].text().chars().count();
+    if start >= end || end > char_count {
+        return Err(BenchError::InvalidInput(format!(
+            "text deletion range {start}..{end} must be a nonempty in-order range within \
+             paragraph {paragraph_id:?} length {char_count}"
+        )));
+    }
+    let new_text = document.paragraphs()[index]
+        .text()
+        .chars()
+        .enumerate()
+        .filter(|(position, _)| !(start..end).contains(position))
+        .map(|(_, scalar)| scalar)
+        .collect();
+    finish_paragraph_text_change(document, index, new_text, line_gap)
+}
+
+fn apply_number_replace(
+    document: &CanonicalDocument,
+    paragraph_id: &str,
+    new_number: &str,
+    line_gap: u16,
+) -> Result<MutationPlan> {
+    validate_paragraph_id(paragraph_id)?;
+    if new_number.is_empty() || !new_number.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(BenchError::InvalidInput(
+            "number replacement must use nonempty ASCII digits".to_owned(),
+        ));
+    }
+    let index = paragraph_index(document, paragraph_id)?;
+    let old_text = document.paragraphs()[index].text();
+    let bytes = old_text.as_bytes();
+    let Some(run_start) = bytes.iter().position(u8::is_ascii_digit) else {
+        return Err(BenchError::InvalidInput(format!(
+            "paragraph {paragraph_id:?} contains no ASCII digits to replace"
+        )));
+    };
+    // ASCII digits are single-byte, so byte offsets here are char-safe.
+    let run_end = run_start
+        + bytes[run_start..]
+            .iter()
+            .take_while(|byte| byte.is_ascii_digit())
+            .count();
+    if &old_text[run_start..run_end] == new_number {
+        return Err(BenchError::InvalidInput(format!(
+            "number replacement for paragraph {paragraph_id:?} must change its number"
+        )));
+    }
+    let new_text = format!(
+        "{}{}{}",
+        &old_text[..run_start],
+        new_number,
+        &old_text[run_end..]
+    );
+    finish_paragraph_text_change(document, index, new_text, line_gap)
+}
+
+fn finish_paragraph_text_change(
+    document: &CanonicalDocument,
+    index: usize,
+    new_text: String,
+    line_gap: u16,
+) -> Result<MutationPlan> {
+    let replacement = Paragraph::new(document.paragraphs()[index].id(), &new_text)?;
+    let old_text = document.paragraphs()[index].text();
+    if old_text == new_text {
+        return Err(BenchError::InvalidInput(
+            "paragraph text changes must alter canonical text".to_owned(),
+        ));
     }
     let mut paragraphs = document.paragraphs().to_vec();
     paragraphs[index] = replacement;
@@ -306,7 +447,7 @@ fn apply_text_replace(
     Ok(MutationPlan {
         old: one_page_plan(document, line_gap)?,
         new: one_page_plan(&new_document, line_gap)?,
-        expectation: text_change_manifest(old_text, new_text, old_start, new_start)?,
+        expectation: text_change_manifest(old_text, &new_text, old_start, new_start)?,
     })
 }
 

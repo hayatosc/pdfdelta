@@ -164,6 +164,60 @@ fn mutations_reject_invalid_input_without_panicking() {
         }
         .apply(&document, 12),
     );
+    assert_invalid(
+        Mutation::TextInsert {
+            paragraph_id: "missing".to_owned(),
+            at: 0,
+            text: "x".to_owned(),
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::TextInsert {
+            paragraph_id: "target".to_owned(),
+            at: "Target paragraph contains several words.".chars().count() + 1,
+            text: "x".to_owned(),
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::TextInsert {
+            paragraph_id: "target".to_owned(),
+            at: 0,
+            text: "".to_owned(),
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::TextDelete {
+            paragraph_id: "target".to_owned(),
+            start: 3,
+            end: 3,
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::TextDelete {
+            paragraph_id: "target".to_owned(),
+            start: 2,
+            end: "Target paragraph contains several words.".chars().count() + 1,
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::NumberReplace {
+            paragraph_id: "context".to_owned(),
+            new_number: "7".to_owned(),
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::NumberReplace {
+            paragraph_id: "missing".to_owned(),
+            new_number: "7".to_owned(),
+        }
+        .apply(&document, 12),
+    );
 
     let one_paragraph = CanonicalDocument::new(vec![
         Paragraph::new("only", "Only paragraph remains.").expect("valid paragraph"),
@@ -535,9 +589,9 @@ fn bench_errors_preserve_core_error_taxonomy() {
 }
 
 #[test]
-fn built_in_matrix_passes_all_ten_cells() {
+fn built_in_matrix_passes_all_sixteen_cells() {
     let cases = built_in_cases().expect("built-in cases are valid");
-    assert_eq!(cases.len(), 5);
+    assert_eq!(cases.len(), 8);
 
     let mut count = 0;
     for case in &cases {
@@ -552,11 +606,11 @@ fn built_in_matrix_passes_all_ten_cells() {
         }
     }
 
-    assert_eq!(count, 10);
+    assert_eq!(count, 16);
 }
 
 #[test]
-fn verify_command_prints_a_passing_ten_cell_matrix() {
+fn verify_command_prints_a_passing_sixteen_cell_matrix() {
     let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
         .arg("verify")
         .output()
@@ -570,9 +624,9 @@ fn verify_command_prints_a_passing_ten_cell_matrix() {
             .lines()
             .filter(|line| line.starts_with("PASS "))
             .count(),
-        10
+        16
     );
-    assert_eq!(stdout.lines().last(), Some("10/10 passed"));
+    assert_eq!(stdout.lines().last(), Some("16/16 passed"));
 }
 
 #[test]

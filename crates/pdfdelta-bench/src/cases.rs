@@ -76,6 +76,50 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
             30,
         )?,
         BenchmarkCase::new(
+            "text-insertion",
+            document(&[
+                ("opening", "Opening paragraph establishes context"),
+                ("target", "A simple release note remains stable"),
+                ("closing", "Closing paragraph confirms context"),
+            ])?,
+            // deliberate: the inserted run uses scalars that appear nowhere
+            // else in the document, so character-level Myers cannot find an
+            // equal-cost script that fragments the insertion into hunks.
+            Mutation::TextInsert {
+                paragraph_id: "target".to_owned(),
+                at: "A simple release note ".chars().count(),
+                text: "2026 ".to_owned(),
+            },
+            30,
+        )?,
+        BenchmarkCase::new(
+            "text-deletion",
+            document(&[
+                ("opening", "Opening paragraph establishes context"),
+                ("target", "A very simple release note remains stable"),
+                ("closing", "Closing paragraph confirms context"),
+            ])?,
+            Mutation::TextDelete {
+                paragraph_id: "target".to_owned(),
+                start: "A ".chars().count(),
+                end: "A very ".chars().count(),
+            },
+            30,
+        )?,
+        BenchmarkCase::new(
+            "number-replacement",
+            document(&[
+                ("opening", "Opening paragraph establishes context"),
+                ("version", "Version 12 ships during quarter 4"),
+                ("closing", "Closing paragraph confirms context"),
+            ])?,
+            Mutation::NumberReplace {
+                paragraph_id: "version".to_owned(),
+                new_number: "13".to_owned(),
+            },
+            30,
+        )?,
+        BenchmarkCase::new(
             "paragraph-insertion",
             document(&[
                 ("opening", "Opening paragraph remains stable"),
