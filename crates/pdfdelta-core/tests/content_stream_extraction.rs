@@ -1897,10 +1897,37 @@ fn defaults_to_the_corpus_measured_operand_node_budget() {
 }
 
 #[test]
-fn accounts_cached_form_bytes_on_every_execution() {
+fn charges_cached_form_bytes_once_per_unique_stream() {
     let mut pdf = LopdfDocument::with_version("1.7");
-    let form_bytes = b"% a comment-only form whose decoded bytes remain execution-bounded";
-    let page_bytes = b"/X1 Do /X1 Do";
+    let form_bytes = b"% a comment-only form whose decoded bytes are charged once";
+    let page_bytes = b"/X1 Do /X1 Do /X1 Do";
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 10.into(), 10.into()],
+        },
+        form_bytes.to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(dictionary! {}, page_bytes.to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "XObject" => dictionary! { "X1" => form },
+        }),
+        None,
+        None,
+    );
+    // Exactly enough budget for one charge of each unique stream: repeated
+    // executions of the cached form must not re-charge its decoded bytes.
+    let limits = ExtractionLimits {
+        max_total_decoded_bytes: page_bytes.len() + form_bytes.len(),
+        ..ExtractionLimits::default()
+    };
+    extract(pdf, limits).expect("cached form bytes should be charged once");
+
+    let mut pdf = LopdfDocument::with_version("1.7");
     let form = pdf.add_object(Stream::new(
         dictionary! {
             "Type" => "XObject",
@@ -1920,7 +1947,7 @@ fn accounts_cached_form_bytes_on_every_execution() {
         None,
     );
     let limits = ExtractionLimits {
-        max_total_decoded_bytes: page_bytes.len() + form_bytes.len(),
+        max_total_decoded_bytes: page_bytes.len() + form_bytes.len() - 1,
         ..ExtractionLimits::default()
     };
 
@@ -1929,7 +1956,7 @@ fn accounts_cached_form_bytes_on_every_execution() {
         Err(Error::LimitExceeded {
             resource: "decoded extraction bytes",
             limit,
-        }) if limit == page_bytes.len() + form_bytes.len()
+        }) if limit == page_bytes.len() + form_bytes.len() - 1
     ));
 }
 
