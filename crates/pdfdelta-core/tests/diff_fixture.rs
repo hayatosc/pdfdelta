@@ -359,14 +359,18 @@ fn enforces_token_and_edit_distance_limits() {
             max_tokens: 10,
             max_edit_distance: 2,
         },
+    )
+    .expect("an edit distance overrun should degrade the span, not the comparison");
+    assert!(distance_limited.changes.is_empty());
+    assert_eq!(distance_limited.unresolved_regions.len(), 1);
+    assert!(
+        distance_limited
+            .unresolved_regions
+            .first()
+            .expect("the degraded span should be reported")
+            .old_span
+            .is_some()
     );
-    assert!(matches!(
-        distance_limited,
-        Err(Error::LimitExceeded {
-            resource: "Myers edit distance",
-            limit: 2
-        })
-    ));
 }
 
 #[test]
@@ -385,18 +389,15 @@ fn zero_edit_distance_limit_allows_only_identical_input() -> Result<()> {
     )?;
     assert!(identical.changes.is_empty());
 
-    assert!(matches!(
-        compare_aligned(
-            &[block(1, "abc")],
-            &[block(101, "abd")],
-            &alignment,
-            options,
-        ),
-        Err(Error::LimitExceeded {
-            resource: "Myers edit distance",
-            limit: 0,
-        })
-    ));
+    let differing = compare_aligned(
+        &[block(1, "abc")],
+        &[block(101, "abd")],
+        &alignment,
+        options,
+    )
+    .expect("an edit distance overrun should degrade the span, not the comparison");
+    assert!(differing.changes.is_empty());
+    assert_eq!(differing.unresolved_regions.len(), 1);
     Ok(())
 }
 

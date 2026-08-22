@@ -7,7 +7,11 @@ pub(super) enum Edit {
     Insert,
 }
 
-pub(super) fn diff<T: Eq>(old: &[T], new: &[T], max_edit_distance: usize) -> Result<Vec<Edit>> {
+pub(super) fn diff<T: Eq>(
+    old: &[T],
+    new: &[T],
+    max_edit_distance: usize,
+) -> Result<Option<Vec<Edit>>> {
     let max_distance = old
         .len()
         .checked_add(new.len())
@@ -16,28 +20,31 @@ pub(super) fn diff<T: Eq>(old: &[T], new: &[T], max_edit_distance: usize) -> Res
             limit: usize::MAX,
         })?;
     if max_distance == 0 {
-        return Ok(Vec::new());
+        return Ok(Some(Vec::new()));
     }
-    if max_distance > isize::MAX as usize {
+    if max_edit_distance > isize::MAX as usize {
         return Err(Error::LimitExceeded {
             resource: "Myers input tokens",
             limit: isize::MAX as usize,
         });
     }
 
-    let frontier_len = max_distance
+    // Only diagonals within the capped distance are ever visited, so the
+    // frontier is sized on the cap instead of the full input length.
+    let distance_bound = max_distance.min(max_edit_distance);
+    let frontier_len = distance_bound
         .checked_mul(2)
         .and_then(|length| length.checked_add(3))
         .ok_or(Error::LimitExceeded {
             resource: "Myers frontier entries",
             limit: usize::MAX,
         })?;
-    let offset = max_distance as isize + 1;
+    let offset = distance_bound as isize + 1;
     let mut frontier = vec![0; frontier_len];
     frontier[index(1, offset)] = 0;
     let mut trace = Vec::new();
 
-    for distance in 0..=max_distance.min(max_edit_distance) {
+    for distance in 0..=distance_bound {
         let distance = distance as isize;
         let mut layer = Vec::with_capacity(distance as usize + 1);
         for diagonal in (-distance..=distance).step_by(2) {
@@ -61,16 +68,15 @@ pub(super) fn diff<T: Eq>(old: &[T], new: &[T], max_edit_distance: usize) -> Res
             frontier[index(diagonal, offset)] = old_index;
             layer.push(old_index);
             if old_index == old.len() && new_index == new.len() {
-                return backtrack(old, new, &trace, distance as usize);
+                return backtrack(old, new, &trace, distance as usize).map(Some);
             }
         }
         trace.push(layer);
     }
 
-    Err(Error::LimitExceeded {
-        resource: "Myers edit distance",
-        limit: max_edit_distance,
-    })
+    // The edit script exceeds the configured distance budget. Callers degrade
+    // this matched span instead of failing the whole comparison.
+    Ok(None)
 }
 
 fn backtrack<T: Eq>(
@@ -140,12 +146,13 @@ fn layer_value(layer: &[usize], distance: usize, diagonal: isize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{Edit, diff};
-    use crate::Error;
 
     #[test]
     fn returns_only_equal_edits_for_identical_input() {
         assert_eq!(
-            diff(b"same", b"same", 0).expect("identical input should diff"),
+            diff(b"same", b"same", 0)
+                .expect("identical input should diff")
+                .expect("identical input fits any limit"),
             vec![Edit::Equal; 4]
         );
     }
@@ -153,15 +160,21 @@ mod tests {
     #[test]
     fn handles_empty_and_one_sided_inputs() {
         assert_eq!(
-            diff(b"", b"", 0).expect("empty input should diff"),
+            diff(b"", b"", 0)
+                .expect("empty input should diff")
+                .expect("empty input fits any limit"),
             Vec::<Edit>::new()
         );
         assert_eq!(
-            diff(b"abc", b"", 3).expect("deletion should fit the limit"),
+            diff(b"abc", b"", 3)
+                .expect("deletion should diff")
+                .expect("deletion should fit the limit"),
             vec![Edit::Delete; 3]
         );
         assert_eq!(
-            diff(b"", b"abc", 3).expect("insertion should fit the limit"),
+            diff(b"", b"abc", 3)
+                .expect("insertion should diff")
+                .expect("insertion should fit the limit"),
             vec![Edit::Insert; 3]
         );
     }
@@ -170,21 +183,17 @@ mod tests {
     fn produces_a_valid_shortest_script_for_repeated_tokens() {
         let old = b"ABCABBA";
         let new = b"CBABAC";
-        let edits = diff(old, new, 5).expect("known edit distance should fit the limit");
+        let edits = diff(old, new, 5)
+            .expect("known edit distance should diff")
+            .expect("known edit distance should fit the limit");
 
         assert_script(old, new, &edits);
         assert_eq!(edits.iter().filter(|edit| **edit != Edit::Equal).count(), 5);
     }
 
     #[test]
-    fn enforces_the_edit_distance_limit() {
-        assert!(matches!(
-            diff(b"before", b"after", 2),
-            Err(Error::LimitExceeded {
-                resource: "Myers edit distance",
-                limit: 2
-            })
-        ));
+    fn reports_none_when_the_edit_distance_exceeds_the_limit() {
+        assert_eq!(diff(b"before", b"after", 2), Ok(None));
     }
 
     fn assert_script(old: &[u8], new: &[u8], edits: &[Edit]) {

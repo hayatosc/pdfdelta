@@ -172,6 +172,7 @@ pub fn compare_aligned(
                     options.max_edit_distance,
                     &mut changes,
                     &mut formatting_changes,
+                    &mut unresolved_regions,
                 )?;
             }
             AlignmentKind::Deletion => {
@@ -250,6 +251,7 @@ fn compare_match(
     max_edit_distance: usize,
     changes: &mut Vec<Change>,
     formatting_changes: &mut Vec<FormattingChange>,
+    unresolved_regions: &mut Vec<UnresolvedRegion>,
 ) -> Result<()> {
     let old = old_side.canonical_group(&span.old, span.old_separator);
     let new = new_side.canonical_group(&span.new, span.new_separator);
@@ -274,8 +276,20 @@ fn compare_match(
         return Ok(());
     }
 
-    let edits = myers::diff(&old.tokens, &new.tokens, max_edit_distance)?;
-    append_changes(&old, &new, &edits, span.confidence.into(), changes);
+    match myers::diff(&old.tokens, &new.tokens, max_edit_distance)? {
+        Some(edits) => append_changes(&old, &new, &edits, span.confidence.into(), changes),
+        None => {
+            // The aligned tokens differ by more than the configured edit
+            // distance budget. Keep the comparison alive and report the
+            // matched group as an unresolved region instead of failing the
+            // whole document.
+            unresolved_regions.push(UnresolvedRegion {
+                old_span: Some(old.full_span()),
+                new_span: Some(new.full_span()),
+                evidence: span.evidence.clone(),
+            });
+        }
+    }
     Ok(())
 }
 
