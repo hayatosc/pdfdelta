@@ -689,10 +689,22 @@ fn resolve_line_breaks(atoms: Vec<Atom>, issues: &mut Vec<NormalizationIssue>) -
                 [&hyphen, &atoms[index]],
                 NormalizationKind::HyphenationJoin,
             ));
+        } else if previous_scalar.is_some_and(is_decimal_digit)
+            && following_scalar.is_some_and(is_decimal_digit)
+        {
+            // A break inside a number sequence must never silently merge the
+            // numerals into one value; mirror the ASCII policy and insert a
+            // canonical space instead (recorded as an auditable event).
+            resolved.push(changed_atom(
+                &atoms[index],
+                AtomValue::Scalar(' '),
+                NormalizationKind::SoftLineBreak,
+            ));
         } else if previous_scalar.is_some_and(is_horizontal_whitespace)
             || following_scalar.is_some_and(is_horizontal_whitespace)
-            // deliberate: CJK classification takes precedence over numeric classification for
-            // fullwidth forms, so Japanese soft-line-break policy wins for those scalars.
+            // deliberate: CJK classification keeps precedence over numeric
+            // classification whenever both sides are not decimal digits, so
+            // kanji-to-fullwidth-digit boundaries still join without a space.
             || previous_scalar.is_some_and(is_cjk) && following_scalar.is_some_and(is_cjk)
         {
             resolved.push(changed_atom(
@@ -1019,6 +1031,13 @@ fn is_latin_letter_or_digit(scalar: char) -> bool {
                     | '\u{1d00}'..='\u{1eff}'
                     | '\u{ab30}'..='\u{ab6f}'
             )
+}
+
+/// Decimal digits in ASCII and fullwidth forms. Han numerals such as 五 are
+/// excluded on purpose: they behave as CJK words and keep the empty
+/// soft-line-break join.
+fn is_decimal_digit(scalar: char) -> bool {
+    matches!(scalar, '0'..='9' | '\u{ff10}'..='\u{ff19}')
 }
 
 fn is_cjk(scalar: char) -> bool {

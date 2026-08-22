@@ -75,6 +75,27 @@ fn joins_wraps_after_japanese_line_end_punctuation_without_ambiguity() {
 }
 
 #[test]
+fn separates_decimal_digits_across_soft_line_breaks_like_ascii_digits() {
+    let fullwidth = normalize_mapped_lines(&["１２３", "４５６"]);
+    let ascii = normalize_mapped_lines(&["123", "456"]);
+    let han_numerals = normalize_mapped_lines(&["五", "十"]);
+
+    assert_eq!(fullwidth.canonical.text, "１２３ ４５６");
+    assert_eq!(ascii.canonical.text, "123 456");
+    assert_eq!(han_numerals.canonical.text, "五十");
+    assert!(fullwidth.normalization_events.iter().any(|event| {
+        event.kind == NormalizationKind::SoftLineBreak
+            && event.canonical_range == ScalarRange { start: 3, end: 4 }
+    }));
+    assert!(
+        fullwidth
+            .issues
+            .iter()
+            .all(|issue| issue.kind != NormalizationIssueKind::AmbiguousLineBreak)
+    );
+}
+
+#[test]
 fn joins_line_end_hyphenation_and_records_deleted_evidence() {
     let text = normalize_mapped_lines(&["adminis-", "tration"]);
 
