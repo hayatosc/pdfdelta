@@ -772,6 +772,72 @@ fn recovers_valid_page_tree_branches_and_reports_inconsistent_parents() {
 }
 
 #[test]
+fn recovers_valid_branches_when_a_page_tree_child_is_unresolvable() {
+    let (mut document, ids) = fixture_document(2);
+    let second_page = document
+        .objects
+        .get(&ids.pages)
+        .expect("Pages root should exist")
+        .as_dict()
+        .expect("Pages root should be a dictionary")
+        .get(b"Kids")
+        .expect("Pages root should contain Kids")
+        .as_array()
+        .expect("Kids should be an array")[1]
+        .as_reference()
+        .expect("Kid should be a reference");
+    document.objects.remove(&second_page);
+
+    let pdf = parse(serialize_classic(document), limits())
+        .expect("a missing page branch should produce a partial parsed PDF");
+    assert_eq!(
+        pdf.pages().expect("pages should remain available"),
+        vec![pdfdelta_core::pdf::PageRef(object_ref(ids.page))]
+    );
+    assert!(
+        pdf.issues()
+            .iter()
+            .any(|issue| issue.description().contains("could not be resolved"))
+    );
+}
+
+#[test]
+fn skips_page_tree_nodes_with_an_unexpected_type() {
+    let (mut document, ids) = fixture_document(2);
+    let invalid_page = document
+        .objects
+        .get(&ids.pages)
+        .expect("Pages root should exist")
+        .as_dict()
+        .expect("Pages root should be a dictionary")
+        .get(b"Kids")
+        .expect("Pages root should contain Kids")
+        .as_array()
+        .expect("Kids should be an array")[1]
+        .as_reference()
+        .expect("Kid should be a reference");
+    document
+        .objects
+        .get_mut(&invalid_page)
+        .expect("page should exist")
+        .as_dict_mut()
+        .expect("page should be a dictionary")
+        .set("Type", "XYZ");
+
+    let pdf = parse(serialize_classic(document), limits())
+        .expect("an unexpected node type should produce a partial parsed PDF");
+    assert_eq!(
+        pdf.pages().expect("pages should remain available"),
+        vec![pdfdelta_core::pdf::PageRef(object_ref(ids.page))]
+    );
+    assert!(
+        pdf.issues()
+            .iter()
+            .any(|issue| issue.description().contains("unexpected node type"))
+    );
+}
+
+#[test]
 fn bounds_page_tree_width_before_queueing_all_kids() {
     let (mut document, ids) = fixture_document(1);
     document

@@ -612,11 +612,43 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
             continue;
         }
 
-        let dictionary = resolve_document_object(document, reference, limits, "walking page tree")?
-            .as_dict()
-            .map_err(|error| map_lopdf_error(error, "walking page tree", limits))?;
+        // Broken branches degrade to document-scoped unresolved issues so
+        // independently valid branches survive (SPEC §6.2); resource-limit
+        // failures stay fatal.
+        let resolved =
+            match resolve_document_object(document, reference, limits, "walking page tree") {
+                Ok(resolved) => resolved,
+                Err(error @ Error::Backend(_)) => {
+                    issues.push(PdfIssue::unresolved(format!(
+                        "walking page tree: skipping object {} {}: \
+                         branch could not be resolved ({error})",
+                        reference.0, reference.1
+                    ))?);
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+        let dictionary = match resolved.as_dict() {
+            Ok(dictionary) => dictionary,
+            Err(_) => {
+                issues.push(PdfIssue::unresolved(format!(
+                    "walking page tree: skipping object {} {}: node is not a dictionary",
+                    reference.0, reference.1
+                ))?);
+                continue;
+            }
+        };
         let declared_parent =
-            optional_reference(dictionary, b"Parent", "reading page tree Parent")?;
+            match optional_reference(dictionary, b"Parent", "reading page tree Parent") {
+                Ok(declared_parent) => declared_parent,
+                Err(error) => {
+                    issues.push(PdfIssue::unresolved(format!(
+                        "walking page tree: skipping object {} {}: {error}",
+                        reference.0, reference.1
+                    ))?);
+                    continue;
+                }
+            };
         if declared_parent != expected_parent {
             issues.push(PdfIssue::unresolved(format!(
                 "walking page tree: object {} {} has an inconsistent Parent",
@@ -625,10 +657,16 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
             continue;
         }
         parents.insert(reference, expected_parent);
-        let node_type = dictionary
-            .get(b"Type")
-            .and_then(Object::as_name)
-            .map_err(|error| map_lopdf_error(error, "reading page tree node type", limits))?;
+        let node_type = match dictionary.get(b"Type").and_then(Object::as_name) {
+            Ok(node_type) => node_type,
+            Err(_) => {
+                issues.push(PdfIssue::unresolved(format!(
+                    "walking page tree: skipping object {} {}: node has no readable /Type",
+                    reference.0, reference.1
+                ))?);
+                continue;
+            }
+        };
 
         match node_type {
             b"Page" => {
@@ -671,17 +709,26 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
                 }
                 scheduled_nodes += kids.len();
                 for kid in kids.iter().rev() {
-                    let kid = kid.as_reference().map_err(|error| {
-                        map_lopdf_error(error, "reading page tree child", limits)
-                    })?;
+                    let kid = match kid.as_reference() {
+                        Ok(kid) => kid,
+                        Err(_) => {
+                            issues.push(PdfIssue::unresolved(format!(
+                                "walking page tree: skipping non-reference child of object {} {}",
+                                reference.0, reference.1
+                            ))?);
+                            continue;
+                        }
+                    };
                     pending.push((kid, Some(reference), child_depth));
                 }
             }
             other => {
-                return Err(Error::Backend(format!(
-                    "walking page tree: unexpected node type /{}",
+                issues.push(PdfIssue::unresolved(format!(
+                    "walking page tree: skipping object {} {} with unexpected node type /{}",
+                    reference.0,
+                    reference.1,
                     String::from_utf8_lossy(other)
-                )));
+                ))?);
             }
         }
     }
