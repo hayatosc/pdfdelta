@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use crate::{
     Error, Result,
     model::{Document, Glyph, GlyphId, PageId, Rect, Vec2},
+    validate::{validate_non_negative, validate_unit_interval},
 };
 
 use super::geometry::{
@@ -342,24 +343,6 @@ fn validate_glyph(glyph: &Glyph) -> Result<()> {
 
 fn invalid_glyph(glyph: &Glyph, reason: &str) -> Error {
     Error::Unresolved(format!("glyph {} has {reason}", glyph.id.0))
-}
-
-fn validate_non_negative(name: &str, value: f64) -> Result<()> {
-    if value.is_finite() && value >= 0.0 {
-        return Ok(());
-    }
-    Err(Error::InvalidConfiguration(format!(
-        "{name} must be finite and non-negative"
-    )))
-}
-
-fn validate_unit_interval(name: &str, value: f64) -> Result<()> {
-    if value.is_finite() && (0.0..=1.0).contains(&value) {
-        return Ok(());
-    }
-    Err(Error::InvalidConfiguration(format!(
-        "{name} must be between 0 and 1"
-    )))
 }
 
 fn is_whitespace(text: &crate::model::DecodedText) -> bool {

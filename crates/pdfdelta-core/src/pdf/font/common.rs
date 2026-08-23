@@ -625,8 +625,24 @@ pub(super) fn finite_number(object: &PdfObject, context: &str) -> Result<f64> {
     Ok(value)
 }
 
-fn unresolved<T>(message: &str) -> Result<T> {
+pub(super) fn unresolved<T>(message: &str) -> Result<T> {
     Err(Error::Unresolved(message.into()))
+}
+
+/// Replaces ascent/descent with the descriptor FontBBox extent whenever the
+/// declared metrics cannot form a positive vertical extent (SPEC section 6.4).
+pub(super) fn apply_bbox_vertical_fallback(
+    (ascent, descent): (Option<f64>, Option<f64>),
+    load_bbox: impl FnOnce() -> Result<Option<(f64, f64)>>,
+) -> Result<(Option<f64>, Option<f64>)> {
+    if ascent
+        .zip(descent)
+        .is_none_or(|(ascent, descent)| ascent <= descent)
+        && let Some((bbox_ascent, bbox_descent)) = load_bbox()?
+    {
+        return Ok((Some(bbox_ascent), Some(bbox_descent)));
+    }
+    Ok((ascent, descent))
 }
 
 #[cfg(test)]

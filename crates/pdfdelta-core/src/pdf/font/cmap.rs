@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 
 use crate::{Error, Result};
 
+use super::common::unresolved;
+
 const MAX_PDF_CODE_BYTES: usize = 4;
 
 #[derive(Clone, Copy, Debug)]
@@ -964,10 +966,6 @@ fn increment_be(bytes: &mut [u8]) -> bool {
         }
     }
     false
-}
-
-fn unresolved<T>(message: &str) -> Result<T> {
-    Err(Error::Unresolved(message.into()))
 }
 
 #[derive(Clone, Copy, Debug)]

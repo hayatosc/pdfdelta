@@ -8,9 +8,9 @@ use crate::{
 use super::{
     cmap::{ToUnicodeCMap, UnicodeMapping, parse_identity_cid_encoding},
     common::{
-        FontIdentityDomain, FontIdentitySource, finite_number, load_descriptor_bbox,
-        load_to_unicode, non_negative_number, resolve_font_identity_source, resolve_object,
-        resolve_stream_reference,
+        FontIdentityDomain, FontIdentitySource, apply_bbox_vertical_fallback, finite_number,
+        load_descriptor_bbox, load_to_unicode, non_negative_number, resolve_font_identity_source,
+        resolve_object, resolve_stream_reference, unresolved,
     },
     decoder::{DecodedGlyph, FontDecoderLimits, VerticalGlyphMetrics, WritingMode},
 };
@@ -508,15 +508,9 @@ fn load_metrics(
     let mut ascent = load_optional_metric(pdf, &descriptor, b"Ascent", "ascent", max_indirections)?;
     let mut descent =
         load_optional_metric(pdf, &descriptor, b"Descent", "descent", max_indirections)?;
-    if ascent
-        .zip(descent)
-        .is_none_or(|(ascent, descent)| ascent <= descent)
-        && let Some((bbox_ascent, bbox_descent)) =
-            load_descriptor_bbox(pdf, &descriptor, max_indirections)?
-    {
-        ascent = Some(bbox_ascent);
-        descent = Some(bbox_descent);
-    }
+    (ascent, descent) = apply_bbox_vertical_fallback((ascent, descent), || {
+        load_descriptor_bbox(pdf, &descriptor, max_indirections)
+    })?;
     let ascent = ascent.ok_or_else(|| Error::Unresolved("CID font has no ascent metric".into()))?;
     let descent =
         descent.ok_or_else(|| Error::Unresolved("CID font has no descent metric".into()))?;
@@ -537,10 +531,6 @@ fn load_optional_metric(
             finite_number(&value, context)
         })
         .transpose()
-}
-
-fn unresolved<T>(message: &str) -> Result<T> {
-    Err(Error::Unresolved(message.into()))
 }
 
 #[cfg(test)]

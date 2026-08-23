@@ -2,7 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     Error, Result,
-    model::{DecodedText, Document, FontId, Glyph, GlyphId, Rect, Vec2},
+    model::{DecodedText, Document, FontId, Glyph, GlyphId, Rect, Vec2, index_glyphs},
+    validate::{validate_non_negative, validate_unit_interval},
 };
 
 use super::{
@@ -595,19 +596,6 @@ fn should_join(
     Ok(score >= options.min_join_score)
 }
 
-fn index_glyphs(document: &Document<Glyph>) -> Result<HashMap<GlyphId, &Glyph>> {
-    let mut glyphs = HashMap::with_capacity(document.items().len());
-    for glyph in document.items() {
-        if glyphs.insert(glyph.id, glyph).is_some() {
-            return Err(Error::Unresolved(format!(
-                "duplicate glyph id {}",
-                glyph.id.0
-            )));
-        }
-    }
-    Ok(glyphs)
-}
-
 fn validate_line_geometry(line: &Line) -> Result<()> {
     let values = [
         line.bbox.min.x,
@@ -772,22 +760,4 @@ fn closeness(value: f64, maximum: f64) -> f64 {
 
 fn invalid_line(line: &Line, reason: &str) -> Error {
     Error::Unresolved(format!("line {} {reason}", line.id.0))
-}
-
-fn validate_non_negative(name: &str, value: f64) -> Result<()> {
-    if value.is_finite() && value >= 0.0 {
-        return Ok(());
-    }
-    Err(Error::InvalidConfiguration(format!(
-        "{name} must be finite and non-negative"
-    )))
-}
-
-fn validate_unit_interval(name: &str, value: f64) -> Result<()> {
-    if value.is_finite() && (0.0..=1.0).contains(&value) {
-        return Ok(());
-    }
-    Err(Error::InvalidConfiguration(format!(
-        "{name} must be between 0 and 1"
-    )))
 }

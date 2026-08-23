@@ -7,9 +7,9 @@ use crate::{
 
 use super::cmap::{ToUnicodeCMap, UnicodeMapping};
 use super::common::{
-    FontIdentityDomain, FontIdentitySource, finite_number, load_descriptor_bbox, load_to_unicode,
-    non_negative_number, optional_number, resolve_font_identity_source, resolve_object,
-    type3_font_identity_source,
+    FontIdentityDomain, FontIdentitySource, apply_bbox_vertical_fallback, finite_number,
+    load_descriptor_bbox, load_to_unicode, non_negative_number, optional_number,
+    resolve_font_identity_source, resolve_object, type3_font_identity_source, unresolved,
 };
 use super::decoder::{DecodedGlyph, FontDecoderLimits};
 use super::metrics;
@@ -1033,19 +1033,12 @@ fn load_descriptor(
         return unresolved("FontDescriptor is not a dictionary");
     };
     let fallback = base14.map(Base14::vertical_metrics);
-    let mut ascent =
-        optional_number(&descriptor, b"Ascent")?.or_else(|| fallback.map(|value| value.0));
-    let mut descent =
+    let ascent = optional_number(&descriptor, b"Ascent")?.or_else(|| fallback.map(|value| value.0));
+    let descent =
         optional_number(&descriptor, b"Descent")?.or_else(|| fallback.map(|value| value.1));
-    if ascent
-        .zip(descent)
-        .is_none_or(|(ascent, descent)| ascent <= descent)
-        && let Some((bbox_ascent, bbox_descent)) =
-            load_descriptor_bbox(pdf, &descriptor, max_indirections)?
-    {
-        ascent = Some(bbox_ascent);
-        descent = Some(bbox_descent);
-    }
+    let (ascent, descent) = apply_bbox_vertical_fallback((ascent, descent), || {
+        load_descriptor_bbox(pdf, &descriptor, max_indirections)
+    })?;
     let missing_width = descriptor
         .get(b"MissingWidth".as_slice())
         .map_or(Ok(0.0), |value| non_negative_number(value, "MissingWidth"))?;
@@ -1243,10 +1236,6 @@ fn standard_encoding_char(code: u8) -> Option<char> {
         251 => Some('\u{00df}'),
         _ => None,
     }
-}
-
-fn unresolved<T>(message: &str) -> Result<T> {
-    Err(Error::Unresolved(message.into()))
 }
 
 #[cfg(test)]

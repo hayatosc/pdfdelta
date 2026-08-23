@@ -6,7 +6,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::{
     Error, Result,
     layout::{Block, BlockId, Line, LineId},
-    model::{DecodedText, Document, FontProgramHash, Glyph, GlyphId},
+    model::{DecodedText, Document, FontProgramHash, Glyph, GlyphId, index_glyphs},
 };
 
 pub const DEFAULT_MAX_NUMERIC_MASK_RATIO: f64 = 0.3;
@@ -243,19 +243,6 @@ struct Atom {
 struct RawBlock {
     mapped: MappedText,
     atoms: Vec<Atom>,
-}
-
-fn index_glyphs(document: &Document<Glyph>) -> Result<HashMap<GlyphId, &Glyph>> {
-    let mut glyphs = HashMap::with_capacity(document.items().len());
-    for glyph in document.items() {
-        if glyphs.insert(glyph.id, glyph).is_some() {
-            return Err(Error::Unresolved(format!(
-                "duplicate glyph id {}",
-                glyph.id.0
-            )));
-        }
-    }
-    Ok(glyphs)
 }
 
 fn index_lines(lines: &[Line]) -> Result<HashMap<LineId, &Line>> {

@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use crate::pdf::ObjectRef;
+use crate::{Error, Result};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Vec2 {
@@ -84,4 +87,19 @@ impl<T> Document<T> {
     pub fn into_items(self) -> Vec<T> {
         self.items
     }
+}
+
+/// Indexes glyphs by id, rejecting documents with duplicate glyph ids so
+/// downstream layout and normalization share one validated lookup.
+pub(crate) fn index_glyphs(document: &Document<Glyph>) -> Result<HashMap<GlyphId, &Glyph>> {
+    let mut glyphs = HashMap::with_capacity(document.items().len());
+    for glyph in document.items() {
+        if glyphs.insert(glyph.id, glyph).is_some() {
+            return Err(Error::Unresolved(format!(
+                "duplicate glyph id {}",
+                glyph.id.0
+            )));
+        }
+    }
+    Ok(glyphs)
 }

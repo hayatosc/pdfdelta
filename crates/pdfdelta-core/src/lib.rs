@@ -8,5 +8,6 @@ pub mod pdf;
 pub mod pipeline;
 pub mod report;
 pub mod source;
+mod validate;
 
 pub use error::{Error, Result};

@@ -1,6 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::{Error, Result, layout::BlockId};
+use crate::{
+    Error, Result,
+    layout::BlockId,
+    validate::{validate_non_negative, validate_unit_interval},
+};
 
 use super::{
     BlockFeatures, BlockSeparator, CandidateGenerator, CandidateSource, ExactAnchor,
@@ -1280,24 +1284,6 @@ fn validate_shared_ngram_size(old: &[BlockFeatures], new: &[BlockFeatures]) -> R
         return Err(Error::InvalidConfiguration(
             "all alignment features must use the same ngram_size".to_owned(),
         ));
-    }
-    Ok(())
-}
-
-fn validate_unit_interval(name: &str, value: f64) -> Result<()> {
-    if !value.is_finite() || !(0.0..=1.0).contains(&value) {
-        return Err(Error::InvalidConfiguration(format!(
-            "{name} must be finite and between 0 and 1"
-        )));
-    }
-    Ok(())
-}
-
-fn validate_non_negative(name: &str, value: f64) -> Result<()> {
-    if !value.is_finite() || value < 0.0 {
-        return Err(Error::InvalidConfiguration(format!(
-            "{name} must be finite and non-negative"
-        )));
     }
     Ok(())
 }
