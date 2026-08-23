@@ -7,7 +7,7 @@ use pdfdelta_core::{
         BlockFeatures, BlockSeparator, Candidate, CandidateGenerator, CandidateSource, ExactAnchor,
         ExactHash, InvertedIndexCandidateGenerator, align_ordered, build_block_features,
     },
-    diff::{DiffOptions, compare_aligned},
+    diff::{ChangeKind, DiffOptions, compare_aligned},
     layout::BlockId,
     model::FontProgramHash,
     normalize::{
@@ -131,6 +131,75 @@ fn aligns_an_english_block_split_as_one_to_two() {
     assert_eq!(split.score, 1.0);
     assert_eq!(split.new_separator, Some(BlockSeparator::Space));
     assert!(split.evidence.contains(&AlignmentEvidence::SplitMerge));
+}
+
+#[test]
+fn aligns_an_exact_block_split_after_the_final_anchor() {
+    let old = vec![block_text(1, OPENING), block_text(2, "project log")];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(102, "project"),
+        block_text(103, "log"),
+    ];
+    let alignment = align(old.clone(), new.clone());
+
+    let split = &alignment.spans[1];
+    assert_eq!(split.kind, AlignmentKind::Match);
+    assert_eq!(split.old, [BlockId(2)]);
+    assert_eq!(split.new, [BlockId(102), BlockId(103)]);
+    assert_eq!(split.new_separator, Some(BlockSeparator::Space));
+    assert!(split.evidence.contains(&AlignmentEvidence::SplitMerge));
+    assert!(!split.evidence.contains(&AlignmentEvidence::AnchorInterval));
+
+    let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("trailing reflow should compare");
+    assert!(comparison.changes.is_empty());
+    assert_eq!(comparison.formatting_changes.len(), 1);
+    assert!(comparison.unresolved_regions.is_empty());
+}
+
+#[test]
+fn aligns_an_exact_block_merge_before_the_first_anchor() {
+    let old = vec![
+        block_text(1, "project"),
+        block_text(2, "log"),
+        block_text(3, CLOSING),
+    ];
+    let new = vec![block_text(101, "project log"), block_text(102, CLOSING)];
+    let alignment = align(old.clone(), new.clone());
+
+    let merge = &alignment.spans[0];
+    assert_eq!(merge.kind, AlignmentKind::Match);
+    assert_eq!(merge.old, [BlockId(1), BlockId(2)]);
+    assert_eq!(merge.new, [BlockId(101)]);
+    assert_eq!(merge.old_separator, Some(BlockSeparator::Space));
+    assert!(merge.evidence.contains(&AlignmentEvidence::SplitMerge));
+    assert!(!merge.evidence.contains(&AlignmentEvidence::AnchorInterval));
+
+    let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("leading reflow should compare");
+    assert!(comparison.changes.is_empty());
+    assert_eq!(comparison.formatting_changes.len(), 1);
+    assert!(comparison.unresolved_regions.is_empty());
+}
+
+#[test]
+fn does_not_use_a_trailing_anchor_for_a_masked_split() {
+    let alignment = align(
+        vec![
+            block_text(1, OPENING),
+            block_text_with_matching(2, "Release 10 notes", "Release <NUM> notes", true),
+        ],
+        vec![
+            block_text(101, OPENING),
+            block_text(102, "Release"),
+            block_text_with_matching(103, "20 notes", "<NUM> notes", true),
+        ],
+    );
+
+    assert!(!alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Match && span.old.len() == 1 && span.new.len() == 2
+    }));
 }
 
 #[test]
@@ -418,7 +487,11 @@ fn preserves_crossing_exact_anchors_as_move_candidates() {
     assert_eq!(alignment.main_anchors.len(), 1);
     assert_eq!(alignment.move_candidates.len(), 1);
     assert!(alignment.spans.iter().any(|span| {
-        span.kind == AlignmentKind::Unresolved
+        span.kind == AlignmentKind::Deletion
+            && span.evidence.contains(&AlignmentEvidence::MoveCandidate)
+    }));
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Insertion
             && span.evidence.contains(&AlignmentEvidence::MoveCandidate)
     }));
 }
@@ -427,26 +500,25 @@ fn preserves_crossing_exact_anchors_as_move_candidates() {
 fn confines_an_off_lis_anchor_to_move_candidate_spans() {
     let moved = "Moved unique anchor paragraph";
     let boundary = "Stable boundary anchor paragraph";
-    let alignment = align(
-        vec![
-            block_text(1, OPENING),
-            block_text(2, moved),
-            block_text(3, "Alpha stays"),
-            block_text(4, "Beta stays"),
-            block_text(5, "Gamma stays"),
-            block_text(6, boundary),
-            block_text(7, CLOSING),
-        ],
-        vec![
-            block_text(101, OPENING),
-            block_text(103, "Alpha stays"),
-            block_text(104, "Beta stays"),
-            block_text(105, "Gamma stays"),
-            block_text(106, boundary),
-            block_text(107, CLOSING),
-            block_text(102, moved),
-        ],
-    );
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, moved),
+        block_text(3, "Alpha stays"),
+        block_text(4, "Beta stays"),
+        block_text(5, "Gamma stays"),
+        block_text(6, boundary),
+        block_text(7, CLOSING),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(103, "Alpha stays"),
+        block_text(104, "Beta stays"),
+        block_text(105, "Gamma stays"),
+        block_text(106, boundary),
+        block_text(107, CLOSING),
+        block_text(102, moved),
+    ];
+    let alignment = align(old.clone(), new.clone());
 
     assert_eq!(
         alignment.move_candidates,
@@ -462,30 +534,34 @@ fn confines_an_off_lis_anchor_to_move_candidate_spans() {
                 && span.new == [BlockId(new)]
         }));
     }
-    let unresolved = alignment
+    let moved_spans = alignment
         .spans
         .iter()
-        .filter(|span| span.kind == AlignmentKind::Unresolved)
+        .filter(|span| span.evidence.contains(&AlignmentEvidence::MoveCandidate))
         .collect::<Vec<_>>();
-    assert_eq!(unresolved.len(), 2, "{:#?}", alignment.spans);
+    assert_eq!(moved_spans.len(), 2, "{:#?}", alignment.spans);
+    assert!(moved_spans.iter().any(|span| {
+        span.kind == AlignmentKind::Deletion && span.old == [BlockId(2)] && span.new.is_empty()
+    }));
+    assert!(moved_spans.iter().any(|span| {
+        span.kind == AlignmentKind::Insertion && span.old.is_empty() && span.new == [BlockId(102)]
+    }));
+
+    let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("move fallback should compare");
     assert_eq!(
-        unresolved
+        comparison
+            .changes
             .iter()
-            .flat_map(|span| span.old.iter().copied())
+            .map(|change| change.kind)
             .collect::<Vec<_>>(),
-        [BlockId(2)]
+        [ChangeKind::Deletion, ChangeKind::Insertion]
     );
-    assert_eq!(
-        unresolved
-            .iter()
-            .flat_map(|span| span.new.iter().copied())
-            .collect::<Vec<_>>(),
-        [BlockId(102)]
-    );
+    assert!(comparison.unresolved_regions.is_empty());
     assert!(
-        unresolved
-            .iter()
-            .all(|span| { span.evidence.contains(&AlignmentEvidence::MoveCandidate) })
+        summarize(&comparison, &ExtractionStatus::complete())
+            .expect("move fallback summary should validate")
+            .comparison_complete
     );
 }
 
@@ -795,8 +871,10 @@ fn preserves_move_candidates_beside_exact_normalization_matches() {
         span.kind == AlignmentKind::Match && span.old == [BlockId(2)] && span.new == [BlockId(102)]
     }));
     assert!(alignment.spans.iter().any(|span| {
-        span.kind == AlignmentKind::Unresolved
-            && span.evidence.contains(&AlignmentEvidence::MoveCandidate)
+        matches!(
+            span.kind,
+            AlignmentKind::Deletion | AlignmentKind::Insertion
+        ) && span.evidence.contains(&AlignmentEvidence::MoveCandidate)
     }));
 }
 

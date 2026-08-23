@@ -231,6 +231,7 @@ pub fn align_ordered(
             options,
             &mut remaining_dp_cells,
             IntervalContext {
+                allow_split_merge: true,
                 bounded_by_anchors: has_left_anchor,
                 move_old: &move_old,
                 move_new: &move_new,
@@ -256,6 +257,7 @@ pub fn align_ordered(
         options,
         &mut remaining_dp_cells,
         IntervalContext {
+            allow_split_merge: has_left_anchor,
             bounded_by_anchors: false,
             move_old: &move_old,
             move_new: &move_new,
@@ -348,6 +350,7 @@ fn align_interval_with_partition_fallback(
     }
 
     let retry_context = IntervalContext {
+        allow_split_merge: false,
         bounded_by_anchors: false,
         move_old: context.move_old,
         move_new: context.move_new,
@@ -578,6 +581,7 @@ fn preferred_chain_tip(current: Option<ChainTip>, candidate: Option<ChainTip>) -
 
 #[derive(Clone, Copy)]
 struct IntervalContext<'a> {
+    allow_split_merge: bool,
     bounded_by_anchors: bool,
     move_old: &'a HashSet<BlockId>,
     move_new: &'a HashSet<BlockId>,
@@ -666,17 +670,24 @@ fn align_interval(
                 0.0
             };
             if old_affected {
-                let (_, _, evidence) = affected_at(old.get(old_index), None, context);
+                let transition = if is_move_candidate_only(old.get(old_index), context.move_old) {
+                    Transition::Deletion {
+                        move_candidate: true,
+                    }
+                } else {
+                    let (_, _, evidence) = affected_at(old.get(old_index), None, context);
+                    Transition::Unresolved {
+                        old_count: 1,
+                        new_count: 0,
+                        evidence,
+                    }
+                };
                 propose(
                     &mut cells,
                     from,
                     (old_index + 1) * width + new_index,
                     -options.gap_penalty - skip_exact_penalty,
-                    Transition::Unresolved {
-                        old_count: 1,
-                        new_count: 0,
-                        evidence,
-                    },
+                    transition,
                 );
             } else if old_index < old.len() {
                 propose(
@@ -684,21 +695,30 @@ fn align_interval(
                     from,
                     (old_index + 1) * width + new_index,
                     -options.gap_penalty,
-                    Transition::Deletion,
+                    Transition::Deletion {
+                        move_candidate: false,
+                    },
                 );
             }
             if new_affected {
-                let (_, _, evidence) = affected_at(None, new.get(new_index), context);
+                let transition = if is_move_candidate_only(new.get(new_index), context.move_new) {
+                    Transition::Insertion {
+                        move_candidate: true,
+                    }
+                } else {
+                    let (_, _, evidence) = affected_at(None, new.get(new_index), context);
+                    Transition::Unresolved {
+                        old_count: 0,
+                        new_count: 1,
+                        evidence,
+                    }
+                };
                 propose(
                     &mut cells,
                     from,
                     old_index * width + new_index + 1,
                     -options.gap_penalty - skip_exact_penalty,
-                    Transition::Unresolved {
-                        old_count: 0,
-                        new_count: 1,
-                        evidence,
-                    },
+                    transition,
                 );
             } else if new_index < new.len() {
                 propose(
@@ -706,7 +726,9 @@ fn align_interval(
                     from,
                     old_index * width + new_index + 1,
                     -options.gap_penalty,
-                    Transition::Insertion,
+                    Transition::Insertion {
+                        move_candidate: false,
+                    },
                 );
             }
             if (old_affected || new_affected) && old_index < old.len() && new_index < new.len() {
@@ -734,15 +756,15 @@ fn align_interval(
             {
                 propose_group_match(
                     &mut cells,
-                    from,
-                    (old_index + 1) * width + new_index + 1,
+                    (from, (old_index + 1) * width + new_index + 1),
                     &old[old_index..old_index + 1],
                     &new[new_index..new_index + 1],
                     sources,
                     options,
+                    false,
                 );
             }
-            if context.bounded_by_anchors
+            if context.allow_split_merge
                 && old_index < old.len()
                 && new_index + 1 < new.len()
                 && !contains_affected(
@@ -758,15 +780,15 @@ fn align_interval(
             {
                 propose_group_match(
                     &mut cells,
-                    from,
-                    (old_index + 1) * width + new_index + 2,
+                    (from, (old_index + 1) * width + new_index + 2),
                     &old[old_index..old_index + 1],
                     &new[new_index..new_index + 2],
                     sources,
                     options,
+                    !context.bounded_by_anchors,
                 );
             }
-            if context.bounded_by_anchors
+            if context.allow_split_merge
                 && old_index + 1 < old.len()
                 && new_index < new.len()
                 && !contains_affected(
@@ -782,12 +804,12 @@ fn align_interval(
             {
                 propose_group_match(
                     &mut cells,
-                    from,
-                    (old_index + 2) * width + new_index + 1,
+                    (from, (old_index + 2) * width + new_index + 1),
                     &old[old_index..old_index + 2],
                     &new[new_index..new_index + 1],
                     sources,
                     options,
+                    !context.bounded_by_anchors,
                 );
             }
         }
@@ -819,8 +841,12 @@ enum Transition {
         new_count: usize,
         evidence: Vec<AlignmentEvidence>,
     },
-    Deletion,
-    Insertion,
+    Deletion {
+        move_candidate: bool,
+    },
+    Insertion {
+        move_candidate: bool,
+    },
 }
 
 #[derive(Clone)]
@@ -851,12 +877,12 @@ fn propose(cells: &mut [Cell], from: usize, to: usize, reward: f64, transition: 
 
 fn propose_group_match(
     cells: &mut [Cell],
-    from: usize,
-    to: usize,
+    edge: (usize, usize),
     old: &[BlockFeatures],
     new: &[BlockFeatures],
     sources: Vec<CandidateSource>,
     options: AlignmentOptions,
+    require_exact_canonical: bool,
 ) {
     let group_score = score_groups(
         old,
@@ -867,7 +893,8 @@ fn propose_group_match(
             min_score_margin: options.min_score_margin,
         },
     );
-    if group_score.score < options.min_match_score
+    if require_exact_canonical && !group_score.exact_canonical
+        || group_score.score < options.min_match_score
         || group_score.separator_ambiguous
         || group_score.numeric_mask
             && !group_score.exact_canonical
@@ -888,7 +915,7 @@ fn propose_group_match(
         group_score,
         sources,
     };
-    propose(cells, from, to, reward, transition);
+    propose(cells, edge.0, edge.1, reward, transition);
 }
 
 fn update_cell(cell: &mut Cell, score: f64, transition: Option<Transition>) {
@@ -966,7 +993,7 @@ fn backtrack(
                 old_index = old_start;
                 new_index = new_start;
             }
-            Transition::Deletion => {
+            Transition::Deletion { move_candidate } => {
                 old_index -= 1;
                 reversed.push(AlignmentSpan {
                     kind: AlignmentKind::Deletion,
@@ -974,12 +1001,16 @@ fn backtrack(
                     new: Vec::new(),
                     score: 0.0,
                     confidence: AlignmentConfidence::Medium,
-                    evidence: Vec::new(),
+                    evidence: if move_candidate {
+                        vec![AlignmentEvidence::MoveCandidate]
+                    } else {
+                        Vec::new()
+                    },
                     old_separator: None,
                     new_separator: None,
                 });
             }
-            Transition::Insertion => {
+            Transition::Insertion { move_candidate } => {
                 new_index -= 1;
                 reversed.push(AlignmentSpan {
                     kind: AlignmentKind::Insertion,
@@ -987,7 +1018,11 @@ fn backtrack(
                     new: vec![new[new_index].block],
                     score: 0.0,
                     confidence: AlignmentConfidence::Medium,
-                    evidence: Vec::new(),
+                    evidence: if move_candidate {
+                        vec![AlignmentEvidence::MoveCandidate]
+                    } else {
+                        Vec::new()
+                    },
                     old_separator: None,
                     new_separator: None,
                 });
@@ -1126,6 +1161,15 @@ fn affected_at(
         new_normalization || new_move,
         evidence,
     )
+}
+
+fn is_move_candidate_only(
+    features: Option<&BlockFeatures>,
+    move_candidates: &HashSet<BlockId>,
+) -> bool {
+    features.is_some_and(|features| {
+        !features.has_normalization_issues && move_candidates.contains(&features.block)
+    })
 }
 
 fn is_exact_normalization_pair(
