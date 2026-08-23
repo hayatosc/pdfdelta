@@ -739,6 +739,264 @@ fn promotes_crossed_move_candidates_from_the_same_intervals() {
 }
 
 #[test]
+fn preserves_crossed_move_candidates_beside_unmatched_blocks() {
+    let first_move = "First moved unique paragraph remains exact";
+    let second_move = "Second moved unique paragraph remains exact";
+    let middle = "Middle stable anchor paragraph remains exact";
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, first_move),
+        block_text(3, "Old unmatched paragraph"),
+        block_text(4, middle),
+        block_text(5, CLOSING),
+        block_text(6, second_move),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(103, "New unrelated paragraph"),
+        block_text(106, second_move),
+        block_text(104, middle),
+        block_text(105, CLOSING),
+        block_text(102, first_move),
+    ];
+    let alignment = align(old.clone(), new.clone());
+
+    assert_eq!(alignment.move_candidates.len(), 2);
+    assert_eq!(
+        alignment
+            .spans
+            .iter()
+            .filter(|span| span.evidence.contains(&AlignmentEvidence::MoveCandidate))
+            .count(),
+        4,
+        "{:#?}",
+        alignment.spans
+    );
+
+    let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("move candidates beside unmatched blocks should compare");
+    assert_eq!(
+        comparison
+            .changes
+            .iter()
+            .filter(|change| change.kind == ChangeKind::Move)
+            .count(),
+        2
+    );
+    assert_eq!(comparison.unresolved_regions.len(), 1);
+    assert_eq!(
+        comparison.unresolved_regions[0]
+            .old_span
+            .as_ref()
+            .expect("old unmatched span should remain")
+            .blocks,
+        [BlockId(3)]
+    );
+    assert_eq!(
+        comparison.unresolved_regions[0]
+            .new_span
+            .as_ref()
+            .expect("new unmatched span should remain")
+            .blocks,
+        [BlockId(103)]
+    );
+}
+
+#[test]
+fn preserves_crossed_move_candidates_beside_normalization_issues() {
+    let first_move = "First moved unique paragraph remains exact";
+    let second_move = "Second moved unique paragraph remains exact";
+    let middle = "Middle stable anchor paragraph remains exact";
+    let old_text = vec![
+        block_text(1, OPENING),
+        block_text(2, first_move),
+        block_text(3, "Old uncertain paragraph"),
+        block_text(4, middle),
+        block_text(5, CLOSING),
+        block_text(6, second_move),
+    ];
+    let new_text = vec![
+        block_text(101, OPENING),
+        block_text(103, "New uncertain paragraph"),
+        block_text(106, second_move),
+        block_text(104, middle),
+        block_text(105, CLOSING),
+        block_text(102, first_move),
+    ];
+    let mut old = build_block_features(&old_text, 3).expect("old features should build");
+    let mut new = build_block_features(&new_text, 3).expect("new features should build");
+    old[2].has_normalization_issues = true;
+    new[1].has_normalization_issues = true;
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("candidate index should build");
+    let alignment =
+        align_ordered(&old, &new, &generator, options()).expect("alignment should succeed");
+
+    assert_eq!(alignment.move_candidates.len(), 2);
+    assert_eq!(
+        alignment
+            .spans
+            .iter()
+            .filter(|span| span.evidence.contains(&AlignmentEvidence::MoveCandidate))
+            .count(),
+        4,
+        "{:#?}",
+        alignment.spans
+    );
+
+    let comparison = compare_aligned(&old_text, &new_text, &alignment, DiffOptions::default())
+        .expect("move candidates beside normalization issues should compare");
+    assert_eq!(
+        comparison
+            .changes
+            .iter()
+            .filter(|change| change.kind == ChangeKind::Move)
+            .count(),
+        2
+    );
+    assert_eq!(comparison.unresolved_regions.len(), 1);
+    assert_eq!(
+        comparison.unresolved_regions[0]
+            .old_span
+            .as_ref()
+            .expect("old uncertain span should remain")
+            .blocks,
+        [BlockId(3)]
+    );
+    assert_eq!(
+        comparison.unresolved_regions[0]
+            .new_span
+            .as_ref()
+            .expect("new uncertain span should remain")
+            .blocks,
+        [BlockId(103)]
+    );
+}
+
+#[test]
+fn recovers_a_secondary_anchor_between_preserved_move_candidates() {
+    let first_move = "First moved unique paragraph remains exact";
+    let second_move = "Second moved unique paragraph remains exact";
+    let middle = "Middle stable anchor paragraph remains exact";
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, first_move),
+        block_text(3, "Old leading edit"),
+        block_text(4, "S"),
+        block_text(5, "Old trailing edit"),
+        block_text(6, middle),
+        block_text(7, CLOSING),
+        block_text(8, second_move),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(103, "New leading edit"),
+        block_text(104, "S"),
+        block_text(105, "New trailing edit"),
+        block_text(108, second_move),
+        block_text(106, middle),
+        block_text(107, CLOSING),
+        block_text(102, first_move),
+    ];
+    let alignment = align(old.clone(), new.clone());
+
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Match && span.old == [BlockId(4)] && span.new == [BlockId(104)]
+    }));
+    assert_eq!(
+        alignment
+            .spans
+            .iter()
+            .filter(|span| span.evidence.contains(&AlignmentEvidence::MoveCandidate))
+            .count(),
+        4,
+        "{:#?}",
+        alignment.spans
+    );
+
+    let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("secondary anchor between move candidates should compare");
+    assert_eq!(
+        comparison
+            .changes
+            .iter()
+            .filter(|change| change.kind == ChangeKind::Move)
+            .count(),
+        2
+    );
+    assert!(
+        summarize(&comparison, &ExtractionStatus::complete())
+            .expect("secondary-anchor summary should validate")
+            .comparison_complete
+    );
+}
+
+#[test]
+fn recovers_a_secondary_anchor_inside_normalization_issues() {
+    let old_text = [
+        block_text(1, "Old leading uncertainty"),
+        block_text(2, "S"),
+        block_text(3, "Old trailing uncertainty"),
+    ];
+    let new_text = [
+        block_text(101, "New leading uncertainty"),
+        block_text(102, "S"),
+        block_text(103, "New trailing uncertainty"),
+    ];
+    let mut old = build_block_features(&old_text, 3).expect("old features should build");
+    let mut new = build_block_features(&new_text, 3).expect("new features should build");
+    old[0].has_normalization_issues = true;
+    old[2].has_normalization_issues = true;
+    new[0].has_normalization_issues = true;
+    new[2].has_normalization_issues = true;
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("candidate index should build");
+    let alignment =
+        align_ordered(&old, &new, &generator, options()).expect("alignment should succeed");
+
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Match && span.old == [BlockId(2)] && span.new == [BlockId(102)]
+    }));
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Unresolved
+            && span
+                .evidence
+                .contains(&AlignmentEvidence::NormalizationIssue)
+    }));
+}
+
+#[test]
+fn keeps_a_secondary_anchor_absorbed_by_an_exact_merge() {
+    let alignment = align(
+        vec![
+            block_text(1, OPENING),
+            block_text(2, "foo"),
+            block_text(3, "bar"),
+            block_text(4, CLOSING),
+        ],
+        vec![
+            block_text(101, OPENING),
+            block_text(102, "foobar"),
+            block_text(103, "foo"),
+            block_text(104, CLOSING),
+        ],
+    );
+
+    assert!(alignment.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Match
+            && span.old == [BlockId(2), BlockId(3)]
+            && span.new == [BlockId(102)]
+            && span.old_separator == Some(BlockSeparator::Concatenate)
+    }));
+    assert!(
+        alignment
+            .spans
+            .iter()
+            .any(|span| { span.kind == AlignmentKind::Insertion && span.new == [BlockId(103)] })
+    );
+}
+
+#[test]
 fn confines_normalization_issues_to_the_affected_blocks() {
     let old_text = [
         block_text(1, OPENING),

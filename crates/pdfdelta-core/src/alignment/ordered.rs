@@ -346,7 +346,7 @@ fn align_interval_with_partition_fallback(
 ) -> Result<Vec<AlignmentSpan>> {
     let initial = align_interval(old, new, candidates, options, remaining_dp_cells, context)?;
     if fallback.anchors.is_empty() || !is_full_text_similarity_collapse(&initial, old, new) {
-        return Ok(initial);
+        return Ok(preserve_collapsed_moves(initial, old, new, context));
     }
 
     let retry_context = IntervalContext {
@@ -361,7 +361,7 @@ fn align_interval_with_partition_fallback(
     for anchor in fallback.anchors {
         let old_anchor = fallback.old_indices[&anchor.old] - fallback.old_offset;
         let new_anchor = fallback.new_indices[&anchor.new] - fallback.new_offset;
-        spans.extend(align_interval(
+        spans.extend(align_interval_preserving_moves(
             &old[old_start..old_anchor],
             &new[new_start..new_anchor],
             candidates,
@@ -373,7 +373,7 @@ fn align_interval_with_partition_fallback(
         old_start = old_anchor + 1;
         new_start = new_anchor + 1;
     }
-    spans.extend(align_interval(
+    spans.extend(align_interval_preserving_moves(
         &old[old_start..],
         &new[new_start..],
         candidates,
@@ -385,6 +385,33 @@ fn align_interval_with_partition_fallback(
         .used_old
         .extend(fallback.anchors.iter().map(|anchor| anchor.old));
     Ok(spans)
+}
+
+fn align_interval_preserving_moves(
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    candidates: &CandidateMap,
+    options: AlignmentOptions,
+    remaining_dp_cells: &mut usize,
+    context: IntervalContext<'_>,
+) -> Result<Vec<AlignmentSpan>> {
+    let spans = align_interval(old, new, candidates, options, remaining_dp_cells, context)?;
+    Ok(preserve_collapsed_moves(spans, old, new, context))
+}
+
+fn preserve_collapsed_moves(
+    spans: Vec<AlignmentSpan>,
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    context: IntervalContext<'_>,
+) -> Vec<AlignmentSpan> {
+    if is_full_text_similarity_collapse(&spans, old, new)
+        && let Some(preserved) = preserve_move_candidates(old, new, context)
+    {
+        preserved
+    } else {
+        spans
+    }
 }
 
 fn is_full_text_similarity_collapse(
@@ -672,8 +699,8 @@ fn align_interval(
             } else {
                 0.0
             };
-            if old_affected {
-                if !move_pair {
+            if !new_move_only {
+                if old_affected {
                     let transition = if old_move_only {
                         Transition::Deletion {
                             move_candidate: true,
@@ -693,20 +720,20 @@ fn align_interval(
                         -options.gap_penalty - skip_exact_penalty,
                         transition,
                     );
+                } else if old_index < old.len() {
+                    propose(
+                        &mut cells,
+                        from,
+                        (old_index + 1) * width + new_index,
+                        -options.gap_penalty,
+                        Transition::Deletion {
+                            move_candidate: false,
+                        },
+                    );
                 }
-            } else if old_index < old.len() {
-                propose(
-                    &mut cells,
-                    from,
-                    (old_index + 1) * width + new_index,
-                    -options.gap_penalty,
-                    Transition::Deletion {
-                        move_candidate: false,
-                    },
-                );
             }
-            if new_affected {
-                if !move_pair {
+            if !old_move_only {
+                if new_affected {
                     let transition = if new_move_only {
                         Transition::Insertion {
                             move_candidate: true,
@@ -726,17 +753,17 @@ fn align_interval(
                         -options.gap_penalty - skip_exact_penalty,
                         transition,
                     );
+                } else if new_index < new.len() {
+                    propose(
+                        &mut cells,
+                        from,
+                        old_index * width + new_index + 1,
+                        -options.gap_penalty,
+                        Transition::Insertion {
+                            move_candidate: false,
+                        },
+                    );
                 }
-            } else if new_index < new.len() {
-                propose(
-                    &mut cells,
-                    from,
-                    old_index * width + new_index + 1,
-                    -options.gap_penalty,
-                    Transition::Insertion {
-                        move_candidate: false,
-                    },
-                );
             }
             if move_pair {
                 propose(
@@ -746,7 +773,9 @@ fn align_interval(
                     -2.0 * options.gap_penalty,
                     Transition::MoveCandidates,
                 );
-            } else if (old_affected || new_affected)
+            } else if !old_move_only
+                && !new_move_only
+                && (old_affected || new_affected)
                 && old_index < old.len()
                 && new_index < new.len()
             {
@@ -1226,6 +1255,96 @@ fn unresolved_span(
         score: 0.0,
         confidence: AlignmentConfidence::Low,
         evidence: vec![evidence],
+        old_separator: None,
+        new_separator: None,
+    }
+}
+
+fn preserve_move_candidates(
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    context: IntervalContext<'_>,
+) -> Option<Vec<AlignmentSpan>> {
+    if !old
+        .iter()
+        .any(|block| context.move_old.contains(&block.block))
+        && !new
+            .iter()
+            .any(|block| context.move_new.contains(&block.block))
+    {
+        return None;
+    }
+
+    let mut spans = Vec::new();
+    let mut old_start = 0;
+    let mut new_start = 0;
+    while old_start < old.len() || new_start < new.len() {
+        if old
+            .get(old_start)
+            .is_some_and(|block| context.move_old.contains(&block.block))
+        {
+            spans.push(move_deletion_span(old[old_start].block));
+            old_start += 1;
+            continue;
+        }
+        if new
+            .get(new_start)
+            .is_some_and(|block| context.move_new.contains(&block.block))
+        {
+            spans.push(move_insertion_span(new[new_start].block));
+            new_start += 1;
+            continue;
+        }
+
+        let old_end = old[old_start..]
+            .iter()
+            .position(|block| context.move_old.contains(&block.block))
+            .map_or(old.len(), |offset| old_start + offset);
+        let new_end = new[new_start..]
+            .iter()
+            .position(|block| context.move_new.contains(&block.block))
+            .map_or(new.len(), |offset| new_start + offset);
+        let evidence = if old[old_start..old_end]
+            .iter()
+            .chain(&new[new_start..new_end])
+            .any(|block| block.has_normalization_issues)
+        {
+            AlignmentEvidence::NormalizationIssue
+        } else {
+            AlignmentEvidence::TextSimilarity
+        };
+        spans.push(unresolved_span(
+            &old[old_start..old_end],
+            &new[new_start..new_end],
+            evidence,
+        ));
+        old_start = old_end;
+        new_start = new_end;
+    }
+    Some(spans)
+}
+
+fn move_deletion_span(block: BlockId) -> AlignmentSpan {
+    AlignmentSpan {
+        kind: AlignmentKind::Deletion,
+        old: vec![block],
+        new: Vec::new(),
+        score: 0.0,
+        confidence: AlignmentConfidence::Medium,
+        evidence: vec![AlignmentEvidence::MoveCandidate],
+        old_separator: None,
+        new_separator: None,
+    }
+}
+
+fn move_insertion_span(block: BlockId) -> AlignmentSpan {
+    AlignmentSpan {
+        kind: AlignmentKind::Insertion,
+        old: Vec::new(),
+        new: vec![block],
+        score: 0.0,
+        confidence: AlignmentConfidence::Medium,
+        evidence: vec![AlignmentEvidence::MoveCandidate],
         old_separator: None,
         new_separator: None,
     }
