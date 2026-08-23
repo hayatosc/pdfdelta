@@ -22,16 +22,20 @@ pub(super) fn diff<T: Eq>(
     if max_distance == 0 {
         return Ok(Some(Vec::new()));
     }
-    if max_edit_distance > isize::MAX as usize {
+
+    // Only diagonals within the capped distance are ever visited, so the
+    // frontier is sized on the effective bound instead of the full input
+    // length.
+    let distance_bound = max_distance.min(max_edit_distance);
+    // The offset arithmetic below casts the bound to isize; reject a bound
+    // that cannot be represented instead of the configured cap itself, so
+    // callers may pass usize::MAX as an uncapped budget.
+    if distance_bound > isize::MAX as usize {
         return Err(Error::LimitExceeded {
-            resource: "Myers input tokens",
+            resource: "Myers diagonal offset",
             limit: isize::MAX as usize,
         });
     }
-
-    // Only diagonals within the capped distance are ever visited, so the
-    // frontier is sized on the cap instead of the full input length.
-    let distance_bound = max_distance.min(max_edit_distance);
     let frontier_len = distance_bound
         .checked_mul(2)
         .and_then(|length| length.checked_add(3))
@@ -194,6 +198,16 @@ mod tests {
     #[test]
     fn reports_none_when_the_edit_distance_exceeds_the_limit() {
         assert_eq!(diff(b"before", b"after", 2), Ok(None));
+    }
+
+    #[test]
+    fn treats_usize_max_as_uncapped_when_the_inputs_fit() {
+        assert_eq!(
+            diff(b"abc", b"abc", usize::MAX)
+                .expect("identical input should diff")
+                .expect("identical input fits an uncapped budget"),
+            vec![Edit::Equal; 3]
+        );
     }
 
     fn assert_script(old: &[u8], new: &[u8], edits: &[Edit]) {
