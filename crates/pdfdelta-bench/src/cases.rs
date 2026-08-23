@@ -143,6 +143,28 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
             },
             30,
         )?,
+        BenchmarkCase::new(
+            "paragraph-move",
+            document(&[
+                (
+                    "opening",
+                    "Opening context paragraph remains stable and uniquely identifies the beginning",
+                ),
+                (
+                    "middle",
+                    "Middle context paragraph remains stable and uniquely identifies the body",
+                ),
+                (
+                    "moved",
+                    "Moved closing paragraph remains stable and uniquely identifies the ending",
+                ),
+            ])?,
+            Mutation::ParagraphMove {
+                paragraph_id: "moved".to_owned(),
+                to_index: 0,
+            },
+            30,
+        )?,
     ])
 }
 

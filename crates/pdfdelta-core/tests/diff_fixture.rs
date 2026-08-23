@@ -2,7 +2,7 @@ use pdfdelta_core::{
     Error, Result,
     alignment::{
         Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentSpan,
-        BlockSeparator,
+        BlockSeparator, ExactAnchor,
     },
     diff::{ChangeKind, DiffOptions, FormattingReason, TokenRange, compare_aligned},
     layout::BlockId,
@@ -38,6 +38,64 @@ fn exact_diff_never_uses_masked_matching_text() -> Result<()> {
     );
     assert_eq!(result.old_coverage.ratio, Some(1.0));
     assert_eq!(result.new_coverage.ratio, Some(1.0));
+    Ok(())
+}
+
+#[test]
+fn promotes_an_exact_move_candidate() -> Result<()> {
+    let old = block(1, "Moved unique paragraph");
+    let new = block(101, "Moved unique paragraph");
+    let mut deletion = one_sided(AlignmentKind::Deletion, &[1], &[]);
+    deletion.evidence.push(AlignmentEvidence::MoveCandidate);
+    let mut insertion = one_sided(AlignmentKind::Insertion, &[], &[101]);
+    insertion.evidence.push(AlignmentEvidence::MoveCandidate);
+    let alignment = Alignment {
+        spans: vec![deletion, insertion],
+        main_anchors: Vec::new(),
+        move_candidates: vec![ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101),
+        }],
+    };
+
+    let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
+
+    assert_eq!(result.changes.len(), 1);
+    assert_eq!(result.changes[0].kind, ChangeKind::Move);
+    assert!(result.changes[0].old_span.is_some());
+    assert!(result.changes[0].new_span.is_some());
+    assert_eq!(result.old_coverage.ratio, Some(1.0));
+    assert_eq!(result.new_coverage.ratio, Some(1.0));
+    Ok(())
+}
+
+#[test]
+fn keeps_a_non_exact_move_candidate_as_deletion_and_insertion() -> Result<()> {
+    let old = block(1, "Old paragraph");
+    let new = block(101, "New paragraph");
+    let mut deletion = one_sided(AlignmentKind::Deletion, &[1], &[]);
+    deletion.evidence.push(AlignmentEvidence::MoveCandidate);
+    let mut insertion = one_sided(AlignmentKind::Insertion, &[], &[101]);
+    insertion.evidence.push(AlignmentEvidence::MoveCandidate);
+    let alignment = Alignment {
+        spans: vec![deletion, insertion],
+        main_anchors: Vec::new(),
+        move_candidates: vec![ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101),
+        }],
+    };
+
+    let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
+
+    assert_eq!(
+        result
+            .changes
+            .iter()
+            .map(|change| change.kind)
+            .collect::<Vec<_>>(),
+        [ChangeKind::Deletion, ChangeKind::Insertion]
+    );
     Ok(())
 }
 

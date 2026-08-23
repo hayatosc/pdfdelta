@@ -87,6 +87,10 @@ pub enum Mutation {
     ParagraphDelete {
         paragraph_id: String,
     },
+    ParagraphMove {
+        paragraph_id: String,
+        to_index: usize,
+    },
 }
 
 /// A half-open scalar range in paragraphs joined by one canonical space.
@@ -256,6 +260,10 @@ impl Mutation {
             Self::ParagraphDelete { paragraph_id } => {
                 apply_paragraph_delete(document, paragraph_id, line_gap)
             }
+            Self::ParagraphMove {
+                paragraph_id,
+                to_index,
+            } => apply_paragraph_move(document, paragraph_id, *to_index, line_gap),
         }
     }
 }
@@ -500,6 +508,42 @@ fn apply_paragraph_delete(
             ChangeKind::Deletion,
             old_spans,
             Vec::new(),
+        )?),
+    })
+}
+
+fn apply_paragraph_move(
+    document: &CanonicalDocument,
+    paragraph_id: &str,
+    to_index: usize,
+    line_gap: u16,
+) -> Result<MutationPlan> {
+    validate_paragraph_id(paragraph_id)?;
+    let from_index = paragraph_index(document, paragraph_id)?;
+    if to_index >= document.paragraphs().len() {
+        return Err(BenchError::InvalidInput(format!(
+            "paragraph move index {to_index} exceeds the final document index {}",
+            document.paragraphs().len() - 1
+        )));
+    }
+    if from_index == to_index {
+        return Err(BenchError::InvalidInput(format!(
+            "paragraph move for {paragraph_id:?} must change its index"
+        )));
+    }
+
+    let old_spans = paragraph_span_variants(document, from_index)?;
+    let mut paragraphs = document.paragraphs().to_vec();
+    let paragraph = paragraphs.remove(from_index);
+    paragraphs.insert(to_index, paragraph);
+    let new_document = CanonicalDocument::new(paragraphs)?;
+    Ok(MutationPlan {
+        old: one_page_plan(document, line_gap)?,
+        new: one_page_plan(&new_document, line_gap)?,
+        expectation: ExpectedManifest::one(ExpectedSemanticChange::new(
+            ChangeKind::Move,
+            old_spans,
+            paragraph_span_variants(&new_document, to_index)?,
         )?),
     })
 }

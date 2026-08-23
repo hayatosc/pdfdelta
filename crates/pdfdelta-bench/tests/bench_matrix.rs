@@ -165,6 +165,27 @@ fn mutations_reject_invalid_input_without_panicking() {
         .apply(&document, 12),
     );
     assert_invalid(
+        Mutation::ParagraphMove {
+            paragraph_id: "missing".to_owned(),
+            to_index: 0,
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::ParagraphMove {
+            paragraph_id: "target".to_owned(),
+            to_index: document.paragraphs().len(),
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::ParagraphMove {
+            paragraph_id: "target".to_owned(),
+            to_index: 1,
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
         Mutation::TextInsert {
             paragraph_id: "missing".to_owned(),
             at: 0,
@@ -589,9 +610,9 @@ fn bench_errors_preserve_core_error_taxonomy() {
 }
 
 #[test]
-fn built_in_matrix_passes_all_sixteen_cells() {
+fn built_in_matrix_passes_all_eighteen_cells() {
     let cases = built_in_cases().expect("built-in cases are valid");
-    assert_eq!(cases.len(), 8);
+    assert_eq!(cases.len(), 9);
 
     let mut count = 0;
     for case in &cases {
@@ -606,11 +627,11 @@ fn built_in_matrix_passes_all_sixteen_cells() {
         }
     }
 
-    assert_eq!(count, 16);
+    assert_eq!(count, 18);
 }
 
 #[test]
-fn verify_command_prints_a_passing_sixteen_cell_matrix() {
+fn verify_command_prints_a_passing_eighteen_cell_matrix() {
     let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
         .arg("verify")
         .output()
@@ -624,9 +645,9 @@ fn verify_command_prints_a_passing_sixteen_cell_matrix() {
             .lines()
             .filter(|line| line.starts_with("PASS "))
             .count(),
-        16
+        18
     );
-    assert_eq!(stdout.lines().last(), Some("16/16 passed"));
+    assert_eq!(stdout.lines().last(), Some("18/18 passed"));
 }
 
 #[test]

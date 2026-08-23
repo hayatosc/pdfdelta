@@ -555,7 +555,7 @@ fn confines_an_off_lis_anchor_to_move_candidate_spans() {
             .iter()
             .map(|change| change.kind)
             .collect::<Vec<_>>(),
-        [ChangeKind::Deletion, ChangeKind::Insertion]
+        [ChangeKind::Move]
     );
     assert!(comparison.unresolved_regions.is_empty());
     assert!(
@@ -563,6 +563,54 @@ fn confines_an_off_lis_anchor_to_move_candidate_spans() {
             .expect("move fallback summary should validate")
             .comparison_complete
     );
+}
+
+#[test]
+fn promotes_crossed_move_candidates_from_the_same_intervals() {
+    let first_move = "First moved unique paragraph remains exact";
+    let second_move = "Second moved unique paragraph remains exact";
+    let middle = "Middle stable anchor paragraph remains exact";
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, first_move),
+        block_text(3, middle),
+        block_text(4, CLOSING),
+        block_text(5, second_move),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(105, second_move),
+        block_text(103, middle),
+        block_text(104, CLOSING),
+        block_text(102, first_move),
+    ];
+    let alignment = align(old.clone(), new.clone());
+
+    assert_eq!(alignment.move_candidates.len(), 2);
+    assert_eq!(
+        alignment
+            .spans
+            .iter()
+            .filter(|span| span.evidence.contains(&AlignmentEvidence::MoveCandidate))
+            .count(),
+        4,
+        "{:#?}",
+        alignment.spans
+    );
+
+    let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("crossed move candidates should compare");
+    assert_eq!(
+        comparison
+            .changes
+            .iter()
+            .map(|change| change.kind)
+            .collect::<Vec<_>>(),
+        [ChangeKind::Move, ChangeKind::Move]
+    );
+    assert!(comparison.unresolved_regions.is_empty());
+    assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
 }
 
 #[test]

@@ -636,6 +636,9 @@ fn align_interval(
             }
             let (old_affected, new_affected, evidence) =
                 affected_at(old.get(old_index), new.get(new_index), context);
+            let old_move_only = is_move_candidate_only(old.get(old_index), context.move_old);
+            let new_move_only = is_move_candidate_only(new.get(new_index), context.move_new);
+            let move_pair = old_move_only && new_move_only;
             let exact_normalization = old
                 .get(old_index)
                 .zip(new.get(new_index))
@@ -670,25 +673,27 @@ fn align_interval(
                 0.0
             };
             if old_affected {
-                let transition = if is_move_candidate_only(old.get(old_index), context.move_old) {
-                    Transition::Deletion {
-                        move_candidate: true,
-                    }
-                } else {
-                    let (_, _, evidence) = affected_at(old.get(old_index), None, context);
-                    Transition::Unresolved {
-                        old_count: 1,
-                        new_count: 0,
-                        evidence,
-                    }
-                };
-                propose(
-                    &mut cells,
-                    from,
-                    (old_index + 1) * width + new_index,
-                    -options.gap_penalty - skip_exact_penalty,
-                    transition,
-                );
+                if !move_pair {
+                    let transition = if old_move_only {
+                        Transition::Deletion {
+                            move_candidate: true,
+                        }
+                    } else {
+                        let (_, _, evidence) = affected_at(old.get(old_index), None, context);
+                        Transition::Unresolved {
+                            old_count: 1,
+                            new_count: 0,
+                            evidence,
+                        }
+                    };
+                    propose(
+                        &mut cells,
+                        from,
+                        (old_index + 1) * width + new_index,
+                        -options.gap_penalty - skip_exact_penalty,
+                        transition,
+                    );
+                }
             } else if old_index < old.len() {
                 propose(
                     &mut cells,
@@ -701,25 +706,27 @@ fn align_interval(
                 );
             }
             if new_affected {
-                let transition = if is_move_candidate_only(new.get(new_index), context.move_new) {
-                    Transition::Insertion {
-                        move_candidate: true,
-                    }
-                } else {
-                    let (_, _, evidence) = affected_at(None, new.get(new_index), context);
-                    Transition::Unresolved {
-                        old_count: 0,
-                        new_count: 1,
-                        evidence,
-                    }
-                };
-                propose(
-                    &mut cells,
-                    from,
-                    old_index * width + new_index + 1,
-                    -options.gap_penalty - skip_exact_penalty,
-                    transition,
-                );
+                if !move_pair {
+                    let transition = if new_move_only {
+                        Transition::Insertion {
+                            move_candidate: true,
+                        }
+                    } else {
+                        let (_, _, evidence) = affected_at(None, new.get(new_index), context);
+                        Transition::Unresolved {
+                            old_count: 0,
+                            new_count: 1,
+                            evidence,
+                        }
+                    };
+                    propose(
+                        &mut cells,
+                        from,
+                        old_index * width + new_index + 1,
+                        -options.gap_penalty - skip_exact_penalty,
+                        transition,
+                    );
+                }
             } else if new_index < new.len() {
                 propose(
                     &mut cells,
@@ -731,7 +738,18 @@ fn align_interval(
                     },
                 );
             }
-            if (old_affected || new_affected) && old_index < old.len() && new_index < new.len() {
+            if move_pair {
+                propose(
+                    &mut cells,
+                    from,
+                    (old_index + 1) * width + new_index + 1,
+                    -2.0 * options.gap_penalty,
+                    Transition::MoveCandidates,
+                );
+            } else if (old_affected || new_affected)
+                && old_index < old.len()
+                && new_index < new.len()
+            {
                 propose(
                     &mut cells,
                     from,
@@ -847,6 +865,7 @@ enum Transition {
     Insertion {
         move_candidate: bool,
     },
+    MoveCandidates,
 }
 
 #[derive(Clone)]
@@ -1023,6 +1042,30 @@ fn backtrack(
                     } else {
                         Vec::new()
                     },
+                    old_separator: None,
+                    new_separator: None,
+                });
+            }
+            Transition::MoveCandidates => {
+                old_index -= 1;
+                new_index -= 1;
+                reversed.push(AlignmentSpan {
+                    kind: AlignmentKind::Insertion,
+                    old: Vec::new(),
+                    new: vec![new[new_index].block],
+                    score: 0.0,
+                    confidence: AlignmentConfidence::Medium,
+                    evidence: vec![AlignmentEvidence::MoveCandidate],
+                    old_separator: None,
+                    new_separator: None,
+                });
+                reversed.push(AlignmentSpan {
+                    kind: AlignmentKind::Deletion,
+                    old: vec![old[old_index].block],
+                    new: Vec::new(),
+                    score: 0.0,
+                    confidence: AlignmentConfidence::Medium,
+                    evidence: vec![AlignmentEvidence::MoveCandidate],
                     old_separator: None,
                     new_separator: None,
                 });

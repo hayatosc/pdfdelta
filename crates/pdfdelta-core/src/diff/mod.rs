@@ -153,6 +153,7 @@ pub fn compare_aligned(
     let old = old.materialize()?;
     let new = new.materialize()?;
     validate_alignment(&old, &new, alignment)?;
+    let (moves_by_old, moves_by_new) = promotable_moves(&old, &new, alignment);
 
     let mut changes = Vec::new();
     let mut formatting_changes = Vec::new();
@@ -180,6 +181,21 @@ pub fn compare_aligned(
                 }
             }
             AlignmentKind::Deletion => {
+                if let Some(promoted) = moves_by_old.get(&span.old[0]) {
+                    let old_tokens = old.source_token_count(&span.old);
+                    let new_blocks = [promoted.new];
+                    let new_tokens = new.source_token_count(&new_blocks);
+                    resolved_old += old_tokens;
+                    resolved_new += new_tokens;
+                    changes.push(Change {
+                        kind: ChangeKind::Move,
+                        old_span: Some(old.canonical_group(&span.old, None).full_span()),
+                        new_span: Some(new.canonical_group(&new_blocks, None).full_span()),
+                        confidence: promoted.confidence,
+                        tags: Vec::new(),
+                    });
+                    continue;
+                }
                 let source_tokens = old.source_token_count(&span.old);
                 resolved_old += source_tokens;
                 if source_tokens > 0 {
@@ -194,6 +210,9 @@ pub fn compare_aligned(
                 }
             }
             AlignmentKind::Insertion => {
+                if moves_by_new.contains_key(&span.new[0]) {
+                    continue;
+                }
                 let source_tokens = new.source_token_count(&span.new);
                 resolved_new += source_tokens;
                 if source_tokens > 0 {
@@ -222,6 +241,80 @@ pub fn compare_aligned(
         old_coverage: coverage(resolved_old, old.total_tokens),
         new_coverage: coverage(resolved_new, new.total_tokens),
     })
+}
+
+#[derive(Clone, Copy)]
+struct PromotedMove {
+    new: BlockId,
+    confidence: Confidence,
+}
+
+fn promotable_moves(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    alignment: &Alignment,
+) -> (HashMap<BlockId, PromotedMove>, HashMap<BlockId, BlockId>) {
+    let deletions = alignment
+        .spans
+        .iter()
+        .filter(|span| {
+            span.kind == AlignmentKind::Deletion
+                && span.evidence.contains(&AlignmentEvidence::MoveCandidate)
+        })
+        .map(|span| (span.old[0], span))
+        .collect::<HashMap<_, _>>();
+    let insertions = alignment
+        .spans
+        .iter()
+        .filter(|span| {
+            span.kind == AlignmentKind::Insertion
+                && span.evidence.contains(&AlignmentEvidence::MoveCandidate)
+        })
+        .map(|span| (span.new[0], span))
+        .collect::<HashMap<_, _>>();
+    let mut by_old = HashMap::new();
+    let mut by_new = HashMap::new();
+
+    for anchor in &alignment.move_candidates {
+        let (Some(deletion), Some(insertion)) =
+            (deletions.get(&anchor.old), insertions.get(&anchor.new))
+        else {
+            continue;
+        };
+        let (Some(old_index), Some(new_index)) =
+            (old.index.get(&anchor.old), new.index.get(&anchor.new))
+        else {
+            continue;
+        };
+        let old_tokens = &old.canonical[*old_index];
+        if old_tokens.is_empty()
+            || old_tokens != &new.canonical[*new_index]
+            || by_old.contains_key(&anchor.old)
+            || by_new.contains_key(&anchor.new)
+        {
+            continue;
+        }
+        let confidence = weaker_confidence(deletion.confidence, insertion.confidence).into();
+        by_old.insert(
+            anchor.old,
+            PromotedMove {
+                new: anchor.new,
+                confidence,
+            },
+        );
+        by_new.insert(anchor.new, anchor.old);
+    }
+    (by_old, by_new)
+}
+
+fn weaker_confidence(left: AlignmentConfidence, right: AlignmentConfidence) -> AlignmentConfidence {
+    match (left, right) {
+        (AlignmentConfidence::Low, _) | (_, AlignmentConfidence::Low) => AlignmentConfidence::Low,
+        (AlignmentConfidence::Medium, _) | (_, AlignmentConfidence::Medium) => {
+            AlignmentConfidence::Medium
+        }
+        (AlignmentConfidence::High, AlignmentConfidence::High) => AlignmentConfidence::High,
+    }
 }
 
 fn inspect_sides_with_budget<'a>(
