@@ -2710,8 +2710,10 @@ mod tests {
         assert_eq!(streams.len(), EXPANDED_STREAMS);
         assert!(
             streams
-                .chunks_exact(2)
-                .all(|pair| pair == [first_stream, second_stream])
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .all(|pair| *pair == [first_stream, second_stream])
         );
         let cached_items = extraction
             .content_stream_cache

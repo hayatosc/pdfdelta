@@ -558,7 +558,7 @@ fn query_chain_tip(tree: &[Option<ChainTip>], mut end: usize) -> Option<ChainTip
 fn update_chain_tip(tree: &mut [Option<ChainTip>], mut index: usize, tip: ChainTip) {
     while index < tree.len() {
         tree[index] = preferred_chain_tip(tree[index], Some(tip));
-        index += index & index.wrapping_neg();
+        index += index.isolate_lowest_one();
     }
 }
 

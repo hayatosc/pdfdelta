@@ -1098,7 +1098,7 @@ fn adobe_glyph_component(name: &[u8]) -> Option<String> {
         && hex.len().is_multiple_of(4)
     {
         let mut text = String::new();
-        for digits in hex.chunks_exact(4) {
+        for digits in hex.as_chunks::<4>().0 {
             text.push(parse_unicode_scalar(digits)?);
         }
         return Some(text);

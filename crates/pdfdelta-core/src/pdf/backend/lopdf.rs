@@ -476,7 +476,7 @@ fn validate_object_stream_index(
     }
 
     let mut embedded = HashSet::with_capacity(count);
-    for pair in tokens.chunks_exact(2) {
+    for pair in tokens.as_chunks::<2>().0 {
         let object_number = parse_object_stream_u32(pair[0], "object number")?;
         let offset = parse_object_stream_u32(pair[1], "offset")? as usize;
         let object_offset = first.checked_add(offset).ok_or_else(|| {

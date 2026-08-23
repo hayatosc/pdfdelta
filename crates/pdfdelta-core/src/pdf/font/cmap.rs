@@ -923,8 +923,10 @@ fn decode_utf16(
         return unresolved("UTF-16BE destination must contain complete, non-empty code units");
     }
     let units = bytes
-        .chunks_exact(2)
-        .map(|pair| u16::from_be_bytes([pair[0], pair[1]]));
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u16::from_be_bytes(*pair));
     let mut scalar_count = 0usize;
     let mut text = String::new();
     let mut valid = true;
