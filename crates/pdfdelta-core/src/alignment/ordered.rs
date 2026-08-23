@@ -851,7 +851,7 @@ fn align_interval(
                     &new[new_index..new_index + 3],
                     sources,
                     options,
-                    true,
+                    !context.bounded_by_anchors,
                 );
             }
             if context.allow_split_merge
@@ -875,7 +875,7 @@ fn align_interval(
                     &new[new_index..new_index + 1],
                     sources,
                     options,
-                    true,
+                    !context.bounded_by_anchors,
                 );
             }
         }

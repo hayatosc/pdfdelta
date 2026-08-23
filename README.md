@@ -26,7 +26,7 @@ The current implementation provides:
 - reversible raw/canonical normalization with scalar-indexed source maps, retained unmapped tokens, and auditable normalization events;
 - alignment-only compatibility folding and density-limited numeric masking that never changes exact canonical text;
 - unique exact anchors plus swappable n-gram inverted-index and exhaustive candidate generators;
-- deterministic anchor-interval alignment for 1:1, insert/delete, constrained adjacent 1:2 or 2:1 matches, exact adjacent 1:3 or 3:1 matches, and exact paragraph moves, with ambiguous regions preserved as unresolved;
+- deterministic anchor-interval alignment for 1:1, insert/delete, constrained adjacent 1:2, 2:1, 1:3, or 3:1 matches, and exact paragraph moves, with ambiguous regions preserved as unresolved;
 - an in-house Myers diff over exact canonical and unmapped tokens, with contiguous change spans, formatting-only reports, side-specific coverage, and allocation-aware limits;
 - text summaries and versioned JSON reports with explicit extraction completeness, unresolved regions, coverage, and CI-oriented exit decisions;
 - a public bounded pipeline from extracted glyphs through exact comparison;

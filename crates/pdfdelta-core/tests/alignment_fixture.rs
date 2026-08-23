@@ -164,6 +164,41 @@ fn aligns_an_exact_english_block_split_as_one_to_three() {
 }
 
 #[test]
+fn aligns_a_masked_replacement_split_as_one_to_three_between_anchors() {
+    let old = vec![
+        block_text(1, OPENING),
+        block_text_with_matching(
+            2,
+            "Release 10 final notes",
+            "Release <NUM> final notes",
+            true,
+        ),
+        block_text(3, CLOSING),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(102, "Release"),
+        block_text_with_matching(103, "20 final", "<NUM> final", true),
+        block_text(104, "notes"),
+        block_text(105, CLOSING),
+    ];
+    let alignment = align(old.clone(), new.clone());
+
+    let split = &alignment.spans[1];
+    assert_eq!(split.kind, AlignmentKind::Match);
+    assert_eq!(split.old, [BlockId(2)]);
+    assert_eq!(split.new, [BlockId(102), BlockId(103), BlockId(104)]);
+    assert!(split.evidence.contains(&AlignmentEvidence::NumericMask));
+    assert!(split.evidence.contains(&AlignmentEvidence::AnchorInterval));
+
+    let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("masked three-block replacement should compare exactly");
+    assert_eq!(comparison.changes.len(), 1);
+    assert_eq!(comparison.changes[0].kind, ChangeKind::Replacement);
+    assert!(comparison.unresolved_regions.is_empty());
+}
+
+#[test]
 fn aligns_an_exact_english_block_merge_as_three_to_one() {
     let alignment = align(
         vec![
@@ -186,6 +221,41 @@ fn aligns_an_exact_english_block_merge_as_three_to_one() {
     assert_eq!(merge.new, [BlockId(102)]);
     assert_eq!(merge.old_separator, Some(BlockSeparator::Space));
     assert!(merge.evidence.contains(&AlignmentEvidence::SplitMerge));
+}
+
+#[test]
+fn aligns_a_masked_replacement_merge_as_three_to_one_between_anchors() {
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, "Release"),
+        block_text_with_matching(3, "10 final", "<NUM> final", true),
+        block_text(4, "notes"),
+        block_text(5, CLOSING),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text_with_matching(
+            102,
+            "Release 20 final notes",
+            "Release <NUM> final notes",
+            true,
+        ),
+        block_text(103, CLOSING),
+    ];
+    let alignment = align(old.clone(), new.clone());
+
+    let merge = &alignment.spans[1];
+    assert_eq!(merge.kind, AlignmentKind::Match);
+    assert_eq!(merge.old, [BlockId(2), BlockId(3), BlockId(4)]);
+    assert_eq!(merge.new, [BlockId(102)]);
+    assert!(merge.evidence.contains(&AlignmentEvidence::NumericMask));
+    assert!(merge.evidence.contains(&AlignmentEvidence::AnchorInterval));
+
+    let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("masked three-block merge should compare exactly");
+    assert_eq!(comparison.changes.len(), 1);
+    assert_eq!(comparison.changes[0].kind, ChangeKind::Replacement);
+    assert!(comparison.unresolved_regions.is_empty());
 }
 
 #[test]
