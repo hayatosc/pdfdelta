@@ -163,9 +163,10 @@ pub fn compare_aligned(
     for span in &alignment.spans {
         match span.kind {
             AlignmentKind::Match => {
-                resolved_old += old.source_token_count(&span.old);
-                resolved_new += new.source_token_count(&span.new);
-                compare_match(
+                // A matched span only counts toward resolved coverage when
+                // compare_match actually resolved it; a span degraded to an
+                // unresolved region must not inflate the metric (SPEC §5).
+                if compare_match(
                     &old,
                     &new,
                     span,
@@ -173,7 +174,10 @@ pub fn compare_aligned(
                     &mut changes,
                     &mut formatting_changes,
                     &mut unresolved_regions,
-                )?;
+                )? {
+                    resolved_old += old.source_token_count(&span.old);
+                    resolved_new += new.source_token_count(&span.new);
+                }
             }
             AlignmentKind::Deletion => {
                 let source_tokens = old.source_token_count(&span.old);
@@ -252,7 +256,7 @@ fn compare_match(
     changes: &mut Vec<Change>,
     formatting_changes: &mut Vec<FormattingChange>,
     unresolved_regions: &mut Vec<UnresolvedRegion>,
-) -> Result<()> {
+) -> Result<bool> {
     let old = old_side.canonical_group(&span.old, span.old_separator);
     let new = new_side.canonical_group(&span.new, span.new_separator);
     if old.tokens == new.tokens {
@@ -273,24 +277,28 @@ fn compare_match(
                 reasons,
             });
         }
-        return Ok(());
+        return Ok(true);
     }
 
     match myers::diff(&old.tokens, &new.tokens, max_edit_distance)? {
-        Some(edits) => append_changes(&old, &new, &edits, span.confidence.into(), changes),
+        Some(edits) => {
+            append_changes(&old, &new, &edits, span.confidence.into(), changes);
+            Ok(true)
+        }
         None => {
             // The aligned tokens differ by more than the configured edit
             // distance budget. Keep the comparison alive and report the
             // matched group as an unresolved region instead of failing the
-            // whole document.
+            // whole document. The caller does not count these tokens as
+            // resolved coverage.
             unresolved_regions.push(UnresolvedRegion {
                 old_span: Some(old.full_span()),
                 new_span: Some(new.full_span()),
                 evidence: span.evidence.clone(),
             });
+            Ok(false)
         }
     }
-    Ok(())
 }
 
 fn append_changes(
