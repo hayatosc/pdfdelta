@@ -324,6 +324,14 @@ fn double_line_wrap_exercises_one_to_three_block_alignment() {
 }
 
 #[test]
+fn line_wrap_exercises_one_to_two_block_alignment() {
+    let case = case_named("line-wrap-only");
+
+    assert_eq!(normalized_canonical_blocks(case.plan().old()).len(), 3);
+    assert_eq!(normalized_canonical_blocks(case.plan().new_plan()).len(), 4);
+}
+
+#[test]
 fn classic_xref_renderer_uses_positioned_words_without_space_glyphs() {
     let plan =
         RenderPlan::new(vec![vec!["Alpha beta gamma".to_owned()]], 12).expect("valid render plan");

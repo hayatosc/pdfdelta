@@ -47,7 +47,7 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
                 paragraph_id: "target".to_owned(),
                 after_word: 4,
             },
-            12,
+            30,
         )?,
         BenchmarkCase::new(
             "double-line-wrap-only",
