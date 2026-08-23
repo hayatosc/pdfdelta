@@ -5,7 +5,10 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use lopdf::{Document, Object, Stream, dictionary};
+use lopdf::{
+    Document, Object, Stream, dictionary,
+    encryption::{EncryptionState, EncryptionVersion, Permissions},
+};
 use serde_json::Value;
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
@@ -117,6 +120,150 @@ fn line_wrap_only_exits_zero() {
 
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert_complete_json_report(&report, 0, None);
+}
+
+#[test]
+fn encrypted_comparison_accepts_password_files_without_leaking_secrets() {
+    const SECRET: &str = "correct horse battery";
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    // Context paragraphs give the aligner exact anchors; without them a lone
+    // numeric-masked match cannot be confirmed and stays unresolved by design.
+    write_encrypted_pdf(
+        &old,
+        &[
+            "Opening paragraph establishes context",
+            "Release 10 remains available",
+            "Closing paragraph confirms context",
+        ],
+        SECRET,
+    );
+    write_encrypted_pdf(
+        &new,
+        &[
+            "Opening paragraph establishes context",
+            "Release 20 remains available",
+            "Closing paragraph confirms context",
+        ],
+        SECRET,
+    );
+
+    // Both password files carry one trailing newline; the reader must strip
+    // exactly that newline before handing the password to the backend.
+    let old_secret = directory.join("old.secret");
+    let new_secret = directory.join("new.secret");
+    fs::write(&old_secret, format!("{SECRET}\n")).expect("old password file should be written");
+    fs::write(&new_secret, format!("{SECRET}\n")).expect("new password file should be written");
+    let report = directory.join("encrypted.json");
+    let trace = directory.join("encrypted-trace.json");
+
+    let output = compare(
+        &old,
+        &new,
+        &[
+            "--old-password-file",
+            path_text(&old_secret),
+            "--new-password-file",
+            path_text(&new_secret),
+            "--json",
+            path_text(&report),
+            "--trace-json",
+            path_text(&trace),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    assert!(!stdout(&output).contains(SECRET));
+    assert!(!stderr(&output).contains(SECRET));
+    assert_complete_json_report(&report, 1, Some("replacement"));
+    let trace_json = fs::read_to_string(&trace).expect("trace report should be readable");
+    assert!(
+        !trace_json.contains(SECRET),
+        "the trace leaked the password"
+    );
+}
+
+#[test]
+fn encrypted_comparison_reports_a_wrong_password_as_unsupported_without_leaking_it() {
+    const SECRET: &str = "side-specific secret";
+    const WRONG: &str = "a different password";
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_encrypted_pdf(
+        &old,
+        &[
+            "Opening paragraph establishes context",
+            "Release 10 remains available",
+        ],
+        SECRET,
+    );
+    write_encrypted_pdf(
+        &new,
+        &[
+            "Opening paragraph establishes context",
+            "Release 20 remains available",
+        ],
+        SECRET,
+    );
+    let old_secret = directory.join("old.secret");
+    let new_secret = directory.join("new.secret");
+    fs::write(&old_secret, format!("{SECRET}\n")).expect("old password file should be written");
+    fs::write(&new_secret, format!("{WRONG}\n")).expect("new password file should be written");
+
+    let arguments = [
+        "--old-password-file",
+        path_text(&old_secret),
+        "--new-password-file",
+        path_text(&new_secret),
+    ];
+
+    // Default mode reports the unsupported side and keeps exit code 0.
+    let default_output = compare(&old, &new, &arguments);
+    assert_eq!(
+        default_output.status.code(),
+        Some(0),
+        "{}",
+        stderr(&default_output)
+    );
+    let message = stderr(&default_output);
+    assert!(message.contains("password"), "{message}");
+    assert!(!message.contains(SECRET), "{message}");
+    assert!(!message.contains(WRONG), "{message}");
+
+    // Strict mode refuses the incomplete comparison with exit code 3.
+    let mut strict_arguments = arguments.to_vec();
+    strict_arguments.push("--strict");
+    let strict_output = compare(&old, &new, &strict_arguments);
+    assert_eq!(strict_output.status.code(), Some(3));
+}
+
+#[test]
+fn rejects_oversized_password_files() {
+    const SECRET: &str = "small secret";
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_encrypted_pdf(&old, &["Release 10 remains available"], SECRET);
+    write_encrypted_pdf(&new, &["Release 10 remains available"], SECRET);
+    let oversized = directory.join("oversized.secret");
+    fs::write(&oversized, "x".repeat(4_097)).expect("oversized file should be written");
+
+    let output = compare(
+        &old,
+        &new,
+        &[
+            "--old-password-file",
+            path_text(&oversized),
+            "--new-password-file",
+            path_text(&oversized),
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    let message = stderr(&output);
+    assert!(message.contains("password file"), "{message}");
 }
 
 #[test]
@@ -596,6 +743,42 @@ fn write_pdf_pages_with_font(
     font_subtype: &str,
     text_encoding: TextEncoding,
 ) {
+    let mut document =
+        build_pdf_pages_with_font(pages_content, line_gap, font_subtype, text_encoding);
+    document.save(path).expect("fixture PDF should serialize");
+}
+
+fn write_encrypted_pdf(path: &Path, lines: &[&str], user_password: &str) {
+    let mut document = build_pdf_pages_with_font(&[lines], 30, "Type1", TextEncoding::Literal);
+    // Standard-security encryption derives keys from the trailer /ID, and a
+    // non-empty owner password keeps the loader from accepting the empty
+    // user password on this fixture.
+    document.trailer.set(
+        "ID",
+        Object::Array(vec![
+            Object::string_literal(vec![1_u8; 16]),
+            Object::string_literal(vec![2_u8; 16]),
+        ]),
+    );
+    let version = EncryptionVersion::V1 {
+        document: &document,
+        owner_password: "fixture-owner-password",
+        user_password,
+        permissions: Permissions::all(),
+    };
+    let state = EncryptionState::try_from(version).expect("encryption state should build");
+    document
+        .encrypt(&state)
+        .expect("fixture PDF should encrypt");
+    document.save(path).expect("fixture PDF should serialize");
+}
+
+fn build_pdf_pages_with_font(
+    pages_content: &[&[&str]],
+    line_gap: i64,
+    font_subtype: &str,
+    text_encoding: TextEncoding,
+) -> Document {
     let mut document = Document::with_version("1.7");
     let pages = document.new_object_id();
     let widths = vec![Object::Integer(500); 256];
@@ -656,7 +839,7 @@ fn write_pdf_pages_with_font(
         "Pages" => pages,
     });
     document.trailer.set("Root", catalog);
-    document.save(path).expect("fixture PDF should serialize");
+    document
 }
 
 fn positioned_words(text: &str) -> String {
