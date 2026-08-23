@@ -98,6 +98,27 @@ fn mutations_reject_invalid_input_without_panicking() {
         .apply(&document, 12),
     );
     assert_invalid(
+        Mutation::LineWrapTwice {
+            paragraph_id: "target".to_owned(),
+            after_words: [2, 2],
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::LineWrapTwice {
+            paragraph_id: "target".to_owned(),
+            after_words: [0, 2],
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::LineWrapTwice {
+            paragraph_id: "target".to_owned(),
+            after_words: [2, 99],
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
         Mutation::LineWrap {
             paragraph_id: "target".to_owned(),
             after_word: 0,
@@ -292,6 +313,14 @@ fn both_renderers_produce_parseable_extractable_multipage_pdfs() {
                 .any(|glyph| glyph.page == PageId(1))
         );
     }
+}
+
+#[test]
+fn double_line_wrap_exercises_one_to_three_block_alignment() {
+    let case = case_named("double-line-wrap-only");
+
+    assert_eq!(normalized_canonical_blocks(case.plan().old()).len(), 3);
+    assert_eq!(normalized_canonical_blocks(case.plan().new_plan()).len(), 5);
 }
 
 #[test]
@@ -610,9 +639,9 @@ fn bench_errors_preserve_core_error_taxonomy() {
 }
 
 #[test]
-fn built_in_matrix_passes_all_eighteen_cells() {
+fn built_in_matrix_passes_all_twenty_cells() {
     let cases = built_in_cases().expect("built-in cases are valid");
-    assert_eq!(cases.len(), 9);
+    assert_eq!(cases.len(), 10);
 
     let mut count = 0;
     for case in &cases {
@@ -627,11 +656,11 @@ fn built_in_matrix_passes_all_eighteen_cells() {
         }
     }
 
-    assert_eq!(count, 18);
+    assert_eq!(count, 20);
 }
 
 #[test]
-fn verify_command_prints_a_passing_eighteen_cell_matrix() {
+fn verify_command_prints_a_passing_twenty_cell_matrix() {
     let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
         .arg("verify")
         .output()
@@ -645,9 +674,9 @@ fn verify_command_prints_a_passing_eighteen_cell_matrix() {
             .lines()
             .filter(|line| line.starts_with("PASS "))
             .count(),
-        18
+        20
     );
-    assert_eq!(stdout.lines().last(), Some("18/18 passed"));
+    assert_eq!(stdout.lines().last(), Some("20/20 passed"));
 }
 
 #[test]

@@ -50,6 +50,22 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
             12,
         )?,
         BenchmarkCase::new(
+            "double-line-wrap-only",
+            document(&[
+                ("opening", "Opening context remains stable"),
+                (
+                    "target",
+                    "A detailed release note remains completely stable across layouts",
+                ),
+                ("closing", "Closing context remains stable"),
+            ])?,
+            Mutation::LineWrapTwice {
+                paragraph_id: "target".to_owned(),
+                after_words: [3, 6],
+            },
+            30,
+        )?,
+        BenchmarkCase::new(
             "page-break-only",
             document(&[
                 ("first", "First line keeps a steady cadence"),

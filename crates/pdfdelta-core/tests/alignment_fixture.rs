@@ -134,6 +134,61 @@ fn aligns_an_english_block_split_as_one_to_two() {
 }
 
 #[test]
+fn aligns_an_exact_english_block_split_as_one_to_three() {
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, "project release log"),
+        block_text(3, CLOSING),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(102, "project"),
+        block_text(103, "release"),
+        block_text(104, "log"),
+        block_text(105, CLOSING),
+    ];
+    let alignment = align(old.clone(), new.clone());
+
+    let split = &alignment.spans[1];
+    assert_eq!(split.kind, AlignmentKind::Match);
+    assert_eq!(split.old, [BlockId(2)]);
+    assert_eq!(split.new, [BlockId(102), BlockId(103), BlockId(104)]);
+    assert_eq!(split.new_separator, Some(BlockSeparator::Space));
+    assert!(split.evidence.contains(&AlignmentEvidence::SplitMerge));
+
+    let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("three-block reflow should compare");
+    assert!(comparison.changes.is_empty());
+    assert_eq!(comparison.formatting_changes.len(), 1);
+    assert!(comparison.unresolved_regions.is_empty());
+}
+
+#[test]
+fn aligns_an_exact_english_block_merge_as_three_to_one() {
+    let alignment = align(
+        vec![
+            block_text(1, OPENING),
+            block_text(2, "project"),
+            block_text(3, "release"),
+            block_text(4, "log"),
+            block_text(5, CLOSING),
+        ],
+        vec![
+            block_text(101, OPENING),
+            block_text(102, "project release log"),
+            block_text(103, CLOSING),
+        ],
+    );
+
+    let merge = &alignment.spans[1];
+    assert_eq!(merge.kind, AlignmentKind::Match);
+    assert_eq!(merge.old, [BlockId(2), BlockId(3), BlockId(4)]);
+    assert_eq!(merge.new, [BlockId(102)]);
+    assert_eq!(merge.old_separator, Some(BlockSeparator::Space));
+    assert!(merge.evidence.contains(&AlignmentEvidence::SplitMerge));
+}
+
+#[test]
 fn aligns_an_exact_block_split_after_the_final_anchor() {
     let old = vec![block_text(1, OPENING), block_text(2, "project log")];
     let new = vec![

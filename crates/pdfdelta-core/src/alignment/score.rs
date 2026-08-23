@@ -134,33 +134,8 @@ fn group_variants(features: &[BlockFeatures]) -> Vec<GroupVariant> {
         }];
     }
 
-    let second = &features[1];
-    let mut variants = vec![GroupVariant {
-        canonical: concatenate(
-            &first.canonical_tokens,
-            &second.canonical_tokens,
-            BlockSeparator::Concatenate,
-        ),
-        matching: concatenate(
-            &first.matching_tokens,
-            &second.matching_tokens,
-            BlockSeparator::Concatenate,
-        ),
-        separator: Some(BlockSeparator::Concatenate),
-    }];
-    let with_space = GroupVariant {
-        canonical: concatenate(
-            &first.canonical_tokens,
-            &second.canonical_tokens,
-            BlockSeparator::Space,
-        ),
-        matching: concatenate(
-            &first.matching_tokens,
-            &second.matching_tokens,
-            BlockSeparator::Space,
-        ),
-        separator: Some(BlockSeparator::Space),
-    };
+    let mut variants = vec![group_variant(features, BlockSeparator::Concatenate)];
+    let with_space = group_variant(features, BlockSeparator::Space);
     if variants[0].canonical != with_space.canonical || variants[0].matching != with_space.matching
     {
         variants.push(with_space);
@@ -168,15 +143,19 @@ fn group_variants(features: &[BlockFeatures]) -> Vec<GroupVariant> {
     variants
 }
 
-fn concatenate(
-    first: &[ComparableToken],
-    second: &[ComparableToken],
-    separator: BlockSeparator,
-) -> Vec<ComparableToken> {
-    let mut combined = Vec::with_capacity(first.len() + second.len() + 1);
-    combined.extend_from_slice(first);
-    separator.append(&mut combined, second);
-    combined
+fn group_variant(features: &[BlockFeatures], separator: BlockSeparator) -> GroupVariant {
+    let first = &features[0];
+    let mut canonical = first.canonical_tokens.clone();
+    let mut matching = first.matching_tokens.clone();
+    for next in &features[1..] {
+        separator.append(&mut canonical, &next.canonical_tokens);
+        separator.append(&mut matching, &next.matching_tokens);
+    }
+    GroupVariant {
+        canonical,
+        matching,
+        separator: Some(separator),
+    }
 }
 
 fn is_space(token: &ComparableToken) -> bool {

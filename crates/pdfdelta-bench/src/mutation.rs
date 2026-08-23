@@ -54,6 +54,10 @@ pub enum Mutation {
         paragraph_id: String,
         after_word: usize,
     },
+    LineWrapTwice {
+        paragraph_id: String,
+        after_words: [usize; 2],
+    },
     PageBreak {
         before_paragraph: usize,
     },
@@ -233,6 +237,10 @@ impl Mutation {
                 paragraph_id,
                 after_word,
             } => apply_line_wrap(document, paragraph_id, *after_word, line_gap),
+            Self::LineWrapTwice {
+                paragraph_id,
+                after_words,
+            } => apply_line_wrap_twice(document, paragraph_id, *after_words, line_gap),
             Self::PageBreak { before_paragraph } => {
                 apply_page_break(document, *before_paragraph, line_gap)
             }
@@ -291,6 +299,42 @@ fn apply_line_wrap(
     lines.splice(
         index..=index,
         [words[..after_word].join(" "), words[after_word..].join(" ")],
+    );
+    Ok(MutationPlan {
+        old,
+        new: RenderPlan::new(vec![lines], line_gap)?,
+        expectation: ExpectedManifest::none(),
+    })
+}
+
+fn apply_line_wrap_twice(
+    document: &CanonicalDocument,
+    paragraph_id: &str,
+    after_words: [usize; 2],
+    line_gap: u16,
+) -> Result<MutationPlan> {
+    validate_paragraph_id(paragraph_id)?;
+    let index = paragraph_index(document, paragraph_id)?;
+    let words = document.paragraphs()[index]
+        .text()
+        .split(' ')
+        .collect::<Vec<_>>();
+    let [first, second] = after_words;
+    if first == 0 || first >= second || second >= words.len() {
+        return Err(BenchError::InvalidInput(format!(
+            "double line wrap positions must split paragraph {paragraph_id:?} into three nonempty lines"
+        )));
+    }
+
+    let old = one_page_plan(document, line_gap)?;
+    let mut lines = document_lines(document);
+    lines.splice(
+        index..=index,
+        [
+            words[..first].join(" "),
+            words[first..second].join(" "),
+            words[second..].join(" "),
+        ],
     );
     Ok(MutationPlan {
         old,
