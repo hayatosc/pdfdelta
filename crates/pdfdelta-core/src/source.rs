@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     Error, Result,
     model::{Document, FontProgramHash, Glyph, PageId},
-    pdf::{ParseLimits, ParsedPdf, PdfIssue, PdfParser},
+    pdf::{ParseLimits, ParsedPdf, PdfIssue, PdfIssueKind, PdfParser},
 };
 
 mod content_stream;
@@ -176,7 +176,10 @@ impl ExtractionIssue {
 
     fn from_pdf_issue(issue: &PdfIssue) -> Result<Self> {
         Self::new(
-            ExtractionIssueKind::Unresolved,
+            match issue.kind() {
+                PdfIssueKind::Unresolved => ExtractionIssueKind::Unresolved,
+                PdfIssueKind::Unsupported => ExtractionIssueKind::Unsupported,
+            },
             ExtractionScope::Document,
             issue.description(),
         )

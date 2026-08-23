@@ -91,20 +91,39 @@ pub struct ParsedPage {
     pub resources: Option<Arc<PdfObject>>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PdfIssueKind {
+    Unresolved,
+    Unsupported,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PdfIssue {
+    kind: PdfIssueKind,
     description: String,
 }
 
 impl PdfIssue {
     pub fn unresolved(description: impl Into<String>) -> Result<Self> {
+        Self::new(PdfIssueKind::Unresolved, description)
+    }
+
+    pub fn unsupported(description: impl Into<String>) -> Result<Self> {
+        Self::new(PdfIssueKind::Unsupported, description)
+    }
+
+    fn new(kind: PdfIssueKind, description: impl Into<String>) -> Result<Self> {
         let description = description.into();
         if description.trim().is_empty() {
             return Err(crate::Error::InvalidConfiguration(
                 "PDF issues require a description".to_owned(),
             ));
         }
-        Ok(Self { description })
+        Ok(Self { kind, description })
+    }
+
+    pub const fn kind(&self) -> PdfIssueKind {
+        self.kind
     }
 
     pub fn description(&self) -> &str {

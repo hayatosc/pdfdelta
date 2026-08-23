@@ -371,6 +371,11 @@ fn enforces_token_and_edit_distance_limits() {
             .old_span
             .is_some()
     );
+    // The degraded matched span must not count as resolved coverage.
+    assert_eq!(distance_limited.old_coverage.total_tokens, 3);
+    assert_eq!(distance_limited.old_coverage.resolved_tokens, 0);
+    assert_eq!(distance_limited.new_coverage.total_tokens, 3);
+    assert_eq!(distance_limited.new_coverage.resolved_tokens, 0);
 }
 
 #[test]
@@ -388,6 +393,8 @@ fn zero_edit_distance_limit_allows_only_identical_input() -> Result<()> {
         options,
     )?;
     assert!(identical.changes.is_empty());
+    assert_eq!(identical.old_coverage.resolved_tokens, 3);
+    assert_eq!(identical.new_coverage.resolved_tokens, 3);
 
     let differing = compare_aligned(
         &[block(1, "abc")],
@@ -398,6 +405,11 @@ fn zero_edit_distance_limit_allows_only_identical_input() -> Result<()> {
     .expect("an edit distance overrun should degrade the span, not the comparison");
     assert!(differing.changes.is_empty());
     assert_eq!(differing.unresolved_regions.len(), 1);
+    // The degraded matched span must not count as resolved coverage.
+    assert_eq!(differing.old_coverage.total_tokens, 3);
+    assert_eq!(differing.old_coverage.resolved_tokens, 0);
+    assert_eq!(differing.new_coverage.total_tokens, 3);
+    assert_eq!(differing.new_coverage.resolved_tokens, 0);
     Ok(())
 }
 
