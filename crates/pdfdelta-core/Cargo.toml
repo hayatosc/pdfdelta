@@ -2,6 +2,9 @@
 name = "pdfdelta-core"
 version.workspace = true
 edition.workspace = true
+license = "MIT AND BSD-3-Clause"
+repository.workspace = true
+description = "Backend-neutral PDF extraction and document comparison library"
 
 [dependencies]
 lopdf.workspace = true

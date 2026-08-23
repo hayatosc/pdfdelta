@@ -2,6 +2,10 @@
 name = "pdfdelta-bench"
 version.workspace = true
 edition.workspace = true
+publish = false
+license.workspace = true
+repository.workspace = true
+description = "Benchmark fixtures and evaluation tooling for pdfdelta"
 
 [[bin]]
 name = "pdfbench"

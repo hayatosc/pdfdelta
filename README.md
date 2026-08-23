@@ -78,17 +78,23 @@ crates/pdfdelta-bench  Fixture generation and evaluation tooling
 The workspace requires stable Rust with Edition 2024 support.
 
 ```bash
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+mise run ci
 cargo run --bin pdfdelta -- --help
-cargo run -p pdfdelta-bench -- verify
 cargo run -p pdfdelta-core --example glyph_comparison
 ```
 
 `pdfdelta-core/examples/glyph_comparison.rs` demonstrates the backend-independent
 `Document<Glyph>` API with a small in-memory replacement example. It is useful
 for developing and testing the alignment pipeline without needing PDF fixtures.
+
+`mise run ci` runs the same formatting, linting, workspace tests, and benchmark
+verification as the GitHub Actions quality gate.
+
+## License
+
+The pdfdelta project code is licensed under the [MIT License](LICENSE). The
+Adobe Glyph List 2.0 data embedded in `pdfdelta-core` is distributed under its
+original terms; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## Usage
 
