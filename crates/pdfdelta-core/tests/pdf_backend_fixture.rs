@@ -1,4 +1,4 @@
-use std::{io::Write as _, sync::Arc};
+use std::{collections::BTreeMap, io::Write as _, sync::Arc};
 
 use lopdf::{
     Document, EncryptionState, EncryptionVersion, Object, Permissions, Stream, dictionary,
@@ -6,7 +6,14 @@ use lopdf::{
 };
 use pdfdelta_core::{
     Error,
-    pdf::{LopdfParser, ObjectRef, ParseLimits, PdfObject, PdfParser, PdfVersion},
+    pdf::{
+        DecodedStream, LopdfParser, ObjectRef, PageRef, ParseLimits, ParsedPdf, PdfDict, PdfIssue,
+        PdfObject, PdfParser, PdfVersion, RawStream,
+    },
+    source::{
+        ContentStreamGlyphExtractor, ExtractionIssueKind, ExtractionLimits, ExtractionScope,
+        GlyphExtractor,
+    },
 };
 
 const CONTENT: &[u8] = b"BT /F1 12 Tf 72 720 Td (Project archive) Tj ET\n\
@@ -973,6 +980,108 @@ fn classifies_unknown_stream_filters_as_unsupported() {
     assert!(matches!(
         pdf.decoded_stream(object_ref(ids.content)),
         Err(Error::Unsupported(_))
+    ));
+}
+
+#[test]
+fn degraded_page_tree_branches_stay_unresolved_through_extraction() {
+    let (mut document, ids) = fixture_document(2);
+    let second_page = document
+        .objects
+        .get(&ids.pages)
+        .expect("Pages root should exist")
+        .as_dict()
+        .expect("Pages root should be a dictionary")
+        .get(b"Kids")
+        .expect("Pages root should contain Kids")
+        .as_array()
+        .expect("Kids should be an array")[1]
+        .as_reference()
+        .expect("Kid should be a reference");
+    document.objects.remove(&second_page);
+
+    let pdf = parse(serialize_classic(document), limits())
+        .expect("a missing page branch should produce a partial parsed PDF");
+    let outcome = ContentStreamGlyphExtractor
+        .extract_outcome(pdf.as_ref(), ExtractionLimits::default())
+        .expect("degraded page tree issues should become a partial outcome");
+
+    assert!(!outcome.issues().is_empty());
+    assert!(
+        outcome
+            .issues()
+            .iter()
+            .all(|issue| issue.kind() == ExtractionIssueKind::Unresolved
+                && issue.scope() == ExtractionScope::Document,)
+    );
+    // The surviving branch still yields glyph evidence.
+    assert!(!outcome.document().items().is_empty());
+}
+
+struct UnsupportedIssuePdf {
+    issues: Vec<PdfIssue>,
+}
+
+impl ParsedPdf for UnsupportedIssuePdf {
+    fn version(&self) -> PdfVersion {
+        PdfVersion { major: 1, minor: 4 }
+    }
+
+    fn trailer(&self) -> pdfdelta_core::Result<PdfDict> {
+        Ok(BTreeMap::new())
+    }
+
+    fn resolve(&self, _reference: ObjectRef) -> pdfdelta_core::Result<PdfObject> {
+        Ok(PdfObject::Null)
+    }
+
+    fn pages(&self) -> pdfdelta_core::Result<Vec<PageRef>> {
+        Ok(Vec::new())
+    }
+
+    fn page_dict(&self, _page: PageRef) -> pdfdelta_core::Result<PdfDict> {
+        Ok(BTreeMap::new())
+    }
+
+    fn raw_stream(&self, _reference: ObjectRef) -> pdfdelta_core::Result<RawStream> {
+        Ok(RawStream {
+            dictionary: BTreeMap::new(),
+            bytes: Vec::new(),
+        })
+    }
+
+    fn decoded_stream(&self, _reference: ObjectRef) -> pdfdelta_core::Result<DecodedStream> {
+        Ok(DecodedStream {
+            dictionary: BTreeMap::new(),
+            bytes: Vec::new(),
+        })
+    }
+
+    fn issues(&self) -> &[PdfIssue] {
+        &self.issues
+    }
+}
+
+#[test]
+fn preserves_the_unsupported_taxonomy_of_degraded_document_issues() {
+    let pdf = UnsupportedIssuePdf {
+        issues: vec![
+            PdfIssue::unsupported(
+                "walking page tree: skipping object 9 0: branch requires unsupported features",
+            )
+            .expect("issue description should be valid"),
+        ],
+    };
+
+    let outcome = ContentStreamGlyphExtractor
+        .extract_outcome(&pdf, ExtractionLimits::default())
+        .expect("document-scoped unsupported issues should become a partial outcome");
+    assert_eq!(outcome.issues().len(), 1);
+    assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unsupported);
+    assert_eq!(outcome.issues()[0].scope(), ExtractionScope::Document);
+    assert!(matches!(
+        outcome.into_complete(),
+        Err(Error::Unsupported(message)) if message.contains("unsupported features")
     ));
 }
 

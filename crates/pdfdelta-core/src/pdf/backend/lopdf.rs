@@ -612,18 +612,29 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
             continue;
         }
 
-        // Broken branches degrade to document-scoped unresolved issues so
-        // independently valid branches survive (SPEC §6.2); resource-limit
-        // failures stay fatal.
+        // Broken branches degrade to document-scoped issues so independently
+        // valid branches survive (SPEC §6.2); unsupported branches keep their
+        // taxonomy instead of being relabeled or aborting the walk. Password
+        // and security-handler failures never reach the walk (they fail at
+        // document load), and resource-limit failures stay fatal.
         let resolved =
             match resolve_document_object(document, reference, limits, "walking page tree") {
                 Ok(resolved) => resolved,
-                Err(error @ Error::Backend(_)) => {
-                    issues.push(PdfIssue::unresolved(format!(
-                        "walking page tree: skipping object {} {}: \
+                Err(error @ (Error::Backend(_) | Error::Unsupported(_))) => {
+                    let issue = if matches!(error, Error::Unsupported(_)) {
+                        PdfIssue::unsupported(format!(
+                            "walking page tree: skipping object {} {}: \
+                         branch requires unsupported features ({error})",
+                            reference.0, reference.1
+                        ))?
+                    } else {
+                        PdfIssue::unresolved(format!(
+                            "walking page tree: skipping object {} {}: \
                          branch could not be resolved ({error})",
-                        reference.0, reference.1
-                    ))?);
+                            reference.0, reference.1
+                        ))?
+                    };
+                    issues.push(issue);
                     continue;
                 }
                 Err(error) => return Err(error),
