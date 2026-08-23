@@ -52,7 +52,6 @@ impl LopdfParser {
         let budget = ObjectBudgetGuard::install(limits);
         let mut options = LoadOptions::with_max_decompressed_size(limits.max_decoded_stream_bytes);
         options.password = password.map(str::to_owned);
-        options.max_xref_entries = Some(limits.max_objects);
         options.filter = Some(limit_loaded_objects);
         let loaded = Document::load_mem_with_options(&pdf, options);
         let budget_error = budget.error();
@@ -63,6 +62,12 @@ impl LopdfParser {
         }
         let document = loaded.map_err(|error| map_lopdf_error(error, "parsing PDF", limits))?;
 
+        if document.reference_table.entries.len() > limits.max_objects {
+            return Err(limit_error(
+                "PDF cross-reference entries",
+                limits.max_objects,
+            ));
+        }
         if document.is_encrypted() {
             return Err(Error::Unsupported(
                 "PDF password is missing, invalid, or unsupported".into(),
@@ -464,40 +469,64 @@ fn validate_object_stream_index(
         .ok_or_else(|| Error::Backend("validating object stream: First is out of bounds".into()))?;
     let index = std::str::from_utf8(index)
         .map_err(|_| Error::Backend("validating object stream: index is not ASCII".into()))?;
-    let expected_tokens = count
-        .checked_mul(2)
-        .ok_or_else(|| Error::Backend("validating object stream: N is too large".into()))?;
+    // QDF-style writers annotate the index with `%`-to-EOL comments. Strip
+    // them so token pairing stays aligned with the declared `N` entries; the
+    // backend drops pairs it cannot resolve, and charging still uses N, which
+    // stays conservative whenever entries are dropped.
+    let index = strip_comments(index);
     let tokens = index.split_ascii_whitespace().collect::<Vec<_>>();
-    if tokens.len() != expected_tokens {
-        return Err(Error::Backend(format!(
-            "validating object stream: N declares {count} entries but the index contains {}",
-            tokens.len() / 2
-        )));
-    }
-
     let mut embedded = HashSet::with_capacity(count);
+    let mut resolved_pairs = 0_usize;
     for pair in tokens.as_chunks::<2>().0 {
-        let object_number = parse_object_stream_u32(pair[0], "object number")?;
-        let offset = parse_object_stream_u32(pair[1], "offset")? as usize;
-        let object_offset = first.checked_add(offset).ok_or_else(|| {
-            Error::Backend("validating object stream: object offset overflowed".into())
-        })?;
+        let (Ok(object_number), Ok(offset)) = (
+            parse_object_stream_u32(pair[0], "object number"),
+            parse_object_stream_u32(pair[1], "offset"),
+        ) else {
+            continue;
+        };
+        let Ok(offset) = usize::try_from(offset) else {
+            continue;
+        };
+        let Some(object_offset) = first.checked_add(offset) else {
+            continue;
+        };
         if object_offset >= content.len() {
-            return Err(Error::Backend(
-                "validating object stream: object offset is out of bounds".into(),
-            ));
+            continue;
         }
         if !embedded.insert((object_number, 0)) {
             return Err(Error::Backend(
                 "validating object stream: repeated embedded object number".into(),
             ));
         }
+        resolved_pairs += 1;
+    }
+    if resolved_pairs != count {
+        return Err(Error::Backend(format!(
+            "validating object stream: N declares {count} entries but the index resolves {resolved_pairs}"
+        )));
     }
 
     Ok(ValidatedObjectStream {
         embedded: embedded.into_iter().collect(),
         decoded_bytes: content.len(),
     })
+}
+
+fn strip_comments(index: &str) -> String {
+    let mut stripped = String::with_capacity(index.len());
+    let mut in_comment = false;
+    for character in index.chars() {
+        match character {
+            '%' => in_comment = true,
+            '\r' | '\n' => {
+                in_comment = false;
+                stripped.push(character);
+            }
+            _ if !in_comment => stripped.push(character),
+            _ => {}
+        }
+    }
+    stripped
 }
 
 fn parse_object_stream_u32(token: &str, field: &str) -> Result<u32> {
@@ -870,9 +899,6 @@ fn map_lopdf_error(error: lopdf::Error, context: &str, limits: ParseLimits) -> E
     match &error {
         lopdf::Error::Decompress(lopdf::DecompressError::MemoryLimitExceeded { .. }) => {
             limit_error("PDF decoded stream bytes", limits.max_decoded_stream_bytes)
-        }
-        lopdf::Error::Parse(lopdf::ParseError::XrefEntryLimitExceeded { .. }) => {
-            limit_error("PDF object count", limits.max_objects)
         }
         lopdf::Error::Unimplemented(feature) => Error::Unsupported(format!("{context}: {feature}")),
         lopdf::Error::InvalidPassword

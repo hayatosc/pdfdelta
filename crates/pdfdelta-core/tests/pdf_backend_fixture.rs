@@ -868,7 +868,7 @@ fn bounds_page_tree_width_before_queueing_all_kids() {
 }
 
 #[test]
-fn maps_the_xref_entry_limit_to_the_object_count_limit() {
+fn bounds_retained_objects_to_the_configured_limit() {
     let mut constrained = limits();
     constrained.max_objects = 5;
 
@@ -911,6 +911,171 @@ fn rejects_an_object_stream_that_underreports_its_index_entries() {
     assert!(matches!(
         parse(bytes, limits()),
         Err(Error::Backend(message)) if message.contains("N declares 0 entries")
+    ));
+}
+
+#[test]
+fn accepts_object_stream_indexes_annotated_with_comments() {
+    // QDF-style writers append a `%`-to-EOL comment to the object-stream index
+    // whose token count is arbitrary. Validation strips comments before pairing
+    // tokens so the comment cannot shift or fabricate entries.
+    let mut bytes = b"%PDF-1.5\n%\xFF\xFF\xFF\xFF\n".to_vec();
+    let catalog = append_object(&mut bytes, 1, b"<< /Type /Catalog /Pages 2 0 R >>");
+    let pages = append_object(&mut bytes, 2, b"<< /Type /Pages /Kids [] /Count 0 >>");
+    let index = b"8 0 9 20 %% Object stream: object 8, index 0; original object ID: 12 0\n";
+    let body = b"<< /Value (alpha) >><< /Value (beta) >>";
+    let object_stream_dictionary = format!(
+        "<< /Type /ObjStm /N 2 /First {} /Length {} >>",
+        index.len(),
+        index.len() + body.len()
+    );
+    let object_stream = append_stream_object(
+        &mut bytes,
+        3,
+        object_stream_dictionary.as_bytes(),
+        &[index.as_slice(), body.as_slice()].concat(),
+    );
+
+    let xref_offset = bytes.len();
+    write!(
+        bytes,
+        "4 0 obj\n<< /Type /XRef /Size 10 /Root 1 0 R /W [1 4 2] /Index [0 4 8 2] /Length {} >>\nstream\n",
+        6 * 7
+    )
+    .expect("xref stream header should serialize");
+    let entries = [
+        (0_u8, 0_usize, u16::MAX),
+        (1, catalog, 0),
+        (1, pages, 0),
+        (1, object_stream, 0),
+        (2, 3, 0),
+        (2, 3, 1),
+    ];
+    for (kind, field_two, field_three) in entries {
+        bytes.push(kind);
+        bytes.extend_from_slice(
+            &u32::try_from(field_two)
+                .expect("fixture offset should fit in u32")
+                .to_be_bytes(),
+        );
+        bytes.extend_from_slice(&field_three.to_be_bytes());
+    }
+    write!(
+        bytes,
+        "\nendstream\nendobj\nstartxref\n{xref_offset}\n%%EOF\n"
+    )
+    .expect("xref stream trailer should serialize");
+
+    let pdf = parse(bytes, limits()).expect("commented object-stream index should parse");
+
+    for (embedded, value) in [(8_u32, "alpha"), (9, "beta")] {
+        let resolved = pdf
+            .resolve(object_ref((embedded, 0)))
+            .unwrap_or_else(|error| panic!("embedded object {embedded} should resolve: {error}"));
+        let PdfObject::Dictionary(dict) = resolved else {
+            panic!("embedded object {embedded} should be a dictionary");
+        };
+        assert_eq!(
+            dict.get(b"Value".as_slice()),
+            Some(&PdfObject::String(value.as_bytes().to_vec()))
+        );
+    }
+}
+
+/// A one-page xref-stream document whose object stream declares
+/// `{declared_entries}` entries over `index`, followed by `body`.
+fn handwritten_object_stream_fixture(
+    index: &[u8],
+    declared_entries: usize,
+    body: &[u8],
+) -> Vec<u8> {
+    let mut bytes = b"%PDF-1.5\n%\xFF\xFF\xFF\xFF\n".to_vec();
+    let catalog = append_object(&mut bytes, 1, b"<< /Type /Catalog /Pages 2 0 R >>");
+    let pages = append_object(&mut bytes, 2, b"<< /Type /Pages /Kids [] /Count 0 >>");
+    let object_stream_dictionary = format!(
+        "<< /Type /ObjStm /N {declared_entries} /First {} /Length {} >>",
+        index.len(),
+        index.len() + body.len()
+    );
+    let object_stream = append_stream_object(
+        &mut bytes,
+        3,
+        object_stream_dictionary.as_bytes(),
+        &[index, body].concat(),
+    );
+
+    let xref_offset = bytes.len();
+    write!(
+        bytes,
+        "4 0 obj\n<< /Type /XRef /Size 10 /Root 1 0 R /W [1 4 2] /Index [0 4 8 2] /Length {} >>\nstream\n",
+        6 * 7
+    )
+    .expect("xref stream header should serialize");
+    let entries = [
+        (0_u8, 0_usize, u16::MAX),
+        (1, catalog, 0),
+        (1, pages, 0),
+        (1, object_stream, 0),
+        (2, 3, 0),
+        (2, 3, 1),
+    ];
+    for (kind, field_two, field_three) in entries {
+        bytes.push(kind);
+        bytes.extend_from_slice(
+            &u32::try_from(field_two)
+                .expect("fixture offset should fit in u32")
+                .to_be_bytes(),
+        );
+        bytes.extend_from_slice(&field_three.to_be_bytes());
+    }
+    write!(
+        bytes,
+        "\nendstream\nendobj\nstartxref\n{xref_offset}\n%%EOF\n"
+    )
+    .expect("xref stream trailer should serialize");
+    bytes
+}
+
+#[test]
+fn rejects_repeated_object_stream_entry_numbers() {
+    let bytes = handwritten_object_stream_fixture(
+        b"8 0 8 20\n",
+        2,
+        b"<< /Value (alpha) >><< /Value (beta) >>",
+    );
+
+    assert!(matches!(
+        parse(bytes, limits()),
+        Err(Error::Backend(message)) if message.contains("repeated embedded object number")
+    ));
+}
+
+#[test]
+fn bounds_declared_xref_entries_to_the_configured_limit() {
+    // Six declared cross-reference entries exceed the object budget even though
+    // they point past EOF and resolve to no objects at all.
+    let mut constrained = limits();
+    constrained.max_objects = 5;
+
+    let mut bytes = b"%PDF-1.4\n".to_vec();
+    append_object(&mut bytes, 1, b"<< /Type /Catalog /Pages 2 0 R >>");
+    let xref_offset = bytes.len();
+    bytes.extend_from_slice(b"xref\n0 6\n");
+    for _ in 0..6 {
+        bytes.extend_from_slice(b"0000999999 00000 n \n");
+    }
+    write!(
+        bytes,
+        "trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n"
+    )
+    .expect("classic trailer should serialize");
+
+    assert!(matches!(
+        parse(bytes, constrained),
+        Err(Error::LimitExceeded {
+            resource: "PDF cross-reference entries",
+            limit: 5,
+        })
     ));
 }
 
