@@ -83,7 +83,12 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo run --bin pdfdelta -- --help
 cargo run -p pdfdelta-bench -- verify
+cargo run -p pdfdelta-core --example glyph_comparison
 ```
+
+`pdfdelta-core/examples/glyph_comparison.rs` demonstrates the backend-independent
+`Document<Glyph>` API with a small in-memory replacement example. It is useful
+for developing and testing the alignment pipeline without needing PDF fixtures.
 
 ## Usage
 

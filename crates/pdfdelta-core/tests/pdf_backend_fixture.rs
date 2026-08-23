@@ -5,14 +5,14 @@ use lopdf::{
     xref::XrefType,
 };
 use pdfdelta_core::{
-    Error,
+    Error, Result,
     pdf::{
         DecodedStream, LopdfParser, ObjectRef, PageRef, ParseLimits, ParsedPdf, PdfDict, PdfIssue,
         PdfObject, PdfParser, PdfVersion, RawStream,
     },
     source::{
         ContentStreamGlyphExtractor, ExtractionIssueKind, ExtractionLimits, ExtractionScope,
-        GlyphExtractor,
+        GlyphExtractor, ParserBackedGlyphSource,
     },
 };
 
@@ -638,6 +638,38 @@ fn accepts_a_configured_user_password_without_retaining_it() {
         LopdfParser.parse_with_password(Arc::from(bytes), limits(), "wrong"),
         Err(Error::Unsupported(_))
     ));
+}
+
+#[test]
+fn parser_backed_source_propagates_passwords_and_classifies_failures() -> Result<()> {
+    let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
+
+    let (bytes, _) = encrypted_fixture("user");
+    let outcome = source.extract_outcome_with_password(
+        Arc::from(bytes),
+        limits(),
+        ExtractionLimits::default(),
+        "user",
+    )?;
+    assert!(outcome.is_complete());
+    assert!(!outcome.document().items().is_empty());
+    assert!(outcome.document().items().iter().any(|glyph| {
+        matches!(&glyph.text, pdfdelta_core::model::DecodedText::Mapped(text) if text == "P")
+    }));
+
+    let (bytes, _) = encrypted_fixture("user");
+    let outcome = source.extract_outcome_with_password(
+        Arc::from(bytes),
+        limits(),
+        ExtractionLimits::default(),
+        "wrong",
+    )?;
+    assert!(!outcome.is_complete());
+    assert!(outcome.document().items().is_empty());
+    assert_eq!(outcome.issues().len(), 1);
+    assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unsupported);
+    assert!(outcome.issues()[0].description().contains("password"));
+    Ok(())
 }
 
 #[test]
