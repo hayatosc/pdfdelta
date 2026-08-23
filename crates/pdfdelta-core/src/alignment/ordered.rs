@@ -1481,7 +1481,9 @@ fn refine_masked_matches(spans: &mut Vec<AlignmentSpan>, partition_old: &HashSet
 }
 
 fn is_refinement_boundary(span: &AlignmentSpan, partition_old: &HashSet<BlockId>) -> bool {
-    span.evidence.contains(&AlignmentEvidence::Anchor) || is_partition_span(span, partition_old)
+    span.evidence.contains(&AlignmentEvidence::Anchor)
+        || span.evidence.contains(&AlignmentEvidence::MoveCandidate)
+        || is_partition_span(span, partition_old)
 }
 
 fn is_partition_span(span: &AlignmentSpan, partition_old: &HashSet<BlockId>) -> bool {
@@ -1582,6 +1584,45 @@ mod tests {
             spans[1]
                 .evidence
                 .contains(&AlignmentEvidence::NeighborConsistency)
+        );
+    }
+
+    #[test]
+    fn masked_refinement_preserves_move_candidate_boundaries() {
+        let mut spans = vec![
+            move_deletion_span(BlockId(1)),
+            AlignmentSpan {
+                kind: AlignmentKind::Match,
+                old: vec![BlockId(2)],
+                new: vec![BlockId(102)],
+                score: 0.9,
+                confidence: AlignmentConfidence::Medium,
+                evidence: vec![
+                    AlignmentEvidence::TextSimilarity,
+                    AlignmentEvidence::NumericMask,
+                ],
+                old_separator: None,
+                new_separator: None,
+            },
+            move_insertion_span(BlockId(101)),
+        ];
+
+        refine_masked_matches(&mut spans, &HashSet::new());
+
+        assert_eq!(spans.len(), 3);
+        assert_eq!(spans[0].kind, AlignmentKind::Deletion);
+        assert!(
+            spans[0]
+                .evidence
+                .contains(&AlignmentEvidence::MoveCandidate)
+        );
+        assert_eq!(spans[1].kind, AlignmentKind::Unresolved);
+        assert_eq!(spans[1].evidence, [AlignmentEvidence::NumericMask]);
+        assert_eq!(spans[2].kind, AlignmentKind::Insertion);
+        assert!(
+            spans[2]
+                .evidence
+                .contains(&AlignmentEvidence::MoveCandidate)
         );
     }
 }
