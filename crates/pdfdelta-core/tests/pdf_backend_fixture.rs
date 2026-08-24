@@ -1,5 +1,7 @@
 use std::{collections::BTreeMap, io::Write as _, sync::Arc};
 
+use proptest::prelude::*;
+
 use lopdf::{
     Document, EncryptionState, EncryptionVersion, Object, Permissions, Stream, dictionary,
     xref::XrefType,
@@ -23,12 +25,13 @@ BT /F1 12 Tf 72 660 Td (Quarterly summary) Tj ET\n\
 BT /F1 12 Tf 72 640 Td (Project archive) Tj ET\n\
 BT /F1 12 Tf 72 620 Td (Quarterly summary) Tj ET\n";
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct FixtureIds {
     catalog: lopdf::ObjectId,
     content: lopdf::ObjectId,
     marker: lopdf::ObjectId,
     page: lopdf::ObjectId,
+    kids: Vec<lopdf::ObjectId>,
     pages: lopdf::ObjectId,
     resources: lopdf::ObjectId,
 }
@@ -45,6 +48,20 @@ fn limits() -> ParseLimits {
 }
 
 fn fixture_document(page_count: usize) -> (Document, FixtureIds) {
+    fixture_document_with(page_count, "initial", 1, CONTENT, true)
+}
+
+/// Parameterized variant of [`fixture_document`] for property-generated inputs.
+/// The marker dictionary shape and page tree stay fixed so expectations can be
+/// built directly from the generated values.
+fn fixture_document_with(
+    page_count: usize,
+    marker_value: &str,
+    revision: i64,
+    content: &[u8],
+    compressed: bool,
+) -> (Document, FixtureIds) {
+    assert!(page_count >= 1, "fixtures require at least one page");
     let mut document = Document::with_version("1.4");
     let pages = document.new_object_id();
     let font = document.add_object(dictionary! {
@@ -56,20 +73,22 @@ fn fixture_document(page_count: usize) -> (Document, FixtureIds) {
         "Font" => dictionary! { "F1" => font },
     });
 
-    let mut content_stream = Stream::new(dictionary! {}, CONTENT.to_vec());
-    content_stream
-        .compress()
-        .expect("fixture content should compress");
+    let mut content_stream = Stream::new(dictionary! {}, content.to_vec());
+    if compressed {
+        content_stream
+            .compress()
+            .expect("fixture content should compress");
+    }
     let content = document.add_object(content_stream);
     let marker = document.add_object(dictionary! {
         "Kind" => "ArchiveEntry",
-        "Value" => Object::string_literal("initial"),
-        "Details" => dictionary! { "Revision" => 1 },
+        "Value" => Object::string_literal(marker_value),
+        "Details" => dictionary! { "Revision" => revision },
     });
 
-    let mut page_ids = Vec::new();
+    let mut kids = Vec::new();
     for _ in 0..page_count {
-        page_ids.push(document.add_object(dictionary! {
+        kids.push(document.add_object(dictionary! {
             "Type" => "Page",
             "Parent" => pages,
             "Contents" => content,
@@ -79,7 +98,7 @@ fn fixture_document(page_count: usize) -> (Document, FixtureIds) {
         pages,
         Object::Dictionary(dictionary! {
             "Type" => "Pages",
-            "Kids" => page_ids.iter().copied().map(Object::Reference).collect::<Vec<_>>(),
+            "Kids" => kids.iter().copied().map(Object::Reference).collect::<Vec<_>>(),
             "Count" => page_count as i64,
             "Resources" => resources,
             "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
@@ -97,7 +116,8 @@ fn fixture_document(page_count: usize) -> (Document, FixtureIds) {
             catalog,
             content,
             marker,
-            page: page_ids[0],
+            page: kids[0],
+            kids,
             pages,
             resources,
         },
@@ -332,7 +352,7 @@ fn append_stream_object(
     offset
 }
 
-fn append_incremental_update(mut bytes: Vec<u8>, ids: FixtureIds) -> Vec<u8> {
+fn append_incremental_update(mut bytes: Vec<u8>, ids: &FixtureIds) -> Vec<u8> {
     let previous_xref = last_startxref(&bytes);
     bytes.push(b'\n');
     let object_offset = append_object(
@@ -590,7 +610,7 @@ fn accepts_stale_and_current_object_streams_with_the_same_embedded_id() {
 #[test]
 fn resolves_the_latest_incremental_revision() {
     let (bytes, ids) = classic_fixture(1);
-    let bytes = append_incremental_update(bytes, ids);
+    let bytes = append_incremental_update(bytes, &ids);
 
     let pdf = parse(bytes, limits()).expect("incremental PDF should parse");
     let marker = pdf
@@ -1286,5 +1306,92 @@ fn object_ref(id: lopdf::ObjectId) -> ObjectRef {
     ObjectRef {
         object_number: id.0,
         generation: id.1,
+    }
+}
+
+/// Builds a neutral dictionary directly from generated values, mirroring no
+/// adapter conversion logic.
+fn neutral_dictionary(entries: Vec<(&[u8], PdfObject)>) -> PdfDict {
+    entries
+        .into_iter()
+        .map(|(key, value)| (key.to_vec(), value))
+        .collect()
+}
+
+proptest! {
+    // SPEC 12.5: fixture object -> backend adapter -> equivalent neutral object.
+    #[test]
+    fn round_trips_generated_fixtures_through_the_adapter_neutrally(
+        page_count in 1_usize..=4,
+        marker_value in "[A-Za-z0-9 .]{1,32}",
+        revision in -1_000_i64..=1_000,
+        // lopdf only applies FlateDecode when compression saves more than 19
+        // bytes (`Stream::compress`), so the payload repeats a random segment
+        // to make compressed-mode filtering deterministic.
+        content in "[A-Za-z0-9 ]{16,32}".prop_map(|segment| segment.repeat(6)),
+        compressed in any::<bool>(),
+    ) {
+        let (document, ids) = fixture_document_with(
+            page_count,
+            &marker_value,
+            revision,
+            content.as_bytes(),
+            compressed,
+        );
+        let pdf = parse(serialize_classic(document), limits())
+            .expect("generated PDF should parse");
+        prop_assert!(pdf.issues().is_empty());
+
+        prop_assert_eq!(pdf.version(), PdfVersion { major: 1, minor: 4 });
+
+        let expected_pages: Vec<PageRef> =
+            ids.kids.iter().map(|id| PageRef(object_ref(*id))).collect();
+        prop_assert_eq!(
+            pdf.pages().expect("page tree should resolve"),
+            expected_pages
+        );
+
+        let expected_marker = PdfObject::Dictionary(neutral_dictionary(vec![
+            (
+                b"Details",
+                PdfObject::Dictionary(neutral_dictionary(vec![
+                    (b"Revision", PdfObject::Integer(revision)),
+                ])),
+            ),
+            (b"Kind", PdfObject::Name(b"ArchiveEntry".to_vec())),
+            (
+                b"Value",
+                PdfObject::String(marker_value.as_bytes().to_vec()),
+            ),
+        ]));
+        prop_assert_eq!(
+            pdf.resolve(object_ref(ids.marker))
+                .expect("marker should resolve"),
+            expected_marker
+        );
+
+        let raw = pdf
+            .raw_stream(object_ref(ids.content))
+            .expect("raw stream should be available");
+        let decoded = pdf
+            .decoded_stream(object_ref(ids.content))
+            .expect("content stream should decode");
+        prop_assert_eq!(decoded.bytes, content.as_bytes());
+        if compressed {
+            prop_assert_eq!(
+                raw.dictionary.get(b"Filter".as_slice()),
+                Some(&PdfObject::Name(b"FlateDecode".to_vec()))
+            );
+            prop_assert_ne!(raw.bytes, content.as_bytes());
+        } else {
+            prop_assert!(!raw.dictionary.contains_key(b"Filter".as_slice()));
+            prop_assert_eq!(raw.bytes, content.as_bytes());
+        }
+
+        let trailer = pdf.trailer().expect("trailer should convert");
+        prop_assert_eq!(
+            trailer.get(b"Root".as_slice()),
+            Some(&PdfObject::Reference(object_ref(ids.catalog)))
+        );
     }
 }
