@@ -9,8 +9,13 @@
 //! Latency and memory measurement are deferred to a later slice; this module
 //! covers recall, candidate counts, and estimated visit budgets.
 
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    fs::OpenOptions,
+    io::Write,
+    path::Path,
+    sync::Arc,
+};
 
 use pdfdelta_core::{
     alignment::{
@@ -37,9 +42,13 @@ use crate::{
 const NGRAM_SIZE: usize = 3;
 
 /// Candidate generation metrics for one synthetic fixture.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct CandidateEvalRecord {
     pub case_name: String,
+    pub renderer: RendererKind,
+    /// K values whose recall is reported, aligned with `recall_at_k` and
+    /// `oracle_recall_at_k` in the given order.
+    pub top_k: Vec<usize>,
     pub old_blocks: usize,
     pub new_blocks: usize,
     /// Old blocks that have at least one true counterpart in the new side;
@@ -88,15 +97,50 @@ pub struct CandidateEvalRecord {
     pub dominant_ngram_df: usize,
 }
 
+impl CandidateEvalRecord {
+    /// Whether the inverted-index recall meets the exhaustive oracle at
+    /// every K. Recall values share the same integer denominator, so exact
+    /// comparison is used; an empty evaluation or any vector length
+    /// mismatch is never healthy.
+    pub fn healthy(&self) -> bool {
+        !self.top_k.is_empty()
+            && self.top_k.len() == self.recall_at_k.len()
+            && self.recall_at_k.len() == self.oracle_recall_at_k.len()
+            && self
+                .recall_at_k
+                .iter()
+                .zip(&self.oracle_recall_at_k)
+                .all(|(inverted, oracle)| inverted >= oracle)
+    }
+}
+
+/// Rejects empty or zero top-K values before any rendering happens.
+fn validate_top_k(top_k: &[usize]) -> Result<()> {
+    if top_k.is_empty() {
+        return Err(BenchError::InvalidInput(
+            "candidate evaluation requires at least one top-K value".to_owned(),
+        ));
+    }
+    if let Some(k) = top_k.iter().find(|k| **k == 0) {
+        return Err(BenchError::InvalidInput(format!(
+            "candidate evaluation top-K values must be greater than zero, got {k}"
+        )));
+    }
+    Ok(())
+}
+
 /// Runs candidate generation evaluation for one fixture.
 ///
 /// `top_k` selects the K values whose recall is reported; candidate counts
-/// are always measured over the full (untruncated) candidate set.
+/// are always measured over the full (untruncated) candidate set. The slice
+/// must be non-empty with every K greater than zero; duplicates are a CLI
+/// presentation concern and are not rejected here.
 pub fn evaluate_candidate_generation(
     case: &BenchmarkCase,
     renderer: RendererKind,
     top_k: &[usize],
 ) -> Result<CandidateEvalRecord> {
+    validate_top_k(top_k)?;
     let plan = case.plan();
     let old_blocks = normalized_blocks(plan.old(), renderer)?;
     let new_blocks = normalized_blocks(plan.new_plan(), renderer)?;
@@ -136,6 +180,8 @@ pub fn evaluate_candidate_generation(
 
     Ok(CandidateEvalRecord {
         case_name: case.name().to_owned(),
+        renderer,
+        top_k: top_k.to_vec(),
         old_blocks: old_blocks.len(),
         new_blocks: new_blocks.len(),
         counterpart_old_blocks,
@@ -158,6 +204,30 @@ pub fn evaluate_candidate_generation(
         ngram_posting_visits_total: visit_metrics.ngram_posting_visits_total,
         dominant_ngram_visits: visit_metrics.dominant_ngram_visits,
         dominant_ngram_df: visit_metrics.dominant_ngram_df,
+    })
+}
+
+/// Writes every record as a pretty JSON array to a new file, refusing to
+/// overwrite an existing path via `create_new`. Suppressing partial-run
+/// artifacts is the caller's responsibility.
+pub fn write_candidates_json(path: &Path, records: &[CandidateEvalRecord]) -> Result<()> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|error| {
+            BenchError::InvalidInput(format!(
+                "cannot create candidate evaluation JSON output {}: {error}",
+                path.display()
+            ))
+        })?;
+    let bytes = serde_json::to_vec_pretty(records).map_err(|error| {
+        BenchError::InvalidInput(format!(
+            "cannot serialize candidate evaluation JSON: {error}"
+        ))
+    })?;
+    file.write_all(&bytes).map_err(|error| {
+        BenchError::InvalidInput(format!("cannot write candidate evaluation JSON: {error}"))
     })
 }
 
@@ -557,6 +627,11 @@ mod tests {
         normalize::{BlockText, ComparableToken, MappedText},
     };
 
+    use crate::{
+        canonical::{CanonicalDocument, Paragraph},
+        mutation::Mutation,
+    };
+
     use super::*;
 
     fn block_text(id: u64, text: &str) -> BlockText {
@@ -680,5 +755,118 @@ mod tests {
         let recall =
             recall_at_k(&old_features, &counterparts, &inverted, 5).expect("recall measures");
         assert_eq!(recall, 1.0);
+    }
+
+    fn record_with_recall(
+        recall_at_k: Vec<f64>,
+        oracle_recall_at_k: Vec<f64>,
+    ) -> CandidateEvalRecord {
+        CandidateEvalRecord {
+            case_name: "case".to_owned(),
+            renderer: RendererKind::LopdfTj,
+            top_k: vec![5, 10],
+            old_blocks: 3,
+            new_blocks: 3,
+            counterpart_old_blocks: 3,
+            unmatched_old_blocks: 0,
+            recall_at_k,
+            oracle_recall_at_k,
+            candidate_count_p50: 1,
+            candidate_count_p95: 1,
+            candidate_count_max: 1,
+            oracle_candidate_count_p50: 3,
+            oracle_candidate_count_p95: 3,
+            oracle_candidate_count_max: 3,
+            estimated_visits_p50: 1,
+            estimated_visits_p95: 1,
+            estimated_visits_max: 1,
+            estimated_visits_upper_bound_total: 3,
+            max_candidate_visits: 1_000_000,
+            estimated_visits_upper_bound_exceeds_limit: false,
+            ngram_posting_visits_total: 3,
+            dominant_ngram_visits: 1,
+            dominant_ngram_df: 1,
+        }
+    }
+
+    #[test]
+    fn healthy_requires_recall_at_or_above_oracle_at_every_k() {
+        assert!(record_with_recall(vec![1.0, 1.0], vec![1.0, 1.0]).healthy());
+        assert!(record_with_recall(vec![1.0, 0.9], vec![1.0, 0.8]).healthy());
+        assert!(!record_with_recall(vec![1.0, 0.7], vec![1.0, 0.8]).healthy());
+    }
+
+    #[test]
+    fn healthy_rejects_vector_length_mismatch() {
+        assert!(!record_with_recall(vec![1.0], vec![1.0, 1.0]).healthy());
+        assert!(!record_with_recall(vec![1.0, 1.0], vec![1.0]).healthy());
+    }
+
+    #[test]
+    fn healthy_rejects_top_k_length_mismatch() {
+        let mut record = record_with_recall(vec![1.0, 1.0], vec![1.0, 1.0]);
+        record.top_k = vec![5];
+        assert!(!record.healthy());
+    }
+
+    #[test]
+    fn healthy_rejects_empty_top_k() {
+        let mut record = record_with_recall(Vec::new(), Vec::new());
+        record.top_k = Vec::new();
+        assert!(!record.healthy());
+    }
+
+    #[test]
+    fn evaluate_candidate_generation_rejects_empty_and_zero_top_k_before_rendering() {
+        // 16 lines at line_gap 48 exceed the vertical page area, so
+        // rendering would fail; the top-K validation must run first and win.
+        let paragraphs = (0..16)
+            .map(|index| {
+                Paragraph::new(
+                    format!("p{index:02}"),
+                    format!("Paragraph {index} keeps a steady cadence"),
+                )
+                .expect("valid paragraph")
+            })
+            .collect();
+        let document = CanonicalDocument::new(paragraphs).expect("valid document");
+        let case = BenchmarkCase::new(
+            "tall-render",
+            document,
+            Mutation::LineHeightChange { new_line_gap: 48 },
+            30,
+        )
+        .expect("valid benchmark case");
+
+        for top_k in [&[][..], &[0][..], &[5, 0][..]] {
+            let error = evaluate_candidate_generation(&case, RendererKind::LopdfTj, top_k)
+                .expect_err("invalid top-K must fail");
+            assert!(
+                matches!(error, BenchError::InvalidInput(message) if message.contains("top-K")),
+                "top_k={top_k:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn write_candidates_json_creates_new_artifact_and_rejects_existing() {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pdfbench-candidate-eval-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default()
+        ));
+        let records = vec![record_with_recall(vec![1.0], vec![1.0])];
+
+        write_candidates_json(&path, &records).expect("artifact writes");
+        let json = std::fs::read_to_string(&path).expect("artifact reads");
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("artifact parses");
+        assert_eq!(parsed[0]["renderer"], "lopdf-tj");
+        assert_eq!(parsed[0]["top_k"], serde_json::json!([5, 10]));
+        assert!(write_candidates_json(&path, &records).is_err());
+        std::fs::remove_file(&path).expect("artifact removed");
     }
 }

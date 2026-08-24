@@ -27,7 +27,8 @@ impl Default for RenderLimits {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum RendererKind {
     LopdfTj,
     ClassicXrefTj,
@@ -140,5 +141,20 @@ fn render_error(renderer: &'static str, message: impl Into<String>) -> BenchErro
     BenchError::Render {
         renderer,
         message: message.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn renderer_serialization_matches_name() {
+        for renderer in RendererKind::all() {
+            assert_eq!(
+                serde_json::to_string(&renderer).expect("renderer serializes"),
+                format!("\"{}\"", renderer.name())
+            );
+        }
     }
 }

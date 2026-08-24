@@ -927,4 +927,92 @@ fn help_lists_the_verify_command() {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(stdout.contains("verify"));
+    assert!(stdout.contains("candidates"));
+}
+
+#[test]
+fn candidates_command_prints_records_and_summary() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
+        .arg("candidates")
+        .arg("--top-k")
+        .arg("5,10")
+        .output()
+        .expect("pdfbench runs");
+
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert_eq!(
+        stdout
+            .lines()
+            .filter(|line| line.starts_with("OK case="))
+            .count(),
+        28
+    );
+    assert_eq!(
+        stdout.lines().last(),
+        Some("28/28 candidate evaluations OK")
+    );
+}
+
+#[test]
+fn candidates_command_rejects_invalid_top_k() {
+    for top_k in ["0", "", "5,,10", "five", "5,5"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
+            .arg("candidates")
+            .arg("--top-k")
+            .arg(top_k)
+            .output()
+            .expect("pdfbench runs");
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "--top-k {top_k:?} must exit 2"
+        );
+    }
+}
+
+#[test]
+fn candidates_command_writes_a_create_new_json_artifact() {
+    let mut path = std::env::temp_dir();
+    path.push(format!(
+        "pdfbench-candidates-{}-{}.json",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default()
+    ));
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
+        .arg("candidates")
+        .arg("--top-k")
+        .arg("5,10")
+        .arg("--json-output")
+        .arg(&path)
+        .output()
+        .expect("pdfbench runs");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let json = std::fs::read_to_string(&path).expect("json artifact exists");
+    let records: serde_json::Value = serde_json::from_str(&json).expect("json artifact parses");
+    assert_eq!(records.as_array().expect("artifact is an array").len(), 28);
+    assert_eq!(records[0]["renderer"], "lopdf-tj");
+    assert_eq!(records[0]["top_k"], serde_json::json!([5, 10]));
+
+    let second = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
+        .arg("candidates")
+        .arg("--json-output")
+        .arg(&path)
+        .output()
+        .expect("pdfbench runs");
+    assert_eq!(
+        second.status.code(),
+        Some(2),
+        "create_new must refuse overwrite"
+    );
+    std::fs::remove_file(&path).expect("temp json artifact removed");
 }
