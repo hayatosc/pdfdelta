@@ -9,3 +9,15 @@ run = [
   "cargo test --workspace --locked",
   "cargo run -p pdfdelta-bench --locked -- verify",
 ]
+
+[tasks.bench]
+description = "Run the in-memory acceptance benchmark matrix"
+run = "cargo run -p pdfdelta-bench --locked -- verify"
+
+[tasks.bench-fetch]
+description = "Download and checksum-verify the real-world revision corpus"
+run = "benchmark/realworld/fetch.sh"
+
+[tasks.bench-revisions]
+description = "Run the real-world revision-pair benchmark (run bench-fetch first)"
+run = "cargo run -p pdfdelta-bench --locked -- revisions --cache-dir benchmark/realworld/cache"
