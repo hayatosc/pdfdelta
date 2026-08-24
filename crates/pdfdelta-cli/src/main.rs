@@ -323,26 +323,37 @@ fn compare_documents_traced<W: Write>(
     })?;
 
     let report_result = if let Some(json_path) = json_path {
-        write_json_atomically(json_path, &outcome.comparison, &outcome.extraction)
+        write_json_atomically(
+            json_path,
+            &outcome.old_blocks,
+            &outcome.new_blocks,
+            &outcome.comparison,
+            &outcome.extraction,
+        )
     } else {
-        render_text(&outcome.comparison, &outcome.extraction)
-            .map_err(|error| {
-                format!(
-                    "cannot render comparison report for {} and {}: {error}",
-                    old_input.path.display(),
-                    new_input.path.display()
-                )
-            })
-            .and_then(|report| {
-                let stdout = io::stdout();
-                let mut stdout = stdout.lock();
-                stdout.write_all(report.as_bytes()).map_err(|error| {
-                    format!("cannot write comparison report to stdout: {error}")
-                })?;
-                stdout
-                    .flush()
-                    .map_err(|error| format!("cannot flush comparison report to stdout: {error}"))
-            })
+        render_text(
+            &outcome.old_blocks,
+            &outcome.new_blocks,
+            &outcome.comparison,
+            &outcome.extraction,
+        )
+        .map_err(|error| {
+            format!(
+                "cannot render comparison report for {} and {}: {error}",
+                old_input.path.display(),
+                new_input.path.display()
+            )
+        })
+        .and_then(|report| {
+            let stdout = io::stdout();
+            let mut stdout = stdout.lock();
+            stdout
+                .write_all(report.as_bytes())
+                .map_err(|error| format!("cannot write comparison report to stdout: {error}"))?;
+            stdout
+                .flush()
+                .map_err(|error| format!("cannot flush comparison report to stdout: {error}"))
+        })
     };
     if let Err(error) = report_result {
         trace.fail_message("report", None, "report", &error);
@@ -537,11 +548,20 @@ fn report_fatal_error<W: Write>(writer: &mut W, error: &str) {
 
 fn write_json_atomically(
     output_path: &Path,
+    old_blocks: &[pdfdelta_core::normalize::BlockText],
+    new_blocks: &[pdfdelta_core::normalize::BlockText],
     comparison: &Comparison,
     extraction: &ExtractionStatus,
 ) -> Result<(), String> {
     write_output_atomically(output_path, "JSON report", |temporary_file| {
-        write_json(temporary_file, comparison, extraction).map_err(|error| {
+        write_json(
+            temporary_file,
+            old_blocks,
+            new_blocks,
+            comparison,
+            extraction,
+        )
+        .map_err(|error| {
             format!(
                 "cannot render JSON comparison report for {}: {error}",
                 output_path.display()
@@ -737,7 +757,13 @@ fn paths_refer_to_same_file(
 
     let output_metadata = match fs::metadata(output_path) {
         Ok(metadata) => metadata,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            // The output leaf does not exist yet, so inode comparison is
+            // impossible; fall back to normalized destination comparison so
+            // lexical aliases of the same future file are still rejected.
+            return Ok(normalized_destination(output_path, context)?
+                == normalized_destination(input_path, context)?);
+        }
         Err(error) => {
             return Err(format!(
                 "cannot inspect output path {} for {context}: {error}",
@@ -788,12 +814,59 @@ fn output_paths_refer_to_same_file(
     }
     match fs::metadata(second_path) {
         Ok(_) => paths_refer_to_same_file(first_path, second_path, context),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Ok(normalized_destination(first_path, context)?
+                == normalized_destination(second_path, context)?)
+        }
         Err(error) => Err(format!(
             "cannot inspect output path {} for {context}: {error}",
             second_path.display()
         )),
     }
+}
+
+/// Resolve a path to its normalized absolute destination without requiring
+/// the leaf to exist: canonicalize the deepest existing ancestor (following
+/// symlinks in existing parents), then append the lexically normalized
+/// remaining components.
+fn normalized_destination(path: &Path, context: &str) -> Result<PathBuf, String> {
+    let mut accumulated = PathBuf::new();
+    let mut deepest_existing = None;
+    let mut deepest_component_count = 0_usize;
+    for (index, component) in path.components().enumerate() {
+        accumulated.push(component);
+        if fs::symlink_metadata(&accumulated).is_ok() {
+            deepest_existing = Some(accumulated.clone());
+            deepest_component_count = index + 1;
+        }
+    }
+
+    let mut normalized = match &deepest_existing {
+        Some(existing) => fs::canonicalize(existing).map_err(|error| {
+            format!(
+                "cannot resolve output path {} for {context}: {error}",
+                path.display()
+            )
+        })?,
+        // Nothing along the path exists yet; anchor the relative components
+        // at the current working directory.
+        None => std::env::current_dir().map_err(|error| {
+            format!(
+                "cannot resolve output path {} for {context}: {error}",
+                path.display()
+            )
+        })?,
+    };
+    for component in path.components().skip(deepest_component_count) {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            other => normalized.push(other.as_os_str()),
+        }
+    }
+    Ok(normalized)
 }
 
 fn inspect_document(

@@ -94,6 +94,50 @@ fn replacement_exits_one() {
 
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
     assert_complete_json_report(&report, 1, Some("replacement"));
+    let report_json = read_json(&report);
+    let old_text = report_json["changes"][0]["old_span"]["text"]
+        .as_str()
+        .expect("replacement old span should carry resolved text");
+    let new_text = report_json["changes"][0]["new_span"]["text"]
+        .as_str()
+        .expect("replacement new span should carry resolved text");
+    // Exact-diff semantics keep the change span minimal: only the differing
+    // digit is reported as changed content.
+    assert_eq!(old_text, "1");
+    assert_eq!(new_text, "2");
+    assert_eq!(report_json["changes"][0]["old_span"]["pages"][0], 0);
+    assert_eq!(report_json["changes"][0]["new_span"]["pages"][0], 0);
+}
+
+#[test]
+fn replacement_report_shows_changed_text_on_stdout() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(
+        &old,
+        &[
+            "Opening paragraph establishes context",
+            "Release 10 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening paragraph establishes context",
+            "Release 20 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+
+    let output = compare(&old, &new, &[]);
+    let report = stdout(&output);
+
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    assert!(report.contains("Change 1: replacement"), "{report}");
+    assert!(report.contains("old blocks=[1] pages=[0]: 1\n"), "{report}");
+    assert!(report.contains("new blocks=[1] pages=[0]: 2\n"), "{report}");
 }
 
 #[test]
@@ -311,6 +355,11 @@ fn paragraph_insertion_exits_one_with_one_change() {
 
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
     assert_complete_json_report(&report, 1, Some("insertion"));
+    let report_json = read_json(&report);
+    assert_eq!(
+        report_json["changes"][0]["new_span"]["text"],
+        "Inserted paragraph contains generic text"
+    );
 }
 
 #[test]
@@ -339,6 +388,11 @@ fn paragraph_deletion_exits_one_with_one_change() {
 
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
     assert_complete_json_report(&report, 1, Some("deletion"));
+    let report_json = read_json(&report);
+    assert_eq!(
+        report_json["changes"][0]["old_span"]["text"],
+        "Removed paragraph contains generic text"
+    );
 }
 
 #[test]
@@ -355,7 +409,7 @@ fn writes_json_report_atomically() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let json = fs::read_to_string(report).expect("JSON report should be readable");
-    assert!(json.contains("\"schema_version\": 4"));
+    assert!(json.contains("\"schema_version\": 5"));
     assert!(json.contains("\"content_changes\": 0"));
     assert_no_temporary_reports(&directory);
 }
@@ -600,7 +654,7 @@ fn malformed_type0_extraction_reports_without_false_changes() {
         &fs::read(report_path).expect("incomplete JSON report should be readable"),
     )
     .expect("incomplete JSON report should be valid");
-    assert_eq!(report["schema_version"], 4);
+    assert_eq!(report["schema_version"], 5);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["comparison_complete"], false);
     assert_eq!(report["summary"]["unresolved_extraction_issues"], 1);
@@ -684,11 +738,160 @@ fn rejects_json_output_that_aliases_an_input() {
     assert_no_temporary_reports(&directory);
 }
 
+#[test]
+fn rejects_lexical_aliases_of_a_missing_report_leaf() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    // `result.json` and `./result.json` name the same future file even though
+    // the leaf does not exist yet, so validation must reject both spellings.
+    let output = compare_in(
+        directory.0.as_path(),
+        &old,
+        &new,
+        &["--json", "result.json", "--trace-json", "./result.json"],
+    );
+    let error = stderr(&output);
+
+    assert_eq!(output.status.code(), Some(2), "{error}");
+    assert!(error.contains("refusing trace output"), "{error}");
+    assert!(!directory.join("result.json").exists());
+    assert_no_temporary_reports(&directory);
+}
+
+#[test]
+fn rejects_lexical_aliases_of_a_missing_leaf_in_an_existing_subdirectory() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    fs::create_dir(directory.join("out")).expect("subdirectory should be created");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let output = compare_in(
+        directory.0.as_path(),
+        &old,
+        &new,
+        &[
+            "--json",
+            "./out/result.json",
+            "--trace-json",
+            "out/result.json",
+        ],
+    );
+    let error = stderr(&output);
+
+    assert_eq!(output.status.code(), Some(2), "{error}");
+    assert!(error.contains("refusing trace output"), "{error}");
+    assert!(!directory.join("out").join("result.json").exists());
+    assert_no_temporary_reports(&directory);
+}
+
+#[test]
+fn rejects_absolute_and_relative_aliases_of_a_missing_report() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    let absolute = directory.join("result.json");
+
+    let output = compare_in(
+        directory.0.as_path(),
+        &old,
+        &new,
+        &[
+            "--json",
+            path_text(&absolute),
+            "--trace-json",
+            "result.json",
+        ],
+    );
+    let error = stderr(&output);
+
+    assert_eq!(output.status.code(), Some(2), "{error}");
+    assert!(error.contains("refusing trace output"), "{error}");
+    assert!(!absolute.exists());
+    assert_no_temporary_reports(&directory);
+}
+
+#[test]
+fn accepts_genuinely_distinct_missing_output_paths() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let output = compare_in(
+        directory.0.as_path(),
+        &old,
+        &new,
+        &["--json", "result.json", "--trace-json", "trace.json"],
+    );
+
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert!(directory.join("result.json").exists());
+    assert!(directory.join("trace.json").exists());
+    assert_no_temporary_reports(&directory);
+}
+
+#[cfg(unix)]
+#[test]
+fn still_rejects_existing_symlink_output_aliases() {
+    use std::os::unix::fs::symlink;
+
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let report = directory.join("report.json");
+    let trace = directory.join("trace.json");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+    fs::write(&report, b"{\"existing\":true}\n").expect("existing report should be written");
+    symlink(&report, &trace).expect("trace symlink should be created");
+
+    let output = compare(
+        &old,
+        &new,
+        &[
+            "--json",
+            path_text(&report),
+            "--trace-json",
+            path_text(&trace),
+        ],
+    );
+    let error = stderr(&output);
+
+    assert_eq!(output.status.code(), Some(2), "{error}");
+    assert!(error.contains("refusing trace output"), "{error}");
+    assert_eq!(
+        fs::read(&report).expect("existing report should remain readable"),
+        b"{\"existing\":true}\n"
+    );
+    assert_no_temporary_reports(&directory);
+}
+
 fn compare(old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
         .arg(old)
         .arg(new)
         .args(extra_arguments)
+        .output()
+        .expect("pdfdelta should run")
+}
+
+/// Run a comparison with the given directory as the working directory so
+/// relative output-path spellings can be exercised.
+fn compare_in(directory: &Path, old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg(old)
+        .arg(new)
+        .args(extra_arguments)
+        .current_dir(directory)
         .output()
         .expect("pdfdelta should run")
 }
@@ -858,7 +1061,7 @@ fn assert_complete_json_report(
 ) {
     let json = fs::read_to_string(report_path).expect("JSON report should be readable");
     let report: Value = serde_json::from_str(&json).expect("JSON report should be valid");
-    assert_eq!(report["schema_version"], 4, "{report:#}");
+    assert_eq!(report["schema_version"], 5, "{report:#}");
     let summary = &report["summary"];
     assert_eq!(
         summary["content_changes"].as_u64(),
