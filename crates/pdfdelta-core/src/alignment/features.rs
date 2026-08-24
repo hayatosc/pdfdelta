@@ -163,7 +163,7 @@ pub(crate) fn validate_ngram_size(size: usize) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn estimate_ngram_token_elements(
+pub fn estimate_ngram_token_elements(
     blocks: &[BlockText],
     size: usize,
     limit: usize,

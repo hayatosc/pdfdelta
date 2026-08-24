@@ -1,3 +1,4 @@
+pub mod candidate_eval;
 pub mod canonical;
 pub mod cases;
 pub mod evaluator;
