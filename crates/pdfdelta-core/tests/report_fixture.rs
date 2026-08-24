@@ -932,6 +932,142 @@ fn text_report_marks_unmapped_glyph_positions_in_order() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn text_report_renders_pure_unmapped_replacement_in_the_changed_segment() -> Result<()> {
+    let old_blocks = vec![unmapped_only_block(9, vec![1, 2, 3, 4, 5], 7)];
+    let new_blocks = vec![unmapped_only_block(109, vec![9], 12)];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        // Unmapped-only edits legally carry a zero-width canonical range;
+        // the changed segment must still identify both placeholders.
+        old_span: Some(TextSpan {
+            blocks: vec![BlockId(9)],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 0 },
+            comparable_range: TokenRange { start: 0, end: 1 },
+        }),
+        new_span: Some(TextSpan {
+            blocks: vec![BlockId(109)],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 0 },
+            comparable_range: TokenRange { start: 0, end: 1 },
+        }),
+        confidence: Confidence::Low,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert_eq!(
+        report,
+        "content changes: 1 · formatting-only: 0 · uncertain: 1 · \
+         unresolved regions: 0 · coverage 100.0%\n\
+         \n\
+         --- old.pdf\n\
+         +++ new.pdf\n\
+         \n\
+         @@ pages 1,5 · old block 9 -> new block 109 · confidence: low @@\n\
+         - <unmapped:7:01020304>\n\
+         + <unmapped:12:09>\n"
+    );
+    Ok(())
+}
+
+#[test]
+fn text_report_rejects_spans_that_exceed_the_block_evidence() -> Result<()> {
+    let old_blocks = vec![block_with_text(7, "abc")];
+    let new_blocks = vec![block_with_text(107, "abd")];
+
+    // Comparable range beyond the block's token evidence fails like JSON.
+    let mut comparable_overrun = empty_comparison();
+    comparable_overrun.changes.push(Change {
+        kind: ChangeKind::Deletion,
+        old_span: Some(range_span(7, 0, 9)),
+        new_span: None,
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    assert!(matches!(
+        render_text(
+            &old_blocks,
+            &new_blocks,
+            &comparable_overrun,
+            &ExtractionStatus::complete(),
+            &plain_options(),
+        ),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("exceeds the normalized block evidence")
+    ));
+
+    // Canonical range beyond the block's scalar evidence fails like JSON.
+    let mut canonical_overrun = empty_comparison();
+    canonical_overrun.changes.push(Change {
+        kind: ChangeKind::Deletion,
+        old_span: Some(TextSpan {
+            blocks: vec![BlockId(7)],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 9 },
+            comparable_range: TokenRange { start: 0, end: 3 },
+        }),
+        new_span: None,
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    assert!(matches!(
+        render_text(
+            &old_blocks,
+            &new_blocks,
+            &canonical_overrun,
+            &ExtractionStatus::complete(),
+            &plain_options(),
+        ),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("exceeds the normalized block evidence")
+    ));
+    Ok(())
+}
+
+#[test]
+fn separator_mismatch_keeps_adjacent_edits_in_separate_hunks() -> Result<()> {
+    let old_blocks = fixture_blocks(&[1, 2]);
+    let new_blocks = fixture_blocks(&[101, 102]);
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(group_span(&[1, 2], Some(BlockSeparator::Space))),
+        new_span: Some(group_span(&[101, 102], Some(BlockSeparator::Space))),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        // Same blocks but a different separator means a different coordinate
+        // system, so the adjacent edit must not coalesce into one hunk.
+        old_span: Some(group_span(&[1, 2], Some(BlockSeparator::Concatenate))),
+        new_span: Some(group_span(&[101, 102], Some(BlockSeparator::Concatenate))),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert!(report.matches("@@ page 1").count() == 2, "{report}");
+    Ok(())
+}
+
 fn empty_comparison() -> Comparison {
     Comparison {
         changes: Vec::new(),
@@ -1089,5 +1225,34 @@ fn unmapped_block_fixture(id: u64) -> BlockText {
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: vec![4],
+    }
+}
+
+/// A block whose comparable evidence is a single unmapped glyph with no
+/// canonical scalars at all.
+fn unmapped_only_block(id: u64, hash: Vec<u8>, glyph_id: u16) -> BlockText {
+    BlockText {
+        block: BlockId(id),
+        raw: MappedText {
+            text: String::new(),
+            source_map: Vec::new(),
+            unmapped: Vec::new(),
+        },
+        canonical: MappedText {
+            text: String::new(),
+            source_map: Vec::new(),
+            unmapped: vec![UnmappedToken {
+                scalar_index: 0,
+                font_hash: FontProgramHash(hash),
+                glyph_id,
+                source: TextSource { atoms: Vec::new() },
+            }],
+        },
+        matching: String::new(),
+        matching_tokens: Vec::new(),
+        numeric_mask_applied: false,
+        normalization_events: Vec::new(),
+        issues: Vec::new(),
+        pages: if id > 100 { vec![0] } else { vec![4] },
     }
 }

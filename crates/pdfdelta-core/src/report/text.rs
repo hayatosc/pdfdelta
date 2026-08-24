@@ -9,12 +9,13 @@ use crate::{
     Error, Result,
     diff::{Change, ChangeKind, ChangeTag, Comparison, Confidence, TextSpan},
     layout::BlockId,
-    normalize::BlockText,
+    model::FontProgramHash,
+    normalize::{BlockText, ComparableToken},
     source::ExtractionScope,
 };
 
 use super::{
-    ExtractionStatus, ReportSummary, ResolvedSpan, SideIndex, TextReportOptions, UnmappedSpanToken,
+    ExtractionStatus, ReportSummary, ResolvedGroup, SideIndex, TextReportOptions,
     confidence as confidence_name, issue_kind_name, lowercase_hex, percentage, side_name, yes_no,
 };
 
@@ -24,10 +25,12 @@ use super::{
 /// evidence that wider gaps still read as one edit.
 const COALESCE_MAX_EQUAL_TOKENS: usize = 16;
 
-/// deliberate: bounded scalar context shown around each changed region,
-/// inside the 40-80 range suggested for terminal review; tune from benchmark
-/// evidence rather than ad-hoc screen widths.
-const CONTEXT_WINDOW_SCALARS: usize = 32;
+/// deliberate: bounded comparable-token context shown around each changed
+/// region, inside the 40-80 range suggested for terminal review; token space
+/// matches scalar positions one-to-one wherever mapped text exists and also
+/// counts unmapped glyphs, so pure-unmapped edits keep visible context. Tune
+/// from benchmark evidence rather than ad-hoc screen widths.
+const CONTEXT_WINDOW_TOKENS: usize = 32;
 
 const CODE_FILE_HEADER: &str = "\x1b[1m";
 const CODE_HUNK_HEADER: &str = "\x1b[1;36m";
@@ -291,21 +294,25 @@ fn append_marked_spans(
     Ok(())
 }
 
-/// Unions nearby edited scalar ranges so one hunk line covers the whole
-/// edited region, including the small equal runs the exact diff preserved
-/// between its changes. deliberate: uses the same threshold as hunk
-/// coalescing so a run never widens beyond what the clustering already
-/// considered one human edit.
+/// Unions nearby edited comparable-token ranges so one hunk line covers the
+/// whole edited region, including the small equal runs the exact diff
+/// preserved between its changes. Comparable-token space is authoritative:
+/// unmapped-only changes have a zero-width canonical range but a non-empty
+/// token range, so scalar ranges would drop their placeholders from the
+/// changed segment. deliberate: uses the same threshold as hunk coalescing
+/// so a run never widens beyond what the clustering already considered one
+/// human edit; coordinate identity across merged spans is guaranteed by the
+/// separator check in `side_close`.
 fn merged_edited_ranges<'a>(spans: impl Iterator<Item = &'a TextSpan>) -> Vec<(usize, usize)> {
     let mut merged: Vec<(usize, usize)> = Vec::new();
     for span in spans {
         match merged.last_mut() {
             Some((_, last_end))
-                if span.canonical_range.start <= *last_end + COALESCE_MAX_EQUAL_TOKENS =>
+                if span.comparable_range.start <= *last_end + COALESCE_MAX_EQUAL_TOKENS =>
             {
-                *last_end = (*last_end).max(span.canonical_range.end);
+                *last_end = (*last_end).max(span.comparable_range.end);
             }
-            _ => merged.push((span.canonical_range.start, span.canonical_range.end)),
+            _ => merged.push((span.comparable_range.start, span.comparable_range.end)),
         }
     }
     merged
@@ -387,7 +394,11 @@ fn side_close(previous: Option<&TextSpan>, next: Option<&TextSpan>) -> bool {
     match (previous, next) {
         (_, None) | (None, _) => true,
         (Some(previous), Some(next)) => {
+            // Separator equality keeps the two ranges in one coordinate
+            // system: the same blocks concatenate differently under Space
+            // versus Concatenate, so their token indexes are not comparable.
             previous.blocks == next.blocks
+                && previous.separator == next.separator
                 && next.comparable_range.start >= previous.comparable_range.end
                 && next.comparable_range.start - previous.comparable_range.end
                     <= COALESCE_MAX_EQUAL_TOKENS
@@ -528,14 +539,17 @@ fn resolve_window(index: &SideIndex<'_>, span: &TextSpan) -> Result<SideWindow> 
     resolve_window_range(
         index,
         span,
-        span.canonical_range.start,
-        span.canonical_range.end,
+        span.comparable_range.start,
+        span.comparable_range.end,
     )
 }
 
-/// Resolves the bounded context window around one edited scalar range of a
-/// block group. The group text is the containing normalized block(s), so a
-/// tiny edit still shows enough surrounding words to identify what changed.
+/// Resolves the bounded context window around one edited comparable-token
+/// range of a block group. The group is the containing normalized block(s),
+/// so a tiny edit still shows enough surrounding words to identify what
+/// changed. Spans are validated against the group evidence exactly like the
+/// JSON path, so malformed ranges fail loudly in both report modes instead
+/// of being silently clamped here.
 fn resolve_window_range(
     index: &SideIndex<'_>,
     template: &TextSpan,
@@ -543,9 +557,10 @@ fn resolve_window_range(
     end: usize,
 ) -> Result<SideWindow> {
     let group = index.resolve_group(&template.blocks, template.separator)?;
-    let total = group.text.chars().count();
-    let window_start = start.saturating_sub(CONTEXT_WINDOW_SCALARS);
-    let window_end = end.saturating_add(CONTEXT_WINDOW_SCALARS).min(total);
+    validate_span_against_group(template, &group)?;
+    let total = group.tokens.len();
+    let window_start = start.saturating_sub(CONTEXT_WINDOW_TOKENS);
+    let window_end = end.saturating_add(CONTEXT_WINDOW_TOKENS).min(total);
     Ok(SideWindow {
         pages: group.pages.clone(),
         pre: render_region(&group, window_start, start),
@@ -556,46 +571,49 @@ fn resolve_window_range(
     })
 }
 
-/// Renders `[start, end)` of the group's scalar text with stable placeholders
-/// at unmapped glyph positions, mirroring the exact interleave the JSON
-/// report keeps in `unmapped_tokens`.
-fn render_region(group: &ResolvedSpan, start: usize, end: usize) -> String {
-    let total = group.text.chars().count();
+/// Shared bounds contract with `SideIndex::resolve`: the exact message and
+/// checks must stay identical so text and JSON modes reject the same spans.
+fn validate_span_against_group(span: &TextSpan, group: &ResolvedGroup) -> Result<()> {
+    let scalar_count = group
+        .tokens
+        .iter()
+        .filter(|token| matches!(token, ComparableToken::Scalar(_)))
+        .count();
+    if span.comparable_range.end > group.tokens.len() || span.canonical_range.end > scalar_count {
+        return Err(Error::InvalidConfiguration(
+            "text span range exceeds the normalized block evidence".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+/// Renders `[start, end)` of the group's comparable tokens, emitting stable
+/// placeholders for unmapped glyphs at their exact positions so the changed
+/// segment identifies pure-unmapped and mixed edits just like mapped ones.
+fn render_region(group: &ResolvedGroup, start: usize, end: usize) -> String {
+    let total = group.tokens.len();
     let end = end.min(total);
     let start = start.min(end);
-    if start == end {
-        return String::new();
-    }
     let mut rendered = String::new();
-    let mut scalars = group.text.chars().skip(start);
-    let mut consumed = start;
-    for token in &group.unmapped {
-        let trailing = end == total && token.scalar_offset == total;
-        if token.scalar_offset < start || (token.scalar_offset >= end && !trailing) {
-            continue;
+    for token in &group.tokens[start..end] {
+        match token {
+            ComparableToken::Scalar(scalar) => rendered.push(*scalar),
+            ComparableToken::Unmapped {
+                font_hash,
+                glyph_id,
+            } => {
+                rendered.push_str(&unmapped_placeholder(font_hash, *glyph_id));
+            }
         }
-        while consumed < token.scalar_offset && consumed < end {
-            rendered.push(scalars.next().unwrap_or('\u{fffd}'));
-            consumed += 1;
-        }
-        rendered.push_str(&unmapped_placeholder(token));
-    }
-    while consumed < end {
-        rendered.push(scalars.next().unwrap_or('\u{fffd}'));
-        consumed += 1;
     }
     rendered
 }
 
 // deliberate: the human marker abbreviates the font hash to its first four
 // bytes; the JSON report keeps the full identity.
-fn unmapped_placeholder(token: &UnmappedSpanToken) -> String {
-    let hash = lowercase_hex(&token.font_hash.0);
-    format!(
-        "<unmapped:{}:{}>",
-        token.glyph_id,
-        hash.get(..8).unwrap_or(&hash)
-    )
+fn unmapped_placeholder(font_hash: &FontProgramHash, glyph_id: u16) -> String {
+    let hash = lowercase_hex(&font_hash.0);
+    format!("<unmapped:{glyph_id}:{}>", hash.get(..8).unwrap_or(&hash))
 }
 
 struct Painter {

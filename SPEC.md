@@ -802,7 +802,7 @@ parser backendの最終選択は§6.2のcapability fixtureで決める。library
 
 ### 2026-08-24 人間向けreportのunified diff化（本変更）
 
-- §5.3：人間向けtext reportを、exact diff結果の表示層のみの投影として文脈付きunified diff形式へ刷新すると定義した。1行要約、`---` / `+++` file header、1-based page付きhunk header、隣接する`-` / `+`行、有界なcontext(既定32 scalarずつ)、`~ moved`明示、`?`による未解決領域の可視化、近接exact changeの表示上のhunk統合(同一Block集合かつ16 comparable token以下の分離)である。`Comparison`とJSON reportの機械可読な意味は不変で、ANSI色は`--color auto|always|never`(既定auto、TTY判定)が制御し記号の補助に限定する。
+- §5.3：人間向けtext reportを、exact diff結果の表示層のみの投影として文脈付きunified diff形式へ刷新すると定義した。1行要約、`---` / `+++` file header、1-based page付きhunk header、隣接する`-` / `+`行、有界なcontext(既定32 comparable tokenずつ)、`~ moved`明示、`?`による未解決領域の可視化、近接exact changeの表示上のhunk統合(同一Block集合・同一Block separatorかつ16 comparable token以下の分離)である。変更区間はcomparable token空間で描画し、canonical rangeが零幅のpure-unmapped編集も`<unmapped>`プレースホルダを変更行内に示す。text reportはJSONと同じspan範囲検証を共有し、範囲外spanはどちらのmodeでも失敗する。`Comparison`とJSON reportの機械可読な意味は不変で、ANSI色は`--color auto|always|never`(既定auto、TTY判定)が制御し記号の補助に限定する。
 
 ### 2026-08-23 backend依存のupstream復帰とxref再構築取り込み（本変更）
 

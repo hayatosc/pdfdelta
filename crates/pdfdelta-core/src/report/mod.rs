@@ -274,44 +274,19 @@ impl<'a> SideIndex<'a> {
         })
     }
 
-    /// Resolves the complete canonical text of a block group, so the
-    /// presentation renderer can show bounded context around an exact change
-    /// span without mutating or re-walking the comparison.
+    /// Resolves the complete comparable-token sequence of a block group, so
+    /// the presentation renderer can show bounded context around an exact
+    /// change span without mutating or re-walking the comparison. Token
+    /// space is authoritative here: unmapped-only changes legally carry a
+    /// zero-width canonical range, so rendering from tokens keeps their
+    /// placeholders inside the changed segment.
     pub(crate) fn resolve_group(
         &self,
         blocks: &[BlockId],
         separator: Option<BlockSeparator>,
-    ) -> Result<ResolvedSpan> {
+    ) -> Result<ResolvedGroup> {
         let (tokens, pages) = self.accumulate(blocks, separator)?;
-        let text = tokens
-            .iter()
-            .filter_map(|token| match token {
-                ComparableToken::Scalar(scalar) => Some(*scalar),
-                ComparableToken::Unmapped { .. } => None,
-            })
-            .collect::<String>();
-        let mut unmapped = Vec::new();
-        let mut scalar_offset = 0_usize;
-        for token in &tokens {
-            match token {
-                ComparableToken::Scalar(_) => scalar_offset += 1,
-                ComparableToken::Unmapped {
-                    font_hash,
-                    glyph_id,
-                } => {
-                    unmapped.push(UnmappedSpanToken {
-                        scalar_offset,
-                        font_hash: font_hash.clone(),
-                        glyph_id: *glyph_id,
-                    });
-                }
-            }
-        }
-        Ok(ResolvedSpan {
-            text,
-            unmapped,
-            pages,
-        })
+        Ok(ResolvedGroup { tokens, pages })
     }
 
     fn accumulate(
@@ -348,6 +323,13 @@ pub(crate) struct ResolvedSpan {
     pub text: String,
     /// Unmapped glyph tokens inside the span, in comparable-token order.
     pub unmapped: Vec<UnmappedSpanToken>,
+    pub pages: Vec<u32>,
+}
+
+/// Full block-group evidence for the presentation renderer: the concatenated
+/// comparable-token sequence plus deduplicated page provenance.
+pub(crate) struct ResolvedGroup {
+    pub tokens: Vec<ComparableToken>,
     pub pages: Vec<u32>,
 }
 
