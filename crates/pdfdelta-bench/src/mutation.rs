@@ -14,11 +14,16 @@ pub const MAX_MARGIN: u16 = DEFAULT_PAGE_WIDTH - 1;
 /// Matches the horizontal origin both renderers used before plans carried a margin.
 pub const DEFAULT_MARGIN: u16 = 36;
 
+pub const MIN_FONT_SIZE: u16 = 1;
+/// Matches the `/F1 10 Tf` size both renderers emitted before plans carried a font size.
+pub const DEFAULT_FONT_SIZE: u16 = 10;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RenderPlan {
     pages: Vec<Vec<String>>,
     line_gap: u16,
     margin: u16,
+    font_size: u16,
 }
 
 impl RenderPlan {
@@ -27,6 +32,15 @@ impl RenderPlan {
     }
 
     pub fn with_margin(pages: Vec<Vec<String>>, line_gap: u16, margin: u16) -> Result<Self> {
+        Self::with_font_size(pages, line_gap, margin, DEFAULT_FONT_SIZE)
+    }
+
+    pub fn with_font_size(
+        pages: Vec<Vec<String>>,
+        line_gap: u16,
+        margin: u16,
+        font_size: u16,
+    ) -> Result<Self> {
         if pages.is_empty() {
             return Err(BenchError::InvalidInput(
                 "render plans require at least one page".to_owned(),
@@ -41,6 +55,11 @@ impl RenderPlan {
             return Err(BenchError::InvalidInput(format!(
                 "margin must be between {MIN_MARGIN} and {MAX_MARGIN}"
             )));
+        }
+        if font_size < MIN_FONT_SIZE {
+            return Err(BenchError::InvalidInput(
+                "font_size must be greater than zero".to_owned(),
+            ));
         }
         // deliberate: only the text origin is constrained to the MediaBox;
         // add font-metric width validation when fixtures exercise clipping.
@@ -58,6 +77,7 @@ impl RenderPlan {
             pages,
             line_gap,
             margin,
+            font_size,
         })
     }
 
@@ -71,6 +91,10 @@ impl RenderPlan {
 
     pub const fn margin(&self) -> u16 {
         self.margin
+    }
+
+    pub const fn font_size(&self) -> u16 {
+        self.font_size
     }
 }
 
@@ -96,6 +120,11 @@ pub enum Mutation {
     /// PDFs differ in layout while canonical text stays identical.
     MarginChange {
         new_margin: u16,
+    },
+    /// Renders the unchanged document with a different font size so both
+    /// PDFs differ in layout while canonical text stays identical.
+    FontSizeChange {
+        new_font_size: u16,
     },
     TextReplace {
         paragraph_id: String,
@@ -286,6 +315,9 @@ impl Mutation {
             Self::MarginChange { new_margin } => {
                 apply_margin_change(document, *new_margin, line_gap)
             }
+            Self::FontSizeChange { new_font_size } => {
+                apply_font_size_change(document, *new_font_size, line_gap)
+            }
             Self::TextReplace {
                 paragraph_id,
                 new_text,
@@ -442,6 +474,23 @@ fn apply_margin_change(
     Ok(MutationPlan {
         old: one_page_plan(document, line_gap)?,
         new: one_page_plan_with_margin(document, line_gap, new_margin)?,
+        expectation: ExpectedManifest::none(),
+    })
+}
+
+fn apply_font_size_change(
+    document: &CanonicalDocument,
+    new_font_size: u16,
+    line_gap: u16,
+) -> Result<MutationPlan> {
+    if new_font_size == DEFAULT_FONT_SIZE {
+        return Err(BenchError::InvalidInput(
+            "font size change must alter the rendered font size".to_owned(),
+        ));
+    }
+    Ok(MutationPlan {
+        old: one_page_plan(document, line_gap)?,
+        new: one_page_plan_with_font_size(document, line_gap, new_font_size)?,
         expectation: ExpectedManifest::none(),
     })
 }
@@ -688,6 +737,19 @@ fn one_page_plan_with_margin(
     margin: u16,
 ) -> Result<RenderPlan> {
     RenderPlan::with_margin(vec![document_lines(document)], line_gap, margin)
+}
+
+fn one_page_plan_with_font_size(
+    document: &CanonicalDocument,
+    line_gap: u16,
+    font_size: u16,
+) -> Result<RenderPlan> {
+    RenderPlan::with_font_size(
+        vec![document_lines(document)],
+        line_gap,
+        DEFAULT_MARGIN,
+        font_size,
+    )
 }
 
 fn document_lines(document: &CanonicalDocument) -> Vec<String> {

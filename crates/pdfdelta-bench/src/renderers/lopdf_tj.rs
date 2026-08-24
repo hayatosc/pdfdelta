@@ -49,7 +49,8 @@ pub(super) fn render(plan: &RenderPlan, limits: RenderLimits) -> Result<Vec<u8>>
         for (index, line) in lines.iter().enumerate() {
             writeln!(
                 content,
-                "BT /F1 10 Tf 1 0 0 1 {} {} Tm ({}) Tj ET",
+                "BT /F1 {} Tf 1 0 0 1 {} {} Tm ({}) Tj ET",
+                plan.font_size(),
                 plan.margin(),
                 line_y(index, plan.line_gap())?,
                 escape_pdf_literal(line)

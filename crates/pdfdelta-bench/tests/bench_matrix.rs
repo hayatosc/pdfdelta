@@ -170,6 +170,8 @@ fn mutations_reject_invalid_input_without_panicking() {
         }
         .apply(&document, 12),
     );
+    assert_invalid(Mutation::FontSizeChange { new_font_size: 10 }.apply(&document, 12));
+    assert_invalid(Mutation::FontSizeChange { new_font_size: 0 }.apply(&document, 12));
     assert_invalid(
         Mutation::TextReplace {
             paragraph_id: "missing".to_owned(),
@@ -394,6 +396,39 @@ fn line_height_change_alters_layout_without_content_diff() {
 fn margin_change_alters_layout_without_content_diff() {
     let case = case_named("margin-change-only");
     assert_ne!(case.plan().old().margin(), case.plan().new_plan().margin());
+    assert_eq!(
+        normalized_canonical_blocks(case.plan().old()),
+        normalized_canonical_blocks(case.plan().new_plan()),
+    );
+
+    for renderer in RendererKind::all() {
+        let old_pdf = renderer
+            .render(case.plan().old(), RenderLimits::default())
+            .expect("renderer succeeds");
+        let new_pdf = renderer
+            .render(case.plan().new_plan(), RenderLimits::default())
+            .expect("renderer succeeds");
+        assert_ne!(
+            old_pdf,
+            new_pdf,
+            "{} must change rendered bytes",
+            renderer.name()
+        );
+        let record = evaluate_case(&case, renderer).expect("evaluation completes");
+        assert!(record.passed, "{}", record.detail);
+        assert!(record.extraction_complete);
+        assert!(record.comparison_complete);
+        assert!(record.actual_kinds.is_empty());
+    }
+}
+
+#[test]
+fn font_size_change_alters_layout_without_content_diff() {
+    let case = case_named("font-size-change-only");
+    assert_ne!(
+        case.plan().old().font_size(),
+        case.plan().new_plan().font_size()
+    );
     assert_eq!(
         normalized_canonical_blocks(case.plan().old()),
         normalized_canonical_blocks(case.plan().new_plan()),
@@ -736,9 +771,9 @@ fn bench_errors_preserve_core_error_taxonomy() {
 }
 
 #[test]
-fn built_in_matrix_passes_all_twenty_four_cells() {
+fn built_in_matrix_passes_all_twenty_six_cells() {
     let cases = built_in_cases().expect("built-in cases are valid");
-    assert_eq!(cases.len(), 12);
+    assert_eq!(cases.len(), 13);
 
     let mut count = 0;
     for case in &cases {
@@ -753,11 +788,11 @@ fn built_in_matrix_passes_all_twenty_four_cells() {
         }
     }
 
-    assert_eq!(count, 24);
+    assert_eq!(count, 26);
 }
 
 #[test]
-fn verify_command_prints_a_passing_twenty_four_cell_matrix() {
+fn verify_command_prints_a_passing_twenty_six_cell_matrix() {
     let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
         .arg("verify")
         .output()
@@ -771,9 +806,9 @@ fn verify_command_prints_a_passing_twenty_four_cell_matrix() {
             .lines()
             .filter(|line| line.starts_with("PASS "))
             .count(),
-        24
+        26
     );
-    assert_eq!(stdout.lines().last(), Some("24/24 passed"));
+    assert_eq!(stdout.lines().last(), Some("26/26 passed"));
 }
 
 #[test]

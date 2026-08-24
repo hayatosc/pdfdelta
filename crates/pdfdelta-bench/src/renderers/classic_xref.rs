@@ -77,7 +77,7 @@ pub(super) fn render(plan: &RenderPlan, limits: RenderLimits, stats: PlanStats) 
         );
         emit_object(&mut output, page_id, page_body.as_bytes(), &mut offsets)?;
 
-        let content = positioned_content(lines, plan.line_gap(), plan.margin())?;
+        let content = positioned_content(lines, plan.line_gap(), plan.margin(), plan.font_size())?;
         let mut content_body = Vec::with_capacity(content.len().saturating_add(64));
         write!(content_body, "<< /Length {} >>\nstream\n", content.len())
             .map_err(|error| render_error(NAME, error.to_string()))?;
@@ -116,13 +116,19 @@ pub(super) fn render(plan: &RenderPlan, limits: RenderLimits, stats: PlanStats) 
     Ok(output)
 }
 
-fn positioned_content(lines: &[String], line_gap: u16, margin: u16) -> Result<Vec<u8>> {
+fn positioned_content(
+    lines: &[String],
+    line_gap: u16,
+    margin: u16,
+    font_size: u16,
+) -> Result<Vec<u8>> {
     let text_bytes = lines.iter().map(String::len).sum::<usize>();
     let mut content = Vec::with_capacity(text_bytes.saturating_mul(2).saturating_add(256));
     for (line_index, line) in lines.iter().enumerate() {
         write!(
             content,
-            "BT /F1 10 Tf 1 0 0 1 {} {} Tm [",
+            "BT /F1 {} Tf 1 0 0 1 {} {} Tm [",
+            font_size,
             margin,
             line_y(line_index, line_gap)?
         )

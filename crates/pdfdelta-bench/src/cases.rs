@@ -103,6 +103,19 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
             30,
         )?,
         BenchmarkCase::new(
+            "font-size-change-only",
+            document(&[
+                ("opening", "Opening paragraph establishes context"),
+                ("target", "A simple release note remains stable"),
+                ("closing", "Closing paragraph confirms context"),
+            ])?,
+            // deliberate: 10 -> 14 keeps the fixed 30 pt line cadence above
+            // the relative block-merge threshold, so only glyph geometry
+            // changes while line and block reconstruction stay identical.
+            Mutation::FontSizeChange { new_font_size: 14 },
+            30,
+        )?,
+        BenchmarkCase::new(
             "text-replacement",
             document(&[
                 ("opening", "Opening paragraph establishes context"),
