@@ -10,6 +10,7 @@ use crate::{
     },
     layout::BlockId,
     normalize::{BlockText, ComparableToken, ScalarRange},
+    validate::validate_unit_interval,
 };
 
 use self::myers::Edit;
@@ -95,11 +96,15 @@ pub struct Comparison {
     pub new_coverage: Coverage,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DiffOptions {
     /// Maximum comparable or raw evidence tokens across both document sides.
     pub max_tokens: usize,
     pub max_edit_distance: usize,
+    /// Weak (low-confidence) matched spans whose bounded Myers diff changes
+    /// more than this fraction of tokens degrade to unresolved regions
+    /// instead of emitting fragmented character-level changes.
+    pub max_weak_match_change_ratio: f64,
 }
 
 impl Default for DiffOptions {
@@ -108,6 +113,7 @@ impl Default for DiffOptions {
             // The measured Unicode Standard corpus peaks at 5,001,224 post-layout raw tokens.
             max_tokens: 5_100_000,
             max_edit_distance: 2_048,
+            max_weak_match_change_ratio: 0.5,
         }
     }
 }
@@ -126,6 +132,10 @@ pub(crate) fn validate_diff_options(options: DiffOptions) -> Result<()> {
             "diff max_tokens must be greater than zero".to_owned(),
         ));
     }
+    validate_unit_interval(
+        "max_weak_match_change_ratio",
+        options.max_weak_match_change_ratio,
+    )?;
     Ok(())
 }
 
@@ -171,7 +181,7 @@ pub fn compare_aligned(
                     &old,
                     &new,
                     span,
-                    options.max_edit_distance,
+                    options,
                     &mut changes,
                     &mut formatting_changes,
                     &mut unresolved_regions,
@@ -345,7 +355,7 @@ fn compare_match(
     old_side: &Side<'_>,
     new_side: &Side<'_>,
     span: &AlignmentSpan,
-    max_edit_distance: usize,
+    options: DiffOptions,
     changes: &mut Vec<Change>,
     formatting_changes: &mut Vec<FormattingChange>,
     unresolved_regions: &mut Vec<UnresolvedRegion>,
@@ -373,8 +383,22 @@ fn compare_match(
         return Ok(true);
     }
 
-    match myers::diff(&old.tokens, &new.tokens, max_edit_distance)? {
+    match myers::diff(&old.tokens, &new.tokens, options.max_edit_distance)? {
         Some(edits) => {
+            // Weak alignments are exactly the ones that produced the
+            // issue #6 change soup: a barely admitted correspondence whose
+            // bounded Myers diff turns into dozens of scalar fragments.
+            // Degrade those to an honest unresolved region instead.
+            if span.confidence == AlignmentConfidence::Low
+                && is_implausible_match(&edits, old.tokens.len(), new.tokens.len(), options)
+            {
+                unresolved_regions.push(UnresolvedRegion {
+                    old_span: Some(old.full_span()),
+                    new_span: Some(new.full_span()),
+                    evidence: span.evidence.clone(),
+                });
+                return Ok(false);
+            }
             append_changes(&old, &new, &edits, span.confidence.into(), changes);
             Ok(true)
         }
@@ -392,6 +416,50 @@ fn compare_match(
             Ok(false)
         }
     }
+}
+
+// deliberate: fixed hunk-density ceiling tuned from the IRS 1040 2024 -> 2025
+// probe; retune from benchmark layout-mutation fixtures once they exist.
+const MAX_WEAK_MATCH_HUNK_RATIO: f64 = 0.2;
+
+/// Minimum span size before hunk density carries signal: shorter spans can
+/// hold only a handful of hunks, so their density exceeds any fixed ceiling
+/// even for one clean edit. Short implausible matches stay gated by the
+/// changed-token ratio, which applies at every size.
+const MIN_HUNK_DENSITY_TOKENS: usize = 8;
+
+/// Decides whether a weak matched span is too implausible to diff at token
+/// level: either most tokens changed outright (any size), or the edits are
+/// shredded into many tiny hunks scattered across a large-enough span
+/// (change soup).
+fn is_implausible_match(
+    edits: &[Edit],
+    old_tokens: usize,
+    new_tokens: usize,
+    options: DiffOptions,
+) -> bool {
+    let total = old_tokens.max(new_tokens);
+    if total == 0 {
+        return false;
+    }
+    let changed = edits.iter().filter(|edit| **edit != Edit::Equal).count();
+    if changed as f64 / total as f64 > options.max_weak_match_change_ratio {
+        return true;
+    }
+    if total < MIN_HUNK_DENSITY_TOKENS {
+        return false;
+    }
+    let hunks = edits
+        .iter()
+        .fold((0usize, false), |(hunks, in_hunk), edit| {
+            match *edit != Edit::Equal {
+                true if !in_hunk => (hunks + 1, true),
+                true => (hunks, true),
+                false => (hunks, false),
+            }
+        })
+        .0;
+    hunks as f64 / total as f64 > MAX_WEAK_MATCH_HUNK_RATIO
 }
 
 fn append_changes(
@@ -765,5 +833,64 @@ impl GroupText {
             },
             comparable_range: TokenRange { start, end },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn options(ratio: f64) -> DiffOptions {
+        DiffOptions {
+            max_weak_match_change_ratio: ratio,
+            ..DiffOptions::default()
+        }
+    }
+
+    #[test]
+    fn empty_edits_are_never_implausible() {
+        assert!(!is_implausible_match(&[], 0, 0, options(0.5)));
+    }
+
+    #[test]
+    fn a_short_clean_replacement_stays_plausible_at_the_exact_ratio_limit() {
+        // "Xaaa" -> "Yaaa": one hunk, changed ratio exactly at the limit.
+        let edits = [
+            Edit::Delete,
+            Edit::Insert,
+            Edit::Equal,
+            Edit::Equal,
+            Edit::Equal,
+        ];
+        assert!(!is_implausible_match(&edits, 4, 4, options(0.5)));
+        // Just above the limit the changed-token ratio still gates short spans.
+        let edits = [Edit::Delete, Edit::Insert, Edit::Delete, Edit::Insert];
+        assert!(is_implausible_match(&edits, 4, 4, options(0.5)));
+    }
+
+    #[test]
+    fn a_large_enough_span_with_dense_low_ratio_hunks_is_soup() {
+        // Four islands separated by three-token equal runs: changed ratio
+        // 8/19 stays under the limit while the hunk density exceeds it.
+        let mut edits = Vec::new();
+        for _ in 0..4 {
+            edits.extend([
+                Edit::Equal,
+                Edit::Equal,
+                Edit::Equal,
+                Edit::Delete,
+                Edit::Insert,
+            ]);
+        }
+        edits.push(Edit::Equal);
+        assert!(is_implausible_match(&edits, 19, 19, options(0.5)));
+    }
+
+    #[test]
+    fn hunk_density_is_skipped_below_the_minimum_sample_size() {
+        // Two isolated deletions in a five-token span: under the ceiling on
+        // changed tokens, so fragmentation must not degrade it.
+        let edits = [Edit::Equal, Edit::Delete, Edit::Equal, Edit::Delete];
+        assert!(!is_implausible_match(&edits, 5, 3, options(0.5)));
     }
 }

@@ -4,7 +4,7 @@ use pdfdelta_core::{
         Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentSpan,
         BlockSeparator, ExactAnchor,
     },
-    diff::{ChangeKind, DiffOptions, FormattingReason, TokenRange, compare_aligned},
+    diff::{ChangeKind, Confidence, DiffOptions, FormattingReason, TokenRange, compare_aligned},
     layout::BlockId,
     model::FontProgramHash,
     normalize::{BlockText, ComparableToken, MappedText, ScalarRange, TextSource, UnmappedToken},
@@ -341,6 +341,119 @@ fn coalesces_each_contiguous_edit_run() -> Result<()> {
 }
 
 #[test]
+fn degrades_a_weak_match_whose_tokens_mostly_changed() -> Result<()> {
+    let old = [block(1, "aaaabbbbccccdddd")];
+    let new = [block(101, "aaaaXXXXXXXXYYYY")];
+    let mut span = matched(&[1], &[101]);
+    span.score = 0.6;
+    span.canonical_similarity = 0.6;
+    span.confidence = AlignmentConfidence::Low;
+
+    let result = compare_aligned(&old, &new, &aligned(vec![span]), DiffOptions::default())?;
+
+    assert!(result.changes.is_empty());
+    assert_eq!(result.unresolved_regions.len(), 1);
+    // The degraded span must not count as resolved coverage.
+    assert_eq!(result.old_coverage.resolved_tokens, 0);
+    assert_eq!(result.new_coverage.resolved_tokens, 0);
+    Ok(())
+}
+
+#[test]
+fn retains_a_short_clean_replacement_at_the_exact_ratio_limit() -> Result<()> {
+    // "Xaaa" -> "Yaaa": one hunk over four tokens, changed ratio exactly at
+    // the allowed limit. The hunk density must not degrade it (issue #6
+    // review: one hunk / four tokens exceeded the density ceiling).
+    let old = [block(1, "Xaaa")];
+    let new = [block(101, "Yaaa")];
+    let mut span = matched(&[1], &[101]);
+    span.score = 0.6;
+    span.canonical_similarity = 0.6;
+    span.confidence = AlignmentConfidence::Low;
+
+    let result = compare_aligned(&old, &new, &aligned(vec![span]), DiffOptions::default())?;
+
+    assert!(result.unresolved_regions.is_empty());
+    assert_eq!(result.changes.len(), 1);
+    assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+    assert_eq!(result.changes[0].confidence, Confidence::Low);
+    assert_eq!(result.old_coverage.resolved_tokens, 4);
+    assert_eq!(result.new_coverage.resolved_tokens, 4);
+    Ok(())
+}
+
+#[test]
+fn degrades_a_weak_match_fragmented_into_many_tiny_hunks() -> Result<()> {
+    let old = [block(1, "aaaXaaaXaaaXaaaXaaa")];
+    let new = [block(101, "aaaYaaaYaaaYaaaYaaa")];
+    let mut span = matched(&[1], &[101]);
+    span.score = 0.6;
+    span.canonical_similarity = 0.6;
+    span.confidence = AlignmentConfidence::Low;
+
+    let result = compare_aligned(&old, &new, &aligned(vec![span]), DiffOptions::default())?;
+
+    // The changed-token ratio alone stays under the configured limit; the
+    // hunk density is what exposes this as character-fragment soup.
+    assert!(result.changes.is_empty());
+    assert_eq!(result.unresolved_regions.len(), 1);
+    Ok(())
+}
+
+#[test]
+fn retains_a_weak_match_with_sparse_edits_as_uncertain_changes() -> Result<()> {
+    let old = [block(
+        1,
+        "The quick brown fox jumps over the lazy dog tonight",
+    )];
+    let new = [block(
+        101,
+        "The quick brown fox jumps over the lazy cat tomorrow",
+    )];
+    let mut span = matched(&[1], &[101]);
+    span.score = 0.8;
+    span.canonical_similarity = 0.8;
+    span.confidence = AlignmentConfidence::Low;
+
+    let result = compare_aligned(&old, &new, &aligned(vec![span]), DiffOptions::default())?;
+
+    assert!(result.unresolved_regions.is_empty());
+    assert!(!result.changes.is_empty());
+    assert!(
+        result
+            .changes
+            .iter()
+            .all(|change| change.confidence == Confidence::Low)
+    );
+    assert_eq!(
+        result.old_coverage.resolved_tokens,
+        result.old_coverage.total_tokens
+    );
+    assert_eq!(
+        result.new_coverage.resolved_tokens,
+        result.new_coverage.total_tokens
+    );
+    Ok(())
+}
+
+#[test]
+fn keeps_diffing_an_implausible_match_with_strong_alignment_evidence() -> Result<()> {
+    let old = [block(1, "aaaabbbbccccdddd")];
+    let new = [block(101, "aaaaXXXXXXXXYYYY")];
+    let mut span = matched(&[1], &[101]);
+    span.score = 0.9;
+    span.canonical_similarity = 0.9;
+
+    let result = compare_aligned(&old, &new, &aligned(vec![span]), DiffOptions::default())?;
+
+    // The plausibility gate is scoped to weak (low-confidence) matches;
+    // strongly evidenced matches still produce their token-level changes.
+    assert!(!result.changes.is_empty());
+    assert!(result.unresolved_regions.is_empty());
+    Ok(())
+}
+
+#[test]
 fn rejects_incomplete_alignment_partitions() {
     let result = compare_aligned(
         &[block(1, "A"), block(2, "B")],
@@ -399,6 +512,7 @@ fn enforces_token_and_edit_distance_limits() {
         DiffOptions {
             max_tokens: 5,
             max_edit_distance: 10,
+            ..DiffOptions::default()
         },
     );
     assert!(matches!(
@@ -416,6 +530,7 @@ fn enforces_token_and_edit_distance_limits() {
         DiffOptions {
             max_tokens: 10,
             max_edit_distance: 2,
+            ..DiffOptions::default()
         },
     )
     .expect("an edit distance overrun should degrade the span, not the comparison");
@@ -442,6 +557,7 @@ fn zero_edit_distance_limit_allows_only_identical_input() -> Result<()> {
     let options = DiffOptions {
         max_tokens: 10,
         max_edit_distance: 0,
+        ..DiffOptions::default()
     };
 
     let identical = compare_aligned(
@@ -480,6 +596,7 @@ fn applies_the_token_budget_to_raw_evidence_before_diffing() {
         DiffOptions {
             max_tokens: 2,
             max_edit_distance: 2,
+            ..DiffOptions::default()
         },
     );
 
@@ -579,6 +696,8 @@ fn matched(old: &[u64], new: &[u64]) -> AlignmentSpan {
         old: ids(old),
         new: ids(new),
         score: 1.0,
+        canonical_similarity: 1.0,
+        score_margin: None,
         confidence: AlignmentConfidence::High,
         evidence: vec![AlignmentEvidence::TextSimilarity],
         old_separator: None,
@@ -592,6 +711,8 @@ fn one_sided(kind: AlignmentKind, old: &[u64], new: &[u64]) -> AlignmentSpan {
         old: ids(old),
         new: ids(new),
         score: 0.0,
+        canonical_similarity: 0.0,
+        score_margin: None,
         confidence: AlignmentConfidence::Medium,
         evidence: Vec::new(),
         old_separator: None,
@@ -605,6 +726,8 @@ fn unresolved(old: &[u64], new: &[u64]) -> AlignmentSpan {
         old: ids(old),
         new: ids(new),
         score: 0.0,
+        canonical_similarity: 0.0,
+        score_margin: None,
         confidence: AlignmentConfidence::Low,
         evidence: vec![AlignmentEvidence::NormalizationIssue],
         old_separator: None,

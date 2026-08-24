@@ -50,6 +50,11 @@ pub struct AlignmentSpan {
     pub old: Vec<BlockId>,
     pub new: Vec<BlockId>,
     pub score: f64,
+    /// Canonical token similarity of the winning group variant.
+    pub canonical_similarity: f64,
+    /// Total-score margin to the best competing transition that reached this
+    /// span's DP cell; `None` when no competing path reached the cell.
+    pub score_margin: Option<f64>,
     pub confidence: AlignmentConfidence,
     pub evidence: Vec<AlignmentEvidence>,
     pub old_separator: Option<BlockSeparator>,
@@ -70,6 +75,9 @@ pub struct AlignmentOptions {
     pub anchor_min_tokens: usize,
     pub max_dp_cells: usize,
     pub min_match_score: f64,
+    /// Non-exact matches scoring at least this strongly keep `Medium`
+    /// confidence; weaker admitted matches are calibrated to `Low`.
+    pub strong_match_score: f64,
     pub min_score_margin: f64,
     pub gap_penalty: f64,
     pub split_merge_penalty: f64,
@@ -86,6 +94,7 @@ impl Default for AlignmentOptions {
             anchor_min_tokens: super::DEFAULT_ANCHOR_MIN_TOKENS,
             max_dp_cells: 1_000_000,
             min_match_score: 0.55,
+            strong_match_score: 0.85,
             min_score_margin: 0.08,
             gap_penalty: 0.35,
             split_merge_penalty: 0.05,
@@ -119,6 +128,7 @@ pub(crate) fn validate_alignment_options(options: AlignmentOptions) -> Result<()
     }
     for (name, value) in [
         ("min_match_score", options.min_match_score),
+        ("strong_match_score", options.strong_match_score),
         ("min_score_margin", options.min_score_margin),
         (
             "min_masked_canonical_similarity",
@@ -138,6 +148,12 @@ pub(crate) fn validate_alignment_options(options: AlignmentOptions) -> Result<()
     if (options.matching_weight + options.canonical_weight - 1.0).abs() > WEIGHT_SUM_TOLERANCE {
         return Err(Error::InvalidConfiguration(
             "alignment text weights must sum to 1".to_owned(),
+        ));
+    }
+    if options.strong_match_score < options.min_match_score {
+        return Err(Error::InvalidConfiguration(
+            "alignment strong_match_score must be greater than or equal to min_match_score"
+                .to_owned(),
         ));
     }
     Ok(())
@@ -163,6 +179,8 @@ pub fn align_ordered(
                     old: vec![features.block],
                     new: vec![features.block],
                     score: 1.0,
+                    canonical_similarity: 1.0,
+                    score_margin: None,
                     confidence: AlignmentConfidence::High,
                     evidence: vec![AlignmentEvidence::ExactCanonical],
                     old_separator: None,
@@ -920,7 +938,7 @@ fn align_interval(
             AlignmentEvidence::TextSimilarity,
         )]);
     }
-    backtrack(old, new, &cells, width, context)
+    backtrack(old, new, &cells, width, options, context)
 }
 
 #[derive(Clone)]
@@ -1033,6 +1051,7 @@ fn backtrack(
     new: &[BlockFeatures],
     cells: &[Cell],
     width: usize,
+    options: AlignmentOptions,
     context: IntervalContext<'_>,
 ) -> Result<Vec<AlignmentSpan>> {
     let mut old_index = old.len();
@@ -1040,11 +1059,19 @@ fn backtrack(
     let mut reversed = Vec::new();
 
     while old_index > 0 || new_index > 0 {
-        let transition = cells[old_index * width + new_index]
+        let cell = &cells[old_index * width + new_index];
+        // The runner-up total at this cell is the best competing transition
+        // that could have produced this span; a razor-thin margin means the
+        // chosen correspondence was locally ambiguous.
+        let score_margin = cell
+            .second
+            .is_finite()
+            .then(|| (cell.best - cell.second).max(0.0));
+        match cell
             .transition
             .clone()
-            .ok_or_else(|| Error::Unresolved("alignment DP lost its predecessor".to_owned()))?;
-        match transition {
+            .ok_or_else(|| Error::Unresolved("alignment DP lost its predecessor".to_owned()))?
+        {
             Transition::Match {
                 old_count,
                 new_count,
@@ -1058,6 +1085,8 @@ fn backtrack(
                     &new[new_start..new_index],
                     group_score,
                     sources,
+                    score_margin,
+                    options,
                     context,
                 ));
                 old_index = old_start;
@@ -1081,6 +1110,8 @@ fn backtrack(
                         .map(|features| features.block)
                         .collect(),
                     score: 0.0,
+                    canonical_similarity: 0.0,
+                    score_margin: None,
                     confidence: AlignmentConfidence::Low,
                     evidence,
                     old_separator: None,
@@ -1096,6 +1127,8 @@ fn backtrack(
                     old: vec![old[old_index].block],
                     new: Vec::new(),
                     score: 0.0,
+                    canonical_similarity: 0.0,
+                    score_margin: None,
                     confidence: AlignmentConfidence::Medium,
                     evidence: if move_candidate {
                         vec![AlignmentEvidence::MoveCandidate]
@@ -1113,6 +1146,8 @@ fn backtrack(
                     old: Vec::new(),
                     new: vec![new[new_index].block],
                     score: 0.0,
+                    canonical_similarity: 0.0,
+                    score_margin: None,
                     confidence: AlignmentConfidence::Medium,
                     evidence: if move_candidate {
                         vec![AlignmentEvidence::MoveCandidate]
@@ -1131,6 +1166,8 @@ fn backtrack(
                     old: Vec::new(),
                     new: vec![new[new_index].block],
                     score: 0.0,
+                    canonical_similarity: 0.0,
+                    score_margin: None,
                     confidence: AlignmentConfidence::Medium,
                     evidence: vec![AlignmentEvidence::MoveCandidate],
                     old_separator: None,
@@ -1141,6 +1178,8 @@ fn backtrack(
                     old: vec![old[old_index].block],
                     new: Vec::new(),
                     score: 0.0,
+                    canonical_similarity: 0.0,
+                    score_margin: None,
                     confidence: AlignmentConfidence::Medium,
                     evidence: vec![AlignmentEvidence::MoveCandidate],
                     old_separator: None,
@@ -1158,6 +1197,8 @@ fn match_span(
     new: &[BlockFeatures],
     score: GroupScore,
     sources: Vec<CandidateSource>,
+    score_margin: Option<f64>,
+    options: AlignmentOptions,
     context: IntervalContext<'_>,
 ) -> AlignmentSpan {
     let split_merge = old.len() != new.len();
@@ -1182,14 +1223,34 @@ fn match_span(
         old: old.iter().map(|features| features.block).collect(),
         new: new.iter().map(|features| features.block).collect(),
         score: score.score,
-        confidence: if score.exact_canonical && !split_merge {
-            AlignmentConfidence::High
-        } else {
-            AlignmentConfidence::Medium
-        },
+        canonical_similarity: score.canonical_similarity,
+        score_margin,
+        confidence: calibrated_match_confidence(&score, split_merge, score_margin, &options),
         evidence,
         old_separator: score.old_separator,
         new_separator: score.new_separator,
+    }
+}
+
+/// Calibrates per-span confidence instead of granting every admitted
+/// non-exact match `Medium`: weak scores and locally ambiguous DP decisions
+/// degrade to `Low` so downstream consumers can tell them apart from strong
+/// correspondences (issue #6).
+fn calibrated_match_confidence(
+    score: &GroupScore,
+    split_merge: bool,
+    score_margin: Option<f64>,
+    options: &AlignmentOptions,
+) -> AlignmentConfidence {
+    if score.exact_canonical && !split_merge {
+        return AlignmentConfidence::High;
+    }
+    let weak_score = !score.exact_canonical && score.score < options.strong_match_score;
+    let ambiguous_margin = score_margin.is_some_and(|margin| margin < options.min_score_margin);
+    if !score.exact_canonical && (weak_score || ambiguous_margin) {
+        AlignmentConfidence::Low
+    } else {
+        AlignmentConfidence::Medium
     }
 }
 
@@ -1223,6 +1284,8 @@ fn anchor_span(anchor: ExactAnchor) -> AlignmentSpan {
         old: vec![anchor.old],
         new: vec![anchor.new],
         score: 1.0,
+        canonical_similarity: 1.0,
+        score_margin: None,
         confidence: AlignmentConfidence::High,
         evidence: vec![AlignmentEvidence::ExactCanonical, AlignmentEvidence::Anchor],
         old_separator: None,
@@ -1236,6 +1299,8 @@ fn partition_span(anchor: ExactAnchor) -> AlignmentSpan {
         old: vec![anchor.old],
         new: vec![anchor.new],
         score: 1.0,
+        canonical_similarity: 1.0,
+        score_margin: None,
         confidence: AlignmentConfidence::High,
         evidence: vec![AlignmentEvidence::ExactCanonical],
         old_separator: None,
@@ -1253,6 +1318,8 @@ fn unresolved_span(
         old: old.iter().map(|features| features.block).collect(),
         new: new.iter().map(|features| features.block).collect(),
         score: 0.0,
+        canonical_similarity: 0.0,
+        score_margin: None,
         confidence: AlignmentConfidence::Low,
         evidence: vec![evidence],
         old_separator: None,
@@ -1330,6 +1397,8 @@ fn move_deletion_span(block: BlockId) -> AlignmentSpan {
         old: vec![block],
         new: Vec::new(),
         score: 0.0,
+        canonical_similarity: 0.0,
+        score_margin: None,
         confidence: AlignmentConfidence::Medium,
         evidence: vec![AlignmentEvidence::MoveCandidate],
         old_separator: None,
@@ -1343,6 +1412,8 @@ fn move_insertion_span(block: BlockId) -> AlignmentSpan {
         old: Vec::new(),
         new: vec![block],
         score: 0.0,
+        canonical_similarity: 0.0,
+        score_margin: None,
         confidence: AlignmentConfidence::Medium,
         evidence: vec![AlignmentEvidence::MoveCandidate],
         old_separator: None,
@@ -1502,6 +1573,8 @@ fn unresolved_alignment_interval(spans: &[AlignmentSpan]) -> AlignmentSpan {
             .flat_map(|span| span.new.iter().copied())
             .collect(),
         score: 0.0,
+        canonical_similarity: 0.0,
+        score_margin: None,
         confidence: AlignmentConfidence::Low,
         evidence: vec![AlignmentEvidence::NumericMask],
         old_separator: None,
@@ -1548,6 +1621,62 @@ fn validate_shared_ngram_size(old: &[BlockFeatures], new: &[BlockFeatures]) -> R
 mod tests {
     use super::*;
 
+    fn group_score(score: f64, exact_canonical: bool) -> GroupScore {
+        GroupScore {
+            score,
+            canonical_similarity: score,
+            exact_canonical,
+            numeric_mask: false,
+            separator_ambiguous: false,
+            old_separator: None,
+            new_separator: None,
+        }
+    }
+
+    #[test]
+    fn calibrates_non_exact_confidence_from_the_score_band() {
+        let options = AlignmentOptions::default();
+
+        assert_eq!(
+            calibrated_match_confidence(&group_score(0.84, false), false, None, &options),
+            AlignmentConfidence::Low
+        );
+        assert_eq!(
+            calibrated_match_confidence(&group_score(0.85, false), false, None, &options),
+            AlignmentConfidence::Medium
+        );
+    }
+
+    #[test]
+    fn calibrates_a_thin_local_margin_as_low_confidence() {
+        let options = AlignmentOptions::default();
+
+        assert_eq!(
+            calibrated_match_confidence(
+                &group_score(0.9, false),
+                false,
+                Some(options.min_score_margin - SCORE_TOLERANCE),
+                &options
+            ),
+            AlignmentConfidence::Low
+        );
+        // Exact canonical identity is not downgraded by a thin margin.
+        assert_eq!(
+            calibrated_match_confidence(&group_score(1.0, true), true, Some(0.0), &options),
+            AlignmentConfidence::Medium
+        );
+    }
+
+    #[test]
+    fn exact_matches_keep_high_confidence() {
+        let options = AlignmentOptions::default();
+
+        assert_eq!(
+            calibrated_match_confidence(&group_score(1.0, true), false, Some(0.0), &options),
+            AlignmentConfidence::High
+        );
+    }
+
     #[test]
     fn partition_anchor_supports_an_adjacent_masked_match() {
         let partition = ExactAnchor {
@@ -1565,6 +1694,8 @@ mod tests {
                 old: vec![BlockId(2)],
                 new: vec![BlockId(102)],
                 score: 0.9,
+                canonical_similarity: 0.9,
+                score_margin: None,
                 confidence: AlignmentConfidence::Medium,
                 evidence: vec![
                     AlignmentEvidence::TextSimilarity,
@@ -1596,6 +1727,8 @@ mod tests {
                 old: vec![BlockId(2)],
                 new: vec![BlockId(102)],
                 score: 0.9,
+                canonical_similarity: 0.9,
+                score_margin: None,
                 confidence: AlignmentConfidence::Medium,
                 evidence: vec![
                     AlignmentEvidence::TextSimilarity,
