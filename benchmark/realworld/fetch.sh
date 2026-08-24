@@ -20,6 +20,11 @@ fetch_side() {
     local pair_id="$1" side="$2" url="$3" expected_bytes="$4" expected_sha="$5"
     local target="${cache}/${pair_id}-${side}.pdf"
 
+    if [[ "${url}" != "https://"* ]]; then
+        echo "FAIL ${pair_id}-${side}: refusing non-https provenance URL ${url}" >&2
+        return 1
+    fi
+
     if [[ -f "${target}" ]]; then
         local actual_sha
         actual_sha="$(sha256sum "${target}" | cut -d' ' -f1)"
@@ -31,7 +36,10 @@ fetch_side() {
     fi
 
     local tmp="${target}.part"
+    # --max-filesize bounds the transfer at the manifest byte count before any
+    # checksum work happens; the exact-size comparison below stays authoritative.
     if ! curl --fail --silent --show-error --location --retry 3 --retry-delay 2 \
+            --max-filesize "${expected_bytes}" \
             --output "${tmp}" "${url}"; then
         echo "FAIL ${pair_id}-${side}: download error for ${url}" >&2
         rm -f "${tmp}"

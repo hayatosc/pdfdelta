@@ -76,7 +76,13 @@ pub struct QualityMetrics {
     pub recall: Option<f64>,
     pub precision: Option<f64>,
     pub kind_accuracy: Option<f64>,
-    pub fragmentation_per_matched_change: Option<f64>,
+    /// Reported hunks divided by quote-matched expected changes. Under
+    /// `Partial` annotations the denominator is only the reviewed subset,
+    /// so this overstates fragmentation and is not comparable with the
+    /// complete-annotation `review_hunks_per_expected_change`.
+    pub reported_hunks_per_matched_change: Option<f64>,
+    /// Reported hunks per expected semantic change; computed only for
+    /// `Complete` annotations where every semantic change was reviewed.
     pub review_hunks_per_expected_change: Option<f64>,
     pub unmatched_tiny_changes: usize,
     pub unresolvable_reported_spans: usize,
@@ -100,6 +106,28 @@ pub struct ReportedChangeText {
     pub new_text: Option<String>,
 }
 
+/// Outcome of one pair run. `Limit` records a comparison that stopped at a
+/// documented resource budget before producing a diff; it is distinct from
+/// `Ok` and `Failed` so incomplete measurements never masquerade as healthy
+/// results.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PairRunStatus {
+    Ok,
+    Limit,
+    Failed,
+}
+
+impl PairRunStatus {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Ok => "OK",
+            Self::Limit => "LIMIT",
+            Self::Failed => "FAIL",
+        }
+    }
+}
+
 const CHANGE_TEXT_PREVIEW_CHARS: usize = 240;
 
 fn truncate_preview(text: &str) -> String {
@@ -113,6 +141,7 @@ pub struct PairRunReport {
     pub role: &'static str,
     pub document_type: String,
     pub in_scope: bool,
+    pub status: PairRunStatus,
     pub provenance_verified: bool,
     pub compared: bool,
     /// Both sides produced glyph evidence without document- or page-scoped
@@ -140,8 +169,10 @@ pub struct PairRunReport {
 }
 
 impl PairRunReport {
+    /// Only `Ok` records are healthy: a resource-limit stop is not a failure,
+    /// but it also did not measure anything and must not be counted as done.
     pub fn healthy(&self) -> bool {
-        self.failure.is_none()
+        self.status == PairRunStatus::Ok
     }
 }
 
@@ -734,7 +765,9 @@ pub fn compute_quality(
     let unmatched_tiny = actuals
         .iter()
         .enumerate()
-        .filter(|(index, change)| !outcome.claimed_actuals.contains(index) && is_tiny(change))
+        .filter(|(index, change)| {
+            !outcome.claimed_actuals.contains(index) && change.resolvable && is_tiny(change)
+        })
         .count();
     QualityMetrics {
         annotation,
@@ -747,7 +780,7 @@ pub fn compute_quality(
         kind_accuracy: (outcome.matched > 0)
             .then(|| ratio(outcome.kind_agreements, outcome.matched))
             .flatten(),
-        fragmentation_per_matched_change: (outcome.matched > 0)
+        reported_hunks_per_matched_change: (outcome.matched > 0)
             .then(|| reported as f64 / outcome.matched as f64),
         review_hunks_per_expected_change: (annotation == Annotation::Complete)
             .then(|| ratio(reported, expected.len()))
@@ -758,16 +791,18 @@ pub fn compute_quality(
 }
 
 /// One- or two-token edits on every existing side, the shape of changes bad
-/// alignment tends to fabricate.
+/// alignment tends to fabricate. Changes without any resolved span length
+/// (unresolvable spans) are never tiny: they are counted separately as
+/// unresolvable and must not inflate the suspicious-edit signal.
 fn is_tiny(change: &ActualChange) -> bool {
-    let existing_lengths = [change.old_comparable_len, change.new_comparable_len]
+    let mut longest_existing: Option<usize> = None;
+    for length in [change.old_comparable_len, change.new_comparable_len]
         .into_iter()
-        .flatten();
-    let mut longest_existing = 0_usize;
-    for length in existing_lengths {
-        longest_existing = longest_existing.max(length);
+        .flatten()
+    {
+        longest_existing = Some(longest_existing.map_or(length, |current| current.max(length)));
     }
-    longest_existing <= 2
+    longest_existing.is_some_and(|longest| longest <= 2)
 }
 
 fn unresolved_token_shares(comparison: &Comparison) -> (Option<f64>, Option<f64>) {
@@ -870,6 +905,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         resource_limit_failure: None,
         runtime_ms: 0,
         limit_scale_used: effective_scale,
+        status: PairRunStatus::Ok,
         failure: None,
     };
 
@@ -877,13 +913,11 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         .and_then(|()| verify_provenance(&pair.new, &new_path, "new"));
     if let Err(reason) = verification {
         record.failure = Some(reason);
-        record.runtime_ms = started.elapsed().as_millis();
-        return record;
+        return finish(record, started);
     }
     record.provenance_verified = true;
     if !context.compare {
-        record.runtime_ms = started.elapsed().as_millis();
-        return record;
+        return finish(record, started);
     }
 
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
@@ -952,6 +986,18 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                 )
             })
             .and_then(|text| load_expected_document(&text).map_err(|error| error.to_string()))
+            .and_then(|document| {
+                if document.pair == pair.pair_id {
+                    Ok(document)
+                } else {
+                    Err(format!(
+                        "expected annotations {} describe pair {:?} but this manifest row is {:?}",
+                        path.display(),
+                        document.pair,
+                        pair.pair_id
+                    ))
+                }
+            })
     });
 
     let expected = match expected_document {
@@ -1010,7 +1056,16 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     finish(record, started)
 }
 
+/// Single exit point that derives the final status: an explicit failure wins,
+/// then a resource-limit stop; everything else stays `Ok`.
 fn finish(mut record: PairRunReport, started: Instant) -> PairRunReport {
+    record.status = if record.failure.is_some() {
+        PairRunStatus::Failed
+    } else if record.resource_limit_failure.is_some() {
+        PairRunStatus::Limit
+    } else {
+        PairRunStatus::Ok
+    };
     record.runtime_ms = started.elapsed().as_millis();
     record
 }
@@ -1109,7 +1164,15 @@ pub fn run_revision_benchmark(
 
 pub fn summarize_reports(reports: &[PairRunReport]) -> String {
     let healthy = reports.iter().filter(|record| record.healthy()).count();
-    format!("{healthy}/{} revision pairs healthy", reports.len())
+    let limited = reports
+        .iter()
+        .filter(|record| record.status == PairRunStatus::Limit)
+        .count();
+    let failed = reports.len() - healthy - limited;
+    format!(
+        "{healthy}/{} revision pairs healthy; {limited} stopped at resource limits; {failed} failed",
+        reports.len()
+    )
 }
 
 pub fn write_reports_json(path: &Path, reports: &[PairRunReport]) -> Result<()> {
@@ -1406,7 +1469,7 @@ mod tests {
         assert_eq!(quality.recall, Some(1.0));
         assert_eq!(quality.precision, Some(1.0 / 3.0));
         assert_eq!(quality.unmatched_tiny_changes, 2);
-        assert_eq!(quality.fragmentation_per_matched_change, Some(3.0));
+        assert_eq!(quality.reported_hunks_per_matched_change, Some(3.0));
         assert_eq!(quality.review_hunks_per_expected_change, Some(3.0));
     }
 
@@ -1422,6 +1485,82 @@ mod tests {
             Some(28),
         );
         assert!(!is_tiny(&change));
+    }
+
+    #[test]
+    fn unresolvable_spans_never_count_as_suspicious_tiny_edits() {
+        // A change whose spans failed text resolution carries no comparable
+        // lengths; previously the 0-initialized maximum made such changes
+        // look like two-token edits.
+        let mut both_unresolved = actual_change(ChangeKind::Replacement, None, None, None, None);
+        both_unresolved.resolvable = false;
+        // A partially resolved change keeps one short length while still
+        // being unresolvable overall.
+        let mut partially_resolved =
+            actual_change(ChangeKind::Replacement, Some("ab"), None, Some(2), None);
+        partially_resolved.resolvable = false;
+        let expected = vec![expected_change(
+            "c1",
+            ExpectedKind::Deletion,
+            Some("gone text"),
+            None,
+        )];
+        let quality = compute_quality(
+            Annotation::Partial,
+            &expected,
+            &[partially_resolved, both_unresolved],
+        );
+        assert_eq!(quality.unmatched_tiny_changes, 0);
+        assert_eq!(quality.unresolvable_reported_spans, 2);
+        assert_eq!(quality.recall, Some(0.0));
+    }
+
+    #[test]
+    fn status_summary_reports_healthy_limit_and_failed_totals_accurately() {
+        fn record(status: PairRunStatus) -> PairRunReport {
+            PairRunReport {
+                pair_id: "p".to_owned(),
+                set: PairSet::Dev.label(),
+                role: PairRole::Standard.label(),
+                document_type: "t".to_owned(),
+                in_scope: true,
+                status,
+                provenance_verified: true,
+                compared: false,
+                extraction_complete: None,
+                comparison_complete: None,
+                extraction_issues: Vec::new(),
+                coverage_old: None,
+                coverage_new: None,
+                coverage_comparison: None,
+                unresolved_regions: None,
+                unresolved_old_token_share: None,
+                unresolved_new_token_share: None,
+                reported_content_changes: None,
+                formatting_only_changes: None,
+                reported_changes_preview: Vec::new(),
+                quality: None,
+                quality_skipped_reason: None,
+                resource_limit_failure: None,
+                runtime_ms: 0,
+                limit_scale_used: 1.0,
+                failure: None,
+            }
+        }
+
+        let reports = vec![
+            record(PairRunStatus::Ok),
+            record(PairRunStatus::Ok),
+            record(PairRunStatus::Limit),
+            record(PairRunStatus::Failed),
+        ];
+        assert!(reports[0].healthy());
+        assert!(!reports[2].healthy());
+        assert!(!reports[3].healthy());
+        assert_eq!(
+            summarize_reports(&reports),
+            "2/4 revision pairs healthy; 1 stopped at resource limits; 1 failed"
+        );
     }
 
     #[test]
@@ -1452,7 +1591,7 @@ mod tests {
         assert_eq!(partial.recall, Some(1.0));
         assert_eq!(partial.precision, None);
         assert_eq!(partial.kind_accuracy, Some(1.0));
-        assert_eq!(partial.fragmentation_per_matched_change, Some(2.0));
+        assert_eq!(partial.reported_hunks_per_matched_change, Some(2.0));
         let complete = compute_quality(Annotation::Complete, &expected, &actuals);
         assert_eq!(complete.precision, Some(0.5));
         assert_eq!(complete.review_hunks_per_expected_change, Some(2.0));

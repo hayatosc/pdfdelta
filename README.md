@@ -114,14 +114,22 @@ The command reports extraction conformance separately from revision-diff
 quality: extraction completeness, alignment coverage, unresolved regions with
 their comparable-token share, reported change counts, and — where expected
 annotations exist — recall, precision (complete annotations only),
-change-kind accuracy, fragmentation (reported changes per matched or expected
-semantic change), and unmatched one- or two-token edits that bad alignment
-tends to fabricate. `--set dev|holdout` and `--pair <id>` select subsets;
-`--limit-scale <factor>` uniformly raises resource budgets and never weakens
-documented defaults, while omitting it applies each pair's recorded
-`limit_scale_hint`. Exit code 1 signals provenance or expectation failures;
-low quality scores never fail a run because thresholds would be premature
-before the alignment improvements tracked in issue #6 land.
+change-kind accuracy, fragmentation (reported hunks per matched change and,
+for complete annotations, per expected semantic change), and unmatched one-
+or two-token edits that bad alignment tends to fabricate. Unresolvable
+spans are counted separately and never inflate the tiny-edit signal. Every
+pair ends in exactly one status: `OK` (compared), `LIMIT` (the comparison
+stopped at a documented resource budget before producing a diff), or `FAIL`
+(provenance, expectation, or execution failure). `--set dev|holdout` and
+`--pair <id>` select subsets; `--limit-scale <factor>` uniformly scales the
+comparison pipeline budgets (n-gram token elements, alignment candidate
+visits, alignment DP cells, diff token and edit-distance limits; parser and
+extraction limits are untouched) and never weakens documented defaults,
+while omitting it applies each pair's recorded `limit_scale_hint`. Exit
+code 1 signals provenance failures, expectation mismatches, or pairs that
+ended `LIMIT`/`FAIL`; low quality scores never fail a run because
+thresholds would be premature before the alignment improvements tracked in
+issue #6 land.
 
 ## License
 

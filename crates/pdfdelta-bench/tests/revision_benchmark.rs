@@ -6,7 +6,7 @@ use std::{
 use pdfdelta_bench::{
     cases::built_in_cases,
     renderers::{RenderLimits, RendererKind},
-    revisions::{Annotation, MANIFEST_HEADER, PairSet, run_revision_benchmark},
+    revisions::{Annotation, MANIFEST_HEADER, PairRunStatus, PairSet, run_revision_benchmark},
 };
 use sha2::{Digest, Sha256};
 
@@ -161,6 +161,7 @@ fn reviewed_synthetic_pair_achieves_perfect_recall_precision_and_fragmentation()
     let report = &reports[0];
     assert!(report.healthy(), "unexpected failure: {:?}", report.failure);
     assert!(report.provenance_verified);
+    assert_eq!(report.status, PairRunStatus::Ok);
     assert_eq!(report.extraction_complete, Some(true));
     assert_eq!(report.comparison_complete, Some(true));
     assert!(report.quality_skipped_reason.is_none());
@@ -171,7 +172,7 @@ fn reviewed_synthetic_pair_achieves_perfect_recall_precision_and_fragmentation()
     assert_eq!(quality.recall, Some(1.0));
     assert_eq!(quality.precision, Some(1.0));
     assert_eq!(quality.kind_accuracy, Some(1.0));
-    assert_eq!(quality.fragmentation_per_matched_change, Some(1.0));
+    assert_eq!(quality.reported_hunks_per_matched_change, Some(1.0));
     assert_eq!(quality.review_hunks_per_expected_change, Some(1.0));
     assert_eq!(quality.unmatched_tiny_changes, 0);
     assert_eq!(report.reported_changes_preview.len(), 1);
@@ -268,4 +269,100 @@ fn set_filters_apply_and_header_only_manifests_are_rejected() {
         false,
     );
     assert!(rejected.is_err(), "a manifest without pairs is invalid");
+}
+
+#[test]
+fn mismatched_expected_pair_identity_fails_instead_of_reporting_foreign_metrics() {
+    let corpus = temp_corpus("foreign");
+    let pair_id = "synthetic-replacement";
+    let (old_bytes, new_bytes) = replacement_case_pdf_bytes();
+    let old_sha = store(&corpus.root, pair_id, "old", &old_bytes);
+    let (new_count, new_sha) = provenance(&new_bytes);
+    store(&corpus.root, pair_id, "new", &new_bytes);
+    fs::write(
+        corpus.root.join("manifest.tsv"),
+        format!(
+            "{}\n{}\n",
+            MANIFEST_HEADER.join("\t"),
+            manifest_row(
+                pair_id,
+                "expected/other-pair.json",
+                old_bytes.len() as u64,
+                &old_sha,
+                new_count,
+                &new_sha
+            ),
+        ),
+    )
+    .expect("manifest written");
+    // Valid JSON for a different pair id; quotes would even match this
+    // document, but the identity check must reject it outright.
+    fs::write(
+        corpus.root.join("expected").join("other-pair.json"),
+        r#"{"version":1,"pair":"some-other-document","reviewed_on":"2026-08-24","annotation":"complete","changes":[{"id":"x","kind":"deletion","old_quote":"never present"}]}"#,
+    )
+    .expect("expected file written");
+
+    let reports = run_revision_benchmark(
+        &corpus.root.join("manifest.tsv"),
+        &corpus.root,
+        None,
+        Some(pair_id),
+        None,
+        true,
+    )
+    .expect("benchmark runs");
+
+    assert_eq!(reports.len(), 1);
+    let report = &reports[0];
+    assert_eq!(report.status, PairRunStatus::Failed);
+    assert!(!report.healthy());
+    let failure = report.failure.as_deref().unwrap_or_default();
+    assert!(failure.contains("describe pair"), "failure was {failure:?}");
+    assert!(failure.contains("some-other-document"));
+}
+
+#[test]
+fn checksums_only_mode_verifies_provenance_without_comparing() {
+    let corpus = temp_corpus("verify-only");
+    let pair_id = "synthetic-replacement";
+    let (old_bytes, new_bytes) = replacement_case_pdf_bytes();
+    let old_sha = store(&corpus.root, pair_id, "old", &old_bytes);
+    let (new_count, new_sha) = provenance(&new_bytes);
+    store(&corpus.root, pair_id, "new", &new_bytes);
+    fs::write(
+        corpus.root.join("manifest.tsv"),
+        format!(
+            "{}\n{}\n",
+            MANIFEST_HEADER.join("\t"),
+            manifest_row(
+                pair_id,
+                "-",
+                old_bytes.len() as u64,
+                &old_sha,
+                new_count,
+                &new_sha
+            ),
+        ),
+    )
+    .expect("manifest written");
+
+    let reports = run_revision_benchmark(
+        &corpus.root.join("manifest.tsv"),
+        &corpus.root,
+        None,
+        Some(pair_id),
+        None,
+        false,
+    )
+    .expect("benchmark runs");
+
+    assert_eq!(reports.len(), 1);
+    let report = &reports[0];
+    assert_eq!(report.status, PairRunStatus::Ok);
+    assert!(report.healthy());
+    assert!(report.provenance_verified);
+    assert!(!report.compared);
+    assert_eq!(report.extraction_complete, None);
+    assert!(report.quality.is_none());
 }

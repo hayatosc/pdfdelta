@@ -42,8 +42,11 @@ enum Command {
         /// Evaluate a single pair by its manifest id.
         #[arg(long)]
         pair: Option<String>,
-        /// Raise resource budgets uniformly (>= 1). When omitted, every pair
-        /// uses the limit_scale_hint recorded in the manifest.
+        /// Scale the comparison pipeline budgets (n-gram token elements,
+        /// alignment candidate visits, alignment DP cells, diff token and
+        /// edit-distance limits) uniformly by this factor (>= 1); parser and
+        /// extraction limits are untouched. When omitted, every pair uses
+        /// the limit_scale_hint recorded in the manifest.
         #[arg(long)]
         limit_scale: Option<f64>,
         /// Verify downloads and checksums without running comparisons.
@@ -193,10 +196,12 @@ fn revisions<W: Write>(
 }
 
 fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> String {
-    let status = if record.healthy() { "OK " } else { "FAIL" };
     let mut line = format!(
-        "{status} pair={} set={} role={}",
-        record.pair_id, record.set, record.role
+        "{} pair={} set={} role={}",
+        record.status.label(),
+        record.pair_id,
+        record.set,
+        record.role
     );
     if !record.provenance_verified {
         line.push_str(" provenance=unverified");
@@ -217,13 +222,13 @@ fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> St
         ));
         if let Some(quality) = &record.quality {
             line.push_str(&format!(
-                " reported={} expected={} recall={} precision={} kind={} frag/matched={} tinyFP={}",
+                " reported={} expected={} recall={} precision={} kind={} hunks/matched={} tinyFP={}",
                 quality.reported_changes,
                 quality.expected_changes,
                 optional_ratio(quality.recall),
                 optional_ratio(quality.precision),
                 optional_ratio(quality.kind_accuracy),
-                optional_ratio(quality.fragmentation_per_matched_change),
+                optional_ratio(quality.reported_hunks_per_matched_change),
                 quality.unmatched_tiny_changes
             ));
         }
