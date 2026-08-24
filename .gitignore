@@ -1,1 +1,4 @@
 /target
+
+# Downloaded real-world benchmark documents are never vendored.
+benchmark/realworld/cache/
