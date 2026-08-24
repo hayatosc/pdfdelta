@@ -7,7 +7,7 @@ use pdfdelta_core::{
         BlockFeatures, BlockSeparator, Candidate, CandidateGenerator, CandidateSource, ExactAnchor,
         ExactHash, InvertedIndexCandidateGenerator, align_ordered, build_block_features,
     },
-    diff::{ChangeKind, DiffOptions, compare_aligned},
+    diff::{ChangeKind, Confidence, DiffOptions, compare_aligned},
     layout::BlockId,
     model::FontProgramHash,
     normalize::{
@@ -1678,12 +1678,154 @@ fn chains_many_unique_anchors_in_n_log_n_time() {
     assert_eq!(reversed.move_candidates.len(), ANCHOR_COUNT - 1);
 }
 
+const WEAK_PLAUSIBLE_OLD: &str = "total schedule amount line enter 28 b standard here";
+const WEAK_PLAUSIBLE_NEW: &str = "total schedule amount line enter 61 c premium elsewhere";
+// A rotated, partially rewritten form row: enough shared trigrams to be
+// admitted as a weak non-exact match, but most canonical tokens changed.
+const WEAK_IMPLAUSIBLE_OLD: &str = "alpha beta gamma delta epsilon zeta eta theta income total";
+const WEAK_IMPLAUSIBLE_NEW: &str = "gamma delta epsilon zeta eta theta alpha beta revenue owed";
+
+#[test]
+fn calibrates_weak_non_exact_matches_below_the_strong_score_threshold() {
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, WEAK_PLAUSIBLE_OLD),
+        block_text(3, CLOSING),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(102, WEAK_PLAUSIBLE_NEW),
+        block_text(103, CLOSING),
+    ];
+
+    let alignment = align(old.clone(), new.clone());
+    let span = &alignment.spans[1];
+    assert_eq!(span.kind, AlignmentKind::Match);
+    assert!(!span.evidence.contains(&AlignmentEvidence::ExactCanonical));
+    let defaults = options();
+    assert!(span.score >= defaults.min_match_score);
+    assert!(span.score < defaults.strong_match_score);
+    // A weak-but-usable correspondence near the admission threshold is not
+    // automatically Medium confidence (issue #6).
+    assert_eq!(span.confidence, AlignmentConfidence::Low);
+
+    let mut permissive = options();
+    permissive.strong_match_score = 0.0;
+    assert_eq!(
+        align_with(old.clone(), new.clone(), permissive).spans[1].confidence,
+        AlignmentConfidence::Medium
+    );
+
+    let mut strict = options();
+    strict.strong_match_score = 1.0;
+    assert_eq!(
+        align_with(old, new, strict).spans[1].confidence,
+        AlignmentConfidence::Low
+    );
+}
+
+#[test]
+fn an_irs_style_layout_shift_degrades_to_unresolved_instead_of_change_soup() {
+    let old_blocks = vec![
+        block_text(1, OPENING),
+        block_text(2, WEAK_IMPLAUSIBLE_OLD),
+        block_text(3, CLOSING),
+    ];
+    let new_blocks = vec![
+        block_text(101, OPENING),
+        block_text(102, WEAK_IMPLAUSIBLE_NEW),
+        block_text(103, CLOSING),
+    ];
+
+    let alignment = align(old_blocks.clone(), new_blocks.clone());
+    let span = &alignment.spans[1];
+    assert_eq!(span.kind, AlignmentKind::Match);
+    assert_eq!(span.confidence, AlignmentConfidence::Low);
+
+    let result = compare_aligned(&old_blocks, &new_blocks, &alignment, DiffOptions::default())
+        .expect("the comparison should survive the implausible span");
+
+    // The implausible match degrades into one honest unresolved region.
+    assert!(result.changes.is_empty());
+    assert_eq!(result.unresolved_regions.len(), 1);
+    assert_eq!(
+        result.unresolved_regions[0]
+            .old_span
+            .as_ref()
+            .expect("old")
+            .blocks,
+        [BlockId(2)]
+    );
+    assert_eq!(
+        result.unresolved_regions[0]
+            .new_span
+            .as_ref()
+            .expect("new")
+            .blocks,
+        [BlockId(102)]
+    );
+    // Only the exact anchors count as resolved coverage.
+    let anchor_tokens = OPENING.chars().count() + CLOSING.chars().count();
+    assert_eq!(result.old_coverage.resolved_tokens, anchor_tokens);
+    assert_eq!(result.new_coverage.resolved_tokens, anchor_tokens);
+
+    // With the plausibility gate disabled the same span shreds into
+    // fragmented low-confidence changes instead of one unresolved region.
+    let gate_disabled_options = DiffOptions {
+        max_weak_match_change_ratio: 1.0,
+        ..DiffOptions::default()
+    };
+    let ungated = compare_aligned(&old_blocks, &new_blocks, &alignment, gate_disabled_options)
+        .expect("the gated-off comparison should succeed");
+    assert!(ungated.changes.len() >= 2);
+    assert!(
+        ungated
+            .changes
+            .iter()
+            .all(|change| change.confidence == Confidence::Low)
+    );
+}
+
+#[test]
+fn retains_a_weak_plausible_match_as_uncertain_changes() {
+    let old_blocks = vec![
+        block_text(1, OPENING),
+        block_text(2, WEAK_PLAUSIBLE_OLD),
+        block_text(3, CLOSING),
+    ];
+    let new_blocks = vec![
+        block_text(101, OPENING),
+        block_text(102, WEAK_PLAUSIBLE_NEW),
+        block_text(103, CLOSING),
+    ];
+    let alignment = align(old_blocks.clone(), new_blocks.clone());
+    assert_eq!(alignment.spans[1].confidence, AlignmentConfidence::Low);
+
+    let result = compare_aligned(&old_blocks, &new_blocks, &alignment, DiffOptions::default())
+        .expect("a plausible weak match should diff");
+    assert!(result.unresolved_regions.is_empty());
+    assert!(!result.changes.is_empty());
+    assert!(
+        result
+            .changes
+            .iter()
+            .all(|change| change.confidence == Confidence::Low)
+    );
+    let summary =
+        summarize(&result, &ExtractionStatus::complete()).expect("the summary should build");
+    assert_eq!(summary.uncertain_changes, result.changes.len());
+}
+
 fn align(old: Vec<BlockText>, new: Vec<BlockText>) -> Alignment {
+    align_with(old, new, options())
+}
+
+fn align_with(old: Vec<BlockText>, new: Vec<BlockText>, opts: AlignmentOptions) -> Alignment {
     let old = build_block_features(&old, 3).expect("old features should build");
     let new = build_block_features(&new, 3).expect("new features should build");
     let generator =
         InvertedIndexCandidateGenerator::new(&new).expect("candidate index should build");
-    align_ordered(&old, &new, &generator, options()).expect("alignment should succeed")
+    align_ordered(&old, &new, &generator, opts).expect("alignment should succeed")
 }
 
 fn assert_anchor_evidence_matches_main_anchors(alignment: &Alignment) {
