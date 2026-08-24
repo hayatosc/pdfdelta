@@ -16,10 +16,8 @@ fn download(url: &str, path: &Path) {
 
 #[test]
 fn probe_irs_form_1040_2024_to_2025() {
-    let directory = std::env::temp_dir().join(format!(
-        "pdfdelta-realworld-probe-{}",
-        process::id()
-    ));
+    let directory =
+        std::env::temp_dir().join(format!("pdfdelta-realworld-probe-{}", process::id()));
     fs::create_dir_all(&directory).expect("probe directory should be created");
 
     let old_pdf = directory.join("f1040--2024.pdf");
@@ -49,9 +47,8 @@ fn probe_irs_form_1040_2024_to_2025() {
         .output()
         .expect("pdfdelta JSON comparison should run");
 
-    let report = fs::read_to_string(&json_report).unwrap_or_else(|error| {
-        format!("<JSON report was not produced: {error}>")
-    });
+    let report = fs::read_to_string(&json_report)
+        .unwrap_or_else(|error| format!("<JSON report was not produced: {error}>"));
     let report_excerpt: String = report.chars().take(20_000).collect();
 
     panic!(
