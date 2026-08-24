@@ -385,6 +385,13 @@ fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> St
     if record.runtime_ms > 0 || record.compared {
         line.push_str(&format!(" runtime_ms={}", record.runtime_ms));
     }
+    match (record.candidate_visits, record.max_candidate_visits) {
+        (Some(visits), Some(limit)) => {
+            line.push_str(&format!(" candidate_visits={visits}/{limit}"));
+        }
+        (None, None) => {}
+        _ => line.push_str(" candidate_visits=incomplete"),
+    }
     if let Some(reason) = &record.resource_limit_failure {
         line.push_str(&format!(" limit_failure={reason:?}"));
     }
@@ -442,9 +449,45 @@ fn actual_label(kinds: &[ChangeKind]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use pdfdelta_bench::candidate_eval::CandidateEvalRecord;
+    use pdfdelta_bench::{
+        candidate_eval::CandidateEvalRecord,
+        revisions::{PairRole, PairRunReport, PairRunStatus, PairSet},
+    };
 
     use super::*;
+
+    fn sample_pair_report() -> PairRunReport {
+        PairRunReport {
+            pair_id: "p".to_owned(),
+            set: PairSet::Dev.label(),
+            role: PairRole::Standard.label(),
+            document_type: "t".to_owned(),
+            in_scope: true,
+            status: PairRunStatus::Ok,
+            provenance_verified: true,
+            compared: false,
+            extraction_complete: None,
+            comparison_complete: None,
+            extraction_issues: Vec::new(),
+            coverage_old: None,
+            coverage_new: None,
+            coverage_comparison: None,
+            unresolved_regions: None,
+            unresolved_old_token_share: None,
+            unresolved_new_token_share: None,
+            reported_content_changes: None,
+            formatting_only_changes: None,
+            reported_changes_preview: Vec::new(),
+            quality: None,
+            quality_skipped_reason: None,
+            resource_limit_failure: None,
+            candidate_visits: None,
+            max_candidate_visits: None,
+            runtime_ms: 0,
+            limit_scale_used: 1.0,
+            failure: None,
+        }
+    }
 
     fn sample_record(recall_at_k: Vec<f64>, oracle_recall_at_k: Vec<f64>) -> CandidateEvalRecord {
         CandidateEvalRecord {
@@ -499,5 +542,20 @@ mod tests {
 
         let mismatched = sample_record(vec![1.0], vec![1.0, 1.0]);
         assert!(candidate_report_line(&mismatched).contains("recall=mismatch"));
+    }
+
+    #[test]
+    fn revision_report_line_displays_candidate_visits_contract() {
+        let mut both = sample_pair_report();
+        both.candidate_visits = Some(42);
+        both.max_candidate_visits = Some(1_000_000);
+        assert!(revision_report_line(&both).contains("candidate_visits=42/1000000"));
+
+        let none = sample_pair_report();
+        assert!(!revision_report_line(&none).contains("candidate_visits"));
+
+        let mut partial = sample_pair_report();
+        partial.candidate_visits = Some(42);
+        assert!(revision_report_line(&partial).contains("candidate_visits=incomplete"));
     }
 }

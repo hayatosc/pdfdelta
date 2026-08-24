@@ -21,7 +21,10 @@ use pdfdelta_core::{
     model::Document,
     normalize::{BlockText, ComparableToken},
     pdf::{LopdfParser, ParseLimits},
-    pipeline::{PipelineOptions, compare_extraction_outcomes},
+    pipeline::{
+        PipelineDiagnostics, PipelineOptions, PipelinePhase,
+        compare_extraction_outcomes_with_diagnostics,
+    },
     report::{self, DocumentSide, summarize},
     source::{
         ContentStreamGlyphExtractor, ExtractionIssue, ExtractionIssueKind, ExtractionLimits,
@@ -163,6 +166,15 @@ pub struct PairRunReport {
     pub quality: Option<QualityMetrics>,
     pub quality_skipped_reason: Option<String>,
     pub resource_limit_failure: Option<String>,
+    /// Sum of `CandidateGenerator::estimated_visits` charged against
+    /// `max_candidate_visits` for non-anchor old blocks; on a candidate
+    /// limit stop this is the attempted cumulative charge including the
+    /// exceeding block. `None` when alignment was never reached (e.g. an
+    /// earlier n-gram or diff budget limit).
+    pub candidate_visits: Option<usize>,
+    /// The `AlignmentOptions::max_candidate_visits` budget the charge was
+    /// compared against.
+    pub max_candidate_visits: Option<usize>,
     pub runtime_ms: u128,
     pub limit_scale_used: f64,
     pub failure: Option<String>,
@@ -903,6 +915,8 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         quality: None,
         quality_skipped_reason: None,
         resource_limit_failure: None,
+        candidate_visits: None,
+        max_candidate_visits: None,
         runtime_ms: 0,
         limit_scale_used: effective_scale,
         status: PairRunStatus::Ok,
@@ -921,25 +935,34 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     }
 
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
-    let outcome_pair =
-        run_extraction_and_comparison(&source, &old_path, &new_path, effective_scale);
-    let outcome = match outcome_pair {
-        Ok(outcome) => outcome,
-        Err(RevisionRunError::Read(reason)) => {
-            record.failure = Some(reason);
-            return finish(record, started);
-        }
-        Err(RevisionRunError::Limit(message)) => {
-            record.resource_limit_failure = Some(message);
-            record.quality_skipped_reason =
-                Some("comparison stopped at a resource limit".to_owned());
-            return finish(record, started);
-        }
-        Err(RevisionRunError::Other(stage, message)) => {
-            record.failure = Some(format!("{stage}: {message}"));
-            return finish(record, started);
-        }
-    };
+    let outcome =
+        match run_extraction_and_comparison(&source, &old_path, &new_path, effective_scale) {
+            Ok((outcome, candidate_visits, max_candidate_visits)) => {
+                record.candidate_visits = candidate_visits;
+                record.max_candidate_visits = max_candidate_visits;
+                outcome
+            }
+            Err(RevisionRunError::Read(reason)) => {
+                record.failure = Some(reason);
+                return finish(record, started);
+            }
+            Err(RevisionRunError::Limit {
+                message,
+                candidate_visits,
+                max_candidate_visits,
+            }) => {
+                record.resource_limit_failure = Some(message);
+                record.candidate_visits = candidate_visits;
+                record.max_candidate_visits = max_candidate_visits;
+                record.quality_skipped_reason =
+                    Some("comparison stopped at a resource limit".to_owned());
+                return finish(record, started);
+            }
+            Err(RevisionRunError::Other(stage, message)) => {
+                record.failure = Some(format!("{stage}: {message}"));
+                return finish(record, started);
+            }
+        };
     record.compared = true;
 
     let summary = match summarize(&outcome.comparison, &outcome.extraction) {
@@ -1070,20 +1093,86 @@ fn finish(mut record: PairRunReport, started: Instant) -> PairRunReport {
     record
 }
 
+#[derive(Debug)]
 enum RevisionRunError {
     Read(String),
-    Limit(String),
+    Limit {
+        message: String,
+        candidate_visits: Option<usize>,
+        max_candidate_visits: Option<usize>,
+    },
     Other(&'static str, String),
 }
 
 type RevisionOutcome = pdfdelta_core::pipeline::ComparisonOutcome;
+
+/// Validates one alignment metrics pair: both fields set or both absent
+/// pass through; a partial pair is a contract violation and is reported as
+/// an error rather than silently treated as a measurement.
+fn validate_visit_pair(
+    candidate_visits: Option<usize>,
+    max_candidate_visits: Option<usize>,
+) -> std::result::Result<(Option<usize>, Option<usize>), String> {
+    match (candidate_visits, max_candidate_visits) {
+        (Some(_), Some(_)) | (None, None) => Ok((candidate_visits, max_candidate_visits)),
+        _ => Err(format!(
+            "alignment metrics contract violation: candidate_visits={candidate_visits:?}, max_candidate_visits={max_candidate_visits:?}"
+        )),
+    }
+}
+
+/// Extracts the alignment candidate visit charge from the diagnostics.
+/// Returns `(None, None)` when alignment was never reached or recorded no
+/// charge; a partial pair is a contract violation and is reported as an
+/// error.
+fn alignment_visit_metrics(
+    diagnostics: &PipelineDiagnostics,
+) -> std::result::Result<(Option<usize>, Option<usize>), String> {
+    let Some(record) = diagnostics
+        .records()
+        .iter()
+        .find(|record| record.phase == PipelinePhase::Alignment)
+    else {
+        return Ok((None, None));
+    };
+    validate_visit_pair(
+        record.metrics.candidate_visits,
+        record.metrics.max_candidate_visits,
+    )
+}
+
+/// Compares two extracted outcomes and returns the alignment candidate
+/// visit charge alongside the outcome; a candidate limit stop carries the
+/// attempted charge in the error. A metrics contract violation takes
+/// priority over the core result.
+fn compare_outcomes_with_metrics(
+    old: ExtractionOutcome,
+    new: ExtractionOutcome,
+    options: PipelineOptions,
+) -> std::result::Result<(RevisionOutcome, Option<usize>, Option<usize>), RevisionRunError> {
+    let mut diagnostics = PipelineDiagnostics::new();
+    let result = compare_extraction_outcomes_with_diagnostics(old, new, options, &mut diagnostics);
+    let (candidate_visits, max_candidate_visits) =
+        alignment_visit_metrics(&diagnostics).map_err(|message| {
+            RevisionRunError::Other("alignment metrics contract violation", message)
+        })?;
+    let outcome = result.map_err(|error| match error {
+        pdfdelta_core::Error::LimitExceeded { .. } => RevisionRunError::Limit {
+            message: error.to_string(),
+            candidate_visits,
+            max_candidate_visits,
+        },
+        other => RevisionRunError::Other("comparison failed", other.to_string()),
+    })?;
+    Ok((outcome, candidate_visits, max_candidate_visits))
+}
 
 fn run_extraction_and_comparison(
     source: &ParserBackedGlyphSource<LopdfParser, ContentStreamGlyphExtractor>,
     old_path: &Path,
     new_path: &Path,
     limit_scale: f64,
-) -> std::result::Result<RevisionOutcome, RevisionRunError> {
+) -> std::result::Result<(RevisionOutcome, Option<usize>, Option<usize>), RevisionRunError> {
     let read = |path: &Path| {
         fs::read(path).map_err(|error| {
             RevisionRunError::Read(format!("cannot read {}: {error}", path.display()))
@@ -1116,10 +1205,7 @@ fn run_extraction_and_comparison(
     let old_outcome = extract(old_bytes);
     let new_outcome = extract(new_bytes);
     let options = scaled_pipeline_options(limit_scale);
-    compare_extraction_outcomes(old_outcome, new_outcome, options).map_err(|error| match error {
-        pdfdelta_core::Error::LimitExceeded { .. } => RevisionRunError::Limit(error.to_string()),
-        other => RevisionRunError::Other("comparison failed", other.to_string()),
-    })
+    compare_outcomes_with_metrics(old_outcome, new_outcome, options)
 }
 
 pub fn run_revision_benchmark(
@@ -1196,6 +1282,15 @@ pub fn write_reports_json(path: &Path, reports: &[PairRunReport]) -> Result<()> 
 
 #[cfg(test)]
 mod tests {
+    use pdfdelta_core::{
+        alignment::AlignmentOptions,
+        model::{
+            DecodedText, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect, TextRenderMode,
+            Vec2,
+        },
+        pdf::ObjectRef,
+    };
+
     use super::*;
 
     fn manifest_row(
@@ -1515,39 +1610,41 @@ mod tests {
         assert_eq!(quality.recall, Some(0.0));
     }
 
+    fn record(status: PairRunStatus) -> PairRunReport {
+        PairRunReport {
+            pair_id: "p".to_owned(),
+            set: PairSet::Dev.label(),
+            role: PairRole::Standard.label(),
+            document_type: "t".to_owned(),
+            in_scope: true,
+            status,
+            provenance_verified: true,
+            compared: false,
+            extraction_complete: None,
+            comparison_complete: None,
+            extraction_issues: Vec::new(),
+            coverage_old: None,
+            coverage_new: None,
+            coverage_comparison: None,
+            unresolved_regions: None,
+            unresolved_old_token_share: None,
+            unresolved_new_token_share: None,
+            reported_content_changes: None,
+            formatting_only_changes: None,
+            reported_changes_preview: Vec::new(),
+            quality: None,
+            quality_skipped_reason: None,
+            resource_limit_failure: None,
+            candidate_visits: None,
+            max_candidate_visits: None,
+            runtime_ms: 0,
+            limit_scale_used: 1.0,
+            failure: None,
+        }
+    }
+
     #[test]
     fn status_summary_reports_healthy_limit_and_failed_totals_accurately() {
-        fn record(status: PairRunStatus) -> PairRunReport {
-            PairRunReport {
-                pair_id: "p".to_owned(),
-                set: PairSet::Dev.label(),
-                role: PairRole::Standard.label(),
-                document_type: "t".to_owned(),
-                in_scope: true,
-                status,
-                provenance_verified: true,
-                compared: false,
-                extraction_complete: None,
-                comparison_complete: None,
-                extraction_issues: Vec::new(),
-                coverage_old: None,
-                coverage_new: None,
-                coverage_comparison: None,
-                unresolved_regions: None,
-                unresolved_old_token_share: None,
-                unresolved_new_token_share: None,
-                reported_content_changes: None,
-                formatting_only_changes: None,
-                reported_changes_preview: Vec::new(),
-                quality: None,
-                quality_skipped_reason: None,
-                resource_limit_failure: None,
-                runtime_ms: 0,
-                limit_scale_used: 1.0,
-                failure: None,
-            }
-        }
-
         let reports = vec![
             record(PairRunStatus::Ok),
             record(PairRunStatus::Ok),
@@ -1645,5 +1742,158 @@ mod tests {
     fn collapse_whitespace_normalizes_line_breaks_and_runs() {
         assert_eq!(collapse_whitespace("a\n b   c\t d"), "a b c d");
         assert_eq!(collapse_whitespace("   "), "");
+    }
+
+    fn glyph_document(text: &str) -> Document<Glyph> {
+        let glyphs = text
+            .chars()
+            .enumerate()
+            .filter(|(_, character)| *character != ' ')
+            .map(|(index, character)| Glyph {
+                id: GlyphId(index as u64 + 1),
+                text: DecodedText::Mapped(character.to_string()),
+                raw_code: character.to_string().into_bytes(),
+                page: PageId(0),
+                bbox: Rect {
+                    min: Vec2 {
+                        x: index as f64 * 6.0,
+                        y: 100.0,
+                    },
+                    max: Vec2 {
+                        x: index as f64 * 6.0 + 5.0,
+                        y: 110.0,
+                    },
+                },
+                baseline: Vec2 {
+                    x: index as f64 * 6.0,
+                    y: 100.0,
+                },
+                direction: Vec2 { x: 1.0, y: 0.0 },
+                font_id: FontId(1),
+                font_size: 10.0,
+                render_order: u32::try_from(index).expect("fixture glyph index fits in u32"),
+                render_mode: TextRenderMode::Fill,
+                provenance: GlyphProvenance {
+                    content_stream: ObjectRef {
+                        object_number: 1,
+                        generation: 0,
+                    },
+                    operator_index: u32::try_from(index).expect("fixture glyph index fits in u32"),
+                },
+            })
+            .collect();
+        Document::new(glyphs)
+    }
+
+    #[test]
+    fn compare_outcomes_with_metrics_records_candidate_visits_on_success() {
+        let old =
+            ExtractionOutcome::complete(glyph_document("Stable old paragraph remains visible"));
+        let new =
+            ExtractionOutcome::complete(glyph_document("Stable new paragraph remains visible"));
+
+        let (outcome, candidate_visits, max_candidate_visits) =
+            compare_outcomes_with_metrics(old, new, PipelineOptions::default())
+                .expect("comparison succeeds");
+
+        assert!(!outcome.comparison.changes.is_empty());
+        let visits = candidate_visits.expect("candidate visits recorded");
+        assert!(visits > 0, "non-anchor old blocks must be charged");
+        assert_eq!(
+            max_candidate_visits,
+            Some(AlignmentOptions::default().max_candidate_visits)
+        );
+    }
+
+    #[test]
+    fn compare_outcomes_with_metrics_keeps_attempted_charge_on_candidate_limit() {
+        let old =
+            ExtractionOutcome::complete(glyph_document("Stable old paragraph remains visible"));
+        let new =
+            ExtractionOutcome::complete(glyph_document("Stable new paragraph remains visible"));
+
+        let (_, charge, _) =
+            compare_outcomes_with_metrics(old.clone(), new.clone(), PipelineOptions::default())
+                .expect("baseline comparison succeeds");
+        let charge = charge.expect("baseline charge recorded");
+        assert!(charge > 1, "fixture must charge at least two visits");
+
+        let options = PipelineOptions {
+            alignment: AlignmentOptions {
+                max_candidate_visits: charge - 1,
+                ..AlignmentOptions::default()
+            },
+            ..PipelineOptions::default()
+        };
+        let error = compare_outcomes_with_metrics(old, new, options)
+            .expect_err("candidate limit must fail");
+        match error {
+            RevisionRunError::Limit {
+                message,
+                candidate_visits,
+                max_candidate_visits,
+            } => {
+                assert!(message.contains("alignment candidate visits"));
+                assert_eq!(candidate_visits, Some(charge));
+                assert_eq!(max_candidate_visits, Some(charge - 1));
+            }
+            other => panic!("expected Limit, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn compare_outcomes_with_metrics_returns_none_for_pre_alignment_limit() {
+        let old =
+            ExtractionOutcome::complete(glyph_document("Stable old paragraph remains visible"));
+        let new =
+            ExtractionOutcome::complete(glyph_document("Stable new paragraph remains visible"));
+        let options = PipelineOptions {
+            max_ngram_token_elements: 1,
+            ..PipelineOptions::default()
+        };
+
+        let error = compare_outcomes_with_metrics(old, new, options)
+            .expect_err("ngram budget must fail before alignment");
+        match error {
+            RevisionRunError::Limit {
+                candidate_visits,
+                max_candidate_visits,
+                ..
+            } => {
+                assert_eq!(candidate_visits, None);
+                assert_eq!(max_candidate_visits, None);
+            }
+            other => panic!("expected Limit, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn pair_report_json_includes_candidate_visit_fields() {
+        let mut report = record(PairRunStatus::Ok);
+        report.candidate_visits = Some(42);
+        report.max_candidate_visits = Some(1_000_000);
+
+        let json = serde_json::to_value(&report).expect("report serializes");
+        assert_eq!(json["candidate_visits"], 42);
+        assert_eq!(json["max_candidate_visits"], 1_000_000);
+    }
+
+    #[test]
+    fn validate_visit_pair_accepts_complete_and_absent_pairs() {
+        assert_eq!(
+            validate_visit_pair(Some(42), Some(1_000_000)),
+            Ok((Some(42), Some(1_000_000)))
+        );
+        assert_eq!(validate_visit_pair(None, None), Ok((None, None)));
+    }
+
+    #[test]
+    fn validate_visit_pair_rejects_both_partial_directions() {
+        for (candidate_visits, max_candidate_visits) in [(Some(42), None), (None, Some(1_000_000))]
+        {
+            let error = validate_visit_pair(candidate_visits, max_candidate_visits)
+                .expect_err("partial pair must be a contract violation");
+            assert!(error.contains("alignment metrics contract violation"));
+        }
     }
 }
