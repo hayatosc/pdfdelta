@@ -61,7 +61,7 @@ pub(crate) fn score_groups(
 ) -> GroupScore {
     let ngram_size = old
         .first()
-        .or_else(|| new.first())
+        .or(new.first())
         .map_or(3, |features| features.ngram_size);
     let old_variants = group_variants(old);
     let new_variants = group_variants(new);

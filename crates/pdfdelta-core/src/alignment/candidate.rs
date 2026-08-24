@@ -33,7 +33,6 @@ pub struct InvertedIndexCandidateGenerator {
     new_features: HashMap<BlockId, BlockFeatures>,
     exact_index: HashMap<ExactHash, Vec<BlockId>>,
     ngram_index: HashMap<NGram, Vec<BlockId>>,
-    document_frequency: HashMap<NGram, usize>,
     ngram_size: Option<usize>,
 }
 
@@ -72,23 +71,19 @@ impl InvertedIndexCandidateGenerator {
         for blocks in ngram_index.values_mut() {
             blocks.sort_by_key(|block| block.0);
         }
-        let document_frequency = ngram_index
-            .iter()
-            .map(|(ngram, blocks)| (ngram.clone(), blocks.len()))
-            .collect();
 
         Ok(Self {
             new_features,
             exact_index,
             ngram_index,
-            document_frequency,
             ngram_size,
         })
     }
 
     fn idf(&self, ngram: &NGram) -> f64 {
         let document_count = self.new_features.len() as f64;
-        let document_frequency = self.document_frequency.get(ngram).copied().unwrap_or(0) as f64;
+        let document_frequency =
+            self.ngram_index.get(ngram).map_or(0, |blocks| blocks.len()) as f64;
         ((document_count + 1.0) / (document_frequency + 1.0)).ln() + 1.0
     }
 }

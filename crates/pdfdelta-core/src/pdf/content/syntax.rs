@@ -63,22 +63,20 @@ struct ParsedFragment {
 }
 
 #[derive(Clone)]
-pub(crate) struct OperatorBudget {
+pub(crate) struct ContentBudget {
+    resource: &'static str,
     limit: usize,
     remaining: Rc<Cell<usize>>,
 }
 
-#[derive(Clone)]
-pub(crate) struct OperandBudget {
-    limit: usize,
-    remaining: Rc<Cell<usize>>,
-}
+pub(crate) type OperatorBudget = ContentBudget;
+pub(crate) type OperandBudget = ContentBudget;
 
 impl ContentParser {
     #[cfg(test)]
     pub(crate) fn new(limits: ContentLimits) -> Self {
-        let operator_budget = OperatorBudget::new(limits.max_operators);
-        let operand_budget = OperandBudget::new(limits.max_operand_nodes);
+        let operator_budget = ContentBudget::for_operators(limits.max_operators);
+        let operand_budget = ContentBudget::for_operands(limits.max_operand_nodes);
         Self::with_budgets(limits, operator_budget, operand_budget)
     }
 
@@ -142,40 +140,28 @@ impl ContentParser {
     }
 }
 
-impl OperatorBudget {
-    pub(crate) fn new(limit: usize) -> Self {
+impl ContentBudget {
+    pub(crate) fn new(resource: &'static str, limit: usize) -> Self {
         Self {
+            resource,
             limit,
             remaining: Rc::new(Cell::new(limit)),
         }
+    }
+
+    pub(crate) fn for_operators(limit: usize) -> Self {
+        Self::new("content operators", limit)
+    }
+
+    pub(crate) fn for_operands(limit: usize) -> Self {
+        Self::new("content operand nodes", limit)
     }
 
     fn reserve(&self) -> Result<()> {
         let remaining = self.remaining.get();
         if remaining == 0 {
             return Err(Error::LimitExceeded {
-                resource: "content operators",
-                limit: self.limit,
-            });
-        }
-        self.remaining.set(remaining - 1);
-        Ok(())
-    }
-}
-
-impl OperandBudget {
-    pub(crate) fn new(limit: usize) -> Self {
-        Self {
-            limit,
-            remaining: Rc::new(Cell::new(limit)),
-        }
-    }
-
-    fn reserve(&self) -> Result<()> {
-        let remaining = self.remaining.get();
-        if remaining == 0 {
-            return Err(Error::LimitExceeded {
-                resource: "content operand nodes",
+                resource: self.resource,
                 limit: self.limit,
             });
         }
@@ -1028,8 +1014,8 @@ mod tests {
     fn shares_the_operand_node_budget_across_parsers() -> Result<()> {
         let mut constrained = limits();
         constrained.max_operand_nodes = 2;
-        let operator_budget = OperatorBudget::new(constrained.max_operators);
-        let budget = OperandBudget::new(constrained.max_operand_nodes);
+        let operator_budget = ContentBudget::for_operators(constrained.max_operators);
+        let budget = ContentBudget::for_operands(constrained.max_operand_nodes);
         let mut first =
             ContentParser::with_budgets(constrained, operator_budget.clone(), budget.clone());
         let mut second = ContentParser::with_budgets(constrained, operator_budget, budget);
@@ -1050,8 +1036,8 @@ mod tests {
     fn shares_the_operator_budget_across_parsers() -> Result<()> {
         let mut constrained = limits();
         constrained.max_operators = 2;
-        let operator_budget = OperatorBudget::new(constrained.max_operators);
-        let operand_budget = OperandBudget::new(constrained.max_operand_nodes);
+        let operator_budget = ContentBudget::for_operators(constrained.max_operators);
+        let operand_budget = ContentBudget::for_operands(constrained.max_operand_nodes);
         let mut first = ContentParser::with_budgets(
             constrained,
             operator_budget.clone(),

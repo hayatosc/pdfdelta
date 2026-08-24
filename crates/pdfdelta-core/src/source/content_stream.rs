@@ -12,7 +12,8 @@ use crate::{
     pdf::{
         ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject,
         content::{
-            ContentLimits, ContentParser, Matrix, Operand, OperandBudget, Operation, OperatorBudget,
+            ContentBudget, ContentLimits, ContentParser, Matrix, Operand, OperandBudget, Operation,
+            OperatorBudget,
         },
         font::cmap::CMapLimits,
         font::{
@@ -119,8 +120,8 @@ struct Extraction<'a> {
 
 impl<'a> Extraction<'a> {
     fn new(pdf: &'a dyn ParsedPdf, limits: ExtractionLimits) -> Self {
-        let operator_budget = OperatorBudget::new(limits.max_operators);
-        let operand_budget = OperandBudget::new(limits.max_operand_nodes);
+        let operator_budget = ContentBudget::for_operators(limits.max_operators);
+        let operand_budget = ContentBudget::for_operands(limits.max_operand_nodes);
         Self {
             pdf,
             external_font_identities: None,

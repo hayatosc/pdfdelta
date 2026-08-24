@@ -104,15 +104,14 @@ pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Re
     for glyph in glyphs {
         // deliberate: use an O(glyphs × lines) scan until B1 benchmarks show layout clustering
         // dominates; switch to page-local spatial bins when that measured trigger is reached.
-        let mut best = None;
-        for (index, line) in working_lines.iter().enumerate() {
-            let Some(score) = line.candidate_score(glyph, options) else {
-                continue;
-            };
-            if best.is_none_or(|(_, best_score)| score < best_score) {
-                best = Some((index, score));
-            }
-        }
+        let best = working_lines
+            .iter()
+            .enumerate()
+            .filter_map(|(index, line)| {
+                line.candidate_score(glyph, options)
+                    .map(|score| (index, score))
+            })
+            .min_by(|(_, score_a), (_, score_b)| score_a.total_cmp(score_b));
 
         if let Some((index, _)) = best {
             working_lines[index].glyphs.push(glyph);

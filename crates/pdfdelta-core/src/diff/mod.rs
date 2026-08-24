@@ -383,39 +383,29 @@ fn compare_match(
         return Ok(true);
     }
 
-    match myers::diff(&old.tokens, &new.tokens, options.max_edit_distance)? {
-        Some(edits) => {
-            // Weak alignments are exactly the ones that produced the
-            // issue #6 change soup: a barely admitted correspondence whose
-            // bounded Myers diff turns into dozens of scalar fragments.
-            // Degrade those to an honest unresolved region instead.
-            if span.confidence == AlignmentConfidence::Low
-                && is_implausible_match(&edits, old.tokens.len(), new.tokens.len(), options)
-            {
-                unresolved_regions.push(UnresolvedRegion {
-                    old_span: Some(old.full_span()),
-                    new_span: Some(new.full_span()),
-                    evidence: span.evidence.clone(),
-                });
-                return Ok(false);
-            }
-            append_changes(&old, &new, &edits, span.confidence.into(), changes);
-            Ok(true)
+    let edits = match myers::diff(&old.tokens, &new.tokens, options.max_edit_distance)? {
+        Some(edits)
+            if span.confidence != AlignmentConfidence::Low
+                || !is_implausible_match(&edits, old.tokens.len(), new.tokens.len(), options) =>
+        {
+            edits
         }
-        None => {
-            // The aligned tokens differ by more than the configured edit
-            // distance budget. Keep the comparison alive and report the
-            // matched group as an unresolved region instead of failing the
-            // whole document. The caller does not count these tokens as
-            // resolved coverage.
+        _ => {
+            // Either the edit distance budget was exceeded, or a weak alignment
+            // produced an implausible match / change soup. Keep the comparison alive
+            // and report the matched group as an unresolved region instead of failing
+            // the whole document.
             unresolved_regions.push(UnresolvedRegion {
                 old_span: Some(old.full_span()),
                 new_span: Some(new.full_span()),
                 evidence: span.evidence.clone(),
             });
-            Ok(false)
+            return Ok(false);
         }
-    }
+    };
+
+    append_changes(&old, &new, &edits, span.confidence.into(), changes);
+    Ok(true)
 }
 
 // deliberate: fixed hunk-density ceiling tuned from the IRS 1040 2024 -> 2025
