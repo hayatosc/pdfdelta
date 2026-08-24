@@ -61,6 +61,11 @@ pub enum Mutation {
     PageBreak {
         before_paragraph: usize,
     },
+    /// Renders the unchanged document with a different line gap so both
+    /// PDFs differ in layout while canonical text stays identical.
+    LineHeightChange {
+        new_line_gap: u16,
+    },
     TextReplace {
         paragraph_id: String,
         new_text: String,
@@ -244,6 +249,9 @@ impl Mutation {
             Self::PageBreak { before_paragraph } => {
                 apply_page_break(document, *before_paragraph, line_gap)
             }
+            Self::LineHeightChange { new_line_gap } => {
+                apply_line_height_change(document, *new_line_gap, line_gap)
+            }
             Self::TextReplace {
                 paragraph_id,
                 new_text,
@@ -364,6 +372,25 @@ fn apply_page_break(
             ],
             line_gap,
         )?,
+        expectation: ExpectedManifest::none(),
+    })
+}
+
+fn apply_line_height_change(
+    document: &CanonicalDocument,
+    new_line_gap: u16,
+    line_gap: u16,
+) -> Result<MutationPlan> {
+    let old = one_page_plan(document, line_gap)?;
+    let new = one_page_plan(document, new_line_gap)?;
+    if new_line_gap == line_gap {
+        return Err(BenchError::InvalidInput(
+            "line height change must alter the rendered line gap".to_owned(),
+        ));
+    }
+    Ok(MutationPlan {
+        old,
+        new,
         expectation: ExpectedManifest::none(),
     })
 }

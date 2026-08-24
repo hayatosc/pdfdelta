@@ -79,6 +79,18 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
             12,
         )?,
         BenchmarkCase::new(
+            "line-height-change-only",
+            document(&[
+                ("opening", "Opening paragraph establishes context"),
+                ("target", "A simple release note remains stable"),
+                ("closing", "Closing paragraph confirms context"),
+            ])?,
+            // deliberate: both 30 and 48 keep line spacing above the
+            // block-merge threshold, so only rendered geometry changes.
+            Mutation::LineHeightChange { new_line_gap: 48 },
+            30,
+        )?,
+        BenchmarkCase::new(
             "text-replacement",
             document(&[
                 ("opening", "Opening paragraph establishes context"),
