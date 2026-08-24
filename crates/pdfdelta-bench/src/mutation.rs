@@ -344,14 +344,62 @@ impl ExpectedManifest {
     }
 }
 
+/// Half-open scalar range of one canonical paragraph inside a render plan's
+/// canonical source (`pages` flattened and joined by one space).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CanonicalParagraphSpan {
+    paragraph_id: String,
+    start: usize,
+    end: usize,
+}
+
+impl CanonicalParagraphSpan {
+    pub fn paragraph_id(&self) -> &str {
+        &self.paragraph_id
+    }
+
+    pub const fn start(&self) -> usize {
+        self.start
+    }
+
+    pub const fn end(&self) -> usize {
+        self.end
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MutationPlan {
     old: RenderPlan,
     new: RenderPlan,
     expectation: ExpectedManifest,
+    old_paragraphs: Vec<CanonicalParagraphSpan>,
+    new_paragraphs: Vec<CanonicalParagraphSpan>,
 }
 
 impl MutationPlan {
+    /// Single construction path for mutation plans. Derives canonical
+    /// paragraph provenance from both documents and fails when either render
+    /// plan's flattened lines stop reproducing its canonical paragraphs.
+    fn build(
+        old_document: &CanonicalDocument,
+        new_document: &CanonicalDocument,
+        old: RenderPlan,
+        new: RenderPlan,
+        expectation: ExpectedManifest,
+    ) -> Result<Self> {
+        let old_paragraphs = canonical_paragraph_spans(old_document)?;
+        let new_paragraphs = canonical_paragraph_spans(new_document)?;
+        validate_plan_source("old", &old, old_document)?;
+        validate_plan_source("new", &new, new_document)?;
+        Ok(Self {
+            old,
+            new,
+            expectation,
+            old_paragraphs,
+            new_paragraphs,
+        })
+    }
+
     pub fn old(&self) -> &RenderPlan {
         &self.old
     }
@@ -362,6 +410,14 @@ impl MutationPlan {
 
     pub const fn expectation(&self) -> &ExpectedManifest {
         &self.expectation
+    }
+
+    pub fn old_paragraphs(&self) -> &[CanonicalParagraphSpan] {
+        &self.old_paragraphs
+    }
+
+    pub fn new_paragraphs(&self) -> &[CanonicalParagraphSpan] {
+        &self.new_paragraphs
     }
 }
 
@@ -448,11 +504,13 @@ fn apply_line_wrap(
         index..=index,
         [words[..after_word].join(" "), words[after_word..].join(" ")],
     );
-    Ok(MutationPlan {
+    MutationPlan::build(
+        document,
+        document,
         old,
-        new: RenderPlan::new(vec![lines], line_gap)?,
-        expectation: ExpectedManifest::none(),
-    })
+        RenderPlan::new(vec![lines], line_gap)?,
+        ExpectedManifest::none(),
+    )
 }
 
 fn apply_line_wrap_twice(
@@ -484,11 +542,13 @@ fn apply_line_wrap_twice(
             words[second..].join(" "),
         ],
     );
-    Ok(MutationPlan {
+    MutationPlan::build(
+        document,
+        document,
         old,
-        new: RenderPlan::new(vec![lines], line_gap)?,
-        expectation: ExpectedManifest::none(),
-    })
+        RenderPlan::new(vec![lines], line_gap)?,
+        ExpectedManifest::none(),
+    )
 }
 
 fn apply_page_break(
@@ -503,17 +563,19 @@ fn apply_page_break(
         )));
     }
     let lines = document_lines(document);
-    Ok(MutationPlan {
-        old: RenderPlan::new(vec![lines.clone()], line_gap)?,
-        new: RenderPlan::new(
+    MutationPlan::build(
+        document,
+        document,
+        RenderPlan::new(vec![lines.clone()], line_gap)?,
+        RenderPlan::new(
             vec![
                 lines[..before_paragraph].to_vec(),
                 lines[before_paragraph..].to_vec(),
             ],
             line_gap,
         )?,
-        expectation: ExpectedManifest::none(),
-    })
+        ExpectedManifest::none(),
+    )
 }
 
 fn apply_line_height_change(
@@ -528,11 +590,7 @@ fn apply_line_height_change(
             "line height change must alter the rendered line gap".to_owned(),
         ));
     }
-    Ok(MutationPlan {
-        old,
-        new,
-        expectation: ExpectedManifest::none(),
-    })
+    MutationPlan::build(document, document, old, new, ExpectedManifest::none())
 }
 
 fn apply_margin_change(
@@ -545,11 +603,13 @@ fn apply_margin_change(
             "margin change must alter the rendered left margin".to_owned(),
         ));
     }
-    Ok(MutationPlan {
-        old: one_page_plan(document, line_gap)?,
-        new: one_page_plan_with_margin(document, line_gap, new_margin)?,
-        expectation: ExpectedManifest::none(),
-    })
+    MutationPlan::build(
+        document,
+        document,
+        one_page_plan(document, line_gap)?,
+        one_page_plan_with_margin(document, line_gap, new_margin)?,
+        ExpectedManifest::none(),
+    )
 }
 
 fn apply_font_size_change(
@@ -562,11 +622,13 @@ fn apply_font_size_change(
             "font size change must alter the rendered font size".to_owned(),
         ));
     }
-    Ok(MutationPlan {
-        old: one_page_plan(document, line_gap)?,
-        new: one_page_plan_with_font_size(document, line_gap, new_font_size)?,
-        expectation: ExpectedManifest::none(),
-    })
+    MutationPlan::build(
+        document,
+        document,
+        one_page_plan(document, line_gap)?,
+        one_page_plan_with_font_size(document, line_gap, new_font_size)?,
+        ExpectedManifest::none(),
+    )
 }
 
 fn apply_page_size_change(
@@ -580,11 +642,13 @@ fn apply_page_size_change(
             "page size change must alter the rendered page dimensions".to_owned(),
         ));
     }
-    Ok(MutationPlan {
-        old: one_page_plan(document, line_gap)?,
-        new: one_page_plan_with_page_size(document, line_gap, new_page_width, new_page_height)?,
-        expectation: ExpectedManifest::none(),
-    })
+    MutationPlan::build(
+        document,
+        document,
+        one_page_plan(document, line_gap)?,
+        one_page_plan_with_page_size(document, line_gap, new_page_width, new_page_height)?,
+        ExpectedManifest::none(),
+    )
 }
 
 fn apply_text_replace(
@@ -715,11 +779,13 @@ fn finish_paragraph_text_change(
     let new_document = CanonicalDocument::new(paragraphs)?;
     let old_start = paragraph_global_start(document, index)?;
     let new_start = paragraph_global_start(&new_document, index)?;
-    Ok(MutationPlan {
-        old: one_page_plan(document, line_gap)?,
-        new: one_page_plan(&new_document, line_gap)?,
-        expectation: text_change_manifest(old_text, &new_text, old_start, new_start)?,
-    })
+    MutationPlan::build(
+        document,
+        &new_document,
+        one_page_plan(document, line_gap)?,
+        one_page_plan(&new_document, line_gap)?,
+        text_change_manifest(old_text, &new_text, old_start, new_start)?,
+    )
 }
 
 fn apply_paragraph_insert(
@@ -737,15 +803,17 @@ fn apply_paragraph_insert(
     let mut paragraphs = document.paragraphs().to_vec();
     paragraphs.insert(index, paragraph.clone());
     let new_document = CanonicalDocument::new(paragraphs)?;
-    Ok(MutationPlan {
-        old: one_page_plan(document, line_gap)?,
-        new: one_page_plan(&new_document, line_gap)?,
-        expectation: ExpectedManifest::one(ExpectedSemanticChange::new(
+    MutationPlan::build(
+        document,
+        &new_document,
+        one_page_plan(document, line_gap)?,
+        one_page_plan(&new_document, line_gap)?,
+        ExpectedManifest::one(ExpectedSemanticChange::new(
             ChangeKind::Insertion,
             Vec::new(),
             paragraph_span_variants(&new_document, index)?,
         )?),
-    })
+    )
 }
 
 fn apply_paragraph_delete(
@@ -764,15 +832,17 @@ fn apply_paragraph_delete(
     let mut paragraphs = document.paragraphs().to_vec();
     paragraphs.remove(index);
     let new_document = CanonicalDocument::new(paragraphs)?;
-    Ok(MutationPlan {
-        old: one_page_plan(document, line_gap)?,
-        new: one_page_plan(&new_document, line_gap)?,
-        expectation: ExpectedManifest::one(ExpectedSemanticChange::new(
+    MutationPlan::build(
+        document,
+        &new_document,
+        one_page_plan(document, line_gap)?,
+        one_page_plan(&new_document, line_gap)?,
+        ExpectedManifest::one(ExpectedSemanticChange::new(
             ChangeKind::Deletion,
             old_spans,
             Vec::new(),
         )?),
-    })
+    )
 }
 
 fn apply_paragraph_move(
@@ -800,15 +870,17 @@ fn apply_paragraph_move(
     let paragraph = paragraphs.remove(from_index);
     paragraphs.insert(to_index, paragraph);
     let new_document = CanonicalDocument::new(paragraphs)?;
-    Ok(MutationPlan {
-        old: one_page_plan(document, line_gap)?,
-        new: one_page_plan(&new_document, line_gap)?,
-        expectation: ExpectedManifest::one(ExpectedSemanticChange::new(
+    MutationPlan::build(
+        document,
+        &new_document,
+        one_page_plan(document, line_gap)?,
+        one_page_plan(&new_document, line_gap)?,
+        ExpectedManifest::one(ExpectedSemanticChange::new(
             ChangeKind::Move,
             old_spans,
             paragraph_span_variants(&new_document, to_index)?,
         )?),
-    })
+    )
 }
 
 fn paragraph_index(document: &CanonicalDocument, id: &str) -> Result<usize> {
@@ -954,20 +1026,75 @@ fn global_span(
 }
 
 fn paragraph_global_start(document: &CanonicalDocument, index: usize) -> Result<usize> {
-    let preceding = document.paragraphs().get(..index).ok_or_else(|| {
+    let spans = canonical_paragraph_spans(document)?;
+    let span = spans.get(index).ok_or_else(|| {
         BenchError::InvalidInput(format!(
             "paragraph index {index} exceeds document length {}",
             document.paragraphs().len()
         ))
     })?;
-    preceding
+    Ok(span.start())
+}
+
+/// Scalar ranges of every paragraph inside the canonical source
+/// `join(paragraph texts, " ")`, which every render plan must reproduce.
+fn canonical_paragraph_spans(document: &CanonicalDocument) -> Result<Vec<CanonicalParagraphSpan>> {
+    let mut spans = Vec::with_capacity(document.paragraphs().len());
+    let mut start = 0_usize;
+    for (index, paragraph) in document.paragraphs().iter().enumerate() {
+        let end = start
+            .checked_add(paragraph.text().chars().count())
+            .ok_or_else(|| {
+                BenchError::InvalidInput(format!(
+                    "canonical paragraph {:?} span offsets overflowed",
+                    paragraph.id()
+                ))
+            })?;
+        spans.push(CanonicalParagraphSpan {
+            paragraph_id: paragraph.id().to_owned(),
+            start,
+            end,
+        });
+        if index + 1 < document.paragraphs().len() {
+            start = end.checked_add(1).ok_or_else(|| {
+                BenchError::InvalidInput(format!(
+                    "canonical separator after paragraph {:?} overflowed",
+                    paragraph.id()
+                ))
+            })?;
+        }
+    }
+    Ok(spans)
+}
+
+/// The render plan's flattened lines joined by one space must exactly
+/// reproduce the canonical document paragraphs joined by one space, so the
+/// derived paragraph spans stay valid against what renderers actually emit.
+fn validate_plan_source(side: &str, plan: &RenderPlan, document: &CanonicalDocument) -> Result<()> {
+    let rendered = join_rendered_lines(plan);
+    let expected = document
+        .paragraphs()
         .iter()
-        .try_fold(0_usize, |offset, paragraph| {
-            offset
-                .checked_add(paragraph.text().chars().count())
-                .and_then(|offset| offset.checked_add(1))
-        })
-        .ok_or_else(|| BenchError::InvalidInput("canonical document span overflowed".to_owned()))
+        .map(|paragraph| paragraph.text())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if rendered != expected {
+        return Err(BenchError::InvalidInput(format!(
+            "{side} render-plan canonical source does not match its document (rendered {} scalars, expected {})",
+            rendered.chars().count(),
+            expected.chars().count()
+        )));
+    }
+    Ok(())
+}
+
+fn join_rendered_lines(plan: &RenderPlan) -> String {
+    plan.pages()
+        .iter()
+        .flatten()
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn change_kind_name(kind: ChangeKind) -> &'static str {
@@ -976,5 +1103,80 @@ fn change_kind_name(kind: ChangeKind) -> &'static str {
         ChangeKind::Insertion => "insertion",
         ChangeKind::Deletion => "deletion",
         ChangeKind::Move => "move",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cases::built_in_cases;
+
+    fn test_document(paragraphs: &[(&str, &str)]) -> CanonicalDocument {
+        let paragraphs = paragraphs
+            .iter()
+            .map(|(id, text)| Paragraph::new(*id, *text).expect("test paragraph is valid"))
+            .collect::<Vec<_>>();
+        CanonicalDocument::new(paragraphs).expect("test document is valid")
+    }
+
+    /// Spans must tile the rendered canonical source with single-space gaps,
+    /// which keeps them directly comparable with evaluator global ranges.
+    fn assert_spans_tile_source(plan: &RenderPlan, spans: &[CanonicalParagraphSpan]) {
+        let rendered_scalar_count = join_rendered_lines(plan).chars().count();
+        let mut expected_start = 0_usize;
+        for span in spans {
+            assert_eq!(span.start(), expected_start);
+            assert!(span.start() < span.end());
+            expected_start = span.end() + 1;
+        }
+        assert_eq!(
+            spans.last().map_or(0, |span| span.end()),
+            rendered_scalar_count
+        );
+    }
+
+    #[test]
+    fn built_in_case_plans_reproduce_their_canonical_paragraph_spans() {
+        for case in built_in_cases().expect("built-in cases are valid") {
+            let plan = case.plan();
+            assert_spans_tile_source(plan.old(), plan.old_paragraphs());
+            assert_spans_tile_source(plan.new_plan(), plan.new_paragraphs());
+        }
+    }
+
+    #[test]
+    fn text_replacement_shifts_later_paragraph_spans() {
+        let document = test_document(&[
+            ("intro", "first paragraph"),
+            ("metrics", "uptime 99"),
+            ("closing", "final paragraph"),
+        ]);
+        let plan = Mutation::TextReplace {
+            paragraph_id: "metrics".to_owned(),
+            new_text: "uptime 99 point 9".to_owned(),
+        }
+        .apply(&document, 16)
+        .expect("text replacement applies");
+
+        let old_spans = plan.old_paragraphs();
+        let new_spans = plan.new_paragraphs();
+        assert_eq!(
+            old_spans
+                .iter()
+                .map(|span| span.paragraph_id())
+                .collect::<Vec<_>>(),
+            vec!["intro", "metrics", "closing"]
+        );
+        assert_eq!(
+            old_spans[1].end() - old_spans[1].start(),
+            "uptime 99".chars().count()
+        );
+        assert_eq!(
+            new_spans[1].end() - new_spans[1].start(),
+            "uptime 99 point 9".chars().count()
+        );
+        let shift = new_spans[1].end() - old_spans[1].end();
+        assert_eq!(new_spans[2].start(), old_spans[2].start() + shift);
+        assert_eq!(new_spans[2].paragraph_id(), "closing");
     }
 }
