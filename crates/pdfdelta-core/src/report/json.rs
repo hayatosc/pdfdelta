@@ -338,6 +338,16 @@ fn evidence(value: AlignmentEvidence) -> String {
     }
 }
 
+/// Comma-joined human labels for the evidence recorded on one unresolved
+/// region; the JSON report keeps the structured list instead.
+pub(crate) fn evidence_label_list(items: &[AlignmentEvidence]) -> String {
+    items
+        .iter()
+        .map(|value| evidence(*value))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 fn candidate_source(source: CandidateSource) -> &'static str {
     match source {
         CandidateSource::Exact => "exact",

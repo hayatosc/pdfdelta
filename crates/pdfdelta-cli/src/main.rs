@@ -19,7 +19,9 @@ use pdfdelta_core::{
     pipeline::{
         PipelineDiagnostics, PipelineOptions, compare_extraction_outcomes_with_diagnostics,
     },
-    report::{ExtractionStatus, exit_status, render_text, summarize, write_json},
+    report::{
+        ExtractionStatus, TextReportOptions, exit_status, render_text, summarize, write_json,
+    },
     source::{
         ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssue, ExtractionIssueKind,
         ExtractionLimits, ExtractionOutcome, ExtractionScope,
@@ -58,6 +60,16 @@ struct Cli {
 
     #[arg(long, requires = "new")]
     strict: bool,
+
+    /// When to colorize the human-readable report: auto, always, or never.
+    #[arg(
+        long,
+        value_name = "WHEN",
+        value_enum,
+        default_value = "auto",
+        global = true
+    )]
+    color: ColorChoice,
 
     /// Read the old PDF password from a file.
     #[arg(long, value_name = "PATH", requires = "new")]
@@ -100,6 +112,29 @@ enum Command {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+enum ColorChoice {
+    /// Colorize only when stdout is a terminal.
+    Auto,
+    /// Always colorize, even when stdout is redirected.
+    Always,
+    /// Never colorize the report.
+    Never,
+}
+
+/// Resolves the user's color preference against the actual output stream.
+/// Plain redirected output stays readable because `auto` disables ANSI
+/// escapes whenever stdout is not a TTY.
+fn resolve_color(choice: ColorChoice) -> bool {
+    use std::io::IsTerminal;
+
+    match choice {
+        ColorChoice::Always => true,
+        ColorChoice::Never => false,
+        ColorChoice::Auto => io::stdout().is_terminal(),
+    }
+}
+
 #[derive(Clone, Copy)]
 struct CompareCommand<'a> {
     old_path: Option<&'a Path>,
@@ -107,6 +142,7 @@ struct CompareCommand<'a> {
     json_path: Option<&'a Path>,
     trace_path: Option<&'a Path>,
     strict: bool,
+    color: ColorChoice,
     old_password_file: Option<&'a Path>,
     new_password_file: Option<&'a Path>,
     old_font_identities: &'a [String],
@@ -151,6 +187,7 @@ fn main() -> ExitCode {
                 json_path: cli.json.as_deref(),
                 trace_path: cli.trace_json.as_deref(),
                 strict: cli.strict,
+                color: cli.color,
                 old_password_file: cli.old_password_file.as_deref(),
                 new_password_file: cli.new_password_file.as_deref(),
                 old_font_identities: &cli.old_font_identity,
@@ -225,6 +262,7 @@ fn compare_documents<W: Write>(
         new_input,
         command.json_path,
         command.strict,
+        command.color,
         diagnostics,
         &mut trace,
     );
@@ -257,6 +295,7 @@ fn compare_documents_traced<W: Write>(
     new_input: ComparisonInput<'_>,
     json_path: Option<&Path>,
     strict: bool,
+    color: ColorChoice,
     diagnostics: &mut W,
     trace: &mut ExecutionTrace,
 ) -> Result<(u8, bool), String> {
@@ -331,11 +370,18 @@ fn compare_documents_traced<W: Write>(
             &outcome.extraction,
         )
     } else {
+        // The file headers quote the input paths exactly as the caller typed
+        // them, mirroring how git labels its diff targets.
         render_text(
             &outcome.old_blocks,
             &outcome.new_blocks,
             &outcome.comparison,
             &outcome.extraction,
+            &TextReportOptions {
+                old_label: &old_input.path.display().to_string(),
+                new_label: &new_input.path.display().to_string(),
+                color: resolve_color(color),
+            },
         )
         .map_err(|error| {
             format!(
@@ -1159,8 +1205,8 @@ mod tests {
     };
 
     use super::{
-        Cli, Command, InputReadError, format_glyph, read_limited_typed, report_extraction_issues,
-        report_fatal_error, write_inspection_line,
+        Cli, ColorChoice, Command, InputReadError, format_glyph, read_limited_typed,
+        report_extraction_issues, report_fatal_error, write_inspection_line,
     };
 
     struct BrokenPipeWriter;
@@ -1195,6 +1241,34 @@ mod tests {
         assert!(cli.strict);
         assert_eq!(cli.old.as_deref(), Some(std::path::Path::new("old.pdf")));
         assert_eq!(cli.new.as_deref(), Some(std::path::Path::new("new.pdf")));
+    }
+
+    #[test]
+    fn color_defaults_to_auto_and_accepts_explicit_choices() {
+        let default = Cli::try_parse_from(["pdfdelta", "old.pdf", "new.pdf"])
+            .expect("default comparison arguments should parse");
+        assert_eq!(default.color, ColorChoice::Auto);
+
+        let always = Cli::try_parse_from(["pdfdelta", "old.pdf", "new.pdf", "--color", "always"])
+            .expect("always color should parse");
+        assert_eq!(always.color, ColorChoice::Always);
+
+        // The flag is global, so subcommand invocations accept it too.
+        let inspect = Cli::try_parse_from([
+            "pdfdelta",
+            "inspect",
+            "document.pdf",
+            "--glyphs",
+            "--color",
+            "never",
+        ])
+        .expect("global color should parse with subcommands");
+        assert_eq!(inspect.color, ColorChoice::Never);
+
+        assert!(
+            Cli::try_parse_from(["pdfdelta", "old.pdf", "new.pdf", "--color", "sometimes"])
+                .is_err()
+        );
     }
 
     #[test]

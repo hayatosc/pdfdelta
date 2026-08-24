@@ -1,4 +1,5 @@
 mod json;
+mod text;
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -6,6 +7,7 @@ use crate::{
     Error, Result,
     alignment::BlockSeparator,
     diff::{ChangeKind, ChangeTag, Comparison, Confidence, TextSpan},
+    layout::BlockId,
     model::FontProgramHash,
     normalize::{BlockText, ComparableToken},
     source::{ExtractionIssue, ExtractionIssueKind, ExtractionScope},
@@ -181,136 +183,23 @@ pub fn render_text(
     new_blocks: &[BlockText],
     comparison: &Comparison,
     extraction: &ExtractionStatus,
+    options: &TextReportOptions<'_>,
 ) -> Result<String> {
-    use std::fmt::Write;
-
     let summary = summarize(comparison, extraction)?;
-    let old = SideIndex::new(old_blocks)?;
-    let new = SideIndex::new(new_blocks)?;
-    let mut output = format!(
-        "Content changes:          {}\n\
-         Formatting-only changes:  {}\n\
-         Uncertain changes:        {}\n\
-         Unresolved regions:       {}\n\
-         Unsupported extraction:   {}\n\
-         Unresolved extraction:    {}\n\
-         Extraction complete:      old={}, new={}\n\
-         Alignment coverage:       old={}, new={}\n\
-         Comparison coverage:      {}\n",
-        summary.content_changes,
-        summary.formatting_only_changes,
-        summary.uncertain_changes,
-        summary.unresolved_regions,
-        summary.unsupported_extraction_issues,
-        summary.unresolved_extraction_issues,
-        yes_no(summary.old_extraction_complete),
-        yes_no(summary.new_extraction_complete),
-        percentage(summary.old_alignment_coverage),
-        percentage(summary.new_alignment_coverage),
-        percentage(summary.comparison_coverage),
-    );
-    for issue in &extraction.issues {
-        match issue.scope {
-            ExtractionScope::Document => writeln!(
-                output,
-                "Extraction issue (side={}, kind={}, scope=document): {}",
-                side_name(issue.side),
-                issue_kind_name(issue.kind),
-                issue.description
-            ),
-            ExtractionScope::Page(page) => writeln!(
-                output,
-                "Extraction issue (side={}, kind={}, scope=page, page={}): {}",
-                side_name(issue.side),
-                issue_kind_name(issue.kind),
-                page.0,
-                issue.description
-            ),
-        }
-        .map_err(|error| Error::Report(error.to_string()))?;
-    }
-    for (index, change) in comparison.changes.iter().enumerate() {
-        write!(output, "Change {}: {}", index + 1, change_kind(change.kind))
-            .map_err(|error| Error::Report(error.to_string()))?;
-        if let Some((first, rest)) = change.tags.split_first() {
-            write!(
-                output,
-                " (confidence={}, tags=",
-                confidence(change.confidence)
-            )
-            .map_err(|error| Error::Report(error.to_string()))?;
-            for (tag_position, tag) in std::iter::once(first).chain(rest.iter()).enumerate() {
-                let prefix = if tag_position == 0 { "" } else { "," };
-                write!(output, "{prefix}{}", change_tag(*tag))
-                    .map_err(|error| Error::Report(error.to_string()))?;
-            }
-            write!(output, ")").map_err(|error| Error::Report(error.to_string()))?;
-        } else {
-            write!(output, " (confidence={})", confidence(change.confidence))
-                .map_err(|error| Error::Report(error.to_string()))?;
-        }
-        output
-            .write_char('\n')
-            .map_err(|error| Error::Report(error.to_string()))?;
-        if let Some(span) = &change.old_span {
-            write_change_side(&mut output, "old", &old, span)?;
-        }
-        if let Some(span) = &change.new_span {
-            write_change_side(&mut output, "new", &new, span)?;
-        }
-    }
-    Ok(output)
+    text::render(
+        old_blocks, new_blocks, comparison, extraction, &summary, options,
+    )
 }
 
-fn write_change_side(
-    output: &mut String,
-    side: &'static str,
-    index: &SideIndex<'_>,
-    span: &TextSpan,
-) -> Result<()> {
-    use std::fmt::Write;
-
-    let resolved = index.resolve(span)?;
-    write!(output, "  {side} blocks=[{}", span.blocks[0].0)
-        .map_err(|error| Error::Report(error.to_string()))?;
-    for block in &span.blocks[1..] {
-        write!(output, ",{}", block.0).map_err(|error| Error::Report(error.to_string()))?;
-    }
-    write!(output, "] pages=[").map_err(|error| Error::Report(error.to_string()))?;
-    for (position, page) in resolved.pages.iter().enumerate() {
-        let prefix = if position == 0 { "" } else { "," };
-        write!(output, "{prefix}{page}").map_err(|error| Error::Report(error.to_string()))?;
-    }
-    write!(output, "]: ").map_err(|error| Error::Report(error.to_string()))?;
-    writeln!(output, "{}", resolved.display_text())
-        .map_err(|error| Error::Report(error.to_string()))
-}
-
-/// Renders the span text with a stable placeholder at each unmapped glyph
-/// position, so human readers never take the surrounding scalars as
-/// contiguous when an unmapped glyph sits between them.
-impl ResolvedSpan {
-    fn display_text(&self) -> String {
-        let mut rendered = String::with_capacity(self.text.len());
-        let mut scalars = self.text.chars();
-        let mut consumed = 0_usize;
-        for token in &self.unmapped {
-            while consumed < token.scalar_offset {
-                rendered.push(scalars.next().unwrap_or('\u{fffd}'));
-                consumed += 1;
-            }
-            // deliberate: the human marker abbreviates the font hash to its
-            // first four bytes; the JSON report keeps the full identity.
-            let hash = lowercase_hex(&token.font_hash.0);
-            rendered.push_str(&format!(
-                "<unmapped:{}:{}>",
-                token.glyph_id,
-                hash.get(..8).unwrap_or(&hash)
-            ));
-        }
-        rendered.extend(scalars);
-        rendered
-    }
+/// Presentation knobs for the human-readable unified-diff report. Labels are
+/// rendered verbatim in the `---` / `+++` file headers; color only ever
+/// supplements the `-` / `+` markers and must never be required to read the
+/// output.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TextReportOptions<'a> {
+    pub old_label: &'a str,
+    pub new_label: &'a str,
+    pub color: bool,
 }
 
 fn lowercase_hex(bytes: &[u8]) -> String {
@@ -344,28 +233,7 @@ impl<'a> SideIndex<'a> {
     }
 
     pub(crate) fn resolve(&self, span: &TextSpan) -> Result<ResolvedSpan> {
-        let mut tokens = Vec::new();
-        let mut pages = Vec::new();
-        for (position, block_id) in span.blocks.iter().enumerate() {
-            let block = self.blocks.get(&block_id.0).ok_or_else(|| {
-                Error::InvalidConfiguration(format!(
-                    "text span references block {} that has no normalized evidence",
-                    block_id.0
-                ))
-            })?;
-            let next = block.canonical.comparable_tokens()?;
-            if position == 0 {
-                tokens.extend_from_slice(&next);
-            } else {
-                span.separator
-                    .unwrap_or(BlockSeparator::Concatenate)
-                    .append(&mut tokens, &next);
-            }
-            pages.extend_from_slice(&block.pages);
-        }
-        pages.sort_unstable();
-        pages.dedup();
-
+        let (tokens, pages) = self.accumulate(&span.blocks, span.separator)?;
         let scalars = tokens
             .iter()
             .filter_map(|token| match token {
@@ -405,12 +273,63 @@ impl<'a> SideIndex<'a> {
             pages,
         })
     }
+
+    /// Resolves the complete comparable-token sequence of a block group, so
+    /// the presentation renderer can show bounded context around an exact
+    /// change span without mutating or re-walking the comparison. Token
+    /// space is authoritative here: unmapped-only changes legally carry a
+    /// zero-width canonical range, so rendering from tokens keeps their
+    /// placeholders inside the changed segment.
+    pub(crate) fn resolve_group(
+        &self,
+        blocks: &[BlockId],
+        separator: Option<BlockSeparator>,
+    ) -> Result<ResolvedGroup> {
+        let (tokens, pages) = self.accumulate(blocks, separator)?;
+        Ok(ResolvedGroup { tokens, pages })
+    }
+
+    fn accumulate(
+        &self,
+        blocks: &[BlockId],
+        separator: Option<BlockSeparator>,
+    ) -> Result<(Vec<ComparableToken>, Vec<u32>)> {
+        let mut tokens = Vec::new();
+        let mut pages = Vec::new();
+        for (position, block_id) in blocks.iter().enumerate() {
+            let block = self.blocks.get(&block_id.0).ok_or_else(|| {
+                Error::InvalidConfiguration(format!(
+                    "text span references block {} that has no normalized evidence",
+                    block_id.0
+                ))
+            })?;
+            let next = block.canonical.comparable_tokens()?;
+            if position == 0 {
+                tokens.extend_from_slice(&next);
+            } else {
+                separator
+                    .unwrap_or(BlockSeparator::Concatenate)
+                    .append(&mut tokens, &next);
+            }
+            pages.extend_from_slice(&block.pages);
+        }
+        pages.sort_unstable();
+        pages.dedup();
+        Ok((tokens, pages))
+    }
 }
 
 pub(crate) struct ResolvedSpan {
     pub text: String,
     /// Unmapped glyph tokens inside the span, in comparable-token order.
     pub unmapped: Vec<UnmappedSpanToken>,
+    pub pages: Vec<u32>,
+}
+
+/// Full block-group evidence for the presentation renderer: the concatenated
+/// comparable-token sequence plus deduplicated page provenance.
+pub(crate) struct ResolvedGroup {
+    pub tokens: Vec<ComparableToken>,
     pub pages: Vec<u32>,
 }
 
@@ -584,14 +503,14 @@ fn validate_coverage(
     Ok(())
 }
 
-fn percentage(ratio: Option<f64>) -> String {
+pub(crate) fn percentage(ratio: Option<f64>) -> String {
     ratio.map_or_else(
         || "unknown".to_owned(),
         |ratio| format!("{:.1}%", ratio * 100.0),
     )
 }
 
-fn yes_no(value: bool) -> &'static str {
+pub(crate) fn yes_no(value: bool) -> &'static str {
     if value { "yes" } else { "no" }
 }
 

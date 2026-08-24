@@ -9,27 +9,37 @@ use pdfdelta_core::{
     model::{FontProgramHash, PageId},
     normalize::{BlockText, MappedText, ScalarRange, TextSource, UnmappedToken},
     report::{
-        DocumentSide, ExitStatus, ExtractionIssueRecord, ExtractionStatus, exit_status,
-        render_text, summarize, write_json,
+        DocumentSide, ExitStatus, ExtractionIssueRecord, ExtractionStatus, TextReportOptions,
+        exit_status, render_text, summarize, write_json,
     },
     source::{ExtractionIssueKind, ExtractionScope},
 };
 
+fn plain_options() -> TextReportOptions<'static> {
+    TextReportOptions {
+        old_label: "old.pdf",
+        new_label: "new.pdf",
+        color: false,
+    }
+}
+
 #[test]
 fn text_report_always_states_completeness_and_coverage() -> Result<()> {
-    let report = render_text(&[], &[], &empty_comparison(), &ExtractionStatus::complete())?;
+    let report = render_text(
+        &[],
+        &[],
+        &empty_comparison(),
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
 
     assert_eq!(
         report,
-        "Content changes:          0\n\
-         Formatting-only changes:  0\n\
-         Uncertain changes:        0\n\
-         Unresolved regions:       0\n\
-         Unsupported extraction:   0\n\
-         Unresolved extraction:    0\n\
-         Extraction complete:      old=yes, new=yes\n\
-         Alignment coverage:       old=100.0%, new=100.0%\n\
-         Comparison coverage:      100.0%\n"
+        "content changes: 0 · formatting-only: 0 · uncertain: 0 · \
+         unresolved regions: 0 · coverage 100.0%\n\
+         \n\
+         --- old.pdf\n\
+         +++ new.pdf\n"
     );
     assert!(!report.contains("No differences found"));
     Ok(())
@@ -153,16 +163,21 @@ fn reports_incomplete_extraction_in_text_and_strict_status() -> Result<()> {
 
     let mut comparison = empty_comparison();
     comparison.new_coverage.ratio = None;
-    let report = render_text(&[], &[], &comparison, &extraction)?;
+    let report = render_text(&[], &[], &comparison, &extraction, &plain_options())?;
 
-    assert!(report.contains("Extraction complete:      old=yes, new=no"));
-    assert!(report.contains("Unsupported extraction:   0"));
-    assert!(report.contains("Unresolved extraction:    1"));
-    assert!(report.contains("Alignment coverage:       old=100.0%, new=unknown"));
-    assert!(report.contains("Comparison coverage:      unknown"));
-    assert!(report.contains(
-        "Extraction issue (side=new, kind=unresolved, scope=page, page=2): ambiguous text stream"
-    ));
+    assert!(
+        report.contains("content changes: 0 · formatting-only: 0 · uncertain: 0"),
+        "{report}"
+    );
+    assert!(report.contains("coverage unknown"), "{report}");
+    assert!(
+        report.contains("extraction incomplete: old=yes, new=no"),
+        "{report}"
+    );
+    assert!(
+        report.contains("! extraction issue (side=new, kind=unresolved, scope=page, page=3): ambiguous text stream"),
+        "{report}"
+    );
     assert_eq!(
         exit_status(&comparison, &extraction, true)?,
         ExitStatus::IncompleteComparison
@@ -384,7 +399,13 @@ fn rejects_inconsistent_coverage_before_rendering() {
     };
 
     assert!(matches!(
-        render_text(&[], &[], &comparison, &ExtractionStatus::complete()),
+        render_text(
+            &[],
+            &[],
+            &comparison,
+            &ExtractionStatus::complete(),
+            &plain_options(),
+        ),
         Err(Error::InvalidConfiguration(message))
             if message.contains("invalid old alignment coverage")
     ));
@@ -500,7 +521,7 @@ fn rejects_invalid_public_change_and_region_shapes() {
 }
 
 #[test]
-fn text_report_shows_changed_content_for_replacement_insertion_and_deletion() -> Result<()> {
+fn text_report_renders_replacement_insertion_and_deletion_hunks() -> Result<()> {
     let old_blocks = vec![
         block_with_text(2, "Release 10 remains available"),
         block_with_text(3, "Removed paragraph disappears"),
@@ -537,37 +558,279 @@ fn text_report_shows_changed_content_for_replacement_insertion_and_deletion() ->
         &new_blocks,
         &comparison,
         &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert_eq!(
+        report,
+        "content changes: 3 · formatting-only: 0 · uncertain: 0 · \
+         unresolved regions: 0 · coverage 100.0%\n\
+         \n\
+         --- old.pdf\n\
+         +++ new.pdf\n\
+         \n\
+         @@ page 1 · old block 2 -> new block 102 · confidence: high @@\n\
+         - Release 10 remains available\n\
+         + Release 20 remains available\n\
+         \n\
+         @@ page 1 · new block 103 · confidence: high @@\n\
+         + Inserted paragraph appears here\n\
+         \n\
+         @@ page 1 · old block 3 · confidence: medium @@\n\
+         - Removed paragraph disappears\n"
+    );
+    Ok(())
+}
+
+#[test]
+fn text_report_coalesces_adjacent_edits_without_mutating_the_comparison() -> Result<()> {
+    let old_blocks = vec![block_with_text(7, "alpha Release 10 omega")];
+    let new_blocks = vec![block_with_text(9, "alpha Release 21 omega")];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(range_span(7, 14, 15)),
+        new_span: Some(range_span(9, 14, 15)),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(range_span(7, 15, 16)),
+        new_span: Some(range_span(9, 15, 16)),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    let changes_before = comparison.changes.clone();
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    // Two scalar-level replacements separated by zero equal tokens coalesce
+    // into ONE presentation hunk with a single adjacent -/+ pair.
+    assert!(report.matches("@@ page 1").count() == 1, "{report}");
+    assert!(
+        report.contains("- alpha Release 10 omega\n+ alpha Release 21 omega\n"),
+        "{report}"
+    );
+    assert_eq!(
+        comparison.changes, changes_before,
+        "rendering must not mutate the comparison"
+    );
+    Ok(())
+}
+
+#[test]
+fn text_report_keeps_distant_edits_in_separate_hunks() -> Result<()> {
+    let filler = "x".repeat(40);
+    let old_text = format!("start {filler} middle {filler} end");
+    let old_blocks = vec![block_with_text(5, &old_text)];
+    let new_blocks = vec![block_with_text(105, &old_text)];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(range_span(5, 0, 1)),
+        new_span: Some(range_span(105, 0, 1)),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(range_span(5, 88, 89)),
+        new_span: Some(range_span(105, 88, 89)),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    // The edits are separated by more than the coalescing threshold of
+    // unchanged tokens, so they stay in distinct hunks.
+    assert!(report.matches("@@ page 1").count() == 2, "{report}");
+    Ok(())
+}
+
+#[test]
+fn text_report_bounds_context_for_tiny_edits_inside_long_blocks() -> Result<()> {
+    let long_prefix = "a".repeat(80);
+    let long_suffix = "z".repeat(80);
+    let old_blocks = vec![block_with_text(
+        11,
+        &format!("{long_prefix} 4{long_suffix}"),
+    )];
+    let new_blocks = vec![block_with_text(
+        111,
+        &format!("{long_prefix} 5{long_suffix}"),
+    )];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(range_span(11, 81, 82)),
+        new_span: Some(range_span(111, 81, 82)),
+        confidence: Confidence::Medium,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    // A one-scalar year-style edit shows bounded surrounding context instead
+    // of either the bare scalar or the whole oversized block: 31 leading 'a'
+    // scalars, the changed digit, then 32 trailing 'z' scalars, with `...`
+    // marking both elisions.
+    let expected_minus = format!("- ... {} 4{} ...\n", "a".repeat(31), "z".repeat(32),);
+    let expected_plus = format!("+ ... {} 5{} ...\n", "a".repeat(31), "z".repeat(32),);
+    assert!(report.contains(&expected_minus), "{report}");
+    assert!(report.contains(&expected_plus), "{report}");
+    Ok(())
+}
+
+#[test]
+fn text_report_renders_move_marker_and_locations() -> Result<()> {
+    let old_blocks = vec![block_with_pages(3, "Shared paragraph text", &[1])];
+    let new_blocks = vec![block_with_pages(8, "Shared paragraph text", &[4])];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Move,
+        old_span: Some(full_span(3, "Shared paragraph text")),
+        new_span: Some(full_span(8, "Shared paragraph text")),
+        confidence: Confidence::Medium,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
     )?;
 
     assert!(
-        report.contains("Change 1: replacement (confidence=high)\n"),
+        report.contains("@@ pages 2,5 · old block 3 -> new block 8 · confidence: medium @@"),
         "{report}"
     );
+    assert!(report.contains("~ moved from page 2 to page 5"), "{report}");
     assert!(
-        report.contains("old blocks=[2] pages=[0]: Release 10 remains available\n"),
-        "{report}"
-    );
-    assert!(
-        report.contains("new blocks=[102] pages=[0]: Release 20 remains available\n"),
-        "{report}"
-    );
-    assert!(
-        report.contains("Change 2: insertion (confidence=high)\n"),
-        "{report}"
-    );
-    assert!(
-        report.contains("new blocks=[103] pages=[0]: Inserted paragraph appears here\n"),
-        "{report}"
-    );
-    assert!(
-        report.contains("Change 3: deletion (confidence=medium)\n"),
-        "{report}"
-    );
-    assert!(
-        report.contains("old blocks=[3] pages=[0]: Removed paragraph disappears\n"),
+        report.contains("- Shared paragraph text\n+ Shared paragraph text"),
         "{report}"
     );
     Ok(())
+}
+
+#[test]
+fn text_report_renders_unresolved_regions_explicitly() -> Result<()> {
+    let old_blocks = vec![block_with_text(12, "alpha beta gamma")];
+    let new_blocks = vec![block_with_text(112, "alpha delta gamma")];
+    let mut comparison = empty_comparison();
+    comparison.unresolved_regions.push(UnresolvedRegion {
+        old_span: Some(full_span(12, "alpha beta gamma")),
+        new_span: Some(full_span(112, "alpha delta gamma")),
+        evidence: vec![AlignmentEvidence::TextSimilarity],
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert_eq!(
+        report,
+        "content changes: 0 · formatting-only: 0 · uncertain: 0 · \
+         unresolved regions: 1 · coverage 100.0%\n\
+         \n\
+         --- old.pdf\n\
+         +++ new.pdf\n\
+         \n\
+         @@ page 1 · UNRESOLVED @@\n\
+         ? could not safely align this region (evidence: text_similarity)\n\
+         ? old: alpha beta gamma\n\
+         ? new: alpha delta gamma\n"
+    );
+    Ok(())
+}
+
+#[test]
+fn text_report_color_supplements_markers_and_can_be_disabled() -> Result<()> {
+    let old_blocks = vec![block_with_text(7, "alpha Release 10 omega")];
+    let new_blocks = vec![block_with_text(9, "alpha Release 21 omega")];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(range_span(7, 14, 16)),
+        new_span: Some(range_span(9, 14, 16)),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+
+    let plain = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &TextReportOptions {
+            color: false,
+            ..plain_options()
+        },
+    )?;
+    let colored = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &TextReportOptions {
+            color: true,
+            ..plain_options()
+        },
+    )?;
+
+    assert!(!plain.contains('\u{1b}'), "{plain}");
+    // Color wraps the same readable content; stripping ANSI escape sequences
+    // restores the plain rendering byte-for-byte.
+    let stripped = strip_ansi(&colored);
+    assert_eq!(plain, stripped);
+    assert!(colored.contains("\u{1b}[31m- "), "{colored}");
+    assert!(colored.contains("\u{1b}[32m+ "), "{colored}");
+    assert!(colored.contains("\u{1b}[1;31m10\u{1b}[0m"), "{colored}");
+    assert!(colored.contains("\u{1b}[1;32m21\u{1b}[0m"), "{colored}");
+    assert!(colored.contains("\u{1b}[1;36m@@ page 1"), "{colored}");
+    Ok(())
+}
+
+fn strip_ansi(text: &str) -> String {
+    let mut stripped = String::with_capacity(text.len());
+    let mut chars = text.chars();
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' {
+            for skip in chars.by_ref() {
+                if skip == 'm' {
+                    break;
+                }
+            }
+        } else {
+            stripped.push(ch);
+        }
+    }
+    stripped
 }
 
 #[test]
@@ -655,18 +918,212 @@ fn text_report_marks_unmapped_glyph_positions_in_order() -> Result<()> {
         &new_blocks,
         &comparison,
         &ExtractionStatus::complete(),
+        &plain_options(),
     )?;
 
     // The leading and trailing unmapped glyphs are marked at their exact
-    // positions instead of implying that 'a' and 'b' are contiguous.
+    // positions inside the -/+ lines instead of implying that 'a' and 'b'
+    // are contiguous.
     assert!(
-        report.contains("old blocks=[9] pages=[4]: <unmapped:7:01020304>ab<unmapped:11:09>\n"),
+        report.contains("- <unmapped:7:01020304>ab<unmapped:11:09>\n"),
         "{report}"
     );
-    assert!(
-        report.contains("new blocks=[109] pages=[0]: Release 20\n"),
-        "{report}"
+    assert!(report.contains("+ Release 20\n"), "{report}");
+    Ok(())
+}
+
+#[test]
+fn text_report_renders_pure_unmapped_replacement_in_the_changed_segment() -> Result<()> {
+    let old_blocks = vec![unmapped_only_block(9, vec![1, 2, 3, 4, 5], 7)];
+    let new_blocks = vec![unmapped_only_block(109, vec![9], 12)];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        // Unmapped-only edits legally carry a zero-width canonical range;
+        // the changed segment must still identify both placeholders.
+        old_span: Some(TextSpan {
+            blocks: vec![BlockId(9)],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 0 },
+            comparable_range: TokenRange { start: 0, end: 1 },
+        }),
+        new_span: Some(TextSpan {
+            blocks: vec![BlockId(109)],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 0 },
+            comparable_range: TokenRange { start: 0, end: 1 },
+        }),
+        confidence: Confidence::Low,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert_eq!(
+        report,
+        "content changes: 1 · formatting-only: 0 · uncertain: 1 · \
+         unresolved regions: 0 · coverage 100.0%\n\
+         \n\
+         --- old.pdf\n\
+         +++ new.pdf\n\
+         \n\
+         @@ pages 1,5 · old block 9 -> new block 109 · confidence: low @@\n\
+         - <unmapped:7:01020304>\n\
+         + <unmapped:12:09>\n"
     );
+    Ok(())
+}
+
+#[test]
+fn text_report_rejects_spans_that_exceed_the_block_evidence() -> Result<()> {
+    let old_blocks = vec![block_with_text(7, "abc")];
+    let new_blocks = vec![block_with_text(107, "abd")];
+
+    // Comparable range beyond the block's token evidence fails like JSON.
+    let mut comparable_overrun = empty_comparison();
+    comparable_overrun.changes.push(Change {
+        kind: ChangeKind::Deletion,
+        old_span: Some(range_span(7, 0, 9)),
+        new_span: None,
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    assert!(matches!(
+        render_text(
+            &old_blocks,
+            &new_blocks,
+            &comparable_overrun,
+            &ExtractionStatus::complete(),
+            &plain_options(),
+        ),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("exceeds the normalized block evidence")
+    ));
+
+    // Canonical range beyond the block's scalar evidence fails like JSON.
+    let mut canonical_overrun = empty_comparison();
+    canonical_overrun.changes.push(Change {
+        kind: ChangeKind::Deletion,
+        old_span: Some(TextSpan {
+            blocks: vec![BlockId(7)],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 9 },
+            comparable_range: TokenRange { start: 0, end: 3 },
+        }),
+        new_span: None,
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    assert!(matches!(
+        render_text(
+            &old_blocks,
+            &new_blocks,
+            &canonical_overrun,
+            &ExtractionStatus::complete(),
+            &plain_options(),
+        ),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("exceeds the normalized block evidence")
+    ));
+    Ok(())
+}
+
+#[test]
+fn text_report_rejects_out_of_range_second_coalesced_span() -> Result<()> {
+    let old_blocks = vec![block_with_text(7, "abc")];
+    let new_blocks = vec![block_with_text(107, "abc")];
+
+    // The first span is fully valid and inside the coalescing gap; the second
+    // span's bounds must be checked too before its range feeds the merged
+    // run, or it would silently clamp instead of failing loudly.
+    let comparable_overrun = |second: TextSpan| {
+        let mut comparison = empty_comparison();
+        comparison.changes.push(Change {
+            kind: ChangeKind::Deletion,
+            old_span: Some(range_span(7, 0, 1)),
+            new_span: None,
+            confidence: Confidence::High,
+            tags: Vec::new(),
+        });
+        comparison.changes.push(Change {
+            kind: ChangeKind::Deletion,
+            old_span: Some(second),
+            new_span: None,
+            confidence: Confidence::High,
+            tags: Vec::new(),
+        });
+        comparison
+    };
+
+    // Second span's comparable range exceeds the block's token evidence.
+    let mut second = range_span(7, 2, 3);
+    second.comparable_range = TokenRange { start: 2, end: 99 };
+    assert!(matches!(
+        render_text(
+            &old_blocks,
+            &new_blocks,
+            &comparable_overrun(second),
+            &ExtractionStatus::complete(),
+            &plain_options(),
+        ),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("exceeds the normalized block evidence")
+    ));
+
+    // Second span's canonical range exceeds the block's scalar evidence.
+    let mut second = range_span(7, 2, 3);
+    second.canonical_range = ScalarRange { start: 0, end: 99 };
+    assert!(matches!(
+        render_text(
+            &old_blocks,
+            &new_blocks,
+            &comparable_overrun(second),
+            &ExtractionStatus::complete(),
+            &plain_options(),
+        ),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("exceeds the normalized block evidence")
+    ));
+    Ok(())
+}
+
+#[test]
+fn separator_mismatch_keeps_adjacent_edits_in_separate_hunks() -> Result<()> {
+    let old_blocks = fixture_blocks(&[1, 2]);
+    let new_blocks = fixture_blocks(&[101, 102]);
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(group_span(&[1, 2], Some(BlockSeparator::Space))),
+        new_span: Some(group_span(&[101, 102], Some(BlockSeparator::Space))),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        // Same blocks but a different separator means a different coordinate
+        // system, so the adjacent edit must not coalesce into one hunk.
+        old_span: Some(group_span(&[1, 2], Some(BlockSeparator::Concatenate))),
+        new_span: Some(group_span(&[101, 102], Some(BlockSeparator::Concatenate))),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert!(report.matches("@@ page 1").count() == 2, "{report}");
     Ok(())
 }
 
@@ -746,6 +1203,24 @@ fn full_span(block: u64, text: &str) -> TextSpan {
     }
 }
 
+/// A scalar-indexed span over a single block, with the comparable range kept
+/// equal to the canonical range (valid while the fixture block has no
+/// unmapped tokens).
+fn range_span(block: u64, start: usize, end: usize) -> TextSpan {
+    TextSpan {
+        blocks: vec![BlockId(block)],
+        separator: None,
+        canonical_range: ScalarRange { start, end },
+        comparable_range: TokenRange { start, end },
+    }
+}
+
+fn block_with_pages(id: u64, text: &str, pages: &[u32]) -> BlockText {
+    let mut block = block_with_text(id, text);
+    block.pages = pages.to_vec();
+    block
+}
+
 fn fixture_blocks(ids: &[u64]) -> Vec<BlockText> {
     ids.iter()
         .copied()
@@ -809,5 +1284,34 @@ fn unmapped_block_fixture(id: u64) -> BlockText {
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: vec![4],
+    }
+}
+
+/// A block whose comparable evidence is a single unmapped glyph with no
+/// canonical scalars at all.
+fn unmapped_only_block(id: u64, hash: Vec<u8>, glyph_id: u16) -> BlockText {
+    BlockText {
+        block: BlockId(id),
+        raw: MappedText {
+            text: String::new(),
+            source_map: Vec::new(),
+            unmapped: Vec::new(),
+        },
+        canonical: MappedText {
+            text: String::new(),
+            source_map: Vec::new(),
+            unmapped: vec![UnmappedToken {
+                scalar_index: 0,
+                font_hash: FontProgramHash(hash),
+                glyph_id,
+                source: TextSource { atoms: Vec::new() },
+            }],
+        },
+        matching: String::new(),
+        matching_tokens: Vec::new(),
+        numeric_mask_applied: false,
+        normalization_events: Vec::new(),
+        issues: Vec::new(),
+        pages: if id > 100 { vec![0] } else { vec![4] },
     }
 }
