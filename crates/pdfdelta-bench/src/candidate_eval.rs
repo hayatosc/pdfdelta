@@ -7,15 +7,16 @@
 //! re-paginated paragraphs still resolve to their correct new blocks.
 //!
 //! Latency and memory measurement are deferred to a later slice; this module
-//! only covers recall and candidate counts.
+//! covers recall, candidate counts, and estimated visit budgets.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use pdfdelta_core::{
     alignment::{
-        BlockFeatures, CandidateGenerator, ExhaustiveCandidateGenerator,
-        InvertedIndexCandidateGenerator, build_block_features, estimate_ngram_token_elements,
+        AlignmentOptions, BlockFeatures, CandidateGenerator, ExhaustiveCandidateGenerator,
+        InvertedIndexCandidateGenerator, NGram, build_block_features,
+        estimate_ngram_token_elements,
     },
     layout::{BlockId, reconstruct_blocks, reconstruct_lines},
     normalize::{BlockText, normalize_blocks},
@@ -60,6 +61,31 @@ pub struct CandidateEvalRecord {
     /// Exhaustive-oracle candidate counts per old block (nearest-rank p95).
     pub oracle_candidate_count_p95: usize,
     pub oracle_candidate_count_max: usize,
+    /// Inverted-index estimated visits per old block (nearest-rank p50).
+    pub estimated_visits_p50: usize,
+    /// Inverted-index estimated visits per old block (nearest-rank p95).
+    pub estimated_visits_p95: usize,
+    pub estimated_visits_max: usize,
+    /// Sum of estimated visits across all old blocks; an upper bound on the
+    /// production charge, which excludes main exact anchors.
+    pub estimated_visits_upper_bound_total: usize,
+    /// Total visit budget (`AlignmentOptions::max_candidate_visits`) that
+    /// production alignment charges against.
+    pub max_candidate_visits: usize,
+    /// Whether `estimated_visits_upper_bound_total` exceeds
+    /// `max_candidate_visits`. Because production excludes main exact
+    /// anchors, an upper-bound exceedance is a necessary condition and
+    /// investigation signal, not a sufficient condition for a production
+    /// LIMIT failure (false positives possible, false negatives not).
+    pub estimated_visits_upper_bound_exceeds_limit: bool,
+    /// Total n-gram posting visits across all old blocks, excluding exact
+    /// matches and the short-block fallback.
+    pub ngram_posting_visits_total: usize,
+    /// Aggregate visits of the single most-visited n-gram (new-side document
+    /// frequency times old-side occurrence count).
+    pub dominant_ngram_visits: usize,
+    /// New-side document frequency of the dominant n-gram.
+    pub dominant_ngram_df: usize,
 }
 
 /// Runs candidate generation evaluation for one fixture.
@@ -102,6 +128,7 @@ pub fn evaluate_candidate_generation(
 
     let counts = candidate_counts(&old_features, &inverted)?;
     let oracle_counts = candidate_counts(&old_features, &exhaustive)?;
+    let visit_metrics = measure_visit_metrics(&old_features, &new_features, &inverted)?;
     let counterpart_old_blocks = counterparts
         .values()
         .filter(|counterparts| !counterparts.is_empty())
@@ -121,6 +148,16 @@ pub fn evaluate_candidate_generation(
         oracle_candidate_count_p50: percentile(&oracle_counts, 0.50),
         oracle_candidate_count_p95: percentile(&oracle_counts, 0.95),
         oracle_candidate_count_max: oracle_counts.iter().copied().max().unwrap_or(0),
+        estimated_visits_p50: visit_metrics.estimated_visits_p50,
+        estimated_visits_p95: visit_metrics.estimated_visits_p95,
+        estimated_visits_max: visit_metrics.estimated_visits_max,
+        estimated_visits_upper_bound_total: visit_metrics.estimated_visits_upper_bound_total,
+        max_candidate_visits: visit_metrics.max_candidate_visits,
+        estimated_visits_upper_bound_exceeds_limit: visit_metrics
+            .estimated_visits_upper_bound_exceeds_limit,
+        ngram_posting_visits_total: visit_metrics.ngram_posting_visits_total,
+        dominant_ngram_visits: visit_metrics.dominant_ngram_visits,
+        dominant_ngram_df: visit_metrics.dominant_ngram_df,
     })
 }
 
@@ -364,6 +401,136 @@ fn candidate_counts(
         .collect()
 }
 
+/// Visit metrics of the inverted-index generator on one fixture.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct VisitMetrics {
+    estimated_visits_p50: usize,
+    estimated_visits_p95: usize,
+    estimated_visits_max: usize,
+    estimated_visits_upper_bound_total: usize,
+    max_candidate_visits: usize,
+    estimated_visits_upper_bound_exceeds_limit: bool,
+    ngram_posting_visits_total: usize,
+    dominant_ngram_visits: usize,
+    dominant_ngram_df: usize,
+}
+
+/// Measures the inverted-index visit budget under the production alignment
+/// limits: `estimated_visits` is charged per old block with the per-block
+/// candidate limit, and the total is compared against `max_candidate_visits`.
+///
+/// The total sums every old block, while production excludes main exact
+/// anchors, so an exceedance here is a necessary condition and investigation
+/// signal rather than proof of a production LIMIT failure (false positives
+/// possible, false negatives not).
+fn measure_visit_metrics(
+    old_features: &[BlockFeatures],
+    new_features: &[BlockFeatures],
+    generator: &dyn CandidateGenerator,
+) -> Result<VisitMetrics> {
+    let alignment_options = AlignmentOptions::default();
+    let candidate_limit = alignment_options.candidate_limit;
+    let visit_limit = alignment_options.max_candidate_visits;
+    let visits = estimated_visits_per_block(old_features, generator, candidate_limit)?;
+    let visits_total = visits.iter().try_fold(0_usize, |total, visits| {
+        total
+            .checked_add(*visits)
+            .ok_or_else(|| visit_budget_error(visit_limit))
+    })?;
+    let ngram_stats = ngram_visit_stats(old_features, new_features, visit_limit)?;
+    Ok(VisitMetrics {
+        estimated_visits_p50: percentile(&visits, 0.50),
+        estimated_visits_p95: percentile(&visits, 0.95),
+        estimated_visits_max: visits.iter().copied().max().unwrap_or(0),
+        estimated_visits_upper_bound_total: visits_total,
+        max_candidate_visits: visit_limit,
+        estimated_visits_upper_bound_exceeds_limit: visits_total > visit_limit,
+        ngram_posting_visits_total: ngram_stats.total_posting_visits,
+        dominant_ngram_visits: ngram_stats.dominant_ngram_visits,
+        dominant_ngram_df: ngram_stats.dominant_ngram_df,
+    })
+}
+
+/// Per-old-block estimated visits under the production per-block candidate
+/// limit.
+fn estimated_visits_per_block(
+    old_features: &[BlockFeatures],
+    generator: &dyn CandidateGenerator,
+    limit: usize,
+) -> Result<Vec<usize>> {
+    old_features
+        .iter()
+        .map(|features| {
+            generator
+                .estimated_visits(features, limit)
+                .map_err(|error| core_error("candidate visit estimate", error))
+        })
+        .collect()
+}
+
+/// N-gram posting visit statistics derived from new-side document
+/// frequencies and old-side query occurrences.
+struct NGramVisitStats {
+    total_posting_visits: usize,
+    dominant_ngram_visits: usize,
+    dominant_ngram_df: usize,
+}
+
+/// Aggregates the n-gram component of `estimated_visits`: every old query
+/// n-gram is charged its new-side posting length (document frequency) once
+/// per old block containing it. Exact matches and the short-block fallback
+/// are excluded.
+fn ngram_visit_stats(
+    old_features: &[BlockFeatures],
+    new_features: &[BlockFeatures],
+    visit_limit: usize,
+) -> Result<NGramVisitStats> {
+    let mut new_df = HashMap::<&NGram, usize>::new();
+    for features in new_features {
+        for ngram in &features.ngrams {
+            *new_df.entry(ngram).or_default() += 1;
+        }
+    }
+    let mut old_occurrences = HashMap::<&NGram, usize>::new();
+    for features in old_features {
+        for ngram in &features.ngrams {
+            *old_occurrences.entry(ngram).or_default() += 1;
+        }
+    }
+
+    let mut total_posting_visits = 0_usize;
+    let mut dominant_ngram_visits = 0_usize;
+    let mut dominant_ngram_df = 0_usize;
+    for (ngram, occurrences) in &old_occurrences {
+        let df = new_df.get(ngram).copied().unwrap_or(0);
+        let visits = df
+            .checked_mul(*occurrences)
+            .ok_or_else(|| visit_budget_error(visit_limit))?;
+        total_posting_visits = total_posting_visits
+            .checked_add(visits)
+            .ok_or_else(|| visit_budget_error(visit_limit))?;
+        if visits > dominant_ngram_visits {
+            dominant_ngram_visits = visits;
+            dominant_ngram_df = df;
+        }
+    }
+    Ok(NGramVisitStats {
+        total_posting_visits,
+        dominant_ngram_visits,
+        dominant_ngram_df,
+    })
+}
+
+fn visit_budget_error(limit: usize) -> BenchError {
+    BenchError::Core {
+        stage: "candidate visit budget",
+        source: pdfdelta_core::Error::LimitExceeded {
+            resource: "alignment candidate visits",
+            limit,
+        },
+    }
+}
+
 /// Nearest-rank percentile: the value at index `round((n - 1) * quantile)`
 /// of the sorted sample, without interpolation.
 fn percentile(values: &[usize], quantile: f64) -> usize {
@@ -387,7 +554,7 @@ fn core_error(stage: &'static str, error: pdfdelta_core::Error) -> BenchError {
 mod tests {
     use pdfdelta_core::{
         layout::BlockId,
-        normalize::{BlockText, MappedText},
+        normalize::{BlockText, ComparableToken, MappedText},
     };
 
     use super::*;
@@ -405,13 +572,26 @@ mod tests {
                 source_map: Vec::new(),
                 unmapped: Vec::new(),
             },
-            matching: String::new(),
-            matching_tokens: Vec::new(),
+            matching: text.to_owned(),
+            matching_tokens: text.chars().map(ComparableToken::Scalar).collect(),
             numeric_mask_applied: false,
             normalization_events: Vec::new(),
             issues: Vec::new(),
             pages: Vec::new(),
         }
+    }
+
+    /// Four-letter base-26 suffix, unique for values below 26^4.
+    fn base26_suffix(mut value: usize) -> String {
+        let mut chars = Vec::with_capacity(4);
+        while value > 0 {
+            chars.push((b'a' + (value % 26) as u8) as char);
+            value /= 26;
+        }
+        while chars.len() < 4 {
+            chars.push('a');
+        }
+        chars.into_iter().rev().collect()
     }
 
     #[test]
@@ -455,5 +635,50 @@ mod tests {
             error,
             BenchError::InvalidInput(message) if message.contains("byte offset")
         ));
+    }
+
+    #[test]
+    fn high_df_ngram_upper_bound_exceeds_the_budget() {
+        // 1001 identical-prefix blocks per side: every block shares the
+        // "aaa" n-gram, so each old query pays 1001 postings and the total
+        // exceeds the default 1,000,000 visit budget without rendering.
+        // Every block is 10 tokens, below the 16-token exact-anchor
+        // threshold, so no block is excluded as a main anchor and the
+        // upper-bound total equals the production charge in this fixture.
+        let count = 1001;
+        let old_blocks = (0..count)
+            .map(|index| block_text(index as u64, &format!("aaaaaa{}", base26_suffix(index))))
+            .collect::<Vec<_>>();
+        let new_blocks = (0..count)
+            .map(|index| {
+                block_text(
+                    10_000 + index as u64,
+                    &format!("aaaaaa{}", base26_suffix(index)),
+                )
+            })
+            .collect::<Vec<_>>();
+        let old_features =
+            build_block_features(&old_blocks, NGRAM_SIZE).expect("old features build");
+        let new_features =
+            build_block_features(&new_blocks, NGRAM_SIZE).expect("new features build");
+        let inverted = InvertedIndexCandidateGenerator::new(&new_features).expect("index builds");
+
+        let metrics = measure_visit_metrics(&old_features, &new_features, &inverted)
+            .expect("visit metrics measure");
+
+        assert!(metrics.estimated_visits_upper_bound_total > metrics.max_candidate_visits);
+        assert!(metrics.estimated_visits_upper_bound_exceeds_limit);
+        assert_eq!(metrics.dominant_ngram_visits, count * count);
+        assert_eq!(metrics.dominant_ngram_df, count);
+
+        // Recall still resolves every old block to its identical new block.
+        let counterparts = old_features
+            .iter()
+            .zip(&new_features)
+            .map(|(old, new)| (old.block, vec![new.block]))
+            .collect::<HashMap<_, _>>();
+        let recall =
+            recall_at_k(&old_features, &counterparts, &inverted, 5).expect("recall measures");
+        assert_eq!(recall, 1.0);
     }
 }
