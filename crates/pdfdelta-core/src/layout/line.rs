@@ -269,15 +269,17 @@ fn reconstruct_spaces(
     direction: Vec2,
     options: LineOptions,
 ) -> Vec<SyntheticSpace> {
-    let visible_advances: Vec<_> = glyphs
+    let (advance_sum, visible_count) = glyphs
         .iter()
         .filter(|glyph| !is_whitespace(&glyph.text))
         .map(|glyph| projected_extent(glyph.bbox, direction))
-        .collect();
-    let average_advance = if visible_advances.is_empty() {
+        .fold((0.0, 0usize), |(sum, count), advance| {
+            (sum + advance, count + 1)
+        });
+    let average_advance = if visible_count == 0 {
         0.0
     } else {
-        visible_advances.iter().sum::<f64>() / visible_advances.len() as f64
+        advance_sum / visible_count as f64
     };
 
     glyphs

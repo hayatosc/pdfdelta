@@ -581,7 +581,7 @@ fn validate_span_against_group(span: &TextSpan, group: &ResolvedGroup) -> Result
     let scalar_count = group
         .tokens
         .iter()
-        .filter(|token| matches!(token, ComparableToken::Scalar(_)))
+        .filter(|token| token.is_scalar())
         .count();
     if span.comparable_range.end > group.tokens.len() || span.canonical_range.end > scalar_count {
         return Err(Error::InvalidConfiguration(
@@ -616,8 +616,9 @@ fn render_region(group: &ResolvedGroup, start: usize, end: usize) -> String {
 // deliberate: the human marker abbreviates the font hash to its first four
 // bytes; the JSON report keeps the full identity.
 fn unmapped_placeholder(font_hash: &FontProgramHash, glyph_id: u16) -> String {
-    let hash = lowercase_hex(&font_hash.0);
-    format!("<unmapped:{glyph_id}:{}>", hash.get(..8).unwrap_or(&hash))
+    let prefix = &font_hash.0[..font_hash.0.len().min(4)];
+    let hash = lowercase_hex(prefix);
+    format!("<unmapped:{glyph_id}:{hash}>")
 }
 
 struct Painter {

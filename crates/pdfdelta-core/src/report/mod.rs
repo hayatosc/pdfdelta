@@ -234,20 +234,17 @@ impl<'a> SideIndex<'a> {
 
     pub(crate) fn resolve(&self, span: &TextSpan) -> Result<ResolvedSpan> {
         let (tokens, pages) = self.accumulate(&span.blocks, span.separator)?;
-        let scalars = tokens
-            .iter()
-            .filter_map(|token| match token {
-                ComparableToken::Scalar(scalar) => Some(*scalar),
-                ComparableToken::Unmapped { .. } => None,
-            })
-            .collect::<Vec<_>>();
-        if span.comparable_range.end > tokens.len() || span.canonical_range.end > scalars.len() {
+        let scalar_count = tokens.iter().filter(|token| token.is_scalar()).count();
+        if span.comparable_range.end > tokens.len() || span.canonical_range.end > scalar_count {
             return Err(Error::InvalidConfiguration(
                 "text span range exceeds the normalized block evidence".to_owned(),
             ));
         }
-        let text = scalars[span.canonical_range.start..span.canonical_range.end]
+        let text = tokens
             .iter()
+            .filter_map(ComparableToken::as_scalar)
+            .skip(span.canonical_range.start)
+            .take(span.canonical_range.end - span.canonical_range.start)
             .collect();
         let mut unmapped = Vec::new();
         let mut scalar_offset = 0_usize;

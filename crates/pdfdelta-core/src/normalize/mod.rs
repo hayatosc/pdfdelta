@@ -51,6 +51,19 @@ pub enum ComparableToken {
     },
 }
 
+impl ComparableToken {
+    pub fn as_scalar(&self) -> Option<char> {
+        match self {
+            Self::Scalar(scalar) => Some(*scalar),
+            Self::Unmapped { .. } => None,
+        }
+    }
+
+    pub fn is_scalar(&self) -> bool {
+        matches!(self, Self::Scalar(_))
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnmappedToken {
     pub scalar_index: usize,
@@ -531,10 +544,7 @@ struct MatchingText {
 fn build_matching(canonical: &MappedText, max_numeric_mask_ratio: f64) -> Result<MatchingText> {
     let compatible = compatibility_fold(canonical.comparable_tokens()?);
     let (masked, masked_scalar_count, contains_number) = mask_numbers(&compatible);
-    let output_scalar_count = masked
-        .iter()
-        .filter(|token| matches!(token, ComparableToken::Scalar(_)))
-        .count();
+    let output_scalar_count = masked.iter().filter(|token| token.is_scalar()).count();
     let numeric_mask_ratio = if output_scalar_count == 0 {
         0.0
     } else {
@@ -548,10 +558,7 @@ fn build_matching(canonical: &MappedText, max_numeric_mask_ratio: f64) -> Result
     };
     let text = tokens
         .iter()
-        .filter_map(|token| match token {
-            ComparableToken::Scalar(scalar) => Some(*scalar),
-            ComparableToken::Unmapped { .. } => None,
-        })
+        .filter_map(ComparableToken::as_scalar)
         .collect();
 
     Ok(MatchingText {
