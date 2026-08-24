@@ -1851,6 +1851,7 @@ fn unmapped_block_text(id: u64, font_hash: Vec<u8>, glyph_id: u16) -> BlockText 
         numeric_mask_applied: false,
         normalization_events: vec![],
         issues: vec![],
+        pages: Vec::new(),
     }
 }
 
@@ -1884,6 +1885,7 @@ fn block_text_with_matching(
         numeric_mask_applied,
         normalization_events: vec![],
         issues: vec![],
+        pages: Vec::new(),
     }
 }
 

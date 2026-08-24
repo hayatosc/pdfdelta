@@ -526,6 +526,7 @@ fn block_with_matching(
         numeric_mask_applied,
         normalization_events: Vec::new(),
         issues: Vec::new(),
+        pages: Vec::new(),
     }
 }
 
@@ -552,6 +553,7 @@ fn unmapped_block(id: u64, glyph_id: u16) -> BlockText {
         numeric_mask_applied: false,
         normalization_events: Vec::new(),
         issues: Vec::new(),
+        pages: Vec::new(),
     }
 }
 

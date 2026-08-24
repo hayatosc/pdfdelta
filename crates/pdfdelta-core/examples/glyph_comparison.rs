@@ -9,8 +9,9 @@ use pdfdelta_core::{
         TextRenderMode, Vec2,
     },
     pdf::ObjectRef,
-    pipeline::{PipelineOptions, compare_glyph_documents},
-    report::{ExtractionStatus, render_text},
+    pipeline::{PipelineOptions, compare_extraction_outcomes},
+    report::render_text,
+    source::ExtractionOutcome,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,10 +26,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Closing context remains stable.",
     ]);
 
-    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::new(old, Vec::new())?,
+        ExtractionOutcome::new(new, Vec::new())?,
+        PipelineOptions::default(),
+    )?;
     print!(
         "{}",
-        render_text(&comparison, &ExtractionStatus::complete())?
+        render_text(
+            &outcome.old_blocks,
+            &outcome.new_blocks,
+            &outcome.comparison,
+            &outcome.extraction,
+        )?
     );
     Ok(())
 }

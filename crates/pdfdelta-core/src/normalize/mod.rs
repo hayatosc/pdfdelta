@@ -165,6 +165,8 @@ pub struct BlockText {
     pub numeric_mask_applied: bool,
     pub normalization_events: Vec<NormalizationEvent>,
     pub issues: Vec<NormalizationIssue>,
+    /// Sorted unique page numbers covered by the block's lines.
+    pub pages: Vec<u32>,
 }
 
 pub fn normalize_blocks(
@@ -200,7 +202,8 @@ pub fn normalize_blocks(
             &mut assigned_lines,
             &mut assigned_glyphs,
         )?;
-        normalized.push(normalize_block(block.id, raw)?);
+        let pages = block_pages(block, &lines);
+        normalized.push(normalize_block(block.id, raw, pages)?);
     }
 
     if assigned_lines.len() != lines.len() {
@@ -486,7 +489,18 @@ impl TextSource {
     }
 }
 
-fn normalize_block(block: BlockId, raw: RawBlock) -> Result<BlockText> {
+fn block_pages(block: &Block, lines: &HashMap<LineId, &Line>) -> Vec<u32> {
+    let mut pages = block
+        .lines
+        .iter()
+        .map(|line_id| lines[line_id].page.0)
+        .collect::<Vec<_>>();
+    pages.sort_unstable();
+    pages.dedup();
+    pages
+}
+
+fn normalize_block(block: BlockId, raw: RawBlock, pages: Vec<u32>) -> Result<BlockText> {
     let mut issues = Vec::new();
     let atoms = expand_ligatures(raw.atoms);
     let atoms = resolve_line_breaks(atoms, &mut issues);
@@ -504,6 +518,7 @@ fn normalize_block(block: BlockId, raw: RawBlock) -> Result<BlockText> {
         numeric_mask_applied: matching.numeric_mask_applied,
         normalization_events: events,
         issues,
+        pages,
     })
 }
 

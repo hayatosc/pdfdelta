@@ -6,8 +6,8 @@ use pdfdelta_core::{
         FormattingReason, TextSpan, TokenRange, UnresolvedRegion,
     },
     layout::BlockId,
-    model::PageId,
-    normalize::ScalarRange,
+    model::{FontProgramHash, PageId},
+    normalize::{BlockText, MappedText, ScalarRange, TextSource, UnmappedToken},
     report::{
         DocumentSide, ExitStatus, ExtractionIssueRecord, ExtractionStatus, exit_status,
         render_text, summarize, write_json,
@@ -17,7 +17,7 @@ use pdfdelta_core::{
 
 #[test]
 fn text_report_always_states_completeness_and_coverage() -> Result<()> {
-    let report = render_text(&empty_comparison(), &ExtractionStatus::complete())?;
+    let report = render_text(&[], &[], &empty_comparison(), &ExtractionStatus::complete())?;
 
     assert_eq!(
         report,
@@ -153,7 +153,7 @@ fn reports_incomplete_extraction_in_text_and_strict_status() -> Result<()> {
 
     let mut comparison = empty_comparison();
     comparison.new_coverage.ratio = None;
-    let report = render_text(&comparison, &extraction)?;
+    let report = render_text(&[], &[], &comparison, &extraction)?;
 
     assert!(report.contains("Extraction complete:      old=yes, new=no"));
     assert!(report.contains("Unsupported extraction:   0"));
@@ -202,11 +202,17 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
     };
     let mut output = Vec::new();
 
-    write_json(&mut output, &comparison, &extraction)?;
+    write_json(
+        &mut output,
+        &fixture_blocks(&[1, 2]),
+        &fixture_blocks(&[101]),
+        &comparison,
+        &extraction,
+    )?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 4);
+    assert_eq!(json["schema_version"], 5);
     assert_eq!(json["summary"]["content_changes"], 1);
     assert_eq!(
         json["summary"]["old_alignment_coverage"]["resolved_tokens"],
@@ -257,11 +263,17 @@ fn json_report_serializes_multi_block_separators() -> Result<()> {
     });
     let mut output = Vec::new();
 
-    write_json(&mut output, &comparison, &ExtractionStatus::complete())?;
+    write_json(
+        &mut output,
+        &fixture_blocks(&[1, 2]),
+        &fixture_blocks(&[101, 102]),
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 4);
+    assert_eq!(json["schema_version"], 5);
     assert_eq!(
         json["formatting_only_changes"][0]["old_span"]["block_separator"],
         "space"
@@ -298,7 +310,7 @@ fn json_report_counts_typed_extraction_issues_and_omits_document_page() -> Resul
     comparison.new_coverage.ratio = None;
     let mut output = Vec::new();
 
-    write_json(&mut output, &comparison, &extraction)?;
+    write_json(&mut output, &[], &[], &comparison, &extraction)?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
@@ -372,7 +384,7 @@ fn rejects_inconsistent_coverage_before_rendering() {
     };
 
     assert!(matches!(
-        render_text(&comparison, &ExtractionStatus::complete()),
+        render_text(&[], &[], &comparison, &ExtractionStatus::complete()),
         Err(Error::InvalidConfiguration(message))
             if message.contains("invalid old alignment coverage")
     ));
@@ -487,6 +499,177 @@ fn rejects_invalid_public_change_and_region_shapes() {
     ));
 }
 
+#[test]
+fn text_report_shows_changed_content_for_replacement_insertion_and_deletion() -> Result<()> {
+    let old_blocks = vec![
+        block_with_text(2, "Release 10 remains available"),
+        block_with_text(3, "Removed paragraph disappears"),
+    ];
+    let new_blocks = vec![
+        block_with_text(102, "Release 20 remains available"),
+        block_with_text(103, "Inserted paragraph appears here"),
+    ];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(full_span(2, "Release 10 remains available")),
+        new_span: Some(full_span(102, "Release 20 remains available")),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    comparison.changes.push(Change {
+        kind: ChangeKind::Insertion,
+        old_span: None,
+        new_span: Some(full_span(103, "Inserted paragraph appears here")),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    comparison.changes.push(Change {
+        kind: ChangeKind::Deletion,
+        old_span: Some(full_span(3, "Removed paragraph disappears")),
+        new_span: None,
+        confidence: Confidence::Medium,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+
+    assert!(
+        report.contains("Change 1: replacement (confidence=high)\n"),
+        "{report}"
+    );
+    assert!(
+        report.contains("old blocks=[2] pages=[0]: Release 10 remains available\n"),
+        "{report}"
+    );
+    assert!(
+        report.contains("new blocks=[102] pages=[0]: Release 20 remains available\n"),
+        "{report}"
+    );
+    assert!(
+        report.contains("Change 2: insertion (confidence=high)\n"),
+        "{report}"
+    );
+    assert!(
+        report.contains("new blocks=[103] pages=[0]: Inserted paragraph appears here\n"),
+        "{report}"
+    );
+    assert!(
+        report.contains("Change 3: deletion (confidence=medium)\n"),
+        "{report}"
+    );
+    assert!(
+        report.contains("old blocks=[3] pages=[0]: Removed paragraph disappears\n"),
+        "{report}"
+    );
+    Ok(())
+}
+
+#[test]
+fn json_report_resolves_span_text_pages_and_unmapped_tokens() -> Result<()> {
+    let old_blocks = vec![unmapped_block_fixture(9)];
+    let new_blocks = vec![block_with_text(109, "Release 20")];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(TextSpan {
+            blocks: vec![BlockId(9)],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 2 },
+            comparable_range: TokenRange { start: 0, end: 4 },
+        }),
+        new_span: Some(full_span(109, "Release 20")),
+        confidence: Confidence::Low,
+        tags: vec![ChangeTag::OcrConfusion],
+    });
+    let mut output = Vec::new();
+
+    write_json(
+        &mut output,
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("report should be valid JSON");
+
+    assert_eq!(json["schema_version"], 5);
+    assert_eq!(json["changes"][0]["kind"], "replacement");
+    assert_eq!(json["changes"][0]["confidence"], "low");
+    assert_eq!(json["changes"][0]["tags"][0], "ocr_confusion");
+    assert_eq!(json["changes"][0]["old_span"]["blocks"][0], 9);
+    assert_eq!(json["changes"][0]["old_span"]["pages"][0], 4);
+    assert_eq!(json["changes"][0]["old_span"]["text"], "ab");
+    // Two distinct unmapped glyphs keep their stable identity and their
+    // order relative to the resolved scalars (leading and trailing).
+    let unmapped = &json["changes"][0]["old_span"]["unmapped_tokens"];
+    assert_eq!(
+        unmapped.as_array().expect("unmapped tokens").len(),
+        2,
+        "{json:#}"
+    );
+    assert_eq!(unmapped[0]["scalar_offset"], 0);
+    assert_eq!(unmapped[0]["font_hash"], "0102030405");
+    assert_eq!(unmapped[0]["glyph_id"], 7);
+    assert_eq!(unmapped[1]["scalar_offset"], 2);
+    assert_eq!(unmapped[1]["font_hash"], "09");
+    assert_eq!(unmapped[1]["glyph_id"], 11);
+    assert_eq!(json["changes"][0]["new_span"]["pages"][0], 0);
+    assert_eq!(json["changes"][0]["new_span"]["text"], "Release 20");
+    assert_eq!(
+        json["changes"][0]["new_span"]["unmapped_tokens"]
+            .as_array()
+            .expect("unmapped tokens")
+            .len(),
+        0
+    );
+    Ok(())
+}
+
+#[test]
+fn text_report_marks_unmapped_glyph_positions_in_order() -> Result<()> {
+    let old_blocks = vec![unmapped_block_fixture(9)];
+    let new_blocks = vec![block_with_text(109, "Release 20")];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(TextSpan {
+            blocks: vec![BlockId(9)],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 2 },
+            comparable_range: TokenRange { start: 0, end: 4 },
+        }),
+        new_span: Some(full_span(109, "Release 20")),
+        confidence: Confidence::Low,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+
+    // The leading and trailing unmapped glyphs are marked at their exact
+    // positions instead of implying that 'a' and 'b' are contiguous.
+    assert!(
+        report.contains("old blocks=[9] pages=[4]: <unmapped:7:01020304>ab<unmapped:11:09>\n"),
+        "{report}"
+    );
+    assert!(
+        report.contains("new blocks=[109] pages=[0]: Release 20\n"),
+        "{report}"
+    );
+    Ok(())
+}
+
 fn empty_comparison() -> Comparison {
     Comparison {
         changes: Vec::new(),
@@ -544,5 +727,87 @@ fn group_span(blocks: &[u64], separator: Option<BlockSeparator>) -> TextSpan {
         separator,
         canonical_range: ScalarRange { start: 0, end: 1 },
         comparable_range: TokenRange { start: 0, end: 1 },
+    }
+}
+
+fn full_span(block: u64, text: &str) -> TextSpan {
+    let count = text.chars().count();
+    TextSpan {
+        blocks: vec![BlockId(block)],
+        separator: None,
+        canonical_range: ScalarRange {
+            start: 0,
+            end: count,
+        },
+        comparable_range: TokenRange {
+            start: 0,
+            end: count,
+        },
+    }
+}
+
+fn fixture_blocks(ids: &[u64]) -> Vec<BlockText> {
+    ids.iter()
+        .copied()
+        .map(|id| block_with_text(id, "0123456789"))
+        .collect()
+}
+
+fn block_with_text(id: u64, text: &str) -> BlockText {
+    BlockText {
+        block: BlockId(id),
+        raw: MappedText {
+            text: String::new(),
+            source_map: Vec::new(),
+            unmapped: Vec::new(),
+        },
+        canonical: MappedText {
+            text: text.to_owned(),
+            source_map: Vec::new(),
+            unmapped: Vec::new(),
+        },
+        matching: String::new(),
+        matching_tokens: Vec::new(),
+        numeric_mask_applied: false,
+        normalization_events: Vec::new(),
+        issues: Vec::new(),
+        pages: vec![0],
+    }
+}
+
+/// Canonical text "ab" with two distinct unmapped glyph tokens: one before
+/// 'a' and one after 'b', exercising leading/trailing positions and order.
+fn unmapped_block_fixture(id: u64) -> BlockText {
+    BlockText {
+        block: BlockId(id),
+        raw: MappedText {
+            text: String::new(),
+            source_map: Vec::new(),
+            unmapped: Vec::new(),
+        },
+        canonical: MappedText {
+            text: "ab".to_owned(),
+            source_map: Vec::new(),
+            unmapped: vec![
+                UnmappedToken {
+                    scalar_index: 0,
+                    font_hash: FontProgramHash(vec![1, 2, 3, 4, 5]),
+                    glyph_id: 7,
+                    source: TextSource { atoms: Vec::new() },
+                },
+                UnmappedToken {
+                    scalar_index: 2,
+                    font_hash: FontProgramHash(vec![9]),
+                    glyph_id: 11,
+                    source: TextSource { atoms: Vec::new() },
+                },
+            ],
+        },
+        matching: String::new(),
+        matching_tokens: Vec::new(),
+        numeric_mask_applied: false,
+        normalization_events: Vec::new(),
+        issues: Vec::new(),
+        pages: vec![4],
     }
 }

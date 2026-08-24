@@ -1,10 +1,13 @@
 mod json;
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use crate::{
     Error, Result,
-    diff::{ChangeKind, Comparison, Confidence, TextSpan},
+    alignment::BlockSeparator,
+    diff::{ChangeKind, ChangeTag, Comparison, Confidence, TextSpan},
+    model::FontProgramHash,
+    normalize::{BlockText, ComparableToken},
     source::{ExtractionIssue, ExtractionIssueKind, ExtractionScope},
 };
 
@@ -173,10 +176,17 @@ pub fn summarize(comparison: &Comparison, extraction: &ExtractionStatus) -> Resu
     })
 }
 
-pub fn render_text(comparison: &Comparison, extraction: &ExtractionStatus) -> Result<String> {
+pub fn render_text(
+    old_blocks: &[BlockText],
+    new_blocks: &[BlockText],
+    comparison: &Comparison,
+    extraction: &ExtractionStatus,
+) -> Result<String> {
     use std::fmt::Write;
 
     let summary = summarize(comparison, extraction)?;
+    let old = SideIndex::new(old_blocks)?;
+    let new = SideIndex::new(new_blocks)?;
     let mut output = format!(
         "Content changes:          {}\n\
          Formatting-only changes:  {}\n\
@@ -219,7 +229,199 @@ pub fn render_text(comparison: &Comparison, extraction: &ExtractionStatus) -> Re
         }
         .map_err(|error| Error::Report(error.to_string()))?;
     }
+    for (index, change) in comparison.changes.iter().enumerate() {
+        write!(output, "Change {}: {}", index + 1, change_kind(change.kind))
+            .map_err(|error| Error::Report(error.to_string()))?;
+        if let Some((first, rest)) = change.tags.split_first() {
+            write!(
+                output,
+                " (confidence={}, tags=",
+                confidence(change.confidence)
+            )
+            .map_err(|error| Error::Report(error.to_string()))?;
+            for (tag_position, tag) in std::iter::once(first).chain(rest.iter()).enumerate() {
+                let prefix = if tag_position == 0 { "" } else { "," };
+                write!(output, "{prefix}{}", change_tag(*tag))
+                    .map_err(|error| Error::Report(error.to_string()))?;
+            }
+            write!(output, ")").map_err(|error| Error::Report(error.to_string()))?;
+        } else {
+            write!(output, " (confidence={})", confidence(change.confidence))
+                .map_err(|error| Error::Report(error.to_string()))?;
+        }
+        output
+            .write_char('\n')
+            .map_err(|error| Error::Report(error.to_string()))?;
+        if let Some(span) = &change.old_span {
+            write_change_side(&mut output, "old", &old, span)?;
+        }
+        if let Some(span) = &change.new_span {
+            write_change_side(&mut output, "new", &new, span)?;
+        }
+    }
     Ok(output)
+}
+
+fn write_change_side(
+    output: &mut String,
+    side: &'static str,
+    index: &SideIndex<'_>,
+    span: &TextSpan,
+) -> Result<()> {
+    use std::fmt::Write;
+
+    let resolved = index.resolve(span)?;
+    write!(output, "  {side} blocks=[{}", span.blocks[0].0)
+        .map_err(|error| Error::Report(error.to_string()))?;
+    for block in &span.blocks[1..] {
+        write!(output, ",{}", block.0).map_err(|error| Error::Report(error.to_string()))?;
+    }
+    write!(output, "] pages=[").map_err(|error| Error::Report(error.to_string()))?;
+    for (position, page) in resolved.pages.iter().enumerate() {
+        let prefix = if position == 0 { "" } else { "," };
+        write!(output, "{prefix}{page}").map_err(|error| Error::Report(error.to_string()))?;
+    }
+    write!(output, "]: ").map_err(|error| Error::Report(error.to_string()))?;
+    writeln!(output, "{}", resolved.display_text())
+        .map_err(|error| Error::Report(error.to_string()))
+}
+
+/// Renders the span text with a stable placeholder at each unmapped glyph
+/// position, so human readers never take the surrounding scalars as
+/// contiguous when an unmapped glyph sits between them.
+impl ResolvedSpan {
+    fn display_text(&self) -> String {
+        let mut rendered = String::with_capacity(self.text.len());
+        let mut scalars = self.text.chars();
+        let mut consumed = 0_usize;
+        for token in &self.unmapped {
+            while consumed < token.scalar_offset {
+                rendered.push(scalars.next().unwrap_or('\u{fffd}'));
+                consumed += 1;
+            }
+            // deliberate: the human marker abbreviates the font hash to its
+            // first four bytes; the JSON report keeps the full identity.
+            let hash = lowercase_hex(&token.font_hash.0);
+            rendered.push_str(&format!(
+                "<unmapped:{}:{}>",
+                token.glyph_id,
+                hash.get(..8).unwrap_or(&hash)
+            ));
+        }
+        rendered.extend(scalars);
+        rendered
+    }
+}
+
+fn lowercase_hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len().saturating_mul(2));
+    for byte in bytes {
+        output.push(char::from(DIGITS[usize::from(byte >> 4)]));
+        output.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
+    }
+    output
+}
+
+/// Read-only view over one side's normalized blocks, used to resolve report
+/// spans back to canonical text and page provenance.
+pub(crate) struct SideIndex<'a> {
+    blocks: BTreeMap<u64, &'a BlockText>,
+}
+
+impl<'a> SideIndex<'a> {
+    pub(crate) fn new(blocks: &'a [BlockText]) -> Result<Self> {
+        let mut indexed = BTreeMap::new();
+        for block in blocks {
+            if indexed.insert(block.block.0, block).is_some() {
+                return Err(Error::InvalidConfiguration(format!(
+                    "duplicate block id {}",
+                    block.block.0
+                )));
+            }
+        }
+        Ok(Self { blocks: indexed })
+    }
+
+    pub(crate) fn resolve(&self, span: &TextSpan) -> Result<ResolvedSpan> {
+        let mut tokens = Vec::new();
+        let mut pages = Vec::new();
+        for (position, block_id) in span.blocks.iter().enumerate() {
+            let block = self.blocks.get(&block_id.0).ok_or_else(|| {
+                Error::InvalidConfiguration(format!(
+                    "text span references block {} that has no normalized evidence",
+                    block_id.0
+                ))
+            })?;
+            let next = block.canonical.comparable_tokens()?;
+            if position == 0 {
+                tokens.extend_from_slice(&next);
+            } else {
+                span.separator
+                    .unwrap_or(BlockSeparator::Concatenate)
+                    .append(&mut tokens, &next);
+            }
+            pages.extend_from_slice(&block.pages);
+        }
+        pages.sort_unstable();
+        pages.dedup();
+
+        let scalars = tokens
+            .iter()
+            .filter_map(|token| match token {
+                ComparableToken::Scalar(scalar) => Some(*scalar),
+                ComparableToken::Unmapped { .. } => None,
+            })
+            .collect::<Vec<_>>();
+        if span.comparable_range.end > tokens.len() || span.canonical_range.end > scalars.len() {
+            return Err(Error::InvalidConfiguration(
+                "text span range exceeds the normalized block evidence".to_owned(),
+            ));
+        }
+        let text = scalars[span.canonical_range.start..span.canonical_range.end]
+            .iter()
+            .collect();
+        let mut unmapped = Vec::new();
+        let mut scalar_offset = 0_usize;
+        for token in &tokens[span.comparable_range.start..span.comparable_range.end] {
+            match token {
+                ComparableToken::Scalar(_) => scalar_offset += 1,
+                ComparableToken::Unmapped {
+                    font_hash,
+                    glyph_id,
+                } => {
+                    unmapped.push(UnmappedSpanToken {
+                        scalar_offset,
+                        font_hash: font_hash.clone(),
+                        glyph_id: *glyph_id,
+                    });
+                }
+            }
+        }
+
+        Ok(ResolvedSpan {
+            text,
+            unmapped,
+            pages,
+        })
+    }
+}
+
+pub(crate) struct ResolvedSpan {
+    pub text: String,
+    /// Unmapped glyph tokens inside the span, in comparable-token order.
+    pub unmapped: Vec<UnmappedSpanToken>,
+    pub pages: Vec<u32>,
+}
+
+/// One unmapped glyph token with its stable identity and the scalar offset
+/// within the resolved span text where it sits, so consumers can reconstruct
+/// the exact interleaving of mapped scalars and unmapped glyphs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct UnmappedSpanToken {
+    pub scalar_offset: usize,
+    pub font_hash: FontProgramHash,
+    pub glyph_id: u16,
 }
 
 pub fn exit_status(
@@ -404,5 +606,29 @@ pub(crate) fn issue_kind_name(kind: ExtractionIssueKind) -> &'static str {
     match kind {
         ExtractionIssueKind::Unsupported => "unsupported",
         ExtractionIssueKind::Unresolved => "unresolved",
+    }
+}
+
+pub(crate) fn change_kind(kind: ChangeKind) -> &'static str {
+    match kind {
+        ChangeKind::Replacement => "replacement",
+        ChangeKind::Insertion => "insertion",
+        ChangeKind::Deletion => "deletion",
+        ChangeKind::Move => "move",
+    }
+}
+
+pub(crate) fn confidence(value: Confidence) -> &'static str {
+    match value {
+        Confidence::High => "high",
+        Confidence::Medium => "medium",
+        Confidence::Low => "low",
+    }
+}
+
+pub(crate) fn change_tag(tag: ChangeTag) -> &'static str {
+    match tag {
+        ChangeTag::CharacterWidth => "character_width",
+        ChangeTag::OcrConfusion => "ocr_confusion",
     }
 }

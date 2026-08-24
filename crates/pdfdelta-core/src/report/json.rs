@@ -6,23 +6,31 @@ use crate::{
     Error, Result,
     alignment::{AlignmentEvidence, BlockSeparator, CandidateSource},
     diff::{
-        Change, ChangeKind, ChangeTag, Comparison, Confidence, Coverage, FormattingChange,
-        FormattingReason, TextSpan, UnresolvedRegion,
+        Change, Comparison, Coverage, FormattingChange, FormattingReason, TextSpan,
+        UnresolvedRegion,
     },
+    normalize::BlockText,
     source::ExtractionScope,
 };
 
-use super::{ExtractionStatus, ReportSummary, issue_kind_name, side_name, summarize};
+use super::{
+    ExtractionStatus, ReportSummary, SideIndex, change_kind, change_tag, confidence,
+    issue_kind_name, lowercase_hex, side_name, summarize,
+};
 
-const SCHEMA_VERSION: u32 = 4;
+const SCHEMA_VERSION: u32 = 5;
 
 pub fn write_json<W: Write>(
     mut writer: W,
+    old_blocks: &[BlockText],
+    new_blocks: &[BlockText],
     comparison: &Comparison,
     extraction: &ExtractionStatus,
 ) -> Result<()> {
     let summary = summarize(comparison, extraction)?;
-    let report = JsonReport::new(comparison, extraction, summary);
+    let old = SideIndex::new(old_blocks)?;
+    let new = SideIndex::new(new_blocks)?;
+    let report = JsonReport::new(comparison, extraction, summary, &old, &new)?;
     serde_json::to_writer_pretty(&mut writer, &report)
         .map_err(|error| Error::Report(error.to_string()))?;
     writer
@@ -45,23 +53,32 @@ impl<'a> JsonReport<'a> {
         comparison: &Comparison,
         extraction: &'a ExtractionStatus,
         summary: ReportSummary,
-    ) -> Self {
-        Self {
+        old: &SideIndex<'_>,
+        new: &SideIndex<'_>,
+    ) -> Result<Self> {
+        let changes = comparison
+            .changes
+            .iter()
+            .map(|change| JsonChange::new(change, old, new))
+            .collect::<Result<Vec<_>>>()?;
+        let formatting_only_changes = comparison
+            .formatting_changes
+            .iter()
+            .map(|change| JsonFormattingChange::new(change, old, new))
+            .collect::<Result<Vec<_>>>()?;
+        let unresolved_regions = comparison
+            .unresolved_regions
+            .iter()
+            .map(|region| JsonUnresolvedRegion::new(region, old, new))
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Self {
             schema_version: SCHEMA_VERSION,
             summary: JsonSummary::new(summary, comparison),
-            changes: comparison.changes.iter().map(Into::into).collect(),
-            formatting_only_changes: comparison
-                .formatting_changes
-                .iter()
-                .map(Into::into)
-                .collect(),
-            unresolved_regions: comparison
-                .unresolved_regions
-                .iter()
-                .map(Into::into)
-                .collect(),
+            changes,
+            formatting_only_changes,
+            unresolved_regions,
             extraction: JsonExtraction::new(extraction),
-        }
+        })
     }
 }
 
@@ -165,15 +182,23 @@ struct JsonChange {
     tags: Vec<&'static str>,
 }
 
-impl From<&Change> for JsonChange {
-    fn from(change: &Change) -> Self {
-        Self {
+impl JsonChange {
+    fn new(change: &Change, old: &SideIndex<'_>, new: &SideIndex<'_>) -> Result<Self> {
+        Ok(Self {
             kind: change_kind(change.kind),
-            old_span: change.old_span.as_ref().map(Into::into),
-            new_span: change.new_span.as_ref().map(Into::into),
+            old_span: change
+                .old_span
+                .as_ref()
+                .map(|span| JsonTextSpan::new(span, old))
+                .transpose()?,
+            new_span: change
+                .new_span
+                .as_ref()
+                .map(|span| JsonTextSpan::new(span, new))
+                .transpose()?,
             confidence: confidence(change.confidence),
             tags: change.tags.iter().copied().map(change_tag).collect(),
-        }
+        })
     }
 }
 
@@ -185,11 +210,11 @@ struct JsonFormattingChange {
     reasons: Vec<&'static str>,
 }
 
-impl From<&FormattingChange> for JsonFormattingChange {
-    fn from(change: &FormattingChange) -> Self {
-        Self {
-            old_span: (&change.old_span).into(),
-            new_span: (&change.new_span).into(),
+impl JsonFormattingChange {
+    fn new(change: &FormattingChange, old: &SideIndex<'_>, new: &SideIndex<'_>) -> Result<Self> {
+        Ok(Self {
+            old_span: JsonTextSpan::new(&change.old_span, old)?,
+            new_span: JsonTextSpan::new(&change.new_span, new)?,
             confidence: confidence(change.confidence),
             reasons: change
                 .reasons
@@ -197,7 +222,7 @@ impl From<&FormattingChange> for JsonFormattingChange {
                 .copied()
                 .map(formatting_reason)
                 .collect(),
-        }
+        })
     }
 }
 
@@ -208,28 +233,41 @@ struct JsonUnresolvedRegion {
     evidence: Vec<String>,
 }
 
-impl From<&UnresolvedRegion> for JsonUnresolvedRegion {
-    fn from(region: &UnresolvedRegion) -> Self {
-        Self {
-            old_span: region.old_span.as_ref().map(Into::into),
-            new_span: region.new_span.as_ref().map(Into::into),
+impl JsonUnresolvedRegion {
+    fn new(region: &UnresolvedRegion, old: &SideIndex<'_>, new: &SideIndex<'_>) -> Result<Self> {
+        Ok(Self {
+            old_span: region
+                .old_span
+                .as_ref()
+                .map(|span| JsonTextSpan::new(span, old))
+                .transpose()?,
+            new_span: region
+                .new_span
+                .as_ref()
+                .map(|span| JsonTextSpan::new(span, new))
+                .transpose()?,
             evidence: region.evidence.iter().copied().map(evidence).collect(),
-        }
+        })
     }
 }
 
 #[derive(Serialize)]
 struct JsonTextSpan {
     blocks: Vec<u64>,
+    pages: Vec<u32>,
     block_separator: Option<&'static str>,
     canonical_range: JsonRange,
     comparable_range: JsonRange,
+    text: String,
+    unmapped_tokens: Vec<JsonUnmappedToken>,
 }
 
-impl From<&TextSpan> for JsonTextSpan {
-    fn from(span: &TextSpan) -> Self {
-        Self {
+impl JsonTextSpan {
+    fn new(span: &TextSpan, side: &SideIndex<'_>) -> Result<Self> {
+        let resolved = side.resolve(span)?;
+        Ok(Self {
             blocks: span.blocks.iter().map(|block| block.0).collect(),
+            pages: resolved.pages,
             block_separator: span.separator.map(block_separator),
             canonical_range: JsonRange {
                 start: span.canonical_range.start,
@@ -239,8 +277,28 @@ impl From<&TextSpan> for JsonTextSpan {
                 start: span.comparable_range.start,
                 end: span.comparable_range.end,
             },
-        }
+            text: resolved.text,
+            unmapped_tokens: resolved
+                .unmapped
+                .iter()
+                .map(|token| JsonUnmappedToken {
+                    scalar_offset: token.scalar_offset,
+                    font_hash: lowercase_hex(&token.font_hash.0),
+                    glyph_id: token.glyph_id,
+                })
+                .collect(),
+        })
     }
+}
+
+/// Stable, lossless identity of one unmapped glyph token inside the span.
+#[derive(Serialize)]
+struct JsonUnmappedToken {
+    /// Scalar offset within `text` where this glyph sits (0 = before all
+    /// scalars; equal to `text` char count = after all scalars).
+    scalar_offset: usize,
+    font_hash: String,
+    glyph_id: u16,
 }
 
 fn block_separator(separator: BlockSeparator) -> &'static str {
@@ -254,30 +312,6 @@ fn block_separator(separator: BlockSeparator) -> &'static str {
 struct JsonRange {
     start: usize,
     end: usize,
-}
-
-fn change_kind(kind: ChangeKind) -> &'static str {
-    match kind {
-        ChangeKind::Replacement => "replacement",
-        ChangeKind::Insertion => "insertion",
-        ChangeKind::Deletion => "deletion",
-        ChangeKind::Move => "move",
-    }
-}
-
-fn confidence(value: Confidence) -> &'static str {
-    match value {
-        Confidence::High => "high",
-        Confidence::Medium => "medium",
-        Confidence::Low => "low",
-    }
-}
-
-fn change_tag(tag: ChangeTag) -> &'static str {
-    match tag {
-        ChangeTag::CharacterWidth => "character_width",
-        ChangeTag::OcrConfusion => "ocr_confusion",
-    }
 }
 
 fn formatting_reason(reason: FormattingReason) -> &'static str {

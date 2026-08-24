@@ -59,6 +59,11 @@ impl PipelineOptions {
 pub struct ComparisonOutcome {
     pub comparison: Comparison,
     pub extraction: ExtractionStatus,
+    /// Normalized old-side blocks backing the comparison spans, for
+    /// report rendering; empty when extraction gaps suppressed the diff.
+    pub old_blocks: Vec<BlockText>,
+    /// Normalized new-side blocks backing the comparison spans.
+    pub new_blocks: Vec<BlockText>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -241,14 +246,13 @@ pub fn compare_extraction_outcomes_with_diagnostics(
             None,
             PipelineMetrics::default(),
         );
+        let (comparison, old_blocks, new_blocks) =
+            compare_validated_glyph_documents(&old_document, &new_document, options, diagnostics)?;
         return Ok(ComparisonOutcome {
-            comparison: compare_validated_glyph_documents(
-                &old_document,
-                &new_document,
-                options,
-                diagnostics,
-            )?,
+            comparison,
             extraction: ExtractionStatus::complete(),
+            old_blocks,
+            new_blocks,
         });
     }
 
@@ -281,6 +285,10 @@ pub fn compare_extraction_outcomes_with_diagnostics(
             new_complete,
             issues,
         },
+        // deliberate: incomplete extraction suppresses the whole diff, so no
+        // normalized block evidence is produced for report rendering.
+        old_blocks: Vec::new(),
+        new_blocks: Vec::new(),
     })
 }
 
@@ -291,6 +299,7 @@ pub fn compare_glyph_documents(
 ) -> Result<Comparison> {
     let options = options.validate()?;
     compare_validated_glyph_documents(old, new, options, &mut PipelineDiagnostics::new())
+        .map(|(comparison, _, _)| comparison)
 }
 
 fn compare_validated_glyph_documents(
@@ -298,7 +307,7 @@ fn compare_validated_glyph_documents(
     new: &Document<Glyph>,
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
-) -> Result<Comparison> {
+) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>)> {
     record_pre_layout_token_counts(old, new, options.diff, diagnostics)?;
     let old = prepare(old, options, DocumentSide::Old, diagnostics)?;
     let new = prepare(new, options, DocumentSide::New, diagnostics)?;
@@ -391,7 +400,7 @@ fn compare_validated_glyph_documents(
             ..PipelineMetrics::default()
         },
     );
-    Ok(comparison)
+    Ok((comparison, old, new))
 }
 
 fn phase_result<T>(
