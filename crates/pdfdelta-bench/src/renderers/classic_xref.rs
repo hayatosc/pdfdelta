@@ -1,10 +1,7 @@
 use std::{fmt::Write as _, io::Write as _};
 
 use super::{PlanStats, RenderLimits, escape_pdf_literal, line_y, render_error};
-use crate::{
-    BenchError, Result,
-    mutation::{DEFAULT_PAGE_WIDTH, RenderPlan},
-};
+use crate::{BenchError, Result, mutation::RenderPlan};
 
 const NAME: &str = "classic-xref-tj";
 const CATALOG_ID: usize = 1;
@@ -73,7 +70,9 @@ pub(super) fn render(plan: &RenderPlan, limits: RenderLimits, stats: PlanStats) 
         let page_id = page_object_id(page_index)?;
         let content_id = content_object_id(page_index)?;
         let page_body = format!(
-            "<< /Type /Page /Parent {PAGES_ID} 0 R /MediaBox [0 0 {DEFAULT_PAGE_WIDTH} 792] /Resources << /Font << /F1 {FONT_ID} 0 R >> >> /Contents {content_id} 0 R >>\n"
+            "<< /Type /Page /Parent {PAGES_ID} 0 R /MediaBox [0 0 {} {}] /Resources << /Font << /F1 {FONT_ID} 0 R >> >> /Contents {content_id} 0 R >>\n",
+            plan.page_width(),
+            plan.page_height()
         );
         emit_object(&mut output, page_id, page_body.as_bytes(), &mut offsets)?;
 

@@ -6,8 +6,9 @@ use pdfdelta_bench::{
     cases::{BenchmarkCase, built_in_cases},
     evaluator::{evaluate, evaluate_case},
     mutation::{
-        DEFAULT_MARGIN, ExpectedCanonicalSpan, ExpectedManifest, ExpectedSemanticChange,
-        MAX_LINE_GAP, MAX_MARGIN, MIN_LINE_GAP, Mutation, RenderPlan,
+        DEFAULT_MARGIN, DEFAULT_PAGE_HEIGHT, DEFAULT_PAGE_WIDTH, ExpectedCanonicalSpan,
+        ExpectedManifest, ExpectedSemanticChange, MAX_LINE_GAP, MAX_MARGIN, MIN_LINE_GAP, Mutation,
+        RenderPlan,
     },
     renderers::{RenderLimits, RendererKind},
 };
@@ -16,7 +17,7 @@ use pdfdelta_core::{
     layout::{reconstruct_blocks, reconstruct_lines},
     model::PageId,
     normalize::normalize_blocks,
-    pdf::{LopdfParser, ParseLimits},
+    pdf::{LopdfParser, ParseLimits, PdfObject, PdfParser},
     pipeline::PipelineOptions,
     source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
 };
@@ -70,6 +71,26 @@ fn normalized_canonical_blocks(plan: &RenderPlan) -> Vec<String> {
         .into_iter()
         .map(|block| block.canonical.text)
         .collect()
+}
+
+fn media_box_size(bytes: Vec<u8>) -> (i64, i64) {
+    let pdf = LopdfParser
+        .parse(Arc::from(bytes), ParseLimits::default())
+        .expect("generated PDF parses");
+    let page = pdf.pages().expect("pages resolve")[0];
+    let dictionary = pdf.page_dict(page).expect("page dictionary resolves");
+    match dictionary.get(b"MediaBox".as_slice()) {
+        Some(PdfObject::Array(values)) => match values.as_slice() {
+            [
+                PdfObject::Integer(0),
+                PdfObject::Integer(0),
+                PdfObject::Integer(width),
+                PdfObject::Integer(height),
+            ] => (*width, *height),
+            values => panic!("unexpected MediaBox values: {values:?}"),
+        },
+        value => panic!("unexpected MediaBox: {value:?}"),
+    }
 }
 
 #[test]
@@ -172,6 +193,46 @@ fn mutations_reject_invalid_input_without_panicking() {
     );
     assert_invalid(Mutation::FontSizeChange { new_font_size: 10 }.apply(&document, 12));
     assert_invalid(Mutation::FontSizeChange { new_font_size: 0 }.apply(&document, 12));
+    assert_invalid(
+        Mutation::PageSizeChange {
+            new_page_width: DEFAULT_PAGE_WIDTH,
+            new_page_height: DEFAULT_PAGE_HEIGHT,
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::PageSizeChange {
+            new_page_width: 0,
+            new_page_height: DEFAULT_PAGE_HEIGHT,
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::PageSizeChange {
+            new_page_width: DEFAULT_PAGE_WIDTH,
+            new_page_height: 0,
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::PageSizeChange {
+            new_page_width: 20,
+            new_page_height: 842,
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::PageSizeChange {
+            new_page_width: 595,
+            new_page_height: 400,
+        }
+        .apply(&document, 12),
+    );
+    let lines = vec![vec!["Alpha beta gamma".to_owned()]];
+    assert_invalid(RenderPlan::with_page_size(lines.clone(), 12, 0, 792));
+    assert_invalid(RenderPlan::with_page_size(lines.clone(), 12, 612, 0));
+    assert_invalid(RenderPlan::with_page_size(lines.clone(), 12, 36, 792));
+    assert_invalid(RenderPlan::with_page_size(lines, 12, 612, 740));
     assert_invalid(
         Mutation::TextReplace {
             paragraph_id: "missing".to_owned(),
@@ -447,6 +508,51 @@ fn font_size_change_alters_layout_without_content_diff() {
             "{} must change rendered bytes",
             renderer.name()
         );
+        let record = evaluate_case(&case, renderer).expect("evaluation completes");
+        assert!(record.passed, "{}", record.detail);
+        assert!(record.extraction_complete);
+        assert!(record.comparison_complete);
+        assert!(record.actual_kinds.is_empty());
+    }
+}
+
+#[test]
+fn page_size_change_alters_layout_without_content_diff() {
+    let case = case_named("page-size-change-only");
+    assert_ne!(
+        case.plan().old().page_width(),
+        case.plan().new_plan().page_width()
+    );
+    assert_ne!(
+        case.plan().old().page_height(),
+        case.plan().new_plan().page_height()
+    );
+    assert_eq!(
+        normalized_canonical_blocks(case.plan().old()),
+        normalized_canonical_blocks(case.plan().new_plan()),
+    );
+
+    for renderer in RendererKind::all() {
+        let old_pdf = renderer
+            .render(case.plan().old(), RenderLimits::default())
+            .expect("renderer succeeds");
+        let new_pdf = renderer
+            .render(case.plan().new_plan(), RenderLimits::default())
+            .expect("renderer succeeds");
+        assert_ne!(
+            old_pdf,
+            new_pdf,
+            "{} must change rendered bytes",
+            renderer.name()
+        );
+        assert_eq!(
+            media_box_size(old_pdf.clone()),
+            (
+                i64::from(DEFAULT_PAGE_WIDTH),
+                i64::from(DEFAULT_PAGE_HEIGHT)
+            )
+        );
+        assert_eq!(media_box_size(new_pdf.clone()), (595, 842));
         let record = evaluate_case(&case, renderer).expect("evaluation completes");
         assert!(record.passed, "{}", record.detail);
         assert!(record.extraction_complete);
@@ -771,9 +877,9 @@ fn bench_errors_preserve_core_error_taxonomy() {
 }
 
 #[test]
-fn built_in_matrix_passes_all_twenty_six_cells() {
+fn built_in_matrix_passes_all_twenty_eight_cells() {
     let cases = built_in_cases().expect("built-in cases are valid");
-    assert_eq!(cases.len(), 13);
+    assert_eq!(cases.len(), 14);
 
     let mut count = 0;
     for case in &cases {
@@ -788,11 +894,11 @@ fn built_in_matrix_passes_all_twenty_six_cells() {
         }
     }
 
-    assert_eq!(count, 26);
+    assert_eq!(count, 28);
 }
 
 #[test]
-fn verify_command_prints_a_passing_twenty_six_cell_matrix() {
+fn verify_command_prints_a_passing_twenty_eight_cell_matrix() {
     let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
         .arg("verify")
         .output()
@@ -806,9 +912,9 @@ fn verify_command_prints_a_passing_twenty_six_cell_matrix() {
             .lines()
             .filter(|line| line.starts_with("PASS "))
             .count(),
-        26
+        28
     );
-    assert_eq!(stdout.lines().last(), Some("26/26 passed"));
+    assert_eq!(stdout.lines().last(), Some("28/28 passed"));
 }
 
 #[test]

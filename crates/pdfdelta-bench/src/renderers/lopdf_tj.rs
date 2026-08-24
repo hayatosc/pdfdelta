@@ -3,10 +3,7 @@ use std::fmt::Write as _;
 use lopdf::{Document, Object, Stream, dictionary};
 
 use super::{RenderLimits, escape_pdf_literal, line_y, render_error};
-use crate::{
-    Result,
-    mutation::{DEFAULT_PAGE_WIDTH, RenderPlan},
-};
+use crate::{Result, mutation::RenderPlan};
 
 const NAME: &str = "lopdf-tj";
 
@@ -63,7 +60,12 @@ pub(super) fn render(plan: &RenderPlan, limits: RenderLimits) -> Result<Vec<u8>>
             "Parent" => pages,
             "Contents" => contents,
             "Resources" => resources,
-            "MediaBox" => vec![0.into(), 0.into(), i64::from(DEFAULT_PAGE_WIDTH).into(), 792.into()],
+            "MediaBox" => vec![
+                0.into(),
+                0.into(),
+                i64::from(plan.page_width()).into(),
+                i64::from(plan.page_height()).into(),
+            ],
         }));
     }
     let page_count =

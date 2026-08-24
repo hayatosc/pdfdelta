@@ -1,10 +1,10 @@
 mod classic_xref;
 mod lopdf_tj;
 
-use crate::{BenchError, Result, mutation::RenderPlan};
-
-const PAGE_TOP: i64 = 740;
-const PAGE_BOTTOM: i64 = 40;
+use crate::{
+    BenchError, Result,
+    mutation::{PAGE_BOTTOM, PAGE_TOP, RenderPlan},
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RenderLimits {

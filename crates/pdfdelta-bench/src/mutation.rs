@@ -9,6 +9,8 @@ pub const MIN_LINE_GAP: u16 = 8;
 pub const MAX_LINE_GAP: u16 = 72;
 
 pub const DEFAULT_PAGE_WIDTH: u16 = 612;
+/// Matches the MediaBox height both renderers emitted before plans carried a page size.
+pub const DEFAULT_PAGE_HEIGHT: u16 = 792;
 pub const MIN_MARGIN: u16 = 0;
 pub const MAX_MARGIN: u16 = DEFAULT_PAGE_WIDTH - 1;
 /// Matches the horizontal origin both renderers used before plans carried a margin.
@@ -18,12 +20,18 @@ pub const MIN_FONT_SIZE: u16 = 1;
 /// Matches the `/F1 10 Tf` size both renderers emitted before plans carried a font size.
 pub const DEFAULT_FONT_SIZE: u16 = 10;
 
+/// Vertical text origin both renderers use for the first line of every page.
+pub(crate) const PAGE_TOP: i64 = 740;
+pub(crate) const PAGE_BOTTOM: i64 = 40;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RenderPlan {
     pages: Vec<Vec<String>>,
     line_gap: u16,
     margin: u16,
     font_size: u16,
+    page_width: u16,
+    page_height: u16,
 }
 
 impl RenderPlan {
@@ -40,6 +48,42 @@ impl RenderPlan {
         line_gap: u16,
         margin: u16,
         font_size: u16,
+    ) -> Result<Self> {
+        Self::build(
+            pages,
+            line_gap,
+            margin,
+            font_size,
+            DEFAULT_PAGE_WIDTH,
+            DEFAULT_PAGE_HEIGHT,
+        )
+    }
+
+    /// Renders with explicit page dimensions while keeping the default margin
+    /// and font size, so callers only name what they actually change.
+    pub fn with_page_size(
+        pages: Vec<Vec<String>>,
+        line_gap: u16,
+        page_width: u16,
+        page_height: u16,
+    ) -> Result<Self> {
+        Self::build(
+            pages,
+            line_gap,
+            DEFAULT_MARGIN,
+            DEFAULT_FONT_SIZE,
+            page_width,
+            page_height,
+        )
+    }
+
+    fn build(
+        pages: Vec<Vec<String>>,
+        line_gap: u16,
+        margin: u16,
+        font_size: u16,
+        page_width: u16,
+        page_height: u16,
     ) -> Result<Self> {
         if pages.is_empty() {
             return Err(BenchError::InvalidInput(
@@ -61,6 +105,16 @@ impl RenderPlan {
                 "font_size must be greater than zero".to_owned(),
             ));
         }
+        if page_width == 0 || page_height == 0 {
+            return Err(BenchError::InvalidInput(
+                "page dimensions must be greater than zero".to_owned(),
+            ));
+        }
+        if margin >= page_width || PAGE_TOP >= i64::from(page_height) {
+            return Err(BenchError::InvalidInput(format!(
+                "text origin ({margin}, {PAGE_TOP}) must lie inside the {page_width}x{page_height} page"
+            )));
+        }
         // deliberate: only the text origin is constrained to the MediaBox;
         // add font-metric width validation when fixtures exercise clipping.
         for (page_index, lines) in pages.iter().enumerate() {
@@ -78,6 +132,8 @@ impl RenderPlan {
             line_gap,
             margin,
             font_size,
+            page_width,
+            page_height,
         })
     }
 
@@ -95,6 +151,14 @@ impl RenderPlan {
 
     pub const fn font_size(&self) -> u16 {
         self.font_size
+    }
+
+    pub const fn page_width(&self) -> u16 {
+        self.page_width
+    }
+
+    pub const fn page_height(&self) -> u16 {
+        self.page_height
     }
 }
 
@@ -125,6 +189,12 @@ pub enum Mutation {
     /// PDFs differ in layout while canonical text stays identical.
     FontSizeChange {
         new_font_size: u16,
+    },
+    /// Renders the unchanged document on a different page size so both
+    /// PDFs differ in layout while canonical text stays identical.
+    PageSizeChange {
+        new_page_width: u16,
+        new_page_height: u16,
     },
     TextReplace {
         paragraph_id: String,
@@ -318,6 +388,10 @@ impl Mutation {
             Self::FontSizeChange { new_font_size } => {
                 apply_font_size_change(document, *new_font_size, line_gap)
             }
+            Self::PageSizeChange {
+                new_page_width,
+                new_page_height,
+            } => apply_page_size_change(document, *new_page_width, *new_page_height, line_gap),
             Self::TextReplace {
                 paragraph_id,
                 new_text,
@@ -491,6 +565,24 @@ fn apply_font_size_change(
     Ok(MutationPlan {
         old: one_page_plan(document, line_gap)?,
         new: one_page_plan_with_font_size(document, line_gap, new_font_size)?,
+        expectation: ExpectedManifest::none(),
+    })
+}
+
+fn apply_page_size_change(
+    document: &CanonicalDocument,
+    new_page_width: u16,
+    new_page_height: u16,
+    line_gap: u16,
+) -> Result<MutationPlan> {
+    if new_page_width == DEFAULT_PAGE_WIDTH && new_page_height == DEFAULT_PAGE_HEIGHT {
+        return Err(BenchError::InvalidInput(
+            "page size change must alter the rendered page dimensions".to_owned(),
+        ));
+    }
+    Ok(MutationPlan {
+        old: one_page_plan(document, line_gap)?,
+        new: one_page_plan_with_page_size(document, line_gap, new_page_width, new_page_height)?,
         expectation: ExpectedManifest::none(),
     })
 }
@@ -749,6 +841,20 @@ fn one_page_plan_with_font_size(
         line_gap,
         DEFAULT_MARGIN,
         font_size,
+    )
+}
+
+fn one_page_plan_with_page_size(
+    document: &CanonicalDocument,
+    line_gap: u16,
+    page_width: u16,
+    page_height: u16,
+) -> Result<RenderPlan> {
+    RenderPlan::with_page_size(
+        vec![document_lines(document)],
+        line_gap,
+        page_width,
+        page_height,
     )
 }
 

@@ -116,6 +116,22 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
             30,
         )?,
         BenchmarkCase::new(
+            "page-size-change-only",
+            document(&[
+                ("opening", "Opening paragraph establishes context"),
+                ("target", "A simple release note remains stable"),
+                ("closing", "Closing paragraph confirms context"),
+            ])?,
+            // deliberate: A4 portrait (595x842) keeps the fixed text origin
+            // (36, 740) inside the page while both MediaBox dimensions change,
+            // so only rendered page geometry differs between the two PDFs.
+            Mutation::PageSizeChange {
+                new_page_width: 595,
+                new_page_height: 842,
+            },
+            30,
+        )?,
+        BenchmarkCase::new(
             "text-replacement",
             document(&[
                 ("opening", "Opening paragraph establishes context"),
