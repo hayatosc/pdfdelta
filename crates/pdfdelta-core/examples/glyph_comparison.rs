@@ -10,7 +10,7 @@ use pdfdelta_core::{
     },
     pdf::ObjectRef,
     pipeline::{PipelineOptions, compare_extraction_outcomes},
-    report::render_text,
+    report::{TextReportOptions, render_text},
     source::ExtractionOutcome,
 };
 
@@ -38,6 +38,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &outcome.new_blocks,
             &outcome.comparison,
             &outcome.extraction,
+            &TextReportOptions {
+                old_label: "old.pdf",
+                new_label: "new.pdf",
+                color: false,
+            },
         )?
     );
     Ok(())

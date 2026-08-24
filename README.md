@@ -104,13 +104,14 @@ pdfdelta old.pdf new.pdf --json result.json
 pdfdelta old.pdf new.pdf --trace-json trace.json
 pdfdelta old.pdf new.pdf --json result.json --trace-json trace.json
 pdfdelta old.pdf new.pdf --strict
+pdfdelta old.pdf new.pdf --color always
 pdfdelta old.pdf new.pdf --old-password-file old.secret --new-password-file new.secret
 pdfdelta old.pdf new.pdf --old-font-identity TraditionalArabic=windows-v1 --new-font-identity TraditionalArabic=windows-v1
 pdfdelta inspect document.pdf
 pdfdelta inspect document.pdf --glyphs
 ```
 
-Text reports are written to standard output. `--json PATH` writes a version 5 JSON report to a new path instead and refuses to replace an existing file. Exit code `0` means no content changes, `1` means content changes were found, `2` means the comparison could not run, and `3` means `--strict` rejected an incomplete comparison.
+Text reports are written to standard output as contextual unified-diff hunks: a one-line summary, `---` / `+++` file headers, and `@@ page N … @@` hunks with `-` / `+` markers, bounded surrounding context, one-based page numbers, explicit unresolved regions, and presentation-only grouping of nearby exact changes. `--color auto|always|never` controls ANSI color (`auto`, the default, colorizes only when stdout is a terminal; color supplements the markers and is never required to read the output). The typed JSON report is unchanged by this presentation. `--json PATH` writes a version 5 JSON report to a new path instead and refuses to replace an existing file. Exit code `0` means no content changes, `1` means content changes were found, `2` means the comparison could not run, and `3` means `--strict` rejected an incomplete comparison.
 
 `--trace-json PATH` writes a separate version 1 diagnostic trace without changing the normal report. The trace records input reading, PDF parsing, glyph extraction, layout reconstruction, normalization, alignment, exact diff, and report phases with bounded metrics. It also identifies incomplete or failed phases, records typed resource-limit errors, and marks phases that were skipped after an earlier stop. Trace files use the same atomic, no-overwrite publication policy as JSON reports.
 

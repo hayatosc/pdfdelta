@@ -48,7 +48,16 @@ fn identical_documents_exit_zero() {
     let output = compare(&old, &new, &[]);
 
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    assert!(stdout(&output).contains("Content changes:          0"));
+    assert!(
+        stdout(&output).contains("content changes: 0"),
+        "{:#}",
+        stdout(&output)
+    );
+    assert!(
+        !stdout(&output).contains("\u{1b}["),
+        "{:#}",
+        stdout(&output)
+    );
 }
 
 #[test]
@@ -110,7 +119,7 @@ fn replacement_exits_one() {
 }
 
 #[test]
-fn replacement_report_shows_changed_text_on_stdout() {
+fn replacement_report_renders_a_unified_diff_hunk() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");
     let new = directory.join("new.pdf");
@@ -131,13 +140,119 @@ fn replacement_report_shows_changed_text_on_stdout() {
         ],
     );
 
+    // Piped output defaults to `auto`, so no ANSI escapes may appear even
+    // though the report carries -/+ markers and context.
     let output = compare(&old, &new, &[]);
     let report = stdout(&output);
 
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
-    assert!(report.contains("Change 1: replacement"), "{report}");
-    assert!(report.contains("old blocks=[1] pages=[0]: 1\n"), "{report}");
-    assert!(report.contains("new blocks=[1] pages=[0]: 2\n"), "{report}");
+    assert!(report.contains("content changes: 1 "), "{report}");
+    assert!(
+        report.contains(&format!("--- {}", path_text(&old))),
+        "{report}"
+    );
+    assert!(
+        report.contains(&format!("+++ {}", path_text(&new))),
+        "{report}"
+    );
+    // Human-facing page numbers are one-based.
+    assert!(
+        report.contains("@@ page 1 · old block 1 -> new block 1 · confidence: medium @@"),
+        "{report}"
+    );
+    assert!(
+        report.contains("- Release 10 remains available"),
+        "{report}"
+    );
+    assert!(
+        report.contains("+ Release 20 remains available"),
+        "{report}"
+    );
+    assert!(!report.contains("\u{1b}["), "{report}");
+}
+
+#[test]
+fn insertion_and_deletion_render_single_sided_hunks() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(
+        &old,
+        &[
+            "Opening paragraph remains stable",
+            "Removed paragraph contains generic text",
+            "Closing paragraph remains stable",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening paragraph remains stable",
+            "Inserted paragraph contains generic text",
+            "Closing paragraph remains stable",
+        ],
+    );
+
+    let output = compare(&old, &new, &[]);
+    let report = stdout(&output);
+
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    // Both scalar-level exact changes share one block pair, so they coalesce
+    // into one presentation hunk with adjacent single-sided markers and
+    // bounded context.
+    assert!(
+        report.contains("- Removed paragraph contains generic te ..."),
+        "{report}"
+    );
+    assert!(
+        report.contains("+ Inserted paragraph contains generic te ..."),
+        "{report}"
+    );
+}
+
+#[test]
+fn color_always_colorizes_piped_output_and_never_disables_it() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    // Context paragraphs give the aligner exact anchors; without them a lone
+    // numeric-masked match cannot be confirmed and stays unresolved.
+    write_pdf(
+        &old,
+        &[
+            "Opening paragraph establishes context",
+            "Release 10 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening paragraph establishes context",
+            "Release 20 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+
+    let always = compare(&old, &new, &["--color", "always"]);
+    let always_report = stdout(&always);
+    assert_eq!(always.status.code(), Some(1), "{}", stderr(&always));
+    assert!(
+        always_report.contains("\u{1b}[1;36m@@ page 1"),
+        "{always_report}"
+    );
+    assert!(
+        always_report.contains("\u{1b}[31m- Release"),
+        "{always_report}"
+    );
+    assert!(
+        always_report.contains("\u{1b}[32m+ Release"),
+        "{always_report}"
+    );
+
+    let never = compare(&old, &new, &["--color", "never"]);
+    assert_eq!(never.status.code(), Some(1), "{}", stderr(&never));
+    assert!(!stdout(&never).contains("\u{1b}["), "{:#}", stdout(&never));
 }
 
 #[test]
@@ -633,12 +748,23 @@ fn malformed_type0_extraction_reports_without_false_changes() {
     assert!(default_stderr.contains("extraction issue for old PDF"));
     assert!(default_stderr.contains("kind=unresolved"));
     assert!(default_stderr.contains("Type0 font has no Encoding"));
-    assert!(default_report.contains("Content changes:          0"));
-    assert!(default_report.contains("Unresolved extraction:    1"));
-    assert!(default_report.contains("Alignment coverage:       old=unknown, new=0.0%"));
-    assert!(default_report.contains("Comparison coverage:      unknown"));
     assert!(
-        default_report.contains("Extraction issue (side=old, kind=unresolved, scope=page, page=0)")
+        default_report.contains("content changes: 0 "),
+        "{default_report}"
+    );
+    assert!(
+        default_report.contains("extraction incomplete: old=no, new=yes"),
+        "{default_report}"
+    );
+    assert!(
+        default_report.contains(
+            "! extraction issue (side=old, kind=unresolved, scope=page, page=1): Type0 font has no Encoding"
+        ),
+        "{default_report}"
+    );
+    assert!(
+        default_report.contains("coverage unknown"),
+        "{default_report}"
     );
 
     let strict_output = compare(
@@ -694,7 +820,13 @@ fn strict_unresolved_comparison_exits_three() {
     );
 
     assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
-    assert!(stdout(&output).contains("Unresolved regions:       1"));
+    let report = stdout(&output);
+    assert!(report.contains("unresolved regions: 1"), "{report}");
+    assert!(report.contains("@@ page 1 · UNRESOLVED @@"), "{report}");
+    assert!(
+        report.contains("? could not safely align this region"),
+        "{report}"
+    );
     let trace = read_json(&trace_path);
     assert_eq!(trace["result"]["status"], "incomplete");
     assert_eq!(trace["result"]["exit_code"], 3);

@@ -304,14 +304,20 @@ pub struct Change {
 
 canonical正規化(§8)で吸収した差も黙って消さず、独立したカテゴリで報告する。canonical textが同一のaligned spanについて、line/page break、Block分割、font size、position等の差を確実に識別できた場合もFormatting-onlyへ含める。このカテゴリはbest-effortであり、0件でもrenderingが完全同一であることは保証しない。exit codeのContent change判定には影響させない。
 
+人間向けtext reportは、exact diffの結果をreviewしやすい文脈付きunified diff形式へ投影する。これは表示層のみの変換であり、`Comparison`の変更列やJSON report(§5.2)の機械可読な意味は一切変わらない。要約行に全出力カテゴリとcoverageを1行で併記し、`---` / `+++`のfile header、`@@ page N … @@`(page番号は1-based)のhunk header、`-` / `+`の隣接行、変更箇所周辺の有界なcontext、移動は`~ moved`明示、未解決領域は`?`行で可視化する。近接するexact change同士(同一Block集合かつ一定以下のequal tokenで分離)は表示上1つのhunkへ統合する。ANSI色は`--color auto|always|never`で制御し、既定の`auto`はstdoutがterminalの時だけ着色する。色は`-` / `+`記号の補助であり、色なしでも出力は読める。
+
 ```text
-Content changes:          1
-Formatting-only changes:  3    ← canonicalで吸収された差(改行位置の変化など)
-Uncertain changes:        1
-Unresolved regions:       2
-Extraction complete:      old=yes, new=yes
-Alignment coverage:       old=97.8%, new=97.4%
-Comparison coverage:      97.4%
+content changes: 1 · formatting-only: 3 · uncertain: 1 · unresolved regions: 2 · coverage 97.4%
+
+--- old.pdf
++++ new.pdf
+
+@@ page 1 · old block 12 -> new block 14 · confidence: medium @@
+- ... Form 1040 (2024) ...
++ ... Form 1040 (2025) ...
+
+@@ page 3 · UNRESOLVED @@
+? could not safely align this region (evidence: text_similarity)
 ```
 
 「No differences found」とだけ表示することはない。
@@ -324,6 +330,7 @@ Comparison coverage:      97.4%
 pdfdelta inspect document.pdf
 pdfdelta old.pdf new.pdf
 pdfdelta old.pdf new.pdf --json result.json
+pdfdelta old.pdf new.pdf --color auto|always|never
 pdfdelta old.pdf new.pdf --old-password-file old.secret --new-password-file new.secret
 pdfdelta old.pdf new.pdf --old-font-identity FontName=identity --new-font-identity FontName=identity
 ```
@@ -792,6 +799,10 @@ parser backendの最終選択は§6.2のcapability fixtureで決める。library
 ## 15. 仕様変更履歴
 
 この節は、仕様を変更した理由と変更箇所を`SPEC.md`自身に残すための記録である。過去分は`git log --follow -- SPEC.md`と各commitのdiffから復元した。詳細な差分は`git show <commit> -- SPEC.md`で確認する。
+
+### 2026-08-24 人間向けreportのunified diff化（本変更）
+
+- §5.3：人間向けtext reportを、exact diff結果の表示層のみの投影として文脈付きunified diff形式へ刷新すると定義した。1行要約、`---` / `+++` file header、1-based page付きhunk header、隣接する`-` / `+`行、有界なcontext(既定32 scalarずつ)、`~ moved`明示、`?`による未解決領域の可視化、近接exact changeの表示上のhunk統合(同一Block集合かつ16 comparable token以下の分離)である。`Comparison`とJSON reportの機械可読な意味は不変で、ANSI色は`--color auto|always|never`(既定auto、TTY判定)が制御し記号の補助に限定する。
 
 ### 2026-08-23 backend依存のupstream復帰とxref再構築取り込み（本変更）
 
