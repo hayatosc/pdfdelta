@@ -267,10 +267,19 @@ fn append_merged_runs(
     body: &mut Vec<String>,
     painter: &Painter,
 ) -> Result<()> {
+    let Some(template) = spans.first() else {
+        return Ok(());
+    };
+    // Every span in the cluster shares the same block list and separator on
+    // this side, so one resolution serves all runs — but every participating
+    // span must pass the same fail-loud bounds contract before merging, not
+    // just the template, or a later out-of-range span would silently clamp.
+    let group = index.resolve_group(&template.blocks, template.separator)?;
+    for span in spans {
+        validate_span_against_group(span, &group)?;
+    }
     for (start, end) in merged_edited_ranges(spans.iter().copied()) {
-        // Every span in the cluster shares the same block list on this side.
-        let template = spans[0];
-        let window = resolve_window_range(index, template, start, end)?;
+        let window = bounded_window(&group, start, end);
         pages.extend_from_slice(&window.pages);
         body.push(window.render_marked(style, painter));
     }
@@ -535,40 +544,35 @@ impl SideWindow {
     }
 }
 
+/// Resolves the bounded context window around one edited span. The group is
+/// the containing normalized block(s), so a tiny edit still shows enough
+/// surrounding words to identify what changed. The span is validated against
+/// the group evidence exactly like the JSON path, so malformed ranges fail
+/// loudly in both report modes instead of being silently clamped here.
 fn resolve_window(index: &SideIndex<'_>, span: &TextSpan) -> Result<SideWindow> {
-    resolve_window_range(
-        index,
-        span,
+    let group = index.resolve_group(&span.blocks, span.separator)?;
+    validate_span_against_group(span, &group)?;
+    Ok(bounded_window(
+        &group,
         span.comparable_range.start,
         span.comparable_range.end,
-    )
+    ))
 }
 
-/// Resolves the bounded context window around one edited comparable-token
-/// range of a block group. The group is the containing normalized block(s),
-/// so a tiny edit still shows enough surrounding words to identify what
-/// changed. Spans are validated against the group evidence exactly like the
-/// JSON path, so malformed ranges fail loudly in both report modes instead
-/// of being silently clamped here.
-fn resolve_window_range(
-    index: &SideIndex<'_>,
-    template: &TextSpan,
-    start: usize,
-    end: usize,
-) -> Result<SideWindow> {
-    let group = index.resolve_group(&template.blocks, template.separator)?;
-    validate_span_against_group(template, &group)?;
+/// Cuts the bounded context window around one already validated edited range
+/// of a resolved group.
+fn bounded_window(group: &ResolvedGroup, start: usize, end: usize) -> SideWindow {
     let total = group.tokens.len();
     let window_start = start.saturating_sub(CONTEXT_WINDOW_TOKENS);
     let window_end = end.saturating_add(CONTEXT_WINDOW_TOKENS).min(total);
-    Ok(SideWindow {
+    SideWindow {
         pages: group.pages.clone(),
-        pre: render_region(&group, window_start, start),
-        changed: render_region(&group, start, end),
-        post: render_region(&group, end, window_end),
+        pre: render_region(group, window_start, start),
+        changed: render_region(group, start, end),
+        post: render_region(group, end, window_end),
         truncated_left: window_start > 0,
         truncated_right: window_end < total,
-    })
+    }
 }
 
 /// Shared bounds contract with `SideIndex::resolve`: the exact message and

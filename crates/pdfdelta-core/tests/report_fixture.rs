@@ -1035,6 +1035,65 @@ fn text_report_rejects_spans_that_exceed_the_block_evidence() -> Result<()> {
 }
 
 #[test]
+fn text_report_rejects_out_of_range_second_coalesced_span() -> Result<()> {
+    let old_blocks = vec![block_with_text(7, "abc")];
+    let new_blocks = vec![block_with_text(107, "abc")];
+
+    // The first span is fully valid and inside the coalescing gap; the second
+    // span's bounds must be checked too before its range feeds the merged
+    // run, or it would silently clamp instead of failing loudly.
+    let comparable_overrun = |second: TextSpan| {
+        let mut comparison = empty_comparison();
+        comparison.changes.push(Change {
+            kind: ChangeKind::Deletion,
+            old_span: Some(range_span(7, 0, 1)),
+            new_span: None,
+            confidence: Confidence::High,
+            tags: Vec::new(),
+        });
+        comparison.changes.push(Change {
+            kind: ChangeKind::Deletion,
+            old_span: Some(second),
+            new_span: None,
+            confidence: Confidence::High,
+            tags: Vec::new(),
+        });
+        comparison
+    };
+
+    // Second span's comparable range exceeds the block's token evidence.
+    let mut second = range_span(7, 2, 3);
+    second.comparable_range = TokenRange { start: 2, end: 99 };
+    assert!(matches!(
+        render_text(
+            &old_blocks,
+            &new_blocks,
+            &comparable_overrun(second),
+            &ExtractionStatus::complete(),
+            &plain_options(),
+        ),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("exceeds the normalized block evidence")
+    ));
+
+    // Second span's canonical range exceeds the block's scalar evidence.
+    let mut second = range_span(7, 2, 3);
+    second.canonical_range = ScalarRange { start: 0, end: 99 };
+    assert!(matches!(
+        render_text(
+            &old_blocks,
+            &new_blocks,
+            &comparable_overrun(second),
+            &ExtractionStatus::complete(),
+            &plain_options(),
+        ),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("exceeds the normalized block evidence")
+    ));
+    Ok(())
+}
+
+#[test]
 fn separator_mismatch_keeps_adjacent_edits_in_separate_hunks() -> Result<()> {
     let old_blocks = fixture_blocks(&[1, 2]);
     let new_blocks = fixture_blocks(&[101, 102]);
