@@ -165,31 +165,62 @@ pub fn align_ordered(
     generator: &dyn CandidateGenerator,
     options: AlignmentOptions,
 ) -> Result<Alignment> {
+    align_ordered_with_metrics(old, new, generator, options).result
+}
+
+/// Candidate visit accounting for one alignment attempt.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct AlignmentVisitMetrics {
+    /// Sum of `CandidateGenerator::estimated_visits` charged against
+    /// `max_candidate_visits` for non-anchor old blocks. On a limit
+    /// failure this is the attempted cumulative charge including the block
+    /// that exceeded the budget; on an earlier error it is the charge
+    /// accumulated before the failure.
+    pub candidate_visits: usize,
+    /// The `AlignmentOptions::max_candidate_visits` budget the charge was
+    /// compared against.
+    pub max_candidate_visits: usize,
+}
+
+/// Alignment result plus the candidate visit charge of the attempt.
+pub(crate) struct AlignmentAttempt {
+    pub result: Result<Alignment>,
+    pub visit_metrics: AlignmentVisitMetrics,
+}
+
+/// Crate-private measured alignment path used by the pipeline; the public
+/// `align_ordered` wrapper returns only the alignment.
+pub(crate) fn align_ordered_with_metrics(
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    generator: &dyn CandidateGenerator,
+    options: AlignmentOptions,
+) -> AlignmentAttempt {
+    let mut candidate_visits = 0_usize;
+    let result = align_ordered_inner(old, new, generator, options, &mut candidate_visits);
+    AlignmentAttempt {
+        result,
+        visit_metrics: AlignmentVisitMetrics {
+            candidate_visits,
+            max_candidate_visits: options.max_candidate_visits,
+        },
+    }
+}
+
+fn align_ordered_inner(
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    generator: &dyn CandidateGenerator,
+    options: AlignmentOptions,
+    candidate_visits: &mut usize,
+) -> Result<Alignment> {
     validate_alignment_options(options)?;
     validate_features("old", old)?;
     validate_features("new", new)?;
     validate_shared_ngram_size(old, new)?;
 
     if old == new {
-        return Ok(Alignment {
-            spans: old
-                .iter()
-                .map(|features| AlignmentSpan {
-                    kind: AlignmentKind::Match,
-                    old: vec![features.block],
-                    new: vec![features.block],
-                    score: 1.0,
-                    canonical_similarity: 1.0,
-                    score_margin: None,
-                    confidence: AlignmentConfidence::High,
-                    evidence: vec![AlignmentEvidence::ExactCanonical],
-                    old_separator: None,
-                    new_separator: None,
-                })
-                .collect(),
-            main_anchors: Vec::new(),
-            move_candidates: Vec::new(),
-        });
+        return Ok(identity_alignment(old));
     }
 
     let new_indices = new
@@ -223,6 +254,7 @@ pub fn align_ordered(
         generator,
         options.candidate_limit,
         options.max_candidate_visits,
+        candidate_visits,
     )?;
     let move_old = move_candidates
         .iter()
@@ -296,6 +328,28 @@ pub fn align_ordered(
         main_anchors,
         move_candidates,
     })
+}
+
+fn identity_alignment(old: &[BlockFeatures]) -> Alignment {
+    Alignment {
+        spans: old
+            .iter()
+            .map(|features| AlignmentSpan {
+                kind: AlignmentKind::Match,
+                old: vec![features.block],
+                new: vec![features.block],
+                score: 1.0,
+                canonical_similarity: 1.0,
+                score_margin: None,
+                confidence: AlignmentConfidence::High,
+                evidence: vec![AlignmentEvidence::ExactCanonical],
+                old_separator: None,
+                new_separator: None,
+            })
+            .collect(),
+        main_anchors: Vec::new(),
+        move_candidates: Vec::new(),
+    }
 }
 
 fn secondary_anchor_chains(
@@ -463,6 +517,7 @@ fn collect_candidates(
     generator: &dyn CandidateGenerator,
     limit: usize,
     max_visits: usize,
+    candidate_visits: &mut usize,
 ) -> Result<CandidateMap> {
     let mut remaining_visits = max_visits;
     for features in old
@@ -470,6 +525,15 @@ fn collect_candidates(
         .filter(|features| !main_anchor_old.contains(&features.block))
     {
         let visits = generator.estimated_visits(features, limit)?;
+        // The attempted cumulative charge includes the block that exceeds
+        // the budget so the recorded metric explains the failure. On
+        // overflow the charge accumulated so far is retained.
+        *candidate_visits = candidate_visits
+            .checked_add(visits)
+            .ok_or(Error::LimitExceeded {
+                resource: "alignment candidate visits",
+                limit: max_visits,
+            })?;
         remaining_visits = remaining_visits
             .checked_sub(visits)
             .ok_or(Error::LimitExceeded {

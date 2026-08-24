@@ -1,8 +1,9 @@
 use crate::{
     Error, Result,
     alignment::{
-        AlignmentOptions, InvertedIndexCandidateGenerator, align_ordered, build_block_features,
-        estimate_ngram_token_elements, validate_alignment_options, validate_ngram_size,
+        AlignmentOptions, InvertedIndexCandidateGenerator, align_ordered_with_metrics,
+        build_block_features, estimate_ngram_token_elements, validate_alignment_options,
+        validate_ngram_size,
     },
     diff::{
         Comparison, DiffOptions, compare_aligned, enforce_diff_raw_token_budget,
@@ -100,6 +101,13 @@ pub struct PipelineMetrics {
     pub features: Option<usize>,
     pub indexed_features: Option<usize>,
     pub alignment_spans: Option<usize>,
+    /// Sum of `CandidateGenerator::estimated_visits` charged against
+    /// `max_candidate_visits` for non-anchor old blocks; on a limit failure
+    /// this is the attempted cumulative charge including the exceeding block.
+    pub candidate_visits: Option<usize>,
+    /// The `AlignmentOptions::max_candidate_visits` budget the charge was
+    /// compared against.
+    pub max_candidate_visits: Option<usize>,
     pub changes: Option<usize>,
     pub formatting_changes: Option<usize>,
     pub unresolved_regions: Option<usize>,
@@ -199,11 +207,21 @@ impl PipelineDiagnostics {
     }
 
     fn failed(&mut self, phase: PipelinePhase, side: Option<DocumentSide>, error: &Error) {
+        self.failed_with_metrics(phase, side, error, PipelineMetrics::default());
+    }
+
+    fn failed_with_metrics(
+        &mut self,
+        phase: PipelinePhase,
+        side: Option<DocumentSide>,
+        error: &Error,
+        metrics: PipelineMetrics,
+    ) {
         self.records.push(PipelineDiagnosticRecord {
             phase,
             side,
             status: PipelinePhaseStatus::Failed,
-            metrics: PipelineMetrics::default(),
+            metrics,
             error: Some(error.into()),
         });
     }
@@ -370,20 +388,36 @@ fn compare_validated_glyph_documents(
             ..PipelineMetrics::default()
         },
     );
-    let alignment = phase_result(
-        diagnostics,
-        PipelinePhase::Alignment,
-        None,
-        align_ordered(&old_features, &new_features, &candidates, options.alignment),
-    )?;
-    diagnostics.completed(
-        PipelinePhase::Alignment,
-        None,
-        PipelineMetrics {
-            alignment_spans: Some(alignment.spans.len()),
-            ..PipelineMetrics::default()
-        },
-    );
+    let attempt =
+        align_ordered_with_metrics(&old_features, &new_features, &candidates, options.alignment);
+    let alignment = match attempt.result {
+        Ok(alignment) => {
+            diagnostics.completed(
+                PipelinePhase::Alignment,
+                None,
+                PipelineMetrics {
+                    alignment_spans: Some(alignment.spans.len()),
+                    candidate_visits: Some(attempt.visit_metrics.candidate_visits),
+                    max_candidate_visits: Some(attempt.visit_metrics.max_candidate_visits),
+                    ..PipelineMetrics::default()
+                },
+            );
+            alignment
+        }
+        Err(error) => {
+            diagnostics.failed_with_metrics(
+                PipelinePhase::Alignment,
+                None,
+                &error,
+                PipelineMetrics {
+                    candidate_visits: Some(attempt.visit_metrics.candidate_visits),
+                    max_candidate_visits: Some(attempt.visit_metrics.max_candidate_visits),
+                    ..PipelineMetrics::default()
+                },
+            );
+            return Err(error);
+        }
+    };
     let comparison = phase_result(
         diagnostics,
         PipelinePhase::ExactDiff,

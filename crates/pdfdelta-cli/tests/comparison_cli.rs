@@ -573,6 +573,30 @@ fn writes_complete_phase_trace_separately_from_the_report() {
 }
 
 #[test]
+fn trace_records_candidate_visit_metrics_on_the_alignment_phase() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let trace = directory.join("trace.json");
+    write_pdf(&old, &["Stable old paragraph remains visible"]);
+    write_pdf(&new, &["Stable new paragraph remains visible"]);
+
+    let output = compare(&old, &new, &["--trace-json", path_text(&trace)]);
+
+    // Different paragraphs produce a content change, so the command exits 1
+    // while the trace still records the completed alignment phase.
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let trace = read_json(&trace);
+    let alignment = phase(&trace, "alignment", None);
+    assert_eq!(alignment["status"], "completed");
+    let visits = alignment["metrics"]["candidate_visits"]
+        .as_u64()
+        .expect("candidate visits should be recorded");
+    assert!(visits > 0, "non-anchor old blocks must be charged");
+    assert_eq!(alignment["metrics"]["max_candidate_visits"], 1_000_000);
+}
+
+#[test]
 fn writes_failure_trace_when_pdf_parsing_stops_the_pipeline() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");

@@ -12,6 +12,7 @@ pub use features::{
     BlockFeatures, DEFAULT_ANCHOR_MIN_TOKENS, ExactAnchor, ExactHash, NGram, NGramSet,
     build_block_features, dice_similarity, estimate_ngram_token_elements, exact_anchors,
 };
+pub(crate) use ordered::align_ordered_with_metrics;
 pub(crate) use ordered::validate_alignment_options;
 pub use ordered::{
     Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentOptions,

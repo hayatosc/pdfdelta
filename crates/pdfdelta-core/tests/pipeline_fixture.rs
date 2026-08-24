@@ -467,6 +467,116 @@ fn retains_completed_side_estimates_when_aggregate_ngram_budget_fails() {
 }
 
 #[test]
+fn records_candidate_visits_on_completed_alignment() -> Result<()> {
+    let old = ExtractionOutcome::complete(paragraphs(&["Stable old paragraph remains visible"]));
+    let new = ExtractionOutcome::complete(paragraphs(&["Stable new paragraph remains visible"]));
+    let mut diagnostics = PipelineDiagnostics::new();
+
+    compare_extraction_outcomes_with_diagnostics(
+        old,
+        new,
+        PipelineOptions::default(),
+        &mut diagnostics,
+    )?;
+
+    let alignment = diagnostics
+        .records()
+        .iter()
+        .find(|record| record.phase == PipelinePhase::Alignment)
+        .expect("alignment should be recorded");
+    assert_eq!(alignment.status, PipelinePhaseStatus::Completed);
+    let visits = alignment
+        .metrics
+        .candidate_visits
+        .expect("candidate visits should be recorded");
+    assert!(visits > 0, "non-anchor old blocks must be charged");
+    assert_eq!(
+        alignment.metrics.max_candidate_visits,
+        Some(AlignmentOptions::default().max_candidate_visits)
+    );
+    Ok(())
+}
+
+#[test]
+fn records_attempted_candidate_visits_when_alignment_limit_fails() -> Result<()> {
+    let old = ExtractionOutcome::complete(paragraphs(&["Stable old paragraph remains visible"]));
+    let new = ExtractionOutcome::complete(paragraphs(&["Stable new paragraph remains visible"]));
+
+    // Measure the charge under the default budget first.
+    let mut diagnostics = PipelineDiagnostics::new();
+    compare_extraction_outcomes_with_diagnostics(
+        old.clone(),
+        new.clone(),
+        PipelineOptions::default(),
+        &mut diagnostics,
+    )?;
+    let charge = diagnostics
+        .records()
+        .iter()
+        .find(|record| record.phase == PipelinePhase::Alignment)
+        .expect("alignment should be recorded")
+        .metrics
+        .candidate_visits
+        .expect("candidate visits should be recorded");
+    assert!(charge > 1, "fixture must charge at least two visits");
+
+    // Fail with a budget one below the charge: the attempted cumulative
+    // charge must include the block that exceeded the budget.
+    let options = PipelineOptions {
+        alignment: AlignmentOptions {
+            max_candidate_visits: charge - 1,
+            ..AlignmentOptions::default()
+        },
+        ..PipelineOptions::default()
+    };
+    let mut diagnostics = PipelineDiagnostics::new();
+    assert!(
+        compare_extraction_outcomes_with_diagnostics(old, new, options, &mut diagnostics).is_err()
+    );
+    let failure = diagnostics
+        .records()
+        .iter()
+        .find(|record| record.phase == PipelinePhase::Alignment)
+        .expect("alignment failure should be recorded");
+    assert_eq!(failure.status, PipelinePhaseStatus::Failed);
+    assert_eq!(failure.metrics.candidate_visits, Some(charge));
+    assert_eq!(failure.metrics.max_candidate_visits, Some(charge - 1));
+    let error = failure
+        .error
+        .as_ref()
+        .expect("failure should include an error");
+    assert_eq!(error.kind, PipelineErrorKind::LimitExceeded);
+    assert_eq!(error.resource, Some("alignment candidate visits"));
+    assert_eq!(error.limit, Some(charge - 1));
+    Ok(())
+}
+
+#[test]
+fn records_zero_candidate_visits_for_identical_documents() -> Result<()> {
+    let document = paragraphs(&["Stable paragraph remains visible"]);
+    let mut diagnostics = PipelineDiagnostics::new();
+
+    compare_extraction_outcomes_with_diagnostics(
+        ExtractionOutcome::complete(document.clone()),
+        ExtractionOutcome::complete(document),
+        PipelineOptions::default(),
+        &mut diagnostics,
+    )?;
+
+    let alignment = diagnostics
+        .records()
+        .iter()
+        .find(|record| record.phase == PipelinePhase::Alignment)
+        .expect("alignment should be recorded");
+    assert_eq!(alignment.metrics.candidate_visits, Some(0));
+    assert_eq!(
+        alignment.metrics.max_candidate_visits,
+        Some(AlignmentOptions::default().max_candidate_visits)
+    );
+    Ok(())
+}
+
+#[test]
 fn suppresses_all_changes_when_extraction_is_incomplete() -> Result<()> {
     let old = ExtractionOutcome::new(
         paragraphs(&["Retained old paragraph remains available"]),
