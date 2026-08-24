@@ -14,7 +14,7 @@ repository = "https://github.com/hayatosc/pdfdelta"
 
 [workspace.dependencies]
 clap = { version = "4", features = ["derive"] }
-lopdf = { git = "https://github.com/J-F-Liu/lopdf", rev = "675f451615b38c452ee769a0516478d9fb4db9f7", default-features = false }
+lopdf = { git = "https://github.com/J-F-Liu/lopdf", rev = "1e3d646ca249ebf1a6ff479278c07e9c0f9377a8", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"

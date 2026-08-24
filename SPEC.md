@@ -793,6 +793,12 @@ parser backendの最終選択は§6.2のcapability fixtureで決める。library
 
 この節は、仕様を変更した理由と変更箇所を`SPEC.md`自身に残すための記録である。過去分は`git log --follow -- SPEC.md`と各commitのdiffから復元した。詳細な差分は`git show <commit> -- SPEC.md`で確認する。
 
+### 2026-08-23 backend依存のupstream復帰とxref再構築取り込み（本変更）
+
+- §6.2：`lopdf`依存をreviewed forkからupstream `J-F-Liu/lopdf`のmain revisionへ戻し、以降にマージされた保護機構をrevision pinへ取り込んだ。xref-stream entry数のdecoded body上限（#561）、object streamの非破壊parse（#562）、非標準`/BrotliDecode` filter（#567）、stream `/Length`不一致の回復（#568）、startxref解決失敗時の有界なxref再構築fallback（#570）である。fork固有の設定可能xref entry上限は存在しなくなるため、load後のobject予算filterが保持object数を引き続き課金する。crates.ioに該当変更が公開されたらrevision pinをreleaseへ置き換える。
+- §6.2：非標準Brotli prototype（`pdfjs-brotli-prototype.pdf`）とLength 0が実streamと矛盾するXObject（`pdfjs-multiple-filters-zero-length.pdf`）を、backend対応待ちからstrict自己比較完走へ移行した。ObjStm index内のQDF形式コメントもbackendと同じ規則で無視し、`pdfjs-issue14165.pdf`をfatalから部分成功へ移行した。
+- §6.2：公開test corpus由来の実PDF 689件をstrict自己比較へ一括投入して実測した。#570取り込み後は599件が完走、80件がSPEC文書化済みの明示的境界でstrict不完全、10件がfatal backend errorである。panic、hang、resource limit超過の誤発火は皆無だった。残るfatalのうち6件はpypdfでも読めないfuzzed破損、4件は再構築後もcatalog参照先のobjectが欠落する文書であり、xref再構築で救える領域は既に吸収済みである。
+
 ### 2026-08-21 残存5件の入力付き対応（本変更）
 
 - §2.1、§3.2、§5.4、§6.2：借用password APIとside別password file入力を追加し、password本文をargv、report、traceへ残さない規則を定義した。`print_protection.pdf`は公開testで指定されたpassword fileを使いstrict自己比較を完走した。
