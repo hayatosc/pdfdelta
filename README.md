@@ -31,7 +31,8 @@ The current implementation provides:
 - text summaries and versioned JSON reports with explicit extraction completeness, unresolved regions, coverage, and CI-oriented exit decisions;
 - a public bounded pipeline from extracted glyphs through exact comparison;
 - end-to-end CLI comparison and backend or glyph inspection;
-- a reproducible benchmark matrix that applies the five acceptance mutations to programmatic canonical documents, renders each case through literal-`Tj` and positioned-`TJ` PDF paths, and verifies change kind plus document-global span overlap.
+- a reproducible benchmark matrix that applies the five acceptance mutations to programmatic canonical documents, renders each case through literal-`Tj` and positioned-`TJ` PDF paths, and verifies change kind plus document-global span overlap;
+- a non-vendored real-world revision-pair benchmark track with download provenance and SHA-256 checksums, development versus holdout treatment, human-reviewed expected changes for a representative subset, and revision-diff quality metrics (coverage, unresolved token share, recall, precision where fully annotated, change-kind accuracy, fragmentation, suspicious tiny edits) reported separately from extraction conformance.
 
 The comparison pipeline is covered by the five acceptance classes defined in [`SPEC.md`](SPEC.md): line-wrap-only and page-break-only changes produce no content changes, while a text replacement, paragraph insertion, and paragraph deletion each produce one exact change in the generic fixtures.
 
@@ -90,6 +91,38 @@ for developing and testing the alignment pipeline without needing PDF fixtures.
 `mise run ci` runs the same formatting, linting, workspace tests, and benchmark
 verification as the GitHub Actions quality gate.
 
+## Real-world revision benchmarks
+
+Self-comparison of a document with itself cannot exercise alignment under real
+edits. [`benchmark/realworld/`](benchmark/realworld/) therefore records a
+separate non-vendored corpus of genuine public revision pairs (`old -> new`)
+with per-side provenance (stable URL, capture date, byte size, SHA-256),
+development versus holdout treatment, scope flags, and human-reviewed expected
+changes for a representative subset in `expected/*.json`. Documents are never
+committed to this repository.
+
+```bash
+# download both sides of every pair and verify byte counts and checksums
+benchmark/realworld/fetch.sh
+cargo run -p pdfdelta-bench -- revisions --cache-dir benchmark/realworld/cache --checksums-only
+
+# run comparisons and report metrics (add --json-output report.json for machines)
+cargo run -p pdfdelta-bench -- revisions --cache-dir benchmark/realworld/cache
+```
+
+The command reports extraction conformance separately from revision-diff
+quality: extraction completeness, alignment coverage, unresolved regions with
+their comparable-token share, reported change counts, and — where expected
+annotations exist — recall, precision (complete annotations only),
+change-kind accuracy, fragmentation (reported changes per matched or expected
+semantic change), and unmatched one- or two-token edits that bad alignment
+tends to fabricate. `--set dev|holdout` and `--pair <id>` select subsets;
+`--limit-scale <factor>` uniformly raises resource budgets and never weakens
+documented defaults, while omitting it applies each pair's recorded
+`limit_scale_hint`. Exit code 1 signals provenance or expectation failures;
+low quality scores never fail a run because thresholds would be premature
+before the alignment improvements tracked in issue #6 land.
+
 ## License
 
 The pdfdelta project code is licensed under the [MIT License](LICENSE). The
@@ -126,7 +159,8 @@ Text reports are written to standard output. `--json PATH` writes a version 5 JS
 - Region-aware partial comparison, which would compare proven-safe extracted regions while excluding only affected pages, remains future work.
 - Atomic `--json` publication requires a filesystem with same-filesystem hard-link support. Other filesystems return exit code `2` without publishing the report.
 - Formatting-only reporting is best-effort and does not claim pixel-level rendering identity.
-- The automated benchmark remains intentionally small and in-memory: it uses printable ASCII with Type 1 Helvetica and two deterministic PDF construction paths. Non-vendored public smoke corpora are recorded in [`fixtures/manifests/real-world-pipeline.tsv`](fixtures/manifests/real-world-pipeline.tsv) and [`fixtures/manifests/real-world-pipeline-round2.tsv`](fixtures/manifests/real-world-pipeline-round2.tsv), but downloading and running them is not automated. With documented explicit inputs, the second manifest records 37 strict self-comparison successes and one default-mode partial success that remains strict-incomplete. Independent external document engines and reviewed revision pairs remain future validation work.
+- The automated benchmark remains intentionally small and in-memory: it uses printable ASCII with Type 1 Helvetica and two deterministic PDF construction paths. Non-vendored public smoke corpora are recorded in [`fixtures/manifests/real-world-pipeline.tsv`](fixtures/manifests/real-world-pipeline.tsv) and [`fixtures/manifests/real-world-pipeline-round2.tsv`](fixtures/manifests/real-world-pipeline-round2.tsv), but downloading and running them is not automated. With documented explicit inputs, the second manifest records 37 strict self-comparison successes and one default-mode partial success that remains strict-incomplete. Independent external document engines remain future validation work.
+- The real-world revision track ([`benchmark/realworld/`](benchmark/realworld/)) currently records five genuine public pairs: NIST FIPS 186-4 -> 186-5 and SP 800-57 Part 1 Rev 4 -> Rev 5 as the development set; EDPB Guidelines 01/2022 (consultation -> final) and SP 800-171 Rev 2 -> Rev 3 plus the IRS Form 1040 `2024 -> 2025` stress pair in the holdout set. On the 2026-08-24 capture (release build), alignment coverage collapses on every comparable pair (`26%`-`53%`) while the human-reviewed expected changes are all found (`recall=1.000`, `kind=1.000`), but one semantic edit fragments into tens to hundreds of reported hunks, and three pairs exhaust default resource budgets before completing candidate generation; SP 800-171 Rev 2 additionally hits an unresolved content-stream extraction boundary. These measurements are the baseline issue #6 must improve against, not quality claims.
 
 ## Contributing
 

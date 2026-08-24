@@ -3,6 +3,7 @@ pub mod cases;
 pub mod evaluator;
 pub mod mutation;
 pub mod renderers;
+pub mod revisions;
 
 mod error;
 

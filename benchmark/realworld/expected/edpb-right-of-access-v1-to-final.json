@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "pair": "edpb-right-of-access-v1-to-final",
+  "reviewed_on": "2026-08-24",
+  "annotation": "partial",
+  "notes": "Representative human-reviewed subset of EDPB Guidelines 01/2022 on data subject rights - right of access, consultation version 1.0 (18 January 2022) -> final adopted version (v2.x, after public consultation). The sampled changes were reviewed directly against the extracted text of both PDFs and correspond to documented post-consultation edits: removal of the consultation watermark, expanded completeness wording around providing a copy, restructured wording on third-party exceptions, and footnote/citation reflow.",
+  "changes": [
+    {
+      "id": "consultation-watermark-removed",
+      "kind": "deletion",
+      "old_quote": "Adopted - version for public consultation",
+      "note": "The consultation watermark no longer appears on every page of the final version."
+    },
+    {
+      "id": "completeness-of-copy-clarified",
+      "kind": "insertion",
+      "new_quote": "which includes all information necessary to enable the data subject to understand and verify the lawfulness of the processing",
+      "note": "Paragraph 23 area: final text adds an explicit completeness clause when providing a copy."
+    },
+    {
+      "id": "third-party-exception-old-wording-removed",
+      "kind": "deletion",
+      "old_quote": "to in Art. 15(1) and (2) that are not concerned by the exception or the restriction.",
+      "note": "One semantic edit that the pipeline reports as separate deletion plus insertion hunks at minimal-edit granularity."
+    },
+    {
+      "id": "third-party-exception-new-wording-added",
+      "kind": "insertion",
+      "new_quote": "to be provided about all the personal data and all the information referred to in Art. 15(1) and (2) that are not concerned by the exception or the restriction.",
+      "note": "Companion hunk of the same semantic edit."
+    },
+    {
+      "id": "rijkeboer-citation-reflow",
+      "kind": "move",
+      "old_quote": "European Union, C-553/07, 7 May 2009, College van burgemeester en wethouders van Rotterdam v M. E. E.",
+      "new_quote": "European Union, C-553/07, 7 May 2009, College van burgemeester en wethouders van Rotterdam v M. E. E.",
+      "note": "CJEU Rijkeboer citation reported as a move after footnote restructuring."
+    }
+  ]
+}

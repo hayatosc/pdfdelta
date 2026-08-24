@@ -511,6 +511,9 @@ dependencies = [
  "clap",
  "lopdf",
  "pdfdelta-core",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

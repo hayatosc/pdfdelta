@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "pair": "nist-fips-186-4-to-5",
+  "reviewed_on": "2026-08-24",
+  "annotation": "partial",
+  "notes": "Representative human-reviewed subset of the FIPS 186-4 -> FIPS 186-5 revision. Anchored on changes documented by NIST when superseding 186-4: DSA is removed as a generation algorithm (retained only for verification), EdDSA (Ed25519/Ed448) is added, deterministic ECDSA per RFC 6979 is referenced, and domain-parameter requirement wording was restructured. Quotes are substrings of extracted glyph text, so they survive line wrapping but must match verbatim after whitespace collapsing.",
+  "changes": [
+    {
+      "id": "dsa-specification-removed",
+      "kind": "deletion",
+      "old_quote": "(1) The Digital Signature Algorithm (DSA) is specified in this Standard.",
+      "note": "FIPS 186-5 drops DSA as an approved generation algorithm."
+    },
+    {
+      "id": "edsa-added",
+      "kind": "insertion",
+      "new_quote": "The Edwards Curve Digital Signature Algorithm (EdDSA) is specified in IET",
+      "note": "New EdDSA section in the 186-5 introduction."
+    },
+    {
+      "id": "dsa-legacy-verification-note",
+      "kind": "insertion",
+      "new_quote": "no longer specified in this standard and may only be used to verify previously generated digital signatures",
+      "note": "Legacy DSA verification carve-out added in 186-5."
+    },
+    {
+      "id": "deterministic-ecdsa-rfc6979",
+      "kind": "insertion",
+      "new_quote": "deterministic ECDSA is also approved and specified in IETF RFC 6979",
+      "note": "Deterministic ECDSA reference added."
+    },
+    {
+      "id": "security-level-glossary-note-removed",
+      "kind": "deletion",
+      "old_quote": "Sometimes referred to as a security level.",
+      "note": "Glossary wording dropped in 186-5."
+    },
+    {
+      "id": "domain-parameter-requirement-moved",
+      "kind": "move",
+      "old_quote": "2. Each key pair shall be associated with the domain parameters under which the key pair",
+      "new_quote": "2. Each key pair shall be associated with the domain parameters under which the key pair",
+      "note": "Requirement block reported as a move; identical canonical text on both sides."
+    },
+    {
+      "id": "per-message-secret-number-dsa-note-removed",
+      "kind": "deletion",
+      "old_quote": "For DSA and ECDSA, a per-message secret number.",
+      "note": "DSA-specific signing guidance removed with the algorithm."
+    }
+  ]
+}

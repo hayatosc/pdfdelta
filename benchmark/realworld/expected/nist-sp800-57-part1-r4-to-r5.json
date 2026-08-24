@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "pair": "nist-sp800-57-part1-r4-to-r5",
+  "reviewed_on": "2026-08-24",
+  "annotation": "partial",
+  "notes": "Representative human-reviewed subset of the SP 800-57 Part 1 Rev. 4 (2016) -> Rev. 5 (2020) revision. Rev. 5 refreshes key-management terminology and recommendations; the sampled changes below were reviewed directly against the extracted text of both PDFs. This pair needs a large --limit-scale today: candidate generation exhausts the default alignment budget long before completion, which is itself a recorded benchmark finding.",
+  "changes": [
+    {
+      "id": "footer-rev-branding-removed",
+      "kind": "deletion",
+      "old_quote": "NIST SP 800-57 Pt. 1 Rev. 4",
+      "note": "Running footer/header branding replaced by Rev. 5 on many pages; one representative occurrence is annotated."
+    },
+    {
+      "id": "keying-material-definition-added",
+      "kind": "insertion",
+      "new_quote": "Keying material includes a cryptographic key and other material",
+      "note": "Rev. 5 expands the key-information terminology discussion."
+    },
+    {
+      "id": "toolkit-footnote-removed",
+      "kind": "deletion",
+      "old_quote": "The toolkit consists of publications specifying algorithms and guidance for their use, rather than software code.",
+      "note": "Footnote dropped in Rev. 5."
+    },
+    {
+      "id": "cryptanalysis-review-window-added",
+      "kind": "insertion",
+      "new_quote": "Inputs on their security are welcome at any point, including during the creation of the initial requirements",
+      "note": "Rev. 5 broadens the public-review statement."
+    }
+  ]
+}
