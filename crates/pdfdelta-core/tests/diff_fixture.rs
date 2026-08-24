@@ -360,6 +360,29 @@ fn degrades_a_weak_match_whose_tokens_mostly_changed() -> Result<()> {
 }
 
 #[test]
+fn retains_a_short_clean_replacement_at_the_exact_ratio_limit() -> Result<()> {
+    // "Xaaa" -> "Yaaa": one hunk over four tokens, changed ratio exactly at
+    // the allowed limit. The hunk density must not degrade it (issue #6
+    // review: one hunk / four tokens exceeded the density ceiling).
+    let old = [block(1, "Xaaa")];
+    let new = [block(101, "Yaaa")];
+    let mut span = matched(&[1], &[101]);
+    span.score = 0.6;
+    span.canonical_similarity = 0.6;
+    span.confidence = AlignmentConfidence::Low;
+
+    let result = compare_aligned(&old, &new, &aligned(vec![span]), DiffOptions::default())?;
+
+    assert!(result.unresolved_regions.is_empty());
+    assert_eq!(result.changes.len(), 1);
+    assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+    assert_eq!(result.changes[0].confidence, Confidence::Low);
+    assert_eq!(result.old_coverage.resolved_tokens, 4);
+    assert_eq!(result.new_coverage.resolved_tokens, 4);
+    Ok(())
+}
+
+#[test]
 fn degrades_a_weak_match_fragmented_into_many_tiny_hunks() -> Result<()> {
     let old = [block(1, "aaaXaaaXaaaXaaaXaaa")];
     let new = [block(101, "aaaYaaaYaaaYaaaYaaa")];

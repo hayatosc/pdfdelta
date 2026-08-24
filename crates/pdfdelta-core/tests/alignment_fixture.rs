@@ -1709,13 +1709,16 @@ fn calibrates_weak_non_exact_matches_below_the_strong_score_threshold() {
     // automatically Medium confidence (issue #6).
     assert_eq!(span.confidence, AlignmentConfidence::Low);
 
+    // Dropping the strong threshold to its lowest legal value (the admission
+    // threshold) upgrades the same weak span to Medium...
     let mut permissive = options();
-    permissive.strong_match_score = 0.0;
+    permissive.strong_match_score = permissive.min_match_score;
     assert_eq!(
         align_with(old.clone(), new.clone(), permissive).spans[1].confidence,
         AlignmentConfidence::Medium
     );
 
+    // ...and raising it above every achievable score keeps it Low.
     let mut strict = options();
     strict.strong_match_score = 1.0;
     assert_eq!(

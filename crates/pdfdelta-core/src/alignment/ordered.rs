@@ -150,6 +150,12 @@ pub(crate) fn validate_alignment_options(options: AlignmentOptions) -> Result<()
             "alignment text weights must sum to 1".to_owned(),
         ));
     }
+    if options.strong_match_score < options.min_match_score {
+        return Err(Error::InvalidConfiguration(
+            "alignment strong_match_score must be greater than or equal to min_match_score"
+                .to_owned(),
+        ));
+    }
     Ok(())
 }
 

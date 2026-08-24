@@ -422,9 +422,16 @@ fn compare_match(
 // probe; retune from benchmark layout-mutation fixtures once they exist.
 const MAX_WEAK_MATCH_HUNK_RATIO: f64 = 0.2;
 
+/// Minimum span size before hunk density carries signal: shorter spans can
+/// hold only a handful of hunks, so their density exceeds any fixed ceiling
+/// even for one clean edit. Short implausible matches stay gated by the
+/// changed-token ratio, which applies at every size.
+const MIN_HUNK_DENSITY_TOKENS: usize = 8;
+
 /// Decides whether a weak matched span is too implausible to diff at token
-/// level: either most tokens changed outright, or the edits are shredded into
-/// many tiny hunks scattered across the span (change soup).
+/// level: either most tokens changed outright (any size), or the edits are
+/// shredded into many tiny hunks scattered across a large-enough span
+/// (change soup).
 fn is_implausible_match(
     edits: &[Edit],
     old_tokens: usize,
@@ -438,6 +445,9 @@ fn is_implausible_match(
     let changed = edits.iter().filter(|edit| **edit != Edit::Equal).count();
     if changed as f64 / total as f64 > options.max_weak_match_change_ratio {
         return true;
+    }
+    if total < MIN_HUNK_DENSITY_TOKENS {
+        return false;
     }
     let hunks = edits
         .iter()
@@ -823,5 +833,64 @@ impl GroupText {
             },
             comparable_range: TokenRange { start, end },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn options(ratio: f64) -> DiffOptions {
+        DiffOptions {
+            max_weak_match_change_ratio: ratio,
+            ..DiffOptions::default()
+        }
+    }
+
+    #[test]
+    fn empty_edits_are_never_implausible() {
+        assert!(!is_implausible_match(&[], 0, 0, options(0.5)));
+    }
+
+    #[test]
+    fn a_short_clean_replacement_stays_plausible_at_the_exact_ratio_limit() {
+        // "Xaaa" -> "Yaaa": one hunk, changed ratio exactly at the limit.
+        let edits = [
+            Edit::Delete,
+            Edit::Insert,
+            Edit::Equal,
+            Edit::Equal,
+            Edit::Equal,
+        ];
+        assert!(!is_implausible_match(&edits, 4, 4, options(0.5)));
+        // Just above the limit the changed-token ratio still gates short spans.
+        let edits = [Edit::Delete, Edit::Insert, Edit::Delete, Edit::Insert];
+        assert!(is_implausible_match(&edits, 4, 4, options(0.5)));
+    }
+
+    #[test]
+    fn a_large_enough_span_with_dense_low_ratio_hunks_is_soup() {
+        // Four islands separated by three-token equal runs: changed ratio
+        // 8/19 stays under the limit while the hunk density exceeds it.
+        let mut edits = Vec::new();
+        for _ in 0..4 {
+            edits.extend([
+                Edit::Equal,
+                Edit::Equal,
+                Edit::Equal,
+                Edit::Delete,
+                Edit::Insert,
+            ]);
+        }
+        edits.push(Edit::Equal);
+        assert!(is_implausible_match(&edits, 19, 19, options(0.5)));
+    }
+
+    #[test]
+    fn hunk_density_is_skipped_below_the_minimum_sample_size() {
+        // Two isolated deletions in a five-token span: under the ceiling on
+        // changed tokens, so fragmentation must not degrade it.
+        let edits = [Edit::Equal, Edit::Delete, Edit::Equal, Edit::Delete];
+        assert!(!is_implausible_match(&edits, 5, 3, options(0.5)));
     }
 }

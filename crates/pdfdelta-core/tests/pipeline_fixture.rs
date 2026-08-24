@@ -624,6 +624,16 @@ fn partial_outcomes_reject_every_invalid_pipeline_option_group() -> Result<()> {
         ),
         (
             PipelineOptions {
+                alignment: AlignmentOptions {
+                    strong_match_score: 0.1,
+                    ..AlignmentOptions::default()
+                },
+                ..PipelineOptions::default()
+            },
+            "strong_match_score",
+        ),
+        (
+            PipelineOptions {
                 diff: DiffOptions {
                     max_tokens: 0,
                     ..DiffOptions::default()
