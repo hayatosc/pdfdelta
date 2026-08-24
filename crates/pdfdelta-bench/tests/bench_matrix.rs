@@ -6,8 +6,8 @@ use pdfdelta_bench::{
     cases::{BenchmarkCase, built_in_cases},
     evaluator::{evaluate, evaluate_case},
     mutation::{
-        ExpectedCanonicalSpan, ExpectedManifest, ExpectedSemanticChange, MAX_LINE_GAP,
-        MIN_LINE_GAP, Mutation, RenderPlan,
+        DEFAULT_MARGIN, ExpectedCanonicalSpan, ExpectedManifest, ExpectedSemanticChange,
+        MAX_LINE_GAP, MAX_MARGIN, MIN_LINE_GAP, Mutation, RenderPlan,
     },
     renderers::{RenderLimits, RendererKind},
 };
@@ -155,6 +155,18 @@ fn mutations_reject_invalid_input_without_panicking() {
     assert_invalid(
         Mutation::LineHeightChange {
             new_line_gap: MAX_LINE_GAP + 1,
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::MarginChange {
+            new_margin: DEFAULT_MARGIN,
+        }
+        .apply(&document, 12),
+    );
+    assert_invalid(
+        Mutation::MarginChange {
+            new_margin: MAX_MARGIN + 1,
         }
         .apply(&document, 12),
     );
@@ -352,6 +364,36 @@ fn line_height_change_alters_layout_without_content_diff() {
         case.plan().old().line_gap(),
         case.plan().new_plan().line_gap()
     );
+    assert_eq!(
+        normalized_canonical_blocks(case.plan().old()),
+        normalized_canonical_blocks(case.plan().new_plan()),
+    );
+
+    for renderer in RendererKind::all() {
+        let old_pdf = renderer
+            .render(case.plan().old(), RenderLimits::default())
+            .expect("renderer succeeds");
+        let new_pdf = renderer
+            .render(case.plan().new_plan(), RenderLimits::default())
+            .expect("renderer succeeds");
+        assert_ne!(
+            old_pdf,
+            new_pdf,
+            "{} must change rendered bytes",
+            renderer.name()
+        );
+        let record = evaluate_case(&case, renderer).expect("evaluation completes");
+        assert!(record.passed, "{}", record.detail);
+        assert!(record.extraction_complete);
+        assert!(record.comparison_complete);
+        assert!(record.actual_kinds.is_empty());
+    }
+}
+
+#[test]
+fn margin_change_alters_layout_without_content_diff() {
+    let case = case_named("margin-change-only");
+    assert_ne!(case.plan().old().margin(), case.plan().new_plan().margin());
     assert_eq!(
         normalized_canonical_blocks(case.plan().old()),
         normalized_canonical_blocks(case.plan().new_plan()),
@@ -694,9 +736,9 @@ fn bench_errors_preserve_core_error_taxonomy() {
 }
 
 #[test]
-fn built_in_matrix_passes_all_twenty_two_cells() {
+fn built_in_matrix_passes_all_twenty_four_cells() {
     let cases = built_in_cases().expect("built-in cases are valid");
-    assert_eq!(cases.len(), 11);
+    assert_eq!(cases.len(), 12);
 
     let mut count = 0;
     for case in &cases {
@@ -711,11 +753,11 @@ fn built_in_matrix_passes_all_twenty_two_cells() {
         }
     }
 
-    assert_eq!(count, 22);
+    assert_eq!(count, 24);
 }
 
 #[test]
-fn verify_command_prints_a_passing_twenty_two_cell_matrix() {
+fn verify_command_prints_a_passing_twenty_four_cell_matrix() {
     let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
         .arg("verify")
         .output()
@@ -729,9 +771,9 @@ fn verify_command_prints_a_passing_twenty_two_cell_matrix() {
             .lines()
             .filter(|line| line.starts_with("PASS "))
             .count(),
-        22
+        24
     );
-    assert_eq!(stdout.lines().last(), Some("22/22 passed"));
+    assert_eq!(stdout.lines().last(), Some("24/24 passed"));
 }
 
 #[test]

@@ -3,7 +3,10 @@ use std::fmt::Write as _;
 use lopdf::{Document, Object, Stream, dictionary};
 
 use super::{RenderLimits, escape_pdf_literal, line_y, render_error};
-use crate::{Result, mutation::RenderPlan};
+use crate::{
+    Result,
+    mutation::{DEFAULT_PAGE_WIDTH, RenderPlan},
+};
 
 const NAME: &str = "lopdf-tj";
 
@@ -46,7 +49,8 @@ pub(super) fn render(plan: &RenderPlan, limits: RenderLimits) -> Result<Vec<u8>>
         for (index, line) in lines.iter().enumerate() {
             writeln!(
                 content,
-                "BT /F1 10 Tf 1 0 0 1 36 {} Tm ({}) Tj ET",
+                "BT /F1 10 Tf 1 0 0 1 {} {} Tm ({}) Tj ET",
+                plan.margin(),
                 line_y(index, plan.line_gap())?,
                 escape_pdf_literal(line)
             )
@@ -58,7 +62,7 @@ pub(super) fn render(plan: &RenderPlan, limits: RenderLimits) -> Result<Vec<u8>>
             "Parent" => pages,
             "Contents" => contents,
             "Resources" => resources,
-            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "MediaBox" => vec![0.into(), 0.into(), i64::from(DEFAULT_PAGE_WIDTH).into(), 792.into()],
         }));
     }
     let page_count =

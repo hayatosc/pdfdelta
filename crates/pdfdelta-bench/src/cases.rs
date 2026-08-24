@@ -91,6 +91,18 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
             30,
         )?,
         BenchmarkCase::new(
+            "margin-change-only",
+            document(&[
+                ("opening", "Opening paragraph establishes context"),
+                ("target", "A simple release note remains stable"),
+                ("closing", "Closing paragraph confirms context"),
+            ])?,
+            // deliberate: every generated line remains inside the page at 96
+            // pt, and the uniform shift preserves relative glyph geometry.
+            Mutation::MarginChange { new_margin: 96 },
+            30,
+        )?,
+        BenchmarkCase::new(
             "text-replacement",
             document(&[
                 ("opening", "Opening paragraph establishes context"),

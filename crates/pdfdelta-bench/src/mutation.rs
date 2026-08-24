@@ -8,14 +8,25 @@ use crate::{
 pub const MIN_LINE_GAP: u16 = 8;
 pub const MAX_LINE_GAP: u16 = 72;
 
+pub const DEFAULT_PAGE_WIDTH: u16 = 612;
+pub const MIN_MARGIN: u16 = 0;
+pub const MAX_MARGIN: u16 = DEFAULT_PAGE_WIDTH - 1;
+/// Matches the horizontal origin both renderers used before plans carried a margin.
+pub const DEFAULT_MARGIN: u16 = 36;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RenderPlan {
     pages: Vec<Vec<String>>,
     line_gap: u16,
+    margin: u16,
 }
 
 impl RenderPlan {
     pub fn new(pages: Vec<Vec<String>>, line_gap: u16) -> Result<Self> {
+        Self::with_margin(pages, line_gap, DEFAULT_MARGIN)
+    }
+
+    pub fn with_margin(pages: Vec<Vec<String>>, line_gap: u16, margin: u16) -> Result<Self> {
         if pages.is_empty() {
             return Err(BenchError::InvalidInput(
                 "render plans require at least one page".to_owned(),
@@ -26,6 +37,13 @@ impl RenderPlan {
                 "line_gap must be between {MIN_LINE_GAP} and {MAX_LINE_GAP}"
             )));
         }
+        if !(MIN_MARGIN..=MAX_MARGIN).contains(&margin) {
+            return Err(BenchError::InvalidInput(format!(
+                "margin must be between {MIN_MARGIN} and {MAX_MARGIN}"
+            )));
+        }
+        // deliberate: only the text origin is constrained to the MediaBox;
+        // add font-metric width validation when fixtures exercise clipping.
         for (page_index, lines) in pages.iter().enumerate() {
             if lines.is_empty() {
                 return Err(BenchError::InvalidInput(format!(
@@ -36,7 +54,11 @@ impl RenderPlan {
                 validate_text(line)?;
             }
         }
-        Ok(Self { pages, line_gap })
+        Ok(Self {
+            pages,
+            line_gap,
+            margin,
+        })
     }
 
     pub fn pages(&self) -> &[Vec<String>] {
@@ -45,6 +67,10 @@ impl RenderPlan {
 
     pub const fn line_gap(&self) -> u16 {
         self.line_gap
+    }
+
+    pub const fn margin(&self) -> u16 {
+        self.margin
     }
 }
 
@@ -65,6 +91,11 @@ pub enum Mutation {
     /// PDFs differ in layout while canonical text stays identical.
     LineHeightChange {
         new_line_gap: u16,
+    },
+    /// Renders the unchanged document with a different left margin so both
+    /// PDFs differ in layout while canonical text stays identical.
+    MarginChange {
+        new_margin: u16,
     },
     TextReplace {
         paragraph_id: String,
@@ -252,6 +283,9 @@ impl Mutation {
             Self::LineHeightChange { new_line_gap } => {
                 apply_line_height_change(document, *new_line_gap, line_gap)
             }
+            Self::MarginChange { new_margin } => {
+                apply_margin_change(document, *new_margin, line_gap)
+            }
             Self::TextReplace {
                 paragraph_id,
                 new_text,
@@ -391,6 +425,23 @@ fn apply_line_height_change(
     Ok(MutationPlan {
         old,
         new,
+        expectation: ExpectedManifest::none(),
+    })
+}
+
+fn apply_margin_change(
+    document: &CanonicalDocument,
+    new_margin: u16,
+    line_gap: u16,
+) -> Result<MutationPlan> {
+    if new_margin == DEFAULT_MARGIN {
+        return Err(BenchError::InvalidInput(
+            "margin change must alter the rendered left margin".to_owned(),
+        ));
+    }
+    Ok(MutationPlan {
+        old: one_page_plan(document, line_gap)?,
+        new: one_page_plan_with_margin(document, line_gap, new_margin)?,
         expectation: ExpectedManifest::none(),
     })
 }
@@ -629,6 +680,14 @@ fn paragraph_index(document: &CanonicalDocument, id: &str) -> Result<usize> {
 
 fn one_page_plan(document: &CanonicalDocument, line_gap: u16) -> Result<RenderPlan> {
     RenderPlan::new(vec![document_lines(document)], line_gap)
+}
+
+fn one_page_plan_with_margin(
+    document: &CanonicalDocument,
+    line_gap: u16,
+    margin: u16,
+) -> Result<RenderPlan> {
+    RenderPlan::with_margin(vec![document_lines(document)], line_gap, margin)
 }
 
 fn document_lines(document: &CanonicalDocument) -> Vec<String> {
