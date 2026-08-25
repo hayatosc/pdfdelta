@@ -1090,6 +1090,21 @@ fn text_report_rejects_out_of_range_second_coalesced_span() -> Result<()> {
         Err(Error::InvalidConfiguration(message))
             if message.contains("exceeds the normalized block evidence")
     ));
+
+    // Second span's range is inverted (start > end).
+    let mut second = range_span(7, 2, 3);
+    second.canonical_range = ScalarRange { start: 5, end: 2 };
+    assert!(matches!(
+        render_text(
+            &old_blocks,
+            &new_blocks,
+            &comparable_overrun(second),
+            &ExtractionStatus::complete(),
+            &plain_options(),
+        ),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("must be ordered")
+    ));
     Ok(())
 }
 

@@ -746,8 +746,11 @@ fn font_similarity(previous: &LineStats<'_>, current: &LineStats<'_>) -> f64 {
     if previous.dominant_font != current.dominant_font {
         return 0.0;
     }
-    previous.median_font_size.min(current.median_font_size)
-        / previous.median_font_size.max(current.median_font_size)
+    let max_size = previous.median_font_size.max(current.median_font_size);
+    if max_size <= f64::EPSILON {
+        return 1.0;
+    }
+    previous.median_font_size.min(current.median_font_size) / max_size
 }
 
 fn closeness(value: f64, maximum: f64) -> f64 {

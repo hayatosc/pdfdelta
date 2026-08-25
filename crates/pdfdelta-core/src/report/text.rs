@@ -583,7 +583,11 @@ fn validate_span_against_group(span: &TextSpan, group: &ResolvedGroup) -> Result
         .iter()
         .filter(|token| token.is_scalar())
         .count();
-    if span.comparable_range.end > group.tokens.len() || span.canonical_range.end > scalar_count {
+    if span.canonical_range.start > span.canonical_range.end
+        || span.comparable_range.start > span.comparable_range.end
+        || span.comparable_range.end > group.tokens.len()
+        || span.canonical_range.end > scalar_count
+    {
         return Err(Error::InvalidConfiguration(
             "text span range exceeds the normalized block evidence".to_owned(),
         ));

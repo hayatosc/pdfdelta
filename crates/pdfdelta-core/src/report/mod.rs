@@ -235,7 +235,11 @@ impl<'a> SideIndex<'a> {
     pub(crate) fn resolve(&self, span: &TextSpan) -> Result<ResolvedSpan> {
         let (tokens, pages) = self.accumulate(&span.blocks, span.separator)?;
         let scalar_count = tokens.iter().filter(|token| token.is_scalar()).count();
-        if span.comparable_range.end > tokens.len() || span.canonical_range.end > scalar_count {
+        if span.canonical_range.start > span.canonical_range.end
+            || span.comparable_range.start > span.comparable_range.end
+            || span.comparable_range.end > tokens.len()
+            || span.canonical_range.end > scalar_count
+        {
             return Err(Error::InvalidConfiguration(
                 "text span range exceeds the normalized block evidence".to_owned(),
             ));

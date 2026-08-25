@@ -4,6 +4,9 @@ const AXIS_ALIGNMENT_TOLERANCE: f64 = 1.0e-6;
 
 pub(super) fn normalize(vector: Vec2) -> Vec2 {
     let length = length_squared(vector).sqrt();
+    if length <= f64::EPSILON {
+        return Vec2 { x: 0.0, y: 0.0 };
+    }
     Vec2 {
         x: vector.x / length,
         y: vector.y / length,
@@ -90,7 +93,8 @@ pub(super) fn median(mut values: Vec<f64>) -> Option<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::median;
+    use super::{median, normalize};
+    use crate::model::Vec2;
 
     #[test]
     fn computes_medians_and_rejects_empty_input_without_panicking() {
@@ -98,5 +102,11 @@ mod tests {
         assert_eq!(median(vec![3.0]), Some(3.0));
         assert_eq!(median(vec![4.0, 1.0]), Some(2.5));
         assert_eq!(median(vec![5.0, 1.0, 3.0]), Some(3.0));
+    }
+
+    #[test]
+    fn normalizes_zero_vector_to_zero_without_nan() {
+        let normalized = normalize(Vec2 { x: 0.0, y: 0.0 });
+        assert_eq!(normalized, Vec2 { x: 0.0, y: 0.0 });
     }
 }
