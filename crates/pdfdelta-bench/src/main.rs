@@ -392,6 +392,20 @@ fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> St
         (None, None) => {}
         _ => line.push_str(" candidate_visits=incomplete"),
     }
+    if let Some(pressure) = &record.candidate_visit_pressure {
+        line.push_str(&format!(
+            " visit_pressure=p50:{},p95:{},max:{},upper:{},limit:{},upper_exceeds:{} ngram_pressure=total:{},dominant:{},df:{}",
+            pressure.estimated_visits_p50,
+            pressure.estimated_visits_p95,
+            pressure.estimated_visits_max,
+            pressure.estimated_visits_upper_bound_total,
+            pressure.max_candidate_visits,
+            pressure.estimated_visits_upper_bound_exceeds_limit,
+            pressure.ngram_posting_visits_total,
+            pressure.dominant_ngram_visits,
+            pressure.dominant_ngram_df,
+        ));
+    }
     if let Some(reason) = &record.resource_limit_failure {
         line.push_str(&format!(" limit_failure={reason:?}"));
     }
@@ -450,7 +464,7 @@ fn actual_label(kinds: &[ChangeKind]) -> String {
 #[cfg(test)]
 mod tests {
     use pdfdelta_bench::{
-        candidate_eval::CandidateEvalRecord,
+        candidate_eval::{CandidateEvalRecord, CandidateVisitPressure},
         revisions::{PairRole, PairRunReport, PairRunStatus, PairSet},
     };
 
@@ -483,6 +497,7 @@ mod tests {
             resource_limit_failure: None,
             candidate_visits: None,
             max_candidate_visits: None,
+            candidate_visit_pressure: None,
             runtime_ms: 0,
             limit_scale_used: 1.0,
             failure: None,
@@ -557,5 +572,29 @@ mod tests {
         let mut partial = sample_pair_report();
         partial.candidate_visits = Some(42);
         assert!(revision_report_line(&partial).contains("candidate_visits=incomplete"));
+    }
+
+    #[test]
+    fn revision_report_line_displays_pressure_when_present() {
+        let mut with_pressure = sample_pair_report();
+        with_pressure.candidate_visit_pressure = Some(CandidateVisitPressure {
+            estimated_visits_p50: 1,
+            estimated_visits_p95: 2,
+            estimated_visits_max: 3,
+            estimated_visits_upper_bound_total: 9,
+            max_candidate_visits: 8,
+            estimated_visits_upper_bound_exceeds_limit: true,
+            ngram_posting_visits_total: 9,
+            dominant_ngram_visits: 9,
+            dominant_ngram_df: 3,
+        });
+        let line = revision_report_line(&with_pressure);
+        assert!(
+            line.contains("visit_pressure=p50:1,p95:2,max:3,upper:9,limit:8,upper_exceeds:true")
+        );
+        assert!(line.contains("ngram_pressure=total:9,dominant:9,df:3"));
+
+        let without_pressure = sample_pair_report();
+        assert!(!revision_report_line(&without_pressure).contains("visit_pressure="));
     }
 }

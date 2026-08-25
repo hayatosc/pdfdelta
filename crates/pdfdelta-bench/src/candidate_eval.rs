@@ -24,6 +24,7 @@ use pdfdelta_core::{
         estimate_ngram_token_elements,
     },
     layout::{BlockId, reconstruct_blocks, reconstruct_lines},
+    model::{Document, Glyph},
     normalize::{BlockText, normalize_blocks},
     pdf::{LopdfParser, ParseLimits},
     pipeline::PipelineOptions,
@@ -37,9 +38,38 @@ use crate::{
     renderers::{RenderLimits, RendererKind},
 };
 
-/// Matches the pipeline default (§12.6) so candidate features agree with
-/// production alignment.
-const NGRAM_SIZE: usize = 3;
+/// All-old-block candidate visit pressure of the inverted-index generator.
+///
+/// `estimated_visits_upper_bound_total` sums every old block, while
+/// production alignment excludes main exact anchors, so an upper-bound
+/// exceedance is a necessary condition and investigation signal, not proof
+/// of a production LIMIT failure (false positives possible, false negatives
+/// not).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct CandidateVisitPressure {
+    /// Inverted-index estimated visits per old block (nearest-rank p50).
+    pub estimated_visits_p50: usize,
+    /// Inverted-index estimated visits per old block (nearest-rank p95).
+    pub estimated_visits_p95: usize,
+    pub estimated_visits_max: usize,
+    /// Sum of estimated visits across all old blocks; an upper bound on the
+    /// production charge, which excludes main exact anchors.
+    pub estimated_visits_upper_bound_total: usize,
+    /// Total visit budget (`AlignmentOptions::max_candidate_visits`) that
+    /// production alignment charges against.
+    pub max_candidate_visits: usize,
+    /// Whether `estimated_visits_upper_bound_total` exceeds
+    /// `max_candidate_visits`.
+    pub estimated_visits_upper_bound_exceeds_limit: bool,
+    /// Total n-gram posting visits across all old blocks, excluding exact
+    /// matches and the short-block fallback.
+    pub ngram_posting_visits_total: usize,
+    /// Aggregate visits of the single most-visited n-gram (new-side document
+    /// frequency times old-side occurrence count).
+    pub dominant_ngram_visits: usize,
+    /// New-side document frequency of the dominant n-gram.
+    pub dominant_ngram_df: usize,
+}
 
 /// Candidate generation metrics for one synthetic fixture.
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -141,10 +171,11 @@ pub fn evaluate_candidate_generation(
     top_k: &[usize],
 ) -> Result<CandidateEvalRecord> {
     validate_top_k(top_k)?;
+    let options = PipelineOptions::default();
     let plan = case.plan();
     let old_blocks = normalized_blocks(plan.old(), renderer)?;
     let new_blocks = normalized_blocks(plan.new_plan(), renderer)?;
-    enforce_ngram_budget(&old_blocks, &new_blocks)?;
+    enforce_ngram_budget(&old_blocks, &new_blocks, options)?;
     let counterparts = true_counterparts(
         &old_blocks,
         &new_blocks,
@@ -154,9 +185,9 @@ pub fn evaluate_candidate_generation(
         &canonical_source(plan.new_plan()),
     )?;
 
-    let old_features = build_block_features(&old_blocks, NGRAM_SIZE)
+    let old_features = build_block_features(&old_blocks, options.ngram_size)
         .map_err(|error| core_error("candidate feature build", error))?;
-    let new_features = build_block_features(&new_blocks, NGRAM_SIZE)
+    let new_features = build_block_features(&new_blocks, options.ngram_size)
         .map_err(|error| core_error("candidate feature build", error))?;
     let inverted = InvertedIndexCandidateGenerator::new(&new_features)
         .map_err(|error| core_error("candidate index build", error))?;
@@ -172,7 +203,8 @@ pub fn evaluate_candidate_generation(
 
     let counts = candidate_counts(&old_features, &inverted)?;
     let oracle_counts = candidate_counts(&old_features, &exhaustive)?;
-    let visit_metrics = measure_visit_metrics(&old_features, &new_features, &inverted)?;
+    let pressure =
+        measure_visit_metrics(&old_features, &new_features, &inverted, options.alignment)?;
     let counterpart_old_blocks = counterparts
         .values()
         .filter(|counterparts| !counterparts.is_empty())
@@ -194,17 +226,38 @@ pub fn evaluate_candidate_generation(
         oracle_candidate_count_p50: percentile(&oracle_counts, 0.50),
         oracle_candidate_count_p95: percentile(&oracle_counts, 0.95),
         oracle_candidate_count_max: oracle_counts.iter().copied().max().unwrap_or(0),
-        estimated_visits_p50: visit_metrics.estimated_visits_p50,
-        estimated_visits_p95: visit_metrics.estimated_visits_p95,
-        estimated_visits_max: visit_metrics.estimated_visits_max,
-        estimated_visits_upper_bound_total: visit_metrics.estimated_visits_upper_bound_total,
-        max_candidate_visits: visit_metrics.max_candidate_visits,
-        estimated_visits_upper_bound_exceeds_limit: visit_metrics
+        estimated_visits_p50: pressure.estimated_visits_p50,
+        estimated_visits_p95: pressure.estimated_visits_p95,
+        estimated_visits_max: pressure.estimated_visits_max,
+        estimated_visits_upper_bound_total: pressure.estimated_visits_upper_bound_total,
+        max_candidate_visits: pressure.max_candidate_visits,
+        estimated_visits_upper_bound_exceeds_limit: pressure
             .estimated_visits_upper_bound_exceeds_limit,
-        ngram_posting_visits_total: visit_metrics.ngram_posting_visits_total,
-        dominant_ngram_visits: visit_metrics.dominant_ngram_visits,
-        dominant_ngram_df: visit_metrics.dominant_ngram_df,
+        ngram_posting_visits_total: pressure.ngram_posting_visits_total,
+        dominant_ngram_visits: pressure.dominant_ngram_visits,
+        dominant_ngram_df: pressure.dominant_ngram_df,
     })
+}
+
+/// Measures the all-old-block candidate visit pressure of the inverted-index
+/// generator for two extracted glyph documents, using the same layout,
+/// n-gram, and alignment options as production. The documents are borrowed,
+/// so no re-extraction happens.
+pub fn evaluate_candidate_visit_pressure(
+    old: &Document<Glyph>,
+    new: &Document<Glyph>,
+    options: PipelineOptions,
+) -> Result<CandidateVisitPressure> {
+    let old_blocks = normalized_blocks_from_document(old, options)?;
+    let new_blocks = normalized_blocks_from_document(new, options)?;
+    enforce_ngram_budget(&old_blocks, &new_blocks, options)?;
+    let old_features = build_block_features(&old_blocks, options.ngram_size)
+        .map_err(|error| core_error("candidate feature build", error))?;
+    let new_features = build_block_features(&new_blocks, options.ngram_size)
+        .map_err(|error| core_error("candidate feature build", error))?;
+    let inverted = InvertedIndexCandidateGenerator::new(&new_features)
+        .map_err(|error| core_error("candidate index build", error))?;
+    measure_visit_metrics(&old_features, &new_features, &inverted, options.alignment)
 }
 
 /// Writes every record as a pretty JSON array to a new file, refusing to
@@ -244,12 +297,20 @@ fn normalized_blocks(plan: &RenderPlan, renderer: RendererKind) -> Result<Vec<Bl
         .map_err(|error| core_error("candidate-eval extraction", error))?
         .into_complete()
         .map_err(|error| core_error("candidate-eval extraction", error))?;
-    let options = PipelineOptions::default();
-    let lines = reconstruct_lines(&document, options.line)
+    normalized_blocks_from_document(&document, PipelineOptions::default())
+}
+
+/// Reconstructs lines and blocks from an extracted glyph document and
+/// normalizes them under the given pipeline options.
+fn normalized_blocks_from_document(
+    document: &Document<Glyph>,
+    options: PipelineOptions,
+) -> Result<Vec<BlockText>> {
+    let lines = reconstruct_lines(document, options.line)
         .map_err(|error| core_error("candidate-eval line reconstruction", error))?;
-    let blocks = reconstruct_blocks(&document, &lines, options.block)
+    let blocks = reconstruct_blocks(document, &lines, options.block)
         .map_err(|error| core_error("candidate-eval block reconstruction", error))?;
-    normalize_blocks(&document, &lines, &blocks)
+    normalize_blocks(document, &lines, &blocks)
         .map_err(|error| core_error("candidate-eval normalization", error))
 }
 
@@ -267,11 +328,15 @@ fn canonical_source(plan: &RenderPlan) -> String {
 /// Applies the SPEC §12.6 n-gram token element budget with the same
 /// per-side helper and pair-global limit as production alignment, so
 /// candidate evaluation fails on the same billing boundary as the pipeline.
-fn enforce_ngram_budget(old: &[BlockText], new: &[BlockText]) -> Result<()> {
-    let limit = PipelineOptions::default().max_ngram_token_elements;
-    let old_elements = estimate_ngram_token_elements(old, NGRAM_SIZE, limit)
+fn enforce_ngram_budget(
+    old: &[BlockText],
+    new: &[BlockText],
+    options: PipelineOptions,
+) -> Result<()> {
+    let limit = options.max_ngram_token_elements;
+    let old_elements = estimate_ngram_token_elements(old, options.ngram_size, limit)
         .map_err(|error| core_error("candidate n-gram budget", error))?;
-    let new_elements = estimate_ngram_token_elements(new, NGRAM_SIZE, limit)
+    let new_elements = estimate_ngram_token_elements(new, options.ngram_size, limit)
         .map_err(|error| core_error("candidate n-gram budget", error))?;
     let aggregate = old_elements
         .checked_add(new_elements)
@@ -471,21 +536,7 @@ fn candidate_counts(
         .collect()
 }
 
-/// Visit metrics of the inverted-index generator on one fixture.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct VisitMetrics {
-    estimated_visits_p50: usize,
-    estimated_visits_p95: usize,
-    estimated_visits_max: usize,
-    estimated_visits_upper_bound_total: usize,
-    max_candidate_visits: usize,
-    estimated_visits_upper_bound_exceeds_limit: bool,
-    ngram_posting_visits_total: usize,
-    dominant_ngram_visits: usize,
-    dominant_ngram_df: usize,
-}
-
-/// Measures the inverted-index visit budget under the production alignment
+/// Measures the inverted-index visit budget under the given alignment
 /// limits: `estimated_visits` is charged per old block with the per-block
 /// candidate limit, and the total is compared against `max_candidate_visits`.
 ///
@@ -497,8 +548,8 @@ fn measure_visit_metrics(
     old_features: &[BlockFeatures],
     new_features: &[BlockFeatures],
     generator: &dyn CandidateGenerator,
-) -> Result<VisitMetrics> {
-    let alignment_options = AlignmentOptions::default();
+    alignment_options: AlignmentOptions,
+) -> Result<CandidateVisitPressure> {
     let candidate_limit = alignment_options.candidate_limit;
     let visit_limit = alignment_options.max_candidate_visits;
     let visits = estimated_visits_per_block(old_features, generator, candidate_limit)?;
@@ -508,7 +559,7 @@ fn measure_visit_metrics(
             .ok_or_else(|| visit_budget_error(visit_limit))
     })?;
     let ngram_stats = ngram_visit_stats(old_features, new_features, visit_limit)?;
-    Ok(VisitMetrics {
+    Ok(CandidateVisitPressure {
         estimated_visits_p50: percentile(&visits, 0.50),
         estimated_visits_p95: percentile(&visits, 0.95),
         estimated_visits_max: visits.iter().copied().max().unwrap_or(0),
@@ -624,7 +675,12 @@ fn core_error(stage: &'static str, error: pdfdelta_core::Error) -> BenchError {
 mod tests {
     use pdfdelta_core::{
         layout::BlockId,
+        model::{
+            DecodedText, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect, TextRenderMode,
+            Vec2,
+        },
         normalize::{BlockText, ComparableToken, MappedText},
+        pdf::ObjectRef,
     };
 
     use crate::{
@@ -732,14 +788,19 @@ mod tests {
                 )
             })
             .collect::<Vec<_>>();
-        let old_features =
-            build_block_features(&old_blocks, NGRAM_SIZE).expect("old features build");
-        let new_features =
-            build_block_features(&new_blocks, NGRAM_SIZE).expect("new features build");
+        let old_features = build_block_features(&old_blocks, PipelineOptions::default().ngram_size)
+            .expect("old features build");
+        let new_features = build_block_features(&new_blocks, PipelineOptions::default().ngram_size)
+            .expect("new features build");
         let inverted = InvertedIndexCandidateGenerator::new(&new_features).expect("index builds");
 
-        let metrics = measure_visit_metrics(&old_features, &new_features, &inverted)
-            .expect("visit metrics measure");
+        let metrics = measure_visit_metrics(
+            &old_features,
+            &new_features,
+            &inverted,
+            AlignmentOptions::default(),
+        )
+        .expect("visit metrics measure");
 
         assert!(metrics.estimated_visits_upper_bound_total > metrics.max_candidate_visits);
         assert!(metrics.estimated_visits_upper_bound_exceeds_limit);
@@ -868,5 +929,76 @@ mod tests {
         assert_eq!(parsed[0]["top_k"], serde_json::json!([5, 10]));
         assert!(write_candidates_json(&path, &records).is_err());
         std::fs::remove_file(&path).expect("artifact removed");
+    }
+
+    /// One glyph per non-space scalar, one line per entry at a distinct y.
+    fn glyph_document(lines: &[&str]) -> Document<Glyph> {
+        let mut glyphs = Vec::new();
+        let mut next_id = 1_u64;
+        for (line_index, text) in lines.iter().enumerate() {
+            let mut inline_offset = 0.0;
+            for character in text.chars() {
+                if character == ' ' {
+                    inline_offset += 5.0;
+                    continue;
+                }
+                let x = inline_offset;
+                let y = 100.0 - line_index as f64 * 30.0;
+                glyphs.push(Glyph {
+                    id: GlyphId(next_id),
+                    text: DecodedText::Mapped(character.to_string()),
+                    raw_code: character.to_string().into_bytes(),
+                    page: PageId(0),
+                    bbox: Rect {
+                        min: Vec2 { x, y },
+                        max: Vec2 {
+                            x: x + 5.0,
+                            y: y + 10.0,
+                        },
+                    },
+                    baseline: Vec2 { x, y },
+                    direction: Vec2 { x: 1.0, y: 0.0 },
+                    font_id: FontId(1),
+                    font_size: 10.0,
+                    render_order: u32::try_from(next_id).expect("fixture glyph id fits in u32"),
+                    render_mode: TextRenderMode::Fill,
+                    provenance: GlyphProvenance {
+                        content_stream: ObjectRef {
+                            object_number: 1,
+                            generation: 0,
+                        },
+                        operator_index: u32::try_from(next_id)
+                            .expect("fixture glyph id fits in u32"),
+                    },
+                });
+                next_id += 1;
+                inline_offset += 6.0;
+            }
+        }
+        Document::new(glyphs)
+    }
+
+    #[test]
+    fn evaluate_candidate_visit_pressure_reports_upper_bound_and_dominance() {
+        // Three blocks per side sharing the "aaa" n-gram: the upper bound is
+        // 3 x 3 = 9 visits, exceeding a deliberately small budget.
+        let old = glyph_document(&["aaaaaaefgh", "aaaaaaijkl", "aaaaaamnop"]);
+        let new = glyph_document(&["aaaaaaqrst", "aaaaaauvwx", "aaaaaayzab"]);
+        let options = PipelineOptions {
+            alignment: AlignmentOptions {
+                max_candidate_visits: 8,
+                ..AlignmentOptions::default()
+            },
+            ..PipelineOptions::default()
+        };
+
+        let pressure =
+            evaluate_candidate_visit_pressure(&old, &new, options).expect("pressure measures");
+
+        assert_eq!(pressure.estimated_visits_upper_bound_total, 9);
+        assert_eq!(pressure.max_candidate_visits, 8);
+        assert!(pressure.estimated_visits_upper_bound_exceeds_limit);
+        assert_eq!(pressure.dominant_ngram_visits, 9);
+        assert_eq!(pressure.dominant_ngram_df, 3);
     }
 }

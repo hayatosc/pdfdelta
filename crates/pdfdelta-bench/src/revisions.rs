@@ -34,7 +34,10 @@ use pdfdelta_core::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{BenchError, Result};
+use crate::{
+    BenchError, Result,
+    candidate_eval::{CandidateVisitPressure, evaluate_candidate_visit_pressure},
+};
 
 /// Column order of `benchmark/realworld/manifest.tsv`.
 pub const MANIFEST_HEADER: [&str; 17] = [
@@ -175,6 +178,10 @@ pub struct PairRunReport {
     /// The `AlignmentOptions::max_candidate_visits` budget the charge was
     /// compared against.
     pub max_candidate_visits: Option<usize>,
+    /// All-old-block candidate visit pressure measured from the extracted
+    /// documents; `None` when either side's extraction is incomplete or the
+    /// comparison stopped at a pre-alignment resource limit/error.
+    pub candidate_visit_pressure: Option<CandidateVisitPressure>,
     pub runtime_ms: u128,
     pub limit_scale_used: f64,
     pub failure: Option<String>,
@@ -917,6 +924,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         resource_limit_failure: None,
         candidate_visits: None,
         max_candidate_visits: None,
+        candidate_visit_pressure: None,
         runtime_ms: 0,
         limit_scale_used: effective_scale,
         status: PairRunStatus::Ok,
@@ -937,9 +945,10 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
     let outcome =
         match run_extraction_and_comparison(&source, &old_path, &new_path, effective_scale) {
-            Ok((outcome, candidate_visits, max_candidate_visits)) => {
+            Ok((outcome, candidate_visits, max_candidate_visits, pressure)) => {
                 record.candidate_visits = candidate_visits;
                 record.max_candidate_visits = max_candidate_visits;
+                record.candidate_visit_pressure = pressure;
                 outcome
             }
             Err(RevisionRunError::Read(reason)) => {
@@ -950,10 +959,12 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                 message,
                 candidate_visits,
                 max_candidate_visits,
+                pressure,
             }) => {
                 record.resource_limit_failure = Some(message);
                 record.candidate_visits = candidate_visits;
                 record.max_candidate_visits = max_candidate_visits;
+                record.candidate_visit_pressure = pressure.map(|pressure| *pressure);
                 record.quality_skipped_reason =
                     Some("comparison stopped at a resource limit".to_owned());
                 return finish(record, started);
@@ -1100,11 +1111,20 @@ enum RevisionRunError {
         message: String,
         candidate_visits: Option<usize>,
         max_candidate_visits: Option<usize>,
+        pressure: Option<Box<CandidateVisitPressure>>,
     },
     Other(&'static str, String),
 }
 
 type RevisionOutcome = pdfdelta_core::pipeline::ComparisonOutcome;
+
+/// Comparison outcome plus the alignment charge and supplementary pressure.
+type ComparisonWithMetrics = (
+    RevisionOutcome,
+    Option<usize>,
+    Option<usize>,
+    Option<CandidateVisitPressure>,
+);
 
 /// Validates one alignment metrics pair: both fields set or both absent
 /// pass through; a partial pair is a contract violation and is reported as
@@ -1141,30 +1161,69 @@ fn alignment_visit_metrics(
     )
 }
 
+/// Resolves the supplementary pressure from the alignment charge and the
+/// pressure attempt. Alignment reached requires a successful attempt; an
+/// absent attempt is an internal contract violation and fails the pair.
+fn resolve_pressure(
+    candidate_visits: Option<usize>,
+    pressure_result: Option<Result<CandidateVisitPressure>>,
+) -> std::result::Result<Option<CandidateVisitPressure>, RevisionRunError> {
+    match (candidate_visits, pressure_result) {
+        (Some(_), Some(Ok(pressure))) => Ok(Some(pressure)),
+        (Some(_), Some(Err(error))) => Err(RevisionRunError::Other(
+            "candidate visit pressure",
+            error.to_string(),
+        )),
+        (None, _) => Ok(None),
+        (Some(_), None) => Err(RevisionRunError::Other(
+            "candidate visit pressure contract violation",
+            "alignment reached without a pressure attempt".to_owned(),
+        )),
+    }
+}
+
 /// Compares two extracted outcomes and returns the alignment candidate
-/// visit charge alongside the outcome; a candidate limit stop carries the
-/// attempted charge in the error. A metrics contract violation takes
-/// priority over the core result.
+/// visit charge and the supplementary all-old-block pressure alongside the
+/// outcome; a candidate limit stop carries the attempted charge and the
+/// pressure in the error. A metrics contract violation takes priority over
+/// the core result. Once alignment is reached, a pressure measurement
+/// failure is a benchmark instrumentation failure, not missing
+/// supplementary information: it takes priority over the core Ok/Limit
+/// result and surfaces as `Failed`.
 fn compare_outcomes_with_metrics(
     old: ExtractionOutcome,
     new: ExtractionOutcome,
     options: PipelineOptions,
-) -> std::result::Result<(RevisionOutcome, Option<usize>, Option<usize>), RevisionRunError> {
+) -> std::result::Result<ComparisonWithMetrics, RevisionRunError> {
+    // Measure the supplementary pressure from the borrowed documents before
+    // the outcomes are consumed; whether it is required depends on whether
+    // alignment is reached below.
+    let pressure_result = if old.is_complete() && new.is_complete() {
+        Some(evaluate_candidate_visit_pressure(
+            old.document(),
+            new.document(),
+            options,
+        ))
+    } else {
+        None
+    };
     let mut diagnostics = PipelineDiagnostics::new();
     let result = compare_extraction_outcomes_with_diagnostics(old, new, options, &mut diagnostics);
     let (candidate_visits, max_candidate_visits) =
         alignment_visit_metrics(&diagnostics).map_err(|message| {
             RevisionRunError::Other("alignment metrics contract violation", message)
         })?;
+    let pressure = resolve_pressure(candidate_visits, pressure_result)?;
     let outcome = result.map_err(|error| match error {
         pdfdelta_core::Error::LimitExceeded { .. } => RevisionRunError::Limit {
             message: error.to_string(),
             candidate_visits,
             max_candidate_visits,
+            pressure: pressure.map(Box::new),
         },
         other => RevisionRunError::Other("comparison failed", other.to_string()),
     })?;
-    Ok((outcome, candidate_visits, max_candidate_visits))
+    Ok((outcome, candidate_visits, max_candidate_visits, pressure))
 }
 
 fn run_extraction_and_comparison(
@@ -1172,7 +1231,7 @@ fn run_extraction_and_comparison(
     old_path: &Path,
     new_path: &Path,
     limit_scale: f64,
-) -> std::result::Result<(RevisionOutcome, Option<usize>, Option<usize>), RevisionRunError> {
+) -> std::result::Result<ComparisonWithMetrics, RevisionRunError> {
     let read = |path: &Path| {
         fs::read(path).map_err(|error| {
             RevisionRunError::Read(format!("cannot read {}: {error}", path.display()))
@@ -1637,6 +1696,7 @@ mod tests {
             resource_limit_failure: None,
             candidate_visits: None,
             max_candidate_visits: None,
+            candidate_visit_pressure: None,
             runtime_ms: 0,
             limit_scale_used: 1.0,
             failure: None,
@@ -1792,7 +1852,7 @@ mod tests {
         let new =
             ExtractionOutcome::complete(glyph_document("Stable new paragraph remains visible"));
 
-        let (outcome, candidate_visits, max_candidate_visits) =
+        let (outcome, candidate_visits, max_candidate_visits, pressure) =
             compare_outcomes_with_metrics(old, new, PipelineOptions::default())
                 .expect("comparison succeeds");
 
@@ -1803,6 +1863,11 @@ mod tests {
             max_candidate_visits,
             Some(AlignmentOptions::default().max_candidate_visits)
         );
+        let pressure = pressure.expect("pressure recorded for complete extraction");
+        assert_eq!(
+            pressure.max_candidate_visits,
+            AlignmentOptions::default().max_candidate_visits
+        );
     }
 
     #[test]
@@ -1812,7 +1877,7 @@ mod tests {
         let new =
             ExtractionOutcome::complete(glyph_document("Stable new paragraph remains visible"));
 
-        let (_, charge, _) =
+        let (_, charge, _, _) =
             compare_outcomes_with_metrics(old.clone(), new.clone(), PipelineOptions::default())
                 .expect("baseline comparison succeeds");
         let charge = charge.expect("baseline charge recorded");
@@ -1832,10 +1897,13 @@ mod tests {
                 message,
                 candidate_visits,
                 max_candidate_visits,
+                pressure,
             } => {
                 assert!(message.contains("alignment candidate visits"));
                 assert_eq!(candidate_visits, Some(charge));
                 assert_eq!(max_candidate_visits, Some(charge - 1));
+                let pressure = pressure.expect("pressure recorded for complete extraction");
+                assert_eq!(pressure.max_candidate_visits, charge - 1);
             }
             other => panic!("expected Limit, got {other:?}"),
         }
@@ -1858,13 +1926,40 @@ mod tests {
             RevisionRunError::Limit {
                 candidate_visits,
                 max_candidate_visits,
+                pressure,
                 ..
             } => {
                 assert_eq!(candidate_visits, None);
                 assert_eq!(max_candidate_visits, None);
+                assert_eq!(pressure, None);
             }
             other => panic!("expected Limit, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn compare_outcomes_with_metrics_skips_pressure_for_incomplete_extraction() {
+        let incomplete = ExtractionOutcome::new(
+            glyph_document("Stable old paragraph remains visible"),
+            vec![
+                ExtractionIssue::new(
+                    ExtractionIssueKind::Unresolved,
+                    ExtractionScope::Document,
+                    "document evidence is incomplete",
+                )
+                .expect("valid issue"),
+            ],
+        )
+        .expect("valid outcome");
+        let complete =
+            ExtractionOutcome::complete(glyph_document("Stable new paragraph remains visible"));
+
+        let (_, candidate_visits, _, pressure) =
+            compare_outcomes_with_metrics(incomplete, complete, PipelineOptions::default())
+                .expect("incomplete comparison is not an error");
+
+        assert_eq!(candidate_visits, None);
+        assert_eq!(pressure, None);
     }
 
     #[test]
@@ -1872,10 +1967,26 @@ mod tests {
         let mut report = record(PairRunStatus::Ok);
         report.candidate_visits = Some(42);
         report.max_candidate_visits = Some(1_000_000);
+        report.candidate_visit_pressure = Some(CandidateVisitPressure {
+            estimated_visits_p50: 1,
+            estimated_visits_p95: 2,
+            estimated_visits_max: 3,
+            estimated_visits_upper_bound_total: 9,
+            max_candidate_visits: 8,
+            estimated_visits_upper_bound_exceeds_limit: true,
+            ngram_posting_visits_total: 9,
+            dominant_ngram_visits: 9,
+            dominant_ngram_df: 3,
+        });
 
         let json = serde_json::to_value(&report).expect("report serializes");
         assert_eq!(json["candidate_visits"], 42);
         assert_eq!(json["max_candidate_visits"], 1_000_000);
+        assert_eq!(
+            json["candidate_visit_pressure"]["estimated_visits_upper_bound_total"],
+            9
+        );
+        assert_eq!(json["candidate_visit_pressure"]["dominant_ngram_df"], 3);
     }
 
     #[test]
@@ -1894,6 +2005,19 @@ mod tests {
             let error = validate_visit_pair(candidate_visits, max_candidate_visits)
                 .expect_err("partial pair must be a contract violation");
             assert!(error.contains("alignment metrics contract violation"));
+        }
+    }
+
+    #[test]
+    fn resolve_pressure_rejects_alignment_without_a_pressure_attempt() {
+        let error = resolve_pressure(Some(42), None)
+            .expect_err("alignment reached without a pressure attempt must fail");
+        match error {
+            RevisionRunError::Other(stage, message) => {
+                assert_eq!(stage, "candidate visit pressure contract violation");
+                assert!(message.contains("without a pressure attempt"));
+            }
+            other => panic!("expected Other, got {other:?}"),
         }
     }
 }
