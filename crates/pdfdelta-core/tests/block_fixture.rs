@@ -697,3 +697,467 @@ fn prose_columns_with_short_terminating_line_remains_single_block() {
         "Right column paragraph block"
     );
 }
+
+#[test]
+fn three_column_prose_with_short_terminating_lines_remains_one_block_per_column() {
+    // 3-column prose article (width 150 each) with 3 lines per column, including short terminal lines.
+    let fixture = Fixture::new(vec![
+        LineSpec::column(1, 0, "col 1 full line 1", 50.0, 700.0, 150.0),
+        LineSpec::column(2, 0, "col 2 full line 1", 230.0, 700.0, 150.0),
+        LineSpec::column(3, 0, "col 3 full line 1", 410.0, 700.0, 150.0),
+        LineSpec::column(4, 0, "col 1 full line 2", 50.0, 685.0, 150.0),
+        LineSpec::column(5, 0, "col 2 full line 2", 230.0, 685.0, 150.0),
+        LineSpec::column(6, 0, "col 3 full line 2", 410.0, 685.0, 150.0),
+        LineSpec::column(7, 0, "col 1 end.", 50.0, 670.0, 60.0),
+        LineSpec::column(8, 0, "col 2 end.", 230.0, 670.0, 60.0),
+        LineSpec::column(9, 0, "col 3 end.", 410.0, 670.0, 60.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("3-column prose should reconstruct");
+
+    assert_eq!(
+        blocks.len(),
+        3,
+        "3-column prose must produce exactly 3 column blocks, not 9 line blocks"
+    );
+    assert_eq!(
+        blocks[0].lines,
+        [LineId(1), LineId(4), LineId(7)],
+        "Column 1 paragraph block"
+    );
+    assert_eq!(
+        blocks[1].lines,
+        [LineId(2), LineId(5), LineId(8)],
+        "Column 2 paragraph block"
+    );
+    assert_eq!(
+        blocks[2].lines,
+        [LineId(3), LineId(6), LineId(9)],
+        "Column 3 paragraph block"
+    );
+}
+
+#[test]
+fn wide_body_column_with_narrow_sidebar_does_not_fragment_body_paragraph() {
+    // Wide body column (width 350) accompanied by a narrow sidebar (width 50).
+    let fixture = Fixture::new(vec![
+        LineSpec::column(
+            1,
+            0,
+            "Wide body paragraph continuous text line one",
+            50.0,
+            700.0,
+            350.0,
+        ),
+        LineSpec::column(2, 0, "Tag1", 430.0, 700.0, 50.0),
+        LineSpec::column(
+            3,
+            0,
+            "Wide body paragraph continuous text line two",
+            50.0,
+            685.0,
+            350.0,
+        ),
+        LineSpec::column(4, 0, "Tag2", 430.0, 685.0, 50.0),
+        LineSpec::column(5, 0, "Body short ending.", 50.0, 670.0, 100.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("wide body with sidebar should reconstruct");
+
+    // Body lines 1, 3, 5 must form a single continuous body paragraph block
+    let body_block = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(1)))
+        .expect("body block should exist");
+    assert_eq!(
+        body_block.lines,
+        [LineId(1), LineId(3), LineId(5)],
+        "Wide body column must remain a single paragraph block and not fragment into lines"
+    );
+}
+
+#[test]
+fn table_with_wide_description_column_preserves_row_boundaries() {
+    // 3-column table: Col 1 (ID, width 30), Col 2 (Description, width 200), Col 3 (Price, width 40)
+    // Row 1: ID 1 (L1), Desc "Alpha widget\nHigh quality" (L2, L3), Price "$10" (L4)
+    // Row 2: ID 2 (L5), Desc "Beta widget" (L6), Price "$20" (L7)
+    let mut l4 = LineSpec::column(4, 0, "$10", 320.0, 690.0, 40.0);
+    l4.height = 18.0; // spans row 1
+    let fixture = Fixture::new(vec![
+        LineSpec::column(1, 0, "1", 50.0, 700.0, 30.0),
+        LineSpec::column(2, 0, "Alpha widget", 100.0, 700.0, 200.0),
+        LineSpec::column(3, 0, "High quality", 100.0, 688.0, 200.0),
+        l4,
+        LineSpec::column(5, 0, "2", 50.0, 665.0, 30.0),
+        LineSpec::column(6, 0, "Beta widget", 100.0, 665.0, 200.0),
+        LineSpec::column(7, 0, "$20", 320.0, 665.0, 40.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("table with wide description should reconstruct");
+
+    // Row 1 Description (L2, L3) should be joined as a multi-line cell
+    let row1_desc = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(2)))
+        .expect("row 1 desc block should exist");
+    assert_eq!(
+        row1_desc.lines,
+        [LineId(2), LineId(3)],
+        "Row 1 description lines should join within the cell"
+    );
+
+    // Row 2 Description (L6) must NOT join with Row 1 Description
+    let row2_desc = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(6)))
+        .expect("row 2 desc block should exist");
+    assert_eq!(
+        row2_desc.lines,
+        [LineId(6)],
+        "Row 2 description must be separate from Row 1"
+    );
+}
+
+#[test]
+fn full_width_heading_above_dense_three_by_three_table_preserves_grid_cells() {
+    // Full width heading (width 500) above a dense 3x3 table (cells width 40).
+    // The heading must NOT inflate column widths of the table cells below it.
+    let fixture = Fixture::new(vec![
+        LineSpec::column(
+            1,
+            0,
+            "Full Width Document Title Banner Heading",
+            50.0,
+            750.0,
+            500.0,
+        ),
+        LineSpec::column(2, 0, "A1", 50.0, 700.0, 40.0),
+        LineSpec::column(3, 0, "B1", 150.0, 700.0, 40.0),
+        LineSpec::column(4, 0, "C1", 250.0, 700.0, 40.0),
+        LineSpec::column(5, 0, "A2", 50.0, 685.0, 40.0),
+        LineSpec::column(6, 0, "B2", 150.0, 685.0, 40.0),
+        LineSpec::column(7, 0, "C2", 250.0, 685.0, 40.0),
+        LineSpec::column(8, 0, "A3", 50.0, 670.0, 40.0),
+        LineSpec::column(9, 0, "B3", 150.0, 670.0, 40.0),
+        LineSpec::column(10, 0, "C3", 250.0, 670.0, 40.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("heading and 3x3 table should reconstruct");
+
+    assert_eq!(
+        blocks.len(),
+        10,
+        "Full width heading (1) plus all 9 table cells must remain 10 separate blocks"
+    );
+    assert_eq!(blocks[0].lines, [LineId(1)], "Heading block");
+}
+
+#[test]
+fn table_with_asymmetric_multiline_cells_and_realistic_leading_preserves_row_boundaries() {
+    // 3-column table: Col 1 (ID, width 30), Col 2 (Description, width 200), Col 3 (Price, width 40)
+    // Row 1: ID 1 (L1, y=700), Desc Line 1 (L2, y=700), Desc Line 2 (L3, y=688), Price $10 (L4, y=694, h=18)
+    // Row 2: ID 2 (L5, y=676), Desc Line 1 (L6, y=676), Price $20 (L7, y=676)
+    // Vertical gap between L3 (y=688) and L6 (y=676) is 2.0 (normal line leading),
+    // and row 1 has an asymmetric single-peer line at L3's baseline.
+    let mut l4 = LineSpec::column(4, 0, "$10", 320.0, 694.0, 40.0);
+    l4.height = 18.0;
+    let fixture = Fixture::new(vec![
+        LineSpec::column(1, 0, "1", 50.0, 700.0, 30.0),
+        LineSpec::column(2, 0, "Alpha first description line", 100.0, 700.0, 200.0),
+        LineSpec::column(3, 0, "Alpha second description line", 100.0, 688.0, 200.0),
+        l4,
+        LineSpec::column(5, 0, "2", 50.0, 676.0, 30.0),
+        LineSpec::column(6, 0, "Beta first description line", 100.0, 676.0, 200.0),
+        LineSpec::column(7, 0, "$20", 320.0, 676.0, 40.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("asymmetric table should reconstruct");
+
+    let row1_desc = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(2)))
+        .expect("row 1 desc block should exist");
+    assert_eq!(
+        row1_desc.lines,
+        [LineId(2), LineId(3)],
+        "Row 1 description lines must join within the cell"
+    );
+
+    let row2_desc = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(6)))
+        .expect("row 2 desc block should exist");
+    assert_eq!(
+        row2_desc.lines,
+        [LineId(6)],
+        "Row 2 description must not merge with Row 1 even with tight leading and asymmetric peers"
+    );
+}
+
+#[test]
+fn vertical_rotated_label_does_not_affect_horizontal_prose_or_table_width() {
+    // Horizontal body column and a vertical label on the same page.
+    let mut fixture = Fixture::new(vec![
+        LineSpec::column(
+            1,
+            0,
+            "Horizontal body paragraph line one",
+            50.0,
+            700.0,
+            350.0,
+        ),
+        LineSpec::column(
+            2,
+            0,
+            "Horizontal body paragraph line two",
+            50.0,
+            685.0,
+            350.0,
+        ),
+        LineSpec::column(3, 0, "SIDEBAR", 450.0, 680.0, 10.0),
+    ]);
+    let mut glyphs = fixture.document.clone().into_items();
+    glyphs[2].direction = Vec2 { x: 0.0, y: 1.0 };
+    fixture.document = Document::new(glyphs);
+    fixture.lines[2].direction = Vec2 { x: 0.0, y: 1.0 };
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("horizontal body with vertical label should reconstruct");
+
+    let body_block = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(1)))
+        .expect("body block should exist");
+    assert_eq!(
+        body_block.lines,
+        [LineId(1), LineId(2)],
+        "Horizontal body lines must join into a single paragraph block"
+    );
+}
+
+#[test]
+fn two_column_table_with_wrapped_multiline_description_and_price_preserves_rows() {
+    // 2-column table: Col 1 (wide Description, width 200), Col 2 (narrow Price, width 40).
+    // Row 1: Description line 1 (L1, y=700), Description wrapped line 2 (L2, y=688), Price $10 (L3, y=700).
+    // Row 2: Description line 1 (L4, y=676), Price $20 (L5, y=676).
+    // Leading between wrapped L2 (y=688) and next row L4 (y=676) is tight (gap = 2.0).
+    let fixture = Fixture::new(vec![
+        LineSpec::column(1, 0, "Premium Alpha Item Description", 50.0, 700.0, 200.0),
+        LineSpec::column(
+            2,
+            0,
+            "Includes extended warranty coverage",
+            50.0,
+            688.0,
+            200.0,
+        ),
+        LineSpec::column(3, 0, "$10.00", 270.0, 700.0, 40.0),
+        LineSpec::column(4, 0, "Standard Beta Item Description", 50.0, 676.0, 200.0),
+        LineSpec::column(5, 0, "$20.00", 270.0, 676.0, 40.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("2-column table should reconstruct");
+
+    assert_eq!(
+        blocks.len(),
+        4,
+        "2-column table must produce 4 blocks: Row 1 Desc, Row 2 Desc, Row 1 Price, Row 2 Price"
+    );
+
+    let row1_desc = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(1)))
+        .expect("row 1 desc block");
+    assert_eq!(
+        row1_desc.lines,
+        [LineId(1), LineId(2)],
+        "Row 1 description lines must join within the cell"
+    );
+
+    let row2_desc = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(4)))
+        .expect("row 2 desc block");
+    assert_eq!(
+        row2_desc.lines,
+        [LineId(4)],
+        "Row 2 description must remain separate from Row 1 description"
+    );
+
+    let row1_price = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(3)))
+        .expect("row 1 price block");
+    assert_eq!(row1_price.lines, [LineId(3)], "Row 1 price cell block");
+
+    let row2_price = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(5)))
+        .expect("row 2 price block");
+    assert_eq!(row2_price.lines, [LineId(5)], "Row 2 price cell block");
+}
+
+#[test]
+fn compact_gutter_table_preserves_cell_boundaries() {
+    // 3-column table with a compact gutter of 2.5pt (0.25em with 10pt font).
+    // Col 1: 50.0..90.0 (w=40)
+    // Col 2: 92.5..132.5 (w=40, gutter=2.5)
+    // Col 3: 135.0..175.0 (w=40, gutter=2.5)
+    let fixture = Fixture::new(vec![
+        LineSpec::column(1, 0, "A1", 50.0, 700.0, 40.0),
+        LineSpec::column(2, 0, "B1", 92.5, 700.0, 40.0),
+        LineSpec::column(3, 0, "C1", 135.0, 700.0, 40.0),
+        LineSpec::column(4, 0, "A2", 50.0, 685.0, 40.0),
+        LineSpec::column(5, 0, "B2", 92.5, 685.0, 40.0),
+        LineSpec::column(6, 0, "C2", 135.0, 685.0, 40.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("compact gutter table should reconstruct");
+
+    assert_eq!(
+        blocks.len(),
+        6,
+        "Compact gutter table cells must remain 6 separate blocks"
+    );
+}
+
+#[test]
+fn two_column_table_with_bottom_aligned_price_preserves_rows() {
+    // 2-column table with bottom-aligned price in Row 1:
+    // Row 1: Desc line 1 (L1, y=700), Desc line 2 (L2, y=688), Price $10 (L3, y=688, bottom-aligned!)
+    // Row 2: Desc line 1 (L4, y=676), Price $20 (L5, y=676)
+    let fixture = Fixture::new(vec![
+        LineSpec::column(1, 0, "Premium Alpha Item Description", 50.0, 700.0, 200.0),
+        LineSpec::column(
+            2,
+            0,
+            "Includes extended warranty coverage",
+            50.0,
+            688.0,
+            200.0,
+        ),
+        LineSpec::column(3, 0, "$10.00", 270.0, 688.0, 40.0),
+        LineSpec::column(4, 0, "Standard Beta Item Description", 50.0, 676.0, 200.0),
+        LineSpec::column(5, 0, "$20.00", 270.0, 676.0, 40.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("2-column bottom-aligned table should reconstruct");
+
+    assert_eq!(
+        blocks.len(),
+        4,
+        "Bottom-aligned 2-column table must produce 4 blocks"
+    );
+
+    let row1_desc = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(1)))
+        .expect("row 1 desc block");
+    assert_eq!(
+        row1_desc.lines,
+        [LineId(1), LineId(2)],
+        "Row 1 description lines must join within the cell"
+    );
+
+    let row2_desc = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(4)))
+        .expect("row 2 desc block");
+    assert_eq!(
+        row2_desc.lines,
+        [LineId(4)],
+        "Row 2 description must remain separate from Row 1"
+    );
+}
+
+#[test]
+fn two_column_table_with_tall_row_spanning_price_preserves_rows() {
+    // 2-column table with a tall row-spanning price cell in Row 1:
+    // Row 1: Desc line 1 (L1, y=700), Desc line 2 (L2, y=688), Price $10 (L3, y=694, h=22, spans row 1)
+    // Row 2: Desc line 1 (L4, y=676), Price $20 (L5, y=676)
+    let mut l3 = LineSpec::column(3, 0, "$10.00", 270.0, 694.0, 40.0);
+    l3.height = 22.0;
+    let fixture = Fixture::new(vec![
+        LineSpec::column(1, 0, "Premium Alpha Item Description", 50.0, 700.0, 200.0),
+        LineSpec::column(
+            2,
+            0,
+            "Includes extended warranty coverage",
+            50.0,
+            688.0,
+            200.0,
+        ),
+        l3,
+        LineSpec::column(4, 0, "Standard Beta Item Description", 50.0, 676.0, 200.0),
+        LineSpec::column(5, 0, "$20.00", 270.0, 676.0, 40.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("2-column tall price table should reconstruct");
+
+    let row1_desc = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(1)))
+        .expect("row 1 desc block");
+    assert_eq!(
+        row1_desc.lines,
+        [LineId(1), LineId(2)],
+        "Row 1 description lines must join within the cell"
+    );
+
+    let row2_desc = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(4)))
+        .expect("row 2 desc block");
+    assert_eq!(
+        row2_desc.lines,
+        [LineId(4)],
+        "Row 2 description must remain separate from Row 1"
+    );
+}
+
+#[test]
+fn continuing_prose_with_late_starting_narrow_callout_does_not_fragment_paragraph() {
+    // Continuous wide body paragraph (width 350) with a late-starting narrow callout at line 3.
+    let fixture = Fixture::new(vec![
+        LineSpec::column(
+            1,
+            0,
+            "First line of long continuous body paragraph",
+            50.0,
+            700.0,
+            350.0,
+        ),
+        LineSpec::column(2, 0, "Second short ending.", 50.0, 685.0, 120.0),
+        LineSpec::column(
+            3,
+            0,
+            "Third line of continuing body paragraph text",
+            50.0,
+            670.0,
+            350.0,
+        ),
+        LineSpec::column(4, 0, "NOTE", 430.0, 670.0, 50.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("continuing prose with late callout should reconstruct");
+
+    let body_block = blocks
+        .iter()
+        .find(|b| b.lines.contains(&LineId(1)))
+        .expect("body block should exist");
+    assert_eq!(
+        body_block.lines,
+        [LineId(1), LineId(2), LineId(3)],
+        "Continuing body paragraph lines must remain a single block despite late-starting callout"
+    );
+}
