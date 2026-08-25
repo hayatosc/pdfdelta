@@ -137,6 +137,95 @@ impl MappedText {
                 })?;
         Ok((scalar_count, token_count))
     }
+
+    /// Returns the `TextSource` covering the given output `ScalarRange`.
+    pub fn project_source(&self, range: ScalarRange) -> TextSource {
+        let mut atoms = Vec::new();
+        let mut seen = HashSet::new();
+
+        if range.start == range.end {
+            for entry in &self.source_map {
+                if entry.output_range.start <= range.start && range.start <= entry.output_range.end
+                {
+                    for atom in &entry.source.atoms {
+                        if seen.insert(atom.clone()) {
+                            atoms.push(atom.clone());
+                        }
+                    }
+                }
+            }
+            for unmapped in &self.unmapped {
+                if unmapped.scalar_index == range.start {
+                    for atom in &unmapped.source.atoms {
+                        if seen.insert(atom.clone()) {
+                            atoms.push(atom.clone());
+                        }
+                    }
+                }
+            }
+            return TextSource { atoms };
+        }
+
+        for entry in &self.source_map {
+            if entry.output_range.start < range.end && entry.output_range.end > range.start {
+                for atom in &entry.source.atoms {
+                    if seen.insert(atom.clone()) {
+                        atoms.push(atom.clone());
+                    }
+                }
+            }
+        }
+
+        for unmapped in &self.unmapped {
+            if unmapped.scalar_index >= range.start && unmapped.scalar_index < range.end {
+                for atom in &unmapped.source.atoms {
+                    if seen.insert(atom.clone()) {
+                        atoms.push(atom.clone());
+                    }
+                }
+            }
+        }
+
+        TextSource { atoms }
+    }
+
+    /// Returns all unique `GlyphId`s associated with the given output `ScalarRange`.
+    pub fn project_glyph_ids(&self, range: ScalarRange) -> Vec<GlyphId> {
+        let source = self.project_source(range);
+        let mut glyph_ids = Vec::new();
+        let mut seen = HashSet::new();
+
+        for atom in source.atoms {
+            match atom {
+                TextSourceAtom::Glyph(glyph_id) => {
+                    if seen.insert(glyph_id) {
+                        glyph_ids.push(glyph_id);
+                    }
+                }
+                TextSourceAtom::SyntheticSpace {
+                    preceding,
+                    following,
+                }
+                | TextSourceAtom::LineBreak {
+                    preceding,
+                    following,
+                } => {
+                    if seen.insert(preceding) {
+                        glyph_ids.push(preceding);
+                    }
+                    if seen.insert(following) {
+                        glyph_ids.push(following);
+                    }
+                }
+            }
+        }
+        glyph_ids
+    }
+
+    /// Returns the ordered list of `TextSourceAtom`s covering the given output `ScalarRange`.
+    pub fn project_source_atoms(&self, range: ScalarRange) -> Vec<TextSourceAtom> {
+        self.project_source(range).atoms
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -180,6 +269,216 @@ pub struct BlockText {
     pub issues: Vec<NormalizationIssue>,
     /// Sorted unique page numbers covered by the block's lines.
     pub pages: Vec<u32>,
+}
+
+impl BlockText {
+    /// Projects a canonical `ScalarRange` to the corresponding raw `ScalarRange` in `self.raw`.
+    pub fn canonical_to_raw_range(&self, canonical_range: ScalarRange) -> ScalarRange {
+        if canonical_range.start == canonical_range.end {
+            return self.canonical_point_to_raw_offset(canonical_range.start);
+        }
+
+        let mut min_raw = usize::MAX;
+        let mut max_raw = 0;
+        let mut found = false;
+
+        let source = self.canonical.project_source(canonical_range);
+        let source_atom_set: HashSet<_> = source.atoms.into_iter().collect();
+
+        for entry in &self.raw.source_map {
+            if entry
+                .source
+                .atoms
+                .iter()
+                .any(|atom| source_atom_set.contains(atom))
+            {
+                min_raw = min_raw.min(entry.output_range.start);
+                max_raw = max_raw.max(entry.output_range.end);
+                found = true;
+            }
+        }
+
+        for token in &self.raw.unmapped {
+            if token
+                .source
+                .atoms
+                .iter()
+                .any(|atom| source_atom_set.contains(atom))
+            {
+                min_raw = min_raw.min(token.scalar_index);
+                max_raw = max_raw.max(token.scalar_index);
+                found = true;
+            }
+        }
+
+        for event in &self.normalization_events {
+            if event.canonical_range.start < canonical_range.end
+                && event.canonical_range.end > canonical_range.start
+            {
+                min_raw = min_raw.min(event.raw_range.start);
+                max_raw = max_raw.max(event.raw_range.end);
+                found = true;
+            }
+            if event.canonical_range.start == event.canonical_range.end
+                && canonical_range.start < event.canonical_range.start
+                && event.canonical_range.start < canonical_range.end
+            {
+                min_raw = min_raw.min(event.raw_range.start);
+                max_raw = max_raw.max(event.raw_range.end);
+                found = true;
+            }
+        }
+
+        if found {
+            ScalarRange {
+                start: min_raw,
+                end: max_raw,
+            }
+        } else {
+            self.canonical_point_to_raw_offset(canonical_range.start)
+        }
+    }
+
+    /// Projects a raw `ScalarRange` to the corresponding canonical `ScalarRange` in `self.canonical`.
+    pub fn raw_to_canonical_range(&self, raw_range: ScalarRange) -> ScalarRange {
+        if raw_range.start == raw_range.end {
+            return self.raw_point_to_canonical_offset(raw_range.start);
+        }
+
+        let mut min_canonical = usize::MAX;
+        let mut max_canonical = 0;
+        let mut found = false;
+
+        let source = self.raw.project_source(raw_range);
+        let source_atom_set: HashSet<_> = source.atoms.into_iter().collect();
+
+        for entry in &self.canonical.source_map {
+            if entry
+                .source
+                .atoms
+                .iter()
+                .any(|atom| source_atom_set.contains(atom))
+            {
+                min_canonical = min_canonical.min(entry.output_range.start);
+                max_canonical = max_canonical.max(entry.output_range.end);
+                found = true;
+            }
+        }
+
+        for token in &self.canonical.unmapped {
+            if token
+                .source
+                .atoms
+                .iter()
+                .any(|atom| source_atom_set.contains(atom))
+            {
+                min_canonical = min_canonical.min(token.scalar_index);
+                max_canonical = max_canonical.max(token.scalar_index);
+                found = true;
+            }
+        }
+
+        for event in &self.normalization_events {
+            if event.raw_range.start < raw_range.end && event.raw_range.end > raw_range.start {
+                min_canonical = min_canonical.min(event.canonical_range.start);
+                max_canonical = max_canonical.max(event.canonical_range.end);
+                found = true;
+            }
+            if event.raw_range.start == event.raw_range.end
+                && raw_range.start < event.raw_range.start
+                && event.raw_range.start < raw_range.end
+            {
+                min_canonical = min_canonical.min(event.canonical_range.start);
+                max_canonical = max_canonical.max(event.canonical_range.end);
+                found = true;
+            }
+        }
+
+        if found {
+            ScalarRange {
+                start: min_canonical,
+                end: max_canonical,
+            }
+        } else {
+            self.raw_point_to_canonical_offset(raw_range.start)
+        }
+    }
+
+    /// Projects a canonical `ScalarRange` directly to its source `TextSource`.
+    pub fn project_canonical_source(&self, canonical_range: ScalarRange) -> TextSource {
+        self.canonical.project_source(canonical_range)
+    }
+
+    /// Projects a canonical `ScalarRange` directly to its source `GlyphId`s.
+    pub fn project_canonical_glyph_ids(&self, canonical_range: ScalarRange) -> Vec<GlyphId> {
+        self.canonical.project_glyph_ids(canonical_range)
+    }
+
+    fn canonical_point_to_raw_offset(&self, canonical_offset: usize) -> ScalarRange {
+        for entry in &self.canonical.source_map {
+            if entry.output_range.start <= canonical_offset
+                && canonical_offset <= entry.output_range.end
+            {
+                let source = &entry.source;
+                for raw_entry in &self.raw.source_map {
+                    if raw_entry
+                        .source
+                        .atoms
+                        .iter()
+                        .any(|atom| source.atoms.contains(atom))
+                    {
+                        let offset = if canonical_offset == entry.output_range.start {
+                            raw_entry.output_range.start
+                        } else {
+                            raw_entry.output_range.end
+                        };
+                        return ScalarRange {
+                            start: offset,
+                            end: offset,
+                        };
+                    }
+                }
+            }
+        }
+        let raw_len = self.raw.text.chars().count();
+        let clamped = canonical_offset.min(raw_len);
+        ScalarRange {
+            start: clamped,
+            end: clamped,
+        }
+    }
+
+    fn raw_point_to_canonical_offset(&self, raw_offset: usize) -> ScalarRange {
+        for entry in &self.raw.source_map {
+            if entry.output_range.start <= raw_offset && raw_offset <= entry.output_range.end {
+                let source = &entry.source;
+                for can_entry in &self.canonical.source_map {
+                    if can_entry
+                        .source
+                        .atoms
+                        .iter()
+                        .any(|atom| source.atoms.contains(atom))
+                    {
+                        let offset = if raw_offset == entry.output_range.start {
+                            can_entry.output_range.start
+                        } else {
+                            can_entry.output_range.end
+                        };
+                        return ScalarRange {
+                            start: offset,
+                            end: offset,
+                        };
+                    }
+                }
+            }
+        }
+        let can_len = self.canonical.text.chars().count();
+        let clamped = raw_offset.min(can_len);
+        ScalarRange {
+            start: clamped,
+            end: clamped,
+        }
+    }
 }
 
 pub fn normalize_blocks(
@@ -687,16 +986,34 @@ fn resolve_line_breaks(atoms: Vec<Atom>, issues: &mut Vec<NormalizationIssue>) -
         let previous_scalar = previous.and_then(Atom::scalar);
         let following_scalar = following.and_then(Atom::scalar);
 
+        let latin_prefix_len = latin_prefix_len_before_hyphen(&resolved);
+        let latin_suffix_len = latin_suffix_len_after_break(&atoms, index);
+
         let is_hyphenation = is_hyphen(previous_scalar)
+            && latin_prefix_len >= 2
+            && latin_suffix_len >= 2
+            && following_scalar.is_some_and(is_latin_lowercase);
+
+        let is_lexical_hyphen = is_hyphen(previous_scalar)
             && resolved
                 .get(resolved.len().saturating_sub(2))
                 .and_then(Atom::scalar)
-                .is_some_and(is_latin_letter_or_digit)
-            && following_scalar.is_some_and(is_latin_letter_or_digit);
+                .is_some_and(|s| is_latin_letter_or_digit(s) || is_cjk(s))
+            && following_scalar.is_some_and(|s| is_latin_letter_or_digit(s) || is_cjk(s));
+
         if is_hyphenation && let Some(hyphen) = resolved.pop() {
             resolved.push(deleted_atom(
                 [&hyphen, &atoms[index]],
                 NormalizationKind::HyphenationJoin,
+            ));
+        } else if is_lexical_hyphen {
+            // A lexical hyphen before a line break (e.g. "Franco-\nPrussian", "pre-\n1990",
+            // "COVID-\n19", "X-\nray", "1990-\n2000") is retained in place; the trailing
+            // line break is deleted as a soft line break so no spurious space is inserted.
+            resolved.push(changed_atom(
+                &atoms[index],
+                AtomValue::Deleted,
+                NormalizationKind::SoftLineBreak,
             ));
         } else if previous_scalar.is_some_and(is_decimal_digit)
             && following_scalar.is_some_and(is_decimal_digit)
@@ -1072,4 +1389,62 @@ fn is_cjk(scalar: char) -> bool {
             | '\u{20000}'..='\u{2ffff}'
             | '\u{30000}'..='\u{3134f}'
     )
+}
+
+fn is_latin_letter(scalar: char) -> bool {
+    scalar.is_alphabetic()
+        && matches!(
+            scalar,
+            'A'..='Z'
+                | 'a'..='z'
+                | '\u{00c0}'..='\u{02af}'
+                | '\u{1d00}'..='\u{1eff}'
+                | '\u{ab30}'..='\u{ab6f}'
+        )
+}
+
+fn is_latin_lowercase(scalar: char) -> bool {
+    scalar.is_lowercase()
+        && matches!(
+            scalar,
+            'a'..='z'
+                | '\u{00df}'..='\u{02af}'
+                | '\u{1d00}'..='\u{1eff}'
+                | '\u{ab30}'..='\u{ab6f}'
+        )
+}
+
+fn latin_prefix_len_before_hyphen(resolved: &[Atom]) -> usize {
+    if resolved.len() < 2 {
+        return 0;
+    }
+    let mut count = 0;
+    for atom in resolved.iter().rev().skip(1) {
+        if let Some(scalar) = atom.scalar() {
+            if is_latin_letter(scalar) {
+                count += 1;
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    count
+}
+
+fn latin_suffix_len_after_break(atoms: &[Atom], break_index: usize) -> usize {
+    let mut count = 0;
+    for atom in &atoms[break_index + 1..] {
+        if let Some(scalar) = atom.scalar() {
+            if is_latin_letter(scalar) {
+                count += 1;
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    count
 }
