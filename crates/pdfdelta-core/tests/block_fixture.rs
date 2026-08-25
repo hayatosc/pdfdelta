@@ -496,4 +496,204 @@ impl LineSpec {
             font: 2,
         }
     }
+
+    fn column(id: u64, page: u32, text: &'static str, x: f64, y: f64, width: f64) -> Self {
+        Self {
+            id,
+            page,
+            text,
+            x,
+            y,
+            width,
+            height: 10.0,
+            font_size: 10.0,
+            font: 1,
+        }
+    }
+}
+
+#[test]
+fn two_column_layout_groups_columns_without_interleaving() {
+    // Interleaved in Y-order: L1 (y=700), R1 (y=700), L2 (y=685), R2 (y=685)
+    let fixture = Fixture::new(vec![
+        LineSpec::column(1, 0, "left column line 1", 50.0, 700.0, 200.0),
+        LineSpec::column(2, 0, "right column line 1", 350.0, 700.0, 200.0),
+        LineSpec::column(3, 0, "left column line 2", 50.0, 685.0, 200.0),
+        LineSpec::column(4, 0, "right column line 2", 350.0, 685.0, 200.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("two column blocks should reconstruct");
+
+    assert_eq!(blocks.len(), 2, "Should produce two column blocks");
+    assert_eq!(
+        blocks[0].lines,
+        [LineId(1), LineId(3)],
+        "Left column block lines"
+    );
+    assert_eq!(
+        blocks[1].lines,
+        [LineId(2), LineId(4)],
+        "Right column block lines"
+    );
+}
+
+#[test]
+fn table_cells_remain_separate_blocks_without_merging_into_columns() {
+    // 3-row, 2-column table:
+    // Row 1: "Item" (L1), "Price" (L2)
+    // Row 2: "Apple" (L3), "$1.50" (L4)
+    // Row 3: "Banana" (L5), "$0.75" (L6)
+    let fixture = Fixture::new(vec![
+        LineSpec::column(1, 0, "Item", 50.0, 700.0, 60.0),
+        LineSpec::column(2, 0, "Price", 250.0, 700.0, 60.0),
+        LineSpec::column(3, 0, "Apple", 50.0, 685.0, 60.0),
+        LineSpec::column(4, 0, "$1.50", 250.0, 685.0, 60.0),
+        LineSpec::column(5, 0, "Banana", 50.0, 670.0, 60.0),
+        LineSpec::column(6, 0, "$0.75", 250.0, 670.0, 60.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("table blocks should reconstruct");
+
+    assert_eq!(
+        blocks.len(),
+        6,
+        "Table cells must remain separate blocks instead of merging into column paragraphs"
+    );
+    for (i, block) in blocks.iter().enumerate() {
+        assert_eq!(
+            block.lines.len(),
+            1,
+            "Block {} should contain exactly 1 cell line, but got {:?}",
+            i,
+            block.lines
+        );
+    }
+}
+
+#[test]
+fn form_key_value_fields_remain_separate_blocks() {
+    // 3-row key-value form fields:
+    // Row 1: "First Name:" (L1), "Alice" (L2)
+    // Row 2: "Last Name:" (L3), "Smith" (L4)
+    // Row 3: "Role:" (L5), "Engineer" (L6)
+    let fixture = Fixture::new(vec![
+        LineSpec::column(1, 0, "First Name:", 50.0, 500.0, 70.0),
+        LineSpec::column(2, 0, "Alice", 160.0, 500.0, 50.0),
+        LineSpec::column(3, 0, "Last Name:", 50.0, 480.0, 70.0),
+        LineSpec::column(4, 0, "Smith", 160.0, 480.0, 50.0),
+        LineSpec::column(5, 0, "Role:", 50.0, 460.0, 70.0),
+        LineSpec::column(6, 0, "Engineer", 160.0, 460.0, 60.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("form blocks should reconstruct");
+
+    assert_eq!(
+        blocks.len(),
+        6,
+        "Form field labels and values must not merge into paragraph blocks"
+    );
+}
+
+#[test]
+fn multi_column_three_by_three_grid_preserves_cell_boundaries() {
+    // 3 columns x 3 rows grid
+    let fixture = Fixture::new(vec![
+        LineSpec::column(1, 0, "A1", 50.0, 700.0, 40.0),
+        LineSpec::column(2, 0, "B1", 150.0, 700.0, 40.0),
+        LineSpec::column(3, 0, "C1", 250.0, 700.0, 40.0),
+        LineSpec::column(4, 0, "A2", 50.0, 685.0, 40.0),
+        LineSpec::column(5, 0, "B2", 150.0, 685.0, 40.0),
+        LineSpec::column(6, 0, "C2", 250.0, 685.0, 40.0),
+        LineSpec::column(7, 0, "A3", 50.0, 670.0, 40.0),
+        LineSpec::column(8, 0, "B3", 150.0, 670.0, 40.0),
+        LineSpec::column(9, 0, "C3", 250.0, 670.0, 40.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("3x3 grid blocks should reconstruct");
+
+    assert_eq!(
+        blocks.len(),
+        9,
+        "All 9 grid cells must remain separate blocks"
+    );
+}
+
+#[test]
+fn table_with_multiline_cell_groups_within_cell_but_separates_rows() {
+    // Row 1 Col 1 has 2 lines: L1 (y=700), L2 (y=688)
+    // Row 1 Col 2 has 1 line spanning the row: L3 (y=690..708)
+    // Row 2 Col 1 has 1 line: L4 (y=665)
+    // Row 2 Col 2 has 1 line: L5 (y=665)
+    let mut l3 = LineSpec::column(3, 0, "Price Category", 250.0, 690.0, 80.0);
+    l3.height = 18.0;
+    let fixture = Fixture::new(vec![
+        LineSpec::column(1, 0, "Product", 50.0, 700.0, 60.0),
+        LineSpec::column(2, 0, "Description", 50.0, 688.0, 60.0),
+        l3,
+        LineSpec::column(4, 0, "Widget", 50.0, 665.0, 60.0),
+        LineSpec::column(5, 0, "$10.00", 250.0, 665.0, 60.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("multiline cell table should reconstruct");
+
+    assert_eq!(blocks.len(), 4, "Should produce 4 distinct cell blocks");
+    assert_eq!(
+        blocks[0].lines,
+        [LineId(1), LineId(2)],
+        "Multiline cell lines 1 and 2 should group into one cell block"
+    );
+    assert_eq!(blocks[1].lines, [LineId(4)], "Row 2 Col 1 cell block");
+    assert_eq!(blocks[2].lines, [LineId(3)], "Row 1 Col 2 cell block");
+    assert_eq!(blocks[3].lines, [LineId(5)], "Row 2 Col 2 cell block");
+}
+
+#[test]
+fn prose_columns_with_short_terminating_line_remains_single_block() {
+    // 2-column prose article where the final line in each column is a short paragraph ending.
+    let fixture = Fixture::new(vec![
+        LineSpec::column(1, 0, "left column full width line one", 50.0, 700.0, 200.0),
+        LineSpec::column(
+            2,
+            0,
+            "right column full width line one",
+            350.0,
+            700.0,
+            200.0,
+        ),
+        LineSpec::column(3, 0, "left column full width line two", 50.0, 685.0, 200.0),
+        LineSpec::column(
+            4,
+            0,
+            "right column full width line two",
+            350.0,
+            685.0,
+            200.0,
+        ),
+        LineSpec::column(5, 0, "left short end.", 50.0, 670.0, 70.0),
+        LineSpec::column(6, 0, "right short end.", 350.0, 670.0, 70.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("prose columns should reconstruct");
+
+    assert_eq!(
+        blocks.len(),
+        2,
+        "Prose columns with short terminating lines must remain continuous paragraph blocks"
+    );
+    assert_eq!(
+        blocks[0].lines,
+        [LineId(1), LineId(3), LineId(5)],
+        "Left column paragraph block"
+    );
+    assert_eq!(
+        blocks[1].lines,
+        [LineId(2), LineId(4), LineId(6)],
+        "Right column paragraph block"
+    );
 }

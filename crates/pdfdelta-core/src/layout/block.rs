@@ -166,15 +166,35 @@ pub fn reconstruct_blocks(
         ));
     }
 
-    stats.sort_by(|left, right| {
-        left.line
-            .page
-            .0
-            .cmp(&right.line.page.0)
-            .then(right.line.bbox.max.y.total_cmp(&left.line.bbox.max.y))
-            .then(left.line.bbox.min.x.total_cmp(&right.line.bbox.min.x))
-            .then(left.line.id.0.cmp(&right.line.id.0))
-    });
+    let mut stats_by_line_id = HashMap::with_capacity(stats.len());
+    for s in stats {
+        stats_by_line_id.insert(s.line.id, s);
+    }
+
+    let mut page_lines_map = std::collections::BTreeMap::<u32, Vec<Line>>::new();
+    for line in lines {
+        page_lines_map
+            .entry(line.page.0)
+            .or_default()
+            .push(line.clone());
+    }
+
+    let mut ordered_stats = Vec::with_capacity(lines.len());
+    for (page_num, page_lines) in page_lines_map {
+        let graph = super::region::partition_regions(
+            crate::model::PageId(page_num),
+            &page_lines,
+            super::region::RegionOptions::default(),
+        )?;
+        for region in graph.regions {
+            for line_id in region.line_ids {
+                if let Some(s) = stats_by_line_id.remove(&line_id) {
+                    ordered_stats.push(s);
+                }
+            }
+        }
+    }
+    let stats = ordered_stats;
 
     let pages = page_groups(&stats);
     let roles = detect_repeated_margins(&stats, &pages, options);
@@ -449,7 +469,7 @@ fn should_join_body(
     let previous = &stats[body_indices[position - 1]];
     let current = &stats[body_indices[position]];
     if previous.line.page == current.line.page {
-        return should_join(previous, current, options);
+        return should_join(previous, current, stats, options);
     }
 
     if previous.line.page.0.checked_add(1) != Some(current.line.page.0) {
@@ -466,8 +486,8 @@ fn should_join_body(
     let current_neighbor = &stats[current_neighbor_index];
     if previous_neighbor.line.page != previous.line.page
         || current_neighbor.line.page != current.line.page
-        || !should_join(previous_neighbor, previous, options)?
-        || !should_join(current, current_neighbor, options)?
+        || !should_join(previous_neighbor, previous, stats, options)?
+        || !should_join(current, current_neighbor, stats, options)?
     {
         return Ok(false);
     }
@@ -535,9 +555,104 @@ fn normalized_line_gap(first: &LineStats<'_>, second: &LineStats<'_>) -> f64 {
     ) / height
 }
 
+fn find_aligned_peers(target: &LineStats<'_>, stats: &[LineStats<'_>]) -> Vec<usize> {
+    let mut peers = Vec::new();
+    for (index, candidate) in stats.iter().enumerate() {
+        if candidate.line.id == target.line.id || candidate.line.page != target.line.page {
+            continue;
+        }
+        if !is_horizontal(candidate.direction)
+            || !directions_are_compatible(target.direction, candidate.direction)
+        {
+            continue;
+        }
+        let vertical_overlap = interval_overlap_ratio(
+            (target.line.bbox.min.y, target.line.bbox.max.y),
+            (candidate.line.bbox.min.y, candidate.line.bbox.max.y),
+        );
+        let baseline_dist = (target.line.baseline.y - candidate.line.baseline.y).abs();
+        let min_height = target.median_height.min(candidate.median_height);
+        let same_row =
+            vertical_overlap >= 0.4 || (min_height > 0.0 && baseline_dist <= 0.35 * min_height);
+        if !same_row {
+            continue;
+        }
+        let horizontal_gap = interval_gap(target.inline_interval, candidate.inline_interval);
+        let min_font_size = target.median_font_size.min(candidate.median_font_size);
+        if horizontal_gap >= 0.5 * min_font_size {
+            peers.push(index);
+        }
+    }
+    peers
+}
+
+fn max_column_width(target: &LineStats<'_>, stats: &[LineStats<'_>]) -> f64 {
+    let mut max_width = target.line.bbox.max.x - target.line.bbox.min.x;
+    for candidate in stats {
+        if candidate.line.page != target.line.page {
+            continue;
+        }
+        let overlap = interval_overlap_ratio(target.inline_interval, candidate.inline_interval);
+        if overlap > 0.3 {
+            let width = candidate.line.bbox.max.x - candidate.line.bbox.min.x;
+            max_width = max_width.max(width);
+        }
+    }
+    max_width
+}
+
+fn crosses_grid_cell_boundary(
+    previous: &LineStats<'_>,
+    current: &LineStats<'_>,
+    stats: &[LineStats<'_>],
+) -> bool {
+    let prev_peers = find_aligned_peers(previous, stats);
+    let curr_peers = find_aligned_peers(current, stats);
+
+    if prev_peers.is_empty() || curr_peers.is_empty() {
+        return false;
+    }
+
+    // If previous and current share an aligned peer line, they are lines in the
+    // same multi-line cell of that row band.
+    if prev_peers.iter().any(|p| curr_peers.contains(p)) {
+        return false;
+    }
+
+    // If they have distinct peers, check whether they form a grid / table / form:
+    let total_cols_prev = 1 + prev_peers.len();
+    let total_cols_curr = 1 + curr_peers.len();
+
+    // If 3 or more columns are present across either row, it is a multi-column table/grid.
+    if total_cols_prev >= 3 || total_cols_curr >= 3 {
+        return true;
+    }
+
+    // For 2-column layouts, check if both columns are full-width prose columns.
+    let col_width_prev = max_column_width(previous, stats);
+    let col_width_curr = max_column_width(current, stats);
+    let col_width_peer_prev = prev_peers
+        .iter()
+        .map(|&idx| max_column_width(&stats[idx], stats))
+        .fold(0.0, f64::max);
+    let col_width_peer_curr = curr_peers
+        .iter()
+        .map(|&idx| max_column_width(&stats[idx], stats))
+        .fold(0.0, f64::max);
+
+    let min_prose_width = 12.0 * previous.median_font_size;
+    let is_prose = col_width_prev >= min_prose_width
+        && col_width_curr >= min_prose_width
+        && col_width_peer_prev >= min_prose_width
+        && col_width_peer_curr >= min_prose_width;
+
+    !is_prose
+}
+
 fn should_join(
     previous: &LineStats<'_>,
     current: &LineStats<'_>,
+    stats: &[LineStats<'_>],
     options: BlockOptions,
 ) -> Result<bool> {
     if previous.line.page != current.line.page
@@ -545,6 +660,10 @@ fn should_join(
         || !is_horizontal(current.direction)
         || !directions_are_compatible(previous.direction, current.direction)
     {
+        return Ok(false);
+    }
+
+    if crosses_grid_cell_boundary(previous, current, stats) {
         return Ok(false);
     }
 
