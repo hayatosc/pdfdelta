@@ -20,7 +20,7 @@ use std::{
 use pdfdelta_core::{
     alignment::{
         AlignmentOptions, BlockFeatures, CandidateGenerator, ExhaustiveCandidateGenerator,
-        InvertedIndexCandidateGenerator, NGram, build_block_features,
+        InvertedIndexCandidateGenerator, MinHashLshCandidateGenerator, NGram, build_block_features,
         estimate_ngram_token_elements,
     },
     layout::{BlockId, reconstruct_blocks, reconstruct_lines},
@@ -109,6 +109,8 @@ pub struct CandidateEvalRecord {
     pub unmatched_old_blocks: usize,
     /// Inverted-index recall@K, one entry per K in `top_k`.
     pub recall_at_k: Vec<f64>,
+    /// MinHash LSH recall@K, one entry per K in `top_k`.
+    pub minhash_recall_at_k: Vec<f64>,
     /// Exhaustive-oracle recall@K, one entry per K in `top_k`.
     pub oracle_recall_at_k: Vec<f64>,
     /// Inverted-index candidate counts per old block (nearest-rank p50).
@@ -116,6 +118,11 @@ pub struct CandidateEvalRecord {
     /// Inverted-index candidate counts per old block (nearest-rank p95).
     pub candidate_count_p95: usize,
     pub candidate_count_max: usize,
+    /// MinHash LSH candidate counts per old block (nearest-rank p50).
+    pub minhash_candidate_count_p50: usize,
+    /// MinHash LSH candidate counts per old block (nearest-rank p95).
+    pub minhash_candidate_count_p95: usize,
+    pub minhash_candidate_count_max: usize,
     /// Exhaustive-oracle candidate counts per old block (nearest-rank p50).
     pub oracle_candidate_count_p50: usize,
     /// Exhaustive-oracle candidate counts per old block (nearest-rank p95).
@@ -138,6 +145,16 @@ pub struct CandidateEvalRecord {
     /// investigation signal, not a sufficient condition for a production
     /// LIMIT failure (false positives possible, false negatives not).
     pub estimated_visits_upper_bound_exceeds_limit: bool,
+    /// MinHash LSH estimated visits per old block (nearest-rank p50).
+    pub minhash_estimated_visits_p50: usize,
+    /// MinHash LSH estimated visits per old block (nearest-rank p95).
+    pub minhash_estimated_visits_p95: usize,
+    pub minhash_estimated_visits_max: usize,
+    /// Sum of MinHash LSH estimated visits across all old blocks.
+    pub minhash_estimated_visits_upper_bound_total: usize,
+    /// Whether MinHash LSH `estimated_visits_upper_bound_total` exceeds
+    /// `max_candidate_visits`.
+    pub minhash_estimated_visits_upper_bound_exceeds_limit: bool,
     /// Total n-gram posting visits across all old blocks, excluding exact
     /// matches and the short-block fallback.
     pub ngram_posting_visits_total: usize,
@@ -169,13 +186,15 @@ pub struct CandidateEvalRecord {
 
 impl CandidateEvalRecord {
     /// Whether the inverted-index recall meets the exhaustive oracle at
-    /// every K. Recall values share the same integer denominator, so exact
+    /// every K, and all candidate generator recall vectors are well-formed.
+    /// Recall values share the same integer denominator, so exact
     /// comparison is used; an empty evaluation or any vector length
     /// mismatch is never healthy.
     pub fn healthy(&self) -> bool {
         !self.top_k.is_empty()
             && self.top_k.len() == self.recall_at_k.len()
             && self.recall_at_k.len() == self.oracle_recall_at_k.len()
+            && self.recall_at_k.len() == self.minhash_recall_at_k.len()
             && self
                 .recall_at_k
                 .iter()
@@ -231,20 +250,27 @@ pub fn evaluate_candidate_generation(
         .map_err(|error| core_error("candidate feature build", error))?;
     let inverted = InvertedIndexCandidateGenerator::new(&new_features)
         .map_err(|error| core_error("candidate index build", error))?;
+    let minhash = MinHashLshCandidateGenerator::new(&new_features)
+        .map_err(|error| core_error("minhash candidate index build", error))?;
     let exhaustive = ExhaustiveCandidateGenerator::new(&new_features)
         .map_err(|error| core_error("candidate index build", error))?;
 
     let mut recall = Vec::with_capacity(top_k.len());
+    let mut minhash_recall = Vec::with_capacity(top_k.len());
     let mut oracle_recall = Vec::with_capacity(top_k.len());
     for k in top_k {
         recall.push(recall_at_k(&old_features, &counterparts, &inverted, *k)?);
+        minhash_recall.push(recall_at_k(&old_features, &counterparts, &minhash, *k)?);
         oracle_recall.push(recall_at_k(&old_features, &counterparts, &exhaustive, *k)?);
     }
 
     let counts = candidate_counts(&old_features, &inverted)?;
+    let minhash_counts = candidate_counts(&old_features, &minhash)?;
     let oracle_counts = candidate_counts(&old_features, &exhaustive)?;
     let pressure =
         measure_visit_metrics(&old_features, &new_features, &inverted, options.alignment)?;
+    let minhash_pressure =
+        measure_visit_metrics(&old_features, &new_features, &minhash, options.alignment)?;
     let counterpart_old_blocks = counterparts
         .values()
         .filter(|counterparts| !counterparts.is_empty())
@@ -259,10 +285,14 @@ pub fn evaluate_candidate_generation(
         counterpart_old_blocks,
         unmatched_old_blocks: old_blocks.len() - counterpart_old_blocks,
         recall_at_k: recall,
+        minhash_recall_at_k: minhash_recall,
         oracle_recall_at_k: oracle_recall,
         candidate_count_p50: percentile(&counts, 0.50),
         candidate_count_p95: percentile(&counts, 0.95),
         candidate_count_max: counts.iter().copied().max().unwrap_or(0),
+        minhash_candidate_count_p50: percentile(&minhash_counts, 0.50),
+        minhash_candidate_count_p95: percentile(&minhash_counts, 0.95),
+        minhash_candidate_count_max: minhash_counts.iter().copied().max().unwrap_or(0),
         oracle_candidate_count_p50: percentile(&oracle_counts, 0.50),
         oracle_candidate_count_p95: percentile(&oracle_counts, 0.95),
         oracle_candidate_count_max: oracle_counts.iter().copied().max().unwrap_or(0),
@@ -272,6 +302,13 @@ pub fn evaluate_candidate_generation(
         estimated_visits_upper_bound_total: pressure.estimated_visits_upper_bound_total,
         max_candidate_visits: pressure.max_candidate_visits,
         estimated_visits_upper_bound_exceeds_limit: pressure
+            .estimated_visits_upper_bound_exceeds_limit,
+        minhash_estimated_visits_p50: minhash_pressure.estimated_visits_p50,
+        minhash_estimated_visits_p95: minhash_pressure.estimated_visits_p95,
+        minhash_estimated_visits_max: minhash_pressure.estimated_visits_max,
+        minhash_estimated_visits_upper_bound_total: minhash_pressure
+            .estimated_visits_upper_bound_total,
+        minhash_estimated_visits_upper_bound_exceeds_limit: minhash_pressure
             .estimated_visits_upper_bound_exceeds_limit,
         ngram_posting_visits_total: pressure.ngram_posting_visits_total,
         dominant_ngram_visits: pressure.dominant_ngram_visits,
@@ -305,6 +342,25 @@ pub fn evaluate_candidate_visit_pressure(
     let inverted = InvertedIndexCandidateGenerator::new(&new_features)
         .map_err(|error| core_error("candidate index build", error))?;
     measure_visit_metrics(&old_features, &new_features, &inverted, options.alignment)
+}
+
+/// Measures the all-old-block candidate visit pressure of the MinHash LSH
+/// generator for two extracted glyph documents.
+pub fn evaluate_minhash_candidate_visit_pressure(
+    old: &Document<Glyph>,
+    new: &Document<Glyph>,
+    options: PipelineOptions,
+) -> Result<CandidateVisitPressure> {
+    let old_blocks = normalized_blocks_from_document(old, options)?;
+    let new_blocks = normalized_blocks_from_document(new, options)?;
+    enforce_ngram_budget(&old_blocks, &new_blocks, options)?;
+    let old_features = build_block_features(&old_blocks, options.ngram_size)
+        .map_err(|error| core_error("candidate feature build", error))?;
+    let new_features = build_block_features(&new_blocks, options.ngram_size)
+        .map_err(|error| core_error("candidate feature build", error))?;
+    let minhash = MinHashLshCandidateGenerator::new(&new_features)
+        .map_err(|error| core_error("candidate minhash index build", error))?;
+    measure_visit_metrics(&old_features, &new_features, &minhash, options.alignment)
 }
 
 /// Writes every record as a pretty JSON array to a new file, refusing to
@@ -984,11 +1040,15 @@ mod tests {
             new_blocks: 3,
             counterpart_old_blocks: 3,
             unmatched_old_blocks: 0,
-            recall_at_k,
+            recall_at_k: recall_at_k.clone(),
+            minhash_recall_at_k: recall_at_k,
             oracle_recall_at_k,
             candidate_count_p50: 1,
             candidate_count_p95: 1,
             candidate_count_max: 1,
+            minhash_candidate_count_p50: 1,
+            minhash_candidate_count_p95: 1,
+            minhash_candidate_count_max: 1,
             oracle_candidate_count_p50: 3,
             oracle_candidate_count_p95: 3,
             oracle_candidate_count_max: 3,
@@ -998,6 +1058,11 @@ mod tests {
             estimated_visits_upper_bound_total: 3,
             max_candidate_visits: 1_000_000,
             estimated_visits_upper_bound_exceeds_limit: false,
+            minhash_estimated_visits_p50: 1,
+            minhash_estimated_visits_p95: 1,
+            minhash_estimated_visits_max: 1,
+            minhash_estimated_visits_upper_bound_total: 3,
+            minhash_estimated_visits_upper_bound_exceeds_limit: false,
             ngram_posting_visits_total: 3,
             dominant_ngram_visits: 1,
             dominant_ngram_df: 1,
@@ -1186,6 +1251,26 @@ mod tests {
 
         assert_eq!(pressure.estimated_visits_upper_bound_total, 4);
         assert_eq!(pressure.estimated_visits_max, 2);
+    }
+
+    #[test]
+    fn evaluate_minhash_candidate_visit_pressure_measures_deterministic_budget() {
+        let old = glyph_document(&["aaaaaaefgh", "aaaaaaijkl", "aaaaaamnop"]);
+        let new = glyph_document(&["aaaaaaefgh", "aaaaaaijkl", "aaaaaamnop"]);
+        let options = PipelineOptions {
+            alignment: AlignmentOptions {
+                max_candidate_visits: 1000,
+                ..AlignmentOptions::default()
+            },
+            ..PipelineOptions::default()
+        };
+
+        let pressure = evaluate_minhash_candidate_visit_pressure(&old, &new, options)
+            .expect("minhash pressure measures");
+
+        assert!(pressure.estimated_visits_upper_bound_total > 0);
+        assert_eq!(pressure.max_candidate_visits, 1000);
+        assert!(!pressure.estimated_visits_upper_bound_exceeds_limit);
     }
 
     #[test]

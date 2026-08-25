@@ -262,21 +262,44 @@ fn candidate_report_line(record: &CandidateEvalRecord) -> String {
     } else {
         "mismatch".to_owned()
     };
+    let minhash_recall = if record.top_k.len() == record.minhash_recall_at_k.len()
+        && record.minhash_recall_at_k.len() == record.oracle_recall_at_k.len()
+    {
+        record
+            .minhash_recall_at_k
+            .iter()
+            .zip(&record.oracle_recall_at_k)
+            .map(|(minhash, oracle)| format!("{minhash:.3}/{oracle:.3}"))
+            .collect::<Vec<_>>()
+            .join(",")
+    } else {
+        "mismatch".to_owned()
+    };
     format!(
-        "OK case={} renderer={} top_k={} recall={} candidates={}/{}/{} visits={}/{}/{}/{}/{}/{} ngram={}/{}/{} shared={} top10={} n50={} n90={} df_p50={} df_p95={} df_max={}",
+        "OK case={} renderer={} top_k={} recall={} minhash_recall={} candidates={}/{}/{} minhash_candidates={}/{}/{} visits={}/{}/{}/{}/{}/{} minhash_visits={}/{}/{}/{}/{}/{} ngram={}/{}/{} shared={} top10={} n50={} n90={} df_p50={} df_p95={} df_max={}",
         record.case_name,
         record.renderer.name(),
         top_k,
         recall,
+        minhash_recall,
         record.candidate_count_p50,
         record.candidate_count_p95,
         record.candidate_count_max,
+        record.minhash_candidate_count_p50,
+        record.minhash_candidate_count_p95,
+        record.minhash_candidate_count_max,
         record.estimated_visits_p50,
         record.estimated_visits_p95,
         record.estimated_visits_max,
         record.estimated_visits_upper_bound_total,
         record.max_candidate_visits,
         record.estimated_visits_upper_bound_exceeds_limit,
+        record.minhash_estimated_visits_p50,
+        record.minhash_estimated_visits_p95,
+        record.minhash_estimated_visits_max,
+        record.minhash_estimated_visits_upper_bound_total,
+        record.max_candidate_visits,
+        record.minhash_estimated_visits_upper_bound_exceeds_limit,
         record.ngram_posting_visits_total,
         record.dominant_ngram_visits,
         record.dominant_ngram_df,
@@ -555,11 +578,15 @@ mod tests {
             new_blocks: 3,
             counterpart_old_blocks: 3,
             unmatched_old_blocks: 0,
-            recall_at_k,
+            recall_at_k: recall_at_k.clone(),
+            minhash_recall_at_k: recall_at_k,
             oracle_recall_at_k,
             candidate_count_p50: 1,
             candidate_count_p95: 1,
             candidate_count_max: 1,
+            minhash_candidate_count_p50: 1,
+            minhash_candidate_count_p95: 1,
+            minhash_candidate_count_max: 1,
             oracle_candidate_count_p50: 3,
             oracle_candidate_count_p95: 3,
             oracle_candidate_count_max: 3,
@@ -569,6 +596,11 @@ mod tests {
             estimated_visits_upper_bound_total: 3,
             max_candidate_visits: 1_000_000,
             estimated_visits_upper_bound_exceeds_limit: false,
+            minhash_estimated_visits_p50: 1,
+            minhash_estimated_visits_p95: 1,
+            minhash_estimated_visits_max: 1,
+            minhash_estimated_visits_upper_bound_total: 3,
+            minhash_estimated_visits_upper_bound_exceeds_limit: false,
             ngram_posting_visits_total: 3,
             dominant_ngram_visits: 1,
             dominant_ngram_df: 1,

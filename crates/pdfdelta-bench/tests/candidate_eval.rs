@@ -59,9 +59,30 @@ fn built_in_fixtures_recover_true_counterparts_at_top_k() {
             record.case_name,
             top_k.last().expect("top_k is nonempty")
         );
+        if case.name() != "double-line-wrap-only" {
+            assert_eq!(
+                record.minhash_recall_at_k.last(),
+                Some(&1.0),
+                "{} minhash recall@{}",
+                record.case_name,
+                top_k.last().expect("top_k is nonempty")
+            );
+        } else {
+            assert!(
+                record.minhash_recall_at_k.last().copied().unwrap_or(0.0) >= 0.6,
+                "{} minhash recall@{}",
+                record.case_name,
+                top_k.last().expect("top_k is nonempty")
+            );
+        }
         assert!(
             record.candidate_count_max <= record.oracle_candidate_count_max,
             "{} inverted-index candidate count exceeds exhaustive",
+            record.case_name
+        );
+        assert!(
+            record.minhash_candidate_count_max <= record.oracle_candidate_count_max,
+            "{} minhash candidate count exceeds exhaustive",
             record.case_name
         );
     }
@@ -105,6 +126,7 @@ fn paragraph_move_counterpart_is_recovered_in_top_k() {
     assert_eq!(record.unmatched_old_blocks, 0);
     assert_eq!(record.counterpart_old_blocks, record.old_blocks);
     assert_eq!(record.recall_at_k, [1.0]);
+    assert_eq!(record.minhash_recall_at_k, [1.0]);
     assert_eq!(record.oracle_recall_at_k, [1.0]);
 }
 
@@ -150,5 +172,37 @@ fn inverted_index_prunes_candidates_without_losing_recall() {
 
     // Pruning must not cost recall: every true counterpart stays in top-K.
     assert_eq!(record.recall_at_k, vec![1.0, 1.0]);
+    assert_eq!(record.minhash_recall_at_k, vec![1.0, 1.0]);
     assert_eq!(record.oracle_recall_at_k, vec![1.0, 1.0]);
+}
+
+#[test]
+fn minhash_lsh_recovers_counterparts_and_bounds_candidates() {
+    let document = grouped_document();
+    let case = BenchmarkCase::new(
+        "grouped-replacement-minhash",
+        document,
+        Mutation::TextReplace {
+            paragraph_id: "p00".to_owned(),
+            new_text: "aaaaaaefgi".to_owned(),
+        },
+        30,
+    )
+    .expect("valid benchmark case");
+
+    let top_k = [2, 5];
+    let record = evaluate_candidate_generation(&case, RendererKind::LopdfTj, &top_k)
+        .expect("candidate evaluation completes");
+
+    assert_eq!(record.unmatched_old_blocks, 0);
+    assert_eq!(record.counterpart_old_blocks, record.old_blocks);
+    assert_eq!(record.minhash_recall_at_k, vec![1.0, 1.0]);
+    assert!(
+        record.minhash_candidate_count_max <= record.oracle_candidate_count_max,
+        "minhash candidates must not exceed exhaustive oracle"
+    );
+    assert!(
+        record.minhash_estimated_visits_upper_bound_total > 0,
+        "minhash estimated visits must be tracked"
+    );
 }
