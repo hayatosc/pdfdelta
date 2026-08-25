@@ -177,6 +177,14 @@ pub(crate) struct AlignmentVisitMetrics {
     /// that exceeded the budget; on an earlier error it is the charge
     /// accumulated before the failure.
     pub candidate_visits: usize,
+    /// Checked sum of `CandidateGenerator::estimated_visits` over every
+    /// non-anchor old block, independent of the budget: the full candidate
+    /// work the alignment would need. `Some` when the full sum completed
+    /// (including on a limit failure); `None` when an estimate error or
+    /// overflow made the sum unavailable, or the candidate preflight was
+    /// never reached (e.g. an earlier alignment error). Identity alignment
+    /// is `Some(0)`.
+    pub candidate_visits_required: Option<usize>,
     /// The `AlignmentOptions::max_candidate_visits` budget the charge was
     /// compared against.
     pub max_candidate_visits: usize,
@@ -197,11 +205,20 @@ pub(crate) fn align_ordered_with_metrics(
     options: AlignmentOptions,
 ) -> AlignmentAttempt {
     let mut candidate_visits = 0_usize;
-    let result = align_ordered_inner(old, new, generator, options, &mut candidate_visits);
+    let mut candidate_visits_required = None;
+    let result = align_ordered_inner(
+        old,
+        new,
+        generator,
+        options,
+        &mut candidate_visits,
+        &mut candidate_visits_required,
+    );
     AlignmentAttempt {
         result,
         visit_metrics: AlignmentVisitMetrics {
             candidate_visits,
+            candidate_visits_required,
             max_candidate_visits: options.max_candidate_visits,
         },
     }
@@ -213,6 +230,7 @@ fn align_ordered_inner(
     generator: &dyn CandidateGenerator,
     options: AlignmentOptions,
     candidate_visits: &mut usize,
+    candidate_visits_required: &mut Option<usize>,
 ) -> Result<Alignment> {
     validate_alignment_options(options)?;
     validate_features("old", old)?;
@@ -220,6 +238,7 @@ fn align_ordered_inner(
     validate_shared_ngram_size(old, new)?;
 
     if old == new {
+        *candidate_visits_required = Some(0);
         return Ok(identity_alignment(old));
     }
 
@@ -255,6 +274,7 @@ fn align_ordered_inner(
         options.candidate_limit,
         options.max_candidate_visits,
         candidate_visits,
+        candidate_visits_required,
     )?;
     let move_old = move_candidates
         .iter()
@@ -510,6 +530,7 @@ fn is_full_text_similarity_collapse(
 
 type CandidateMap = HashMap<BlockId, HashMap<BlockId, Vec<CandidateSource>>>;
 
+#[allow(clippy::too_many_arguments)]
 fn collect_candidates(
     old: &[BlockFeatures],
     new_indices: &HashMap<BlockId, usize>,
@@ -518,28 +539,67 @@ fn collect_candidates(
     limit: usize,
     max_visits: usize,
     candidate_visits: &mut usize,
+    candidate_visits_required: &mut Option<usize>,
 ) -> Result<CandidateMap> {
+    // The required sum is the checked total over every non-anchor old block
+    // and is unavailable (`None`) whenever any estimate errors or the sum
+    // overflows. The attempted charge is frozen at the first budget exceed
+    // while the required sum keeps accumulating, so a limit failure still
+    // reports the full candidate work the alignment would have needed.
+    *candidate_visits_required = None;
     let mut remaining_visits = max_visits;
+    let mut exceeded = false;
+    let mut required_visits = 0_usize;
     for features in old
         .iter()
         .filter(|features| !main_anchor_old.contains(&features.block))
     {
-        let visits = generator.estimated_visits(features, limit)?;
-        // The attempted cumulative charge includes the block that exceeds
-        // the budget so the recorded metric explains the failure. On
-        // overflow the charge accumulated so far is retained.
-        *candidate_visits = candidate_visits
+        let visits = match generator.estimated_visits(features, limit) {
+            Ok(visits) => visits,
+            Err(error) => {
+                // Error precedence: a limit failure already detected takes
+                // precedence over a later estimate error, and the required
+                // sum is then incomplete.
+                if exceeded {
+                    return Err(Error::LimitExceeded {
+                        resource: "alignment candidate visits",
+                        limit: max_visits,
+                    });
+                }
+                return Err(error);
+            }
+        };
+        if !exceeded {
+            // The attempted cumulative charge includes the block that
+            // exceeds the budget so the recorded metric explains the
+            // failure; on overflow the charge accumulated so far is
+            // retained.
+            *candidate_visits =
+                candidate_visits
+                    .checked_add(visits)
+                    .ok_or(Error::LimitExceeded {
+                        resource: "alignment candidate visits",
+                        limit: max_visits,
+                    })?;
+            if remaining_visits < visits {
+                exceeded = true;
+            } else {
+                remaining_visits -= visits;
+            }
+        }
+        required_visits = required_visits
             .checked_add(visits)
             .ok_or(Error::LimitExceeded {
                 resource: "alignment candidate visits",
                 limit: max_visits,
             })?;
-        remaining_visits = remaining_visits
-            .checked_sub(visits)
-            .ok_or(Error::LimitExceeded {
-                resource: "alignment candidate visits",
-                limit: max_visits,
-            })?;
+    }
+    *candidate_visits_required = Some(required_visits);
+    if exceeded {
+        return Err(Error::LimitExceeded {
+            resource: "alignment candidate visits",
+            limit: max_visits,
+        });
     }
 
     let mut all = HashMap::with_capacity(old.len().saturating_sub(main_anchor_old.len()));
@@ -1683,7 +1743,240 @@ fn validate_shared_ngram_size(old: &[BlockFeatures], new: &[BlockFeatures]) -> R
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+
+    use crate::normalize::ComparableToken;
+
     use super::*;
+    use crate::alignment::{Candidate, ExactHash};
+
+    fn feature(block: u64, key: u64) -> BlockFeatures {
+        let scalar = char::from_u32(0x1000 + key as u32).expect("fixture key should be valid");
+        let tokens = vec![ComparableToken::Scalar(scalar)];
+        BlockFeatures {
+            block: BlockId(block),
+            exact_hash: ExactHash(key),
+            canonical_tokens: tokens.clone(),
+            matching_tokens: tokens,
+            ngrams: Default::default(),
+            ngram_size: 3,
+            numeric_mask_applied: false,
+            has_normalization_issues: false,
+        }
+    }
+
+    struct FixedVisitsGenerator {
+        visits: usize,
+        estimated: RefCell<Vec<BlockId>>,
+        generated: RefCell<Vec<BlockId>>,
+    }
+
+    impl FixedVisitsGenerator {
+        fn new(visits: usize) -> Self {
+            Self {
+                visits,
+                estimated: RefCell::new(Vec::new()),
+                generated: RefCell::new(Vec::new()),
+            }
+        }
+    }
+
+    impl CandidateGenerator for FixedVisitsGenerator {
+        fn estimated_visits(&self, old: &BlockFeatures, _limit: usize) -> Result<usize> {
+            self.estimated.borrow_mut().push(old.block);
+            Ok(self.visits)
+        }
+
+        fn candidates(&self, old: &BlockFeatures, _limit: usize) -> Result<Vec<Candidate>> {
+            self.generated.borrow_mut().push(old.block);
+            Ok(Vec::new())
+        }
+    }
+
+    struct ErroringGenerator {
+        visits: usize,
+        error_block: BlockId,
+    }
+
+    impl CandidateGenerator for ErroringGenerator {
+        fn estimated_visits(&self, old: &BlockFeatures, _limit: usize) -> Result<usize> {
+            if old.block == self.error_block {
+                Err(Error::Unresolved(format!(
+                    "estimate failed for block {}",
+                    old.block.0
+                )))
+            } else {
+                Ok(self.visits)
+            }
+        }
+
+        fn candidates(&self, _old: &BlockFeatures, _limit: usize) -> Result<Vec<Candidate>> {
+            Ok(Vec::new())
+        }
+    }
+
+    fn distinct_features() -> (Vec<BlockFeatures>, Vec<BlockFeatures>) {
+        let old = vec![feature(1, 1), feature(2, 2), feature(3, 3)];
+        let new = vec![feature(101, 101), feature(102, 102), feature(103, 103)];
+        (old, new)
+    }
+
+    #[test]
+    fn required_candidate_visits_sums_all_blocks_when_limit_exceeds_midway() {
+        let (old, new) = distinct_features();
+        let generator = FixedVisitsGenerator::new(6);
+        let options = AlignmentOptions {
+            max_candidate_visits: 11,
+            ..AlignmentOptions::default()
+        };
+
+        let attempt = align_ordered_with_metrics(&old, &new, &generator, options);
+
+        assert!(matches!(
+            attempt.result,
+            Err(Error::LimitExceeded {
+                resource: "alignment candidate visits",
+                limit: 11,
+            })
+        ));
+        // The attempted charge is frozen at the first budget exceed (two
+        // blocks of six visits) while the required sum covers all three.
+        assert_eq!(attempt.visit_metrics.candidate_visits, 12);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required, Some(18));
+        assert_eq!(attempt.visit_metrics.max_candidate_visits, 11);
+        assert_eq!(
+            *generator.estimated.borrow(),
+            [BlockId(1), BlockId(2), BlockId(3)]
+        );
+        assert!(generator.generated.borrow().is_empty());
+    }
+
+    #[test]
+    fn required_candidate_visits_matches_attempted_on_success() {
+        let (old, new) = distinct_features();
+        let generator = FixedVisitsGenerator::new(6);
+        let options = AlignmentOptions {
+            max_candidate_visits: 18,
+            ..AlignmentOptions::default()
+        };
+
+        let attempt = align_ordered_with_metrics(&old, &new, &generator, options);
+
+        assert!(attempt.result.is_ok());
+        assert_eq!(attempt.visit_metrics.candidate_visits, 18);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required, Some(18));
+        assert_eq!(
+            *generator.generated.borrow(),
+            [BlockId(1), BlockId(2), BlockId(3)]
+        );
+    }
+
+    #[test]
+    fn required_candidate_visits_is_zero_for_identity_alignment() {
+        let (old, _) = distinct_features();
+        let generator = FixedVisitsGenerator::new(6);
+
+        let attempt =
+            align_ordered_with_metrics(&old, &old, &generator, AlignmentOptions::default());
+
+        assert!(attempt.result.is_ok());
+        assert_eq!(attempt.visit_metrics.candidate_visits, 0);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required, Some(0));
+        assert!(generator.estimated.borrow().is_empty());
+        assert!(generator.generated.borrow().is_empty());
+    }
+
+    #[test]
+    fn pre_collect_error_leaves_required_candidate_visits_unavailable() {
+        let (old, new) = distinct_features();
+        let generator = FixedVisitsGenerator::new(6);
+        let options = AlignmentOptions {
+            max_candidate_visits: 0,
+            ..AlignmentOptions::default()
+        };
+
+        let attempt = align_ordered_with_metrics(&old, &new, &generator, options);
+
+        assert!(matches!(
+            attempt.result,
+            Err(Error::InvalidConfiguration(message)) if message.contains("max_candidate_visits")
+        ));
+        assert_eq!(attempt.visit_metrics.candidate_visits, 0);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required, None);
+    }
+
+    #[test]
+    fn estimate_error_before_budget_exceed_keeps_the_original_error() {
+        let (old, new) = distinct_features();
+        let generator = ErroringGenerator {
+            visits: 6,
+            error_block: BlockId(1),
+        };
+        let options = AlignmentOptions {
+            max_candidate_visits: 100,
+            ..AlignmentOptions::default()
+        };
+
+        let attempt = align_ordered_with_metrics(&old, &new, &generator, options);
+
+        assert!(matches!(attempt.result, Err(Error::Unresolved(_))));
+        assert_eq!(attempt.visit_metrics.candidate_visits, 0);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required, None);
+    }
+
+    #[test]
+    fn estimate_error_after_budget_exceed_reports_limit_without_required_sum() {
+        let (old, new) = distinct_features();
+        let generator = ErroringGenerator {
+            visits: 6,
+            error_block: BlockId(3),
+        };
+        let options = AlignmentOptions {
+            max_candidate_visits: 11,
+            ..AlignmentOptions::default()
+        };
+
+        let attempt = align_ordered_with_metrics(&old, &new, &generator, options);
+
+        assert!(matches!(
+            attempt.result,
+            Err(Error::LimitExceeded {
+                resource: "alignment candidate visits",
+                limit: 11,
+            })
+        ));
+        assert_eq!(attempt.visit_metrics.candidate_visits, 12);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required, None);
+    }
+
+    #[test]
+    fn required_sum_overflow_after_budget_exceed_reports_limit_without_required() {
+        let old = vec![feature(1, 1), feature(2, 2), feature(3, 3), feature(4, 4)];
+        let new = vec![
+            feature(101, 101),
+            feature(102, 102),
+            feature(103, 103),
+            feature(104, 104),
+        ];
+        let visits = usize::MAX / 4 + 1;
+        let generator = FixedVisitsGenerator::new(visits);
+        let options = AlignmentOptions {
+            max_candidate_visits: 2 * visits,
+            ..AlignmentOptions::default()
+        };
+
+        let attempt = align_ordered_with_metrics(&old, &new, &generator, options);
+
+        assert!(matches!(
+            attempt.result,
+            Err(Error::LimitExceeded {
+                resource: "alignment candidate visits",
+                limit,
+            }) if limit == 2 * visits
+        ));
+        assert_eq!(attempt.visit_metrics.candidate_visits, 3 * visits);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required, None);
+    }
 
     fn group_score(score: f64, exact_canonical: bool) -> GroupScore {
         GroupScore {

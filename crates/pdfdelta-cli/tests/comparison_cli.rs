@@ -593,6 +593,10 @@ fn trace_records_candidate_visit_metrics_on_the_alignment_phase() {
         .as_u64()
         .expect("candidate visits should be recorded");
     assert!(visits > 0, "non-anchor old blocks must be charged");
+    assert_eq!(
+        alignment["metrics"]["candidate_visits_required"], visits,
+        "attempted charge must equal the required sum on success"
+    );
     assert_eq!(alignment["metrics"]["max_candidate_visits"], 1_000_000);
 }
 

@@ -328,6 +328,10 @@ fn pipeline_metrics(
         ("indexed_features", metrics.indexed_features),
         ("alignment_spans", metrics.alignment_spans),
         ("candidate_visits", metrics.candidate_visits),
+        (
+            "candidate_visits_required",
+            metrics.candidate_visits_required,
+        ),
         ("max_candidate_visits", metrics.max_candidate_visits),
         ("changes", metrics.changes),
         ("formatting_changes", metrics.formatting_changes),

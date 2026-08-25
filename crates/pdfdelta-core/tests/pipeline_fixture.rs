@@ -491,6 +491,11 @@ fn records_candidate_visits_on_completed_alignment() -> Result<()> {
         .expect("candidate visits should be recorded");
     assert!(visits > 0, "non-anchor old blocks must be charged");
     assert_eq!(
+        alignment.metrics.candidate_visits_required,
+        Some(visits),
+        "attempted charge must equal the required sum on success"
+    );
+    assert_eq!(
         alignment.metrics.max_candidate_visits,
         Some(AlignmentOptions::default().max_candidate_visits)
     );
@@ -540,6 +545,11 @@ fn records_attempted_candidate_visits_when_alignment_limit_fails() -> Result<()>
         .expect("alignment failure should be recorded");
     assert_eq!(failure.status, PipelinePhaseStatus::Failed);
     assert_eq!(failure.metrics.candidate_visits, Some(charge));
+    assert_eq!(
+        failure.metrics.candidate_visits_required,
+        Some(charge),
+        "the full required sum completes when no later estimate errors"
+    );
     assert_eq!(failure.metrics.max_candidate_visits, Some(charge - 1));
     let error = failure
         .error
@@ -569,6 +579,7 @@ fn records_zero_candidate_visits_for_identical_documents() -> Result<()> {
         .find(|record| record.phase == PipelinePhase::Alignment)
         .expect("alignment should be recorded");
     assert_eq!(alignment.metrics.candidate_visits, Some(0));
+    assert_eq!(alignment.metrics.candidate_visits_required, Some(0));
     assert_eq!(
         alignment.metrics.max_candidate_visits,
         Some(AlignmentOptions::default().max_candidate_visits)

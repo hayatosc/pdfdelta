@@ -175,6 +175,13 @@ pub struct PairRunReport {
     /// exceeding block. `None` when alignment was never reached (e.g. an
     /// earlier n-gram or diff budget limit).
     pub candidate_visits: Option<usize>,
+    /// Checked sum of `CandidateGenerator::estimated_visits` over every
+    /// non-anchor old block, independent of the budget: the full candidate
+    /// work the alignment would need. `Some` when the full sum completed
+    /// (including on a candidate limit stop); `None` when an estimate error
+    /// or overflow made the sum unavailable, or the candidate preflight was
+    /// never reached (e.g. an earlier n-gram or diff budget limit).
+    pub candidate_visits_required: Option<usize>,
     /// The `AlignmentOptions::max_candidate_visits` budget the charge was
     /// compared against.
     pub max_candidate_visits: Option<usize>,
@@ -923,6 +930,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         quality_skipped_reason: None,
         resource_limit_failure: None,
         candidate_visits: None,
+        candidate_visits_required: None,
         max_candidate_visits: None,
         candidate_visit_pressure: None,
         runtime_ms: 0,
@@ -945,8 +953,15 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
     let outcome =
         match run_extraction_and_comparison(&source, &old_path, &new_path, effective_scale) {
-            Ok((outcome, candidate_visits, max_candidate_visits, pressure)) => {
+            Ok((
+                outcome,
+                candidate_visits,
+                candidate_visits_required,
+                max_candidate_visits,
+                pressure,
+            )) => {
                 record.candidate_visits = candidate_visits;
+                record.candidate_visits_required = candidate_visits_required;
                 record.max_candidate_visits = max_candidate_visits;
                 record.candidate_visit_pressure = pressure;
                 outcome
@@ -958,11 +973,13 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
             Err(RevisionRunError::Limit {
                 message,
                 candidate_visits,
+                candidate_visits_required,
                 max_candidate_visits,
                 pressure,
             }) => {
                 record.resource_limit_failure = Some(message);
                 record.candidate_visits = candidate_visits;
+                record.candidate_visits_required = candidate_visits_required;
                 record.max_candidate_visits = max_candidate_visits;
                 record.candidate_visit_pressure = pressure.map(|pressure| *pressure);
                 record.quality_skipped_reason =
@@ -1110,6 +1127,7 @@ enum RevisionRunError {
     Limit {
         message: String,
         candidate_visits: Option<usize>,
+        candidate_visits_required: Option<usize>,
         max_candidate_visits: Option<usize>,
         pressure: Option<Box<CandidateVisitPressure>>,
     },
@@ -1123,40 +1141,59 @@ type ComparisonWithMetrics = (
     RevisionOutcome,
     Option<usize>,
     Option<usize>,
+    Option<usize>,
     Option<CandidateVisitPressure>,
 );
 
-/// Validates one alignment metrics pair: both fields set or both absent
-/// pass through; a partial pair is a contract violation and is reported as
-/// an error rather than silently treated as a measurement.
-fn validate_visit_pair(
+/// Alignment candidate visit metrics triple: attempted charge, required
+/// full sum, and the budget.
+type VisitMetricsTriple = (Option<usize>, Option<usize>, Option<usize>);
+
+/// Validates one alignment metrics triple. Valid states: all three fields
+/// set (alignment reached, required sum completed), attempted charge and
+/// budget set with the required sum unavailable (a limit stop where a
+/// later estimate error or overflow made the full sum incomplete), and all
+/// three absent (alignment never reached). Any other partial triple is a
+/// contract violation and is reported as an error rather than silently
+/// treated as a measurement.
+fn validate_visit_triple(
     candidate_visits: Option<usize>,
+    candidate_visits_required: Option<usize>,
     max_candidate_visits: Option<usize>,
-) -> std::result::Result<(Option<usize>, Option<usize>), String> {
-    match (candidate_visits, max_candidate_visits) {
-        (Some(_), Some(_)) | (None, None) => Ok((candidate_visits, max_candidate_visits)),
+) -> std::result::Result<VisitMetricsTriple, String> {
+    match (
+        candidate_visits,
+        candidate_visits_required,
+        max_candidate_visits,
+    ) {
+        (Some(_), Some(_), Some(_)) | (Some(_), None, Some(_)) | (None, None, None) => Ok((
+            candidate_visits,
+            candidate_visits_required,
+            max_candidate_visits,
+        )),
         _ => Err(format!(
-            "alignment metrics contract violation: candidate_visits={candidate_visits:?}, max_candidate_visits={max_candidate_visits:?}"
+            "alignment metrics contract violation: candidate_visits={candidate_visits:?}, candidate_visits_required={candidate_visits_required:?}, max_candidate_visits={max_candidate_visits:?}"
         )),
     }
 }
 
 /// Extracts the alignment candidate visit charge from the diagnostics.
-/// Returns `(None, None)` when alignment was never reached or recorded no
-/// charge; a partial pair is a contract violation and is reported as an
-/// error.
+/// Returns `(None, None, None)` when alignment was never reached or
+/// recorded no charge; a partial triple is a contract violation and is
+/// reported as an error.
 fn alignment_visit_metrics(
     diagnostics: &PipelineDiagnostics,
-) -> std::result::Result<(Option<usize>, Option<usize>), String> {
+) -> std::result::Result<VisitMetricsTriple, String> {
     let Some(record) = diagnostics
         .records()
         .iter()
         .find(|record| record.phase == PipelinePhase::Alignment)
     else {
-        return Ok((None, None));
+        return Ok((None, None, None));
     };
-    validate_visit_pair(
+    validate_visit_triple(
         record.metrics.candidate_visits,
+        record.metrics.candidate_visits_required,
         record.metrics.max_candidate_visits,
     )
 }
@@ -1209,7 +1246,7 @@ fn compare_outcomes_with_metrics(
     };
     let mut diagnostics = PipelineDiagnostics::new();
     let result = compare_extraction_outcomes_with_diagnostics(old, new, options, &mut diagnostics);
-    let (candidate_visits, max_candidate_visits) =
+    let (candidate_visits, candidate_visits_required, max_candidate_visits) =
         alignment_visit_metrics(&diagnostics).map_err(|message| {
             RevisionRunError::Other("alignment metrics contract violation", message)
         })?;
@@ -1218,12 +1255,19 @@ fn compare_outcomes_with_metrics(
         pdfdelta_core::Error::LimitExceeded { .. } => RevisionRunError::Limit {
             message: error.to_string(),
             candidate_visits,
+            candidate_visits_required,
             max_candidate_visits,
             pressure: pressure.map(Box::new),
         },
         other => RevisionRunError::Other("comparison failed", other.to_string()),
     })?;
-    Ok((outcome, candidate_visits, max_candidate_visits, pressure))
+    Ok((
+        outcome,
+        candidate_visits,
+        candidate_visits_required,
+        max_candidate_visits,
+        pressure,
+    ))
 }
 
 fn run_extraction_and_comparison(
@@ -1695,6 +1739,7 @@ mod tests {
             quality_skipped_reason: None,
             resource_limit_failure: None,
             candidate_visits: None,
+            candidate_visits_required: None,
             max_candidate_visits: None,
             candidate_visit_pressure: None,
             runtime_ms: 0,
@@ -1852,13 +1897,18 @@ mod tests {
         let new =
             ExtractionOutcome::complete(glyph_document("Stable new paragraph remains visible"));
 
-        let (outcome, candidate_visits, max_candidate_visits, pressure) =
+        let (outcome, candidate_visits, candidate_visits_required, max_candidate_visits, pressure) =
             compare_outcomes_with_metrics(old, new, PipelineOptions::default())
                 .expect("comparison succeeds");
 
         assert!(!outcome.comparison.changes.is_empty());
         let visits = candidate_visits.expect("candidate visits recorded");
         assert!(visits > 0, "non-anchor old blocks must be charged");
+        assert_eq!(
+            candidate_visits_required,
+            Some(visits),
+            "attempted charge must equal the required sum on success"
+        );
         assert_eq!(
             max_candidate_visits,
             Some(AlignmentOptions::default().max_candidate_visits)
@@ -1877,7 +1927,7 @@ mod tests {
         let new =
             ExtractionOutcome::complete(glyph_document("Stable new paragraph remains visible"));
 
-        let (_, charge, _, _) =
+        let (_, charge, _, _, _) =
             compare_outcomes_with_metrics(old.clone(), new.clone(), PipelineOptions::default())
                 .expect("baseline comparison succeeds");
         let charge = charge.expect("baseline charge recorded");
@@ -1896,11 +1946,17 @@ mod tests {
             RevisionRunError::Limit {
                 message,
                 candidate_visits,
+                candidate_visits_required,
                 max_candidate_visits,
                 pressure,
             } => {
                 assert!(message.contains("alignment candidate visits"));
                 assert_eq!(candidate_visits, Some(charge));
+                assert_eq!(
+                    candidate_visits_required,
+                    Some(charge),
+                    "the full required sum completes when no later estimate errors"
+                );
                 assert_eq!(max_candidate_visits, Some(charge - 1));
                 let pressure = pressure.expect("pressure recorded for complete extraction");
                 assert_eq!(pressure.max_candidate_visits, charge - 1);
@@ -1925,11 +1981,13 @@ mod tests {
         match error {
             RevisionRunError::Limit {
                 candidate_visits,
+                candidate_visits_required,
                 max_candidate_visits,
                 pressure,
                 ..
             } => {
                 assert_eq!(candidate_visits, None);
+                assert_eq!(candidate_visits_required, None);
                 assert_eq!(max_candidate_visits, None);
                 assert_eq!(pressure, None);
             }
@@ -1954,11 +2012,12 @@ mod tests {
         let complete =
             ExtractionOutcome::complete(glyph_document("Stable new paragraph remains visible"));
 
-        let (_, candidate_visits, _, pressure) =
+        let (_, candidate_visits, candidate_visits_required, _, pressure) =
             compare_outcomes_with_metrics(incomplete, complete, PipelineOptions::default())
                 .expect("incomplete comparison is not an error");
 
         assert_eq!(candidate_visits, None);
+        assert_eq!(candidate_visits_required, None);
         assert_eq!(pressure, None);
     }
 
@@ -1966,6 +2025,7 @@ mod tests {
     fn pair_report_json_includes_candidate_visit_fields() {
         let mut report = record(PairRunStatus::Ok);
         report.candidate_visits = Some(42);
+        report.candidate_visits_required = Some(84);
         report.max_candidate_visits = Some(1_000_000);
         report.candidate_visit_pressure = Some(CandidateVisitPressure {
             estimated_visits_p50: 1,
@@ -1988,6 +2048,7 @@ mod tests {
 
         let json = serde_json::to_value(&report).expect("report serializes");
         assert_eq!(json["candidate_visits"], 42);
+        assert_eq!(json["candidate_visits_required"], 84);
         assert_eq!(json["max_candidate_visits"], 1_000_000);
         assert_eq!(
             json["candidate_visit_pressure"]["estimated_visits_upper_bound_total"],
@@ -2002,20 +2063,36 @@ mod tests {
     }
 
     #[test]
-    fn validate_visit_pair_accepts_complete_and_absent_pairs() {
+    fn validate_visit_triple_accepts_complete_absent_and_unavailable_required() {
         assert_eq!(
-            validate_visit_pair(Some(42), Some(1_000_000)),
-            Ok((Some(42), Some(1_000_000)))
+            validate_visit_triple(Some(42), Some(84), Some(1_000_000)),
+            Ok((Some(42), Some(84), Some(1_000_000)))
         );
-        assert_eq!(validate_visit_pair(None, None), Ok((None, None)));
+        assert_eq!(
+            validate_visit_triple(Some(42), None, Some(1_000_000)),
+            Ok((Some(42), None, Some(1_000_000)))
+        );
+        assert_eq!(
+            validate_visit_triple(None, None, None),
+            Ok((None, None, None))
+        );
     }
 
     #[test]
-    fn validate_visit_pair_rejects_both_partial_directions() {
-        for (candidate_visits, max_candidate_visits) in [(Some(42), None), (None, Some(1_000_000))]
-        {
-            let error = validate_visit_pair(candidate_visits, max_candidate_visits)
-                .expect_err("partial pair must be a contract violation");
+    fn validate_visit_triple_rejects_every_partial_direction() {
+        for (candidate_visits, candidate_visits_required, max_candidate_visits) in [
+            (Some(42), None, None),
+            (None, Some(84), None),
+            (None, None, Some(1_000_000)),
+            (Some(42), Some(84), None),
+            (None, Some(84), Some(1_000_000)),
+        ] {
+            let error = validate_visit_triple(
+                candidate_visits,
+                candidate_visits_required,
+                max_candidate_visits,
+            )
+            .expect_err("partial triple must be a contract violation");
             assert!(error.contains("alignment metrics contract violation"));
         }
     }

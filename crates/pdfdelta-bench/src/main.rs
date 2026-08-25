@@ -392,11 +392,22 @@ fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> St
     if record.runtime_ms > 0 || record.compared {
         line.push_str(&format!(" runtime_ms={}", record.runtime_ms));
     }
-    match (record.candidate_visits, record.max_candidate_visits) {
-        (Some(visits), Some(limit)) => {
-            line.push_str(&format!(" candidate_visits={visits}/{limit}"));
+    match (
+        record.candidate_visits,
+        record.candidate_visits_required,
+        record.max_candidate_visits,
+    ) {
+        (Some(visits), Some(required), Some(limit)) => {
+            line.push_str(&format!(
+                " candidate_visits={visits}/{limit} required_candidate_visits={required}"
+            ));
         }
-        (None, None) => {}
+        (Some(visits), None, Some(limit)) => {
+            line.push_str(&format!(
+                " candidate_visits={visits}/{limit} required_candidate_visits=unavailable"
+            ));
+        }
+        (None, None, None) => {}
         _ => line.push_str(" candidate_visits=incomplete"),
     }
     if let Some(pressure) = &record.candidate_visit_pressure {
@@ -510,6 +521,7 @@ mod tests {
             quality_skipped_reason: None,
             resource_limit_failure: None,
             candidate_visits: None,
+            candidate_visits_required: None,
             max_candidate_visits: None,
             candidate_visit_pressure: None,
             runtime_ms: 0,
@@ -584,8 +596,19 @@ mod tests {
     fn revision_report_line_displays_candidate_visits_contract() {
         let mut both = sample_pair_report();
         both.candidate_visits = Some(42);
+        both.candidate_visits_required = Some(84);
         both.max_candidate_visits = Some(1_000_000);
-        assert!(revision_report_line(&both).contains("candidate_visits=42/1000000"));
+        let line = revision_report_line(&both);
+        assert!(line.contains("candidate_visits=42/1000000"));
+        assert!(line.contains("required_candidate_visits=84"));
+
+        let mut unavailable = sample_pair_report();
+        unavailable.candidate_visits = Some(42);
+        unavailable.max_candidate_visits = Some(1_000_000);
+        let line = revision_report_line(&unavailable);
+        assert!(line.contains("candidate_visits=42/1000000"));
+        assert!(line.contains("required_candidate_visits=unavailable"));
+        assert!(!line.contains("incomplete"));
 
         let none = sample_pair_report();
         assert!(!revision_report_line(&none).contains("candidate_visits"));

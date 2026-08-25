@@ -105,6 +105,14 @@ pub struct PipelineMetrics {
     /// `max_candidate_visits` for non-anchor old blocks; on a limit failure
     /// this is the attempted cumulative charge including the exceeding block.
     pub candidate_visits: Option<usize>,
+    /// Checked sum of `CandidateGenerator::estimated_visits` over every
+    /// non-anchor old block, independent of the budget: the full candidate
+    /// work the alignment would need. `Some` when the full sum completed
+    /// (including on a limit failure); `None` when an estimate error or
+    /// overflow made the sum unavailable, or the candidate preflight was
+    /// never reached (e.g. an earlier alignment error). Identity alignment
+    /// is `Some(0)`.
+    pub candidate_visits_required: Option<usize>,
     /// The `AlignmentOptions::max_candidate_visits` budget the charge was
     /// compared against.
     pub max_candidate_visits: Option<usize>,
@@ -398,6 +406,7 @@ fn compare_validated_glyph_documents(
                 PipelineMetrics {
                     alignment_spans: Some(alignment.spans.len()),
                     candidate_visits: Some(attempt.visit_metrics.candidate_visits),
+                    candidate_visits_required: attempt.visit_metrics.candidate_visits_required,
                     max_candidate_visits: Some(attempt.visit_metrics.max_candidate_visits),
                     ..PipelineMetrics::default()
                 },
@@ -411,6 +420,7 @@ fn compare_validated_glyph_documents(
                 &error,
                 PipelineMetrics {
                     candidate_visits: Some(attempt.visit_metrics.candidate_visits),
+                    candidate_visits_required: attempt.visit_metrics.candidate_visits_required,
                     max_candidate_visits: Some(attempt.visit_metrics.max_candidate_visits),
                     ..PipelineMetrics::default()
                 },
