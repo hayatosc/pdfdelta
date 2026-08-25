@@ -204,6 +204,16 @@ pub fn compare_aligned(
                         confidence: promoted.confidence,
                         tags: Vec::new(),
                     });
+                    let old_raw = old.raw_group(&span.old, None)?;
+                    let new_raw = new.raw_group(&new_blocks, None)?;
+                    if old_raw.tokens != new_raw.tokens {
+                        formatting_changes.push(FormattingChange {
+                            old_span: old.canonical_group(&span.old, None).full_span(),
+                            new_span: new.canonical_group(&new_blocks, None).full_span(),
+                            confidence: promoted.confidence,
+                            reasons: vec![FormattingReason::Normalization],
+                        });
+                    }
                     continue;
                 }
                 let source_tokens = old.source_token_count(&span.old);
@@ -282,10 +292,36 @@ fn promotable_moves(
         })
         .map(|span| (span.new[0], span))
         .collect::<HashMap<_, _>>();
+
+    let mut old_candidate_counts = HashMap::new();
+    let mut new_candidate_counts = HashMap::new();
+    for anchor in &alignment.move_candidates {
+        *old_candidate_counts.entry(anchor.old).or_insert(0_usize) += 1;
+        *new_candidate_counts.entry(anchor.new).or_insert(0_usize) += 1;
+    }
+
+    let mut old_token_counts = HashMap::new();
+    for tokens in &old.canonical {
+        if !tokens.is_empty() {
+            *old_token_counts.entry(tokens).or_insert(0_usize) += 1;
+        }
+    }
+    let mut new_token_counts = HashMap::new();
+    for tokens in &new.canonical {
+        if !tokens.is_empty() {
+            *new_token_counts.entry(tokens).or_insert(0_usize) += 1;
+        }
+    }
+
     let mut by_old = HashMap::new();
     let mut by_new = HashMap::new();
 
     for anchor in &alignment.move_candidates {
+        if old_candidate_counts.get(&anchor.old) != Some(&1)
+            || new_candidate_counts.get(&anchor.new) != Some(&1)
+        {
+            continue;
+        }
         let (Some(deletion), Some(insertion)) =
             (deletions.get(&anchor.old), insertions.get(&anchor.new))
         else {
@@ -297,10 +333,13 @@ fn promotable_moves(
             continue;
         };
         let old_tokens = &old.canonical[*old_index];
+        let new_tokens = &new.canonical[*new_index];
+        // 1:1 uniqueness in move_candidates ensures anchor.old and anchor.new
+        // are visited at most once in this loop.
         if old_tokens.is_empty()
-            || old_tokens != &new.canonical[*new_index]
-            || by_old.contains_key(&anchor.old)
-            || by_new.contains_key(&anchor.new)
+            || old_tokens != new_tokens
+            || old_token_counts.get(old_tokens) != Some(&1)
+            || new_token_counts.get(new_tokens) != Some(&1)
         {
             continue;
         }

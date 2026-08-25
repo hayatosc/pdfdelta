@@ -64,6 +64,10 @@ fn promotes_an_exact_move_candidate() -> Result<()> {
     assert_eq!(result.changes[0].kind, ChangeKind::Move);
     assert!(result.changes[0].old_span.is_some());
     assert!(result.changes[0].new_span.is_some());
+    assert!(
+        result.formatting_changes.is_empty(),
+        "Exact identical raw move must not emit formatting changes"
+    );
     assert_eq!(result.old_coverage.ratio, Some(1.0));
     assert_eq!(result.new_coverage.ratio, Some(1.0));
     Ok(())
@@ -737,4 +741,171 @@ fn unresolved(old: &[u64], new: &[u64]) -> AlignmentSpan {
 
 fn ids(values: &[u64]) -> Vec<BlockId> {
     values.iter().copied().map(BlockId).collect()
+}
+
+#[test]
+fn rejects_competing_duplicate_move_candidates_as_deletion_and_insertion() -> Result<()> {
+    // Block 1 (old) is associated with two different new blocks (101 and 102) -> ambiguous!
+    let old = block(1, "Moved paragraph text");
+    let new1 = block(101, "Moved paragraph text");
+    let new2 = block(102, "Moved paragraph text");
+
+    let mut deletion = one_sided(AlignmentKind::Deletion, &[1], &[]);
+    deletion.evidence.push(AlignmentEvidence::MoveCandidate);
+    let mut insertion1 = one_sided(AlignmentKind::Insertion, &[], &[101]);
+    insertion1.evidence.push(AlignmentEvidence::MoveCandidate);
+    let mut insertion2 = one_sided(AlignmentKind::Insertion, &[], &[102]);
+    insertion2.evidence.push(AlignmentEvidence::MoveCandidate);
+
+    let alignment = Alignment {
+        spans: vec![deletion, insertion1, insertion2],
+        main_anchors: Vec::new(),
+        move_candidates: vec![
+            ExactAnchor {
+                old: BlockId(1),
+                new: BlockId(101),
+            },
+            ExactAnchor {
+                old: BlockId(1),
+                new: BlockId(102),
+            },
+        ],
+    };
+
+    let result = compare_aligned(&[old], &[new1, new2], &alignment, DiffOptions::default())?;
+
+    // Must NOT promote to Move because of competing candidates and duplicate new text!
+    assert!(
+        !result.changes.iter().any(|c| c.kind == ChangeKind::Move),
+        "Ambiguous competing move candidates must not be promoted to Move"
+    );
+    assert_eq!(
+        result.changes.iter().map(|c| c.kind).collect::<Vec<_>>(),
+        [
+            ChangeKind::Deletion,
+            ChangeKind::Insertion,
+            ChangeKind::Insertion
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn rejects_repeated_identical_blocks_from_move_promotion() -> Result<()> {
+    // Old has 2 identical blocks; new has 1 -> ambiguous which was moved
+    let old1 = block(1, "Repeated disclaimer block");
+    let old2 = block(2, "Repeated disclaimer block");
+    let new = block(101, "Repeated disclaimer block");
+
+    let mut deletion1 = one_sided(AlignmentKind::Deletion, &[1], &[]);
+    deletion1.evidence.push(AlignmentEvidence::MoveCandidate);
+    let deletion2 = one_sided(AlignmentKind::Deletion, &[2], &[]);
+    let mut insertion = one_sided(AlignmentKind::Insertion, &[], &[101]);
+    insertion.evidence.push(AlignmentEvidence::MoveCandidate);
+
+    let alignment = Alignment {
+        spans: vec![deletion1, deletion2, insertion],
+        main_anchors: Vec::new(),
+        move_candidates: vec![ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101),
+        }],
+    };
+
+    let result = compare_aligned(&[old1, old2], &[new], &alignment, DiffOptions::default())?;
+
+    assert!(
+        !result.changes.iter().any(|c| c.kind == ChangeKind::Move),
+        "Duplicate blocks must not be promoted to Move"
+    );
+    Ok(())
+}
+
+#[test]
+fn promoted_move_with_raw_normalization_difference_preserves_formatting_change() -> Result<()> {
+    let old = block_with_raw(
+        1,
+        "Moved paragraph line one\nline two",
+        "Moved paragraph line one line two",
+    );
+    let new = block(101, "Moved paragraph line one line two");
+    let mut deletion = one_sided(AlignmentKind::Deletion, &[1], &[]);
+    deletion.evidence.push(AlignmentEvidence::MoveCandidate);
+    let mut insertion = one_sided(AlignmentKind::Insertion, &[], &[101]);
+    insertion.evidence.push(AlignmentEvidence::MoveCandidate);
+    let alignment = Alignment {
+        spans: vec![deletion, insertion],
+        main_anchors: Vec::new(),
+        move_candidates: vec![ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101),
+        }],
+    };
+
+    let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
+
+    assert_eq!(result.changes.len(), 1);
+    assert_eq!(result.changes[0].kind, ChangeKind::Move);
+    assert_eq!(result.formatting_changes.len(), 1);
+    assert_eq!(
+        result.formatting_changes[0].reasons,
+        vec![FormattingReason::Normalization]
+    );
+    assert_eq!(result.formatting_changes[0].old_span.blocks, [BlockId(1)]);
+    assert_eq!(result.formatting_changes[0].new_span.blocks, [BlockId(101)]);
+    Ok(())
+}
+
+#[test]
+fn rejects_asymmetric_move_candidate_evidence_as_deletion_and_insertion() -> Result<()> {
+    // Case A: Deletion lacks MoveCandidate evidence
+    let old_a = block(1, "Moved paragraph text");
+    let new_a = block(101, "Moved paragraph text");
+    let deletion_a = one_sided(AlignmentKind::Deletion, &[1], &[]);
+    let mut insertion_a = one_sided(AlignmentKind::Insertion, &[], &[101]);
+    insertion_a.evidence.push(AlignmentEvidence::MoveCandidate);
+    let alignment_a = Alignment {
+        spans: vec![deletion_a, insertion_a],
+        main_anchors: Vec::new(),
+        move_candidates: vec![ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101),
+        }],
+    };
+
+    let result_a = compare_aligned(&[old_a], &[new_a], &alignment_a, DiffOptions::default())?;
+    assert!(
+        !result_a.changes.iter().any(|c| c.kind == ChangeKind::Move),
+        "Asymmetric move candidate (missing deletion evidence) must not promote to Move"
+    );
+    assert_eq!(
+        result_a.changes.iter().map(|c| c.kind).collect::<Vec<_>>(),
+        [ChangeKind::Deletion, ChangeKind::Insertion]
+    );
+
+    // Case B: Insertion lacks MoveCandidate evidence
+    let old_b = block(1, "Moved paragraph text");
+    let new_b = block(101, "Moved paragraph text");
+    let mut deletion_b = one_sided(AlignmentKind::Deletion, &[1], &[]);
+    deletion_b.evidence.push(AlignmentEvidence::MoveCandidate);
+    let insertion_b = one_sided(AlignmentKind::Insertion, &[], &[101]);
+    let alignment_b = Alignment {
+        spans: vec![deletion_b, insertion_b],
+        main_anchors: Vec::new(),
+        move_candidates: vec![ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101),
+        }],
+    };
+
+    let result_b = compare_aligned(&[old_b], &[new_b], &alignment_b, DiffOptions::default())?;
+    assert!(
+        !result_b.changes.iter().any(|c| c.kind == ChangeKind::Move),
+        "Asymmetric move candidate (missing insertion evidence) must not promote to Move"
+    );
+    assert_eq!(
+        result_b.changes.iter().map(|c| c.kind).collect::<Vec<_>>(),
+        [ChangeKind::Deletion, ChangeKind::Insertion]
+    );
+    Ok(())
 }

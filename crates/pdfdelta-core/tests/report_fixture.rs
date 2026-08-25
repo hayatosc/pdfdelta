@@ -1468,3 +1468,80 @@ fn svg_render_handles_empty_document_and_multipage() -> Result<()> {
     assert!(multi_svg.contains("rotate(-90.00"));
     Ok(())
 }
+
+#[test]
+fn text_and_json_report_renders_promoted_move_with_formatting_normalization_change() -> Result<()> {
+    let old_blocks = vec![block_with_pages(
+        3,
+        "Moved paragraph text line one line two",
+        &[1],
+    )];
+    let new_blocks = vec![block_with_pages(
+        8,
+        "Moved paragraph text line one line two",
+        &[4],
+    )];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Move,
+        old_span: Some(full_span(3, "Moved paragraph text line one line two")),
+        new_span: Some(full_span(8, "Moved paragraph text line one line two")),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    comparison.formatting_changes.push(FormattingChange {
+        old_span: full_span(3, "Moved paragraph text line one line two"),
+        new_span: full_span(8, "Moved paragraph text line one line two"),
+        confidence: Confidence::High,
+        reasons: vec![FormattingReason::Normalization],
+    });
+
+    // 1. Summary validation
+    let summary = summarize(&comparison, &ExtractionStatus::complete())?;
+    assert_eq!(summary.content_changes, 1);
+    assert_eq!(summary.formatting_only_changes, 1);
+    assert_eq!(summary.uncertain_changes, 0);
+    assert_eq!(summary.unresolved_regions, 0);
+
+    // 2. Text report rendering
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+    assert!(
+        report.contains(
+            "content changes: 1 · formatting-only: 1 · uncertain: 0 · unresolved regions: 0"
+        ),
+        "{report}"
+    );
+    assert!(report.contains("~ moved from page 2 to page 5"), "{report}");
+    assert!(
+        report.contains("@@ pages 2,5 · old block 3 -> new block 8 · confidence: high @@"),
+        "{report}"
+    );
+
+    // 3. JSON report rendering
+    let mut json_bytes = Vec::new();
+    write_json(
+        &mut json_bytes,
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json_text = String::from_utf8(json_bytes).expect("JSON should be valid UTF-8");
+    assert!(json_text.contains("\"content_changes\": 1"));
+    assert!(json_text.contains("\"formatting_only_changes\": 1"));
+    assert!(json_text.contains("\"kind\": \"move\""));
+    assert!(json_text.contains("\"reasons\": [\n        \"normalization\"\n      ]"));
+
+    // 4. Exit status
+    let status = exit_status(&comparison, &ExtractionStatus::complete(), false)?;
+    assert_eq!(status, ExitStatus::ContentChanges);
+    assert_eq!(status.code(), 1);
+
+    Ok(())
+}

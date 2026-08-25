@@ -2421,3 +2421,127 @@ fn ordinary_ordered_match_cannot_cross_trusted_anchor_boundary() {
             .any(|s| s.kind == AlignmentKind::Insertion && s.new == [BlockId(103)])
     );
 }
+
+#[test]
+fn relocated_paragraph_across_stable_anchors_promotes_to_move_change() {
+    let moved_text = "Relocated Unique Paragraph Content Alpha 01 Number 999";
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, moved_text),
+        block_text(3, "Stable Intermediate Paragraph Section Alpha One"),
+        block_text(4, "Stable Intermediate Paragraph Section Beta Two"),
+        block_text(5, CLOSING),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(103, "Stable Intermediate Paragraph Section Alpha One"),
+        block_text(104, "Stable Intermediate Paragraph Section Beta Two"),
+        block_text(105, CLOSING),
+        block_text(102, moved_text),
+    ];
+
+    let alignment = align(old.clone(), new.clone());
+
+    // Monotone main chain preserves anchors 1, 3, 4, 5 (length 4)
+    assert_eq!(alignment.main_anchors.len(), 4);
+    // Relocated block 2 <-> 102 is preserved in move_candidates
+    assert_eq!(alignment.move_candidates.len(), 1);
+    assert_eq!(
+        alignment.move_candidates[0],
+        ExactAnchor {
+            old: BlockId(2),
+            new: BlockId(102)
+        }
+    );
+
+    // Downstream compare_aligned promotes it to ChangeKind::Move
+    let diff = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("diff comparison should succeed");
+
+    let moves = diff
+        .changes
+        .iter()
+        .filter(|c| c.kind == ChangeKind::Move)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        moves.len(),
+        1,
+        "Relocated unique paragraph must promote to Move"
+    );
+    assert!(moves[0].old_span.is_some());
+    assert!(moves[0].new_span.is_some());
+}
+
+#[test]
+fn ordinary_insertion_and_deletion_are_not_promoted_to_move() {
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, "Original distinct paragraph content to be deleted"),
+        block_text(3, CLOSING),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(102, "Brand new distinct paragraph content to be inserted"),
+        block_text(103, CLOSING),
+    ];
+
+    let alignment = align(old.clone(), new.clone());
+    assert!(alignment.move_candidates.is_empty());
+
+    let diff = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("diff should succeed");
+    assert!(!diff.changes.iter().any(|c| c.kind == ChangeKind::Move));
+}
+
+#[test]
+fn repeated_identical_paragraphs_remain_ambiguous_without_false_move() {
+    let duplicate_text = "Repeated disclaimer paragraph text across the document";
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, duplicate_text),
+        block_text(3, duplicate_text),
+        block_text(4, CLOSING),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(102, CLOSING),
+        block_text(103, duplicate_text),
+    ];
+
+    let alignment = align(old.clone(), new.clone());
+    // Duplicate text is excluded from exact anchors and move candidates
+    assert!(alignment.move_candidates.is_empty());
+
+    let diff = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("diff should succeed");
+    assert!(
+        !diff.changes.iter().any(|c| c.kind == ChangeKind::Move),
+        "Ambiguous duplicate text must never be promoted to Move"
+    );
+}
+
+#[test]
+fn moved_paragraph_with_internal_edit_remains_exact_diff_eligible() {
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, "Unique Paragraph Initial Version Alpha Beta Gamma"),
+        block_text(3, CLOSING),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(102, CLOSING),
+        block_text(103, "Unique Paragraph Initial Version Alpha Delta Gamma"),
+    ];
+
+    let alignment = align(old.clone(), new.clone());
+    let diff = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("diff should succeed");
+
+    // Non-exact match is not promoted to Move; instead it is evaluated via exact diff
+    assert!(!diff.changes.iter().any(|c| c.kind == ChangeKind::Move));
+    assert!(
+        diff.changes
+            .iter()
+            .any(|c| c.kind == ChangeKind::Deletion || c.kind == ChangeKind::Insertion)
+    );
+}
