@@ -69,6 +69,27 @@ pub struct CandidateVisitPressure {
     pub dominant_ngram_visits: usize,
     /// New-side document frequency of the dominant n-gram.
     pub dominant_ngram_df: usize,
+    /// Unique n-grams present in old blocks whose new-side document
+    /// frequency is greater than zero.
+    pub shared_ngram_count: usize,
+    /// Cumulative visits of the ten largest n-gram contributors.
+    pub top_10_ngram_visits: usize,
+    /// Shared n-grams needed to reach at least half of the total posting
+    /// visits, counting contributions in descending visit order. This is an
+    /// observed quantile of the current measurement, not a fixed tuning
+    /// threshold.
+    pub ngrams_for_50_percent_visits: usize,
+    /// Shared n-grams needed to reach 90% of the total posting visits,
+    /// counting contributions in descending visit order. This is an
+    /// observed quantile of the current measurement, not a fixed tuning
+    /// threshold.
+    pub ngrams_for_90_percent_visits: usize,
+    /// Shared-set new-side document frequency (nearest-rank p50).
+    pub shared_ngram_df_p50: usize,
+    /// Shared-set new-side document frequency (nearest-rank p95).
+    pub shared_ngram_df_p95: usize,
+    /// Shared-set new-side document frequency maximum.
+    pub shared_ngram_df_max: usize,
 }
 
 /// Candidate generation metrics for one synthetic fixture.
@@ -125,6 +146,25 @@ pub struct CandidateEvalRecord {
     pub dominant_ngram_visits: usize,
     /// New-side document frequency of the dominant n-gram.
     pub dominant_ngram_df: usize,
+    /// Unique n-grams present in old blocks whose new-side document
+    /// frequency is greater than zero.
+    pub shared_ngram_count: usize,
+    /// Cumulative visits of the ten largest n-gram contributors.
+    pub top_10_ngram_visits: usize,
+    /// Shared n-grams needed to reach at least half of the total posting
+    /// visits, counting contributions in descending visit order; an observed
+    /// quantile, not a fixed tuning threshold.
+    pub ngrams_for_50_percent_visits: usize,
+    /// Shared n-grams needed to reach 90% of the total posting visits,
+    /// counting contributions in descending visit order; an observed
+    /// quantile, not a fixed tuning threshold.
+    pub ngrams_for_90_percent_visits: usize,
+    /// Shared-set new-side document frequency (nearest-rank p50).
+    pub shared_ngram_df_p50: usize,
+    /// Shared-set new-side document frequency (nearest-rank p95).
+    pub shared_ngram_df_p95: usize,
+    /// Shared-set new-side document frequency maximum.
+    pub shared_ngram_df_max: usize,
 }
 
 impl CandidateEvalRecord {
@@ -236,6 +276,13 @@ pub fn evaluate_candidate_generation(
         ngram_posting_visits_total: pressure.ngram_posting_visits_total,
         dominant_ngram_visits: pressure.dominant_ngram_visits,
         dominant_ngram_df: pressure.dominant_ngram_df,
+        shared_ngram_count: pressure.shared_ngram_count,
+        top_10_ngram_visits: pressure.top_10_ngram_visits,
+        ngrams_for_50_percent_visits: pressure.ngrams_for_50_percent_visits,
+        ngrams_for_90_percent_visits: pressure.ngrams_for_90_percent_visits,
+        shared_ngram_df_p50: pressure.shared_ngram_df_p50,
+        shared_ngram_df_p95: pressure.shared_ngram_df_p95,
+        shared_ngram_df_max: pressure.shared_ngram_df_max,
     })
 }
 
@@ -569,6 +616,13 @@ fn measure_visit_metrics(
         ngram_posting_visits_total: ngram_stats.total_posting_visits,
         dominant_ngram_visits: ngram_stats.dominant_ngram_visits,
         dominant_ngram_df: ngram_stats.dominant_ngram_df,
+        shared_ngram_count: ngram_stats.shared_ngram_count,
+        top_10_ngram_visits: ngram_stats.top_10_ngram_visits,
+        ngrams_for_50_percent_visits: ngram_stats.ngrams_for_50_percent_visits,
+        ngrams_for_90_percent_visits: ngram_stats.ngrams_for_90_percent_visits,
+        shared_ngram_df_p50: ngram_stats.shared_ngram_df_p50,
+        shared_ngram_df_p95: ngram_stats.shared_ngram_df_p95,
+        shared_ngram_df_max: ngram_stats.shared_ngram_df_max,
     })
 }
 
@@ -595,6 +649,91 @@ struct NGramVisitStats {
     total_posting_visits: usize,
     dominant_ngram_visits: usize,
     dominant_ngram_df: usize,
+    shared_ngram_count: usize,
+    top_10_ngram_visits: usize,
+    ngrams_for_50_percent_visits: usize,
+    ngrams_for_90_percent_visits: usize,
+    shared_ngram_df_p50: usize,
+    shared_ngram_df_p95: usize,
+    shared_ngram_df_max: usize,
+}
+
+/// Distribution summary over per-n-gram `(visits, df)` contributions of the
+/// shared n-gram set (new-side document frequency greater than zero).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct NGramDistribution {
+    shared_ngram_count: usize,
+    top_10_ngram_visits: usize,
+    ngrams_for_50_percent_visits: usize,
+    ngrams_for_90_percent_visits: usize,
+    shared_ngram_df_p50: usize,
+    shared_ngram_df_p95: usize,
+    shared_ngram_df_max: usize,
+}
+
+/// Summarizes the visit distribution over per-n-gram `(visits, df)`
+/// contributions of the shared n-gram set. The 50%/90% counts are observed
+/// quantiles of this measurement, not fixed tuning thresholds.
+fn summarize_ngram_distribution(
+    contributions: &[(usize, usize)],
+    total_posting_visits: usize,
+) -> NGramDistribution {
+    let mut by_descending_visits = contributions.to_vec();
+    by_descending_visits.sort_unstable_by_key(|contribution| std::cmp::Reverse(contribution.0));
+    let (n50, n90) = cumulative_visit_counts(&by_descending_visits, total_posting_visits);
+    let dfs = by_descending_visits
+        .iter()
+        .map(|(_, df)| *df)
+        .collect::<Vec<_>>();
+    NGramDistribution {
+        shared_ngram_count: by_descending_visits.len(),
+        top_10_ngram_visits: by_descending_visits
+            .iter()
+            .take(10)
+            .map(|(visits, _)| *visits)
+            .sum(),
+        ngrams_for_50_percent_visits: n50,
+        ngrams_for_90_percent_visits: n90,
+        shared_ngram_df_p50: percentile(&dfs, 0.50),
+        shared_ngram_df_p95: percentile(&dfs, 0.95),
+        shared_ngram_df_max: dfs.iter().copied().max().unwrap_or(0),
+    }
+}
+
+/// Counts the shared n-grams needed to reach the observed 50% and 90%
+/// visit shares, accumulating in descending visit order. The 50% target is
+/// `ceil(total / 2)`, so the count is the first prefix that accumulates at
+/// least half of the visits. Equal-visit ties contribute equally at every
+/// prefix, so both counts depend only on the multiset of contributions.
+/// `total_posting_visits` is the checked sum of all contributions; with
+/// zero total both counts are zero.
+fn cumulative_visit_counts(
+    by_descending_visits: &[(usize, usize)],
+    total_posting_visits: usize,
+) -> (usize, usize) {
+    if total_posting_visits == 0 {
+        return (0, 0);
+    }
+    let target_50 = total_posting_visits.div_ceil(2);
+    let target_90 = total_posting_visits.saturating_sub(total_posting_visits / 10);
+    let mut accumulated = 0_usize;
+    let mut n50 = 0_usize;
+    let mut n90 = 0_usize;
+    for (index, (visits, _)) in by_descending_visits.iter().enumerate() {
+        // The full sum was verified through checked arithmetic upstream, so
+        // every prefix sum fits.
+        accumulated += visits;
+        if n50 == 0 && accumulated >= target_50 {
+            n50 = index + 1;
+        }
+        if n90 == 0 && accumulated >= target_90 {
+            n90 = index + 1;
+        }
+        if n50 > 0 && n90 > 0 {
+            break;
+        }
+    }
+    (n50, n90)
 }
 
 /// Aggregates the n-gram component of `estimated_visits`: every old query
@@ -619,6 +758,7 @@ fn ngram_visit_stats(
         }
     }
 
+    let mut contributions = Vec::new();
     let mut total_posting_visits = 0_usize;
     let mut dominant_ngram_visits = 0_usize;
     let mut dominant_ngram_df = 0_usize;
@@ -630,15 +770,28 @@ fn ngram_visit_stats(
         total_posting_visits = total_posting_visits
             .checked_add(visits)
             .ok_or_else(|| visit_budget_error(visit_limit))?;
-        if visits > dominant_ngram_visits {
+        if visits > dominant_ngram_visits
+            || (visits == dominant_ngram_visits && df > dominant_ngram_df)
+        {
             dominant_ngram_visits = visits;
             dominant_ngram_df = df;
         }
+        if df > 0 {
+            contributions.push((visits, df));
+        }
     }
+    let distribution = summarize_ngram_distribution(&contributions, total_posting_visits);
     Ok(NGramVisitStats {
         total_posting_visits,
         dominant_ngram_visits,
         dominant_ngram_df,
+        shared_ngram_count: distribution.shared_ngram_count,
+        top_10_ngram_visits: distribution.top_10_ngram_visits,
+        ngrams_for_50_percent_visits: distribution.ngrams_for_50_percent_visits,
+        ngrams_for_90_percent_visits: distribution.ngrams_for_90_percent_visits,
+        shared_ngram_df_p50: distribution.shared_ngram_df_p50,
+        shared_ngram_df_p95: distribution.shared_ngram_df_p95,
+        shared_ngram_df_max: distribution.shared_ngram_df_max,
     })
 }
 
@@ -674,6 +827,7 @@ fn core_error(stage: &'static str, error: pdfdelta_core::Error) -> BenchError {
 #[cfg(test)]
 mod tests {
     use pdfdelta_core::{
+        alignment::{BlockFeatures, ExactHash, NGram},
         layout::BlockId,
         model::{
             DecodedText, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect, TextRenderMode,
@@ -847,6 +1001,13 @@ mod tests {
             ngram_posting_visits_total: 3,
             dominant_ngram_visits: 1,
             dominant_ngram_df: 1,
+            shared_ngram_count: 3,
+            top_10_ngram_visits: 3,
+            ngrams_for_50_percent_visits: 2,
+            ngrams_for_90_percent_visits: 3,
+            shared_ngram_df_p50: 1,
+            shared_ngram_df_p95: 1,
+            shared_ngram_df_max: 1,
         }
     }
 
@@ -1000,5 +1161,144 @@ mod tests {
         assert!(pressure.estimated_visits_upper_bound_exceeds_limit);
         assert_eq!(pressure.dominant_ngram_visits, 9);
         assert_eq!(pressure.dominant_ngram_df, 3);
+        // One shared n-gram carrying the whole charge.
+        assert_eq!(pressure.shared_ngram_count, 1);
+        assert_eq!(pressure.top_10_ngram_visits, 9);
+        assert_eq!(pressure.ngrams_for_50_percent_visits, 1);
+        assert_eq!(pressure.ngrams_for_90_percent_visits, 1);
+        assert_eq!(pressure.shared_ngram_df_p50, 3);
+        assert_eq!(pressure.shared_ngram_df_p95, 3);
+        assert_eq!(pressure.shared_ngram_df_max, 3);
+    }
+
+    #[test]
+    fn summarize_ngram_distribution_ranks_contributions_by_visits() {
+        let contributions = [(6, 10), (3, 5), (3, 5), (2, 1), (1, 1)];
+        let distribution = summarize_ngram_distribution(&contributions, 15);
+
+        assert_eq!(distribution.shared_ngram_count, 5);
+        // Fewer than ten contributors: the top-10 sum is the whole total.
+        assert_eq!(distribution.top_10_ngram_visits, 15);
+        // Descending visits [6, 3, 3, 2, 1]: target ceil(15/2)=8, prefixes
+        // 6 (<8), then 9 (>=8).
+        assert_eq!(distribution.ngrams_for_50_percent_visits, 2);
+        // Target 15 - 1 = 14: prefixes 6, 9, 12, then 14 (>=14).
+        assert_eq!(distribution.ngrams_for_90_percent_visits, 4);
+        // Shared-set DFs sorted [1, 1, 5, 5, 10].
+        assert_eq!(distribution.shared_ngram_df_p50, 5);
+        assert_eq!(distribution.shared_ngram_df_p95, 10);
+        assert_eq!(distribution.shared_ngram_df_max, 10);
+    }
+
+    #[test]
+    fn summarize_ngram_distribution_is_tie_order_independent() {
+        let mut reversed = [(6, 10), (3, 5), (3, 5), (2, 1), (1, 1)];
+        reversed.reverse();
+
+        assert_eq!(
+            summarize_ngram_distribution(&[(6, 10), (3, 5), (3, 5), (2, 1), (1, 1)], 15),
+            summarize_ngram_distribution(&reversed, 15)
+        );
+    }
+
+    #[test]
+    fn summarize_ngram_distribution_reaches_half_with_ceil_on_odd_total() {
+        // Total 15 with a leading contribution of 7: the 50% target is
+        // ceil(15/2)=8, so the first prefix (7) is not enough and n50 is 2.
+        let contributions = [(7, 1), (5, 1), (3, 1)];
+        let distribution = summarize_ngram_distribution(&contributions, 15);
+
+        assert_eq!(distribution.ngrams_for_50_percent_visits, 2);
+        // Target 15 - 1 = 14: prefixes 7, 12, then 15 (>=14).
+        assert_eq!(distribution.ngrams_for_90_percent_visits, 3);
+    }
+
+    #[test]
+    fn summarize_ngram_distribution_top_10_excludes_the_smallest_of_11_contributors() {
+        // Eleven distinct contributors: the top-10 sum drops the smallest.
+        let contributions = [
+            (11, 1),
+            (10, 1),
+            (9, 1),
+            (8, 1),
+            (7, 1),
+            (6, 1),
+            (5, 1),
+            (4, 1),
+            (3, 1),
+            (2, 1),
+            (1, 1),
+        ];
+        let distribution = summarize_ngram_distribution(&contributions, 66);
+
+        assert_eq!(distribution.shared_ngram_count, 11);
+        assert_eq!(distribution.top_10_ngram_visits, 65);
+    }
+
+    /// A single-gram feature block; the gram is the only n-gram.
+    fn ngram_feature(block: BlockId, gram: char) -> BlockFeatures {
+        let token = ComparableToken::Scalar(gram);
+        BlockFeatures {
+            block,
+            exact_hash: ExactHash(0),
+            canonical_tokens: vec![token.clone()],
+            matching_tokens: vec![token.clone()],
+            ngrams: HashSet::from([NGram(vec![token])]),
+            ngram_size: 1,
+            numeric_mask_applied: false,
+            has_normalization_issues: false,
+        }
+    }
+
+    #[test]
+    fn dominant_ngram_df_tie_prefers_larger_document_frequency() {
+        // "a" has new-side df 3 with 2 old occurrences (6 visits); "b" has
+        // new-side df 2 with 3 old occurrences (6 visits). The tied visits
+        // must resolve to the larger df regardless of input order.
+        let new = vec![
+            ngram_feature(BlockId(10), 'a'),
+            ngram_feature(BlockId(11), 'a'),
+            ngram_feature(BlockId(12), 'a'),
+            ngram_feature(BlockId(13), 'b'),
+            ngram_feature(BlockId(14), 'b'),
+        ];
+        let old_forward = vec![
+            ngram_feature(BlockId(0), 'a'),
+            ngram_feature(BlockId(1), 'a'),
+            ngram_feature(BlockId(2), 'b'),
+            ngram_feature(BlockId(3), 'b'),
+            ngram_feature(BlockId(4), 'b'),
+        ];
+        let old_reversed = vec![
+            ngram_feature(BlockId(0), 'b'),
+            ngram_feature(BlockId(1), 'b'),
+            ngram_feature(BlockId(2), 'b'),
+            ngram_feature(BlockId(3), 'a'),
+            ngram_feature(BlockId(4), 'a'),
+        ];
+        let limit = AlignmentOptions::default().max_candidate_visits;
+
+        let forward = ngram_visit_stats(&old_forward, &new, limit).expect("stats measure");
+        let reversed = ngram_visit_stats(&old_reversed, &new, limit).expect("stats measure");
+
+        assert_eq!(forward.total_posting_visits, 12);
+        assert_eq!(forward.shared_ngram_count, 2);
+        assert_eq!(forward.dominant_ngram_visits, 6);
+        assert_eq!(forward.dominant_ngram_df, 3);
+        assert_eq!(reversed.dominant_ngram_df, 3);
+        assert_eq!(reversed.dominant_ngram_df, forward.dominant_ngram_df);
+    }
+
+    #[test]
+    fn summarize_ngram_distribution_reports_zero_without_shared_ngrams() {
+        let distribution = summarize_ngram_distribution(&[], 0);
+
+        assert_eq!(distribution.shared_ngram_count, 0);
+        assert_eq!(distribution.top_10_ngram_visits, 0);
+        assert_eq!(distribution.ngrams_for_50_percent_visits, 0);
+        assert_eq!(distribution.ngrams_for_90_percent_visits, 0);
+        assert_eq!(distribution.shared_ngram_df_p50, 0);
+        assert_eq!(distribution.shared_ngram_df_p95, 0);
+        assert_eq!(distribution.shared_ngram_df_max, 0);
     }
 }

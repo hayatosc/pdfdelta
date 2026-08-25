@@ -1977,6 +1977,13 @@ mod tests {
             ngram_posting_visits_total: 9,
             dominant_ngram_visits: 9,
             dominant_ngram_df: 3,
+            shared_ngram_count: 1,
+            top_10_ngram_visits: 9,
+            ngrams_for_50_percent_visits: 1,
+            ngrams_for_90_percent_visits: 1,
+            shared_ngram_df_p50: 3,
+            shared_ngram_df_p95: 3,
+            shared_ngram_df_max: 3,
         });
 
         let json = serde_json::to_value(&report).expect("report serializes");
@@ -1987,6 +1994,11 @@ mod tests {
             9
         );
         assert_eq!(json["candidate_visit_pressure"]["dominant_ngram_df"], 3);
+        assert_eq!(json["candidate_visit_pressure"]["shared_ngram_count"], 1);
+        assert_eq!(
+            json["candidate_visit_pressure"]["ngrams_for_90_percent_visits"],
+            1
+        );
     }
 
     #[test]

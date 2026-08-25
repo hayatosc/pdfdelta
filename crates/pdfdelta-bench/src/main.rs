@@ -263,7 +263,7 @@ fn candidate_report_line(record: &CandidateEvalRecord) -> String {
         "mismatch".to_owned()
     };
     format!(
-        "OK case={} renderer={} top_k={} recall={} candidates={}/{}/{} visits={}/{}/{}/{}/{}/{} ngram={}/{}/{}",
+        "OK case={} renderer={} top_k={} recall={} candidates={}/{}/{} visits={}/{}/{}/{}/{}/{} ngram={}/{}/{} shared={} top10={} n50={} n90={} df_p50={} df_p95={} df_max={}",
         record.case_name,
         record.renderer.name(),
         top_k,
@@ -280,6 +280,13 @@ fn candidate_report_line(record: &CandidateEvalRecord) -> String {
         record.ngram_posting_visits_total,
         record.dominant_ngram_visits,
         record.dominant_ngram_df,
+        record.shared_ngram_count,
+        record.top_10_ngram_visits,
+        record.ngrams_for_50_percent_visits,
+        record.ngrams_for_90_percent_visits,
+        record.shared_ngram_df_p50,
+        record.shared_ngram_df_p95,
+        record.shared_ngram_df_max,
     )
 }
 
@@ -394,7 +401,7 @@ fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> St
     }
     if let Some(pressure) = &record.candidate_visit_pressure {
         line.push_str(&format!(
-            " visit_pressure=p50:{},p95:{},max:{},upper:{},limit:{},upper_exceeds:{} ngram_pressure=total:{},dominant:{},df:{}",
+            " visit_pressure=p50:{},p95:{},max:{},upper:{},limit:{},upper_exceeds:{} ngram_pressure=total:{},dominant:{},df:{},shared:{},top10:{},n50:{},n90:{},df_p50:{},df_p95:{},df_max:{}",
             pressure.estimated_visits_p50,
             pressure.estimated_visits_p95,
             pressure.estimated_visits_max,
@@ -404,6 +411,13 @@ fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> St
             pressure.ngram_posting_visits_total,
             pressure.dominant_ngram_visits,
             pressure.dominant_ngram_df,
+            pressure.shared_ngram_count,
+            pressure.top_10_ngram_visits,
+            pressure.ngrams_for_50_percent_visits,
+            pressure.ngrams_for_90_percent_visits,
+            pressure.shared_ngram_df_p50,
+            pressure.shared_ngram_df_p95,
+            pressure.shared_ngram_df_max,
         ));
     }
     if let Some(reason) = &record.resource_limit_failure {
@@ -530,6 +544,13 @@ mod tests {
             ngram_posting_visits_total: 3,
             dominant_ngram_visits: 1,
             dominant_ngram_df: 1,
+            shared_ngram_count: 3,
+            top_10_ngram_visits: 3,
+            ngrams_for_50_percent_visits: 2,
+            ngrams_for_90_percent_visits: 3,
+            shared_ngram_df_p50: 1,
+            shared_ngram_df_p95: 1,
+            shared_ngram_df_max: 1,
         }
     }
 
@@ -587,12 +608,23 @@ mod tests {
             ngram_posting_visits_total: 9,
             dominant_ngram_visits: 9,
             dominant_ngram_df: 3,
+            shared_ngram_count: 1,
+            top_10_ngram_visits: 9,
+            ngrams_for_50_percent_visits: 1,
+            ngrams_for_90_percent_visits: 1,
+            shared_ngram_df_p50: 3,
+            shared_ngram_df_p95: 3,
+            shared_ngram_df_max: 3,
         });
         let line = revision_report_line(&with_pressure);
         assert!(
             line.contains("visit_pressure=p50:1,p95:2,max:3,upper:9,limit:8,upper_exceeds:true")
         );
-        assert!(line.contains("ngram_pressure=total:9,dominant:9,df:3"));
+        assert!(
+            line.contains(
+                "ngram_pressure=total:9,dominant:9,df:3,shared:1,top10:9,n50:1,n90:1,df_p50:3,df_p95:3,df_max:3"
+            )
+        );
 
         let without_pressure = sample_pair_report();
         assert!(!revision_report_line(&without_pressure).contains("visit_pressure="));
