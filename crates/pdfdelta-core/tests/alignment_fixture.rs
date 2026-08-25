@@ -1232,14 +1232,14 @@ fn keeps_one_sided_normalization_issue_unresolved() {
 }
 
 #[test]
-fn matches_stable_unmapped_tokens_with_issues_by_exact_vector() {
+fn matches_stable_unmapped_tokens_by_exact_canonical() {
     let old = build_block_features(&[unmapped_block_text(1, vec![1, 2, 3], 42)], 3)
         .expect("old features should build");
     let new = build_block_features(&[unmapped_block_text(101, vec![1, 2, 3], 42)], 3)
         .expect("new features should build");
 
-    assert!(old[0].has_normalization_issues);
-    assert!(new[0].has_normalization_issues);
+    assert!(!old[0].has_normalization_issues);
+    assert!(!new[0].has_normalization_issues);
 
     let alignment = align_ordered(&old, &new, &EmptyGenerator, options())
         .expect("stable unmapped evidence should align");
@@ -1270,7 +1270,7 @@ fn keeps_changed_unmapped_font_programs_unresolved() {
     assert!(
         alignment.spans[0]
             .evidence
-            .contains(&AlignmentEvidence::NormalizationIssue)
+            .contains(&AlignmentEvidence::TextSimilarity)
     );
 }
 
@@ -2775,4 +2775,364 @@ fn degraded_masked_split_and_merge_compare_successfully_without_separator_error(
         old1_tokens + old2_tokens
     );
     assert_eq!(diff_merge.new_coverage.total_tokens, new1_tokens);
+}
+
+fn multi_unmapped_block_text(id: u64, font_hash: Vec<u8>, glyph_ids: &[u16]) -> BlockText {
+    let font_hash = FontProgramHash(font_hash);
+    let mut unmapped = Vec::new();
+    let mut matching_tokens = Vec::new();
+    for &glyph_id in glyph_ids {
+        unmapped.push(UnmappedToken {
+            scalar_index: 0,
+            font_hash: font_hash.clone(),
+            glyph_id,
+            source: TextSource { atoms: vec![] },
+        });
+        matching_tokens.push(ComparableToken::Unmapped {
+            font_hash: font_hash.clone(),
+            glyph_id,
+        });
+    }
+    let mapped = MappedText {
+        text: String::new(),
+        source_map: vec![],
+        unmapped,
+    };
+    BlockText {
+        block: BlockId(id),
+        raw: mapped.clone(),
+        canonical: mapped,
+        matching: String::new(),
+        matching_tokens,
+        numeric_mask_applied: false,
+        normalization_events: vec![],
+        issues: vec![],
+        pages: vec![0],
+    }
+}
+
+fn mixed_mapped_unmapped_block_text(
+    id: u64,
+    prefix: &str,
+    font_hash: Vec<u8>,
+    glyph_id: u16,
+    suffix: &str,
+) -> BlockText {
+    let font_hash = FontProgramHash(font_hash);
+    let text = format!("{prefix}{suffix}");
+    let unmapped_token = UnmappedToken {
+        scalar_index: prefix.chars().count(),
+        font_hash: font_hash.clone(),
+        glyph_id,
+        source: TextSource { atoms: vec![] },
+    };
+    let mapped = MappedText {
+        text: text.clone(),
+        source_map: vec![],
+        unmapped: vec![unmapped_token],
+    };
+    let mut matching_tokens = Vec::new();
+    for ch in prefix.chars() {
+        matching_tokens.push(ComparableToken::Scalar(ch));
+    }
+    matching_tokens.push(ComparableToken::Unmapped {
+        font_hash,
+        glyph_id,
+    });
+    for ch in suffix.chars() {
+        matching_tokens.push(ComparableToken::Scalar(ch));
+    }
+    BlockText {
+        block: BlockId(id),
+        raw: mapped.clone(),
+        canonical: mapped,
+        matching: text,
+        matching_tokens,
+        numeric_mask_applied: false,
+        normalization_events: vec![],
+        issues: vec![],
+        pages: vec![0],
+    }
+}
+
+#[test]
+fn stable_unmapped_tokens_form_exact_anchors_and_monotone_chains() {
+    let hash = vec![0xaa, 0xbb, 0xcc, 0xdd];
+    let old_blocks = vec![
+        block_text(1, "Anchor one text header before"),
+        multi_unmapped_block_text(2, hash.clone(), &[10, 11, 12, 13, 14]),
+        block_text(3, "Anchor two text footer after"),
+    ];
+    let new_blocks = vec![
+        block_text(101, "Anchor one text header before"),
+        multi_unmapped_block_text(102, hash, &[10, 11, 12, 13, 14]),
+        block_text(103, "Anchor two text footer after"),
+    ];
+
+    let old_features =
+        build_block_features(&old_blocks, 3).expect("old features should build cleanly");
+    let new_features =
+        build_block_features(&new_blocks, 3).expect("new features should build cleanly");
+
+    // Assert that unmapped block 2 has no normalization issues
+    assert!(!old_features[1].has_normalization_issues);
+    assert!(!new_features[1].has_normalization_issues);
+
+    // Exact anchors must discover the stable unmapped block as an anchor
+    let anchors = exact_anchors(&old_features, &new_features, 3).expect("anchors build");
+    assert_eq!(anchors.len(), 3);
+    assert!(anchors.contains(&ExactAnchor {
+        old: BlockId(1),
+        new: BlockId(101),
+    }));
+    assert!(anchors.contains(&ExactAnchor {
+        old: BlockId(2),
+        new: BlockId(102),
+    }));
+    assert!(anchors.contains(&ExactAnchor {
+        old: BlockId(3),
+        new: BlockId(103),
+    }));
+
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new_features).expect("candidate index should build");
+    let alignment = align_ordered(&old_features, &new_features, &generator, options())
+        .expect("ordered alignment should succeed");
+
+    assert_eq!(alignment.spans.len(), 3);
+    for span in &alignment.spans {
+        assert_eq!(span.kind, AlignmentKind::Match);
+        assert_eq!(span.score, 1.0);
+    }
+
+    let diff = compare_aligned(&old_blocks, &new_blocks, &alignment, DiffOptions::default())
+        .expect("diff comparison on exact stable unmapped document must succeed");
+    assert!(
+        diff.changes.is_empty(),
+        "identical document with unmapped tokens must produce zero changes"
+    );
+    assert!(
+        diff.formatting_changes.is_empty(),
+        "identical unmapped tokens must produce zero formatting changes"
+    );
+    assert_eq!(diff.old_coverage.ratio, Some(1.0));
+    assert_eq!(diff.new_coverage.ratio, Some(1.0));
+    assert_eq!(
+        diff.old_coverage.resolved_tokens,
+        diff.old_coverage.total_tokens
+    );
+    assert_eq!(
+        diff.new_coverage.resolved_tokens,
+        diff.new_coverage.total_tokens
+    );
+}
+
+#[test]
+fn relocated_stable_unmapped_block_promotes_to_move_change() {
+    let hash = vec![0x33, 0x44, 0x55, 0x66];
+    let glyphs = (1..=20).collect::<Vec<_>>();
+    let old_blocks = vec![
+        block_text(1, OPENING),
+        multi_unmapped_block_text(2, hash.clone(), &glyphs),
+        block_text(3, "Stable Intermediate Paragraph Section Alpha One"),
+        block_text(4, "Stable Intermediate Paragraph Section Beta Two"),
+        block_text(5, CLOSING),
+    ];
+    let new_blocks = vec![
+        block_text(101, OPENING),
+        block_text(103, "Stable Intermediate Paragraph Section Alpha One"),
+        block_text(104, "Stable Intermediate Paragraph Section Beta Two"),
+        block_text(105, CLOSING),
+        multi_unmapped_block_text(102, hash, &glyphs),
+    ];
+
+    let alignment = align(old_blocks.clone(), new_blocks.clone());
+
+    // Monotone main chain preserves anchors 1, 3, 4, 5 (length 4)
+    assert_eq!(alignment.main_anchors.len(), 4);
+    // Relocated unmapped block 2 <-> 102 is preserved in move_candidates
+    assert_eq!(alignment.move_candidates.len(), 1);
+    assert_eq!(
+        alignment.move_candidates[0],
+        ExactAnchor {
+            old: BlockId(2),
+            new: BlockId(102)
+        }
+    );
+
+    // Downstream compare_aligned promotes it to ChangeKind::Move
+    let diff = compare_aligned(&old_blocks, &new_blocks, &alignment, DiffOptions::default())
+        .expect("diff comparison must succeed");
+
+    let moves = diff
+        .changes
+        .iter()
+        .filter(|c| c.kind == ChangeKind::Move)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        moves.len(),
+        1,
+        "Relocated unique unmapped block must promote to Move"
+    );
+    assert_eq!(
+        moves[0].old_span.as_ref().expect("old span").blocks,
+        vec![BlockId(2)]
+    );
+    assert_eq!(
+        moves[0].new_span.as_ref().expect("new span").blocks,
+        vec![BlockId(102)]
+    );
+    assert!(diff.formatting_changes.is_empty());
+    assert_eq!(diff.old_coverage.ratio, Some(1.0));
+    assert_eq!(diff.new_coverage.ratio, Some(1.0));
+}
+
+#[test]
+fn cross_font_hash_unmapped_tokens_are_rejected_from_anchors_and_stay_unresolved() {
+    let hash_old = vec![0x11, 0x22, 0x33];
+    let hash_new = vec![0x99, 0x88, 0x77];
+    let old_blocks = vec![
+        block_text(1, "Anchor one text header before"),
+        multi_unmapped_block_text(2, hash_old, &[10, 11, 12, 13, 14]),
+        block_text(3, "Anchor two text footer after"),
+    ];
+    let new_blocks = vec![
+        block_text(101, "Anchor one text header before"),
+        multi_unmapped_block_text(102, hash_new, &[10, 11, 12, 13, 14]),
+        block_text(103, "Anchor two text footer after"),
+    ];
+
+    let old_features =
+        build_block_features(&old_blocks, 3).expect("old features should build cleanly");
+    let new_features =
+        build_block_features(&new_blocks, 3).expect("new features should build cleanly");
+
+    // Exact anchors must NOT pair different font hashes
+    let anchors = exact_anchors(&old_features, &new_features, 3).expect("anchors build");
+    assert_eq!(anchors.len(), 2);
+    assert!(anchors.contains(&ExactAnchor {
+        old: BlockId(1),
+        new: BlockId(101),
+    }));
+    assert!(anchors.contains(&ExactAnchor {
+        old: BlockId(3),
+        new: BlockId(103),
+    }));
+    assert!(!anchors.contains(&ExactAnchor {
+        old: BlockId(2),
+        new: BlockId(102),
+    }));
+
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new_features).expect("candidate index should build");
+    let alignment = align_ordered(&old_features, &new_features, &generator, options())
+        .expect("ordered alignment should succeed");
+
+    // Middle interval between anchors must be unresolved or deletion+insertion
+    let middle_spans = alignment
+        .spans
+        .iter()
+        .filter(|s| s.old.contains(&BlockId(2)) || s.new.contains(&BlockId(102)))
+        .collect::<Vec<_>>();
+    assert!(!middle_spans.is_empty());
+    for s in middle_spans {
+        assert_ne!(
+            s.kind,
+            AlignmentKind::Match,
+            "different font hashes must not produce a match"
+        );
+    }
+}
+
+#[test]
+fn duplicate_stable_unmapped_blocks_are_rejected_from_anchors_due_to_ambiguity() {
+    let hash = vec![0xde, 0xad, 0xbe, 0xef];
+    let old_blocks = vec![
+        multi_unmapped_block_text(1, hash.clone(), &[20, 21, 22]),
+        multi_unmapped_block_text(2, hash.clone(), &[20, 21, 22]),
+    ];
+    let new_blocks = vec![
+        multi_unmapped_block_text(101, hash.clone(), &[20, 21, 22]),
+        multi_unmapped_block_text(102, hash, &[20, 21, 22]),
+    ];
+
+    let old_features = build_block_features(&old_blocks, 3).expect("old features build");
+    let new_features = build_block_features(&new_blocks, 3).expect("new features build");
+
+    // Frequency > 1 on each side => exact_anchors must reject all duplicate unmapped blocks
+    let anchors = exact_anchors(&old_features, &new_features, 3).expect("anchors build");
+    assert!(
+        anchors.is_empty(),
+        "duplicate unmapped blocks must not produce exact anchors"
+    );
+}
+
+#[test]
+fn unmapped_block_with_actual_normalization_issue_is_excluded_from_primary_anchors() {
+    let hash = vec![0x12, 0x34, 0x56];
+    let mut old_block = multi_unmapped_block_text(1, hash.clone(), &[30, 31, 32]);
+    old_block.issues.push(NormalizationIssue {
+        kind: NormalizationIssueKind::AmbiguousLineBreak,
+        raw_range: ScalarRange { start: 0, end: 0 },
+        source: TextSource { atoms: vec![] },
+    });
+    let new_block = multi_unmapped_block_text(101, hash, &[30, 31, 32]);
+
+    let old_features =
+        build_block_features(std::slice::from_ref(&old_block), 3).expect("old features build");
+    let new_features =
+        build_block_features(std::slice::from_ref(&new_block), 3).expect("new features build");
+
+    assert!(
+        old_features[0].has_normalization_issues,
+        "block with actual issue must have has_normalization_issues = true"
+    );
+    assert!(
+        !new_features[0].has_normalization_issues,
+        "clean block must have has_normalization_issues = false"
+    );
+
+    let anchors = exact_anchors(&old_features, &new_features, 3).expect("anchors build");
+    assert!(
+        anchors.is_empty(),
+        "block with normalization issue must be excluded from primary anchors"
+    );
+}
+
+#[test]
+fn mixed_mapped_and_unmapped_tokens_diff_precisely() -> Result<()> {
+    let hash = vec![0xfa, 0xce, 0xb0, 0x0c];
+    let old_block =
+        mixed_mapped_unmapped_block_text(1, "Prefix header ", hash.clone(), 77, " suffix ABC");
+    let new_block =
+        mixed_mapped_unmapped_block_text(101, "Prefix header ", hash, 77, " suffix XYZ");
+
+    // Assert raw unmapped evidence is preserved intact
+    assert_eq!(old_block.raw.unmapped.len(), 1);
+    assert_eq!(old_block.raw.unmapped[0].glyph_id, 77);
+    assert_eq!(new_block.raw.unmapped.len(), 1);
+    assert_eq!(new_block.raw.unmapped[0].glyph_id, 77);
+
+    let old_features = build_block_features(std::slice::from_ref(&old_block), 3)?;
+    let new_features = build_block_features(std::slice::from_ref(&new_block), 3)?;
+
+    let generator = InvertedIndexCandidateGenerator::new(&new_features)?;
+    let alignment = align_ordered(&old_features, &new_features, &generator, options())?;
+
+    assert_eq!(alignment.spans.len(), 1);
+    assert_eq!(alignment.spans[0].kind, AlignmentKind::Match);
+
+    let diff = compare_aligned(
+        std::slice::from_ref(&old_block),
+        std::slice::from_ref(&new_block),
+        &alignment,
+        DiffOptions::default(),
+    )?;
+
+    // Diff must report the replacement of "ABC" with "XYZ" while keeping prefix and unmapped glyph stable
+    assert_eq!(diff.changes.len(), 1);
+    assert_eq!(diff.changes[0].kind, ChangeKind::Replacement);
+    assert_eq!(diff.old_coverage.ratio, Some(1.0));
+    assert_eq!(diff.new_coverage.ratio, Some(1.0));
+    Ok(())
 }

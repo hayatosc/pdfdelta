@@ -909,3 +909,91 @@ fn rejects_asymmetric_move_candidate_evidence_as_deletion_and_insertion() -> Res
     );
     Ok(())
 }
+
+fn multi_unmapped_block(id: u64, font_hash: Vec<u8>, glyph_ids: &[u16]) -> BlockText {
+    let font_hash = FontProgramHash(font_hash);
+    let mut unmapped = Vec::new();
+    let mut matching_tokens = Vec::new();
+    for &glyph_id in glyph_ids {
+        unmapped.push(UnmappedToken {
+            scalar_index: 0,
+            font_hash: font_hash.clone(),
+            glyph_id,
+            source: TextSource { atoms: vec![] },
+        });
+        matching_tokens.push(ComparableToken::Unmapped {
+            font_hash: font_hash.clone(),
+            glyph_id,
+        });
+    }
+    let mapped = MappedText {
+        text: String::new(),
+        source_map: vec![],
+        unmapped,
+    };
+    BlockText {
+        block: BlockId(id),
+        raw: mapped.clone(),
+        canonical: mapped,
+        matching: String::new(),
+        matching_tokens,
+        numeric_mask_applied: false,
+        normalization_events: vec![],
+        issues: vec![],
+        pages: vec![0],
+    }
+}
+
+#[test]
+fn exact_diff_matches_stable_unmapped_block_with_zero_changes() -> Result<()> {
+    let hash = vec![0x11, 0x22, 0x33];
+    let old = multi_unmapped_block(1, hash.clone(), &[100, 101, 102]);
+    let new = multi_unmapped_block(101, hash, &[100, 101, 102]);
+    let alignment = aligned(vec![matched(&[1], &[101])]);
+
+    let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
+
+    assert!(
+        result.changes.is_empty(),
+        "identical unmapped tokens must produce 0 changes"
+    );
+    assert!(
+        result.formatting_changes.is_empty(),
+        "identical unmapped raw evidence must produce 0 formatting changes"
+    );
+    assert_eq!(result.old_coverage.ratio, Some(1.0));
+    assert_eq!(result.new_coverage.ratio, Some(1.0));
+    assert_eq!(result.old_coverage.total_tokens, 3);
+    assert_eq!(result.old_coverage.resolved_tokens, 3);
+    Ok(())
+}
+
+#[test]
+fn promotes_an_exact_unmapped_move_candidate() -> Result<()> {
+    let hash = vec![0x55, 0x66, 0x77];
+    let old = multi_unmapped_block(1, hash.clone(), &[10, 20, 30]);
+    let new = multi_unmapped_block(101, hash, &[10, 20, 30]);
+    let mut deletion = one_sided(AlignmentKind::Deletion, &[1], &[]);
+    deletion.evidence.push(AlignmentEvidence::MoveCandidate);
+    let mut insertion = one_sided(AlignmentKind::Insertion, &[], &[101]);
+    insertion.evidence.push(AlignmentEvidence::MoveCandidate);
+    let alignment = Alignment {
+        spans: vec![deletion, insertion],
+        main_anchors: Vec::new(),
+        move_candidates: vec![ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101),
+        }],
+    };
+
+    let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
+
+    assert_eq!(result.changes.len(), 1);
+    assert_eq!(result.changes[0].kind, ChangeKind::Move);
+    assert!(result.changes[0].old_span.is_some());
+    assert!(result.changes[0].new_span.is_some());
+    assert!(result.formatting_changes.is_empty());
+    assert_eq!(result.old_coverage.ratio, Some(1.0));
+    assert_eq!(result.new_coverage.ratio, Some(1.0));
+    Ok(())
+}

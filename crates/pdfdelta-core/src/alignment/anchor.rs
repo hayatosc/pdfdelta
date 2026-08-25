@@ -32,7 +32,7 @@ pub struct AnchorIntervalWindow {
 /// - Have identical canonical token sequences
 /// - Appear exactly once in `old` and exactly once in `new`
 /// - Have at least `min_token_count` tokens
-/// - Have no normalization issues (e.g. unmapped tokens or ambiguous line breaks)
+/// - Have no unresolved normalization issues (e.g. ambiguous line breaks); verified stable unmapped identities participate normally
 pub fn exact_anchors(
     old: &[BlockFeatures],
     new: &[BlockFeatures],
