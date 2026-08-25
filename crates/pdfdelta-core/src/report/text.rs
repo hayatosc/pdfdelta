@@ -84,7 +84,7 @@ pub(super) fn render(
         for issue in &extraction.issues {
             let scope = match issue.scope {
                 ExtractionScope::Document => "scope=document".to_owned(),
-                ExtractionScope::Page(page) => format!("scope=page, page={}", page.0 + 1),
+                ExtractionScope::Page(page) => format!("scope=page, page={}", (page.0 as u64) + 1),
             };
             writeln!(
                 output,
@@ -452,7 +452,7 @@ fn format_pages(pages: &[u32]) -> String {
     let mut start = pages[0];
     let mut end = pages[0];
     for page in &pages[1..] {
-        if *page == end + 1 {
+        if (*page as u64) == (end as u64) + 1 {
             end = *page;
         } else {
             runs.push((start, end));
@@ -464,10 +464,12 @@ fn format_pages(pages: &[u32]) -> String {
     let joined = runs
         .iter()
         .map(|(start, end)| {
+            let s = (*start as u64) + 1;
+            let e = (*end as u64) + 1;
             if start == end {
-                (start + 1).to_string()
+                s.to_string()
             } else {
-                format!("{}-{}", start + 1, end + 1)
+                format!("{s}-{e}")
             }
         })
         .collect::<Vec<_>>()

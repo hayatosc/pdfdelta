@@ -341,9 +341,29 @@ fn hex_preview(bytes: &[u8]) -> String {
     out
 }
 
+/// Returns true if `ch` is a legal character in XML 1.0 (Fifth Edition, Section 2.2):
+/// `Char ::= #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]`
+fn is_xml_10_valid(ch: char) -> bool {
+    matches!(
+        ch,
+        '\t' | '\n' | '\r' | '\u{20}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..='\u{10FFFF}'
+    )
+}
+
+/// Escapes XML special characters (`&`, `<`, `>`, `"`, `'`) and renders forbidden XML 1.0
+/// code points as explicit deterministic evidence markers `&lt;U+XXXX&gt;`.
+///
+/// Note: Literal source substrings like `<U+0000>` render identically to generated forbidden
+/// codepoint markers (`&lt;U+0000&gt;`). Any disambiguated marker or escaping scheme should
+/// be introduced only when demonstrated by benchmark/fixture evidence.
 fn xml_escape(input: &str) -> String {
     let mut escaped = String::with_capacity(input.len());
     for ch in input.chars() {
+        if !is_xml_10_valid(ch) {
+            use std::fmt::Write;
+            let _ = write!(escaped, "&lt;U+{:04X}&gt;", ch as u32);
+            continue;
+        }
         match ch {
             '&' => escaped.push_str("&amp;"),
             '<' => escaped.push_str("&lt;"),

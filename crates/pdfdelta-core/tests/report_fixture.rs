@@ -1789,3 +1789,188 @@ fn text_and_json_report_renders_promoted_move_with_formatting_normalization_chan
 
     Ok(())
 }
+
+#[test]
+fn text_report_handles_max_page_id_without_overflow() -> Result<()> {
+    let extraction = ExtractionStatus {
+        old_complete: false,
+        new_complete: true,
+        issues: vec![ExtractionIssueRecord {
+            side: DocumentSide::Old,
+            kind: ExtractionIssueKind::Unsupported,
+            scope: ExtractionScope::Page(PageId(u32::MAX)),
+            description: "unsupported feature on huge page".to_owned(),
+        }],
+    };
+
+    let old_blocks = vec![block_with_pages(1, "Old block on max page", &[u32::MAX])];
+    let new_blocks = vec![block_with_pages(101, "New block on max page", &[u32::MAX])];
+    let mut comparison = empty_comparison();
+    let old_tokens = old_blocks[0].matching_tokens.len();
+    let new_tokens = new_blocks[0].matching_tokens.len();
+    comparison.old_coverage.total_tokens = old_tokens;
+    comparison.old_coverage.resolved_tokens = old_tokens;
+    comparison.old_coverage.ratio = None;
+    comparison.new_coverage.total_tokens = new_tokens;
+    comparison.new_coverage.resolved_tokens = new_tokens;
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(full_span(1, "Old block on max page")),
+        new_span: Some(full_span(101, "New block on max page")),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &extraction,
+        &plain_options(),
+    )?;
+
+    assert!(
+        report.contains("scope=page, page=4294967296"),
+        "Extraction scope must display page=4294967296 without overflow: {report}"
+    );
+    assert!(
+        report.contains("@@ page 4294967296 · old block 1 -> new block 101"),
+        "Hunk header must display page 4294967296 without overflow: {report}"
+    );
+    Ok(())
+}
+
+#[test]
+fn svg_render_escapes_xml_10_forbidden_controls_and_preserves_whitespace() -> Result<()> {
+    let forbidden_and_special_text = "Hello\0World\x01\x08\x0B\x0C\x0E\x1F\u{FFFE}\u{FFFF} & <tag> \"quotes\" 'apos' \t \r \n \u{D7FF} \u{E000} \u{FFFD} \u{1F600} \u{1FFFE} \x7F \u{0080} \u{009F} <U+0000> End";
+    let glyph = Glyph {
+        id: GlyphId(1),
+        page: PageId(0),
+        text: DecodedText::Mapped(forbidden_and_special_text.to_owned()),
+        raw_code: vec![0x41],
+        font_id: FontId(1),
+        font_size: 12.0,
+        bbox: Rect {
+            min: Vec2 { x: 50.0, y: 100.0 },
+            max: Vec2 { x: 200.0, y: 120.0 },
+        },
+        baseline: Vec2 { x: 50.0, y: 100.0 },
+        direction: Vec2 { x: 1.0, y: 0.0 },
+        render_order: 1,
+        render_mode: TextRenderMode::Fill,
+        provenance: GlyphProvenance {
+            content_stream: ObjectRef {
+                object_number: 1,
+                generation: 0,
+            },
+            operator_index: 0,
+        },
+    };
+
+    let doc = Document::new(vec![glyph]);
+    let svg = render_glyph_overlay_svg(&doc)?;
+
+    // 1. Forbidden C0 controls and non-characters are converted to &lt;U+XXXX&gt;
+    assert!(
+        svg.contains("&lt;U+0000&gt;"),
+        "NULL must be escaped to &lt;U+0000&gt;"
+    );
+    assert!(
+        svg.contains("&lt;U+0001&gt;"),
+        "SOH must be escaped to &lt;U+0001&gt;"
+    );
+    assert!(
+        svg.contains("&lt;U+0008&gt;"),
+        "BS must be escaped to &lt;U+0008&gt;"
+    );
+    assert!(
+        svg.contains("&lt;U+000B&gt;"),
+        "VT must be escaped to &lt;U+000B&gt;"
+    );
+    assert!(
+        svg.contains("&lt;U+000C&gt;"),
+        "FF must be escaped to &lt;U+000C&gt;"
+    );
+    assert!(
+        svg.contains("&lt;U+000E&gt;"),
+        "SO must be escaped to &lt;U+000E&gt;"
+    );
+    assert!(
+        svg.contains("&lt;U+001F&gt;"),
+        "US must be escaped to &lt;U+001F&gt;"
+    );
+    assert!(
+        svg.contains("&lt;U+FFFE&gt;"),
+        "U+FFFE non-character must be escaped to &lt;U+FFFE&gt;"
+    );
+    assert!(
+        svg.contains("&lt;U+FFFF&gt;"),
+        "U+FFFF non-character must be escaped to &lt;U+FFFF&gt;"
+    );
+
+    // 2. Standard XML special characters are escaped
+    assert!(svg.contains("&amp;"), "ampersand must be escaped to &amp;");
+    assert!(
+        svg.contains("&lt;tag&gt;"),
+        "tag brackets must be escaped to &lt;tag&gt;"
+    );
+    assert!(
+        svg.contains("&quot;quotes&quot;"),
+        "double quotes must be escaped to &quot;"
+    );
+    assert!(
+        svg.contains("&apos;apos&apos;"),
+        "single quotes must be escaped to &apos;"
+    );
+
+    // 3. Allowed whitespace controls and XML 1.0 boundary scalar values are preserved as-is
+    assert!(
+        !svg.contains("&lt;U+0009&gt;"),
+        "TAB must not be replaced by a marker"
+    );
+    assert!(
+        !svg.contains("&lt;U+000A&gt;"),
+        "LF must not be replaced by a marker"
+    );
+    assert!(
+        !svg.contains("&lt;U+000D&gt;"),
+        "CR must not be replaced by a marker"
+    );
+    assert!(
+        svg.contains('\u{D7FF}'),
+        "U+D7FF boundary must be preserved without conversion to marker"
+    );
+    assert!(
+        svg.contains('\u{E000}'),
+        "U+E000 boundary must be preserved without conversion to marker"
+    );
+    assert!(
+        svg.contains('\u{FFFD}'),
+        "U+FFFD replacement char must be preserved without conversion to marker"
+    );
+    assert!(
+        svg.contains('\u{1F600}'),
+        "Supplementary plane emoji U+1F600 must be preserved"
+    );
+    assert!(
+        svg.contains('\u{1FFFE}'),
+        "Supplementary plane U+1FFFE must be preserved"
+    );
+    assert!(
+        svg.contains('\x7F'),
+        "DEL 0x7F must be preserved according to XML 1.0 Char definition"
+    );
+    assert!(
+        svg.contains('\u{0080}'),
+        "C1 control U+0080 must be preserved according to XML 1.0 Char definition"
+    );
+    assert!(
+        svg.contains('\u{009F}'),
+        "C1 control U+009F must be preserved according to XML 1.0 Char definition"
+    );
+
+    // 4. Deterministic output
+    let svg2 = render_glyph_overlay_svg(&doc)?;
+    assert_eq!(svg, svg2, "SVG serialization must be 100% deterministic");
+    Ok(())
+}
