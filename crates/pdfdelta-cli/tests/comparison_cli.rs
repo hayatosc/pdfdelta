@@ -597,6 +597,20 @@ fn trace_records_candidate_visit_metrics_on_the_alignment_phase() {
         alignment["metrics"]["candidate_visits_required"], visits,
         "attempted charge must equal the required sum on success"
     );
+    let exact = alignment["metrics"]["candidate_visits_required_exact"]
+        .as_u64()
+        .expect("inverted index reports an exact component");
+    let ngram = alignment["metrics"]["candidate_visits_required_ngram"]
+        .as_u64()
+        .expect("inverted index reports an ngram component");
+    let short_fallback = alignment["metrics"]["candidate_visits_required_short_fallback"]
+        .as_u64()
+        .expect("inverted index reports a short fallback component");
+    assert_eq!(
+        exact + ngram + short_fallback,
+        visits,
+        "required components must sum to the required total"
+    );
     assert_eq!(alignment["metrics"]["max_candidate_visits"], 1_000_000);
 }
 

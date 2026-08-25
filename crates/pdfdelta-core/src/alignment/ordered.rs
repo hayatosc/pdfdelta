@@ -185,6 +185,16 @@ pub(crate) struct AlignmentVisitMetrics {
     /// never reached (e.g. an earlier alignment error). Identity alignment
     /// is `Some(0)`.
     pub candidate_visits_required: Option<usize>,
+    /// Exact-match posting visits of the required sum; `Some` only when
+    /// every non-anchor old block reported a breakdown and every component
+    /// sum completed. Identity alignment is `Some(0)`.
+    pub candidate_visits_required_exact: Option<usize>,
+    /// N-gram posting visits of the required sum; `Some` under the same
+    /// conditions as `candidate_visits_required_exact`.
+    pub candidate_visits_required_ngram: Option<usize>,
+    /// Short-block fallback visits of the required sum; `Some` under the
+    /// same conditions as `candidate_visits_required_exact`.
+    pub candidate_visits_required_short_fallback: Option<usize>,
     /// The `AlignmentOptions::max_candidate_visits` budget the charge was
     /// compared against.
     pub max_candidate_visits: usize,
@@ -206,6 +216,9 @@ pub(crate) fn align_ordered_with_metrics(
 ) -> AlignmentAttempt {
     let mut candidate_visits = 0_usize;
     let mut candidate_visits_required = None;
+    let mut candidate_visits_required_exact = None;
+    let mut candidate_visits_required_ngram = None;
+    let mut candidate_visits_required_short_fallback = None;
     let result = align_ordered_inner(
         old,
         new,
@@ -213,17 +226,24 @@ pub(crate) fn align_ordered_with_metrics(
         options,
         &mut candidate_visits,
         &mut candidate_visits_required,
+        &mut candidate_visits_required_exact,
+        &mut candidate_visits_required_ngram,
+        &mut candidate_visits_required_short_fallback,
     );
     AlignmentAttempt {
         result,
         visit_metrics: AlignmentVisitMetrics {
             candidate_visits,
             candidate_visits_required,
+            candidate_visits_required_exact,
+            candidate_visits_required_ngram,
+            candidate_visits_required_short_fallback,
             max_candidate_visits: options.max_candidate_visits,
         },
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn align_ordered_inner(
     old: &[BlockFeatures],
     new: &[BlockFeatures],
@@ -231,6 +251,9 @@ fn align_ordered_inner(
     options: AlignmentOptions,
     candidate_visits: &mut usize,
     candidate_visits_required: &mut Option<usize>,
+    candidate_visits_required_exact: &mut Option<usize>,
+    candidate_visits_required_ngram: &mut Option<usize>,
+    candidate_visits_required_short_fallback: &mut Option<usize>,
 ) -> Result<Alignment> {
     validate_alignment_options(options)?;
     validate_features("old", old)?;
@@ -239,6 +262,9 @@ fn align_ordered_inner(
 
     if old == new {
         *candidate_visits_required = Some(0);
+        *candidate_visits_required_exact = Some(0);
+        *candidate_visits_required_ngram = Some(0);
+        *candidate_visits_required_short_fallback = Some(0);
         return Ok(identity_alignment(old));
     }
 
@@ -275,6 +301,9 @@ fn align_ordered_inner(
         options.max_candidate_visits,
         candidate_visits,
         candidate_visits_required,
+        candidate_visits_required_exact,
+        candidate_visits_required_ngram,
+        candidate_visits_required_short_fallback,
     )?;
     let move_old = move_candidates
         .iter()
@@ -540,22 +569,36 @@ fn collect_candidates(
     max_visits: usize,
     candidate_visits: &mut usize,
     candidate_visits_required: &mut Option<usize>,
+    candidate_visits_required_exact: &mut Option<usize>,
+    candidate_visits_required_ngram: &mut Option<usize>,
+    candidate_visits_required_short_fallback: &mut Option<usize>,
 ) -> Result<CandidateMap> {
     // The required sum is the checked total over every non-anchor old block
     // and is unavailable (`None`) whenever any estimate errors or the sum
     // overflows. The attempted charge is frozen at the first budget exceed
     // while the required sum keeps accumulating, so a limit failure still
-    // reports the full candidate work the alignment would have needed.
+    // reports the full candidate work the alignment would have needed. The
+    // exact/ngram/short-fallback components are `Some` only when every
+    // block reported a breakdown and every component sum completed; an
+    // unknown generator, estimate error, or overflow leaves all three
+    // `None` so partial component state is never reported.
     *candidate_visits_required = None;
+    *candidate_visits_required_exact = None;
+    *candidate_visits_required_ngram = None;
+    *candidate_visits_required_short_fallback = None;
     let mut remaining_visits = max_visits;
     let mut exceeded = false;
     let mut required_visits = 0_usize;
+    let mut required_exact = 0_usize;
+    let mut required_ngram = 0_usize;
+    let mut required_short_fallback = 0_usize;
+    let mut breakdown_complete = true;
     for features in old
         .iter()
         .filter(|features| !main_anchor_old.contains(&features.block))
     {
-        let visits = match generator.estimated_visits(features, limit) {
-            Ok(visits) => visits,
+        let estimate = match generator.estimate_visits(features, limit) {
+            Ok(estimate) => estimate,
             Err(error) => {
                 // Error precedence: a limit failure already detected takes
                 // precedence over a later estimate error, and the required
@@ -569,6 +612,7 @@ fn collect_candidates(
                 return Err(error);
             }
         };
+        let visits = estimate.total;
         if !exceeded {
             // The attempted cumulative charge includes the block that
             // exceeds the budget so the recorded metric explains the
@@ -593,8 +637,38 @@ fn collect_candidates(
                 resource: "alignment candidate visits",
                 limit: max_visits,
             })?;
+        match estimate.breakdown {
+            Some(breakdown) => {
+                required_exact =
+                    required_exact
+                        .checked_add(breakdown.exact)
+                        .ok_or(Error::LimitExceeded {
+                            resource: "alignment candidate visits",
+                            limit: max_visits,
+                        })?;
+                required_ngram =
+                    required_ngram
+                        .checked_add(breakdown.ngram)
+                        .ok_or(Error::LimitExceeded {
+                            resource: "alignment candidate visits",
+                            limit: max_visits,
+                        })?;
+                required_short_fallback = required_short_fallback
+                    .checked_add(breakdown.short_fallback)
+                    .ok_or(Error::LimitExceeded {
+                        resource: "alignment candidate visits",
+                        limit: max_visits,
+                    })?;
+            }
+            None => breakdown_complete = false,
+        }
     }
     *candidate_visits_required = Some(required_visits);
+    if breakdown_complete {
+        *candidate_visits_required_exact = Some(required_exact);
+        *candidate_visits_required_ngram = Some(required_ngram);
+        *candidate_visits_required_short_fallback = Some(required_short_fallback);
+    }
     if exceeded {
         return Err(Error::LimitExceeded {
             resource: "alignment candidate visits",
@@ -1748,7 +1822,7 @@ mod tests {
     use crate::normalize::ComparableToken;
 
     use super::*;
-    use crate::alignment::{Candidate, ExactHash};
+    use crate::alignment::{Candidate, CandidateVisitBreakdown, CandidateVisitEstimate, ExactHash};
 
     fn feature(block: u64, key: u64) -> BlockFeatures {
         let scalar = char::from_u32(0x1000 + key as u32).expect("fixture key should be valid");
@@ -1815,6 +1889,53 @@ mod tests {
         }
     }
 
+    struct FixedBreakdownGenerator {
+        exact: usize,
+        ngram: usize,
+        short_fallback: usize,
+        estimated: RefCell<Vec<BlockId>>,
+        generated: RefCell<Vec<BlockId>>,
+    }
+
+    impl FixedBreakdownGenerator {
+        fn new(exact: usize, ngram: usize, short_fallback: usize) -> Self {
+            Self {
+                exact,
+                ngram,
+                short_fallback,
+                estimated: RefCell::new(Vec::new()),
+                generated: RefCell::new(Vec::new()),
+            }
+        }
+    }
+
+    impl CandidateGenerator for FixedBreakdownGenerator {
+        fn estimated_visits(&self, old: &BlockFeatures, limit: usize) -> Result<usize> {
+            Ok(self.estimate_visits(old, limit)?.total)
+        }
+
+        fn estimate_visits(
+            &self,
+            old: &BlockFeatures,
+            _limit: usize,
+        ) -> Result<CandidateVisitEstimate> {
+            self.estimated.borrow_mut().push(old.block);
+            Ok(CandidateVisitEstimate {
+                total: self.exact + self.ngram + self.short_fallback,
+                breakdown: Some(CandidateVisitBreakdown {
+                    exact: self.exact,
+                    ngram: self.ngram,
+                    short_fallback: self.short_fallback,
+                }),
+            })
+        }
+
+        fn candidates(&self, old: &BlockFeatures, _limit: usize) -> Result<Vec<Candidate>> {
+            self.generated.borrow_mut().push(old.block);
+            Ok(Vec::new())
+        }
+    }
+
     fn distinct_features() -> (Vec<BlockFeatures>, Vec<BlockFeatures>) {
         let old = vec![feature(1, 1), feature(2, 2), feature(3, 3)];
         let new = vec![feature(101, 101), feature(102, 102), feature(103, 103)];
@@ -1843,6 +1964,16 @@ mod tests {
         // blocks of six visits) while the required sum covers all three.
         assert_eq!(attempt.visit_metrics.candidate_visits, 12);
         assert_eq!(attempt.visit_metrics.candidate_visits_required, Some(18));
+        // The generic generator reports no breakdown, so the components
+        // stay unavailable even though the required sum completed.
+        assert_eq!(attempt.visit_metrics.candidate_visits_required_exact, None);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required_ngram, None);
+        assert_eq!(
+            attempt
+                .visit_metrics
+                .candidate_visits_required_short_fallback,
+            None
+        );
         assert_eq!(attempt.visit_metrics.max_candidate_visits, 11);
         assert_eq!(
             *generator.estimated.borrow(),
@@ -1865,6 +1996,92 @@ mod tests {
         assert!(attempt.result.is_ok());
         assert_eq!(attempt.visit_metrics.candidate_visits, 18);
         assert_eq!(attempt.visit_metrics.candidate_visits_required, Some(18));
+        assert_eq!(attempt.visit_metrics.candidate_visits_required_exact, None);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required_ngram, None);
+        assert_eq!(
+            attempt
+                .visit_metrics
+                .candidate_visits_required_short_fallback,
+            None
+        );
+        assert_eq!(
+            *generator.generated.borrow(),
+            [BlockId(1), BlockId(2), BlockId(3)]
+        );
+    }
+
+    #[test]
+    fn required_components_sum_to_total_and_survive_a_limit_failure() {
+        let (old, new) = distinct_features();
+        let generator = FixedBreakdownGenerator::new(2, 3, 1);
+        let options = AlignmentOptions {
+            max_candidate_visits: 11,
+            ..AlignmentOptions::default()
+        };
+
+        let attempt = align_ordered_with_metrics(&old, &new, &generator, options);
+
+        assert!(matches!(
+            attempt.result,
+            Err(Error::LimitExceeded {
+                resource: "alignment candidate visits",
+                limit: 11,
+            })
+        ));
+        // The attempted charge is frozen at the first budget exceed (two
+        // blocks of six visits) while the required sum and its components
+        // cover all three blocks.
+        assert_eq!(attempt.visit_metrics.candidate_visits, 12);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required, Some(18));
+        assert_eq!(
+            attempt.visit_metrics.candidate_visits_required_exact,
+            Some(6)
+        );
+        assert_eq!(
+            attempt.visit_metrics.candidate_visits_required_ngram,
+            Some(9)
+        );
+        assert_eq!(
+            attempt
+                .visit_metrics
+                .candidate_visits_required_short_fallback,
+            Some(3)
+        );
+        assert_eq!(
+            *generator.estimated.borrow(),
+            [BlockId(1), BlockId(2), BlockId(3)]
+        );
+        assert!(generator.generated.borrow().is_empty());
+    }
+
+    #[test]
+    fn required_components_match_attempted_on_success() {
+        let (old, new) = distinct_features();
+        let generator = FixedBreakdownGenerator::new(2, 3, 1);
+        let options = AlignmentOptions {
+            max_candidate_visits: 18,
+            ..AlignmentOptions::default()
+        };
+
+        let attempt = align_ordered_with_metrics(&old, &new, &generator, options);
+
+        assert!(attempt.result.is_ok());
+        assert_eq!(attempt.visit_metrics.candidate_visits, 18);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required, Some(18));
+        assert_eq!(
+            attempt.visit_metrics.candidate_visits_required_exact,
+            Some(6)
+        );
+        assert_eq!(
+            attempt.visit_metrics.candidate_visits_required_ngram,
+            Some(9)
+        );
+        assert_eq!(
+            attempt
+                .visit_metrics
+                .candidate_visits_required_short_fallback,
+            Some(3)
+        );
         assert_eq!(
             *generator.generated.borrow(),
             [BlockId(1), BlockId(2), BlockId(3)]
@@ -1882,6 +2099,22 @@ mod tests {
         assert!(attempt.result.is_ok());
         assert_eq!(attempt.visit_metrics.candidate_visits, 0);
         assert_eq!(attempt.visit_metrics.candidate_visits_required, Some(0));
+        // Identity alignment never consults the generator, so the
+        // components are reported as zero.
+        assert_eq!(
+            attempt.visit_metrics.candidate_visits_required_exact,
+            Some(0)
+        );
+        assert_eq!(
+            attempt.visit_metrics.candidate_visits_required_ngram,
+            Some(0)
+        );
+        assert_eq!(
+            attempt
+                .visit_metrics
+                .candidate_visits_required_short_fallback,
+            Some(0)
+        );
         assert!(generator.estimated.borrow().is_empty());
         assert!(generator.generated.borrow().is_empty());
     }
@@ -1903,6 +2136,14 @@ mod tests {
         ));
         assert_eq!(attempt.visit_metrics.candidate_visits, 0);
         assert_eq!(attempt.visit_metrics.candidate_visits_required, None);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required_exact, None);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required_ngram, None);
+        assert_eq!(
+            attempt
+                .visit_metrics
+                .candidate_visits_required_short_fallback,
+            None
+        );
     }
 
     #[test]
@@ -1922,6 +2163,14 @@ mod tests {
         assert!(matches!(attempt.result, Err(Error::Unresolved(_))));
         assert_eq!(attempt.visit_metrics.candidate_visits, 0);
         assert_eq!(attempt.visit_metrics.candidate_visits_required, None);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required_exact, None);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required_ngram, None);
+        assert_eq!(
+            attempt
+                .visit_metrics
+                .candidate_visits_required_short_fallback,
+            None
+        );
     }
 
     #[test]
@@ -1947,6 +2196,14 @@ mod tests {
         ));
         assert_eq!(attempt.visit_metrics.candidate_visits, 12);
         assert_eq!(attempt.visit_metrics.candidate_visits_required, None);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required_exact, None);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required_ngram, None);
+        assert_eq!(
+            attempt
+                .visit_metrics
+                .candidate_visits_required_short_fallback,
+            None
+        );
     }
 
     #[test]
@@ -1976,6 +2233,14 @@ mod tests {
         ));
         assert_eq!(attempt.visit_metrics.candidate_visits, 3 * visits);
         assert_eq!(attempt.visit_metrics.candidate_visits_required, None);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required_exact, None);
+        assert_eq!(attempt.visit_metrics.candidate_visits_required_ngram, None);
+        assert_eq!(
+            attempt
+                .visit_metrics
+                .candidate_visits_required_short_fallback,
+            None
+        );
     }
 
     fn group_score(score: f64, exact_canonical: bool) -> GroupScore {

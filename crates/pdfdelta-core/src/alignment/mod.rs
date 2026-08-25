@@ -4,8 +4,8 @@ mod ordered;
 mod score;
 
 pub use candidate::{
-    Candidate, CandidateGenerator, CandidateSource, ExhaustiveCandidateGenerator,
-    InvertedIndexCandidateGenerator,
+    Candidate, CandidateGenerator, CandidateSource, CandidateVisitBreakdown,
+    CandidateVisitEstimate, ExhaustiveCandidateGenerator, InvertedIndexCandidateGenerator,
 };
 pub(crate) use features::validate_ngram_size;
 pub use features::{

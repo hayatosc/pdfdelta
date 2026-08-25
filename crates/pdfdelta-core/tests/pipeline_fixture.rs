@@ -495,6 +495,25 @@ fn records_candidate_visits_on_completed_alignment() -> Result<()> {
         Some(visits),
         "attempted charge must equal the required sum on success"
     );
+    let (exact, ngram, short_fallback) = (
+        alignment
+            .metrics
+            .candidate_visits_required_exact
+            .expect("inverted index reports an exact component"),
+        alignment
+            .metrics
+            .candidate_visits_required_ngram
+            .expect("inverted index reports an ngram component"),
+        alignment
+            .metrics
+            .candidate_visits_required_short_fallback
+            .expect("inverted index reports a short fallback component"),
+    );
+    assert_eq!(
+        exact + ngram + short_fallback,
+        visits,
+        "required components must sum to the required total"
+    );
     assert_eq!(
         alignment.metrics.max_candidate_visits,
         Some(AlignmentOptions::default().max_candidate_visits)
@@ -550,6 +569,25 @@ fn records_attempted_candidate_visits_when_alignment_limit_fails() -> Result<()>
         Some(charge),
         "the full required sum completes when no later estimate errors"
     );
+    let (exact, ngram, short_fallback) = (
+        failure
+            .metrics
+            .candidate_visits_required_exact
+            .expect("inverted index reports an exact component"),
+        failure
+            .metrics
+            .candidate_visits_required_ngram
+            .expect("inverted index reports an ngram component"),
+        failure
+            .metrics
+            .candidate_visits_required_short_fallback
+            .expect("inverted index reports a short fallback component"),
+    );
+    assert_eq!(
+        exact + ngram + short_fallback,
+        charge,
+        "required components must sum to the required total"
+    );
     assert_eq!(failure.metrics.max_candidate_visits, Some(charge - 1));
     let error = failure
         .error
@@ -580,6 +618,14 @@ fn records_zero_candidate_visits_for_identical_documents() -> Result<()> {
         .expect("alignment should be recorded");
     assert_eq!(alignment.metrics.candidate_visits, Some(0));
     assert_eq!(alignment.metrics.candidate_visits_required, Some(0));
+    // Identity alignment never consults the generator, so the components
+    // are reported as zero.
+    assert_eq!(alignment.metrics.candidate_visits_required_exact, Some(0));
+    assert_eq!(alignment.metrics.candidate_visits_required_ngram, Some(0));
+    assert_eq!(
+        alignment.metrics.candidate_visits_required_short_fallback,
+        Some(0)
+    );
     assert_eq!(
         alignment.metrics.max_candidate_visits,
         Some(AlignmentOptions::default().max_candidate_visits)

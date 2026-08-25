@@ -401,6 +401,19 @@ fn revision_report_line(record: &pdfdelta_bench::revisions::PairRunReport) -> St
             line.push_str(&format!(
                 " candidate_visits={visits}/{limit} required_candidate_visits={required}"
             ));
+            match (
+                record.candidate_visits_required_exact,
+                record.candidate_visits_required_ngram,
+                record.candidate_visits_required_short_fallback,
+            ) {
+                (Some(exact), Some(ngram), Some(short_fallback)) => {
+                    line.push_str(&format!(
+                        " required_candidate_components=exact:{exact},ngram:{ngram},short_fallback:{short_fallback}"
+                    ));
+                }
+                (None, None, None) => {}
+                _ => line.push_str(" required_candidate_components=incomplete"),
+            }
         }
         (Some(visits), None, Some(limit)) => {
             line.push_str(&format!(
@@ -522,6 +535,9 @@ mod tests {
             resource_limit_failure: None,
             candidate_visits: None,
             candidate_visits_required: None,
+            candidate_visits_required_exact: None,
+            candidate_visits_required_ngram: None,
+            candidate_visits_required_short_fallback: None,
             max_candidate_visits: None,
             candidate_visit_pressure: None,
             runtime_ms: 0,
@@ -597,10 +613,22 @@ mod tests {
         let mut both = sample_pair_report();
         both.candidate_visits = Some(42);
         both.candidate_visits_required = Some(84);
+        both.candidate_visits_required_exact = Some(20);
+        both.candidate_visits_required_ngram = Some(40);
+        both.candidate_visits_required_short_fallback = Some(24);
         both.max_candidate_visits = Some(1_000_000);
         let line = revision_report_line(&both);
         assert!(line.contains("candidate_visits=42/1000000"));
         assert!(line.contains("required_candidate_visits=84"));
+        assert!(line.contains("required_candidate_components=exact:20,ngram:40,short_fallback:24"));
+
+        let mut generic = sample_pair_report();
+        generic.candidate_visits = Some(42);
+        generic.candidate_visits_required = Some(84);
+        generic.max_candidate_visits = Some(1_000_000);
+        let line = revision_report_line(&generic);
+        assert!(line.contains("required_candidate_visits=84"));
+        assert!(!line.contains("required_candidate_components"));
 
         let mut unavailable = sample_pair_report();
         unavailable.candidate_visits = Some(42);
@@ -616,6 +644,16 @@ mod tests {
         let mut partial = sample_pair_report();
         partial.candidate_visits = Some(42);
         assert!(revision_report_line(&partial).contains("candidate_visits=incomplete"));
+
+        let mut partial_components = sample_pair_report();
+        partial_components.candidate_visits = Some(42);
+        partial_components.candidate_visits_required = Some(84);
+        partial_components.candidate_visits_required_exact = Some(20);
+        partial_components.max_candidate_visits = Some(1_000_000);
+        assert!(
+            revision_report_line(&partial_components)
+                .contains("required_candidate_components=incomplete")
+        );
     }
 
     #[test]

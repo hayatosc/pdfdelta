@@ -182,6 +182,16 @@ pub struct PairRunReport {
     /// or overflow made the sum unavailable, or the candidate preflight was
     /// never reached (e.g. an earlier n-gram or diff budget limit).
     pub candidate_visits_required: Option<usize>,
+    /// Exact-match posting visits of the required candidate sum; `Some`
+    /// only when every non-anchor old block reported a breakdown and every
+    /// component sum completed.
+    pub candidate_visits_required_exact: Option<usize>,
+    /// N-gram posting visits of the required candidate sum; `Some` under
+    /// the same conditions as `candidate_visits_required_exact`.
+    pub candidate_visits_required_ngram: Option<usize>,
+    /// Short-block fallback visits of the required candidate sum; `Some`
+    /// under the same conditions as `candidate_visits_required_exact`.
+    pub candidate_visits_required_short_fallback: Option<usize>,
     /// The `AlignmentOptions::max_candidate_visits` budget the charge was
     /// compared against.
     pub max_candidate_visits: Option<usize>,
@@ -931,6 +941,9 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         resource_limit_failure: None,
         candidate_visits: None,
         candidate_visits_required: None,
+        candidate_visits_required_exact: None,
+        candidate_visits_required_ngram: None,
+        candidate_visits_required_short_fallback: None,
         max_candidate_visits: None,
         candidate_visit_pressure: None,
         runtime_ms: 0,
@@ -953,16 +966,12 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
     let outcome =
         match run_extraction_and_comparison(&source, &old_path, &new_path, effective_scale) {
-            Ok((
+            Ok(ComparisonWithMetrics {
                 outcome,
-                candidate_visits,
-                candidate_visits_required,
-                max_candidate_visits,
+                metrics,
                 pressure,
-            )) => {
-                record.candidate_visits = candidate_visits;
-                record.candidate_visits_required = candidate_visits_required;
-                record.max_candidate_visits = max_candidate_visits;
+            }) => {
+                metrics.apply_to(&mut record);
                 record.candidate_visit_pressure = pressure;
                 outcome
             }
@@ -972,15 +981,11 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
             }
             Err(RevisionRunError::Limit {
                 message,
-                candidate_visits,
-                candidate_visits_required,
-                max_candidate_visits,
+                metrics,
                 pressure,
             }) => {
                 record.resource_limit_failure = Some(message);
-                record.candidate_visits = candidate_visits;
-                record.candidate_visits_required = candidate_visits_required;
-                record.max_candidate_visits = max_candidate_visits;
+                metrics.apply_to(&mut record);
                 record.candidate_visit_pressure = pressure.map(|pressure| *pressure);
                 record.quality_skipped_reason =
                     Some("comparison stopped at a resource limit".to_owned());
@@ -1126,9 +1131,7 @@ enum RevisionRunError {
     Read(String),
     Limit {
         message: String,
-        candidate_visits: Option<usize>,
-        candidate_visits_required: Option<usize>,
-        max_candidate_visits: Option<usize>,
+        metrics: Box<VisitMetrics>,
         pressure: Option<Box<CandidateVisitPressure>>,
     },
     Other(&'static str, String),
@@ -1136,66 +1139,109 @@ enum RevisionRunError {
 
 type RevisionOutcome = pdfdelta_core::pipeline::ComparisonOutcome;
 
-/// Comparison outcome plus the alignment charge and supplementary pressure.
-type ComparisonWithMetrics = (
-    RevisionOutcome,
-    Option<usize>,
-    Option<usize>,
-    Option<usize>,
-    Option<CandidateVisitPressure>,
-);
-
-/// Alignment candidate visit metrics triple: attempted charge, required
-/// full sum, and the budget.
-type VisitMetricsTriple = (Option<usize>, Option<usize>, Option<usize>);
-
-/// Validates one alignment metrics triple. Valid states: all three fields
-/// set (alignment reached, required sum completed), attempted charge and
-/// budget set with the required sum unavailable (a limit stop where a
-/// later estimate error or overflow made the full sum incomplete), and all
-/// three absent (alignment never reached). Any other partial triple is a
-/// contract violation and is reported as an error rather than silently
-/// treated as a measurement.
-fn validate_visit_triple(
+/// Alignment candidate visit metrics: attempted charge, required full sum,
+/// its exact/ngram/short-fallback components, and the budget.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct VisitMetrics {
     candidate_visits: Option<usize>,
     candidate_visits_required: Option<usize>,
+    candidate_visits_required_exact: Option<usize>,
+    candidate_visits_required_ngram: Option<usize>,
+    candidate_visits_required_short_fallback: Option<usize>,
     max_candidate_visits: Option<usize>,
-) -> std::result::Result<VisitMetricsTriple, String> {
-    match (
+}
+
+impl VisitMetrics {
+    fn apply_to(self, record: &mut PairRunReport) {
+        record.candidate_visits = self.candidate_visits;
+        record.candidate_visits_required = self.candidate_visits_required;
+        record.candidate_visits_required_exact = self.candidate_visits_required_exact;
+        record.candidate_visits_required_ngram = self.candidate_visits_required_ngram;
+        record.candidate_visits_required_short_fallback =
+            self.candidate_visits_required_short_fallback;
+        record.max_candidate_visits = self.max_candidate_visits;
+    }
+}
+
+/// Validates one alignment metrics record. Valid states: alignment reached
+/// with the required sum completed and either a full component breakdown
+/// (inverted index) or no breakdown (generic generator); a limit stop where
+/// the required sum is unavailable; and alignment never reached. Any other
+/// partial state, or a component sum that disagrees with the required
+/// total, is a contract violation and is reported as an error rather than
+/// silently treated as a measurement.
+fn validate_visit_metrics(metrics: VisitMetrics) -> std::result::Result<VisitMetrics, String> {
+    let VisitMetrics {
+        candidate_visits,
+        candidate_visits_required,
+        candidate_visits_required_exact,
+        candidate_visits_required_ngram,
+        candidate_visits_required_short_fallback,
+        max_candidate_visits,
+    } = metrics;
+    let components = (
+        candidate_visits_required_exact,
+        candidate_visits_required_ngram,
+        candidate_visits_required_short_fallback,
+    );
+    let valid = match (
         candidate_visits,
         candidate_visits_required,
         max_candidate_visits,
     ) {
-        (Some(_), Some(_), Some(_)) | (Some(_), None, Some(_)) | (None, None, None) => Ok((
-            candidate_visits,
-            candidate_visits_required,
-            max_candidate_visits,
-        )),
-        _ => Err(format!(
-            "alignment metrics contract violation: candidate_visits={candidate_visits:?}, candidate_visits_required={candidate_visits_required:?}, max_candidate_visits={max_candidate_visits:?}"
-        )),
+        (Some(_), Some(_), Some(_)) => {
+            matches!(components, (Some(_), Some(_), Some(_)) | (None, None, None))
+        }
+        (Some(_), None, Some(_)) | (None, None, None) => matches!(components, (None, None, None)),
+        _ => false,
+    };
+    if !valid {
+        return Err(format!(
+            "alignment metrics contract violation: candidate_visits={candidate_visits:?}, candidate_visits_required={candidate_visits_required:?}, candidate_visits_required_exact={candidate_visits_required_exact:?}, candidate_visits_required_ngram={candidate_visits_required_ngram:?}, candidate_visits_required_short_fallback={candidate_visits_required_short_fallback:?}, max_candidate_visits={max_candidate_visits:?}"
+        ));
     }
+    if let (Some(required), Some(exact), Some(ngram), Some(short_fallback)) = (
+        candidate_visits_required,
+        candidate_visits_required_exact,
+        candidate_visits_required_ngram,
+        candidate_visits_required_short_fallback,
+    ) {
+        let components_sum = exact
+            .checked_add(ngram)
+            .and_then(|sum| sum.checked_add(short_fallback));
+        if components_sum != Some(required) {
+            return Err(format!(
+                "alignment metrics contract violation: required candidate components {exact}+{ngram}+{short_fallback} do not sum to {required}"
+            ));
+        }
+    }
+    Ok(metrics)
 }
 
-/// Extracts the alignment candidate visit charge from the diagnostics.
-/// Returns `(None, None, None)` when alignment was never reached or
-/// recorded no charge; a partial triple is a contract violation and is
-/// reported as an error.
+/// Extracts the alignment candidate visit metrics from the diagnostics.
+/// Returns all-`None` metrics when alignment was never reached or recorded
+/// no charge; a partial record is a contract violation and is reported as
+/// an error.
 fn alignment_visit_metrics(
     diagnostics: &PipelineDiagnostics,
-) -> std::result::Result<VisitMetricsTriple, String> {
+) -> std::result::Result<VisitMetrics, String> {
     let Some(record) = diagnostics
         .records()
         .iter()
         .find(|record| record.phase == PipelinePhase::Alignment)
     else {
-        return Ok((None, None, None));
+        return Ok(VisitMetrics::default());
     };
-    validate_visit_triple(
-        record.metrics.candidate_visits,
-        record.metrics.candidate_visits_required,
-        record.metrics.max_candidate_visits,
-    )
+    validate_visit_metrics(VisitMetrics {
+        candidate_visits: record.metrics.candidate_visits,
+        candidate_visits_required: record.metrics.candidate_visits_required,
+        candidate_visits_required_exact: record.metrics.candidate_visits_required_exact,
+        candidate_visits_required_ngram: record.metrics.candidate_visits_required_ngram,
+        candidate_visits_required_short_fallback: record
+            .metrics
+            .candidate_visits_required_short_fallback,
+        max_candidate_visits: record.metrics.max_candidate_visits,
+    })
 }
 
 /// Resolves the supplementary pressure from the alignment charge and the
@@ -1219,14 +1265,23 @@ fn resolve_pressure(
     }
 }
 
+/// Comparison outcome plus the alignment candidate visit metrics and
+/// supplementary pressure.
+#[derive(Debug)]
+struct ComparisonWithMetrics {
+    outcome: RevisionOutcome,
+    metrics: VisitMetrics,
+    pressure: Option<CandidateVisitPressure>,
+}
+
 /// Compares two extracted outcomes and returns the alignment candidate
-/// visit charge and the supplementary all-old-block pressure alongside the
-/// outcome; a candidate limit stop carries the attempted charge and the
-/// pressure in the error. A metrics contract violation takes priority over
-/// the core result. Once alignment is reached, a pressure measurement
-/// failure is a benchmark instrumentation failure, not missing
-/// supplementary information: it takes priority over the core Ok/Limit
-/// result and surfaces as `Failed`.
+/// visit metrics and the supplementary all-old-block pressure alongside the
+/// outcome; a candidate limit stop carries the metrics and the pressure in
+/// the error. A metrics contract violation takes priority over the core
+/// result. Once alignment is reached, a pressure measurement failure is a
+/// benchmark instrumentation failure, not missing supplementary
+/// information: it takes priority over the core Ok/Limit result and
+/// surfaces as `Failed`.
 fn compare_outcomes_with_metrics(
     old: ExtractionOutcome,
     new: ExtractionOutcome,
@@ -1246,28 +1301,23 @@ fn compare_outcomes_with_metrics(
     };
     let mut diagnostics = PipelineDiagnostics::new();
     let result = compare_extraction_outcomes_with_diagnostics(old, new, options, &mut diagnostics);
-    let (candidate_visits, candidate_visits_required, max_candidate_visits) =
-        alignment_visit_metrics(&diagnostics).map_err(|message| {
-            RevisionRunError::Other("alignment metrics contract violation", message)
-        })?;
-    let pressure = resolve_pressure(candidate_visits, pressure_result)?;
+    let metrics = alignment_visit_metrics(&diagnostics).map_err(|message| {
+        RevisionRunError::Other("alignment metrics contract violation", message)
+    })?;
+    let pressure = resolve_pressure(metrics.candidate_visits, pressure_result)?;
     let outcome = result.map_err(|error| match error {
         pdfdelta_core::Error::LimitExceeded { .. } => RevisionRunError::Limit {
             message: error.to_string(),
-            candidate_visits,
-            candidate_visits_required,
-            max_candidate_visits,
+            metrics: Box::new(metrics),
             pressure: pressure.map(Box::new),
         },
         other => RevisionRunError::Other("comparison failed", other.to_string()),
     })?;
-    Ok((
+    Ok(ComparisonWithMetrics {
         outcome,
-        candidate_visits,
-        candidate_visits_required,
-        max_candidate_visits,
+        metrics,
         pressure,
-    ))
+    })
 }
 
 fn run_extraction_and_comparison(
@@ -1740,6 +1790,9 @@ mod tests {
             resource_limit_failure: None,
             candidate_visits: None,
             candidate_visits_required: None,
+            candidate_visits_required_exact: None,
+            candidate_visits_required_ngram: None,
+            candidate_visits_required_short_fallback: None,
             max_candidate_visits: None,
             candidate_visit_pressure: None,
             runtime_ms: 0,
@@ -1897,20 +1950,39 @@ mod tests {
         let new =
             ExtractionOutcome::complete(glyph_document("Stable new paragraph remains visible"));
 
-        let (outcome, candidate_visits, candidate_visits_required, max_candidate_visits, pressure) =
-            compare_outcomes_with_metrics(old, new, PipelineOptions::default())
-                .expect("comparison succeeds");
+        let ComparisonWithMetrics {
+            outcome,
+            metrics,
+            pressure,
+        } = compare_outcomes_with_metrics(old, new, PipelineOptions::default())
+            .expect("comparison succeeds");
 
         assert!(!outcome.comparison.changes.is_empty());
-        let visits = candidate_visits.expect("candidate visits recorded");
+        let visits = metrics.candidate_visits.expect("candidate visits recorded");
         assert!(visits > 0, "non-anchor old blocks must be charged");
         assert_eq!(
-            candidate_visits_required,
+            metrics.candidate_visits_required,
             Some(visits),
             "attempted charge must equal the required sum on success"
         );
+        let (exact, ngram, short_fallback) = (
+            metrics
+                .candidate_visits_required_exact
+                .expect("inverted index reports a breakdown"),
+            metrics
+                .candidate_visits_required_ngram
+                .expect("inverted index reports a breakdown"),
+            metrics
+                .candidate_visits_required_short_fallback
+                .expect("inverted index reports a breakdown"),
+        );
         assert_eq!(
-            max_candidate_visits,
+            exact + ngram + short_fallback,
+            visits,
+            "required components must sum to the required total"
+        );
+        assert_eq!(
+            metrics.max_candidate_visits,
             Some(AlignmentOptions::default().max_candidate_visits)
         );
         let pressure = pressure.expect("pressure recorded for complete extraction");
@@ -1927,10 +1999,13 @@ mod tests {
         let new =
             ExtractionOutcome::complete(glyph_document("Stable new paragraph remains visible"));
 
-        let (_, charge, _, _, _) =
-            compare_outcomes_with_metrics(old.clone(), new.clone(), PipelineOptions::default())
-                .expect("baseline comparison succeeds");
-        let charge = charge.expect("baseline charge recorded");
+        let ComparisonWithMetrics {
+            outcome: _,
+            metrics,
+            pressure: _,
+        } = compare_outcomes_with_metrics(old.clone(), new.clone(), PipelineOptions::default())
+            .expect("baseline comparison succeeds");
+        let charge = metrics.candidate_visits.expect("baseline charge recorded");
         assert!(charge > 1, "fixture must charge at least two visits");
 
         let options = PipelineOptions {
@@ -1945,19 +2020,33 @@ mod tests {
         match error {
             RevisionRunError::Limit {
                 message,
-                candidate_visits,
-                candidate_visits_required,
-                max_candidate_visits,
+                metrics,
                 pressure,
             } => {
                 assert!(message.contains("alignment candidate visits"));
-                assert_eq!(candidate_visits, Some(charge));
+                assert_eq!(metrics.candidate_visits, Some(charge));
                 assert_eq!(
-                    candidate_visits_required,
+                    metrics.candidate_visits_required,
                     Some(charge),
                     "the full required sum completes when no later estimate errors"
                 );
-                assert_eq!(max_candidate_visits, Some(charge - 1));
+                let (exact, ngram, short_fallback) = (
+                    metrics
+                        .candidate_visits_required_exact
+                        .expect("inverted index reports a breakdown"),
+                    metrics
+                        .candidate_visits_required_ngram
+                        .expect("inverted index reports a breakdown"),
+                    metrics
+                        .candidate_visits_required_short_fallback
+                        .expect("inverted index reports a breakdown"),
+                );
+                assert_eq!(
+                    exact + ngram + short_fallback,
+                    charge,
+                    "required components must sum to the required total"
+                );
+                assert_eq!(metrics.max_candidate_visits, Some(charge - 1));
                 let pressure = pressure.expect("pressure recorded for complete extraction");
                 assert_eq!(pressure.max_candidate_visits, charge - 1);
             }
@@ -1980,15 +2069,14 @@ mod tests {
             .expect_err("ngram budget must fail before alignment");
         match error {
             RevisionRunError::Limit {
-                candidate_visits,
-                candidate_visits_required,
-                max_candidate_visits,
-                pressure,
-                ..
+                metrics, pressure, ..
             } => {
-                assert_eq!(candidate_visits, None);
-                assert_eq!(candidate_visits_required, None);
-                assert_eq!(max_candidate_visits, None);
+                assert_eq!(metrics.candidate_visits, None);
+                assert_eq!(metrics.candidate_visits_required, None);
+                assert_eq!(metrics.candidate_visits_required_exact, None);
+                assert_eq!(metrics.candidate_visits_required_ngram, None);
+                assert_eq!(metrics.candidate_visits_required_short_fallback, None);
+                assert_eq!(metrics.max_candidate_visits, None);
                 assert_eq!(pressure, None);
             }
             other => panic!("expected Limit, got {other:?}"),
@@ -2012,12 +2100,18 @@ mod tests {
         let complete =
             ExtractionOutcome::complete(glyph_document("Stable new paragraph remains visible"));
 
-        let (_, candidate_visits, candidate_visits_required, _, pressure) =
-            compare_outcomes_with_metrics(incomplete, complete, PipelineOptions::default())
-                .expect("incomplete comparison is not an error");
+        let ComparisonWithMetrics {
+            outcome: _,
+            metrics,
+            pressure,
+        } = compare_outcomes_with_metrics(incomplete, complete, PipelineOptions::default())
+            .expect("incomplete comparison is not an error");
 
-        assert_eq!(candidate_visits, None);
-        assert_eq!(candidate_visits_required, None);
+        assert_eq!(metrics.candidate_visits, None);
+        assert_eq!(metrics.candidate_visits_required, None);
+        assert_eq!(metrics.candidate_visits_required_exact, None);
+        assert_eq!(metrics.candidate_visits_required_ngram, None);
+        assert_eq!(metrics.candidate_visits_required_short_fallback, None);
         assert_eq!(pressure, None);
     }
 
@@ -2026,6 +2120,9 @@ mod tests {
         let mut report = record(PairRunStatus::Ok);
         report.candidate_visits = Some(42);
         report.candidate_visits_required = Some(84);
+        report.candidate_visits_required_exact = Some(20);
+        report.candidate_visits_required_ngram = Some(40);
+        report.candidate_visits_required_short_fallback = Some(24);
         report.max_candidate_visits = Some(1_000_000);
         report.candidate_visit_pressure = Some(CandidateVisitPressure {
             estimated_visits_p50: 1,
@@ -2049,6 +2146,9 @@ mod tests {
         let json = serde_json::to_value(&report).expect("report serializes");
         assert_eq!(json["candidate_visits"], 42);
         assert_eq!(json["candidate_visits_required"], 84);
+        assert_eq!(json["candidate_visits_required_exact"], 20);
+        assert_eq!(json["candidate_visits_required_ngram"], 40);
+        assert_eq!(json["candidate_visits_required_short_fallback"], 24);
         assert_eq!(json["max_candidate_visits"], 1_000_000);
         assert_eq!(
             json["candidate_visit_pressure"]["estimated_visits_upper_bound_total"],
@@ -2063,38 +2163,98 @@ mod tests {
     }
 
     #[test]
-    fn validate_visit_triple_accepts_complete_absent_and_unavailable_required() {
+    fn validate_visit_metrics_accepts_complete_absent_and_unavailable_required() {
+        let complete = VisitMetrics {
+            candidate_visits: Some(42),
+            candidate_visits_required: Some(84),
+            candidate_visits_required_exact: Some(20),
+            candidate_visits_required_ngram: Some(40),
+            candidate_visits_required_short_fallback: Some(24),
+            max_candidate_visits: Some(1_000_000),
+        };
+        assert_eq!(validate_visit_metrics(complete), Ok(complete));
+        let generic = VisitMetrics {
+            candidate_visits_required_exact: None,
+            candidate_visits_required_ngram: None,
+            candidate_visits_required_short_fallback: None,
+            ..complete
+        };
+        assert_eq!(validate_visit_metrics(generic), Ok(generic));
+        let unavailable = VisitMetrics {
+            candidate_visits_required: None,
+            candidate_visits_required_exact: None,
+            candidate_visits_required_ngram: None,
+            candidate_visits_required_short_fallback: None,
+            ..complete
+        };
+        assert_eq!(validate_visit_metrics(unavailable), Ok(unavailable));
         assert_eq!(
-            validate_visit_triple(Some(42), Some(84), Some(1_000_000)),
-            Ok((Some(42), Some(84), Some(1_000_000)))
-        );
-        assert_eq!(
-            validate_visit_triple(Some(42), None, Some(1_000_000)),
-            Ok((Some(42), None, Some(1_000_000)))
-        );
-        assert_eq!(
-            validate_visit_triple(None, None, None),
-            Ok((None, None, None))
+            validate_visit_metrics(VisitMetrics::default()),
+            Ok(VisitMetrics::default())
         );
     }
 
     #[test]
-    fn validate_visit_triple_rejects_every_partial_direction() {
-        for (candidate_visits, candidate_visits_required, max_candidate_visits) in [
-            (Some(42), None, None),
-            (None, Some(84), None),
-            (None, None, Some(1_000_000)),
-            (Some(42), Some(84), None),
-            (None, Some(84), Some(1_000_000)),
+    fn validate_visit_metrics_rejects_every_partial_direction() {
+        for metrics in [
+            VisitMetrics {
+                candidate_visits: Some(42),
+                ..VisitMetrics::default()
+            },
+            VisitMetrics {
+                candidate_visits_required: Some(84),
+                ..VisitMetrics::default()
+            },
+            VisitMetrics {
+                max_candidate_visits: Some(1_000_000),
+                ..VisitMetrics::default()
+            },
+            VisitMetrics {
+                candidate_visits: Some(42),
+                candidate_visits_required: Some(84),
+                ..VisitMetrics::default()
+            },
+            VisitMetrics {
+                candidate_visits_required: Some(84),
+                max_candidate_visits: Some(1_000_000),
+                ..VisitMetrics::default()
+            },
+            VisitMetrics {
+                candidate_visits: Some(42),
+                candidate_visits_required: Some(84),
+                candidate_visits_required_exact: Some(20),
+                candidate_visits_required_ngram: Some(40),
+                candidate_visits_required_short_fallback: None,
+                max_candidate_visits: Some(1_000_000),
+            },
+            VisitMetrics {
+                candidate_visits: Some(42),
+                candidate_visits_required: None,
+                candidate_visits_required_exact: Some(20),
+                candidate_visits_required_ngram: Some(40),
+                candidate_visits_required_short_fallback: Some(24),
+                max_candidate_visits: Some(1_000_000),
+            },
         ] {
-            let error = validate_visit_triple(
-                candidate_visits,
-                candidate_visits_required,
-                max_candidate_visits,
-            )
-            .expect_err("partial triple must be a contract violation");
+            let error = validate_visit_metrics(metrics)
+                .expect_err("partial metrics must be a contract violation");
             assert!(error.contains("alignment metrics contract violation"));
         }
+    }
+
+    #[test]
+    fn validate_visit_metrics_rejects_component_sum_mismatch() {
+        let metrics = VisitMetrics {
+            candidate_visits: Some(42),
+            candidate_visits_required: Some(84),
+            candidate_visits_required_exact: Some(20),
+            candidate_visits_required_ngram: Some(40),
+            candidate_visits_required_short_fallback: Some(23),
+            max_candidate_visits: Some(1_000_000),
+        };
+        let error = validate_visit_metrics(metrics)
+            .expect_err("component sum mismatch must be a contract violation");
+        assert!(error.contains("do not sum to"));
     }
 
     #[test]

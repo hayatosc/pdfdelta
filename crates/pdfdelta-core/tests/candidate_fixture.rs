@@ -202,6 +202,84 @@ fn estimates_repeated_short_block_visits_conservatively() {
 }
 
 #[test]
+fn decomposes_short_block_visits_into_exact_ngram_and_fallback() {
+    let old = build_block_features(&[block_text(1, "id", "id", false)], 3)
+        .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text(2, "id", "id", false),
+            block_text(3, "id", "id", false),
+            block_text(4, "id", "id", false),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("index should be constructed");
+
+    let estimate = generator
+        .estimate_visits(&old[0], 3)
+        .expect("visit estimate should succeed");
+    let breakdown = estimate
+        .breakdown
+        .expect("inverted index must report a breakdown");
+    // Three exact postings, three postings per content gram (whole block
+    // plus two unigrams), and the short-block fallback over all new blocks.
+    assert_eq!(breakdown.exact, 3);
+    assert_eq!(breakdown.ngram, 9);
+    assert_eq!(breakdown.short_fallback, 3);
+    assert_eq!(
+        breakdown.exact + breakdown.ngram + breakdown.short_fallback,
+        estimate.total,
+        "components must sum to the total"
+    );
+    assert_eq!(estimate.total, 15);
+}
+
+#[test]
+fn decomposes_long_block_visits_without_short_fallback() {
+    let old = build_block_features(&[block_text(1, "alpha beta", "alpha beta", false)], 3)
+        .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text(10, "alpha beta", "alpha beta", false),
+            block_text(11, "alpha zeta", "alpha zeta", false),
+            block_text(12, "unrelated", "unrelated", false),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("index should be constructed");
+
+    let estimate = generator
+        .estimate_visits(&old[0], 3)
+        .expect("visit estimate should succeed");
+    let breakdown = estimate
+        .breakdown
+        .expect("inverted index must report a breakdown");
+    // One exact posting; the old block shares five 3-grams with the edited
+    // "alpha zeta" block and all eight with the identical block; the old
+    // block is long, so no short-block fallback applies.
+    assert_eq!(breakdown.exact, 1);
+    assert_eq!(breakdown.ngram, 13);
+    assert_eq!(breakdown.short_fallback, 0);
+    assert_eq!(
+        breakdown.exact + breakdown.ngram + breakdown.short_fallback,
+        estimate.total,
+        "components must sum to the total"
+    );
+    assert_eq!(estimate.total, 14);
+    assert_eq!(
+        generator
+            .estimated_visits(&old[0], 3)
+            .expect("visit estimate should succeed"),
+        estimate.total,
+        "estimated_visits must delegate to the estimate total"
+    );
+}
+
+#[test]
 fn falls_back_for_single_token_replacements_without_shared_content() {
     let old = build_block_features(&[block_text(1, "A", "A", false)], 3)
         .expect("old features should build");

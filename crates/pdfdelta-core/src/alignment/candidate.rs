@@ -19,12 +19,38 @@ pub struct Candidate {
     pub coarse_score: f64,
 }
 
+/// Decomposed candidate visit estimate for one query block.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CandidateVisitBreakdown {
+    pub exact: usize,
+    pub ngram: usize,
+    pub short_fallback: usize,
+}
+
+/// Total candidate visit estimate for one query block plus, when the
+/// generator can decompose it, the exact/ngram/short-fallback breakdown.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CandidateVisitEstimate {
+    pub total: usize,
+    pub breakdown: Option<CandidateVisitBreakdown>,
+}
+
 pub trait CandidateGenerator {
     /// Returns an upper bound on posting or feature visits performed by `candidates`.
     ///
     /// Implementations must never underestimate this work. They should return a conservative
     /// value, including visits that do not ultimately produce a candidate.
     fn estimated_visits(&self, old: &BlockFeatures, limit: usize) -> Result<usize>;
+
+    /// Returns the total visit estimate plus, when the implementation can
+    /// decompose it, the exact/ngram/short-fallback breakdown. The default
+    /// delegates to `estimated_visits` with no breakdown.
+    fn estimate_visits(&self, old: &BlockFeatures, limit: usize) -> Result<CandidateVisitEstimate> {
+        Ok(CandidateVisitEstimate {
+            total: self.estimated_visits(old, limit)?,
+            breakdown: None,
+        })
+    }
 
     fn candidates(&self, old: &BlockFeatures, limit: usize) -> Result<Vec<Candidate>>;
 }
@@ -95,20 +121,41 @@ struct CandidateEvidence {
 }
 
 impl CandidateGenerator for InvertedIndexCandidateGenerator {
-    fn estimated_visits(&self, old: &BlockFeatures, limit: usize) -> Result<usize> {
+    fn estimate_visits(&self, old: &BlockFeatures, limit: usize) -> Result<CandidateVisitEstimate> {
         validate_query_ngram_size(self.ngram_size, old)?;
         if limit == 0 {
-            return Ok(0);
+            return Ok(CandidateVisitEstimate {
+                total: 0,
+                breakdown: Some(CandidateVisitBreakdown {
+                    exact: 0,
+                    ngram: 0,
+                    short_fallback: 0,
+                }),
+            });
         }
 
-        let mut visits = self.exact_index.get(&old.exact_hash).map_or(0, Vec::len);
-        for ngram in &old.ngrams {
-            visits = visits.saturating_add(self.ngram_index.get(ngram).map_or(0, Vec::len));
+        let exact = self.exact_index.get(&old.exact_hash).map_or(0, Vec::len);
+        let mut ngram = 0_usize;
+        for ngram_key in &old.ngrams {
+            ngram = ngram.saturating_add(self.ngram_index.get(ngram_key).map_or(0, Vec::len));
         }
-        if is_short(old) {
-            visits = visits.saturating_add(self.new_features.len());
-        }
-        Ok(visits)
+        let short_fallback = if is_short(old) {
+            self.new_features.len()
+        } else {
+            0
+        };
+        Ok(CandidateVisitEstimate {
+            total: exact.saturating_add(ngram).saturating_add(short_fallback),
+            breakdown: Some(CandidateVisitBreakdown {
+                exact,
+                ngram,
+                short_fallback,
+            }),
+        })
+    }
+
+    fn estimated_visits(&self, old: &BlockFeatures, limit: usize) -> Result<usize> {
+        Ok(self.estimate_visits(old, limit)?.total)
     }
 
     fn candidates(&self, old: &BlockFeatures, limit: usize) -> Result<Vec<Candidate>> {

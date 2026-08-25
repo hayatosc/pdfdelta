@@ -113,6 +113,16 @@ pub struct PipelineMetrics {
     /// never reached (e.g. an earlier alignment error). Identity alignment
     /// is `Some(0)`.
     pub candidate_visits_required: Option<usize>,
+    /// Exact-match posting visits of the required candidate sum; `Some`
+    /// only when every non-anchor old block reported a breakdown and every
+    /// component sum completed. Identity alignment is `Some(0)`.
+    pub candidate_visits_required_exact: Option<usize>,
+    /// N-gram posting visits of the required candidate sum; `Some` under
+    /// the same conditions as `candidate_visits_required_exact`.
+    pub candidate_visits_required_ngram: Option<usize>,
+    /// Short-block fallback visits of the required candidate sum; `Some`
+    /// under the same conditions as `candidate_visits_required_exact`.
+    pub candidate_visits_required_short_fallback: Option<usize>,
     /// The `AlignmentOptions::max_candidate_visits` budget the charge was
     /// compared against.
     pub max_candidate_visits: Option<usize>,
@@ -407,6 +417,15 @@ fn compare_validated_glyph_documents(
                     alignment_spans: Some(alignment.spans.len()),
                     candidate_visits: Some(attempt.visit_metrics.candidate_visits),
                     candidate_visits_required: attempt.visit_metrics.candidate_visits_required,
+                    candidate_visits_required_exact: attempt
+                        .visit_metrics
+                        .candidate_visits_required_exact,
+                    candidate_visits_required_ngram: attempt
+                        .visit_metrics
+                        .candidate_visits_required_ngram,
+                    candidate_visits_required_short_fallback: attempt
+                        .visit_metrics
+                        .candidate_visits_required_short_fallback,
                     max_candidate_visits: Some(attempt.visit_metrics.max_candidate_visits),
                     ..PipelineMetrics::default()
                 },
@@ -421,6 +440,15 @@ fn compare_validated_glyph_documents(
                 PipelineMetrics {
                     candidate_visits: Some(attempt.visit_metrics.candidate_visits),
                     candidate_visits_required: attempt.visit_metrics.candidate_visits_required,
+                    candidate_visits_required_exact: attempt
+                        .visit_metrics
+                        .candidate_visits_required_exact,
+                    candidate_visits_required_ngram: attempt
+                        .visit_metrics
+                        .candidate_visits_required_ngram,
+                    candidate_visits_required_short_fallback: attempt
+                        .visit_metrics
+                        .candidate_visits_required_short_fallback,
                     max_candidate_visits: Some(attempt.visit_metrics.max_candidate_visits),
                     ..PipelineMetrics::default()
                 },

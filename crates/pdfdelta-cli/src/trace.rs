@@ -332,6 +332,18 @@ fn pipeline_metrics(
             "candidate_visits_required",
             metrics.candidate_visits_required,
         ),
+        (
+            "candidate_visits_required_exact",
+            metrics.candidate_visits_required_exact,
+        ),
+        (
+            "candidate_visits_required_ngram",
+            metrics.candidate_visits_required_ngram,
+        ),
+        (
+            "candidate_visits_required_short_fallback",
+            metrics.candidate_visits_required_short_fallback,
+        ),
         ("max_candidate_visits", metrics.max_candidate_visits),
         ("changes", metrics.changes),
         ("formatting_changes", metrics.formatting_changes),
