@@ -22,15 +22,15 @@ The current implementation provides:
 - bounded Content Stream glyph extraction for supported text operators, Type 1/Type1C/MMType1, TrueType, axis-aligned Type 3 simple fonts, Identity-H and bounded Identity-V Type 0/CID subsets, inherited resources, normalized page boxes, and isolated Form XObjects;
 - standard ToUnicode resource wrappers, Standard/WinAnsi/MacRoman simple-font encodings with Differences and partial-map fallback, canonical Standard 14 identities, bounded full-domain identity Type 0 CMaps, explicit external CID font identity assertions, and stable embedded-font or bounded resource-dependent Type 3 CharProc identities for safely comparable unmapped glyphs;
 - configurable Glyph-to-Line reconstruction with synthetic English spaces and preserved arbitrary-angle text lines;
-- relative Line-to-Block scoring across page breaks with preserved running-matter roles;
+- recursive XY-Cut region partitioning with spatial Region Graphs and relative Line-to-Block scoring across page breaks with preserved running-matter roles;
 - reversible raw/canonical normalization with scalar-indexed source maps, retained unmapped tokens, and auditable normalization events;
 - alignment-only compatibility folding and density-limited numeric masking that never changes exact canonical text;
-- unique exact anchors plus swappable n-gram inverted-index and exhaustive candidate generators;
+- unique exact anchors plus swappable n-gram inverted-index, MinHash LSH, and exhaustive candidate generators;
 - deterministic anchor-interval alignment for 1:1, insert/delete, constrained adjacent 1:2, 2:1, 1:3, or 3:1 matches, and exact paragraph moves, with ambiguous regions preserved as unresolved;
 - an in-house Myers diff over exact canonical and unmapped tokens, with contiguous change spans, formatting-only reports, side-specific coverage, and allocation-aware limits;
 - text summaries and versioned JSON reports with explicit extraction completeness, unresolved regions, coverage, and CI-oriented exit decisions;
 - a public bounded pipeline from extracted glyphs through exact comparison;
-- end-to-end CLI comparison, output redirection, quiet mode for CI, shell completion generation, and backend, object, or glyph inspection;
+- end-to-end CLI comparison, output redirection, quiet mode for CI, shell completion generation, and backend, object, glyph, or SVG overlay inspection;
 - a reproducible benchmark matrix that applies the five acceptance mutations to programmatic canonical documents, renders each case through literal-`Tj` and positioned-`TJ` PDF paths, and verifies change kind plus document-global span overlap;
 - a non-vendored real-world revision-pair benchmark track with download provenance and SHA-256 checksums, development versus holdout treatment, human-reviewed expected changes for a representative subset, and revision-diff quality metrics (coverage, unresolved token share, recall, precision where fully annotated, change-kind accuracy, fragmentation, suspicious tiny edits) reported separately from extraction conformance.
 
