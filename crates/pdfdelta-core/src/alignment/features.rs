@@ -1,12 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use crate::{
     Error, Result,
     layout::BlockId,
     normalize::{BlockText, ComparableToken},
 };
-
-pub const DEFAULT_ANCHOR_MIN_TOKENS: usize = 16;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ExactHash(pub u64);
@@ -26,12 +24,6 @@ pub struct BlockFeatures {
     pub ngram_size: usize,
     pub numeric_mask_applied: bool,
     pub has_normalization_issues: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ExactAnchor {
-    pub old: BlockId,
-    pub new: BlockId,
 }
 
 pub fn build_block_features(blocks: &[BlockText], ngram_size: usize) -> Result<Vec<BlockFeatures>> {
@@ -65,46 +57,6 @@ pub fn build_block_features(blocks: &[BlockText], ngram_size: usize) -> Result<V
     Ok(features)
 }
 
-pub fn exact_anchors(
-    old: &[BlockFeatures],
-    new: &[BlockFeatures],
-    min_token_count: usize,
-) -> Result<Vec<ExactAnchor>> {
-    if min_token_count == 0 {
-        return Err(Error::InvalidConfiguration(
-            "anchor min_token_count must be greater than zero".to_owned(),
-        ));
-    }
-    validate_feature_ids("old", old)?;
-    validate_feature_ids("new", new)?;
-
-    let old_counts = exact_token_counts(old, min_token_count);
-    let new_counts = exact_token_counts(new, min_token_count);
-    let new_blocks = new
-        .iter()
-        .filter(|features| {
-            !features.has_normalization_issues && features.canonical_tokens.len() >= min_token_count
-        })
-        .map(|features| (features.canonical_tokens.clone(), features.block))
-        .collect::<HashMap<_, _>>();
-
-    Ok(old
-        .iter()
-        .filter(|features| {
-            !features.has_normalization_issues && features.canonical_tokens.len() >= min_token_count
-        })
-        .filter_map(|features| {
-            let tokens = &features.canonical_tokens;
-            (old_counts.get(tokens) == Some(&1) && new_counts.get(tokens) == Some(&1)).then(|| {
-                ExactAnchor {
-                    old: features.block,
-                    new: new_blocks[tokens],
-                }
-            })
-        })
-        .collect())
-}
-
 pub fn dice_similarity(left: &NGramSet, right: &NGramSet) -> f64 {
     if left.is_empty() && right.is_empty() {
         return 1.0;
@@ -113,20 +65,7 @@ pub fn dice_similarity(left: &NGramSet, right: &NGramSet) -> f64 {
     2.0 * shared as f64 / (left.len() + right.len()) as f64
 }
 
-fn exact_token_counts(
-    features: &[BlockFeatures],
-    min_token_count: usize,
-) -> HashMap<Vec<ComparableToken>, usize> {
-    let mut counts = HashMap::new();
-    for features in features.iter().filter(|features| {
-        !features.has_normalization_issues && features.canonical_tokens.len() >= min_token_count
-    }) {
-        *counts.entry(features.canonical_tokens.clone()).or_default() += 1;
-    }
-    counts
-}
-
-fn validate_feature_ids(side: &str, features: &[BlockFeatures]) -> Result<()> {
+pub(crate) fn validate_feature_ids(side: &str, features: &[BlockFeatures]) -> Result<()> {
     let mut ids = HashSet::with_capacity(features.len());
     for features in features {
         if !ids.insert(features.block) {

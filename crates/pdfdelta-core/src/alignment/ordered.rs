@@ -8,7 +8,7 @@ use crate::{
 
 use super::{
     BlockFeatures, BlockSeparator, CandidateGenerator, CandidateSource, ExactAnchor,
-    features::exact_anchors,
+    anchor::{exact_anchors, select_monotone_anchor_chain},
     score::{GroupScore, ScoreOptions, score_groups},
 };
 
@@ -279,7 +279,9 @@ fn align_ordered_inner(
         .map(|(index, features)| (features.block, index))
         .collect::<HashMap<_, _>>();
     let all_anchors = exact_anchors(old, new, options.anchor_min_tokens)?;
-    let (main_anchors, move_candidates) = anchor_chain(&all_anchors, old, &new_indices)?;
+    let chain = select_monotone_anchor_chain(&all_anchors, old, new)?;
+    let main_anchors = chain.main_chain;
+    let move_candidates = chain.move_candidates;
     let secondary_chains = secondary_anchor_chains(
         old,
         new,
@@ -441,7 +443,7 @@ fn secondary_anchor_chains(
             if anchors.is_empty() {
                 Ok(Vec::new())
             } else {
-                anchor_chain(anchors, old, new_indices).map(|(selected, _)| selected)
+                select_monotone_anchor_chain(anchors, old, new).map(|chain| chain.main_chain)
             }
         })
         .collect()
@@ -707,119 +709,6 @@ fn collect_candidates(
         all.insert(features.block, by_block);
     }
     Ok(all)
-}
-
-fn anchor_chain(
-    anchors: &[ExactAnchor],
-    old: &[BlockFeatures],
-    new_indices: &HashMap<BlockId, usize>,
-) -> Result<(Vec<ExactAnchor>, Vec<ExactAnchor>)> {
-    let old_indices = old
-        .iter()
-        .enumerate()
-        .map(|(index, features)| (features.block, index))
-        .collect::<HashMap<_, _>>();
-    let mut positioned = Vec::with_capacity(anchors.len());
-    for anchor in anchors {
-        let old_index = old_indices.get(&anchor.old).copied().ok_or_else(|| {
-            Error::Unresolved(format!(
-                "anchor references unknown old block {}",
-                anchor.old.0
-            ))
-        })?;
-        let new_index = new_indices.get(&anchor.new).copied().ok_or_else(|| {
-            Error::Unresolved(format!(
-                "anchor references unknown new block {}",
-                anchor.new.0
-            ))
-        })?;
-        positioned.push((*anchor, old_index, new_index));
-    }
-    positioned.sort_by_key(|(_, old_index, _)| *old_index);
-
-    if positioned.is_empty() {
-        return Ok((Vec::new(), Vec::new()));
-    }
-    let mut sorted_new_indices = positioned
-        .iter()
-        .map(|(_, _, new_index)| *new_index)
-        .collect::<Vec<_>>();
-    sorted_new_indices.sort_unstable();
-    sorted_new_indices.dedup();
-
-    let mut previous = vec![None; positioned.len()];
-    let mut fenwick = vec![None; sorted_new_indices.len() + 1];
-    let mut chain_end = None;
-    for (index, (_, _, new_index)) in positioned.iter().enumerate() {
-        let rank = sorted_new_indices.partition_point(|candidate| candidate < new_index);
-        let predecessor = query_chain_tip(&fenwick, rank);
-        let tip = ChainTip {
-            length: predecessor.map_or(1, |tip| tip.length + 1),
-            position: index,
-        };
-        previous[index] = predecessor.map(|tip| tip.position);
-        update_chain_tip(&mut fenwick, rank + 1, tip);
-        chain_end = preferred_chain_tip(chain_end, Some(tip));
-    }
-
-    let Some(mut end) = chain_end.map(|tip| tip.position) else {
-        return Ok((Vec::new(), Vec::new()));
-    };
-    let mut selected = vec![false; positioned.len()];
-    loop {
-        selected[end] = true;
-        let Some(parent) = previous[end] else {
-            break;
-        };
-        end = parent;
-    }
-
-    let mut main = Vec::new();
-    let mut moves = Vec::new();
-    for (index, (anchor, _, _)) in positioned.into_iter().enumerate() {
-        if selected[index] {
-            main.push(anchor);
-        } else {
-            moves.push(anchor);
-        }
-    }
-    Ok((main, moves))
-}
-
-#[derive(Clone, Copy)]
-struct ChainTip {
-    length: usize,
-    position: usize,
-}
-
-fn query_chain_tip(tree: &[Option<ChainTip>], mut end: usize) -> Option<ChainTip> {
-    let mut best = None;
-    while end > 0 {
-        best = preferred_chain_tip(best, tree[end]);
-        end &= end - 1;
-    }
-    best
-}
-
-fn update_chain_tip(tree: &mut [Option<ChainTip>], mut index: usize, tip: ChainTip) {
-    while index < tree.len() {
-        tree[index] = preferred_chain_tip(tree[index], Some(tip));
-        index += index.isolate_lowest_one();
-    }
-}
-
-fn preferred_chain_tip(current: Option<ChainTip>, candidate: Option<ChainTip>) -> Option<ChainTip> {
-    match (current, candidate) {
-        (None, candidate) => candidate,
-        (current, None) => current,
-        (Some(current), Some(candidate))
-            if candidate.length > current.length
-                || candidate.length == current.length && candidate.position < current.position =>
-        {
-            Some(candidate)
-        }
-        (current, Some(_)) => current,
-    }
 }
 
 #[derive(Clone, Copy)]

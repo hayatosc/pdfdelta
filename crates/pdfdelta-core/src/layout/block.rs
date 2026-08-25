@@ -17,7 +17,7 @@ use super::{
 const WEIGHT_SUM_TOLERANCE: f64 = 1.0e-9;
 const GEOMETRY_TOLERANCE: f64 = 1.0e-9;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BlockId(pub u64);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

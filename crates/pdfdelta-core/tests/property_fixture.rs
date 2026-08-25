@@ -8,7 +8,8 @@ use pdfdelta_core::{
     alignment::{
         AlignmentKind, AlignmentOptions, CandidateGenerator, CandidateSource,
         InvertedIndexCandidateGenerator, MinHashLshCandidateGenerator, align_ordered,
-        build_block_features,
+        build_block_features, exact_anchors, partition_anchor_windows,
+        select_monotone_anchor_chain,
     },
     layout::{Block, BlockId, BlockRole, Line, LineId},
     model::{
@@ -140,6 +141,73 @@ proptest! {
                 "identity candidate for block {} is missing in minhash lsh",
                 feature.block.0
             );
+        }
+    }
+
+    #[test]
+    fn monotone_anchor_chain_is_strictly_increasing(
+        old_words in arb_block_words(),
+        new_words in arb_block_words(),
+    ) {
+        let old_features = features_from(1, old_words);
+        let new_features = features_from(10_000, new_words);
+        let old_indices = old_features
+            .iter()
+            .enumerate()
+            .map(|(index, features)| (features.block, index))
+            .collect::<std::collections::HashMap<_, _>>();
+        let new_indices = new_features
+            .iter()
+            .enumerate()
+            .map(|(index, features)| (features.block, index))
+            .collect::<std::collections::HashMap<_, _>>();
+
+        let anchors = exact_anchors(&old_features, &new_features, 1)
+            .expect("exact anchors should extract");
+        let chain = select_monotone_anchor_chain(&anchors, &old_features, &new_features)
+            .expect("monotone chain should select");
+
+        // Verify strictly increasing indices in main_chain
+        for window in chain.main_chain.windows(2) {
+            let prev = window[0];
+            let next = window[1];
+            prop_assert!(
+                old_indices[&prev.old] < old_indices[&next.old],
+                "old indices must be strictly increasing: {} < {}",
+                old_indices[&prev.old],
+                old_indices[&next.old]
+            );
+            prop_assert!(
+                new_indices[&prev.new] < new_indices[&next.new],
+                "new indices must be strictly increasing: {} < {}",
+                new_indices[&prev.new],
+                new_indices[&next.new]
+            );
+        }
+
+        // Verify partition windows are contiguous and cover entire range
+        let windows = partition_anchor_windows(&chain.main_chain, &old_features, &new_features)
+            .expect("windows should partition");
+        prop_assert_eq!(windows.len(), chain.main_chain.len() + 1);
+
+        let mut expected_old = 0;
+        let mut expected_new = 0;
+        for (i, window) in windows.iter().enumerate() {
+            prop_assert_eq!(window.old_range.0, expected_old);
+            prop_assert_eq!(window.new_range.0, expected_new);
+            prop_assert!(window.old_range.1 >= window.old_range.0);
+            prop_assert!(window.new_range.1 >= window.new_range.0);
+
+            if i < chain.main_chain.len() {
+                let anchor = chain.main_chain[i];
+                prop_assert_eq!(window.old_range.1, old_indices[&anchor.old]);
+                prop_assert_eq!(window.new_range.1, new_indices[&anchor.new]);
+                expected_old = old_indices[&anchor.old] + 1;
+                expected_new = new_indices[&anchor.new] + 1;
+            } else {
+                prop_assert_eq!(window.old_range.1, old_features.len());
+                prop_assert_eq!(window.new_range.1, new_features.len());
+            }
         }
     }
 

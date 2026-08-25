@@ -6,6 +6,7 @@ use pdfdelta_core::{
         Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentOptions,
         BlockFeatures, BlockSeparator, Candidate, CandidateGenerator, CandidateSource, ExactAnchor,
         ExactHash, InvertedIndexCandidateGenerator, align_ordered, build_block_features,
+        exact_anchors, partition_anchor_windows, select_monotone_anchor_chain,
     },
     diff::{ChangeKind, Confidence, DiffOptions, compare_aligned},
     layout::BlockId,
@@ -2040,4 +2041,211 @@ fn mapped_text(text: &str) -> MappedText {
         source_map: vec![],
         unmapped: vec![],
     }
+}
+
+#[test]
+fn monotone_anchor_chain_preserves_order_around_insertions_and_deletions() {
+    let old_blocks = [
+        block_text(1, "Unique First Chapter Heading Title Section A"),
+        block_text(2, "Middle paragraph that will be deleted here"),
+        block_text(3, "Unique Concluding Chapter Summary Section B"),
+    ];
+    let new_blocks = [
+        block_text(101, "Unique First Chapter Heading Title Section A"),
+        block_text(102, "Brand new inserted replacement paragraph text"),
+        block_text(103, "Another newly inserted text paragraph here"),
+        block_text(104, "Unique Concluding Chapter Summary Section B"),
+    ];
+
+    let old_features = build_block_features(&old_blocks, 3).expect("features should build");
+    let new_features = build_block_features(&new_blocks, 3).expect("features should build");
+
+    let anchors = exact_anchors(&old_features, &new_features, 10).expect("anchors should extract");
+    assert_eq!(anchors.len(), 2);
+    assert_eq!(
+        anchors[0],
+        ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101)
+        }
+    );
+    assert_eq!(
+        anchors[1],
+        ExactAnchor {
+            old: BlockId(3),
+            new: BlockId(104)
+        }
+    );
+
+    let chain = select_monotone_anchor_chain(&anchors, &old_features, &new_features)
+        .expect("chain should select");
+    assert_eq!(chain.main_chain.len(), 2);
+    assert_eq!(chain.main_chain, anchors);
+    assert!(chain.move_candidates.is_empty());
+
+    let windows = partition_anchor_windows(&chain.main_chain, &old_features, &new_features)
+        .expect("windows should partition");
+    assert_eq!(windows.len(), 3);
+
+    // Window 0: before first anchor (empty)
+    assert_eq!(windows[0].old_range, (0, 0));
+    assert_eq!(windows[0].new_range, (0, 0));
+    assert_eq!(windows[0].left_anchor, None);
+    assert_eq!(
+        windows[0].right_anchor,
+        Some(ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101)
+        })
+    );
+
+    // Window 1: between anchor 1 and anchor 2 (contains deleted block 2 and inserted blocks 102, 103)
+    assert_eq!(windows[1].old_range, (1, 2)); // Block 2
+    assert_eq!(windows[1].new_range, (1, 3)); // Blocks 102, 103
+    assert_eq!(
+        windows[1].left_anchor,
+        Some(ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101)
+        })
+    );
+    assert_eq!(
+        windows[1].right_anchor,
+        Some(ExactAnchor {
+            old: BlockId(3),
+            new: BlockId(104)
+        })
+    );
+
+    // Window 2: after second anchor (empty)
+    assert_eq!(windows[2].old_range, (3, 3));
+    assert_eq!(windows[2].new_range, (4, 4));
+    assert_eq!(
+        windows[2].left_anchor,
+        Some(ExactAnchor {
+            old: BlockId(3),
+            new: BlockId(104)
+        })
+    );
+    assert_eq!(windows[2].right_anchor, None);
+}
+
+#[test]
+fn monotone_anchor_chain_retains_relocated_anchor_as_move_candidate() {
+    // Old: A (1), B (2), C (3), D (4)
+    // New: A (101), C (103), D (104), B (102) -> B moved to the end!
+    let old_blocks = [
+        block_text(1, "Unique Section Header Alpha Number 001"),
+        block_text(2, "Relocated Movable Paragraph Content Beta 002"),
+        block_text(3, "Unique Section Header Gamma Number 003"),
+        block_text(4, "Unique Section Header Delta Number 004"),
+    ];
+    let new_blocks = [
+        block_text(101, "Unique Section Header Alpha Number 001"),
+        block_text(103, "Unique Section Header Gamma Number 003"),
+        block_text(104, "Unique Section Header Delta Number 004"),
+        block_text(102, "Relocated Movable Paragraph Content Beta 002"),
+    ];
+
+    let old_features = build_block_features(&old_blocks, 3).expect("features should build");
+    let new_features = build_block_features(&new_blocks, 3).expect("features should build");
+
+    let anchors = exact_anchors(&old_features, &new_features, 5).expect("anchors should extract");
+    assert_eq!(anchors.len(), 4);
+
+    let chain = select_monotone_anchor_chain(&anchors, &old_features, &new_features)
+        .expect("chain should select");
+
+    // Main chain must be monotonic: A -> A (0->0), C -> C (2->1), D -> D (3->2)
+    assert_eq!(chain.main_chain.len(), 3);
+    assert_eq!(
+        chain.main_chain[0],
+        ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101)
+        }
+    );
+    assert_eq!(
+        chain.main_chain[1],
+        ExactAnchor {
+            old: BlockId(3),
+            new: BlockId(103)
+        }
+    );
+    assert_eq!(
+        chain.main_chain[2],
+        ExactAnchor {
+            old: BlockId(4),
+            new: BlockId(104)
+        }
+    );
+
+    // Relocated B -> B (1->3) must be preserved in move_candidates, not discarded!
+    assert_eq!(chain.move_candidates.len(), 1);
+    assert_eq!(
+        chain.move_candidates[0],
+        ExactAnchor {
+            old: BlockId(2),
+            new: BlockId(102)
+        }
+    );
+}
+
+#[test]
+fn exact_anchors_rejects_duplicate_and_ambiguous_blocks() {
+    let mut ambiguous_block = block_text(2, "Unique middle paragraph with issue");
+    ambiguous_block.issues.push(NormalizationIssue {
+        kind: NormalizationIssueKind::AmbiguousLineBreak,
+        raw_range: ScalarRange { start: 5, end: 6 },
+        source: TextSource { atoms: vec![] },
+    });
+
+    let old_blocks = [
+        block_text(1, "Repeated Header Line Across Multiple Pages"),
+        ambiguous_block,
+        block_text(3, "Repeated Header Line Across Multiple Pages"),
+        block_text(4, "Truly Unique Concluding Paragraph Here"),
+    ];
+    let new_blocks = [
+        block_text(101, "Repeated Header Line Across Multiple Pages"),
+        block_text(102, "Truly Unique Concluding Paragraph Here"),
+    ];
+
+    let old_features = build_block_features(&old_blocks, 3).expect("features should build");
+    let new_features = build_block_features(&new_blocks, 3).expect("features should build");
+
+    let anchors = exact_anchors(&old_features, &new_features, 3).expect("anchors should extract");
+
+    // Only block 4 <-> 102 should be selected:
+    // - Block 1 & 3 are duplicates in old -> rejected
+    // - Block 2 has normalization issues -> rejected
+    assert_eq!(anchors.len(), 1);
+    assert_eq!(
+        anchors[0],
+        ExactAnchor {
+            old: BlockId(4),
+            new: BlockId(102)
+        }
+    );
+}
+
+#[test]
+fn partition_anchor_windows_handles_empty_and_unanchored_documents() {
+    let old_blocks = [
+        block_text(1, "First unmatched content"),
+        block_text(2, "Second unmatched content"),
+    ];
+    let new_blocks = [block_text(101, "Different new content")];
+
+    let old_features = build_block_features(&old_blocks, 3).expect("features should build");
+    let new_features = build_block_features(&new_blocks, 3).expect("features should build");
+
+    // Zero anchors -> exactly 1 window covering (0..2, 0..1)
+    let windows = partition_anchor_windows(&[], &old_features, &new_features)
+        .expect("empty chain windows should partition");
+    assert_eq!(windows.len(), 1);
+    assert_eq!(windows[0].old_range, (0, 2));
+    assert_eq!(windows[0].new_range, (0, 1));
+    assert_eq!(windows[0].left_anchor, None);
+    assert_eq!(windows[0].right_anchor, None);
 }
