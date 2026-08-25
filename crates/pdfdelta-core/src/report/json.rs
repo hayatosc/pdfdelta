@@ -352,6 +352,7 @@ fn candidate_source(source: CandidateSource) -> &'static str {
     match source {
         CandidateSource::Exact => "exact",
         CandidateSource::NGramInvertedIndex => "ngram_inverted_index",
+        CandidateSource::MinHashLsh => "minhash_lsh",
         CandidateSource::ShortBlockFallback => "short_block_fallback",
         CandidateSource::Exhaustive => "exhaustive",
     }

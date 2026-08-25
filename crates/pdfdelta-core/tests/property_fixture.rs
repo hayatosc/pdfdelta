@@ -7,7 +7,8 @@ use proptest::prelude::*;
 use pdfdelta_core::{
     alignment::{
         AlignmentKind, AlignmentOptions, CandidateGenerator, CandidateSource,
-        InvertedIndexCandidateGenerator, align_ordered, build_block_features,
+        InvertedIndexCandidateGenerator, MinHashLshCandidateGenerator, align_ordered,
+        build_block_features,
     },
     layout::{Block, BlockId, BlockRole, Line, LineId},
     model::{
@@ -117,6 +118,26 @@ proptest! {
                     .iter()
                     .any(|candidate| candidate.block == feature.block),
                 "identity candidate for block {} is missing",
+                feature.block.0
+            );
+        }
+    }
+
+    #[test]
+    fn minhash_lsh_candidate_generator_contains_identity_match(block_words in arb_block_words()) {
+        let features = features_from(1, block_words);
+        let generator =
+            MinHashLshCandidateGenerator::new(&features).expect("minhash candidate index should build");
+
+        for feature in &features {
+            let candidates = generator
+                .candidates(feature, features.len())
+                .expect("candidate query should succeed");
+            prop_assert!(
+                candidates
+                    .iter()
+                    .any(|candidate| candidate.block == feature.block),
+                "identity candidate for block {} is missing in minhash lsh",
                 feature.block.0
             );
         }

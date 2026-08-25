@@ -8,6 +8,7 @@ use super::features::{BlockFeatures, ExactHash, NGram, dice_similarity};
 pub enum CandidateSource {
     Exact,
     NGramInvertedIndex,
+    MinHashLsh,
     ShortBlockFallback,
     Exhaustive,
 }
@@ -295,6 +296,262 @@ impl CandidateGenerator for ExhaustiveCandidateGenerator {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MinHashLshOptions {
+    pub num_hashes: usize,
+    pub num_bands: usize,
+}
+
+impl Default for MinHashLshOptions {
+    fn default() -> Self {
+        Self {
+            num_hashes: 64,
+            num_bands: 16,
+        }
+    }
+}
+
+pub struct MinHashLshCandidateGenerator {
+    new_features: HashMap<BlockId, BlockFeatures>,
+    exact_index: HashMap<ExactHash, Vec<BlockId>>,
+    buckets: HashMap<(u32, u64), Vec<BlockId>>,
+    short_blocks: Vec<BlockId>,
+    ngram_size: Option<usize>,
+    options: MinHashLshOptions,
+}
+
+impl MinHashLshCandidateGenerator {
+    pub fn new(new: &[BlockFeatures]) -> Result<Self> {
+        Self::with_options(new, MinHashLshOptions::default())
+    }
+
+    pub fn with_options(new: &[BlockFeatures], options: MinHashLshOptions) -> Result<Self> {
+        if options.num_hashes == 0 || options.num_bands == 0 {
+            return Err(Error::InvalidConfiguration(
+                "MinHash LSH requires non-zero num_hashes and num_bands".to_owned(),
+            ));
+        }
+        if !options.num_hashes.is_multiple_of(options.num_bands) {
+            return Err(Error::InvalidConfiguration(
+                "MinHash LSH num_hashes must be divisible by num_bands".to_owned(),
+            ));
+        }
+
+        let ngram_size = common_ngram_size(new)?;
+        let rows_per_band = options.num_hashes / options.num_bands;
+        let mut new_features = HashMap::with_capacity(new.len());
+        let mut exact_index = HashMap::<ExactHash, Vec<BlockId>>::new();
+        let mut buckets = HashMap::<(u32, u64), Vec<BlockId>>::new();
+        let mut short_blocks = Vec::new();
+
+        for features in new {
+            if new_features
+                .insert(features.block, features.clone())
+                .is_some()
+            {
+                return Err(Error::Unresolved(format!(
+                    "duplicate candidate block id {}",
+                    features.block.0
+                )));
+            }
+            exact_index
+                .entry(features.exact_hash)
+                .or_default()
+                .push(features.block);
+
+            if is_short(features) {
+                short_blocks.push(features.block);
+            }
+
+            let signature = compute_minhash_signature(&features.ngrams, options.num_hashes);
+            for band in 0..options.num_bands {
+                let start = band * rows_per_band;
+                let end = start + rows_per_band;
+                let band_hash = hash_u64_slice(&signature[start..end]);
+                buckets
+                    .entry((band as u32, band_hash))
+                    .or_default()
+                    .push(features.block);
+            }
+        }
+
+        for blocks in exact_index.values_mut() {
+            blocks.sort_by_key(|block| block.0);
+        }
+        for blocks in buckets.values_mut() {
+            blocks.sort_by_key(|block| block.0);
+        }
+        short_blocks.sort_by_key(|block| block.0);
+
+        Ok(Self {
+            new_features,
+            exact_index,
+            buckets,
+            short_blocks,
+            ngram_size,
+            options,
+        })
+    }
+}
+
+impl CandidateGenerator for MinHashLshCandidateGenerator {
+    fn estimate_visits(&self, old: &BlockFeatures, limit: usize) -> Result<CandidateVisitEstimate> {
+        validate_query_ngram_size(self.ngram_size, old)?;
+        if limit == 0 {
+            return Ok(CandidateVisitEstimate {
+                total: 0,
+                breakdown: Some(CandidateVisitBreakdown {
+                    exact: 0,
+                    ngram: 0,
+                    short_fallback: 0,
+                }),
+            });
+        }
+
+        let exact = self.exact_index.get(&old.exact_hash).map_or(0, Vec::len);
+        let rows_per_band = self.options.num_hashes / self.options.num_bands;
+        let signature = compute_minhash_signature(&old.ngrams, self.options.num_hashes);
+        let mut lsh = 0_usize;
+        for band in 0..self.options.num_bands {
+            let start = band * rows_per_band;
+            let end = start + rows_per_band;
+            let band_hash = hash_u64_slice(&signature[start..end]);
+            lsh = lsh.saturating_add(
+                self.buckets
+                    .get(&(band as u32, band_hash))
+                    .map_or(0, Vec::len),
+            );
+        }
+
+        let short_fallback = if is_short(old) {
+            self.short_blocks.len()
+        } else {
+            0
+        };
+
+        Ok(CandidateVisitEstimate {
+            total: exact.saturating_add(lsh).saturating_add(short_fallback),
+            breakdown: Some(CandidateVisitBreakdown {
+                exact,
+                ngram: lsh,
+                short_fallback,
+            }),
+        })
+    }
+
+    fn estimated_visits(&self, old: &BlockFeatures, limit: usize) -> Result<usize> {
+        Ok(self.estimate_visits(old, limit)?.total)
+    }
+
+    fn candidates(&self, old: &BlockFeatures, limit: usize) -> Result<Vec<Candidate>> {
+        validate_query_ngram_size(self.ngram_size, old)?;
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let mut evidence = HashMap::<BlockId, HashSet<CandidateSource>>::new();
+        if let Some(blocks) = self.exact_index.get(&old.exact_hash) {
+            for block in blocks {
+                let Some(features) = self.new_features.get(block) else {
+                    continue;
+                };
+                if features.canonical_tokens == old.canonical_tokens {
+                    evidence
+                        .entry(*block)
+                        .or_default()
+                        .insert(CandidateSource::Exact);
+                }
+            }
+        }
+
+        let rows_per_band = self.options.num_hashes / self.options.num_bands;
+        let signature = compute_minhash_signature(&old.ngrams, self.options.num_hashes);
+        for band in 0..self.options.num_bands {
+            let start = band * rows_per_band;
+            let end = start + rows_per_band;
+            let band_hash = hash_u64_slice(&signature[start..end]);
+            if let Some(blocks) = self.buckets.get(&(band as u32, band_hash)) {
+                for block in blocks {
+                    evidence
+                        .entry(*block)
+                        .or_default()
+                        .insert(CandidateSource::MinHashLsh);
+                }
+            }
+        }
+
+        if is_short(old) {
+            for block in &self.short_blocks {
+                evidence
+                    .entry(*block)
+                    .or_default()
+                    .insert(CandidateSource::ShortBlockFallback);
+            }
+        }
+
+        let mut candidates = evidence
+            .into_iter()
+            .map(|(block, sources_set)| {
+                let exact = sources_set.contains(&CandidateSource::Exact);
+                let coarse_score = if exact {
+                    1.0
+                } else if let Some(features) = self.new_features.get(&block) {
+                    dice_similarity(&old.ngrams, &features.ngrams)
+                } else {
+                    0.0
+                };
+                let mut sources = sources_set.into_iter().collect::<Vec<_>>();
+                sources.sort_by_key(candidate_source_rank);
+                Candidate {
+                    block,
+                    sources,
+                    coarse_score,
+                }
+            })
+            .collect::<Vec<_>>();
+        candidates.sort_by(candidate_order);
+        candidates.truncate(limit);
+        Ok(candidates)
+    }
+}
+
+fn compute_minhash_signature(ngrams: &super::features::NGramSet, num_hashes: usize) -> Vec<u64> {
+    if ngrams.is_empty() {
+        return vec![0; num_hashes];
+    }
+    let ngram_hashes: Vec<u64> = ngrams.iter().map(hash_ngram_value).collect();
+    let mut signature = vec![u64::MAX; num_hashes];
+    for &h in &ngram_hashes {
+        for (i, slot) in signature.iter_mut().enumerate() {
+            let val = mix64(h ^ (i as u64).wrapping_mul(0x9e3779b97f4a7c15));
+            if val < *slot {
+                *slot = val;
+            }
+        }
+    }
+    signature
+}
+
+fn hash_ngram_value(ngram: &NGram) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    ngram.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn hash_u64_slice(slice: &[u64]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    slice.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn mix64(mut z: u64) -> u64 {
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+    z ^ (z >> 31)
+}
+
 fn common_ngram_size(features: &[BlockFeatures]) -> Result<Option<usize>> {
     let Some(first) = features.first() else {
         return Ok(None);
@@ -324,8 +581,9 @@ fn candidate_source_rank(source: &CandidateSource) -> u8 {
     match source {
         CandidateSource::Exact => 0,
         CandidateSource::NGramInvertedIndex => 1,
-        CandidateSource::ShortBlockFallback => 2,
-        CandidateSource::Exhaustive => 3,
+        CandidateSource::MinHashLsh => 2,
+        CandidateSource::ShortBlockFallback => 3,
+        CandidateSource::Exhaustive => 4,
     }
 }
 

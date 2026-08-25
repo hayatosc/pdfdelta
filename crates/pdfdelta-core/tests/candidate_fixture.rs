@@ -2,7 +2,8 @@ use pdfdelta_core::{
     Error,
     alignment::{
         CandidateGenerator, CandidateSource, ExhaustiveCandidateGenerator,
-        InvertedIndexCandidateGenerator, build_block_features, exact_anchors,
+        InvertedIndexCandidateGenerator, MinHashLshCandidateGenerator, MinHashLshOptions,
+        build_block_features, exact_anchors,
     },
     layout::BlockId,
     normalize::{BlockText, ComparableToken, MappedText},
@@ -493,6 +494,107 @@ fn validates_feature_and_generator_configuration() {
         InvertedIndexCandidateGenerator::new(&mixed),
         Err(Error::InvalidConfiguration(message)) if message.contains("one non-zero ngram_size")
     ));
+}
+
+#[test]
+fn minhash_lsh_finds_exact_and_similar_candidates() {
+    let old = build_block_features(
+        &[block_text(
+            1,
+            "The quick brown fox jumps over the lazy dog",
+            "The quick brown fox jumps over the lazy dog",
+            false,
+        )],
+        3,
+    )
+    .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text(
+                10,
+                "Completely unrelated document content",
+                "Completely unrelated document content",
+                false,
+            ),
+            block_text(
+                11,
+                "The fast brown fox jumps over the lazy dog",
+                "The fast brown fox jumps over the lazy dog",
+                false,
+            ),
+            block_text(
+                12,
+                "The quick brown fox jumps over the lazy dog",
+                "The quick brown fox jumps over the lazy dog",
+                false,
+            ),
+        ],
+        3,
+    )
+    .expect("new features should build");
+
+    let generator = MinHashLshCandidateGenerator::new(&new).expect("minhash lsh should construct");
+    let candidates = generator
+        .candidates(&old[0], 5)
+        .expect("candidates query should succeed");
+
+    assert!(!candidates.is_empty());
+    assert_eq!(candidates[0].block, BlockId(12));
+    assert_eq!(candidates[0].coarse_score, 1.0);
+    assert!(candidates[0].sources.contains(&CandidateSource::Exact));
+
+    let similar_found = candidates.iter().any(|c| c.block == BlockId(11));
+    assert!(
+        similar_found,
+        "MinHash LSH should find high-similarity block"
+    );
+}
+
+#[test]
+fn minhash_lsh_rejects_invalid_options() {
+    let features = build_block_features(
+        &[block_text(
+            1,
+            "sample text for features",
+            "sample text for features",
+            false,
+        )],
+        3,
+    )
+    .expect("features should build");
+
+    assert!(matches!(
+        MinHashLshCandidateGenerator::with_options(&features, MinHashLshOptions { num_hashes: 0, num_bands: 16 }),
+        Err(Error::InvalidConfiguration(msg)) if msg.contains("non-zero")
+    ));
+    assert!(matches!(
+        MinHashLshCandidateGenerator::with_options(&features, MinHashLshOptions { num_hashes: 65, num_bands: 16 }),
+        Err(Error::InvalidConfiguration(msg)) if msg.contains("divisible")
+    ));
+}
+
+#[test]
+fn minhash_lsh_estimate_visits_decomposes_components() {
+    let old = build_block_features(&[block_text(1, "id", "id", false)], 3)
+        .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text(10, "id", "id", false),
+            block_text(11, "hi", "hi", false),
+        ],
+        3,
+    )
+    .expect("new features should build");
+
+    let generator = MinHashLshCandidateGenerator::new(&new).expect("minhash lsh should construct");
+    let estimate = generator
+        .estimate_visits(&old[0], 10)
+        .expect("estimate should succeed");
+
+    assert!(estimate.total > 0);
+    let breakdown = estimate.breakdown.expect("breakdown should be present");
+    assert_eq!(breakdown.exact, 1);
+    assert_eq!(breakdown.short_fallback, 2);
 }
 
 fn block_text(id: u64, canonical: &str, matching: &str, numeric_mask_applied: bool) -> BlockText {

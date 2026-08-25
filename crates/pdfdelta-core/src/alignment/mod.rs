@@ -6,6 +6,7 @@ mod score;
 pub use candidate::{
     Candidate, CandidateGenerator, CandidateSource, CandidateVisitBreakdown,
     CandidateVisitEstimate, ExhaustiveCandidateGenerator, InvertedIndexCandidateGenerator,
+    MinHashLshCandidateGenerator, MinHashLshOptions,
 };
 pub(crate) use features::validate_ngram_size;
 pub use features::{
