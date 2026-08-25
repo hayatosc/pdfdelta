@@ -77,6 +77,26 @@ fn inspect_without_flags_prints_backend_summary() {
 }
 
 #[test]
+fn inspect_with_svg_flag_renders_valid_svg_file() {
+    let directory = TestDirectory::new();
+    let document = directory.join("document.pdf");
+    let svg_path = directory.join("overlay.svg");
+    write_pdf(&document, &["Testing SVG glyph overlay rendering"]);
+
+    let output = inspect(&document, &["--svg", path_text(&svg_path)]);
+
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert!(svg_path.exists(), "SVG overlay file should be created");
+    let svg_content = fs::read_to_string(&svg_path).expect("svg content should be readable");
+    assert!(svg_content.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\""));
+    assert!(svg_content.contains("class=\"glyph-bbox\""));
+    assert!(svg_content.contains("class=\"glyph-baseline\""));
+    assert!(svg_content.contains("class=\"glyph-text\""));
+    assert!(svg_content.contains("data-glyph-id="));
+    assert!(svg_content.contains("data-cs-num="));
+}
+
+#[test]
 fn replacement_exits_one() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");

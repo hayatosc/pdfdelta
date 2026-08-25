@@ -17,10 +17,11 @@ pub fn inspect_document(
     backend_info: bool,
     glyphs: bool,
     objects: bool,
+    svg: Option<&Path>,
     password_file: Option<&Path>,
     font_identity: &[String],
 ) -> Result<(), String> {
-    let backend_info = backend_info || (!glyphs && !objects);
+    let backend_info = backend_info || (!glyphs && !objects && svg.is_none());
     let limits = ParseLimits::default();
     let bytes = read_limited(path, limits.max_input_bytes)?;
     let password = password_file.map(read_password_file).transpose()?;
@@ -48,11 +49,21 @@ pub fn inspect_document(
     if glyphs {
         inspect_glyphs(
             path,
-            bytes,
+            Arc::clone(&bytes),
             limits,
             password.as_deref(),
             &external_font_identities,
             &mut stdout,
+        )?;
+    }
+    if let Some(svg_path) = svg {
+        inspect_svg(
+            path,
+            svg_path,
+            Arc::clone(&bytes),
+            limits,
+            password.as_deref(),
+            &external_font_identities,
         )?;
     }
     stdout.flush().map_err(|error| {
@@ -181,6 +192,35 @@ pub fn inspect_glyphs<W: Write>(
         let glyph = format_glyph(glyph);
         write_inspection_line(writer, path, format_args!("{glyph}"))?;
     }
+    Ok(())
+}
+
+pub fn inspect_svg(
+    path: &Path,
+    svg_path: &Path,
+    bytes: Arc<[u8]>,
+    parse_limits: ParseLimits,
+    password: Option<&str>,
+    external_font_identities: &ExternalFontIdentities,
+) -> Result<(), String> {
+    let pdf = parse_lopdf(bytes, parse_limits, password)
+        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+    let outcome = ContentStreamGlyphExtractor
+        .extract_outcome_with_external_font_identities(
+            pdf.as_ref(),
+            ExtractionLimits::default(),
+            external_font_identities,
+        )
+        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+    let document = outcome.document();
+    let mut file = std::fs::File::create(svg_path).map_err(|error| {
+        format!(
+            "cannot create svg output file {}: {error}",
+            svg_path.display()
+        )
+    })?;
+    pdfdelta_core::report::write_glyph_overlay_svg(document, &mut file)
+        .map_err(|error| format!("cannot render svg overlay for {}: {error}", path.display()))?;
     Ok(())
 }
 

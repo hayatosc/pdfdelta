@@ -1,4 +1,5 @@
 mod json;
+mod svg;
 mod text;
 
 use std::collections::{BTreeMap, HashSet};
@@ -14,6 +15,7 @@ use crate::{
 };
 
 pub use json::write_json;
+pub use svg::{render_glyph_overlay_svg, write_glyph_overlay_svg};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DocumentSide {

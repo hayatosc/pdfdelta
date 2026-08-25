@@ -27,6 +27,7 @@ fn main() -> ExitCode {
             backend_info,
             glyphs,
             objects,
+            svg,
             password_file,
             font_identity,
         }) => match inspect_document(
@@ -34,6 +35,7 @@ fn main() -> ExitCode {
             backend_info,
             glyphs,
             objects,
+            svg.as_deref(),
             password_file.as_deref(),
             &font_identity,
         ) {

@@ -6,11 +6,15 @@ use pdfdelta_core::{
         FormattingReason, TextSpan, TokenRange, UnresolvedRegion,
     },
     layout::BlockId,
-    model::{FontProgramHash, PageId},
+    model::{
+        DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphId, GlyphProvenance, PageId,
+        Rect, TextRenderMode, Vec2,
+    },
     normalize::{BlockText, MappedText, ScalarRange, TextSource, UnmappedToken},
+    pdf::ObjectRef,
     report::{
         DocumentSide, ExitStatus, ExtractionIssueRecord, ExtractionStatus, TextReportOptions,
-        exit_status, render_text, summarize, write_json,
+        exit_status, render_glyph_overlay_svg, render_text, summarize, write_json,
     },
     source::{ExtractionIssueKind, ExtractionScope},
 };
@@ -1329,4 +1333,138 @@ fn unmapped_only_block(id: u64, hash: Vec<u8>, glyph_id: u16) -> BlockText {
         issues: Vec::new(),
         pages: if id > 100 { vec![0] } else { vec![4] },
     }
+}
+
+#[test]
+fn svg_render_creates_valid_overlay_with_provenance_and_geometry() -> Result<()> {
+    let glyphs = vec![
+        Glyph {
+            id: GlyphId(1),
+            text: DecodedText::Mapped("Hello".to_owned()),
+            raw_code: vec![0x48, 0x65, 0x6c, 0x6c, 0x6f],
+            page: PageId(0),
+            bbox: Rect {
+                min: Vec2 { x: 72.0, y: 700.0 },
+                max: Vec2 { x: 120.0, y: 712.0 },
+            },
+            baseline: Vec2 { x: 72.0, y: 702.0 },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+            font_id: FontId(5),
+            font_size: 12.0,
+            render_order: 1,
+            render_mode: TextRenderMode::Fill,
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: 10,
+                    generation: 0,
+                },
+                operator_index: 3,
+            },
+        },
+        Glyph {
+            id: GlyphId(2),
+            text: DecodedText::Unmapped {
+                font_hash: FontProgramHash(vec![0xab, 0xcd, 0xef, 0x01]),
+                glyph_id: 42,
+            },
+            raw_code: vec![0x00, 0x2a],
+            page: PageId(0),
+            bbox: Rect {
+                min: Vec2 { x: 125.0, y: 700.0 },
+                max: Vec2 { x: 135.0, y: 712.0 },
+            },
+            baseline: Vec2 { x: 125.0, y: 702.0 },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+            font_id: FontId(6),
+            font_size: 12.0,
+            render_order: 2,
+            render_mode: TextRenderMode::Invisible,
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: 10,
+                    generation: 0,
+                },
+                operator_index: 4,
+            },
+        },
+    ];
+
+    let document = Document::new(glyphs);
+    let svg = render_glyph_overlay_svg(&document)?;
+
+    assert!(svg.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\""));
+    assert!(svg.ends_with("</svg>\n"));
+    assert!(svg.contains("id=\"page-1\""));
+    assert!(svg.contains("Hello"));
+    assert!(svg.contains("data-glyph-id=\"1\""));
+    assert!(svg.contains("data-cs-num=\"10\""));
+    assert!(svg.contains("data-op-idx=\"3\""));
+    assert!(svg.contains("glyph-unmapped"));
+    assert!(svg.contains("glyph-invisible"));
+    assert!(svg.contains("U+002A:abcdef01"));
+    Ok(())
+}
+
+#[test]
+fn svg_render_handles_empty_document_and_multipage() -> Result<()> {
+    let empty_doc = Document::new(Vec::new());
+    let empty_svg = render_glyph_overlay_svg(&empty_doc)?;
+    assert!(empty_svg.contains("id=\"page-1\""));
+    assert!(empty_svg.contains("Page 1 (glyphs: 0)"));
+
+    let multipage_glyphs = vec![
+        Glyph {
+            id: GlyphId(1),
+            text: DecodedText::Mapped("Page 1 text".to_owned()),
+            raw_code: vec![1],
+            page: PageId(0),
+            bbox: Rect {
+                min: Vec2 { x: 50.0, y: 500.0 },
+                max: Vec2 { x: 100.0, y: 510.0 },
+            },
+            baseline: Vec2 { x: 50.0, y: 500.0 },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+            font_id: FontId(1),
+            font_size: 10.0,
+            render_order: 1,
+            render_mode: TextRenderMode::Fill,
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: 1,
+                    generation: 0,
+                },
+                operator_index: 0,
+            },
+        },
+        Glyph {
+            id: GlyphId(2),
+            text: DecodedText::Mapped("Page 2 rotated".to_owned()),
+            raw_code: vec![2],
+            page: PageId(1),
+            bbox: Rect {
+                min: Vec2 { x: 50.0, y: 500.0 },
+                max: Vec2 { x: 60.0, y: 550.0 },
+            },
+            baseline: Vec2 { x: 50.0, y: 500.0 },
+            direction: Vec2 { x: 0.0, y: 1.0 },
+            font_id: FontId(1),
+            font_size: 10.0,
+            render_order: 1,
+            render_mode: TextRenderMode::Fill,
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: 2,
+                    generation: 0,
+                },
+                operator_index: 0,
+            },
+        },
+    ];
+
+    let multi_doc = Document::new(multipage_glyphs);
+    let multi_svg = render_glyph_overlay_svg(&multi_doc)?;
+    assert!(multi_svg.contains("id=\"page-1\""));
+    assert!(multi_svg.contains("id=\"page-2\""));
+    assert!(multi_svg.contains("rotate(-90.00"));
+    Ok(())
 }

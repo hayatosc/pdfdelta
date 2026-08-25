@@ -101,6 +101,10 @@ pub enum Command {
         /// Assert an external font identity as BASE_FONT=IDENTITY.
         #[arg(long, value_name = "BASE_FONT=IDENTITY")]
         font_identity: Vec<String>,
+
+        /// Write glyph overlay debug visualization to an SVG file.
+        #[arg(long, value_name = "PATH")]
+        svg: Option<PathBuf>,
     },
 
     /// Generate shell completion script for the specified shell.
@@ -373,6 +377,21 @@ mod tests {
                 objects: true,
                 ..
             })
+        ));
+    }
+
+    #[test]
+    fn parses_svg_inspection() {
+        let cli =
+            Cli::try_parse_from(["pdfdelta", "inspect", "document.pdf", "--svg", "debug.svg"])
+                .expect("svg inspection arguments should parse");
+
+        assert!(matches!(
+            cli.command,
+            Some(Command::Inspect {
+                svg: Some(path),
+                ..
+            }) if path == std::path::Path::new("debug.svg")
         ));
     }
 
