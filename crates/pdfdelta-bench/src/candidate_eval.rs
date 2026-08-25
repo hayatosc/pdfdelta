@@ -1172,6 +1172,23 @@ mod tests {
     }
 
     #[test]
+    fn candidate_visit_pressure_charges_only_short_blocks_for_the_fallback() {
+        // One short and one long old block against two short and one long
+        // new block: the short query pays two fallback visits (the short
+        // new blocks only) and the long query pays two shared n-gram
+        // postings ("ta " and "eta"), so the upper bound is 4. The old
+        // full-scan fallback would have charged three for the short query.
+        let old = glyph_document(&["id", "alpha beta gamma"]);
+        let new = glyph_document(&["ux", "vy", "delta epsilon zeta"]);
+
+        let pressure = evaluate_candidate_visit_pressure(&old, &new, PipelineOptions::default())
+            .expect("pressure measures");
+
+        assert_eq!(pressure.estimated_visits_upper_bound_total, 4);
+        assert_eq!(pressure.estimated_visits_max, 2);
+    }
+
+    #[test]
     fn summarize_ngram_distribution_ranks_contributions_by_visits() {
         let contributions = [(6, 10), (3, 5), (3, 5), (2, 1), (1, 1)];
         let distribution = summarize_ngram_distribution(&contributions, 15);

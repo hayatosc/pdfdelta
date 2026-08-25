@@ -299,6 +299,105 @@ fn falls_back_for_single_token_replacements_without_shared_content() {
 }
 
 #[test]
+fn short_fallback_estimate_skips_long_new_blocks() {
+    let old = build_block_features(&[block_text(1, "id", "id", false)], 3)
+        .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text(2, "id", "id", false),
+            block_text(3, "ux", "ux", false),
+            block_text(4, "alpha beta gamma", "alpha beta gamma", false),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("index should be constructed");
+
+    let estimate = generator
+        .estimate_visits(&old[0], 3)
+        .expect("visit estimate should succeed");
+    let breakdown = estimate
+        .breakdown
+        .expect("inverted index must report a breakdown");
+    // Only the two short new blocks are charged by the fallback; the long
+    // block contributes no short-fallback visits.
+    assert_eq!(breakdown.short_fallback, 2);
+    assert_eq!(breakdown.exact, 1);
+    assert_eq!(breakdown.ngram, 3);
+    assert_eq!(estimate.total, 6);
+    assert_eq!(
+        generator
+            .estimated_visits(&old[0], 3)
+            .expect("visit estimate should succeed"),
+        6
+    );
+}
+
+#[test]
+fn short_fallback_candidates_cover_only_short_new_blocks() {
+    let old = build_block_features(&[block_text(1, "id", "id", false)], 3)
+        .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text(2, "ux", "ux", false),
+            block_text(3, "alpha beta gamma", "alpha beta gamma", false),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("index should be constructed");
+
+    let candidates = generator
+        .candidates(&old[0], 10)
+        .expect("candidate query should succeed");
+
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].block, BlockId(2));
+    assert_eq!(candidates[0].sources, [CandidateSource::ShortBlockFallback]);
+}
+
+#[test]
+fn short_fallback_preserves_the_old_full_scan_candidate_set() {
+    let old = build_block_features(&[block_text(1, "id", "id", false)], 3)
+        .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text(2, "id", "id", false),
+            block_text(3, "ux", "ux", false),
+            block_text(4, "alpha beta gamma", "alpha beta gamma", false),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("index should be constructed");
+
+    let candidates = generator
+        .candidates(&old[0], 10)
+        .expect("candidate query should succeed");
+
+    // The old full-scan fallback produced the same set: the exact match
+    // first, then the remaining short block via the fallback, with the long
+    // block absent.
+    assert_eq!(candidates.len(), 2);
+    assert_eq!(candidates[0].block, BlockId(2));
+    assert_eq!(candidates[0].coarse_score, 1.0);
+    assert_eq!(
+        candidates[0].sources,
+        [
+            CandidateSource::Exact,
+            CandidateSource::NGramInvertedIndex,
+            CandidateSource::ShortBlockFallback,
+        ]
+    );
+    assert_eq!(candidates[1].block, BlockId(3));
+    assert_eq!(candidates[1].coarse_score, 0.0);
+    assert_eq!(candidates[1].sources, [CandidateSource::ShortBlockFallback]);
+}
+
+#[test]
 fn does_not_treat_long_text_as_short_when_using_unigrams() {
     let old = build_block_features(&[block_text(1, "AAAA", "AAAA", false)], 1)
         .expect("old features should build");

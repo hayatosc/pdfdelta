@@ -1,11 +1,13 @@
 //! SPEC 12.5 property tests over programmatically constructed `Document<Glyph>` fixtures.
 
+use std::collections::HashSet;
+
 use proptest::prelude::*;
 
 use pdfdelta_core::{
     alignment::{
-        AlignmentKind, AlignmentOptions, CandidateGenerator, InvertedIndexCandidateGenerator,
-        align_ordered, build_block_features,
+        AlignmentKind, AlignmentOptions, CandidateGenerator, CandidateSource,
+        InvertedIndexCandidateGenerator, align_ordered, build_block_features,
     },
     layout::{Block, BlockId, BlockRole, Line, LineId},
     model::{
@@ -117,6 +119,68 @@ proptest! {
                 "identity candidate for block {} is missing",
                 feature.block.0
             );
+        }
+    }
+
+    #[test]
+    fn short_fallback_visits_only_short_new_blocks(block_words in arb_block_words()) {
+        let old_features = features_from(1, block_words.clone());
+        let new_features = features_from(10_000, block_words);
+        let generator = InvertedIndexCandidateGenerator::new(&new_features)
+            .expect("candidate index should build");
+        let short_new = new_features
+            .iter()
+            .filter(|features| features.matching_tokens.len() <= features.ngram_size)
+            .map(|features| features.block)
+            .collect::<HashSet<_>>();
+
+        for old in &old_features {
+            let query_short = old.matching_tokens.len() <= old.ngram_size;
+            let estimate = generator
+                .estimate_visits(old, usize::MAX)
+                .expect("visit estimate should succeed");
+            let breakdown = estimate
+                .breakdown
+                .expect("inverted index reports a breakdown");
+            prop_assert_eq!(
+                breakdown.short_fallback,
+                if query_short { short_new.len() } else { 0 },
+                "short fallback must charge exactly the short new blocks"
+            );
+            prop_assert_eq!(
+                breakdown.exact + breakdown.ngram + breakdown.short_fallback,
+                estimate.total
+            );
+
+            let candidates = generator
+                .candidates(old, usize::MAX)
+                .expect("candidate query should succeed");
+            for candidate in &candidates {
+                if short_new.contains(&candidate.block) {
+                    // Short new blocks are always fallback candidates for a
+                    // short query.
+                    if query_short {
+                        prop_assert!(
+                            candidate
+                                .sources
+                                .contains(&CandidateSource::ShortBlockFallback),
+                            "short block {} lacks the fallback source",
+                            candidate.block.0
+                        );
+                    }
+                } else {
+                    // Long new blocks can only enter via exact or n-gram
+                    // evidence, never through the short fallback.
+                    prop_assert!(
+                        candidate.sources.iter().any(|source| matches!(
+                            source,
+                            CandidateSource::Exact | CandidateSource::NGramInvertedIndex
+                        )),
+                        "long block {} must not enter via the short fallback",
+                        candidate.block.0
+                    );
+                }
+            }
         }
     }
 }

@@ -59,6 +59,9 @@ pub struct InvertedIndexCandidateGenerator {
     new_features: HashMap<BlockId, BlockFeatures>,
     exact_index: HashMap<ExactHash, Vec<BlockId>>,
     ngram_index: HashMap<NGram, Vec<BlockId>>,
+    /// New-side short blocks in `BlockId` order, backing the short-block
+    /// fallback so it visits only short blocks instead of every new block.
+    short_blocks: Vec<BlockId>,
     ngram_size: Option<usize>,
 }
 
@@ -68,6 +71,7 @@ impl InvertedIndexCandidateGenerator {
         let mut new_features = HashMap::with_capacity(new.len());
         let mut exact_index = HashMap::<ExactHash, Vec<BlockId>>::new();
         let mut ngram_index = HashMap::<NGram, Vec<BlockId>>::new();
+        let mut short_blocks = Vec::new();
 
         for features in new {
             if new_features
@@ -89,6 +93,9 @@ impl InvertedIndexCandidateGenerator {
                     .or_default()
                     .push(features.block);
             }
+            if is_short(features) {
+                short_blocks.push(features.block);
+            }
         }
 
         for blocks in exact_index.values_mut() {
@@ -97,11 +104,13 @@ impl InvertedIndexCandidateGenerator {
         for blocks in ngram_index.values_mut() {
             blocks.sort_by_key(|block| block.0);
         }
+        short_blocks.sort_by_key(|block| block.0);
 
         Ok(Self {
             new_features,
             exact_index,
             ngram_index,
+            short_blocks,
             ngram_size,
         })
     }
@@ -140,7 +149,7 @@ impl CandidateGenerator for InvertedIndexCandidateGenerator {
             ngram = ngram.saturating_add(self.ngram_index.get(ngram_key).map_or(0, Vec::len));
         }
         let short_fallback = if is_short(old) {
-            self.new_features.len()
+            self.short_blocks.len()
         } else {
             0
         };
@@ -197,13 +206,9 @@ impl CandidateGenerator for InvertedIndexCandidateGenerator {
             }
         }
         if is_short(old) {
-            for features in self
-                .new_features
-                .values()
-                .filter(|features| is_short(features))
-            {
+            for block in &self.short_blocks {
                 evidence
-                    .entry(features.block)
+                    .entry(*block)
                     .or_default()
                     .sources
                     .insert(CandidateSource::ShortBlockFallback);
