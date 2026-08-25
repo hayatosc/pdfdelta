@@ -30,7 +30,7 @@ The current implementation provides:
 - an in-house Myers diff over exact canonical and unmapped tokens, with contiguous change spans, formatting-only reports, side-specific coverage, and allocation-aware limits;
 - text summaries and versioned JSON reports with explicit extraction completeness, unresolved regions, coverage, and CI-oriented exit decisions;
 - a public bounded pipeline from extracted glyphs through exact comparison;
-- end-to-end CLI comparison and backend or glyph inspection;
+- end-to-end CLI comparison, output redirection, quiet mode for CI, shell completion generation, and backend, object, or glyph inspection;
 - a reproducible benchmark matrix that applies the five acceptance mutations to programmatic canonical documents, renders each case through literal-`Tj` and positioned-`TJ` PDF paths, and verifies change kind plus document-global span overlap;
 - a non-vendored real-world revision-pair benchmark track with download provenance and SHA-256 checksums, development versus holdout treatment, human-reviewed expected changes for a representative subset, and revision-diff quality metrics (coverage, unresolved token share, recall, precision where fully annotated, change-kind accuracy, fragmentation, suspicious tiny edits) reported separately from extraction conformance.
 
@@ -140,19 +140,37 @@ original terms; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 ## Usage
 
 ```bash
+# Compare two PDFs and output diff to terminal
 pdfdelta old.pdf new.pdf
-pdfdelta old.pdf new.pdf --json result.json
+
+# Compare using standard input
+cat old.pdf | pdfdelta - new.pdf
+
+# Save reports to files (-o for text diff, -j for machine-readable JSON)
+pdfdelta old.pdf new.pdf -o diff.txt
+pdfdelta old.pdf new.pdf -j result.json
 pdfdelta old.pdf new.pdf --trace-json trace.json
-pdfdelta old.pdf new.pdf --json result.json --trace-json trace.json
-pdfdelta old.pdf new.pdf --strict
+
+# CI usage (exit codes: 0 = unchanged, 1 = changed, 2 = error, 3 = strict incomplete)
+pdfdelta -q -s old.pdf new.pdf
+
+# Color control
 pdfdelta old.pdf new.pdf --color always
+
+# Password-protected PDFs and custom font identity assertions
 pdfdelta old.pdf new.pdf --old-password-file old.secret --new-password-file new.secret
 pdfdelta old.pdf new.pdf --old-font-identity TraditionalArabic=windows-v1 --new-font-identity TraditionalArabic=windows-v1
+
+# Inspect PDF internal structures, backend info, objects, or glyphs
 pdfdelta inspect document.pdf
+pdfdelta inspect document.pdf --objects
 pdfdelta inspect document.pdf --glyphs
+
+# Generate shell auto-completions (bash, zsh, fish, powershell, elvish)
+pdfdelta completions bash > ~/.local/share/bash-completion/completions/pdfdelta
 ```
 
-Text reports are written to standard output as contextual unified-diff hunks: a one-line summary, `---` / `+++` file headers, and `@@ page N … @@` hunks with `-` / `+` markers, bounded surrounding context, one-based page numbers, explicit unresolved regions, and presentation-only grouping of nearby exact changes. `--color auto|always|never` controls ANSI color (`auto`, the default, colorizes only when stdout is a terminal; color supplements the markers and is never required to read the output). The typed JSON report is unchanged by this presentation. `--json PATH` writes a version 5 JSON report to a new path instead and refuses to replace an existing file. Exit code `0` means no content changes, `1` means content changes were found, `2` means the comparison could not run, and `3` means `--strict` rejected an incomplete comparison.
+Text reports are written to standard output as contextual unified-diff hunks: a one-line summary, `---` / `+++` file headers, and `@@ page N … @@` hunks with `-` / `+` markers, bounded surrounding context, one-based page numbers, explicit unresolved regions, and presentation-only grouping of nearby exact changes. `--color auto|always|never` controls ANSI color (`auto`, the default, colorizes only when stdout is a terminal; color supplements the markers and is never required to read the output). Standard input can be supplied as `-` for either PDF input. `-o, --output PATH` publishes the human-readable text report atomically to a new file instead of standard output. `-q, --quiet` suppresses standard-output reports for exit-code-only CI workflows. The typed JSON report is unchanged by presentation options: `-j, --json PATH` writes a version 5 JSON report to a new path and refuses to replace an existing file. Exit code `0` means no content changes, `1` means content changes were found, `2` means the comparison could not run, and `3` means `--strict` rejected an incomplete comparison.
 
 `--trace-json PATH` writes a separate version 1 diagnostic trace without changing the normal report. The trace records input reading, PDF parsing, glyph extraction, layout reconstruction, normalization, alignment, exact diff, and report phases with bounded metrics. It also identifies incomplete or failed phases, records typed resource-limit errors, and marks phases that were skipped after an earlier stop. Trace files use the same atomic, no-overwrite publication policy as JSON reports.
 

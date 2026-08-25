@@ -6,7 +6,7 @@ use std::{
 
 use pdfdelta_core::{
     model::{DecodedText, Glyph, TextRenderMode},
-    pdf::{LopdfParser, ParseLimits},
+    pdf::{LopdfParser, ParseLimits, PdfDict, PdfObject},
     source::{ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionLimits},
 };
 
@@ -16,10 +16,11 @@ pub fn inspect_document(
     path: &Path,
     backend_info: bool,
     glyphs: bool,
+    objects: bool,
     password_file: Option<&Path>,
     font_identity: &[String],
 ) -> Result<(), String> {
-    let backend_info = backend_info || !glyphs;
+    let backend_info = backend_info || (!glyphs && !objects);
     let limits = ParseLimits::default();
     let bytes = read_limited(path, limits.max_input_bytes)?;
     let password = password_file.map(read_password_file).transpose()?;
@@ -28,6 +29,15 @@ pub fn inspect_document(
     let mut stdout = stdout.lock();
     if backend_info {
         inspect_backend(
+            path,
+            Arc::clone(&bytes),
+            limits,
+            password.as_deref(),
+            &mut stdout,
+        )?;
+    }
+    if objects {
+        inspect_objects(
             path,
             Arc::clone(&bytes),
             limits,
@@ -75,6 +85,53 @@ pub fn inspect_backend<W: Write>(
         format_args!("pdf-version: {}.{}", version.major, version.minor),
     )?;
     write_inspection_line(writer, path, format_args!("pages: {page_count}"))?;
+    for issue in pdf.issues() {
+        write_inspection_line(
+            writer,
+            path,
+            format_args!("parser-issue: unresolved: {}", issue.description()),
+        )?;
+    }
+    Ok(())
+}
+
+pub fn inspect_objects<W: Write>(
+    path: &Path,
+    bytes: Arc<[u8]>,
+    parse_limits: ParseLimits,
+    password: Option<&str>,
+    writer: &mut W,
+) -> Result<(), String> {
+    let pdf = parse_lopdf(bytes, parse_limits, password)
+        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+    let trailer = pdf
+        .trailer()
+        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+    write_inspection_line(
+        writer,
+        path,
+        format_args!("trailer: {}", format_pdf_dict(&trailer)),
+    )?;
+    let pages = pdf
+        .pages()
+        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+    write_inspection_line(writer, path, format_args!("pages: {}", pages.len()))?;
+    for (index, page_ref) in pages.iter().enumerate() {
+        let page_num = index + 1;
+        let page_dict = pdf
+            .page_dict(*page_ref)
+            .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+        write_inspection_line(
+            writer,
+            path,
+            format_args!(
+                "page {page_num}: object {}:{} {}",
+                page_ref.0.object_number,
+                page_ref.0.generation,
+                format_pdf_dict(&page_dict)
+            ),
+        )?;
+    }
     for issue in pdf.issues() {
         write_inspection_line(
             writer,
@@ -140,6 +197,50 @@ pub fn write_inspection_line<W: Write>(
     })
 }
 
+pub fn format_pdf_object(object: &PdfObject) -> String {
+    match object {
+        PdfObject::Null => "null".to_owned(),
+        PdfObject::Boolean(val) => val.to_string(),
+        PdfObject::Integer(val) => val.to_string(),
+        PdfObject::Real(val) => {
+            if val.fract() == 0.0 {
+                format!("{val:.1}")
+            } else {
+                format!("{val}")
+            }
+        }
+        PdfObject::Name(bytes) => format!("/{}", String::from_utf8_lossy(bytes)),
+        PdfObject::String(bytes) => {
+            if let Ok(s) = std::str::from_utf8(bytes) {
+                format!("{s:?}")
+            } else {
+                format!("<{}>", lowercase_hex(bytes))
+            }
+        }
+        PdfObject::Array(items) => {
+            let formatted: Vec<_> = items.iter().map(format_pdf_object).collect();
+            format!("[{}]", formatted.join(" "))
+        }
+        PdfObject::Dictionary(dict) => format_pdf_dict(dict),
+        PdfObject::Stream(dict) => format!("{} stream", format_pdf_dict(dict)),
+        PdfObject::Reference(reference) => {
+            format!("{} {} R", reference.object_number, reference.generation)
+        }
+    }
+}
+
+pub fn format_pdf_dict(dict: &PdfDict) -> String {
+    let mut parts = Vec::with_capacity(dict.len());
+    for (key, value) in dict {
+        parts.push(format!(
+            "/{} {}",
+            String::from_utf8_lossy(key),
+            format_pdf_object(value)
+        ));
+    }
+    format!("<< {} >>", parts.join(" "))
+}
+
 pub fn format_glyph(glyph: &Glyph) -> String {
     let text = match &glyph.text {
         DecodedText::Mapped(text) => format!("text={text:?}"),
@@ -200,17 +301,20 @@ pub fn render_mode_name(mode: TextRenderMode) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use std::io::{self, Write};
+    use std::{
+        collections::BTreeMap,
+        io::{self, Write},
+    };
 
     use pdfdelta_core::{
         model::{
             DecodedText, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect, TextRenderMode,
             Vec2,
         },
-        pdf::ObjectRef,
+        pdf::{ObjectRef, PdfDict, PdfObject},
     };
 
-    use super::{format_glyph, write_inspection_line};
+    use super::{format_glyph, format_pdf_dict, format_pdf_object, write_inspection_line};
 
     struct BrokenPipeWriter;
 
@@ -235,6 +339,40 @@ mod tests {
 
         assert!(error.contains("cannot write inspection output for fixture.pdf"));
         assert!(error.contains("broken pipe"));
+    }
+
+    #[test]
+    fn formats_pdf_objects_and_dictionaries() {
+        let mut dict: PdfDict = BTreeMap::new();
+        dict.insert(b"Type".to_vec(), PdfObject::Name(b"Page".to_vec()));
+        dict.insert(
+            b"Parent".to_vec(),
+            PdfObject::Reference(ObjectRef {
+                object_number: 2,
+                generation: 0,
+            }),
+        );
+        dict.insert(
+            b"MediaBox".to_vec(),
+            PdfObject::Array(vec![
+                PdfObject::Integer(0),
+                PdfObject::Integer(0),
+                PdfObject::Real(612.0),
+                PdfObject::Real(792.0),
+            ]),
+        );
+
+        assert_eq!(
+            format_pdf_dict(&dict),
+            "<< /MediaBox [0 0 612.0 792.0] /Parent 2 0 R /Type /Page >>"
+        );
+
+        assert_eq!(format_pdf_object(&PdfObject::Null), "null");
+        assert_eq!(format_pdf_object(&PdfObject::Boolean(true)), "true");
+        assert_eq!(
+            format_pdf_object(&PdfObject::String(b"Hello".to_vec())),
+            "\"Hello\""
+        );
     }
 
     #[test]

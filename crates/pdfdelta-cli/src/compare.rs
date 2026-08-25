@@ -18,11 +18,13 @@ use pdfdelta_core::{
 };
 
 use crate::{
-    args::{ColorChoice, CompareCommand, ComparisonInput, resolve_color},
+    args::{ColorChoice, CompareCommand, ComparisonInput, ComparisonOptions, resolve_color},
     fs::{
-        InputReadError, ensure_output_does_not_alias_input, ensure_trace_does_not_alias_input,
+        InputReadError, ensure_named_output_does_not_alias_input,
+        ensure_output_does_not_alias_input, ensure_trace_does_not_alias_input,
         output_paths_refer_to_same_file, parse_external_font_identities, parse_lopdf,
-        read_limited_typed, read_password_file, write_json_atomically, write_trace_atomically,
+        read_limited_typed, read_password_file, write_json_atomically,
+        write_text_report_atomically, write_trace_atomically,
     },
     trace::{ExecutionTrace, TraceSide},
 };
@@ -37,6 +39,11 @@ pub fn compare_documents<W: Write>(
     let new_path = command
         .new_path
         .ok_or_else(|| "cannot compare PDFs: NEW_PDF is required".to_owned())?;
+
+    if old_path == Path::new("-") && new_path == Path::new("-") {
+        return Err("cannot read both OLD_PDF and NEW_PDF from standard input".to_owned());
+    }
+
     let old_input = ComparisonInput {
         path: old_path,
         password_file: command.old_password_file,
@@ -51,7 +58,7 @@ pub fn compare_documents<W: Write>(
     if let Some(trace_path) = command.trace_path {
         ensure_trace_does_not_alias_input(trace_path, old_path, new_path)?;
     }
-    if let (Some(json_path), Some(trace_path)) = (command.json_path, command.trace_path)
+    if let (Some(json_path), Some(trace_path)) = (command.options.json_path, command.trace_path)
         && output_paths_refer_to_same_file(trace_path, json_path, "trace/report output collision")?
     {
         return Err(format!(
@@ -60,11 +67,42 @@ pub fn compare_documents<W: Write>(
             json_path.display()
         ));
     }
+    if let (Some(output_path), Some(trace_path)) = (command.options.output_path, command.trace_path)
+        && output_paths_refer_to_same_file(
+            trace_path,
+            output_path,
+            "trace/report output collision",
+        )?
+    {
+        return Err(format!(
+            "refusing trace output {} because it refers to the text report {}",
+            trace_path.display(),
+            output_path.display()
+        ));
+    }
+    if let (Some(output_path), Some(json_path)) =
+        (command.options.output_path, command.options.json_path)
+        && output_paths_refer_to_same_file(output_path, json_path, "report/json output collision")?
+    {
+        return Err(format!(
+            "refusing text report output {} because it refers to the JSON report {}",
+            output_path.display(),
+            json_path.display()
+        ));
+    }
 
-    let mut trace = ExecutionTrace::new(old_path, new_path, command.strict);
+    let mut trace = ExecutionTrace::new(old_path, new_path, command.options.strict);
     let output_validation: Result<(), String> = (|| {
-        if let Some(json_path) = command.json_path {
+        if let Some(json_path) = command.options.json_path {
             ensure_output_does_not_alias_input(json_path, old_path, new_path)?;
+        }
+        if let Some(output_path) = command.options.output_path {
+            ensure_named_output_does_not_alias_input(
+                "text report output",
+                output_path,
+                old_path,
+                new_path,
+            )?;
         }
         Ok(())
     })();
@@ -83,9 +121,7 @@ pub fn compare_documents<W: Write>(
     let comparison = compare_documents_traced(
         old_input,
         new_input,
-        command.json_path,
-        command.strict,
-        command.color,
+        command.options,
         diagnostics,
         &mut trace,
     );
@@ -116,9 +152,7 @@ pub fn compare_documents<W: Write>(
 pub fn compare_documents_traced<W: Write>(
     old_input: ComparisonInput<'_>,
     new_input: ComparisonInput<'_>,
-    json_path: Option<&Path>,
-    strict: bool,
-    color: ColorChoice,
+    options: ComparisonOptions<'_>,
     diagnostics: &mut W,
     trace: &mut ExecutionTrace,
 ) -> Result<(u8, bool), String> {
@@ -169,7 +203,7 @@ pub fn compare_documents_traced<W: Write>(
         )
     })?;
     let status =
-        exit_status(&outcome.comparison, &outcome.extraction, strict).map_err(|error| {
+        exit_status(&outcome.comparison, &outcome.extraction, options.strict).map_err(|error| {
             format!(
                 "cannot determine comparison status for {} and {}: {error}",
                 old_input.path.display(),
@@ -184,18 +218,21 @@ pub fn compare_documents_traced<W: Write>(
         )
     })?;
 
-    let report_result = if let Some(json_path) = json_path {
-        write_json_atomically(
+    if let Some(json_path) = options.json_path
+        && let Err(error) = write_json_atomically(
             json_path,
             &outcome.old_blocks,
             &outcome.new_blocks,
             &outcome.comparison,
             &outcome.extraction,
         )
-    } else {
-        // The file headers quote the input paths exactly as the caller typed
-        // them, mirroring how git labels its diff targets.
-        render_text(
+    {
+        trace.fail_message("report", None, "report", &error);
+        return Err(error);
+    }
+
+    if let Some(output_path) = options.output_path {
+        let report = render_text(
             &outcome.old_blocks,
             &outcome.new_blocks,
             &outcome.comparison,
@@ -203,7 +240,33 @@ pub fn compare_documents_traced<W: Write>(
             &TextReportOptions {
                 old_label: &old_input.path.display().to_string(),
                 new_label: &new_input.path.display().to_string(),
-                color: resolve_color(color),
+                color: matches!(options.color, ColorChoice::Always),
+            },
+        )
+        .map_err(|error| {
+            format!(
+                "cannot render comparison report for {} and {}: {error}",
+                old_input.path.display(),
+                new_input.path.display()
+            )
+        })?;
+
+        if let Err(error) = write_text_report_atomically(output_path, &report) {
+            trace.fail_message("report", None, "report", &error);
+            return Err(error);
+        }
+    }
+
+    if !options.quiet && options.json_path.is_none() && options.output_path.is_none() {
+        let report_result = render_text(
+            &outcome.old_blocks,
+            &outcome.new_blocks,
+            &outcome.comparison,
+            &outcome.extraction,
+            &TextReportOptions {
+                old_label: &old_input.path.display().to_string(),
+                new_label: &new_input.path.display().to_string(),
+                color: resolve_color(options.color),
             },
         )
         .map_err(|error| {
@@ -222,11 +285,11 @@ pub fn compare_documents_traced<W: Write>(
             stdout
                 .flush()
                 .map_err(|error| format!("cannot flush comparison report to stdout: {error}"))
-        })
-    };
-    if let Err(error) = report_result {
-        trace.fail_message("report", None, "report", &error);
-        return Err(error);
+        });
+        if let Err(error) = report_result {
+            trace.fail_message("report", None, "report", &error);
+            return Err(error);
+        }
     }
     trace.complete("report", None, []);
 

@@ -45,8 +45,6 @@ pub fn read_limited(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, String> 
 }
 
 pub fn read_limited_typed(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, InputReadError> {
-    let file = File::open(path)
-        .map_err(|error| InputReadError::Io(format!("cannot open {}: {error}", path.display())))?;
     let read_limit = u64::try_from(max_bytes)
         .map_err(|_| {
             InputReadError::InvalidConfiguration(
@@ -54,17 +52,33 @@ pub fn read_limited_typed(path: &Path, max_bytes: usize) -> Result<Arc<[u8]>, In
             )
         })?
         .saturating_add(1);
-    let mut reader = file.take(read_limit);
-    let mut bytes = Vec::new();
-    reader
-        .read_to_end(&mut bytes)
-        .map_err(|error| InputReadError::Io(format!("cannot read {}: {error}", path.display())))?;
+    let bytes = if path == Path::new("-") {
+        let stdin = io::stdin();
+        let mut reader = stdin.lock().take(read_limit);
+        let mut bytes = Vec::new();
+        reader
+            .read_to_end(&mut bytes)
+            .map_err(|error| InputReadError::Io(format!("cannot read standard input: {error}")))?;
+        bytes
+    } else {
+        let file = File::open(path).map_err(|error| {
+            InputReadError::Io(format!("cannot open {}: {error}", path.display()))
+        })?;
+        let mut reader = file.take(read_limit);
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).map_err(|error| {
+            InputReadError::Io(format!("cannot read {}: {error}", path.display()))
+        })?;
+        bytes
+    };
     if bytes.len() > max_bytes {
+        let target = if path == Path::new("-") {
+            "standard input".to_owned()
+        } else {
+            path.display().to_string()
+        };
         return Err(InputReadError::LimitExceeded {
-            message: format!(
-                "cannot read {}: PDF input exceeds the {max_bytes}-byte limit",
-                path.display()
-            ),
+            message: format!("cannot read {target}: PDF input exceeds the {max_bytes}-byte limit",),
             limit: max_bytes,
         });
     }
@@ -131,6 +145,19 @@ pub fn write_json_atomically(
                 output_path.display()
             )
         })
+    })
+}
+
+pub fn write_text_report_atomically(output_path: &Path, content: &str) -> Result<(), String> {
+    write_output_atomically(output_path, "text report", |temporary_file| {
+        temporary_file
+            .write_all(content.as_bytes())
+            .map_err(|error| {
+                format!(
+                    "cannot render text comparison report for {}: {error}",
+                    output_path.display()
+                )
+            })
     })
 }
 
@@ -315,6 +342,9 @@ pub fn paths_refer_to_same_file(
     input_path: &Path,
     context: &str,
 ) -> Result<bool, String> {
+    if output_path == Path::new("-") || input_path == Path::new("-") {
+        return Ok(false);
+    }
     if output_path == input_path {
         return Ok(true);
     }
@@ -373,6 +403,9 @@ pub fn output_paths_refer_to_same_file(
     second_path: &Path,
     context: &str,
 ) -> Result<bool, String> {
+    if first_path == Path::new("-") || second_path == Path::new("-") {
+        return Ok(false);
+    }
     if first_path == second_path {
         return Ok(true);
     }

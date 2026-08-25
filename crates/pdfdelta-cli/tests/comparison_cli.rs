@@ -1049,6 +1049,193 @@ fn still_rejects_existing_symlink_output_aliases() {
     assert_no_temporary_reports(&directory);
 }
 
+#[test]
+fn completions_subcommand_generates_shell_scripts() {
+    let output_bash = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["completions", "bash"])
+        .output()
+        .expect("pdfdelta completions bash should run");
+    assert_eq!(output_bash.status.code(), Some(0));
+    let bash_script = stdout(&output_bash);
+    assert!(bash_script.contains("pdfdelta"), "{bash_script}");
+
+    let output_zsh = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["completions", "zsh"])
+        .output()
+        .expect("pdfdelta completions zsh should run");
+    assert_eq!(output_zsh.status.code(), Some(0));
+    let zsh_script = stdout(&output_zsh);
+    assert!(zsh_script.contains("pdfdelta"), "{zsh_script}");
+
+    let output_fish = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["completions", "fish"])
+        .output()
+        .expect("pdfdelta completions fish should run");
+    assert_eq!(output_fish.status.code(), Some(0));
+    let fish_script = stdout(&output_fish);
+    assert!(fish_script.contains("pdfdelta"), "{fish_script}");
+}
+
+#[test]
+fn quiet_flag_suppresses_stdout_report() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(
+        &old,
+        &[
+            "Opening paragraph establishes context",
+            "Release 10 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening paragraph establishes context",
+            "Release 20 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+
+    let output = compare(&old, &new, &["--quiet"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stdout(&output).is_empty(),
+        "stdout should be suppressed by --quiet"
+    );
+
+    let output_short = compare(&old, &new, &["-q"]);
+    assert_eq!(output_short.status.code(), Some(1));
+    assert!(
+        stdout(&output_short).is_empty(),
+        "stdout should be suppressed by -q"
+    );
+}
+
+#[test]
+fn output_flag_writes_text_report_to_file() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let report_file = directory.join("report.txt");
+    write_pdf(
+        &old,
+        &[
+            "Opening paragraph establishes context",
+            "Release 10 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening paragraph establishes context",
+            "Release 20 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+
+    let output = compare(&old, &new, &["--output", path_text(&report_file)]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        stdout(&output).is_empty(),
+        "stdout should be empty when --output is provided"
+    );
+
+    let report_content = fs::read_to_string(&report_file).expect("report file should exist");
+    assert!(
+        report_content.contains("content changes: 1"),
+        "{report_content}"
+    );
+    assert!(
+        report_content.contains("- Release 10 remains available"),
+        "{report_content}"
+    );
+    assert!(
+        report_content.contains("+ Release 20 remains available"),
+        "{report_content}"
+    );
+}
+
+#[test]
+fn inspect_objects_prints_structural_summary() {
+    let directory = TestDirectory::new();
+    let document = directory.join("document.pdf");
+    write_pdf(&document, &["Testing object inspection"]);
+
+    let output = inspect(&document, &["--objects"]);
+    assert_eq!(output.status.code(), Some(0));
+    let report = stdout(&output);
+    assert!(report.contains("trailer: <<"), "{report}");
+    assert!(report.contains("pages: 1"), "{report}");
+    assert!(report.contains("page 1: object"), "{report}");
+    assert!(report.contains("/Type /Page"), "{report}");
+}
+
+#[test]
+fn stdin_collision_fails_with_informative_error() {
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .args(["-", "-"])
+        .output()
+        .expect("pdfdelta should run");
+    assert_eq!(output.status.code(), Some(2));
+    let error = stderr(&output);
+    assert!(
+        error.contains("cannot read both OLD_PDF and NEW_PDF from standard input"),
+        "{error}"
+    );
+}
+
+#[test]
+fn stdin_supports_reading_old_pdf() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let old_bytes = fs::read(&old).expect("old PDF bytes should be readable");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg("-")
+        .arg(&new)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("pdfdelta should spawn");
+
+    use std::io::Write as _;
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be open")
+        .write_all(&old_bytes)
+        .expect("stdin write should succeed");
+
+    let output = child.wait_with_output().expect("pdfdelta should finish");
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert!(
+        stdout(&output).contains("content changes: 0"),
+        "{}",
+        stdout(&output)
+    );
+}
+
+#[test]
+fn output_aliasing_with_input_is_rejected() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let output = compare(&old, &new, &["--output", path_text(&old)]);
+    assert_eq!(output.status.code(), Some(2));
+    let error = stderr(&output);
+    assert!(error.contains("refusing text report output"), "{error}");
+}
+
 fn compare(old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
         .arg(old)

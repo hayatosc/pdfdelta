@@ -328,14 +328,20 @@ content changes: 1 · formatting-only: 3 · uncertain: 1 · unresolved regions: 
 
 ```bash
 pdfdelta inspect document.pdf
+pdfdelta inspect document.pdf --backend-info
+pdfdelta inspect document.pdf --objects
+pdfdelta inspect document.pdf --glyphs
 pdfdelta old.pdf new.pdf
-pdfdelta old.pdf new.pdf --json result.json
+pdfdelta old.pdf new.pdf -j result.json
+pdfdelta old.pdf new.pdf -o diff.txt
+pdfdelta -q -s old.pdf new.pdf
 pdfdelta old.pdf new.pdf --color auto|always|never
 pdfdelta old.pdf new.pdf --old-password-file old.secret --new-password-file new.secret
 pdfdelta old.pdf new.pdf --old-font-identity FontName=identity --new-font-identity FontName=identity
+pdfdelta completions bash|zsh|fish|powershell|elvish
 ```
 
-`inspect`にはbackend確認用の`--backend-info`、object確認用の`--objects`、Glyph確認用の`--glyphs`を段階的に追加する。
+`inspect`にはbackend確認用の`--backend-info`、object確認用の`--objects`、Glyph確認用の`--glyphs`を提供する。入力PDFのパスには標準入力（`-`）も使用可能（ただしold/newの両方に指定することは不可）。また、テキストレポートをファイル出力する`-o, --output <PATH>`、CI等の終了コード判定用の`-q, --quiet`、JSONレポート用の`-j, --json <PATH>`、完全性チェック用の`-s, --strict`、シェル自動補完スクリプトを生成する`completions <SHELL>`を備える。
 
 passwordはargvへ直接渡さず、sideごとのpassword fileから最大4096 byteを読み、一つの末尾改行を除いてbackendへ借用する。password本文はerror、report、traceへ書かない。`--old-font-identity` / `--new-font-identity`は`BaseFont=identity`形式のcaller assertionであり、identity文字列をdomain-separated hashへ変換した後は保持しない。同じ外部font programを使うとcallerが保証できる場合だけ指定する。
 

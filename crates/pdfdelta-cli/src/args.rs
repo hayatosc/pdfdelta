@@ -10,27 +10,42 @@ use clap::{Parser, Subcommand};
     name = "pdfdelta",
     version,
     about = "Compare meaningful text changes between two PDF documents",
+    long_about = "pdfdelta compares two PDF documents and detects meaningful semantic text changes\n\
+                  while ignoring benign layout differences like line wraps, pagination shifts,\n\
+                  font size adjustments, and generation software differences.",
     args_conflicts_with_subcommands = true
 )]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,
 
+    /// Path to the older/original PDF document (use '-' for standard input).
     #[arg(value_name = "OLD_PDF")]
     pub old: Option<PathBuf>,
 
+    /// Path to the newer/modified PDF document (use '-' for standard input).
     #[arg(value_name = "NEW_PDF")]
     pub new: Option<PathBuf>,
 
-    #[arg(long, value_name = "PATH", requires = "new")]
+    /// Write a machine-readable JSON comparison report to a file.
+    #[arg(short = 'j', long, value_name = "PATH", requires = "new")]
     pub json: Option<PathBuf>,
+
+    /// Write the human-readable comparison report to a file instead of standard output.
+    #[arg(short = 'o', long, value_name = "PATH", requires = "new")]
+    pub output: Option<PathBuf>,
 
     /// Write a phase-by-phase diagnostic trace to a new JSON file.
     #[arg(long, value_name = "PATH", requires = "new")]
     pub trace_json: Option<PathBuf>,
 
-    #[arg(long, requires = "new")]
+    /// Fail with exit code 3 if comparison is incomplete (due to unsupported features or unresolved regions).
+    #[arg(short = 's', long, requires = "new")]
     pub strict: bool,
+
+    /// Suppress human-readable diff output to standard output.
+    #[arg(short = 'q', long, requires = "new")]
+    pub quiet: bool,
 
     /// When to colorize the human-readable report: auto, always, or never.
     #[arg(
@@ -63,6 +78,8 @@ pub struct Cli {
 pub enum Command {
     /// Inspect evidence extracted from one PDF.
     Inspect {
+        /// Path to the PDF document to inspect (use '-' for standard input).
+        #[arg(value_name = "DOCUMENT")]
         document: PathBuf,
 
         /// Print the selected parser backend and parsed document summary.
@@ -73,6 +90,10 @@ pub enum Command {
         #[arg(long)]
         glyphs: bool,
 
+        /// Print parsed PDF indirect objects and structural summary.
+        #[arg(long)]
+        objects: bool,
+
         /// Read the PDF password from a file.
         #[arg(long, value_name = "PATH")]
         password_file: Option<PathBuf>,
@@ -80,6 +101,13 @@ pub enum Command {
         /// Assert an external font identity as BASE_FONT=IDENTITY.
         #[arg(long, value_name = "BASE_FONT=IDENTITY")]
         font_identity: Vec<String>,
+    },
+
+    /// Generate shell completion script for the specified shell.
+    Completions {
+        /// Target shell to generate completions for.
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
     },
 }
 
@@ -107,17 +135,24 @@ pub fn resolve_color(choice: ColorChoice) -> bool {
 }
 
 #[derive(Clone, Copy)]
+pub struct ComparisonOptions<'a> {
+    pub json_path: Option<&'a Path>,
+    pub output_path: Option<&'a Path>,
+    pub strict: bool,
+    pub quiet: bool,
+    pub color: ColorChoice,
+}
+
+#[derive(Clone, Copy)]
 pub struct CompareCommand<'a> {
     pub old_path: Option<&'a Path>,
     pub new_path: Option<&'a Path>,
-    pub json_path: Option<&'a Path>,
     pub trace_path: Option<&'a Path>,
-    pub strict: bool,
-    pub color: ColorChoice,
     pub old_password_file: Option<&'a Path>,
     pub new_password_file: Option<&'a Path>,
     pub old_font_identities: &'a [String],
     pub new_font_identities: &'a [String],
+    pub options: ComparisonOptions<'a>,
 }
 
 #[derive(Clone, Copy)]
@@ -141,6 +176,46 @@ mod tests {
         assert!(cli.strict);
         assert_eq!(cli.old.as_deref(), Some(std::path::Path::new("old.pdf")));
         assert_eq!(cli.new.as_deref(), Some(std::path::Path::new("new.pdf")));
+
+        let cli_short = Cli::try_parse_from(["pdfdelta", "old.pdf", "new.pdf", "-s"])
+            .expect("short strict flag should parse");
+        assert!(cli_short.strict);
+    }
+
+    #[test]
+    fn parses_output_and_quiet_flags() {
+        let cli = Cli::try_parse_from([
+            "pdfdelta", "old.pdf", "new.pdf", "--output", "diff.txt", "--quiet",
+        ])
+        .expect("output and quiet flags should parse");
+
+        assert_eq!(
+            cli.output.as_deref(),
+            Some(std::path::Path::new("diff.txt"))
+        );
+        assert!(cli.quiet);
+
+        let cli_short = Cli::try_parse_from([
+            "pdfdelta",
+            "old.pdf",
+            "new.pdf",
+            "-o",
+            "diff.txt",
+            "-q",
+            "-j",
+            "diff.json",
+        ])
+        .expect("short flags should parse");
+
+        assert_eq!(
+            cli_short.output.as_deref(),
+            Some(std::path::Path::new("diff.txt"))
+        );
+        assert!(cli_short.quiet);
+        assert_eq!(
+            cli_short.json.as_deref(),
+            Some(std::path::Path::new("diff.json"))
+        );
     }
 
     #[test]
@@ -215,6 +290,7 @@ mod tests {
             Some(Command::Inspect {
                 backend_info: true,
                 glyphs: false,
+                objects: false,
                 ..
             })
         ));
@@ -230,6 +306,23 @@ mod tests {
             Some(Command::Inspect {
                 backend_info: false,
                 glyphs: true,
+                objects: false,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn parses_objects_inspection() {
+        let cli = Cli::try_parse_from(["pdfdelta", "inspect", "document.pdf", "--objects"])
+            .expect("objects inspection arguments should parse");
+
+        assert!(matches!(
+            cli.command,
+            Some(Command::Inspect {
+                backend_info: false,
+                glyphs: false,
+                objects: true,
                 ..
             })
         ));
@@ -268,6 +361,7 @@ mod tests {
             "document.pdf",
             "--backend-info",
             "--glyphs",
+            "--objects",
         ])
         .expect("combined inspection arguments should parse");
 
@@ -276,7 +370,21 @@ mod tests {
             Some(Command::Inspect {
                 backend_info: true,
                 glyphs: true,
+                objects: true,
                 ..
+            })
+        ));
+    }
+
+    #[test]
+    fn parses_completions_subcommand() {
+        let cli = Cli::try_parse_from(["pdfdelta", "completions", "bash"])
+            .expect("completions subcommand should parse");
+
+        assert!(matches!(
+            cli.command,
+            Some(Command::Completions {
+                shell: clap_complete::Shell::Bash
             })
         ));
     }

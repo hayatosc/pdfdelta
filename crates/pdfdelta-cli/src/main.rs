@@ -1,6 +1,9 @@
-use std::{io, process::ExitCode};
+use std::{
+    io::{self, Write},
+    process::ExitCode,
+};
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 
 mod args;
 mod compare;
@@ -23,12 +26,14 @@ fn main() -> ExitCode {
             document,
             backend_info,
             glyphs,
+            objects,
             password_file,
             font_identity,
         }) => match inspect_document(
             &document,
             backend_info,
             glyphs,
+            objects,
             password_file.as_deref(),
             &font_identity,
         ) {
@@ -38,18 +43,31 @@ fn main() -> ExitCode {
                 ExitCode::from(2)
             }
         },
+        Some(Command::Completions { shell }) => {
+            let mut cmd = Cli::command();
+            let name = cmd.get_name().to_string();
+            let stdout = io::stdout();
+            let mut stdout = stdout.lock();
+            clap_complete::generate(shell, &mut cmd, name, &mut stdout);
+            let _ = stdout.flush();
+            ExitCode::SUCCESS
+        }
         None => match compare_documents(
             CompareCommand {
                 old_path: cli.old.as_deref(),
                 new_path: cli.new.as_deref(),
-                json_path: cli.json.as_deref(),
                 trace_path: cli.trace_json.as_deref(),
-                strict: cli.strict,
-                color: cli.color,
                 old_password_file: cli.old_password_file.as_deref(),
                 new_password_file: cli.new_password_file.as_deref(),
                 old_font_identities: &cli.old_font_identity,
                 new_font_identities: &cli.new_font_identity,
+                options: args::ComparisonOptions {
+                    json_path: cli.json.as_deref(),
+                    output_path: cli.output.as_deref(),
+                    strict: cli.strict,
+                    quiet: cli.quiet,
+                    color: cli.color,
+                },
             },
             &mut stderr,
         ) {
