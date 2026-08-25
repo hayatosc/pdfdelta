@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::{
     Error, Result,
@@ -264,7 +264,42 @@ enum SignatureToken {
     SyntheticSpace,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+impl Ord for SignatureToken {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (Self::Text(a), Self::Text(b)) => compare_decoded_text(a, b),
+            (Self::Text(_), Self::SyntheticSpace) => std::cmp::Ordering::Less,
+            (Self::SyntheticSpace, Self::Text(_)) => std::cmp::Ordering::Greater,
+            (Self::SyntheticSpace, Self::SyntheticSpace) => std::cmp::Ordering::Equal,
+        }
+    }
+}
+
+impl PartialOrd for SignatureToken {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+fn compare_decoded_text(a: &DecodedText, b: &DecodedText) -> std::cmp::Ordering {
+    match (a, b) {
+        (DecodedText::Mapped(s1), DecodedText::Mapped(s2)) => s1.cmp(s2),
+        (DecodedText::Mapped(_), DecodedText::Unmapped { .. }) => std::cmp::Ordering::Less,
+        (DecodedText::Unmapped { .. }, DecodedText::Mapped(_)) => std::cmp::Ordering::Greater,
+        (
+            DecodedText::Unmapped {
+                font_hash: h1,
+                glyph_id: g1,
+            },
+            DecodedText::Unmapped {
+                font_hash: h2,
+                glyph_id: g2,
+            },
+        ) => h1.cmp(h2).then_with(|| g1.cmp(g2)),
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum MarginEdge {
     Header,
     Footer,
@@ -279,7 +314,7 @@ impl MarginEdge {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct MarginKey {
     edge: MarginEdge,
     ordinal: usize,
@@ -402,7 +437,7 @@ fn detect_repeated_margins(
         return roles;
     }
 
-    let mut candidates = HashMap::<MarginKey, Vec<usize>>::new();
+    let mut candidates = BTreeMap::<MarginKey, Vec<usize>>::new();
     for page in pages {
         let horizontal: Vec<_> = page
             .iter()
@@ -436,6 +471,10 @@ fn detect_repeated_margins(
     }
 
     for (key, mut remaining) in candidates {
+        // Greedy clustering uses the last encountered page in the candidate sequence (`remaining.pop()`)
+        // as the seed reference for the cluster. Because `candidates` keys and page-ordered indices are
+        // deterministic, this produces a stable, reproducible clustering. Changing the seed policy or
+        // clustering semantics requires benchmark/fixture evidence demonstrating improved margin recovery.
         while let Some(reference) = remaining.pop() {
             let mut cluster = vec![reference];
             let mut different_style = Vec::new();
@@ -997,4 +1036,82 @@ fn closeness(value: f64, maximum: f64) -> f64 {
 
 fn invalid_line(line: &Line, reason: &str) -> Error {
     Error::Unresolved(format!("line {} {reason}", line.id.0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::FontProgramHash;
+    use std::cmp::Ordering;
+
+    #[test]
+    fn signature_token_and_decoded_text_ordering_satisfies_total_order_laws() {
+        let tokens = vec![
+            SignatureToken::Text(DecodedText::Mapped("Alpha".to_owned())),
+            SignatureToken::Text(DecodedText::Mapped("Beta".to_owned())),
+            SignatureToken::Text(DecodedText::Unmapped {
+                font_hash: FontProgramHash(vec![0x01, 0x02]),
+                glyph_id: 10,
+            }),
+            SignatureToken::Text(DecodedText::Unmapped {
+                font_hash: FontProgramHash(vec![0x01, 0x02]),
+                glyph_id: 20,
+            }),
+            SignatureToken::Text(DecodedText::Unmapped {
+                font_hash: FontProgramHash(vec![0x03, 0x04]),
+                glyph_id: 5,
+            }),
+            SignatureToken::SyntheticSpace,
+        ];
+
+        // 1. Reflexivity and Eq consistency: a.cmp(a) == Equal, and a == a
+        for a in &tokens {
+            assert_eq!(a.cmp(a), Ordering::Equal);
+            assert_eq!(a, a);
+        }
+
+        // 2. Consistency with Eq and Antisymmetry for all pairs (a, b)
+        for (i, a) in tokens.iter().enumerate() {
+            for (j, b) in tokens.iter().enumerate() {
+                let cmp_ab = a.cmp(b);
+                let cmp_ba = b.cmp(a);
+
+                // Antisymmetry: a.cmp(b) == b.cmp(a).reverse()
+                assert_eq!(
+                    cmp_ab,
+                    cmp_ba.reverse(),
+                    "Antisymmetry violated for index ({i}, {j})"
+                );
+
+                // Eq consistency: a.cmp(b) == Equal <=> a == b
+                if a == b {
+                    assert_eq!(cmp_ab, Ordering::Equal);
+                } else {
+                    assert_ne!(cmp_ab, Ordering::Equal);
+                }
+            }
+        }
+
+        // 3. Transitivity: if a <= b and b <= c, then a <= c
+        for a in &tokens {
+            for b in &tokens {
+                for c in &tokens {
+                    if a <= b && b <= c {
+                        assert!(a <= c, "Transitivity <= violated for {a:?}, {b:?}, {c:?}");
+                    }
+                    if a < b && b < c {
+                        assert!(
+                            a < c,
+                            "Strict transitivity < violated for {a:?}, {b:?}, {c:?}"
+                        );
+                    }
+                }
+            }
+        }
+
+        // 4. Variant tag order: Mapped < Unmapped < SyntheticSpace
+        assert!(tokens[0] < tokens[2]); // Mapped < Unmapped
+        assert!(tokens[0] < tokens[5]); // Mapped < SyntheticSpace
+        assert!(tokens[2] < tokens[5]); // Unmapped < SyntheticSpace
+    }
 }

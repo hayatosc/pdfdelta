@@ -1,9 +1,9 @@
 use pdfdelta_core::{
     Error,
-    layout::{BlockOptions, BlockRole, Line, LineId, reconstruct_blocks},
+    layout::{BlockOptions, BlockRole, Line, LineId, SyntheticSpace, reconstruct_blocks},
     model::{
-        DecodedText, Document, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect,
-        TextRenderMode, Vec2,
+        DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphId, GlyphProvenance, PageId,
+        Rect, TextRenderMode, Vec2,
     },
     pdf::ObjectRef,
 };
@@ -1159,5 +1159,567 @@ fn continuing_prose_with_late_starting_narrow_callout_does_not_fragment_paragrap
         body_block.lines,
         [LineId(1), LineId(2), LineId(3)],
         "Continuing body paragraph lines must remain a single block despite late-starting callout"
+    );
+}
+
+#[test]
+fn detect_repeated_margins_is_deterministic_across_mixed_styles_and_permutations() {
+    let make_lines = |id_offset: u64| {
+        vec![
+            // Page 0 (7 lines)
+            LineSpec {
+                id: id_offset + 1,
+                page: 0,
+                text: "Chapter Header",
+                x: 0.0,
+                y: 750.0,
+                width: 100.0,
+                height: 10.0,
+                font_size: 10.0,
+                font: 2,
+            },
+            LineSpec {
+                id: id_offset + 2,
+                page: 0,
+                text: "Section Subtitle",
+                x: 0.0,
+                y: 735.0,
+                width: 100.0,
+                height: 9.0,
+                font_size: 9.0,
+                font: 2,
+            },
+            LineSpec::body(id_offset + 3, 0, "page 0 body line 1", 700.0),
+            LineSpec::body(id_offset + 4, 0, "page 0 body line 2", 685.0),
+            LineSpec::body(id_offset + 5, 0, "page 0 body line 3", 670.0),
+            LineSpec {
+                id: id_offset + 6,
+                page: 0,
+                text: "Page Footer",
+                x: 0.0,
+                y: 50.0,
+                width: 100.0,
+                height: 8.0,
+                font_size: 8.0,
+                font: 2,
+            },
+            LineSpec {
+                id: id_offset + 7,
+                page: 0,
+                text: "Confidential",
+                x: 0.0,
+                y: 35.0,
+                width: 100.0,
+                height: 7.0,
+                font_size: 7.0,
+                font: 2,
+            },
+            // Page 1 (7 lines)
+            LineSpec {
+                id: id_offset + 8,
+                page: 1,
+                text: "Chapter Header",
+                x: 0.0,
+                y: 750.0,
+                width: 100.0,
+                height: 10.0,
+                font_size: 10.5,
+                font: 2,
+            },
+            LineSpec {
+                id: id_offset + 9,
+                page: 1,
+                text: "Section Subtitle",
+                x: 0.0,
+                y: 735.0,
+                width: 100.0,
+                height: 9.0,
+                font_size: 9.0,
+                font: 2,
+            },
+            LineSpec::body(id_offset + 10, 1, "page 1 body line 1", 700.0),
+            LineSpec::body(id_offset + 11, 1, "page 1 body line 2", 685.0),
+            LineSpec::body(id_offset + 12, 1, "page 1 body line 3", 670.0),
+            LineSpec {
+                id: id_offset + 13,
+                page: 1,
+                text: "Page Footer",
+                x: 0.0,
+                y: 50.0,
+                width: 100.0,
+                height: 8.0,
+                font_size: 8.0,
+                font: 2,
+            },
+            LineSpec {
+                id: id_offset + 14,
+                page: 1,
+                text: "Confidential",
+                x: 0.0,
+                y: 35.0,
+                width: 100.0,
+                height: 7.0,
+                font_size: 7.0,
+                font: 2,
+            },
+            // Page 2 (7 lines)
+            LineSpec {
+                id: id_offset + 15,
+                page: 2,
+                text: "Chapter Header",
+                x: 0.0,
+                y: 750.0,
+                width: 100.0,
+                height: 10.0,
+                font_size: 11.0,
+                font: 2,
+            },
+            LineSpec {
+                id: id_offset + 16,
+                page: 2,
+                text: "Section Subtitle",
+                x: 0.0,
+                y: 735.0,
+                width: 100.0,
+                height: 9.0,
+                font_size: 9.0,
+                font: 2,
+            },
+            LineSpec::body(id_offset + 17, 2, "page 2 body line 1", 700.0),
+            LineSpec::body(id_offset + 18, 2, "page 2 body line 2", 685.0),
+            LineSpec::body(id_offset + 19, 2, "page 2 body line 3", 670.0),
+            LineSpec {
+                id: id_offset + 20,
+                page: 2,
+                text: "Page Footer",
+                x: 0.0,
+                y: 50.0,
+                width: 100.0,
+                height: 8.0,
+                font_size: 8.0,
+                font: 2,
+            },
+            LineSpec {
+                id: id_offset + 21,
+                page: 2,
+                text: "Confidential",
+                x: 0.0,
+                y: 35.0,
+                width: 100.0,
+                height: 7.0,
+                font_size: 7.0,
+                font: 2,
+            },
+            // Page 3 (7 lines)
+            LineSpec {
+                id: id_offset + 22,
+                page: 3,
+                text: "Chapter Header",
+                x: 0.0,
+                y: 750.0,
+                width: 100.0,
+                height: 10.0,
+                font_size: 10.0,
+                font: 3, // different font 3
+            },
+            LineSpec {
+                id: id_offset + 23,
+                page: 3,
+                text: "Section Subtitle",
+                x: 0.0,
+                y: 735.0,
+                width: 100.0,
+                height: 9.0,
+                font_size: 9.0,
+                font: 2,
+            },
+            LineSpec::body(id_offset + 24, 3, "page 3 body line 1", 700.0),
+            LineSpec::body(id_offset + 25, 3, "page 3 body line 2", 685.0),
+            LineSpec::body(id_offset + 26, 3, "page 3 body line 3", 670.0),
+            LineSpec {
+                id: id_offset + 27,
+                page: 3,
+                text: "Page Footer",
+                x: 0.0,
+                y: 50.0,
+                width: 100.0,
+                height: 8.0,
+                font_size: 8.0,
+                font: 2,
+            },
+            LineSpec {
+                id: id_offset + 28,
+                page: 3,
+                text: "Confidential",
+                x: 0.0,
+                y: 35.0,
+                width: 100.0,
+                height: 7.0,
+                font_size: 7.0,
+                font: 2,
+            },
+        ]
+    };
+
+    let base_fixture = Fixture::new(make_lines(0));
+    let opts = BlockOptions {
+        repeated_edge_line_limit: 2,
+        repeated_min_pages: 3,
+        min_repeated_margin_font_similarity: 0.95,
+        ..options()
+    };
+
+    let base_blocks = reconstruct_blocks(&base_fixture.document, &base_fixture.lines, opts)
+        .expect("block reconstruction should succeed");
+
+    // Run 50 iterations and assert strict equality of block roles and line assignments
+    for _ in 0..50 {
+        let fixture = Fixture::new(make_lines(0));
+        let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, opts)
+            .expect("reconstruction should be deterministic");
+        assert_eq!(blocks.len(), base_blocks.len());
+        for (b1, b2) in blocks.iter().zip(&base_blocks) {
+            assert_eq!(b1.id, b2.id);
+            assert_eq!(b1.lines, b2.lines);
+            assert_eq!(b1.role, b2.role);
+        }
+    }
+
+    // Fixed deterministic permutation 1: Reversed line input order
+    let mut reversed_lines = base_fixture.lines.clone();
+    reversed_lines.reverse();
+    let reversed_blocks = reconstruct_blocks(&base_fixture.document, &reversed_lines, opts)
+        .expect("reversed input lines should reconstruct identically");
+    assert_eq!(reversed_blocks.len(), base_blocks.len());
+    for (b1, b2) in reversed_blocks.iter().zip(&base_blocks) {
+        assert_eq!(b1.id, b2.id);
+        assert_eq!(b1.lines, b2.lines);
+        assert_eq!(b1.role, b2.role);
+    }
+
+    // Fixed deterministic permutation 2: Page-interleaved line input order
+    let mut interleaved_lines = Vec::new();
+    let lines_per_page = 7;
+    for line_idx in 0..lines_per_page {
+        for page_idx in 0..4 {
+            interleaved_lines
+                .push(base_fixture.lines[page_idx * lines_per_page + line_idx].clone());
+        }
+    }
+    let interleaved_blocks = reconstruct_blocks(&base_fixture.document, &interleaved_lines, opts)
+        .expect("interleaved input lines should reconstruct identically");
+    assert_eq!(interleaved_blocks.len(), base_blocks.len());
+    for (b1, b2) in interleaved_blocks.iter().zip(&base_blocks) {
+        assert_eq!(b1.id, b2.id);
+        assert_eq!(b1.lines, b2.lines);
+        assert_eq!(b1.role, b2.role);
+    }
+
+    // Check specific assigned roles
+    // Section Subtitle (ordinal 1) appears on 4 pages with same font -> RepeatedHeader
+    let subtitle_headers = base_blocks
+        .iter()
+        .filter(|b| {
+            b.role == BlockRole::RepeatedHeader
+                && b.lines.iter().any(|l| [2, 9, 16, 23].contains(&l.0))
+        })
+        .count();
+    assert_eq!(
+        subtitle_headers, 4,
+        "All 4 Section Subtitle lines must be RepeatedHeader"
+    );
+
+    // Page Footer (ordinal 0) appears on 4 pages with same font -> RepeatedFooter
+    let footers = base_blocks
+        .iter()
+        .filter(|b| {
+            b.role == BlockRole::RepeatedFooter
+                && b.lines.iter().any(|l| [6, 13, 20, 27].contains(&l.0))
+        })
+        .count();
+    assert_eq!(footers, 4, "All 4 Page Footer lines must be RepeatedFooter");
+
+    // Confidential (ordinal 1) appears on 4 pages with same font -> RepeatedFooter
+    let confidential = base_blocks
+        .iter()
+        .filter(|b| {
+            b.role == BlockRole::RepeatedFooter
+                && b.lines.iter().any(|l| [7, 14, 21, 28].contains(&l.0))
+        })
+        .count();
+    assert_eq!(
+        confidential, 4,
+        "All 4 Confidential lines must be RepeatedFooter"
+    );
+}
+
+#[test]
+fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_deterministically() {
+    let mut glyphs = Vec::new();
+    let mut lines = Vec::new();
+    let mut glyph_id_counter = 1u64;
+    let mut line_id_counter = 1u64;
+
+    let font_hash_header = FontProgramHash(vec![0x12, 0x34, 0x56]);
+    let font_hash_footer = FontProgramHash(vec![0x78, 0x9a, 0xbc]);
+
+    for page_idx in 0..3 {
+        let page = PageId(page_idx);
+
+        // Header line: "HEADER" (mapped) + space + unmapped (glyph 42)
+        let g1_id = GlyphId(glyph_id_counter);
+        glyph_id_counter += 1;
+        glyphs.push(Glyph {
+            id: g1_id,
+            page,
+            text: DecodedText::Mapped("HEADER".to_owned()),
+            raw_code: vec![0x48, 0x45, 0x41, 0x44, 0x45, 0x52],
+            font_id: FontId(2),
+            font_size: 10.0,
+            bbox: Rect {
+                min: Vec2 { x: 0.0, y: 750.0 },
+                max: Vec2 { x: 50.0, y: 760.0 },
+            },
+            baseline: Vec2 { x: 0.0, y: 750.0 },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+            render_order: g1_id.0 as u32,
+            render_mode: TextRenderMode::Fill,
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: page_idx + 1,
+                    generation: 0,
+                },
+                operator_index: 0,
+            },
+        });
+
+        let g2_id = GlyphId(glyph_id_counter);
+        glyph_id_counter += 1;
+        glyphs.push(Glyph {
+            id: g2_id,
+            page,
+            text: DecodedText::Unmapped {
+                font_hash: font_hash_header.clone(),
+                glyph_id: 42,
+            },
+            raw_code: vec![0x00, 0x2a],
+            font_id: FontId(2),
+            font_size: 10.0,
+            bbox: Rect {
+                min: Vec2 { x: 55.0, y: 750.0 },
+                max: Vec2 { x: 70.0, y: 760.0 },
+            },
+            baseline: Vec2 { x: 55.0, y: 750.0 },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+            render_order: g2_id.0 as u32,
+            render_mode: TextRenderMode::Fill,
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: page_idx + 1,
+                    generation: 0,
+                },
+                operator_index: 1,
+            },
+        });
+
+        lines.push(Line {
+            id: LineId(line_id_counter),
+            page,
+            glyphs: vec![g1_id, g2_id],
+            synthetic_spaces: vec![SyntheticSpace {
+                preceding: g1_id,
+                following: g2_id,
+            }],
+            bbox: Rect {
+                min: Vec2 { x: 0.0, y: 750.0 },
+                max: Vec2 { x: 70.0, y: 760.0 },
+            },
+            baseline: Vec2 { x: 0.0, y: 750.0 },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+        });
+        line_id_counter += 1;
+
+        // 3 body lines
+        for b_idx in 0..3 {
+            let bg_id = GlyphId(glyph_id_counter);
+            glyph_id_counter += 1;
+            let y = 700.0 - (b_idx as f64) * 15.0;
+            glyphs.push(Glyph {
+                id: bg_id,
+                page,
+                text: DecodedText::Mapped(format!("body text line {b_idx}")),
+                raw_code: vec![0x62],
+                font_id: FontId(1),
+                font_size: 10.0,
+                bbox: Rect {
+                    min: Vec2 { x: 0.0, y },
+                    max: Vec2 {
+                        x: 100.0,
+                        y: y + 10.0,
+                    },
+                },
+                baseline: Vec2 { x: 0.0, y },
+                direction: Vec2 { x: 1.0, y: 0.0 },
+                render_order: bg_id.0 as u32,
+                render_mode: TextRenderMode::Fill,
+                provenance: GlyphProvenance {
+                    content_stream: ObjectRef {
+                        object_number: page_idx + 1,
+                        generation: 0,
+                    },
+                    operator_index: (b_idx + 2) as u32,
+                },
+            });
+            lines.push(Line {
+                id: LineId(line_id_counter),
+                page,
+                glyphs: vec![bg_id],
+                synthetic_spaces: Vec::new(),
+                bbox: Rect {
+                    min: Vec2 { x: 0.0, y },
+                    max: Vec2 {
+                        x: 100.0,
+                        y: y + 10.0,
+                    },
+                },
+                baseline: Vec2 { x: 0.0, y },
+                direction: Vec2 { x: 1.0, y: 0.0 },
+            });
+            line_id_counter += 1;
+        }
+
+        // Footer line: unmapped (glyph 88) + mapped "FOOTER"
+        let fg1_id = GlyphId(glyph_id_counter);
+        glyph_id_counter += 1;
+        glyphs.push(Glyph {
+            id: fg1_id,
+            page,
+            text: DecodedText::Unmapped {
+                font_hash: font_hash_footer.clone(),
+                glyph_id: 88,
+            },
+            raw_code: vec![0x00, 0x58],
+            font_id: FontId(2),
+            font_size: 8.0,
+            bbox: Rect {
+                min: Vec2 { x: 0.0, y: 50.0 },
+                max: Vec2 { x: 15.0, y: 58.0 },
+            },
+            baseline: Vec2 { x: 0.0, y: 50.0 },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+            render_order: fg1_id.0 as u32,
+            render_mode: TextRenderMode::Fill,
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: page_idx + 1,
+                    generation: 0,
+                },
+                operator_index: 5,
+            },
+        });
+
+        let fg2_id = GlyphId(glyph_id_counter);
+        glyph_id_counter += 1;
+        glyphs.push(Glyph {
+            id: fg2_id,
+            page,
+            text: DecodedText::Mapped("FOOTER".to_owned()),
+            raw_code: vec![0x46, 0x4f, 0x4f, 0x54, 0x45, 0x52],
+            font_id: FontId(2),
+            font_size: 8.0,
+            bbox: Rect {
+                min: Vec2 { x: 20.0, y: 50.0 },
+                max: Vec2 { x: 70.0, y: 58.0 },
+            },
+            baseline: Vec2 { x: 20.0, y: 50.0 },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+            render_order: fg2_id.0 as u32,
+            render_mode: TextRenderMode::Fill,
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: page_idx + 1,
+                    generation: 0,
+                },
+                operator_index: 6,
+            },
+        });
+
+        lines.push(Line {
+            id: LineId(line_id_counter),
+            page,
+            glyphs: vec![fg1_id, fg2_id],
+            synthetic_spaces: vec![SyntheticSpace {
+                preceding: fg1_id,
+                following: fg2_id,
+            }],
+            bbox: Rect {
+                min: Vec2 { x: 0.0, y: 50.0 },
+                max: Vec2 { x: 70.0, y: 58.0 },
+            },
+            baseline: Vec2 { x: 0.0, y: 50.0 },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+        });
+        line_id_counter += 1;
+    }
+
+    let doc = Document::new(glyphs);
+    let opts = BlockOptions {
+        repeated_edge_line_limit: 1,
+        repeated_min_pages: 3,
+        min_repeated_margin_font_similarity: 0.95,
+        ..options()
+    };
+
+    let blocks = reconstruct_blocks(&doc, &lines, opts)
+        .expect("block reconstruction on mixed unmapped margins should succeed");
+
+    let header_blocks: Vec<_> = blocks
+        .iter()
+        .filter(|b| b.role == BlockRole::RepeatedHeader)
+        .collect();
+    assert_eq!(
+        header_blocks.len(),
+        3,
+        "All 3 mixed mapped/unmapped headers must be RepeatedHeader"
+    );
+    assert_eq!(header_blocks[0].lines, [LineId(1)]);
+    assert_eq!(header_blocks[1].lines, [LineId(6)]);
+    assert_eq!(header_blocks[2].lines, [LineId(11)]);
+
+    let footer_blocks: Vec<_> = blocks
+        .iter()
+        .filter(|b| b.role == BlockRole::RepeatedFooter)
+        .collect();
+    assert_eq!(
+        footer_blocks.len(),
+        3,
+        "All 3 mixed unmapped/mapped footers must be RepeatedFooter"
+    );
+    assert_eq!(footer_blocks[0].lines, [LineId(5)]);
+    assert_eq!(footer_blocks[1].lines, [LineId(10)]);
+    assert_eq!(footer_blocks[2].lines, [LineId(15)]);
+
+    let body_blocks: Vec<_> = blocks
+        .iter()
+        .filter(|b| b.role == BlockRole::Body)
+        .collect();
+    assert!(!body_blocks.is_empty(), "Body blocks must exist");
+    let all_body_lines: Vec<_> = body_blocks
+        .iter()
+        .flat_map(|b| b.lines.iter().copied())
+        .collect();
+    assert_eq!(
+        all_body_lines,
+        vec![
+            LineId(2),
+            LineId(3),
+            LineId(4),
+            LineId(7),
+            LineId(8),
+            LineId(9),
+            LineId(12),
+            LineId(13),
+            LineId(14),
+        ]
     );
 }
