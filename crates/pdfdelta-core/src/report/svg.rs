@@ -20,13 +20,17 @@ pub fn render_glyph_overlay_svg(document: &Document<Glyph>) -> Result<String> {
     let mut buffer = Vec::new();
     write_glyph_overlay_svg(document, &mut buffer)?;
     String::from_utf8(buffer)
-        .map_err(|error| Error::Unresolved(format!("invalid utf-8 in generated svg: {error}")))
+        .map_err(|error| Error::Report(format!("invalid utf-8 in generated svg: {error}")))
 }
 
 /// Writes a glyph overlay SVG visualization to the provided writer.
 pub fn write_glyph_overlay_svg<W: Write>(document: &Document<Glyph>, writer: &mut W) -> Result<()> {
+    validate_document_geometry(document)?;
+
     let pages = group_glyphs_by_page(document.items());
-    let page_layouts = calculate_page_layouts(&pages);
+    let page_layouts = calculate_page_layouts(&pages)?;
+
+    validate_document_and_layout_geometry(&pages, &page_layouts)?;
 
     let total_width = page_layouts
         .values()
@@ -38,6 +42,12 @@ pub fn write_glyph_overlay_svg<W: Write>(document: &Document<Glyph>, writer: &mu
         .map_or(DEFAULT_PAGE_HEIGHT + PAGE_PADDING * 2.0, |layout| {
             layout.y_offset + layout.svg_height + PAGE_GAP
         });
+
+    if !total_width.is_finite() || !total_height.is_finite() {
+        return Err(Error::Report(
+            "derived document canvas dimensions are non-finite".to_owned(),
+        ));
+    }
 
     writeln!(
         writer,
@@ -94,7 +104,9 @@ fn group_glyphs_by_page(glyphs: &[Glyph]) -> BTreeMap<PageId, Vec<&Glyph>> {
     pages
 }
 
-fn calculate_page_layouts(pages: &BTreeMap<PageId, Vec<&Glyph>>) -> BTreeMap<PageId, PageLayout> {
+fn calculate_page_layouts(
+    pages: &BTreeMap<PageId, Vec<&Glyph>>,
+) -> Result<BTreeMap<PageId, PageLayout>> {
     let mut layouts = BTreeMap::new();
     let mut current_y = PAGE_GAP;
 
@@ -124,6 +136,18 @@ fn calculate_page_layouts(pages: &BTreeMap<PageId, Vec<&Glyph>>) -> BTreeMap<Pag
         let svg_width = content_width + PAGE_PADDING * 2.0;
         let svg_height = content_height + PAGE_PADDING * 2.0 + HEADER_HEIGHT;
 
+        if !min_x.is_finite()
+            || !max_y.is_finite()
+            || !svg_width.is_finite()
+            || !svg_height.is_finite()
+            || !current_y.is_finite()
+        {
+            return Err(Error::Report(format!(
+                "page {} has non-finite derived layout dimensions",
+                (page_id.0 as u64) + 1
+            )));
+        }
+
         layouts.insert(
             *page_id,
             PageLayout {
@@ -136,9 +160,15 @@ fn calculate_page_layouts(pages: &BTreeMap<PageId, Vec<&Glyph>>) -> BTreeMap<Pag
         );
 
         current_y += svg_height + PAGE_GAP;
+        if !current_y.is_finite() {
+            return Err(Error::Report(format!(
+                "page {} causes non-finite cumulative page offset",
+                (page_id.0 as u64) + 1
+            )));
+        }
     }
 
-    layouts
+    Ok(layouts)
 }
 
 fn render_page_svg<W: Write>(
@@ -147,7 +177,7 @@ fn render_page_svg<W: Write>(
     glyphs: &[&Glyph],
     layout: &PageLayout,
 ) -> Result<()> {
-    let page_num = page_id.0 + 1;
+    let page_num = (page_id.0 as u64) + 1;
     let page_x = PAGE_PADDING;
     let page_y = layout.y_offset;
     let page_w = layout.svg_width - PAGE_PADDING * 2.0;
@@ -227,7 +257,7 @@ fn render_glyph_svg<W: Write>(
     let title_text = format!(
         "Glyph #{id} (Page {page})\nText: {text}\nBBox: ({min_x:.1}, {min_y:.1}) - ({max_x:.1}, {max_y:.1})\nBaseline: ({bx:.1}, {by:.1}) Dir: ({dx:.2}, {dy:.2})\nFont #{font_id}, Size: {font_size:.1}pt\nRender Order: {render_order}, Mode: {render_mode:?}\nProvenance: stream {cs_num} {cs_gen} R, op #{op_idx}",
         id = glyph.id.0,
-        page = glyph.page.0 + 1,
+        page = (glyph.page.0 as u64) + 1,
         text = text_display,
         min_x = glyph.bbox.min.x,
         min_y = glyph.bbox.min.y,
@@ -250,7 +280,7 @@ fn render_glyph_svg<W: Write>(
         writer,
         r#"    <g class="{class_attr}" data-glyph-id="{id}" data-page="{page}" data-render-order="{render_order}" data-cs-num="{cs_num}" data-cs-gen="{cs_gen}" data-op-idx="{op_idx}">"#,
         id = glyph.id.0,
-        page = glyph.page.0 + 1,
+        page = (glyph.page.0 as u64) + 1,
         render_order = glyph.render_order,
         cs_num = glyph.provenance.content_stream.object_number,
         cs_gen = glyph.provenance.content_stream.generation,
@@ -326,6 +356,120 @@ fn xml_escape(input: &str) -> String {
     escaped
 }
 
+fn validate_document_geometry(document: &Document<Glyph>) -> Result<()> {
+    for glyph in document.items() {
+        validate_glyph_geometry(glyph)?;
+    }
+    Ok(())
+}
+
+fn validate_glyph_geometry(glyph: &Glyph) -> Result<()> {
+    if glyph.font_size < 0.0 {
+        return Err(Error::Report(format!(
+            "glyph {} has negative font size: {}",
+            glyph.id.0, glyph.font_size
+        )));
+    }
+    let coordinates = [
+        ("bbox.min.x", glyph.bbox.min.x),
+        ("bbox.min.y", glyph.bbox.min.y),
+        ("bbox.max.x", glyph.bbox.max.x),
+        ("bbox.max.y", glyph.bbox.max.y),
+        ("baseline.x", glyph.baseline.x),
+        ("baseline.y", glyph.baseline.y),
+        ("direction.x", glyph.direction.x),
+        ("direction.y", glyph.direction.y),
+        ("font_size", glyph.font_size),
+    ];
+    for (field, value) in coordinates {
+        if !value.is_finite() {
+            return Err(Error::Report(format!(
+                "glyph {} has non-finite {field}: {value}",
+                glyph.id.0
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn validate_document_and_layout_geometry(
+    pages: &BTreeMap<PageId, Vec<&Glyph>>,
+    page_layouts: &BTreeMap<PageId, PageLayout>,
+) -> Result<()> {
+    for (page_id, glyphs) in pages {
+        let layout = page_layouts.get(page_id).ok_or_else(|| {
+            Error::Report(format!(
+                "missing page layout for page {}",
+                (page_id.0 as u64) + 1
+            ))
+        })?;
+        let content_origin_x = PAGE_PADDING;
+        let content_origin_y = layout.y_offset + HEADER_HEIGHT;
+
+        for glyph in glyphs {
+            validate_derived_glyph_geometry(
+                glyph,
+                layout.page_min_x,
+                layout.page_max_y,
+                content_origin_x,
+                content_origin_y,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_derived_glyph_geometry(
+    glyph: &Glyph,
+    page_min_x: f64,
+    page_max_y: f64,
+    content_origin_x: f64,
+    content_origin_y: f64,
+) -> Result<()> {
+    let bbox_w = glyph.bbox.max.x - glyph.bbox.min.x;
+    let bbox_h = glyph.bbox.max.y - glyph.bbox.min.y;
+    let bbox_svg_x = content_origin_x + (glyph.bbox.min.x - page_min_x);
+    let bbox_svg_y = content_origin_y + (page_max_y - glyph.bbox.max.y);
+
+    let baseline_svg_x1 = content_origin_x + (glyph.baseline.x - page_min_x);
+    let baseline_svg_y1 = content_origin_y + (page_max_y - glyph.baseline.y);
+    let baseline_svg_x2 = baseline_svg_x1 + glyph.direction.x * glyph.font_size;
+    let baseline_svg_y2 = baseline_svg_y1 - glyph.direction.y * glyph.font_size;
+
+    let derived = [
+        ("bbox width", bbox_w),
+        ("bbox height", bbox_h),
+        ("bbox svg x", bbox_svg_x),
+        ("bbox svg y", bbox_svg_y),
+        ("baseline start x", baseline_svg_x1),
+        ("baseline start y", baseline_svg_y1),
+        ("baseline end x", baseline_svg_x2),
+        ("baseline end y", baseline_svg_y2),
+    ];
+
+    for (name, val) in derived {
+        if !val.is_finite() {
+            return Err(Error::Report(format!(
+                "glyph {} has non-finite derived {name}",
+                glyph.id.0
+            )));
+        }
+    }
+
+    if matches!(&glyph.text, DecodedText::Mapped(_)) && glyph.direction != (Vec2 { x: 1.0, y: 0.0 })
+    {
+        let angle = (-glyph.direction.y).atan2(glyph.direction.x).to_degrees();
+        if !angle.is_finite() {
+            return Err(Error::Report(format!(
+                "glyph {} has non-finite rotation angle",
+                glyph.id.0
+            )));
+        }
+    }
+
+    Ok(())
+}
+
 fn map_io_error(error: io::Error) -> Error {
-    Error::Unresolved(format!("svg render i/o failure: {error}"))
+    Error::Report(format!("svg render i/o failure: {error}"))
 }

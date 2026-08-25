@@ -14,7 +14,8 @@ use pdfdelta_core::{
     pdf::ObjectRef,
     report::{
         DocumentSide, ExitStatus, ExtractionIssueRecord, ExtractionStatus, TextReportOptions,
-        exit_status, render_glyph_overlay_svg, render_text, summarize, write_json,
+        exit_status, render_glyph_overlay_svg, render_text, summarize, write_glyph_overlay_svg,
+        write_json,
     },
     source::{ExtractionIssueKind, ExtractionScope},
 };
@@ -1466,6 +1467,249 @@ fn svg_render_handles_empty_document_and_multipage() -> Result<()> {
     assert!(multi_svg.contains("id=\"page-1\""));
     assert!(multi_svg.contains("id=\"page-2\""));
     assert!(multi_svg.contains("rotate(-90.00"));
+    Ok(())
+}
+
+fn sample_svg_glyph(id: u64, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Glyph {
+    Glyph {
+        id: GlyphId(id),
+        text: DecodedText::Mapped("A".to_owned()),
+        raw_code: vec![65],
+        page: PageId(0),
+        bbox: Rect {
+            min: Vec2 { x: min_x, y: min_y },
+            max: Vec2 { x: max_x, y: max_y },
+        },
+        baseline: Vec2 { x: min_x, y: min_y },
+        direction: Vec2 { x: 1.0, y: 0.0 },
+        font_id: FontId(1),
+        font_size: 10.0,
+        render_order: 1,
+        render_mode: TextRenderMode::Fill,
+        provenance: GlyphProvenance {
+            content_stream: ObjectRef {
+                object_number: 1,
+                generation: 0,
+            },
+            operator_index: 0,
+        },
+    }
+}
+
+#[test]
+fn svg_render_and_write_reject_non_finite_geometry() {
+    let test_cases = vec![
+        ("nan in bbox.min.x", {
+            let mut g = sample_svg_glyph(1, 50.0, 500.0, 100.0, 510.0);
+            g.bbox.min.x = f64::NAN;
+            g
+        }),
+        ("infinity in bbox.max.y", {
+            let mut g = sample_svg_glyph(2, 50.0, 500.0, 100.0, 510.0);
+            g.bbox.max.y = f64::INFINITY;
+            g
+        }),
+        ("neg_infinity in bbox.min.y", {
+            let mut g = sample_svg_glyph(3, 50.0, 500.0, 100.0, 510.0);
+            g.bbox.min.y = f64::NEG_INFINITY;
+            g
+        }),
+        ("nan in baseline.x", {
+            let mut g = sample_svg_glyph(4, 50.0, 500.0, 100.0, 510.0);
+            g.baseline.x = f64::NAN;
+            g
+        }),
+        ("infinity in direction.y", {
+            let mut g = sample_svg_glyph(5, 50.0, 500.0, 100.0, 510.0);
+            g.direction.y = f64::INFINITY;
+            g
+        }),
+        ("nan in font_size", {
+            let mut g = sample_svg_glyph(6, 50.0, 500.0, 100.0, 510.0);
+            g.font_size = f64::NAN;
+            g
+        }),
+    ];
+
+    for (desc, glyph) in test_cases {
+        let expected_glyph_id = format!("glyph {}", glyph.id.0);
+        let doc = Document::new(vec![glyph]);
+
+        // render_glyph_overlay_svg must return Error::Report with "non-finite" and GlyphId
+        let render_res = render_glyph_overlay_svg(&doc);
+        match render_res {
+            Err(Error::Report(msg)) => {
+                assert!(
+                    msg.contains("non-finite"),
+                    "[{desc}] error message '{msg}' should mention non-finite"
+                );
+                assert!(
+                    msg.contains(&expected_glyph_id),
+                    "[{desc}] error message '{msg}' should contain '{expected_glyph_id}'"
+                );
+            }
+            other => panic!("[{desc}] expected Error::Report, got {other:?}"),
+        }
+
+        // write_glyph_overlay_svg must fail before writing partial output
+        let mut buffer = Vec::new();
+        let write_res = write_glyph_overlay_svg(&doc, &mut buffer);
+        match write_res {
+            Err(Error::Report(msg)) => {
+                assert!(
+                    msg.contains("non-finite"),
+                    "[{desc}] error message '{msg}' should mention non-finite"
+                );
+                assert!(
+                    msg.contains(&expected_glyph_id),
+                    "[{desc}] error message '{msg}' should contain '{expected_glyph_id}'"
+                );
+                assert!(
+                    buffer.is_empty(),
+                    "[{desc}] writer buffer must remain empty on validation failure"
+                );
+            }
+            other => panic!("[{desc}] expected Error::Report, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn svg_render_and_write_reject_negative_font_size() {
+    let mut glyph = sample_svg_glyph(42, 50.0, 500.0, 100.0, 510.0);
+    glyph.font_size = -12.0;
+    let doc = Document::new(vec![glyph]);
+
+    let render_res = render_glyph_overlay_svg(&doc);
+    match render_res {
+        Err(Error::Report(msg)) => {
+            assert!(
+                msg.contains("negative font size"),
+                "error '{msg}' should mention negative font size"
+            );
+            assert!(
+                msg.contains("glyph 42"),
+                "error '{msg}' should contain glyph 42"
+            );
+        }
+        other => panic!("expected Error::Report for negative font size, got {other:?}"),
+    }
+
+    let mut buffer = Vec::new();
+    let write_res = write_glyph_overlay_svg(&doc, &mut buffer);
+    match write_res {
+        Err(Error::Report(msg)) => {
+            assert!(
+                msg.contains("negative font size"),
+                "error '{msg}' should mention negative font size"
+            );
+            assert!(
+                msg.contains("glyph 42"),
+                "error '{msg}' should contain glyph 42"
+            );
+            assert!(
+                buffer.is_empty(),
+                "writer buffer must remain empty on negative font size failure"
+            );
+        }
+        other => panic!("expected Error::Report for negative font size, got {other:?}"),
+    }
+}
+
+#[test]
+fn svg_render_and_write_reject_huge_finite_derived_overflow() {
+    let test_cases = vec![
+        (
+            "huge bbox width overflow",
+            sample_svg_glyph(10, -1e308, 0.0, 1e308, 10.0),
+        ),
+        ("huge font_size baseline endpoint overflow", {
+            let mut g = sample_svg_glyph(11, 0.0, 0.0, 10.0, 10.0);
+            g.baseline.x = 1e308;
+            g.font_size = 1e308;
+            g
+        }),
+    ];
+
+    for (desc, glyph) in test_cases {
+        let doc = Document::new(vec![glyph]);
+
+        let render_res = render_glyph_overlay_svg(&doc);
+        match render_res {
+            Err(Error::Report(msg)) => {
+                assert!(
+                    msg.contains("non-finite"),
+                    "[{desc}] error message '{msg}' should mention non-finite"
+                );
+            }
+            other => panic!("[{desc}] expected Error::Report, got {other:?}"),
+        }
+
+        let mut buffer = Vec::new();
+        let write_res = write_glyph_overlay_svg(&doc, &mut buffer);
+        match write_res {
+            Err(Error::Report(msg)) => {
+                assert!(
+                    msg.contains("non-finite"),
+                    "[{desc}] error message '{msg}' should mention non-finite"
+                );
+                assert!(
+                    buffer.is_empty(),
+                    "[{desc}] writer buffer must remain empty on derived overflow"
+                );
+            }
+            other => panic!("[{desc}] expected Error::Report, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn svg_render_accepts_valid_edge_cases_like_zero_width_and_height() -> Result<()> {
+    // Glyph with zero width and zero height
+    let zero_dim_glyph = sample_svg_glyph(1, 50.0, 500.0, 50.0, 500.0);
+    let doc = Document::new(vec![zero_dim_glyph]);
+
+    let svg = render_glyph_overlay_svg(&doc)?;
+    assert!(
+        svg.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\""),
+        "SVG header must be present"
+    );
+    assert!(
+        svg.contains("width=\"0.50\" height=\"0.50\""),
+        "Zero-dimension glyph must be clamped to 0.50 display size"
+    );
+    assert!(svg.ends_with("</svg>\n"));
+    Ok(())
+}
+
+#[test]
+fn svg_render_and_write_handle_max_page_id_without_overflow() -> Result<()> {
+    let mut glyph = sample_svg_glyph(1, 50.0, 500.0, 100.0, 510.0);
+    glyph.page = PageId(u32::MAX);
+    let doc = Document::new(vec![glyph]);
+
+    let svg = render_glyph_overlay_svg(&doc)?;
+    assert!(
+        svg.contains("id=\"page-4294967296\""),
+        "SVG must render PageId(u32::MAX) as 4294967296 without wrapping or panic"
+    );
+    assert!(
+        svg.contains("Page 4294967296 (glyphs: 1)"),
+        "SVG label must display 4294967296"
+    );
+    assert!(
+        svg.contains("data-page=\"4294967296\""),
+        "data-page must serialize 4294967296"
+    );
+    assert!(
+        svg.contains("(Page 4294967296)"),
+        "title text must display (Page 4294967296)"
+    );
+
+    let mut buffer = Vec::new();
+    write_glyph_overlay_svg(&doc, &mut buffer)?;
+    let write_svg = String::from_utf8(buffer).expect("valid utf-8");
+    assert!(write_svg.contains("id=\"page-4294967296\""));
     Ok(())
 }
 
