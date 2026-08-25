@@ -353,7 +353,7 @@ fn align_ordered_inner(
             spans.push(anchor_span(right_anchor));
         }
     }
-    refine_masked_matches(&mut spans, &partition_old);
+    refine_masked_matches(&mut spans);
 
     Ok(Alignment {
         spans,
@@ -1547,7 +1547,7 @@ fn contains_affected(
     })
 }
 
-fn refine_masked_matches(spans: &mut Vec<AlignmentSpan>, partition_old: &HashSet<BlockId>) {
+fn refine_masked_matches(spans: &mut Vec<AlignmentSpan>) {
     let independently_supported = spans
         .iter()
         .map(|span| {
@@ -1572,64 +1572,52 @@ fn refine_masked_matches(spans: &mut Vec<AlignmentSpan>, partition_old: &HashSet
         if !masked_non_exact[index] {
             continue;
         }
-        if spans[index]
-            .evidence
-            .contains(&AlignmentEvidence::AnchorInterval)
-        {
-            continue;
-        }
         let has_previous_match = index > 0 && independently_supported[index - 1];
         let has_following_match = independently_supported.get(index + 1) == Some(&true);
         if has_previous_match && has_following_match {
             neighbor_supported[index] = true;
-        } else {
+        } else if !spans[index]
+            .evidence
+            .contains(&AlignmentEvidence::AnchorInterval)
+        {
             unsupported[index] = true;
         }
     }
 
     let original = std::mem::take(spans);
     let mut refined = Vec::with_capacity(original.len());
-    let mut start = 0;
-    while start < original.len() {
-        if is_refinement_boundary(&original[start], partition_old) {
-            refined.push(original[start].clone());
-            start += 1;
-            continue;
-        }
-        let mut end = start + 1;
-        while end < original.len() && !is_refinement_boundary(&original[end], partition_old) {
-            end += 1;
-        }
-        if unsupported[start..end]
-            .iter()
-            .any(|unsupported| *unsupported)
-        {
-            refined.push(unresolved_alignment_interval(&original[start..end]));
-        } else {
-            for index in start..end {
-                let mut span = original[index].clone();
-                if neighbor_supported[index] {
-                    span.evidence.push(AlignmentEvidence::NeighborConsistency);
-                }
-                refined.push(span);
+    let mut index = 0;
+    while index < original.len() {
+        if unsupported[index] {
+            let start = index;
+            while index < original.len() && unsupported[index] {
+                index += 1;
             }
+            refined.push(unresolved_alignment_interval(&original[start..index]));
+        } else {
+            let mut span = original[index].clone();
+            if neighbor_supported[index] {
+                span.evidence.push(AlignmentEvidence::NeighborConsistency);
+            }
+            refined.push(span);
+            index += 1;
         }
-        start = end;
     }
     *spans = refined;
 }
 
-fn is_refinement_boundary(span: &AlignmentSpan, partition_old: &HashSet<BlockId>) -> bool {
-    span.evidence.contains(&AlignmentEvidence::Anchor)
-        || span.evidence.contains(&AlignmentEvidence::MoveCandidate)
-        || is_partition_span(span, partition_old)
-}
-
-fn is_partition_span(span: &AlignmentSpan, partition_old: &HashSet<BlockId>) -> bool {
-    span.old.len() == 1 && partition_old.contains(&span.old[0])
-}
-
 fn unresolved_alignment_interval(spans: &[AlignmentSpan]) -> AlignmentSpan {
+    let mut evidence = Vec::new();
+    for span in spans {
+        for ev in &span.evidence {
+            if !evidence.contains(ev) {
+                evidence.push(*ev);
+            }
+        }
+    }
+    if !evidence.contains(&AlignmentEvidence::NumericMask) {
+        evidence.push(AlignmentEvidence::NumericMask);
+    }
     AlignmentSpan {
         kind: AlignmentKind::Unresolved,
         old: spans
@@ -1644,7 +1632,7 @@ fn unresolved_alignment_interval(spans: &[AlignmentSpan]) -> AlignmentSpan {
         canonical_similarity: 0.0,
         score_margin: None,
         confidence: AlignmentConfidence::Low,
-        evidence: vec![AlignmentEvidence::NumericMask],
+        evidence,
         old_separator: None,
         new_separator: None,
     }
@@ -2199,7 +2187,7 @@ mod tests {
             anchor_span(main),
         ];
 
-        refine_masked_matches(&mut spans, &HashSet::from([partition.old]));
+        refine_masked_matches(&mut spans);
 
         assert_eq!(spans.len(), 3);
         assert_eq!(spans[1].kind, AlignmentKind::Match);
@@ -2232,7 +2220,7 @@ mod tests {
             move_insertion_span(BlockId(101)),
         ];
 
-        refine_masked_matches(&mut spans, &HashSet::new());
+        refine_masked_matches(&mut spans);
 
         assert_eq!(spans.len(), 3);
         assert_eq!(spans[0].kind, AlignmentKind::Deletion);
@@ -2242,12 +2230,168 @@ mod tests {
                 .contains(&AlignmentEvidence::MoveCandidate)
         );
         assert_eq!(spans[1].kind, AlignmentKind::Unresolved);
-        assert_eq!(spans[1].evidence, [AlignmentEvidence::NumericMask]);
+        assert_eq!(
+            spans[1].evidence,
+            [
+                AlignmentEvidence::TextSimilarity,
+                AlignmentEvidence::NumericMask
+            ]
+        );
         assert_eq!(spans[2].kind, AlignmentKind::Insertion);
         assert!(
             spans[2]
                 .evidence
                 .contains(&AlignmentEvidence::MoveCandidate)
+        );
+    }
+
+    #[test]
+    fn masked_refinement_preserves_deletion_and_match_boundaries() {
+        let mut spans = vec![
+            AlignmentSpan {
+                kind: AlignmentKind::Deletion,
+                old: vec![BlockId(1)],
+                new: Vec::new(),
+                score: 0.0,
+                canonical_similarity: 0.0,
+                score_margin: None,
+                confidence: AlignmentConfidence::High,
+                evidence: vec![AlignmentEvidence::ExactCanonical],
+                old_separator: None,
+                new_separator: None,
+            },
+            AlignmentSpan {
+                kind: AlignmentKind::Match,
+                old: vec![BlockId(2)],
+                new: vec![BlockId(102)],
+                score: 0.9,
+                canonical_similarity: 0.9,
+                score_margin: None,
+                confidence: AlignmentConfidence::Medium,
+                evidence: vec![
+                    AlignmentEvidence::TextSimilarity,
+                    AlignmentEvidence::NumericMask,
+                ],
+                old_separator: None,
+                new_separator: None,
+            },
+            AlignmentSpan {
+                kind: AlignmentKind::Match,
+                old: vec![BlockId(3)],
+                new: vec![BlockId(103)],
+                score: 1.0,
+                canonical_similarity: 1.0,
+                score_margin: None,
+                confidence: AlignmentConfidence::High,
+                evidence: vec![AlignmentEvidence::ExactCanonical],
+                old_separator: None,
+                new_separator: None,
+            },
+        ];
+
+        refine_masked_matches(&mut spans);
+
+        assert_eq!(spans.len(), 3);
+        assert_eq!(spans[0].kind, AlignmentKind::Deletion);
+        assert_eq!(spans[1].kind, AlignmentKind::Unresolved);
+        assert_eq!(spans[1].score, 0.0);
+        assert_eq!(spans[1].canonical_similarity, 0.0);
+        assert_eq!(spans[1].score_margin, None);
+        assert_eq!(spans[1].confidence, AlignmentConfidence::Low);
+        assert_eq!(spans[1].old_separator, None);
+        assert_eq!(spans[1].new_separator, None);
+        assert_eq!(
+            spans[1].evidence,
+            [
+                AlignmentEvidence::TextSimilarity,
+                AlignmentEvidence::NumericMask
+            ]
+        );
+        assert_eq!(spans[2].kind, AlignmentKind::Match);
+    }
+
+    #[test]
+    fn masked_refinement_resets_separators_on_degraded_split_or_merge() {
+        let mut spans = vec![AlignmentSpan {
+            kind: AlignmentKind::Match,
+            old: vec![BlockId(1)],
+            new: vec![BlockId(101), BlockId(102)],
+            score: 0.95,
+            canonical_similarity: 0.95,
+            score_margin: None,
+            confidence: AlignmentConfidence::Medium,
+            evidence: vec![
+                AlignmentEvidence::TextSimilarity,
+                AlignmentEvidence::NumericMask,
+            ],
+            old_separator: None,
+            new_separator: Some(BlockSeparator::Space),
+        }];
+
+        refine_masked_matches(&mut spans);
+
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].kind, AlignmentKind::Unresolved);
+        assert_eq!(spans[0].score, 0.0);
+        assert_eq!(spans[0].canonical_similarity, 0.0);
+        assert_eq!(spans[0].confidence, AlignmentConfidence::Low);
+        assert_eq!(spans[0].old_separator, None);
+        assert_eq!(spans[0].new_separator, None);
+    }
+
+    #[test]
+    fn anchor_interval_masked_match_receives_neighbor_consistency_when_supported() {
+        let mut spans = vec![
+            AlignmentSpan {
+                kind: AlignmentKind::Match,
+                old: vec![BlockId(1)],
+                new: vec![BlockId(101)],
+                score: 1.0,
+                canonical_similarity: 1.0,
+                score_margin: None,
+                confidence: AlignmentConfidence::High,
+                evidence: vec![AlignmentEvidence::ExactCanonical],
+                old_separator: None,
+                new_separator: None,
+            },
+            AlignmentSpan {
+                kind: AlignmentKind::Match,
+                old: vec![BlockId(2)],
+                new: vec![BlockId(102)],
+                score: 0.9,
+                canonical_similarity: 0.9,
+                score_margin: None,
+                confidence: AlignmentConfidence::Medium,
+                evidence: vec![
+                    AlignmentEvidence::TextSimilarity,
+                    AlignmentEvidence::NumericMask,
+                    AlignmentEvidence::AnchorInterval,
+                ],
+                old_separator: None,
+                new_separator: None,
+            },
+            AlignmentSpan {
+                kind: AlignmentKind::Match,
+                old: vec![BlockId(3)],
+                new: vec![BlockId(103)],
+                score: 1.0,
+                canonical_similarity: 1.0,
+                score_margin: None,
+                confidence: AlignmentConfidence::High,
+                evidence: vec![AlignmentEvidence::ExactCanonical],
+                old_separator: None,
+                new_separator: None,
+            },
+        ];
+
+        refine_masked_matches(&mut spans);
+
+        assert_eq!(spans.len(), 3);
+        assert_eq!(spans[1].kind, AlignmentKind::Match);
+        assert!(
+            spans[1]
+                .evidence
+                .contains(&AlignmentEvidence::NeighborConsistency)
         );
     }
 }

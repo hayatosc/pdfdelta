@@ -4,9 +4,10 @@ use pdfdelta_core::{
     Error, Result,
     alignment::{
         Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentOptions,
-        BlockFeatures, BlockSeparator, Candidate, CandidateGenerator, CandidateSource, ExactAnchor,
-        ExactHash, InvertedIndexCandidateGenerator, align_ordered, build_block_features,
-        exact_anchors, partition_anchor_windows, select_monotone_anchor_chain,
+        AlignmentSpan, BlockFeatures, BlockSeparator, Candidate, CandidateGenerator,
+        CandidateSource, ExactAnchor, ExactHash, InvertedIndexCandidateGenerator, align_ordered,
+        build_block_features, exact_anchors, partition_anchor_windows,
+        select_monotone_anchor_chain,
     },
     diff::{ChangeKind, Confidence, DiffOptions, compare_aligned},
     layout::BlockId,
@@ -548,15 +549,144 @@ fn masked_matches_cannot_confirm_each_other_as_neighbors() {
         ],
     );
 
-    assert_eq!(alignment.spans.len(), 1);
-    assert_eq!(alignment.spans[0].kind, AlignmentKind::Unresolved);
-    assert_eq!(
-        alignment.spans[0].old,
-        [BlockId(1), BlockId(2), BlockId(3), BlockId(4)]
+    assert_eq!(alignment.spans.len(), 3);
+    assert_eq!(alignment.spans[0].kind, AlignmentKind::Match);
+    assert_eq!(alignment.spans[0].old, [BlockId(1)]);
+    assert_eq!(alignment.spans[0].new, [BlockId(101)]);
+
+    assert_eq!(alignment.spans[1].kind, AlignmentKind::Unresolved);
+    assert_eq!(alignment.spans[1].old, [BlockId(2), BlockId(3)]);
+    assert_eq!(alignment.spans[1].new, [BlockId(102), BlockId(103)]);
+
+    assert_eq!(alignment.spans[2].kind, AlignmentKind::Match);
+    assert_eq!(alignment.spans[2].old, [BlockId(4)]);
+    assert_eq!(alignment.spans[2].new, [BlockId(104)]);
+}
+
+#[test]
+fn unsupported_masked_match_does_not_collapse_adjacent_certain_deletion_or_exact_match() {
+    let deleted = block_text(1, "Deleted Section Header");
+    let old_masked = block_text_with_matching(
+        2,
+        "The archive contains 10 files.",
+        "The archive contains <NUM> files.",
+        true,
     );
-    assert_eq!(
-        alignment.spans[0].new,
-        [BlockId(101), BlockId(102), BlockId(103), BlockId(104)]
+    let old_exact = block_text(3, "Stable Ending Section Content Paragraph");
+
+    let new_masked = block_text_with_matching(
+        102,
+        "The archive contains 20 files.",
+        "The archive contains <NUM> files.",
+        true,
+    );
+    let new_exact = block_text(103, "Stable Ending Section Content Paragraph");
+
+    let old = vec![deleted, old_masked, old_exact];
+    let new = vec![new_masked, new_exact];
+
+    let alignment = align(old.clone(), new.clone());
+
+    // Spans must NOT be collapsed into 1 giant Unresolved span.
+    // Must contain:
+    // 0: Deletion (block 1)
+    // 1: Unresolved (block 2 <-> 102)
+    // 2: Match (block 3 <-> 103)
+    assert_eq!(alignment.spans.len(), 3);
+    assert_eq!(alignment.spans[0].kind, AlignmentKind::Deletion);
+    assert_eq!(alignment.spans[0].old, [BlockId(1)]);
+
+    assert_eq!(alignment.spans[1].kind, AlignmentKind::Unresolved);
+    assert_eq!(alignment.spans[1].old, [BlockId(2)]);
+    assert_eq!(alignment.spans[1].new, [BlockId(102)]);
+    assert!(
+        alignment.spans[1]
+            .evidence
+            .contains(&AlignmentEvidence::NumericMask)
+    );
+
+    assert_eq!(alignment.spans[2].kind, AlignmentKind::Match);
+    assert_eq!(alignment.spans[2].old, [BlockId(3)]);
+    assert_eq!(alignment.spans[2].new, [BlockId(103)]);
+
+    // Downstream compare_aligned must detect the known content change (Deletion)
+    let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("comparison should succeed");
+
+    assert_eq!(comparison.changes.len(), 1);
+    assert_eq!(comparison.changes[0].kind, ChangeKind::Deletion);
+    assert_eq!(comparison.unresolved_regions.len(), 1);
+    assert!(
+        comparison
+            .old_coverage
+            .ratio
+            .expect("old coverage ratio should exist")
+            < 1.0
+    );
+    assert!(
+        comparison
+            .new_coverage
+            .ratio
+            .expect("new coverage ratio should exist")
+            < 1.0
+    );
+}
+
+#[test]
+fn unsupported_masked_match_does_not_collapse_adjacent_exact_match_or_certain_insertion() {
+    let old_exact = block_text(1, "Stable Leading Section Content Paragraph");
+    let old_masked = block_text_with_matching(
+        2,
+        "The archive contains 10 files.",
+        "The archive contains <NUM> files.",
+        true,
+    );
+
+    let new_exact = block_text(101, "Stable Leading Section Content Paragraph");
+    let new_masked = block_text_with_matching(
+        102,
+        "The archive contains 20 files.",
+        "The archive contains <NUM> files.",
+        true,
+    );
+    let inserted = block_text(103, "Inserted Section Header");
+
+    let old = vec![old_exact, old_masked];
+    let new = vec![new_exact, new_masked, inserted];
+
+    let alignment = align(old.clone(), new.clone());
+
+    assert_eq!(alignment.spans.len(), 3);
+    assert_eq!(alignment.spans[0].kind, AlignmentKind::Match);
+    assert_eq!(alignment.spans[0].old, [BlockId(1)]);
+    assert_eq!(alignment.spans[0].new, [BlockId(101)]);
+
+    assert_eq!(alignment.spans[1].kind, AlignmentKind::Unresolved);
+    assert_eq!(alignment.spans[1].old, [BlockId(2)]);
+    assert_eq!(alignment.spans[1].new, [BlockId(102)]);
+
+    assert_eq!(alignment.spans[2].kind, AlignmentKind::Insertion);
+    assert_eq!(alignment.spans[2].new, [BlockId(103)]);
+
+    let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("comparison should succeed");
+
+    assert_eq!(comparison.changes.len(), 1);
+    assert_eq!(comparison.changes[0].kind, ChangeKind::Insertion);
+    assert_eq!(comparison.unresolved_regions.len(), 1);
+    assert!(
+        comparison
+            .old_coverage
+            .ratio
+            .expect("old coverage ratio should exist")
+            < 1.0
+    );
+    assert!(
+        comparison
+            .new_coverage
+            .ratio
+            .expect("new coverage ratio should exist")
+            < 1.0
     );
 }
 
@@ -583,10 +713,16 @@ fn rejected_masked_paths_cannot_displace_a_crossing_fuzzy_match() {
         ],
     );
 
-    assert_eq!(alignment.spans.len(), 1);
-    assert_eq!(alignment.spans[0].kind, AlignmentKind::Unresolved);
-    assert_eq!(alignment.spans[0].old, [BlockId(1), BlockId(2)]);
-    assert_eq!(alignment.spans[0].new, [BlockId(101), BlockId(102)]);
+    assert_eq!(alignment.spans.len(), 3);
+    assert_eq!(alignment.spans[0].kind, AlignmentKind::Deletion);
+    assert_eq!(alignment.spans[0].old, [BlockId(1)]);
+
+    assert_eq!(alignment.spans[1].kind, AlignmentKind::Unresolved);
+    assert_eq!(alignment.spans[1].old, [BlockId(2)]);
+    assert_eq!(alignment.spans[1].new, [BlockId(101)]);
+
+    assert_eq!(alignment.spans[2].kind, AlignmentKind::Insertion);
+    assert_eq!(alignment.spans[2].new, [BlockId(102)]);
 }
 
 #[test]
@@ -2544,4 +2680,99 @@ fn moved_paragraph_with_internal_edit_remains_exact_diff_eligible() {
             .iter()
             .any(|c| c.kind == ChangeKind::Deletion || c.kind == ChangeKind::Insertion)
     );
+}
+
+#[test]
+fn degraded_masked_split_and_merge_compare_successfully_without_separator_error() {
+    let old1 = block_text_with_matching(
+        1,
+        "The archive count: 10 files.",
+        "The archive count: <NUM> files.",
+        true,
+    );
+    let old2 = block_text_with_matching(2, "log 10 files", "log <NUM> files", true);
+
+    let new1 = block_text_with_matching(101, "The archive", "The archive", false);
+    let new2 = block_text_with_matching(102, "count: 20 files.", "count: <NUM> files.", true);
+
+    let old1_tokens = old1.canonical.text.chars().count();
+    let old2_tokens = old2.canonical.text.chars().count();
+    let new1_tokens = new1.canonical.text.chars().count();
+    let new2_tokens = new2.canonical.text.chars().count();
+
+    // 1. Split degraded to Unresolved (old: 1, new: 101, 102)
+    let alignment_split = Alignment {
+        spans: vec![AlignmentSpan {
+            kind: AlignmentKind::Unresolved,
+            old: vec![BlockId(1)],
+            new: vec![BlockId(101), BlockId(102)],
+            score: 0.0,
+            canonical_similarity: 0.0,
+            score_margin: None,
+            confidence: AlignmentConfidence::Low,
+            evidence: vec![
+                AlignmentEvidence::TextSimilarity,
+                AlignmentEvidence::NumericMask,
+                AlignmentEvidence::SplitMerge,
+            ],
+            old_separator: None,
+            new_separator: None,
+        }],
+        main_anchors: Vec::new(),
+        move_candidates: Vec::new(),
+    };
+
+    let diff_split = compare_aligned(
+        std::slice::from_ref(&old1),
+        &[new1.clone(), new2],
+        &alignment_split,
+        DiffOptions::default(),
+    )
+    .expect("diff comparison on degraded split must succeed with Unresolved outcome");
+
+    assert_eq!(diff_split.unresolved_regions.len(), 1);
+    assert!(diff_split.changes.is_empty());
+    assert_eq!(diff_split.old_coverage.total_tokens, old1_tokens);
+    assert_eq!(
+        diff_split.new_coverage.total_tokens,
+        new1_tokens + new2_tokens
+    );
+
+    // 2. Merge degraded to Unresolved (old: 1, 2, new: 101)
+    let alignment_merge = Alignment {
+        spans: vec![AlignmentSpan {
+            kind: AlignmentKind::Unresolved,
+            old: vec![BlockId(1), BlockId(2)],
+            new: vec![BlockId(101)],
+            score: 0.0,
+            canonical_similarity: 0.0,
+            score_margin: None,
+            confidence: AlignmentConfidence::Low,
+            evidence: vec![
+                AlignmentEvidence::TextSimilarity,
+                AlignmentEvidence::NumericMask,
+                AlignmentEvidence::SplitMerge,
+            ],
+            old_separator: None,
+            new_separator: None,
+        }],
+        main_anchors: Vec::new(),
+        move_candidates: Vec::new(),
+    };
+
+    let diff_merge = compare_aligned(
+        &[old1, old2],
+        std::slice::from_ref(&new1),
+        &alignment_merge,
+        DiffOptions::default(),
+    )
+    .expect("diff comparison on degraded merge must succeed with Unresolved outcome");
+
+    assert_eq!(diff_merge.unresolved_regions.len(), 1);
+    assert!(diff_merge.changes.is_empty());
+    assert_eq!(
+        diff_merge.old_coverage.total_tokens,
+        old1_tokens + old2_tokens
+    );
+    assert_eq!(diff_merge.new_coverage.total_tokens, new1_tokens);
 }
