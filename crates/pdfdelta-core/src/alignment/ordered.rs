@@ -8,7 +8,7 @@ use crate::{
 
 use super::{
     BlockFeatures, BlockSeparator, CandidateGenerator, CandidateSource, ExactAnchor,
-    anchor::{exact_anchors, select_monotone_anchor_chain},
+    anchor::{exact_anchors, partition_anchor_windows, select_monotone_anchor_chain},
     score::{GroupScore, ScoreOptions, score_groups},
 };
 
@@ -316,62 +316,43 @@ fn align_ordered_inner(
         .map(|anchor| anchor.new)
         .collect::<HashSet<_>>();
 
+    let windows = partition_anchor_windows(&main_anchors, old, new)?;
     let mut spans = Vec::new();
-    let mut old_start = 0;
-    let mut new_start = 0;
-    let mut has_left_anchor = false;
     let mut remaining_dp_cells = options.max_dp_cells;
     let mut partition_old = HashSet::new();
-    for (interval_index, anchor) in main_anchors.iter().enumerate() {
-        let old_anchor = old_indices[&anchor.old];
-        let new_anchor = new_indices[&anchor.new];
+
+    for (interval_index, window) in windows.iter().enumerate() {
+        let old_interval = &old[window.old_range.0..window.old_range.1];
+        let new_interval = &new[window.new_range.0..window.new_range.1];
+        let has_left = window.left_anchor.is_some();
+        let has_right = window.right_anchor.is_some();
+
         spans.extend(align_interval_with_partition_fallback(
-            &old[old_start..old_anchor],
-            &new[new_start..new_anchor],
+            old_interval,
+            new_interval,
             &candidate_map,
             options,
             &mut remaining_dp_cells,
             IntervalContext {
-                allow_split_merge: true,
-                bounded_by_anchors: has_left_anchor,
+                allow_split_merge: has_left || has_right,
+                bounded_by_anchors: has_left && has_right,
                 move_old: &move_old,
                 move_new: &move_new,
             },
             PartitionFallback {
                 anchors: &secondary_chains[interval_index],
-                old_offset: old_start,
-                new_offset: new_start,
+                old_offset: window.old_range.0,
+                new_offset: window.new_range.0,
                 old_indices: &old_indices,
                 new_indices: &new_indices,
                 used_old: &mut partition_old,
             },
         )?);
-        spans.push(anchor_span(*anchor));
-        old_start = old_anchor + 1;
-        new_start = new_anchor + 1;
-        has_left_anchor = true;
+
+        if let Some(right_anchor) = window.right_anchor {
+            spans.push(anchor_span(right_anchor));
+        }
     }
-    spans.extend(align_interval_with_partition_fallback(
-        &old[old_start..],
-        &new[new_start..],
-        &candidate_map,
-        options,
-        &mut remaining_dp_cells,
-        IntervalContext {
-            allow_split_merge: has_left_anchor,
-            bounded_by_anchors: false,
-            move_old: &move_old,
-            move_new: &move_new,
-        },
-        PartitionFallback {
-            anchors: &secondary_chains[main_anchors.len()],
-            old_offset: old_start,
-            new_offset: new_start,
-            old_indices: &old_indices,
-            new_indices: &new_indices,
-            used_old: &mut partition_old,
-        },
-    )?);
     refine_masked_matches(&mut spans, &partition_old);
 
     Ok(Alignment {

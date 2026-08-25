@@ -2249,3 +2249,175 @@ fn partition_anchor_windows_handles_empty_and_unanchored_documents() {
     assert_eq!(windows[0].left_anchor, None);
     assert_eq!(windows[0].right_anchor, None);
 }
+
+#[test]
+fn localized_insertion_and_deletion_between_stable_anchors_preserves_anchor_intervals() {
+    // 1. Localized deletion between anchors
+    let old_del = vec![
+        block_text(1, OPENING),
+        block_text(2, "Middle paragraph to be deleted from old version"),
+        block_text(3, CLOSING),
+    ];
+    let new_del = vec![block_text(101, OPENING), block_text(103, CLOSING)];
+
+    let align_del = align(old_del.clone(), new_del.clone());
+    assert_eq!(align_del.main_anchors.len(), 2);
+    assert_eq!(align_del.spans.len(), 3);
+    assert_eq!(align_del.spans[0].kind, AlignmentKind::Match);
+    assert_eq!(align_del.spans[1].kind, AlignmentKind::Deletion);
+    assert_eq!(align_del.spans[1].old, [BlockId(2)]);
+    assert_eq!(align_del.spans[2].kind, AlignmentKind::Match);
+
+    let diff_del = compare_aligned(&old_del, &new_del, &align_del, DiffOptions::default())
+        .expect("comparison should succeed");
+    assert!(
+        diff_del
+            .changes
+            .iter()
+            .any(|c| c.kind == ChangeKind::Deletion)
+    );
+
+    // 2. Localized insertion between anchors
+    let old_ins = vec![block_text(1, OPENING), block_text(3, CLOSING)];
+    let new_ins = vec![
+        block_text(101, OPENING),
+        block_text(102, "Brand new inserted paragraph in new version"),
+        block_text(103, CLOSING),
+    ];
+
+    let align_ins = align(old_ins.clone(), new_ins.clone());
+    assert_eq!(align_ins.main_anchors.len(), 2);
+    assert_eq!(align_ins.spans.len(), 3);
+    assert_eq!(align_ins.spans[0].kind, AlignmentKind::Match);
+    assert_eq!(align_ins.spans[1].kind, AlignmentKind::Insertion);
+    assert_eq!(align_ins.spans[1].new, [BlockId(102)]);
+    assert_eq!(align_ins.spans[2].kind, AlignmentKind::Match);
+
+    let diff_ins = compare_aligned(&old_ins, &new_ins, &align_ins, DiffOptions::default())
+        .expect("comparison should succeed");
+    assert!(
+        diff_ins
+            .changes
+            .iter()
+            .any(|c| c.kind == ChangeKind::Insertion)
+    );
+}
+
+#[test]
+fn no_anchor_fallback_preserves_prior_candidate_dp_behavior() {
+    // Both sides contain short text under anchor_min_tokens (12)
+    let old = vec![block_text(1, "alpha one"), block_text(2, "beta two")];
+    let new = vec![block_text(101, "alpha one"), block_text(102, "beta two")];
+
+    let alignment = align(old, new);
+
+    assert!(
+        alignment.main_anchors.is_empty(),
+        "Short blocks must not form anchors"
+    );
+    assert_eq!(alignment.spans.len(), 2);
+    assert_eq!(alignment.spans[0].kind, AlignmentKind::Match);
+    assert_eq!(alignment.spans[0].old, [BlockId(1)]);
+    assert_eq!(alignment.spans[0].new, [BlockId(101)]);
+    assert_eq!(alignment.spans[1].kind, AlignmentKind::Match);
+    assert_eq!(alignment.spans[1].old, [BlockId(2)]);
+    assert_eq!(alignment.spans[1].new, [BlockId(102)]);
+}
+
+#[test]
+fn split_merge_grouping_is_recoverable_inside_anchor_bounded_interval() {
+    // 2:1 merge between anchors
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, "project"),
+        block_text(3, "log"),
+        block_text(4, CLOSING),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(102, "project log"),
+        block_text(103, CLOSING),
+    ];
+
+    let alignment = align(old, new);
+
+    assert_eq!(alignment.main_anchors.len(), 2);
+    assert_eq!(alignment.spans.len(), 3);
+    assert_eq!(alignment.spans[0].kind, AlignmentKind::Match);
+    assert_eq!(alignment.spans[0].old, [BlockId(1)]);
+    assert_eq!(alignment.spans[0].new, [BlockId(101)]);
+
+    let merge_span = &alignment.spans[1];
+    assert_eq!(merge_span.kind, AlignmentKind::Match);
+    assert_eq!(merge_span.old, [BlockId(2), BlockId(3)]);
+    assert_eq!(merge_span.new, [BlockId(102)]);
+    assert!(merge_span.evidence.contains(&AlignmentEvidence::SplitMerge));
+    assert!(
+        merge_span
+            .evidence
+            .contains(&AlignmentEvidence::AnchorInterval)
+    );
+
+    assert_eq!(alignment.spans[2].kind, AlignmentKind::Match);
+    assert_eq!(alignment.spans[2].old, [BlockId(4)]);
+    assert_eq!(alignment.spans[2].new, [BlockId(103)]);
+}
+
+#[test]
+fn ordinary_ordered_match_cannot_cross_trusted_anchor_boundary() {
+    // Short non-anchor text (under anchor_min_tokens = 12)
+    let non_anchor_old = "short line A";
+    let non_anchor_new = "short line B";
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, non_anchor_old),
+        block_text(3, CLOSING),
+        block_text(4, "End of document tail section content text"),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(102, CLOSING),
+        block_text(103, non_anchor_new),
+        block_text(104, "End of document tail section content text"),
+    ];
+
+    let alignment = align(old, new);
+
+    assert_eq!(alignment.main_anchors.len(), 3);
+    assert_eq!(
+        alignment.main_anchors[0],
+        ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101)
+        }
+    );
+    assert_eq!(
+        alignment.main_anchors[1],
+        ExactAnchor {
+            old: BlockId(3),
+            new: BlockId(102)
+        }
+    );
+    assert_eq!(
+        alignment.main_anchors[2],
+        ExactAnchor {
+            old: BlockId(4),
+            new: BlockId(104)
+        }
+    );
+
+    // Because block 2 is in Window 1 (before Anchor 3 in old) and block 103 is in Window 2 (after Anchor 3 in new):
+    // The match cannot cross the anchor boundary; instead, block 2 is deletion and block 103 is insertion.
+    assert!(
+        alignment
+            .spans
+            .iter()
+            .any(|s| s.kind == AlignmentKind::Deletion && s.old == [BlockId(2)])
+    );
+    assert!(
+        alignment
+            .spans
+            .iter()
+            .any(|s| s.kind == AlignmentKind::Insertion && s.new == [BlockId(103)])
+    );
+}
