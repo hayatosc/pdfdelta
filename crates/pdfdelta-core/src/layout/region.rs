@@ -1,6 +1,6 @@
 use crate::{
     Error, Result,
-    layout::{Line, LineId},
+    layout::{Line, LineId, geometry::interval_overlap_ratio},
     model::{PageId, Rect, Vec2},
     validate::{validate_non_negative, validate_unit_interval},
 };
@@ -127,10 +127,20 @@ fn xy_cut_recursive(
         // Add spatial graph relationships between top and bottom sub-regions.
         for top_idx in top_region_start..top_region_end {
             for bot_idx in bottom_region_start..bottom_region_end {
-                let top_id = regions[top_idx].id;
-                let bot_id = regions[bot_idx].id;
+                let top = &regions[top_idx];
+                let bot = &regions[bot_idx];
+                let top_id = top.id;
+                let bot_id = bot.id;
                 edges.push((top_id, bot_id, RegionRelation::Above));
                 edges.push((bot_id, top_id, RegionRelation::Below));
+                let horizontal_overlap = interval_overlap_ratio(
+                    (top.bbox.min.x, top.bbox.max.x),
+                    (bot.bbox.min.x, bot.bbox.max.x),
+                );
+                if horizontal_overlap > 0.5 {
+                    edges.push((top_id, bot_id, RegionRelation::SameColumn));
+                    edges.push((bot_id, top_id, RegionRelation::SameColumn));
+                }
             }
         }
         return;
@@ -156,11 +166,20 @@ fn xy_cut_recursive(
 
         for left_idx in left_region_start..left_region_end {
             for right_idx in right_region_start..right_region_end {
-                let left_id = regions[left_idx].id;
-                let right_id = regions[right_idx].id;
+                let left = &regions[left_idx];
+                let right = &regions[right_idx];
+                let left_id = left.id;
+                let right_id = right.id;
                 edges.push((left_id, right_id, RegionRelation::LeftOf));
                 edges.push((right_id, left_id, RegionRelation::RightOf));
-                edges.push((left_id, right_id, RegionRelation::SameColumn));
+                let vertical_overlap = interval_overlap_ratio(
+                    (left.bbox.min.y, left.bbox.max.y),
+                    (right.bbox.min.y, right.bbox.max.y),
+                );
+                if vertical_overlap > 0.5 {
+                    edges.push((left_id, right_id, RegionRelation::Aligned));
+                    edges.push((right_id, left_id, RegionRelation::Aligned));
+                }
             }
         }
         return;
@@ -200,11 +219,11 @@ fn try_vertical_cut(
     }
     let bbox = compute_bounding_box(lines, indices);
     let total_width = bbox.max.x - bbox.min.x;
-    if total_width <= 0.0 {
+    if !total_width.is_finite() || total_width <= 0.0 {
         return None;
     }
 
-    let median_height = compute_median_height(lines, indices);
+    let median_height = compute_median_height(lines, indices)?;
 
     // Collect horizontal projection intervals of all lines.
     let mut intervals: Vec<(f64, f64, usize)> = indices
@@ -257,11 +276,11 @@ fn try_horizontal_cut(
     }
     let bbox = compute_bounding_box(lines, indices);
     let total_height = bbox.max.y - bbox.min.y;
-    if total_height <= 0.0 {
+    if !total_height.is_finite() || total_height <= 0.0 {
         return None;
     }
 
-    let median_height = compute_median_height(lines, indices);
+    let median_height = compute_median_height(lines, indices)?;
 
     // Lines sorted by vertical extent (y descending: top to bottom in PDF coordinates).
     let mut intervals: Vec<(f64, f64, usize)> = indices
@@ -305,17 +324,17 @@ fn try_horizontal_cut(
     None
 }
 
-fn compute_median_height(lines: &[Line], indices: &[usize]) -> f64 {
+fn compute_median_height(lines: &[Line], indices: &[usize]) -> Option<f64> {
     let mut heights: Vec<f64> = indices
         .iter()
         .map(|&i| (lines[i].bbox.max.y - lines[i].bbox.min.y).abs())
-        .filter(|&h| h > 0.0)
+        .filter(|&h| h.is_finite() && h > 0.0)
         .collect();
     if heights.is_empty() {
-        return 12.0;
+        return None;
     }
-    heights.sort_by(|a, b| a.total_cmp(b));
-    heights[heights.len() / 2]
+    heights.sort_by(f64::total_cmp);
+    Some(heights[heights.len() / 2])
 }
 
 fn compute_bounding_box(lines: &[Line], indices: &[usize]) -> Rect {

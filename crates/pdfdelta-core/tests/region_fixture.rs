@@ -43,13 +43,53 @@ fn two_column_page_partitions_into_left_and_right_regions() -> Result<()> {
     assert_eq!(left_region.line_ids, [LineId(1), LineId(2), LineId(3)]);
     assert_eq!(right_region.line_ids, [LineId(4), LineId(5), LineId(6)]);
 
-    // Check spatial relations
-    assert!(graph.edges.iter().any(|&(a, b, rel)| a == left_region.id
-        && b == right_region.id
-        && rel == RegionRelation::LeftOf));
-    assert!(graph.edges.iter().any(|&(a, b, rel)| a == right_region.id
-        && b == left_region.id
-        && rel == RegionRelation::RightOf));
+    // Check exact spatial relations
+    let mut expected_edges = vec![
+        (left_region.id, right_region.id, RegionRelation::LeftOf),
+        (right_region.id, left_region.id, RegionRelation::RightOf),
+        (left_region.id, right_region.id, RegionRelation::Aligned),
+        (right_region.id, left_region.id, RegionRelation::Aligned),
+    ];
+    expected_edges.sort_by_key(|e| (e.0.0, e.1.0, e.2 as u8));
+    let mut actual_edges = graph.edges.clone();
+    actual_edges.sort_by_key(|e| (e.0.0, e.1.0, e.2 as u8));
+    assert_eq!(
+        actual_edges, expected_edges,
+        "Two-column graph must contain exactly LeftOf, RightOf, and Aligned edges without SameColumn"
+    );
+    Ok(())
+}
+
+#[test]
+fn columns_with_small_vertical_overlap_do_not_emit_aligned_relation() -> Result<()> {
+    // Left column lines (y: 650..712, x: 50..250)
+    let l1 = make_line(1, 50.0, 700.0, 250.0, 712.0);
+    let l2 = make_line(2, 50.0, 680.0, 250.0, 692.0);
+    let l3 = make_line(3, 50.0, 650.0, 250.0, 662.0);
+
+    // Right column lines shifted down (y: 550..660, x: 350..550) - vertical overlap is only 650..660 (10pt out of 110pt = 9% <= 50%)
+    let r1 = make_line(4, 350.0, 648.0, 550.0, 660.0);
+    let r2 = make_line(5, 350.0, 600.0, 550.0, 612.0);
+    let r3 = make_line(6, 350.0, 550.0, 550.0, 562.0);
+
+    let lines = vec![l1, l2, l3, r1, r2, r3];
+    let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
+
+    assert_eq!(graph.regions.len(), 2);
+    let left_region = &graph.regions[0];
+    let right_region = &graph.regions[1];
+
+    let mut expected_edges = vec![
+        (left_region.id, right_region.id, RegionRelation::LeftOf),
+        (right_region.id, left_region.id, RegionRelation::RightOf),
+    ];
+    expected_edges.sort_by_key(|e| (e.0.0, e.1.0, e.2 as u8));
+    let mut actual_edges = graph.edges.clone();
+    actual_edges.sort_by_key(|e| (e.0.0, e.1.0, e.2 as u8));
+    assert_eq!(
+        actual_edges, expected_edges,
+        "Columns with vertical overlap <= 50% must not emit Aligned or SameColumn edges"
+    );
     Ok(())
 }
 
@@ -85,6 +125,96 @@ fn mixed_header_and_two_column_bands_partition_hierarchically() -> Result<()> {
         .iter()
         .any(|&(a, _, rel)| a == header_region.id && rel == RegionRelation::Above);
     assert!(has_above_edge, "Header must be Above lower regions");
+    Ok(())
+}
+
+#[test]
+fn vertically_stacked_bands_in_same_column_emit_same_column_relation() -> Result<()> {
+    // Top band lines (y from 750 to 780, x from 50 to 450)
+    let t1 = make_line(1, 50.0, 765.0, 450.0, 777.0);
+    let t2 = make_line(2, 50.0, 750.0, 450.0, 762.0);
+
+    // Bottom band lines (y from 600 to 630, x from 50 to 450) - vertical whitespace gap y=630..750
+    let b1 = make_line(3, 50.0, 615.0, 450.0, 627.0);
+    let b2 = make_line(4, 50.0, 600.0, 450.0, 612.0);
+
+    let lines = vec![t1, t2, b1, b2];
+    let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
+
+    assert_eq!(graph.regions.len(), 2);
+    let top_region = &graph.regions[0];
+    let bot_region = &graph.regions[1];
+
+    let mut expected_edges = vec![
+        (top_region.id, bot_region.id, RegionRelation::Above),
+        (bot_region.id, top_region.id, RegionRelation::Below),
+        (top_region.id, bot_region.id, RegionRelation::SameColumn),
+        (bot_region.id, top_region.id, RegionRelation::SameColumn),
+    ];
+    expected_edges.sort_by_key(|e| (e.0.0, e.1.0, e.2 as u8));
+    let mut actual_edges = graph.edges.clone();
+    actual_edges.sort_by_key(|e| (e.0.0, e.1.0, e.2 as u8));
+    assert_eq!(
+        actual_edges, expected_edges,
+        "Vertically stacked bands sharing horizontal extent must emit exactly Above, Below, and SameColumn"
+    );
+    Ok(())
+}
+
+#[test]
+fn stacked_bands_with_small_horizontal_overlap_do_not_emit_same_column_relation() -> Result<()> {
+    // Top band lines (x from 50 to 250, y from 750 to 780)
+    let t1 = make_line(1, 50.0, 765.0, 250.0, 777.0);
+    let t2 = make_line(2, 50.0, 750.0, 250.0, 762.0);
+
+    // Bottom band lines shifted right (x from 230 to 550, y from 600 to 630) - horizontal overlap is 230..250 (20pt out of 200pt = 10% <= 50%)
+    let b1 = make_line(3, 230.0, 615.0, 550.0, 627.0);
+    let b2 = make_line(4, 230.0, 600.0, 550.0, 612.0);
+
+    let lines = vec![t1, t2, b1, b2];
+    let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
+
+    assert_eq!(graph.regions.len(), 2);
+    let top_region = &graph.regions[0];
+    let bot_region = &graph.regions[1];
+
+    let mut expected_edges = vec![
+        (top_region.id, bot_region.id, RegionRelation::Above),
+        (bot_region.id, top_region.id, RegionRelation::Below),
+    ];
+    expected_edges.sort_by_key(|e| (e.0.0, e.1.0, e.2 as u8));
+    let mut actual_edges = graph.edges.clone();
+    actual_edges.sort_by_key(|e| (e.0.0, e.1.0, e.2 as u8));
+    assert_eq!(
+        actual_edges, expected_edges,
+        "Stacked bands with horizontal overlap <= 50% must emit Above and Below without SameColumn"
+    );
+    Ok(())
+}
+
+#[test]
+fn degenerate_zero_height_lines_decline_cuts_without_fixed_fallback() -> Result<()> {
+    // 4 lines with zero height (max_y == min_y) separated horizontally
+    let l1 = make_line(1, 50.0, 700.0, 200.0, 700.0);
+    let l2 = make_line(2, 50.0, 680.0, 200.0, 680.0);
+    let r1 = make_line(3, 350.0, 700.0, 500.0, 700.0);
+    let r2 = make_line(4, 350.0, 680.0, 500.0, 680.0);
+
+    let lines = vec![l1, l2, r1, r2];
+    let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
+
+    // Since all line heights are degenerate (0.0), geometry cut must decline rather than using arbitrary 12.0 fallback
+    assert_eq!(
+        graph.regions.len(),
+        1,
+        "Degenerate zero-height lines must decline cut and remain in single region"
+    );
+    assert_eq!(
+        graph.regions[0].line_ids.len(),
+        4,
+        "All lines must be preserved in the single region"
+    );
+    assert!(graph.edges.is_empty());
     Ok(())
 }
 
