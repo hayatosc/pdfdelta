@@ -142,8 +142,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 This project vendors externally rendered Japanese test PDFs containing embedded font
 subsets of the Noto Sans CJK JP family (`NotoSansCJK-Regular.ttc` and
-`NotoSansCJK-Bold.ttc`) in `fixtures/external/japanese-typst/old.pdf` and
-`fixtures/external/japanese-typst/new.pdf`.
+`NotoSansCJK-Bold.ttc`) in `fixtures/external/japanese-typst/old.pdf`,
+`fixtures/external/japanese-typst/new.pdf`,
+`fixtures/external/case1-japanese-typst/old.pdf`, and
+`fixtures/external/case1-japanese-typst/new.pdf`.
 
 Source:
 <https://github.com/notofonts/noto-cjk> (upstream release tag `Sans2.004`; Debian package `fonts-noto-cjk` version `1:20230817+repack1-3`, `/usr/share/doc/fonts-noto-cjk/copyright` SHA-256: `849f4ea9c214fa4ac3593b770c699f387534b11ce671264c1b10d85bdcb5997b`)
@@ -156,6 +158,7 @@ This Font Software is licensed under the SIL Open Font License, Version 1.1 (cop
 
 The remainder of this repository is licensed under the MIT License in
 `LICENSE`, except where a file or component states otherwise.
+
 
 
 

@@ -208,3 +208,75 @@ fn glyph(
         },
     }
 }
+
+#[test]
+fn externally_rendered_japanese_case1_wrap_fixture_proves_different_line_boundaries()
+-> pdfdelta_core::Result<()> {
+    use pdfdelta_core::{
+        pdf::{LopdfParser, ParseLimits, PdfParser},
+        source::{ContentStreamGlyphExtractor, ExtractionLimits, GlyphExtractor},
+    };
+    use std::sync::Arc;
+
+    let old_bytes = include_bytes!("../../../fixtures/external/case1-japanese-typst/old.pdf");
+    let new_bytes = include_bytes!("../../../fixtures/external/case1-japanese-typst/new.pdf");
+
+    let old_pdf = LopdfParser.parse(Arc::from(old_bytes.as_slice()), ParseLimits::default())?;
+    let new_pdf = LopdfParser.parse(Arc::from(new_bytes.as_slice()), ParseLimits::default())?;
+
+    let old_outcome = ContentStreamGlyphExtractor
+        .extract_outcome(old_pdf.as_ref(), ExtractionLimits::default())?;
+    let new_outcome = ContentStreamGlyphExtractor
+        .extract_outcome(new_pdf.as_ref(), ExtractionLimits::default())?;
+
+    assert!(old_outcome.is_complete());
+    assert!(new_outcome.is_complete());
+    assert!(old_outcome.issues().is_empty());
+    assert!(new_outcome.issues().is_empty());
+
+    let old_glyphs = old_outcome.document().items();
+    let new_glyphs = new_outcome.document().items();
+
+    assert_eq!(old_glyphs.len(), 158);
+    assert_eq!(new_glyphs.len(), 158);
+
+    for glyph in old_glyphs.iter().chain(new_glyphs.iter()) {
+        assert_eq!(glyph.direction, Vec2 { x: 1.0, y: 0.0 });
+        assert!(matches!(glyph.text, DecodedText::Mapped(_)));
+    }
+
+    let old_text = old_glyphs
+        .iter()
+        .map(|g| match &g.text {
+            DecodedText::Mapped(s) => s.as_str(),
+            DecodedText::Unmapped { .. } => panic!("all glyphs must be mapped"),
+        })
+        .collect::<String>();
+    let new_text = new_glyphs
+        .iter()
+        .map(|g| match &g.text {
+            DecodedText::Mapped(s) => s.as_str(),
+            DecodedText::Unmapped { .. } => panic!("all glyphs must be mapped"),
+        })
+        .collect::<String>();
+
+    assert_eq!(old_text, new_text);
+    assert_eq!(
+        old_text,
+        "定期システム運用報告書今後の保守計画およびサービス稼働状況に関する概要です。クラウド基盤およびオンプレミス環境の定期点検を完了し、全システムの稼働率は計画値を上回る高い安定性を維持しています。運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。すべての基幹業務システムは各地域で正常に稼働しています。"
+    );
+
+    let old_lines = reconstruct_lines(old_outcome.document(), LineOptions::default())?;
+    let new_lines = reconstruct_lines(new_outcome.document(), LineOptions::default())?;
+
+    assert_eq!(old_lines.len(), 6);
+    assert_eq!(new_lines.len(), 7);
+
+    let old_line_glyph_counts: Vec<usize> = old_lines.iter().map(|l| l.glyphs.len()).collect();
+    let new_line_glyph_counts: Vec<usize> = new_lines.iter().map(|l| l.glyphs.len()).collect();
+
+    assert_eq!(old_line_glyph_counts, vec![11, 41, 41, 3, 34, 28]);
+    assert_eq!(new_line_glyph_counts, vec![11, 31, 30, 24, 30, 4, 28]);
+
+    Ok(())
+}
