@@ -917,101 +917,34 @@ fn align_interval(
                     false,
                 );
             }
-            if context.allow_split_merge
-                && old_index < old.len()
-                && new_index + 1 < new.len()
-                && !contains_affected(
-                    &old[old_index..old_index + 1],
-                    &new[new_index..new_index + 2],
-                    context,
-                )
-                && let Some(sources) = group_candidate_sources(
-                    &old[old_index..old_index + 1],
-                    &new[new_index..new_index + 2],
-                    candidates,
-                )
-            {
-                propose_group_match(
-                    &mut cells,
-                    (from, (old_index + 1) * width + new_index + 2),
-                    &old[old_index..old_index + 1],
-                    &new[new_index..new_index + 2],
-                    sources,
-                    options,
-                    !context.bounded_by_anchors,
-                );
-            }
-            if context.allow_split_merge
-                && old_index + 1 < old.len()
-                && new_index < new.len()
-                && !contains_affected(
-                    &old[old_index..old_index + 2],
-                    &new[new_index..new_index + 1],
-                    context,
-                )
-                && let Some(sources) = group_candidate_sources(
-                    &old[old_index..old_index + 2],
-                    &new[new_index..new_index + 1],
-                    candidates,
-                )
-            {
-                propose_group_match(
-                    &mut cells,
-                    (from, (old_index + 2) * width + new_index + 1),
-                    &old[old_index..old_index + 2],
-                    &new[new_index..new_index + 1],
-                    sources,
-                    options,
-                    !context.bounded_by_anchors,
-                );
-            }
-            if context.allow_split_merge
-                && old_index < old.len()
-                && new_index + 2 < new.len()
-                && !contains_affected(
-                    &old[old_index..old_index + 1],
-                    &new[new_index..new_index + 3],
-                    context,
-                )
-                && let Some(sources) = group_candidate_sources(
-                    &old[old_index..old_index + 1],
-                    &new[new_index..new_index + 3],
-                    candidates,
-                )
-            {
-                propose_group_match(
-                    &mut cells,
-                    (from, (old_index + 1) * width + new_index + 3),
-                    &old[old_index..old_index + 1],
-                    &new[new_index..new_index + 3],
-                    sources,
-                    options,
-                    !context.bounded_by_anchors,
-                );
-            }
-            if context.allow_split_merge
-                && old_index + 2 < old.len()
-                && new_index < new.len()
-                && !contains_affected(
-                    &old[old_index..old_index + 3],
-                    &new[new_index..new_index + 1],
-                    context,
-                )
-                && let Some(sources) = group_candidate_sources(
-                    &old[old_index..old_index + 3],
-                    &new[new_index..new_index + 1],
-                    candidates,
-                )
-            {
-                propose_group_match(
-                    &mut cells,
-                    (from, (old_index + 3) * width + new_index + 1),
-                    &old[old_index..old_index + 3],
-                    &new[new_index..new_index + 1],
-                    sources,
-                    options,
-                    !context.bounded_by_anchors,
-                );
+            if context.allow_split_merge {
+                for (old_count, new_count) in [(1, 2), (2, 1), (1, 3), (3, 1)] {
+                    let old_end = old_index + old_count;
+                    let new_end = new_index + new_count;
+                    if old_end <= old.len()
+                        && new_end <= new.len()
+                        && !contains_affected(
+                            &old[old_index..old_end],
+                            &new[new_index..new_end],
+                            context,
+                        )
+                        && let Some(sources) = group_candidate_sources(
+                            &old[old_index..old_end],
+                            &new[new_index..new_end],
+                            candidates,
+                        )
+                    {
+                        propose_group_match(
+                            &mut cells,
+                            (from, old_end * width + new_end),
+                            &old[old_index..old_end],
+                            &new[new_index..new_end],
+                            sources,
+                            options,
+                            !context.bounded_by_anchors,
+                        );
+                    }
+                }
             }
         }
     }
