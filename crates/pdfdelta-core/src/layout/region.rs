@@ -70,14 +70,32 @@ pub fn partition_regions(
     lines: &[Line],
     options: RegionOptions,
 ) -> Result<RegionGraph> {
+    let mut edges = Vec::new();
+    let regions = partition_regions_inner(page, lines, options, Some(&mut edges))?;
+    Ok(RegionGraph { regions, edges })
+}
+
+pub(super) fn partition_regions_without_edges(
+    page: PageId,
+    lines: &[Line],
+    options: RegionOptions,
+) -> Result<Vec<Region>> {
+    partition_regions_inner(page, lines, options, None)
+}
+
+fn partition_regions_inner(
+    page: PageId,
+    lines: &[Line],
+    options: RegionOptions,
+    edges: Option<&mut Vec<(RegionId, RegionId, RegionRelation)>>,
+) -> Result<Vec<Region>> {
     validate_region_options(options)?;
     if lines.is_empty() {
-        return Ok(RegionGraph::default());
+        return Ok(Vec::new());
     }
 
     let mut next_id = 1_u64;
     let mut regions = Vec::new();
-    let mut edges = Vec::new();
 
     let initial_indices: Vec<usize> = (0..lines.len()).collect();
     xy_cut_recursive(
@@ -87,10 +105,10 @@ pub fn partition_regions(
         options,
         &mut next_id,
         &mut regions,
-        &mut edges,
+        edges,
     );
 
-    Ok(RegionGraph { regions, edges })
+    Ok(regions)
 }
 
 fn xy_cut_recursive(
@@ -100,7 +118,7 @@ fn xy_cut_recursive(
     options: RegionOptions,
     next_id: &mut u64,
     regions: &mut Vec<Region>,
-    edges: &mut Vec<(RegionId, RegionId, RegionRelation)>,
+    mut edges: Option<&mut Vec<(RegionId, RegionId, RegionRelation)>>,
 ) {
     if indices.is_empty() {
         return;
@@ -109,7 +127,15 @@ fn xy_cut_recursive(
     // Try horizontal split first (Above / Below bands).
     if let Some((top_indices, bottom_indices)) = try_horizontal_cut(lines, indices, options) {
         let top_region_start = regions.len();
-        xy_cut_recursive(page, lines, &top_indices, options, next_id, regions, edges);
+        xy_cut_recursive(
+            page,
+            lines,
+            &top_indices,
+            options,
+            next_id,
+            regions,
+            edges.as_deref_mut(),
+        );
         let top_region_end = regions.len();
 
         let bottom_region_start = regions.len();
@@ -120,26 +146,28 @@ fn xy_cut_recursive(
             options,
             next_id,
             regions,
-            edges,
+            edges.as_deref_mut(),
         );
         let bottom_region_end = regions.len();
 
-        // Add spatial graph relationships between top and bottom sub-regions.
-        for top_idx in top_region_start..top_region_end {
-            for bot_idx in bottom_region_start..bottom_region_end {
-                let top = &regions[top_idx];
-                let bot = &regions[bot_idx];
-                let top_id = top.id;
-                let bot_id = bot.id;
-                edges.push((top_id, bot_id, RegionRelation::Above));
-                edges.push((bot_id, top_id, RegionRelation::Below));
-                let horizontal_overlap = interval_overlap_ratio(
-                    (top.bbox.min.x, top.bbox.max.x),
-                    (bot.bbox.min.x, bot.bbox.max.x),
-                );
-                if horizontal_overlap > 0.5 {
-                    edges.push((top_id, bot_id, RegionRelation::SameColumn));
-                    edges.push((bot_id, top_id, RegionRelation::SameColumn));
+        if let Some(edges) = edges {
+            // Add spatial graph relationships between top and bottom sub-regions.
+            for top_idx in top_region_start..top_region_end {
+                for bot_idx in bottom_region_start..bottom_region_end {
+                    let top = &regions[top_idx];
+                    let bot = &regions[bot_idx];
+                    let top_id = top.id;
+                    let bot_id = bot.id;
+                    edges.push((top_id, bot_id, RegionRelation::Above));
+                    edges.push((bot_id, top_id, RegionRelation::Below));
+                    let horizontal_overlap = interval_overlap_ratio(
+                        (top.bbox.min.x, top.bbox.max.x),
+                        (bot.bbox.min.x, bot.bbox.max.x),
+                    );
+                    if horizontal_overlap > 0.5 {
+                        edges.push((top_id, bot_id, RegionRelation::SameColumn));
+                        edges.push((bot_id, top_id, RegionRelation::SameColumn));
+                    }
                 }
             }
         }
@@ -149,7 +177,15 @@ fn xy_cut_recursive(
     // Try vertical split (LeftOf / RightOf columns).
     if let Some((left_indices, right_indices)) = try_vertical_cut(lines, indices, options) {
         let left_region_start = regions.len();
-        xy_cut_recursive(page, lines, &left_indices, options, next_id, regions, edges);
+        xy_cut_recursive(
+            page,
+            lines,
+            &left_indices,
+            options,
+            next_id,
+            regions,
+            edges.as_deref_mut(),
+        );
         let left_region_end = regions.len();
 
         let right_region_start = regions.len();
@@ -160,25 +196,27 @@ fn xy_cut_recursive(
             options,
             next_id,
             regions,
-            edges,
+            edges.as_deref_mut(),
         );
         let right_region_end = regions.len();
 
-        for left_idx in left_region_start..left_region_end {
-            for right_idx in right_region_start..right_region_end {
-                let left = &regions[left_idx];
-                let right = &regions[right_idx];
-                let left_id = left.id;
-                let right_id = right.id;
-                edges.push((left_id, right_id, RegionRelation::LeftOf));
-                edges.push((right_id, left_id, RegionRelation::RightOf));
-                let vertical_overlap = interval_overlap_ratio(
-                    (left.bbox.min.y, left.bbox.max.y),
-                    (right.bbox.min.y, right.bbox.max.y),
-                );
-                if vertical_overlap > 0.5 {
-                    edges.push((left_id, right_id, RegionRelation::Aligned));
-                    edges.push((right_id, left_id, RegionRelation::Aligned));
+        if let Some(edges) = edges {
+            for left_idx in left_region_start..left_region_end {
+                for right_idx in right_region_start..right_region_end {
+                    let left = &regions[left_idx];
+                    let right = &regions[right_idx];
+                    let left_id = left.id;
+                    let right_id = right.id;
+                    edges.push((left_id, right_id, RegionRelation::LeftOf));
+                    edges.push((right_id, left_id, RegionRelation::RightOf));
+                    let vertical_overlap = interval_overlap_ratio(
+                        (left.bbox.min.y, left.bbox.max.y),
+                        (right.bbox.min.y, right.bbox.max.y),
+                    );
+                    if vertical_overlap > 0.5 {
+                        edges.push((left_id, right_id, RegionRelation::Aligned));
+                        edges.push((right_id, left_id, RegionRelation::Aligned));
+                    }
                 }
             }
         }
