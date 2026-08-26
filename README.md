@@ -135,7 +135,9 @@ has landed, but broader large-document alignment quality remains ongoing work).
 atomically (each serializing in memory and publishing via same-directory temporary
 files without overwriting existing destinations). If the second publication fails,
 exit code 2 is returned and the first published artifact remains in place without
-pairwise rollback across distinct paths.
+pairwise rollback across distinct paths. Dated compact evaluation summaries are
+recorded under [`benchmark/realworld/results/`](benchmark/realworld/results/README.md)
+(e.g. [`2026-08-26.json`](benchmark/realworld/results/2026-08-26.json)).
 
 ## License
 
