@@ -214,46 +214,27 @@ pub(crate) fn align_ordered_with_metrics(
     generator: &dyn CandidateGenerator,
     options: AlignmentOptions,
 ) -> AlignmentAttempt {
-    let mut candidate_visits = 0_usize;
-    let mut candidate_visits_required = None;
-    let mut candidate_visits_required_exact = None;
-    let mut candidate_visits_required_ngram = None;
-    let mut candidate_visits_required_short_fallback = None;
-    let result = align_ordered_inner(
-        old,
-        new,
-        generator,
-        options,
-        &mut candidate_visits,
-        &mut candidate_visits_required,
-        &mut candidate_visits_required_exact,
-        &mut candidate_visits_required_ngram,
-        &mut candidate_visits_required_short_fallback,
-    );
+    let mut visit_metrics = AlignmentVisitMetrics {
+        candidate_visits: 0,
+        candidate_visits_required: None,
+        candidate_visits_required_exact: None,
+        candidate_visits_required_ngram: None,
+        candidate_visits_required_short_fallback: None,
+        max_candidate_visits: options.max_candidate_visits,
+    };
+    let result = align_ordered_inner(old, new, generator, options, &mut visit_metrics);
     AlignmentAttempt {
         result,
-        visit_metrics: AlignmentVisitMetrics {
-            candidate_visits,
-            candidate_visits_required,
-            candidate_visits_required_exact,
-            candidate_visits_required_ngram,
-            candidate_visits_required_short_fallback,
-            max_candidate_visits: options.max_candidate_visits,
-        },
+        visit_metrics,
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn align_ordered_inner(
     old: &[BlockFeatures],
     new: &[BlockFeatures],
     generator: &dyn CandidateGenerator,
     options: AlignmentOptions,
-    candidate_visits: &mut usize,
-    candidate_visits_required: &mut Option<usize>,
-    candidate_visits_required_exact: &mut Option<usize>,
-    candidate_visits_required_ngram: &mut Option<usize>,
-    candidate_visits_required_short_fallback: &mut Option<usize>,
+    visit_metrics: &mut AlignmentVisitMetrics,
 ) -> Result<Alignment> {
     validate_alignment_options(options)?;
     validate_features("old", old)?;
@@ -261,10 +242,10 @@ fn align_ordered_inner(
     validate_shared_ngram_size(old, new)?;
 
     if old == new {
-        *candidate_visits_required = Some(0);
-        *candidate_visits_required_exact = Some(0);
-        *candidate_visits_required_ngram = Some(0);
-        *candidate_visits_required_short_fallback = Some(0);
+        visit_metrics.candidate_visits_required = Some(0);
+        visit_metrics.candidate_visits_required_exact = Some(0);
+        visit_metrics.candidate_visits_required_ngram = Some(0);
+        visit_metrics.candidate_visits_required_short_fallback = Some(0);
         return Ok(identity_alignment(old));
     }
 
@@ -301,11 +282,7 @@ fn align_ordered_inner(
         generator,
         options.candidate_limit,
         options.max_candidate_visits,
-        candidate_visits,
-        candidate_visits_required,
-        candidate_visits_required_exact,
-        candidate_visits_required_ngram,
-        candidate_visits_required_short_fallback,
+        visit_metrics,
     )?;
     let move_old = move_candidates
         .iter()
@@ -562,7 +539,6 @@ fn is_full_text_similarity_collapse(
 
 type CandidateMap = HashMap<BlockId, HashMap<BlockId, Vec<CandidateSource>>>;
 
-#[allow(clippy::too_many_arguments)]
 fn collect_candidates(
     old: &[BlockFeatures],
     new_indices: &HashMap<BlockId, usize>,
@@ -570,11 +546,7 @@ fn collect_candidates(
     generator: &dyn CandidateGenerator,
     limit: usize,
     max_visits: usize,
-    candidate_visits: &mut usize,
-    candidate_visits_required: &mut Option<usize>,
-    candidate_visits_required_exact: &mut Option<usize>,
-    candidate_visits_required_ngram: &mut Option<usize>,
-    candidate_visits_required_short_fallback: &mut Option<usize>,
+    visit_metrics: &mut AlignmentVisitMetrics,
 ) -> Result<CandidateMap> {
     // The required sum is the checked total over every non-anchor old block
     // and is unavailable (`None`) whenever any estimate errors or the sum
@@ -585,10 +557,10 @@ fn collect_candidates(
     // block reported a breakdown and every component sum completed; an
     // unknown generator, estimate error, or overflow leaves all three
     // `None` so partial component state is never reported.
-    *candidate_visits_required = None;
-    *candidate_visits_required_exact = None;
-    *candidate_visits_required_ngram = None;
-    *candidate_visits_required_short_fallback = None;
+    visit_metrics.candidate_visits_required = None;
+    visit_metrics.candidate_visits_required_exact = None;
+    visit_metrics.candidate_visits_required_ngram = None;
+    visit_metrics.candidate_visits_required_short_fallback = None;
     let mut remaining_visits = max_visits;
     let mut exceeded = false;
     let mut required_visits = 0_usize;
@@ -621,13 +593,13 @@ fn collect_candidates(
             // exceeds the budget so the recorded metric explains the
             // failure; on overflow the charge accumulated so far is
             // retained.
-            *candidate_visits =
-                candidate_visits
-                    .checked_add(visits)
-                    .ok_or(Error::LimitExceeded {
-                        resource: "alignment candidate visits",
-                        limit: max_visits,
-                    })?;
+            visit_metrics.candidate_visits = visit_metrics
+                .candidate_visits
+                .checked_add(visits)
+                .ok_or(Error::LimitExceeded {
+                    resource: "alignment candidate visits",
+                    limit: max_visits,
+                })?;
             if remaining_visits < visits {
                 exceeded = true;
             } else {
@@ -666,11 +638,11 @@ fn collect_candidates(
             None => breakdown_complete = false,
         }
     }
-    *candidate_visits_required = Some(required_visits);
+    visit_metrics.candidate_visits_required = Some(required_visits);
     if breakdown_complete {
-        *candidate_visits_required_exact = Some(required_exact);
-        *candidate_visits_required_ngram = Some(required_ngram);
-        *candidate_visits_required_short_fallback = Some(required_short_fallback);
+        visit_metrics.candidate_visits_required_exact = Some(required_exact);
+        visit_metrics.candidate_visits_required_ngram = Some(required_ngram);
+        visit_metrics.candidate_visits_required_short_fallback = Some(required_short_fallback);
     }
     if exceeded {
         return Err(Error::LimitExceeded {
