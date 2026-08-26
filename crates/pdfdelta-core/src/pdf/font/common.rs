@@ -132,8 +132,10 @@ pub(super) fn resolve_font_identity_source(
         return Ok(None);
     };
     let descriptor = resolve_object(pdf, descriptor.clone(), max_indirections)?;
-    let PdfObject::Dictionary(descriptor) = descriptor else {
-        return unresolved("FontDescriptor is not a dictionary");
+    let descriptor = match descriptor {
+        PdfObject::Dictionary(descriptor) => descriptor,
+        PdfObject::Null => return Ok(None),
+        _ => return unresolved("FontDescriptor is not a dictionary"),
     };
     let programs = [b"FontFile".as_slice(), b"FontFile2", b"FontFile3"]
         .into_iter()

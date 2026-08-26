@@ -2191,3 +2191,1454 @@ fn cross_revision_divergent_encodings_do_not_fabricate_matching_unmapped_tokens(
     assert_eq!(new_outcome.issues().len(), 1);
     Ok(())
 }
+
+#[test]
+fn standard14_font_with_base_encoding_only_dictionary_matches_named_encoding_canonical_identity()
+-> Result<()> {
+    // Standard 14 Helvetica with named /WinAnsiEncoding vs dictionary << /Type /Encoding /BaseEncoding /WinAnsiEncoding >>
+    // Code 0x81 (129) is undefined in WinAnsiEncoding and has no ToUnicode map.
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let named_font = base_font(&mut pdf);
+    let dict_font = base_font(&mut pdf);
+
+    pdf.objects
+        .get_mut(&named_font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set("Encoding", Object::Name(b"WinAnsiEncoding".to_vec()));
+
+    pdf.objects
+        .get_mut(&dict_font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set(
+            "Encoding",
+            dictionary! {
+                "Type" => "Encoding",
+                "BaseEncoding" => "WinAnsiEncoding",
+            },
+        );
+
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'/', b'F', b'2', b' ', b'1',
+            b'0', b' ', b'T', b'f', b' ', b'1', b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'4',
+            b'0', b' ', b'3', b'0', b' ', b'T', b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j',
+            b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! {
+                "F1" => named_font,
+                "F2" => dict_font,
+            },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 2);
+
+    let (
+        DecodedText::Unmapped {
+            font_hash: hash1,
+            glyph_id: id1,
+        },
+        DecodedText::Unmapped {
+            font_hash: hash2,
+            glyph_id: id2,
+        },
+    ) = (&glyphs[0].text, &glyphs[1].text)
+    else {
+        panic!("both glyphs should be unmapped with canonical Standard 14 identity");
+    };
+
+    assert_eq!(*id1, 129);
+    assert_eq!(*id2, 129);
+    assert_eq!(
+        hash1, hash2,
+        "named and BaseEncoding-only dictionary must yield identical canonical identity"
+    );
+    assert_eq!(hash1.0.len(), 32);
+    Ok(())
+}
+
+#[test]
+fn standard14_font_with_differences_in_encoding_dictionary_suppresses_canonical_identity()
+-> Result<()> {
+    // Standard 14 Helvetica with /Encoding dictionary containing /Differences
+    // Code 0x81 (129) mapped to an unmapped glyph name without ToUnicode
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let font_dictionary = pdf
+        .objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary");
+    font_dictionary.set(
+        "Encoding",
+        dictionary! {
+            "Type" => "Encoding",
+            "BaseEncoding" => "WinAnsiEncoding",
+            "Differences" => vec![
+                Object::Integer(129),
+                Object::Name(b"CustomUnmappedGlyph".to_vec()),
+            ],
+        },
+    );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    assert!(outcome.document().items().is_empty());
+    let issues = outcome.issues();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
+    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
+    assert!(
+        issues[0]
+            .description()
+            .contains("font code has no Unicode mapping or stable font identity")
+    );
+    assert!(matches!(
+        outcome.into_complete(),
+        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
+    ));
+    Ok(())
+}
+
+#[test]
+fn embedded_simple_font_with_base_encoding_only_dictionary_remains_fail_closed() -> Result<()> {
+    // Embedded non-Standard14 TrueType font with dictionary << /Type /Encoding /BaseEncoding /WinAnsiEncoding >>
+    // Code 0x81 (129) without ToUnicode must fail-close (no stable identity fabricated)
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = embedded_simple_font(&mut pdf, b"embedded font program", false, None);
+    let font_dictionary = pdf
+        .objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary");
+    font_dictionary.set(
+        "Encoding",
+        dictionary! {
+            "Type" => "Encoding",
+            "BaseEncoding" => "WinAnsiEncoding",
+        },
+    );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    assert!(outcome.document().items().is_empty());
+    let issues = outcome.issues();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
+    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
+    assert!(
+        issues[0]
+            .description()
+            .contains("font code has no Unicode mapping or stable font identity")
+    );
+    assert!(matches!(
+        outcome.into_complete(),
+        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
+    ));
+    Ok(())
+}
+
+#[test]
+fn standard14_font_with_unknown_base_encoding_reports_unsupported() -> Result<()> {
+    // Standard 14 font with dictionary << /Type /Encoding /BaseEncoding /NonExistentEncoding >>
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let font_dictionary = pdf
+        .objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary");
+    font_dictionary.set(
+        "Encoding",
+        dictionary! {
+            "Type" => "Encoding",
+            "BaseEncoding" => "NonExistentEncoding",
+        },
+    );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (A) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    let issues = outcome.issues();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unsupported);
+    assert!(
+        issues[0]
+            .description()
+            .contains("/NonExistentEncoding is not supported")
+    );
+    Ok(())
+}
+
+fn embedded_standard14_named_font(
+    document: &mut LopdfDocument,
+    base_font_name: &str,
+    program_bytes: &[u8],
+) -> ObjectId {
+    let program = document.add_object(Stream::new(dictionary! {}, program_bytes.to_vec()));
+    let descriptor = document.add_object(dictionary! {
+        "Type" => "FontDescriptor",
+        "FontName" => base_font_name,
+        "Ascent" => 800,
+        "Descent" => -200,
+        "MissingWidth" => 500,
+        "Flags" => 32,
+        "FontFile2" => program,
+    });
+    document.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "TrueType",
+        "BaseFont" => base_font_name,
+        "FirstChar" => 0,
+        "LastChar" => 255,
+        "Widths" => vec![Object::Integer(500); 256],
+        "FontDescriptor" => descriptor,
+    })
+}
+
+#[test]
+fn embedded_program_with_standard14_name_under_base_encoding_dictionary_fails_closed() -> Result<()>
+{
+    // Forged Standard 14 Helvetica with embedded FontFile2 program + BaseEncoding-only dictionary
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font =
+        embedded_standard14_named_font(&mut pdf, "Helvetica", b"custom embedded font program");
+    let font_dictionary = pdf
+        .objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary");
+    font_dictionary.set(
+        "Encoding",
+        dictionary! {
+            "Type" => "Encoding",
+            "BaseEncoding" => "WinAnsiEncoding",
+        },
+    );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    assert!(outcome.document().items().is_empty());
+    let issues = outcome.issues();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
+    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
+    assert!(
+        issues[0]
+            .description()
+            .contains("font code has no Unicode mapping or stable font identity")
+    );
+    assert!(matches!(
+        outcome.into_complete(),
+        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
+    ));
+    Ok(())
+}
+
+#[test]
+fn embedded_program_with_standard14_name_under_named_encoding_fails_closed() -> Result<()> {
+    // Forged Standard 14 Helvetica with embedded FontFile2 program + named /WinAnsiEncoding
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font =
+        embedded_standard14_named_font(&mut pdf, "Helvetica", b"custom embedded font program");
+    let font_dictionary = pdf
+        .objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary");
+    font_dictionary.set("Encoding", Object::Name(b"WinAnsiEncoding".to_vec()));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    assert!(outcome.document().items().is_empty());
+    let issues = outcome.issues();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
+    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
+    assert!(
+        issues[0]
+            .description()
+            .contains("font code has no Unicode mapping or stable font identity")
+    );
+    assert!(matches!(
+        outcome.into_complete(),
+        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
+    ));
+    Ok(())
+}
+
+#[test]
+fn embedded_program_with_standard14_name_under_no_encoding_uses_embedded_hash_not_standard14_identity()
+-> Result<()> {
+    // Forged Standard 14 Helvetica with embedded FontFile2 program and no /Encoding key
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = embedded_standard14_named_font(
+        &mut pdf,
+        "Helvetica",
+        b"custom embedded font program bytes",
+    );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 1);
+    assert_eq!(glyphs[0].raw_code, vec![0x81]);
+    let DecodedText::Unmapped {
+        font_hash,
+        glyph_id,
+    } = &glyphs[0].text
+    else {
+        panic!("expected unmapped glyph with embedded font identity");
+    };
+    assert_eq!(*glyph_id, 129);
+
+    // Also extract genuine Standard 14 Helvetica with no /Encoding to compare font hashes
+    let mut genuine_pdf = LopdfDocument::with_version("1.7");
+    let genuine_font = base_font(&mut genuine_pdf);
+    let genuine_content = genuine_pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut genuine_pdf,
+        genuine_content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => genuine_font },
+        }),
+        None,
+        None,
+    );
+    let genuine_doc = extract(genuine_pdf, ExtractionLimits::default())?;
+    let DecodedText::Unmapped {
+        font_hash: genuine_hash,
+        ..
+    } = &genuine_doc.items()[0].text
+    else {
+        panic!("expected genuine Standard 14 unmapped text");
+    };
+
+    assert_ne!(
+        font_hash, genuine_hash,
+        "embedded font program must NOT receive genuine Standard 14 canonical identity"
+    );
+    Ok(())
+}
+
+#[test]
+fn standard14_font_with_empty_encoding_dictionary_matches_built_in_encoding_canonical_identity()
+-> Result<()> {
+    // Genuine Standard 14 Helvetica with no /Encoding vs empty /Encoding << /Type /Encoding >>
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let no_enc_font = base_font(&mut pdf);
+    let empty_dict_font = base_font(&mut pdf);
+
+    pdf.objects
+        .get_mut(&empty_dict_font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set("Encoding", dictionary! { "Type" => "Encoding" });
+
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'/', b'F', b'2', b' ', b'1',
+            b'0', b' ', b'T', b'f', b' ', b'1', b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'4',
+            b'0', b' ', b'3', b'0', b' ', b'T', b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j',
+            b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! {
+                "F1" => no_enc_font,
+                "F2" => empty_dict_font,
+            },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 2);
+
+    let (
+        DecodedText::Unmapped {
+            font_hash: hash1,
+            glyph_id: id1,
+        },
+        DecodedText::Unmapped {
+            font_hash: hash2,
+            glyph_id: id2,
+        },
+    ) = (&glyphs[0].text, &glyphs[1].text)
+    else {
+        panic!("both glyphs should be unmapped with canonical Standard 14 built-in identity");
+    };
+
+    assert_eq!(*id1, 129);
+    assert_eq!(*id2, 129);
+    assert_eq!(
+        hash1, hash2,
+        "omitted /Encoding and empty /Encoding dictionary must yield identical canonical identity"
+    );
+    assert_eq!(hash1.0.len(), 32);
+    Ok(())
+}
+
+#[test]
+fn non_standard14_font_with_empty_encoding_dictionary_remains_fail_closed() -> Result<()> {
+    // Non-Standard14 embedded TrueType font with empty /Encoding << /Type /Encoding >>
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = embedded_simple_font(&mut pdf, b"embedded font program", false, None);
+    let font_dictionary = pdf
+        .objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary");
+    font_dictionary.set("Encoding", dictionary! { "Type" => "Encoding" });
+
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    assert!(outcome.document().items().is_empty());
+    let issues = outcome.issues();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
+    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
+    assert!(
+        issues[0]
+            .description()
+            .contains("font code has no Unicode mapping or stable font identity")
+    );
+    assert!(matches!(
+        outcome.into_complete(),
+        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
+    ));
+    Ok(())
+}
+
+#[test]
+fn standard14_font_with_empty_differences_array_suppresses_canonical_identity() -> Result<()> {
+    // Standard 14 Helvetica with /Encoding << /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [] >>
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let font_dictionary = pdf
+        .objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary");
+    font_dictionary.set(
+        "Encoding",
+        dictionary! {
+            "Type" => "Encoding",
+            "BaseEncoding" => "WinAnsiEncoding",
+            "Differences" => Vec::<Object>::new(),
+        },
+    );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    assert!(outcome.document().items().is_empty());
+    let issues = outcome.issues();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
+    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
+    assert!(
+        issues[0]
+            .description()
+            .contains("font code has no Unicode mapping or stable font identity")
+    );
+    assert!(matches!(
+        outcome.into_complete(),
+        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
+    ));
+    Ok(())
+}
+
+#[test]
+fn embedded_type1_program_with_standard14_name_under_named_encoding_fails_closed() -> Result<()> {
+    // Forged Standard 14 Helvetica with /Subtype /Type1 and embedded /FontFile program + /WinAnsiEncoding
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let program = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"custom Type1 font program bytes".to_vec(),
+    ));
+    let descriptor = pdf.add_object(dictionary! {
+        "Type" => "FontDescriptor",
+        "FontName" => "Helvetica",
+        "Ascent" => 800,
+        "Descent" => -200,
+        "MissingWidth" => 500,
+        "FontFile" => program,
+    });
+    let font = pdf.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+        "FirstChar" => 0,
+        "LastChar" => 255,
+        "Widths" => vec![Object::Integer(500); 256],
+        "FontDescriptor" => descriptor,
+        "Encoding" => Object::Name(b"WinAnsiEncoding".to_vec()),
+    });
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    assert!(outcome.document().items().is_empty());
+    let issues = outcome.issues();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
+    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
+    assert!(
+        issues[0]
+            .description()
+            .contains("font code has no Unicode mapping or stable font identity")
+    );
+    assert!(matches!(
+        outcome.into_complete(),
+        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
+    ));
+    Ok(())
+}
+
+#[test]
+fn standard14_font_with_null_encoding_matches_omitted_encoding_canonical_identity() -> Result<()> {
+    // Genuine Standard 14 Helvetica with omitted /Encoding vs explicit /Encoding null
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let no_enc_font = base_font(&mut pdf);
+    let null_enc_font = base_font(&mut pdf);
+
+    pdf.objects
+        .get_mut(&null_enc_font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set("Encoding", Object::Null);
+
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'/', b'F', b'2', b' ', b'1',
+            b'0', b' ', b'T', b'f', b' ', b'1', b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'4',
+            b'0', b' ', b'3', b'0', b' ', b'T', b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j',
+            b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! {
+                "F1" => no_enc_font,
+                "F2" => null_enc_font,
+            },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 2);
+
+    let (
+        DecodedText::Unmapped {
+            font_hash: hash1,
+            glyph_id: id1,
+        },
+        DecodedText::Unmapped {
+            font_hash: hash2,
+            glyph_id: id2,
+        },
+    ) = (&glyphs[0].text, &glyphs[1].text)
+    else {
+        panic!("both glyphs should be unmapped with canonical Standard 14 built-in identity");
+    };
+
+    assert_eq!(*id1, 129);
+    assert_eq!(*id2, 129);
+    assert_eq!(
+        hash1, hash2,
+        "omitted /Encoding and /Encoding null must yield identical canonical identity"
+    );
+    assert_eq!(hash1.0.len(), 32);
+    Ok(())
+}
+
+#[test]
+fn standard14_font_with_null_descriptor_keeps_canonical_identity() -> Result<()> {
+    // Genuine Standard 14 Helvetica with /FontDescriptor null
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = pdf.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+        "FirstChar" => 0,
+        "LastChar" => 255,
+        "Widths" => vec![Object::Integer(500); 256],
+        "FontDescriptor" => Object::Null,
+        "Encoding" => Object::Name(b"WinAnsiEncoding".to_vec()),
+    });
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 1);
+    let DecodedText::Unmapped {
+        font_hash,
+        glyph_id,
+    } = &glyphs[0].text
+    else {
+        panic!("expected unmapped glyph with canonical identity");
+    };
+    assert_eq!(*glyph_id, 129);
+    assert_eq!(font_hash.0.len(), 32);
+    Ok(())
+}
+
+#[test]
+fn non_standard14_font_with_null_entries_fails_closed_without_identity() -> Result<()> {
+    // Non-Standard14 font with /Encoding null and /FontDescriptor with null font file
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let descriptor = pdf.add_object(dictionary! {
+        "Type" => "FontDescriptor",
+        "FontName" => "NonStandardCustomFont",
+        "Ascent" => 800,
+        "Descent" => -200,
+        "MissingWidth" => 500,
+        "FontFile2" => Object::Null,
+    });
+    let font = pdf.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "TrueType",
+        "BaseFont" => "NonStandardCustomFont",
+        "FirstChar" => 0,
+        "LastChar" => 255,
+        "Widths" => vec![Object::Integer(500); 256],
+        "Encoding" => Object::Null,
+        "FontDescriptor" => descriptor,
+    });
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    assert!(outcome.document().items().is_empty());
+    let issues = outcome.issues();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
+    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
+    assert!(
+        issues[0]
+            .description()
+            .contains("font code has no Unicode mapping or stable font identity")
+    );
+    assert!(matches!(
+        outcome.into_complete(),
+        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
+    ));
+    Ok(())
+}
+
+#[test]
+fn font_with_null_base_font_is_treated_as_absent_name() -> Result<()> {
+    // Font with /BaseFont null: treated as absent rather than "BaseFont is not a name" malformed error
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let descriptor = pdf.add_object(dictionary! {
+        "Type" => "FontDescriptor",
+        "FontName" => "UnnamedFont",
+        "Ascent" => 800,
+        "Descent" => -200,
+        "MissingWidth" => 500,
+    });
+    let font = pdf.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => Object::Null,
+        "FirstChar" => 0,
+        "LastChar" => 255,
+        "Widths" => vec![Object::Integer(500); 256],
+        "FontDescriptor" => descriptor,
+    });
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    assert!(outcome.document().items().is_empty());
+    let issues = outcome.issues();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
+    assert!(
+        issues[0]
+            .description()
+            .contains("font code has no Unicode mapping or stable font identity")
+    );
+    assert!(!issues[0].description().contains("BaseFont is not a name"));
+    Ok(())
+}
+
+#[test]
+fn non_embedded_truetype_standard14_matches_type1_canonical_identity() -> Result<()> {
+    // Non-embedded /Subtype /TrueType with BaseFont /Helvetica, named /WinAnsiEncoding, no FontFile*
+    // vs non-embedded /Subtype /Type1 Helvetica with /WinAnsiEncoding
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let type1_font = base_font(&mut pdf);
+    pdf.objects
+        .get_mut(&type1_font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set("Encoding", Object::Name(b"WinAnsiEncoding".to_vec()));
+
+    let descriptor = pdf.add_object(dictionary! {
+        "Type" => "FontDescriptor",
+        "FontName" => "Helvetica",
+        "Ascent" => 800,
+        "Descent" => -200,
+        "MissingWidth" => 500,
+        "Flags" => 32,
+    });
+    let truetype_font = pdf.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "TrueType",
+        "BaseFont" => "Helvetica",
+        "FirstChar" => 0,
+        "LastChar" => 255,
+        "Widths" => vec![Object::Integer(500); 256],
+        "FontDescriptor" => descriptor,
+        "Encoding" => Object::Name(b"WinAnsiEncoding".to_vec()),
+    });
+
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'/', b'F', b'2', b' ', b'1',
+            b'0', b' ', b'T', b'f', b' ', b'1', b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'4',
+            b'0', b' ', b'3', b'0', b' ', b'T', b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j',
+            b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! {
+                "F1" => type1_font,
+                "F2" => truetype_font,
+            },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 2);
+
+    let (
+        DecodedText::Unmapped {
+            font_hash: type1_hash,
+            glyph_id: id1,
+        },
+        DecodedText::Unmapped {
+            font_hash: truetype_hash,
+            glyph_id: id2,
+        },
+    ) = (&glyphs[0].text, &glyphs[1].text)
+    else {
+        panic!("both glyphs should be unmapped with canonical Standard 14 identity");
+    };
+
+    assert_eq!(*id1, 129);
+    assert_eq!(*id2, 129);
+    assert_eq!(
+        type1_hash, truetype_hash,
+        "non-embedded TrueType Standard14 must receive identical canonical identity to Type1 Standard14"
+    );
+    assert_eq!(type1_hash.0.len(), 32);
+    Ok(())
+}
+
+#[test]
+fn standard14_font_with_direct_and_indirect_null_differences_retains_canonical_identity()
+-> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let indirect_null = pdf.add_object(Object::Null);
+
+    let no_diff_font = base_font(&mut pdf);
+    pdf.objects
+        .get_mut(&no_diff_font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set(
+            "Encoding",
+            dictionary! {
+                "Type" => "Encoding",
+                "BaseEncoding" => "WinAnsiEncoding",
+            },
+        );
+
+    let direct_null_diff_font = base_font(&mut pdf);
+    pdf.objects
+        .get_mut(&direct_null_diff_font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set(
+            "Encoding",
+            dictionary! {
+                "Type" => "Encoding",
+                "BaseEncoding" => "WinAnsiEncoding",
+                "Differences" => Object::Null,
+            },
+        );
+
+    let indirect_null_diff_font = base_font(&mut pdf);
+    pdf.objects
+        .get_mut(&indirect_null_diff_font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set(
+            "Encoding",
+            dictionary! {
+                "Type" => "Encoding",
+                "BaseEncoding" => "WinAnsiEncoding",
+                "Differences" => indirect_null,
+            },
+        );
+
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'/', b'F', b'2', b' ', b'1',
+            b'0', b' ', b'T', b'f', b' ', b'1', b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'4',
+            b'0', b' ', b'3', b'0', b' ', b'T', b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j',
+            b' ', b'/', b'F', b'3', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1', b' ', b'0',
+            b' ', b'0', b' ', b'1', b' ', b'6', b'0', b' ', b'3', b'0', b' ', b'T', b'm', b' ',
+            b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! {
+                "F1" => no_diff_font,
+                "F2" => direct_null_diff_font,
+                "F3" => indirect_null_diff_font,
+            },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 3);
+
+    let (
+        DecodedText::Unmapped {
+            font_hash: hash1,
+            glyph_id: id1,
+        },
+        DecodedText::Unmapped {
+            font_hash: hash2,
+            glyph_id: id2,
+        },
+        DecodedText::Unmapped {
+            font_hash: hash3,
+            glyph_id: id3,
+        },
+    ) = (&glyphs[0].text, &glyphs[1].text, &glyphs[2].text)
+    else {
+        panic!("all glyphs should be unmapped with canonical Standard 14 identity");
+    };
+
+    assert_eq!(*id1, 129);
+    assert_eq!(*id2, 129);
+    assert_eq!(*id3, 129);
+    assert_eq!(hash1, hash2);
+    assert_eq!(hash1, hash3);
+    assert_eq!(hash1.0.len(), 32);
+    Ok(())
+}
+
+#[test]
+fn standard14_font_with_indirect_null_encoding_matches_omitted_encoding() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let indirect_null = pdf.add_object(Object::Null);
+    let no_enc_font = base_font(&mut pdf);
+    let null_enc_font = base_font(&mut pdf);
+
+    pdf.objects
+        .get_mut(&null_enc_font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set("Encoding", indirect_null);
+
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'/', b'F', b'2', b' ', b'1',
+            b'0', b' ', b'T', b'f', b' ', b'1', b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'4',
+            b'0', b' ', b'3', b'0', b' ', b'T', b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j',
+            b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! {
+                "F1" => no_enc_font,
+                "F2" => null_enc_font,
+            },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 2);
+
+    let (
+        DecodedText::Unmapped {
+            font_hash: hash1,
+            glyph_id: id1,
+        },
+        DecodedText::Unmapped {
+            font_hash: hash2,
+            glyph_id: id2,
+        },
+    ) = (&glyphs[0].text, &glyphs[1].text)
+    else {
+        panic!("both glyphs should be unmapped with canonical Standard 14 identity");
+    };
+
+    assert_eq!(*id1, 129);
+    assert_eq!(*id2, 129);
+    assert_eq!(hash1, hash2);
+    Ok(())
+}
+
+#[test]
+fn font_with_cyclic_encoding_reference_reports_error() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cyclic_ref = pdf.add_object(Object::Null);
+    pdf.objects
+        .insert(cyclic_ref, Object::Reference(cyclic_ref));
+
+    let font = base_font(&mut pdf);
+    pdf.objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set("Encoding", Object::Reference(cyclic_ref));
+
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    assert!(matches!(
+        extract(pdf, ExtractionLimits::default()),
+        Err(Error::Backend(message)) if message.contains("reference cycle")
+    ));
+    Ok(())
+}
+
+#[test]
+fn font_with_indirect_base_font_name_matches_direct_name() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let name_obj = pdf.add_object(Object::Name(b"Helvetica".to_vec()));
+
+    let direct_font = base_font(&mut pdf);
+    let indirect_font = pdf.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => name_obj,
+    });
+
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'/', b'F', b'2', b' ', b'1',
+            b'0', b' ', b'T', b'f', b' ', b'1', b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'4',
+            b'0', b' ', b'3', b'0', b' ', b'T', b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j',
+            b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! {
+                "F1" => direct_font,
+                "F2" => indirect_font,
+            },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 2);
+
+    let (
+        DecodedText::Unmapped {
+            font_hash: hash1,
+            glyph_id: id1,
+        },
+        DecodedText::Unmapped {
+            font_hash: hash2,
+            glyph_id: id2,
+        },
+    ) = (&glyphs[0].text, &glyphs[1].text)
+    else {
+        panic!("both glyphs should be unmapped with canonical Standard 14 identity");
+    };
+
+    assert_eq!(*id1, 129);
+    assert_eq!(*id2, 129);
+    assert_eq!(hash1, hash2);
+    Ok(())
+}
+
+#[test]
+fn font_with_indirect_null_base_font_is_treated_as_absent_name() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let null_obj = pdf.add_object(Object::Null);
+    let descriptor = pdf.add_object(dictionary! {
+        "Type" => "FontDescriptor",
+        "FontName" => "UnnamedFont",
+        "Ascent" => 800,
+        "Descent" => -200,
+        "MissingWidth" => 500,
+    });
+    let font = pdf.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => null_obj,
+        "FirstChar" => 0,
+        "LastChar" => 255,
+        "Widths" => vec![Object::Integer(500); 256],
+        "FontDescriptor" => descriptor,
+    });
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    assert!(outcome.document().items().is_empty());
+    let issues = outcome.issues();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
+    assert!(
+        issues[0]
+            .description()
+            .contains("font code has no Unicode mapping or stable font identity")
+    );
+    assert!(!issues[0].description().contains("BaseFont is not a name"));
+    Ok(())
+}
+
+#[test]
+fn font_with_cyclic_base_font_reports_error() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cyclic_ref = pdf.add_object(Object::Null);
+    pdf.objects
+        .insert(cyclic_ref, Object::Reference(cyclic_ref));
+
+    let font = pdf.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => cyclic_ref,
+    });
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    assert!(matches!(
+        extract(pdf, ExtractionLimits::default()),
+        Err(Error::Backend(message)) if message.contains("reference cycle")
+    ));
+    Ok(())
+}
+
+#[test]
+fn standard14_font_with_direct_and_indirect_null_base_encoding_selects_builtin_identity()
+-> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let indirect_null = pdf.add_object(Object::Null);
+    let no_enc_font = base_font(&mut pdf);
+
+    let direct_null_base_enc_font = base_font(&mut pdf);
+    pdf.objects
+        .get_mut(&direct_null_base_enc_font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set(
+            "Encoding",
+            dictionary! {
+                "Type" => "Encoding",
+                "BaseEncoding" => Object::Null,
+            },
+        );
+
+    let indirect_null_base_enc_font = base_font(&mut pdf);
+    pdf.objects
+        .get_mut(&indirect_null_base_enc_font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary")
+        .set(
+            "Encoding",
+            dictionary! {
+                "Type" => "Encoding",
+                "BaseEncoding" => indirect_null,
+            },
+        );
+
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'/', b'F', b'2', b' ', b'1',
+            b'0', b' ', b'T', b'f', b' ', b'1', b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'4',
+            b'0', b' ', b'3', b'0', b' ', b'T', b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j',
+            b' ', b'/', b'F', b'3', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1', b' ', b'0',
+            b' ', b'0', b' ', b'1', b' ', b'6', b'0', b' ', b'3', b'0', b' ', b'T', b'm', b' ',
+            b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! {
+                "F1" => no_enc_font,
+                "F2" => direct_null_base_enc_font,
+                "F3" => indirect_null_base_enc_font,
+            },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 3);
+
+    let (
+        DecodedText::Unmapped {
+            font_hash: hash1,
+            glyph_id: id1,
+        },
+        DecodedText::Unmapped {
+            font_hash: hash2,
+            glyph_id: id2,
+        },
+        DecodedText::Unmapped {
+            font_hash: hash3,
+            glyph_id: id3,
+        },
+    ) = (&glyphs[0].text, &glyphs[1].text, &glyphs[2].text)
+    else {
+        panic!("all glyphs should be unmapped with canonical Standard 14 identity");
+    };
+
+    assert_eq!(*id1, 129);
+    assert_eq!(*id2, 129);
+    assert_eq!(*id3, 129);
+    assert_eq!(hash1, hash2);
+    assert_eq!(hash1, hash3);
+    assert_eq!(hash1.0.len(), 32);
+    Ok(())
+}

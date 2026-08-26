@@ -72,6 +72,7 @@ struct LoadedEncoding {
     differences: BTreeMap<u8, DifferenceMapping>,
     identity_ambiguous: bool,
     standard14_identity_encoding: Option<&'static [u8]>,
+    explicit_encoding: bool,
 }
 
 struct Type3Metadata {
@@ -136,7 +137,7 @@ impl SimpleFontDecoder {
         let base14 = if matches!(subtype, SimpleSubtype::Type3) {
             None
         } else {
-            load_base14(&dictionary)?
+            load_base14(pdf, &dictionary, limits.max_indirections)?
         };
         let (first_char, mut widths) = load_widths(pdf, &dictionary, limits)?;
         let type3 = if matches!(subtype, SimpleSubtype::Type3) {
@@ -223,15 +224,24 @@ impl SimpleFontDecoder {
                 (None, None)
             }
         } else {
-            let source = if let (Some(base14), Some(identity_encoding)) = (
+            let standard14_source = if let (Some(base14), Some(identity_encoding)) = (
                 base14.filter(|_| !matches!(subtype, SimpleSubtype::MMType1)),
                 encoding.standard14_identity_encoding,
             ) {
-                Some(FontIdentitySource::standard14(
-                    base14.identity_name(),
-                    identity_encoding,
-                ))
-            } else if dictionary.contains_key(b"Encoding".as_slice()) {
+                if has_embedded_font_program(pdf, &dictionary, limits.max_indirections)? {
+                    None
+                } else {
+                    Some(FontIdentitySource::standard14(
+                        base14.identity_name(),
+                        identity_encoding,
+                    ))
+                }
+            } else {
+                None
+            };
+            let source = if let Some(source) = standard14_source {
+                Some(source)
+            } else if encoding.explicit_encoding {
                 // Derived from SPEC §6.4: simple fonts with an explicit /Encoding dictionary or named encoding
                 // map raw byte codes to glyph selectors through that encoding, not directly to glyph IDs
                 // in the embedded font program. Unless the code-to-glyph mapping is independently verified,
@@ -540,12 +550,19 @@ fn encoded_scalar_width(
         .map(|code| f64::from(widths[code]))
 }
 
-fn load_base14(dictionary: &PdfDict) -> Result<Option<Base14>> {
+fn load_base14(
+    pdf: &dyn ParsedPdf,
+    dictionary: &PdfDict,
+    max_indirections: usize,
+) -> Result<Option<Base14>> {
     let Some(base_font) = dictionary.get(b"BaseFont".as_slice()) else {
         return Ok(None);
     };
-    let PdfObject::Name(name) = base_font else {
-        return unresolved("BaseFont is not a name");
+    let base_font = resolve_object(pdf, base_font.clone(), max_indirections)?;
+    let name = match base_font {
+        PdfObject::Name(name) => name,
+        PdfObject::Null => return Ok(None),
+        _ => return unresolved("BaseFont is not a name"),
     };
     Ok(match name.as_slice() {
         b"Courier" => Some(Base14::Courier),
@@ -834,69 +851,121 @@ fn load_encoding(
     base14: Option<Base14>,
     allowed_difference_names: Option<&PdfDict>,
 ) -> Result<LoadedEncoding> {
-    let Some(encoding) = dictionary.get(b"Encoding".as_slice()) else {
-        let base = match base14 {
-            Some(Base14::Symbol) => FallbackEncoding::Symbol,
-            Some(Base14::ZapfDingbats) => FallbackEncoding::ZapfDingbats,
-            Some(_) => FallbackEncoding::Standard,
-            None => FallbackEncoding::Unknown,
-        };
+    let resolved_encoding = match dictionary.get(b"Encoding".as_slice()) {
+        Some(encoding) => match resolve_object(pdf, encoding.clone(), limits.max_indirections)? {
+            PdfObject::Null => None,
+            resolved => Some(resolved),
+        },
+        None => None,
+    };
+    let Some(encoding) = resolved_encoding else {
+        let base = built_in_encoding(base14);
         return Ok(LoadedEncoding {
             base,
             differences: BTreeMap::new(),
             identity_ambiguous: false,
-            standard14_identity_encoding: Some(base.identity_name()),
+            standard14_identity_encoding: if base14.is_some() {
+                Some(base.identity_name())
+            } else {
+                None
+            },
+            explicit_encoding: false,
         });
     };
-    match resolve_object(pdf, encoding.clone(), limits.max_indirections)? {
+    match encoding {
         PdfObject::Name(name) => {
             let base = encoding_name(&name)?;
             Ok(LoadedEncoding {
                 base,
                 differences: BTreeMap::new(),
                 identity_ambiguous: false,
-                standard14_identity_encoding: Some(base.identity_name()),
+                standard14_identity_encoding: if base14.is_some() {
+                    Some(base.identity_name())
+                } else {
+                    None
+                },
+                explicit_encoding: true,
             })
         }
         PdfObject::Dictionary(encoding) => {
             let base = match encoding.get(b"BaseEncoding".as_slice()) {
                 Some(base) => match resolve_object(pdf, base.clone(), limits.max_indirections)? {
                     PdfObject::Name(name) => encoding_name(&name)?,
+                    PdfObject::Null => built_in_encoding(base14),
                     _ => return unresolved("font BaseEncoding is not a name"),
                 },
                 None => built_in_encoding(base14),
             };
-            let (differences, identity_ambiguous) = match encoding.get(b"Differences".as_slice()) {
-                Some(differences) => {
-                    let differences =
-                        resolve_object(pdf, differences.clone(), limits.max_indirections)?;
-                    let PdfObject::Array(differences) = differences else {
-                        return unresolved("font Encoding Differences is not an array");
-                    };
-                    if differences.len() > MAX_ENCODING_DIFFERENCE_ELEMENTS {
-                        return Err(Error::LimitExceeded {
-                            resource: "simple-font Encoding Differences elements",
-                            limit: MAX_ENCODING_DIFFERENCE_ELEMENTS,
-                        });
+            let (differences, identity_ambiguous, differences_present) =
+                match encoding.get(b"Differences".as_slice()) {
+                    Some(differences) => {
+                        let differences =
+                            resolve_object(pdf, differences.clone(), limits.max_indirections)?;
+                        match differences {
+                            PdfObject::Array(differences) => {
+                                if differences.len() > MAX_ENCODING_DIFFERENCE_ELEMENTS {
+                                    return Err(Error::LimitExceeded {
+                                        resource: "simple-font Encoding Differences elements",
+                                        limit: MAX_ENCODING_DIFFERENCE_ELEMENTS,
+                                    });
+                                }
+                                let (diffs, ambiguous) = parse_differences(
+                                    pdf,
+                                    &differences,
+                                    limits.max_indirections,
+                                    allowed_difference_names,
+                                )?;
+                                (diffs, ambiguous, true)
+                            }
+                            PdfObject::Null => (BTreeMap::new(), false, false),
+                            _ => return unresolved("font Encoding Differences is not an array"),
+                        }
                     }
-                    parse_differences(
-                        pdf,
-                        &differences,
-                        limits.max_indirections,
-                        allowed_difference_names,
-                    )?
+                    None => (BTreeMap::new(), false, false),
+                };
+            let standard14_identity_encoding = if differences_present {
+                // Per SPEC §6.4: Differences dictionaries change code-selector meaning and
+                // must not be canonicalized into Standard 14 font identity.
+                None
+            } else if base14.is_some() {
+                match base {
+                    FallbackEncoding::Standard
+                    | FallbackEncoding::WinAnsi
+                    | FallbackEncoding::MacRoman
+                    | FallbackEncoding::Symbol
+                    | FallbackEncoding::ZapfDingbats => Some(base.identity_name()),
+                    FallbackEncoding::Unknown => None,
                 }
-                None => (BTreeMap::new(), false),
+            } else {
+                None
             };
             Ok(LoadedEncoding {
                 base,
                 differences,
                 identity_ambiguous,
-                standard14_identity_encoding: None,
+                standard14_identity_encoding,
+                explicit_encoding: true,
             })
         }
         _ => unresolved("font Encoding is not a name or dictionary"),
     }
+}
+
+fn has_embedded_font_program(
+    pdf: &dyn ParsedPdf,
+    dictionary: &PdfDict,
+    max_indirections: usize,
+) -> Result<bool> {
+    let Some(descriptor) = dictionary.get(b"FontDescriptor".as_slice()) else {
+        return Ok(false);
+    };
+    let descriptor = resolve_object(pdf, descriptor.clone(), max_indirections)?;
+    let PdfObject::Dictionary(descriptor) = descriptor else {
+        return Ok(false);
+    };
+    Ok(descriptor.contains_key(b"FontFile".as_slice())
+        || descriptor.contains_key(b"FontFile2".as_slice())
+        || descriptor.contains_key(b"FontFile3".as_slice()))
 }
 
 impl FallbackEncoding {
@@ -1026,15 +1095,20 @@ fn load_descriptor(
     max_indirections: usize,
     base14: Option<Base14>,
 ) -> Result<(Option<f64>, Option<f64>, f64)> {
-    let Some(descriptor) = dictionary.get(b"FontDescriptor".as_slice()) else {
-        return Ok(base14.map_or((None, None, 0.0), |font| {
+    let fallback_metrics = || {
+        base14.map_or((None, None, 0.0), |font| {
             let (ascent, descent) = font.vertical_metrics();
             (Some(ascent), Some(descent), 0.0)
-        }));
+        })
+    };
+    let Some(descriptor) = dictionary.get(b"FontDescriptor".as_slice()) else {
+        return Ok(fallback_metrics());
     };
     let descriptor = resolve_object(pdf, descriptor.clone(), max_indirections)?;
-    let PdfObject::Dictionary(descriptor) = descriptor else {
-        return unresolved("FontDescriptor is not a dictionary");
+    let descriptor = match descriptor {
+        PdfObject::Dictionary(descriptor) => descriptor,
+        PdfObject::Null => return Ok(fallback_metrics()),
+        _ => return unresolved("FontDescriptor is not a dictionary"),
     };
     let fallback = base14.map(Base14::vertical_metrics);
     let ascent = optional_number(&descriptor, b"Ascent")?.or_else(|| fallback.map(|value| value.0));
@@ -2738,5 +2812,111 @@ mod tests {
                     .ok_or_else(|| Error::Backend("missing mock stream".into()))?,
             })
         }
+    }
+
+    #[test]
+    fn load_base14_with_exceeded_indirections_returns_limit_exceeded() {
+        let pdf = MockPdf {
+            objects: HashMap::from([(object_ref(1), PdfObject::Name(b"Helvetica".to_vec()))]),
+            streams: HashMap::new(),
+        };
+        let dict = PdfDict::from([(b"BaseFont".to_vec(), PdfObject::Reference(object_ref(1)))]);
+        assert!(matches!(
+            load_base14(&pdf, &dict, 0),
+            Err(Error::LimitExceeded {
+                resource: "font object indirections",
+                limit: 0,
+            })
+        ));
+    }
+
+    #[test]
+    fn load_base14_with_cyclic_reference_returns_limit_exceeded() {
+        let pdf = MockPdf {
+            objects: HashMap::from([(object_ref(1), PdfObject::Reference(object_ref(1)))]),
+            streams: HashMap::new(),
+        };
+        let dict = PdfDict::from([(b"BaseFont".to_vec(), PdfObject::Reference(object_ref(1)))]);
+        assert!(matches!(
+            load_base14(&pdf, &dict, 4),
+            Err(Error::LimitExceeded {
+                resource: "font object indirections",
+                limit: 4,
+            })
+        ));
+    }
+
+    #[test]
+    fn load_base14_with_wrong_type_returns_unresolved() {
+        let pdf = MockPdf::default();
+        let dict = PdfDict::from([(b"BaseFont".to_vec(), PdfObject::Integer(42))]);
+        assert!(matches!(
+            load_base14(&pdf, &dict, 32),
+            Err(Error::Unresolved(desc)) if desc.contains("BaseFont is not a name")
+        ));
+    }
+
+    #[test]
+    fn load_encoding_with_cyclic_reference_returns_limit_exceeded() {
+        let pdf = MockPdf {
+            objects: HashMap::from([(object_ref(1), PdfObject::Reference(object_ref(1)))]),
+            streams: HashMap::new(),
+        };
+        let dict = PdfDict::from([(b"Encoding".to_vec(), PdfObject::Reference(object_ref(1)))]);
+        assert!(matches!(
+            load_encoding(
+                &pdf,
+                &dict,
+                FontDecoderLimits {
+                    max_indirections: 4,
+                    ..LIMITS
+                },
+                None,
+                None
+            ),
+            Err(Error::LimitExceeded {
+                resource: "font object indirections",
+                limit: 4,
+            })
+        ));
+    }
+
+    #[test]
+    fn load_encoding_with_wrong_type_returns_unresolved() {
+        let pdf = MockPdf::default();
+        let dict = PdfDict::from([(b"Encoding".to_vec(), PdfObject::Integer(42))]);
+        assert!(matches!(
+            load_encoding(&pdf, &dict, LIMITS, None, None),
+            Err(Error::Unresolved(desc)) if desc.contains("font Encoding is not a name or dictionary")
+        ));
+    }
+
+    #[test]
+    fn load_encoding_with_wrong_base_encoding_type_returns_unresolved() {
+        let pdf = MockPdf::default();
+        let dict = PdfDict::from([(
+            b"Encoding".to_vec(),
+            PdfObject::Dictionary(PdfDict::from([(
+                b"BaseEncoding".to_vec(),
+                PdfObject::Integer(42),
+            )])),
+        )]);
+        assert!(matches!(
+            load_encoding(&pdf, &dict, LIMITS, None, None),
+            Err(Error::Unresolved(desc)) if desc.contains("font BaseEncoding is not a name")
+        ));
+    }
+
+    #[test]
+    fn load_encoding_with_unknown_named_encoding_returns_unsupported() {
+        let pdf = MockPdf::default();
+        let dict = PdfDict::from([(
+            b"Encoding".to_vec(),
+            PdfObject::Name(b"CustomUnknownEncoding".to_vec()),
+        )]);
+        assert!(matches!(
+            load_encoding(&pdf, &dict, LIMITS, None, None),
+            Err(Error::Unsupported(desc)) if desc.contains("simple-font encoding /CustomUnknownEncoding is not supported")
+        ));
     }
 }
