@@ -31,6 +31,17 @@ struct ValidatedObjectStream {
     decoded_bytes: usize,
 }
 
+/// A [`PdfParser`] backed by `lopdf`.
+///
+/// Parsing is serialized process-wide. The backend's load filter is a bare
+/// function pointer without per-call state, so this parser installs the active
+/// object budget globally and holds a global lock for the entire load. The
+/// parser remains `Send + Sync`, but concurrent parse calls do not load PDFs in
+/// parallel.
+///
+/// Object-stream-heavy inputs also pay for two decompression passes: this
+/// parser first decodes each object stream to validate and charge its index,
+/// then the backend decodes it again while materializing objects.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LopdfParser;
 
