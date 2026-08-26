@@ -167,16 +167,13 @@ pub fn reconstruct_blocks(
     }
 
     let mut stats_by_line_id = HashMap::with_capacity(stats.len());
-    for s in stats {
-        stats_by_line_id.insert(s.line.id, s);
+    for line_stats in stats {
+        stats_by_line_id.insert(line_stats.line.id, line_stats);
     }
 
-    let mut page_lines_map = std::collections::BTreeMap::<u32, Vec<Line>>::new();
+    let mut page_lines_map = BTreeMap::<u32, Vec<&Line>>::new();
     for line in lines {
-        page_lines_map
-            .entry(line.page.0)
-            .or_default()
-            .push(line.clone());
+        page_lines_map.entry(line.page.0).or_default().push(line);
     }
 
     let mut ordered_stats = Vec::with_capacity(lines.len());
@@ -187,13 +184,10 @@ pub fn reconstruct_blocks(
             super::region::RegionOptions::default(),
         )?;
         for region in regions {
-            for line_id in region.line_ids {
-                if let Some(s) = stats_by_line_id.remove(&line_id) {
-                    ordered_stats.push(s);
-                }
-            }
+            append_region_order(&mut stats_by_line_id, &mut ordered_stats, region.line_ids)?;
         }
     }
+    validate_region_order(&stats_by_line_id, &ordered_stats, lines.len())?;
     let stats = ordered_stats;
 
     let pages = page_groups(&stats);
@@ -239,6 +233,38 @@ pub fn reconstruct_blocks(
             role: block.role,
         })
         .collect())
+}
+
+fn append_region_order<T>(
+    values_by_line_id: &mut HashMap<LineId, T>,
+    ordered_values: &mut Vec<T>,
+    line_ids: impl IntoIterator<Item = LineId>,
+) -> Result<()> {
+    for line_id in line_ids {
+        let value = values_by_line_id.remove(&line_id).ok_or_else(|| {
+            Error::Unresolved(format!(
+                "region partition returned duplicate or unknown line id {}",
+                line_id.0
+            ))
+        })?;
+        ordered_values.push(value);
+    }
+    Ok(())
+}
+
+fn validate_region_order<T>(
+    values_by_line_id: &HashMap<LineId, T>,
+    ordered_values: &[T],
+    expected_count: usize,
+) -> Result<()> {
+    if !values_by_line_id.is_empty() || ordered_values.len() != expected_count {
+        return Err(Error::Unresolved(format!(
+            "region partition preserved {} of {expected_count} lines; {} line ids remain unassigned",
+            ordered_values.len(),
+            values_by_line_id.len()
+        )));
+    }
+    Ok(())
 }
 
 struct PendingBlock {
@@ -1035,6 +1061,31 @@ mod tests {
     use super::*;
     use crate::model::FontProgramHash;
     use std::cmp::Ordering;
+
+    #[test]
+    fn region_ordering_rejects_missing_and_duplicate_line_ids() {
+        let mut missing_values = HashMap::from([(LineId(1), "first"), (LineId(2), "second")]);
+        let mut missing_order = Vec::new();
+        append_region_order(&mut missing_values, &mut missing_order, [LineId(1)])
+            .expect("the first region id should be accepted");
+        let missing = validate_region_order(&missing_values, &missing_order, 2)
+            .expect_err("an omitted line id must be rejected");
+        assert!(
+            matches!(missing, Error::Unresolved(message) if message.contains("remain unassigned"))
+        );
+
+        let mut duplicate_values = HashMap::from([(LineId(1), "first"), (LineId(2), "second")]);
+        let mut duplicate_order = Vec::new();
+        let duplicate = append_region_order(
+            &mut duplicate_values,
+            &mut duplicate_order,
+            [LineId(1), LineId(1)],
+        )
+        .expect_err("a duplicate line id must be rejected");
+        assert!(
+            matches!(duplicate, Error::Unresolved(message) if message.contains("duplicate or unknown"))
+        );
+    }
 
     #[test]
     fn signature_token_and_decoded_text_ordering_satisfies_total_order_laws() {

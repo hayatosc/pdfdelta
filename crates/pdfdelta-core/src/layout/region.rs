@@ -71,13 +71,14 @@ pub fn partition_regions(
     options: RegionOptions,
 ) -> Result<RegionGraph> {
     let mut edges = Vec::new();
-    let regions = partition_regions_inner(page, lines, options, Some(&mut edges))?;
+    let line_refs: Vec<_> = lines.iter().collect();
+    let regions = partition_regions_inner(page, &line_refs, options, Some(&mut edges))?;
     Ok(RegionGraph { regions, edges })
 }
 
 pub(super) fn partition_regions_without_edges(
     page: PageId,
-    lines: &[Line],
+    lines: &[&Line],
     options: RegionOptions,
 ) -> Result<Vec<Region>> {
     partition_regions_inner(page, lines, options, None)
@@ -85,7 +86,7 @@ pub(super) fn partition_regions_without_edges(
 
 fn partition_regions_inner(
     page: PageId,
-    lines: &[Line],
+    lines: &[&Line],
     options: RegionOptions,
     edges: Option<&mut Vec<(RegionId, RegionId, RegionRelation)>>,
 ) -> Result<Vec<Region>> {
@@ -113,7 +114,7 @@ fn partition_regions_inner(
 
 fn xy_cut_recursive(
     page: PageId,
-    lines: &[Line],
+    lines: &[&Line],
     indices: &[usize],
     options: RegionOptions,
     next_id: &mut u64,
@@ -248,7 +249,7 @@ fn xy_cut_recursive(
 }
 
 fn try_vertical_cut(
-    lines: &[Line],
+    lines: &[&Line],
     indices: &[usize],
     options: RegionOptions,
 ) -> Option<(Vec<usize>, Vec<usize>)> {
@@ -305,7 +306,7 @@ fn try_vertical_cut(
 }
 
 fn try_horizontal_cut(
-    lines: &[Line],
+    lines: &[&Line],
     indices: &[usize],
     options: RegionOptions,
 ) -> Option<(Vec<usize>, Vec<usize>)> {
@@ -362,7 +363,7 @@ fn try_horizontal_cut(
     None
 }
 
-fn compute_median_height(lines: &[Line], indices: &[usize]) -> Option<f64> {
+fn compute_median_height(lines: &[&Line], indices: &[usize]) -> Option<f64> {
     let mut heights: Vec<f64> = indices
         .iter()
         .map(|&i| (lines[i].bbox.max.y - lines[i].bbox.min.y).abs())
@@ -375,7 +376,7 @@ fn compute_median_height(lines: &[Line], indices: &[usize]) -> Option<f64> {
     Some(heights[heights.len() / 2])
 }
 
-fn compute_bounding_box(lines: &[Line], indices: &[usize]) -> Rect {
+fn compute_bounding_box(lines: &[&Line], indices: &[usize]) -> Rect {
     let mut min_x = f64::INFINITY;
     let mut min_y = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
