@@ -4,6 +4,7 @@ use std::{
 };
 
 use clap::{Parser, Subcommand};
+use pdfdelta_core::pipeline::validate_limit_scale as validate_pipeline_limit_scale;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -56,6 +57,20 @@ pub struct Cli {
         global = true
     )]
     pub color: ColorChoice,
+
+    /// Scale comparison pipeline resource limits by a factor of at least 1.
+    ///
+    /// This scales n-gram token elements, alignment candidate visits and DP
+    /// cells, and diff token and edit-distance limits. Parser and extraction
+    /// limits are unchanged.
+    #[arg(
+        long,
+        value_name = "FACTOR",
+        default_value_t = 1.0,
+        value_parser = parse_limit_scale,
+        requires = "new"
+    )]
+    pub limit_scale: f64,
 
     /// Read the old PDF password from a file.
     #[arg(long, value_name = "PATH", requires = "new")]
@@ -156,6 +171,7 @@ pub struct CompareCommand<'a> {
     pub new_password_file: Option<&'a Path>,
     pub old_font_identities: &'a [String],
     pub new_font_identities: &'a [String],
+    pub limit_scale: f64,
     pub options: ComparisonOptions<'a>,
 }
 
@@ -164,6 +180,13 @@ pub struct ComparisonInput<'a> {
     pub path: &'a Path,
     pub password_file: Option<&'a Path>,
     pub font_identities: &'a [String],
+}
+
+fn parse_limit_scale(value: &str) -> Result<f64, String> {
+    let scale = value
+        .parse::<f64>()
+        .map_err(|error| format!("invalid limit scale {value:?}: {error}"))?;
+    validate_pipeline_limit_scale(scale).map_err(|error| error.to_string())
 }
 
 #[cfg(test)]
@@ -219,6 +242,18 @@ mod tests {
         assert_eq!(
             cli_short.json.as_deref(),
             Some(std::path::Path::new("diff.json"))
+        );
+    }
+
+    #[test]
+    fn parses_valid_limit_scale_and_rejects_lower_values() {
+        let cli = Cli::try_parse_from(["pdfdelta", "old.pdf", "new.pdf", "--limit-scale", "16"])
+            .expect("a scale above one should parse");
+
+        assert_eq!(cli.limit_scale, 16.0);
+        assert!(
+            Cli::try_parse_from(["pdfdelta", "old.pdf", "new.pdf", "--limit-scale", "0.5"])
+                .is_err()
         );
     }
 

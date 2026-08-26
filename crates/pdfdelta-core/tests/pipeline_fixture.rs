@@ -870,6 +870,37 @@ fn defaults_cover_measured_unicode_standard_budgets() {
 }
 
 #[test]
+fn limit_scale_changes_only_comparison_resource_budgets() {
+    let baseline = PipelineOptions::default();
+    let scaled = baseline
+        .scaled_limits(4.0)
+        .expect("a finite scale above one should be valid");
+    let expected = PipelineOptions {
+        max_ngram_token_elements: baseline.max_ngram_token_elements * 4,
+        alignment: AlignmentOptions {
+            max_candidate_visits: baseline.alignment.max_candidate_visits * 4,
+            max_dp_cells: baseline.alignment.max_dp_cells * 4,
+            ..baseline.alignment
+        },
+        diff: DiffOptions {
+            max_tokens: baseline.diff.max_tokens * 4,
+            max_edit_distance: baseline.diff.max_edit_distance * 4,
+            ..baseline.diff
+        },
+        ..baseline
+    };
+
+    assert_eq!(scaled, expected);
+    assert_eq!(baseline.scaled_limits(1.0), Ok(baseline));
+    for invalid in [0.999, f64::NAN, f64::INFINITY] {
+        assert!(matches!(
+            baseline.scaled_limits(invalid),
+            Err(Error::InvalidConfiguration(message)) if message.contains("limit scale")
+        ));
+    }
+}
+
+#[test]
 fn validates_ngram_pipeline_configuration_in_feature_order() {
     let empty = Document::new(Vec::new());
     let invalid_size = PipelineOptions {

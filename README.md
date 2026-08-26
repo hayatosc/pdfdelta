@@ -165,6 +165,9 @@ pdfdelta -q -s old.pdf new.pdf
 # Color control
 pdfdelta old.pdf new.pdf --color always
 
+# Raise comparison budgets for large documents without changing parser or extraction limits
+pdfdelta old.pdf new.pdf --limit-scale 16
+
 # Password-protected PDFs and custom font identity assertions
 pdfdelta old.pdf new.pdf --old-password-file old.secret --new-password-file new.secret
 pdfdelta old.pdf new.pdf --old-font-identity TraditionalArabic=windows-v1 --new-font-identity TraditionalArabic=windows-v1
@@ -179,6 +182,8 @@ pdfdelta completions bash > ~/.local/share/bash-completion/completions/pdfdelta
 ```
 
 Text reports are written to standard output as contextual unified-diff hunks: a one-line summary, `---` / `+++` file headers, and `@@ page N … @@` hunks with `-` / `+` markers, bounded surrounding context, one-based page numbers, explicit unresolved regions, and presentation-only grouping of nearby exact changes. `--color auto|always|never` controls ANSI color (`auto`, the default, colorizes only when stdout is a terminal; color supplements the markers and is never required to read the output). Standard input can be supplied as `-` for either PDF input. `-o, --output PATH` publishes the human-readable text report atomically to a new file instead of standard output. `-q, --quiet` suppresses standard-output reports for exit-code-only CI workflows. The typed JSON report is unchanged by presentation options: `-j, --json PATH` writes a version 5 JSON report to a new path and refuses to replace an existing file. Exit code `0` means no content changes, `1` means content changes were found, `2` means the comparison could not run, and `3` means `--strict` rejected an incomplete comparison.
+
+`--limit-scale FACTOR` uniformly raises the comparison pipeline budgets for n-gram token elements, alignment candidate visits, alignment DP cells, diff tokens, and diff edit distance. The factor must be finite and at least `1`; parser and extraction limits remain unchanged.
 
 `--trace-json PATH` writes a separate version 1 diagnostic trace without changing the normal report. The trace records input reading, PDF parsing, glyph extraction, layout reconstruction, normalization, alignment, exact diff, and report phases with bounded metrics. It also identifies incomplete or failed phases, records typed resource-limit errors, and marks phases that were skipped after an earlier stop. Trace files use the same atomic, no-overwrite publication policy as JSON reports.
 

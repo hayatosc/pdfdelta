@@ -43,6 +43,9 @@ pub fn compare_documents<W: Write>(
     if old_path == Path::new("-") && new_path == Path::new("-") {
         return Err("cannot read both OLD_PDF and NEW_PDF from standard input".to_owned());
     }
+    let pipeline_options = PipelineOptions::default()
+        .scaled_limits(command.limit_scale)
+        .map_err(|error| format!("cannot compare PDFs: {error}"))?;
 
     let old_input = ComparisonInput {
         path: old_path,
@@ -121,6 +124,7 @@ pub fn compare_documents<W: Write>(
     let comparison = compare_documents_traced(
         old_input,
         new_input,
+        pipeline_options,
         command.options,
         diagnostics,
         &mut trace,
@@ -152,6 +156,7 @@ pub fn compare_documents<W: Write>(
 pub fn compare_documents_traced<W: Write>(
     old_input: ComparisonInput<'_>,
     new_input: ComparisonInput<'_>,
+    pipeline_options: PipelineOptions,
     options: ComparisonOptions<'_>,
     diagnostics: &mut W,
     trace: &mut ExecutionTrace,
@@ -191,7 +196,7 @@ pub fn compare_documents_traced<W: Write>(
     let outcome_result = compare_extraction_outcomes_with_diagnostics(
         old,
         new,
-        PipelineOptions::default(),
+        pipeline_options,
         &mut pipeline_diagnostics,
     );
     trace.extend_pipeline(&pipeline_diagnostics);

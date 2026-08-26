@@ -27,6 +27,7 @@ use pdfdelta_core::{
     pipeline::{
         PipelineDiagnostics, PipelineOptions, PipelinePhase,
         compare_extraction_outcomes_with_diagnostics,
+        validate_limit_scale as validate_pipeline_limit_scale,
     },
     report::{self, DocumentSide, summarize},
     source::{
@@ -603,23 +604,8 @@ pub fn collapse_whitespace(value: &str) -> String {
 }
 
 pub fn validate_limit_scale(scale: f64) -> Result<f64> {
-    if !scale.is_finite() || scale < 1.0 {
-        return Err(BenchError::InvalidInput(format!(
-            "limit-scale must be a finite value >= 1.0 so documented defaults are never silently weakened, found {scale}"
-        )));
-    }
-    Ok(scale)
-}
-
-fn scaled_pipeline_options(scale: f64) -> PipelineOptions {
-    let mut options = PipelineOptions::default();
-    let bump = |value: usize| ((value as f64 * scale) as usize).max(value);
-    options.max_ngram_token_elements = bump(options.max_ngram_token_elements);
-    options.alignment.max_candidate_visits = bump(options.alignment.max_candidate_visits);
-    options.alignment.max_dp_cells = bump(options.alignment.max_dp_cells);
-    options.diff.max_tokens = bump(options.diff.max_tokens);
-    options.diff.max_edit_distance = bump(options.diff.max_edit_distance);
-    options
+    validate_pipeline_limit_scale(scale)
+        .map_err(|error| BenchError::InvalidInput(error.to_string()))
 }
 
 fn side_cache_path(cache_dir: &Path, pair_id: &str, side: &str) -> PathBuf {
@@ -1371,7 +1357,9 @@ fn run_extraction_and_comparison(
     };
     let old_outcome = extract(old_bytes);
     let new_outcome = extract(new_bytes);
-    let options = scaled_pipeline_options(limit_scale);
+    let options = PipelineOptions::default()
+        .scaled_limits(limit_scale)
+        .map_err(|error| RevisionRunError::Other("limit scaling failed", error.to_string()))?;
     compare_outcomes_with_metrics(old_outcome, new_outcome, options)
 }
 
@@ -2120,14 +2108,20 @@ mod tests {
     #[test]
     fn scaled_options_only_raise_budgets() {
         let baseline = PipelineOptions::default();
-        let scaled = scaled_pipeline_options(4.0);
+        let scaled = baseline
+            .scaled_limits(4.0)
+            .expect("a finite scale above one should be valid");
         assert!(scaled.max_ngram_token_elements >= baseline.max_ngram_token_elements);
         assert!(scaled.alignment.max_candidate_visits >= baseline.alignment.max_candidate_visits);
         assert!(scaled.alignment.max_dp_cells >= baseline.alignment.max_dp_cells);
         assert!(scaled.diff.max_tokens >= baseline.diff.max_tokens);
         assert!(scaled.diff.max_edit_distance >= baseline.diff.max_edit_distance);
         assert_eq!(
-            scaled_pipeline_options(1.0).alignment.max_candidate_visits,
+            baseline
+                .scaled_limits(1.0)
+                .expect("a scale of one should be valid")
+                .alignment
+                .max_candidate_visits,
             baseline.alignment.max_candidate_visits
         );
     }

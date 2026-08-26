@@ -63,6 +63,7 @@ fn main() -> ExitCode {
                 new_password_file: cli.new_password_file.as_deref(),
                 old_font_identities: &cli.old_font_identity,
                 new_font_identities: &cli.new_font_identity,
+                limit_scale: cli.limit_scale,
                 options: args::ComparisonOptions {
                     json_path: cli.json.as_deref(),
                     output_path: cli.output.as_deref(),

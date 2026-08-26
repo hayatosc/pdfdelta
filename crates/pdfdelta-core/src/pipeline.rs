@@ -45,6 +45,27 @@ impl Default for PipelineOptions {
 }
 
 impl PipelineOptions {
+    /// Returns these options with comparison resource limits scaled uniformly.
+    ///
+    /// Layout parameters and matching behavior are unchanged. Only n-gram
+    /// token elements, alignment candidate visits, alignment DP cells, diff
+    /// tokens, and diff edit distance are scaled.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidConfiguration`] when `scale` is non-finite or
+    /// less than one.
+    pub fn scaled_limits(mut self, scale: f64) -> Result<Self> {
+        let scale = validate_limit_scale(scale)?;
+        let scale_limit = |value: usize| ((value as f64 * scale) as usize).max(value);
+        self.max_ngram_token_elements = scale_limit(self.max_ngram_token_elements);
+        self.alignment.max_candidate_visits = scale_limit(self.alignment.max_candidate_visits);
+        self.alignment.max_dp_cells = scale_limit(self.alignment.max_dp_cells);
+        self.diff.max_tokens = scale_limit(self.diff.max_tokens);
+        self.diff.max_edit_distance = scale_limit(self.diff.max_edit_distance);
+        Ok(self)
+    }
+
     fn validate(self) -> Result<Self> {
         validate_line_options(self.line)?;
         validate_block_options(self.block)?;
@@ -54,6 +75,21 @@ impl PipelineOptions {
         validate_diff_options(self.diff)?;
         Ok(self)
     }
+}
+
+/// Validates a multiplier for comparison resource limits.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidConfiguration`] when `scale` is non-finite or
+/// less than one, which would weaken configured limits.
+pub fn validate_limit_scale(scale: f64) -> Result<f64> {
+    if !scale.is_finite() || scale < 1.0 {
+        return Err(Error::InvalidConfiguration(format!(
+            "limit scale must be a finite value >= 1.0 so configured defaults are never weakened, found {scale}"
+        )));
+    }
+    Ok(scale)
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -61,6 +61,29 @@ fn identical_documents_exit_zero() {
 }
 
 #[test]
+fn comparison_limit_scale_is_available_and_never_lowers_defaults() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(&old, &["A generic paragraph remains stable"]);
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let scaled = compare(&old, &new, &["--limit-scale", "2"]);
+    assert_eq!(scaled.status.code(), Some(0), "{}", stderr(&scaled));
+
+    let lowered = compare(&old, &new, &["--limit-scale", "0.5"]);
+    assert_eq!(lowered.status.code(), Some(2), "{}", stderr(&lowered));
+    assert!(stderr(&lowered).contains("finite value >= 1.0"));
+
+    let help = Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
+        .arg("--help")
+        .output()
+        .expect("pdfdelta help should run");
+    assert_eq!(help.status.code(), Some(0), "{}", stderr(&help));
+    assert!(stdout(&help).contains("--limit-scale <FACTOR>"));
+}
+
+#[test]
 fn inspect_without_flags_prints_backend_summary() {
     let directory = TestDirectory::new();
     let document = directory.join("document.pdf");
