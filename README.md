@@ -106,7 +106,7 @@ committed to this repository.
 benchmark/realworld/fetch.sh
 cargo run -p pdfdelta-bench -- revisions --cache-dir benchmark/realworld/cache --checksums-only
 
-# run comparisons and report metrics (add --json-output report.json for machines)
+# run comparisons and report metrics (add --summary-json-output summary.json for deterministic compact summaries or --json-output report.json for full reports)
 cargo run -p pdfdelta-bench -- revisions --cache-dir benchmark/realworld/cache
 ```
 
@@ -131,6 +131,11 @@ ended `LIMIT`/`FAIL`; low quality scores never fail a run because the dated
 captures serve as calibration evidence and current fragmentation and recall
 remain too unstable for rigid quality-gate thresholds (confidence calibration
 has landed, but broader large-document alignment quality remains ongoing work).
+`--json-output` and `--summary-json-output` are published independently and
+atomically (each serializing in memory and publishing via same-directory temporary
+files without overwriting existing destinations). If the second publication fails,
+exit code 2 is returned and the first published artifact remains in place without
+pairwise rollback across distinct paths.
 
 ## License
 

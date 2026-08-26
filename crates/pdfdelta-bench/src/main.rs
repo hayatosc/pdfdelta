@@ -10,7 +10,10 @@ use pdfdelta_bench::{
     cases::built_in_cases,
     evaluator::{EvaluationRecord, evaluate_case},
     renderers::RendererKind,
-    revisions::{PairSet, run_revision_benchmark, summarize_reports, write_reports_json},
+    revisions::{
+        PairSet, normalize_output_destination, run_revision_benchmark, summarize_reports,
+        write_reports_json, write_summary_json,
+    },
 };
 use pdfdelta_core::diff::ChangeKind;
 
@@ -67,6 +70,9 @@ enum Command {
         /// Write a machine-readable report of every pair to a new JSON file.
         #[arg(long)]
         json_output: Option<PathBuf>,
+        /// Write a compact machine-readable summary report of every pair to a new JSON file.
+        #[arg(long)]
+        summary_json_output: Option<PathBuf>,
     },
 }
 
@@ -88,6 +94,7 @@ fn main() -> ExitCode {
             limit_scale,
             checksums_only,
             json_output,
+            summary_json_output,
         }) => revisions(
             &mut stdout,
             &manifest,
@@ -97,6 +104,7 @@ fn main() -> ExitCode {
             limit_scale,
             checksums_only,
             json_output.as_deref(),
+            summary_json_output.as_deref(),
         ),
     };
     match result {
@@ -332,7 +340,18 @@ fn revisions<W: Write>(
     limit_scale: Option<f64>,
     checksums_only: bool,
     json_output: Option<&Path>,
+    summary_json_output: Option<&Path>,
 ) -> Result<u8, String> {
+    if let (Some(full_path), Some(summary_path)) = (json_output, summary_json_output) {
+        let norm_full = normalize_output_destination(full_path).map_err(|e| e.to_string())?;
+        let norm_summary = normalize_output_destination(summary_path).map_err(|e| e.to_string())?;
+        if norm_full == norm_summary {
+            return Err(format!(
+                "--json-output and --summary-json-output must specify distinct paths; got conflicting destination {}",
+                full_path.display()
+            ));
+        }
+    }
     let set_filter = match set {
         "all" => None,
         "dev" => Some(PairSet::Dev),
@@ -365,6 +384,10 @@ fn revisions<W: Write>(
 
     if let Some(path) = json_output {
         write_reports_json(path, &reports).map_err(|error| error.to_string())?;
+    }
+
+    if let Some(path) = summary_json_output {
+        write_summary_json(path, &reports).map_err(|error| error.to_string())?;
     }
 
     Ok(if reports.iter().any(|record| !record.healthy()) {
@@ -552,6 +575,7 @@ mod tests {
             unresolved_new_token_share: None,
             reported_content_changes: None,
             formatting_only_changes: None,
+            uncertain_changes: None,
             reported_changes_preview: Vec::new(),
             quality: None,
             quality_skipped_reason: None,
@@ -721,5 +745,84 @@ mod tests {
 
         let without_pressure = sample_pair_report();
         assert!(!revision_report_line(&without_pressure).contains("visit_pressure="));
+    }
+
+    #[test]
+    fn revisions_rejects_identical_and_aliased_json_and_summary_output_paths() {
+        let mut temp_dir = std::env::temp_dir();
+        let unique_id = format!(
+            "pdfbench-cli-norm-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default()
+        );
+        temp_dir.push(&unique_id);
+        std::fs::create_dir_all(temp_dir.join("sub")).expect("create test dir");
+
+        let mut writer = Vec::new();
+
+        // 1. Identical path
+        let path = temp_dir.join("sub").join("report.json");
+        let error = revisions(
+            &mut writer,
+            Path::new("manifest.tsv"),
+            Path::new("cache"),
+            "all",
+            None,
+            None,
+            true,
+            Some(&path),
+            Some(&path),
+        )
+        .expect_err("must reject identical paths");
+        assert!(
+            error.contains("--json-output and --summary-json-output must specify distinct paths")
+        );
+
+        // 2. Relative alias (sub/report.json vs sub/./report.json)
+        let path_alias = temp_dir.join("sub").join(".").join("report.json");
+        let error = revisions(
+            &mut writer,
+            Path::new("manifest.tsv"),
+            Path::new("cache"),
+            "all",
+            None,
+            None,
+            true,
+            Some(&path),
+            Some(&path_alias),
+        )
+        .expect_err("must reject aliased paths");
+        assert!(
+            error.contains("--json-output and --summary-json-output must specify distinct paths")
+        );
+
+        // 3. Symlink parent alias
+        #[cfg(unix)]
+        {
+            let symlink_sub = temp_dir.join("symlink_sub");
+            if std::os::unix::fs::symlink(temp_dir.join("sub"), &symlink_sub).is_ok() {
+                let path_symlink = symlink_sub.join("report.json");
+                let error = revisions(
+                    &mut writer,
+                    Path::new("manifest.tsv"),
+                    Path::new("cache"),
+                    "all",
+                    None,
+                    None,
+                    true,
+                    Some(&path),
+                    Some(&path_symlink),
+                )
+                .expect_err("must reject symlink parent aliased paths");
+                assert!(error.contains(
+                    "--json-output and --summary-json-output must specify distinct paths"
+                ));
+            }
+        }
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }

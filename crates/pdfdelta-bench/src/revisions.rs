@@ -11,7 +11,10 @@ use std::{
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Instant,
 };
 
@@ -38,6 +41,11 @@ use crate::{
     BenchError, Result,
     candidate_eval::{CandidateVisitPressure, evaluate_candidate_visit_pressure},
 };
+
+pub const QUALITY_SKIP_RESOURCE_LIMIT: &str = "comparison stopped at a resource limit";
+pub const QUALITY_SKIP_INCOMPLETE_EXTRACTION: &str =
+    "extraction was incomplete so reported diffs are suppressed";
+pub const QUALITY_SKIP_NO_ANNOTATIONS: &str = "no expected annotations are recorded for this pair";
 
 /// Column order of `benchmark/realworld/manifest.tsv`.
 pub const MANIFEST_HEADER: [&str; 17] = [
@@ -74,7 +82,7 @@ pub struct ActualChange {
     pub resolvable: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct QualityMetrics {
     pub annotation: Annotation,
     pub expected_changes: usize,
@@ -116,7 +124,7 @@ pub struct ReportedChangeText {
 /// documented resource budget before producing a diff; it is distinct from
 /// `Ok` and `Failed` so incomplete measurements never masquerade as healthy
 /// results.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PairRunStatus {
     Ok,
@@ -165,6 +173,13 @@ pub struct PairRunReport {
     pub unresolved_new_token_share: Option<f64>,
     pub reported_content_changes: Option<usize>,
     pub formatting_only_changes: Option<usize>,
+    /// Count of low-confidence changes identified during comparison.
+    /// Skipped in serde serialization (`#[serde(skip)]`) to preserve the
+    /// byte-for-byte schema and key set of full `--json-output` v1 reports,
+    /// while allowing compact summary JSON to expose this computed evidence
+    /// via `reported_uncertain_changes`.
+    #[serde(skip)]
+    pub uncertain_changes: Option<usize>,
     pub reported_changes_preview: Vec<ReportedChangeText>,
     pub quality: Option<QualityMetrics>,
     pub quality_skipped_reason: Option<String>,
@@ -935,6 +950,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         unresolved_new_token_share: None,
         reported_content_changes: None,
         formatting_only_changes: None,
+        uncertain_changes: None,
         reported_changes_preview: Vec::new(),
         quality: None,
         quality_skipped_reason: None,
@@ -987,8 +1003,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                 record.resource_limit_failure = Some(message);
                 metrics.apply_to(&mut record);
                 record.candidate_visit_pressure = pressure.map(|pressure| *pressure);
-                record.quality_skipped_reason =
-                    Some("comparison stopped at a resource limit".to_owned());
+                record.quality_skipped_reason = Some(QUALITY_SKIP_RESOURCE_LIMIT.to_owned());
                 return finish(record, started);
             }
             Err(RevisionRunError::Other(stage, message)) => {
@@ -1018,6 +1033,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     record.unresolved_new_token_share = new_share;
     record.reported_content_changes = Some(summary.content_changes);
     record.formatting_only_changes = Some(summary.formatting_only_changes);
+    record.uncertain_changes = Some(summary.uncertain_changes);
 
     match (pair.expected_extraction, extraction_complete) {
         (ExpectedExtraction::Complete, true) | (ExpectedExtraction::Incomplete, false) => {}
@@ -1099,13 +1115,11 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
             ));
         }
         (Some(_), false) => {
-            record.quality_skipped_reason =
-                Some("extraction was incomplete so reported diffs are suppressed".to_owned());
+            record.quality_skipped_reason = Some(QUALITY_SKIP_INCOMPLETE_EXTRACTION.to_owned());
         }
         (None, _) if pair.expected_file.is_some() => {}
         (None, _) => {
-            record.quality_skipped_reason =
-                Some("no expected annotations are recorded for this pair".to_owned());
+            record.quality_skipped_reason = Some(QUALITY_SKIP_NO_ANNOTATIONS.to_owned());
         }
     }
 
@@ -1414,23 +1428,244 @@ pub fn summarize_reports(reports: &[PairRunReport]) -> String {
     )
 }
 
-pub fn write_reports_json(path: &Path, reports: &[PairRunReport]) -> Result<()> {
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map_err(|error| {
-            BenchError::InvalidInput(format!(
-                "cannot create revision benchmark JSON output {}: {error}",
-                path.display()
+/// Resolves a path to its canonical parent directory and file name, rejecting
+/// missing parent directories and paths without a file name.
+pub fn normalize_output_destination(path: &Path) -> Result<PathBuf> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let parent = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
+    let canonical_parent = parent.canonicalize().map_err(|error| {
+        BenchError::InvalidInput(format!(
+            "destination directory does not exist or cannot be resolved {}: {error}",
+            parent.display()
+        ))
+    })?;
+    let file_name = path.file_name().ok_or_else(|| {
+        BenchError::InvalidInput(format!(
+            "destination path {} must have a file name",
+            path.display()
+        ))
+    })?;
+    Ok(canonical_parent.join(file_name))
+}
+
+static TEMP_PUBLISH_COUNTER: AtomicU64 = AtomicU64::new(0);
+pub(crate) const MAX_TEMP_CREATE_ATTEMPTS: usize = 64;
+
+fn create_temp_artifact_with_counter(
+    parent: &Path,
+    counter: &AtomicU64,
+) -> Result<(fs::File, PathBuf)> {
+    let pid = std::process::id();
+    for _ in 0..MAX_TEMP_CREATE_ATTEMPTS {
+        let seq = counter.fetch_add(1, Ordering::Relaxed);
+        let temp_path = parent.join(format!(".pdfbench-artifact-{pid}-{seq}"));
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp_path)
+        {
+            Ok(file) => return Ok((file, temp_path)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                continue;
+            }
+            Err(error) => {
+                return Err(BenchError::Publication(format!(
+                    "cannot create temporary artifact {}: {error}",
+                    temp_path.display()
+                )));
+            }
+        }
+    }
+    Err(BenchError::Publication(format!(
+        "exhausted {MAX_TEMP_CREATE_ATTEMPTS} attempts creating unique temporary artifact in {}",
+        parent.display()
+    )))
+}
+
+/// Atomically publishes `bytes` to a new file at `path`, refusing to overwrite
+/// any existing destination file, symlink, or directory. Cleans up temporary
+/// files on failure.
+pub fn publish_new_file(path: &Path, bytes: &[u8]) -> Result<()> {
+    publish_new_file_with_counter(path, bytes, &TEMP_PUBLISH_COUNTER)
+}
+
+pub(crate) fn publish_new_file_with_counter(
+    path: &Path,
+    bytes: &[u8],
+    counter: &AtomicU64,
+) -> Result<()> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let parent = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
+    if !parent.exists() {
+        return Err(BenchError::Publication(format!(
+            "destination directory does not exist: {}",
+            parent.display()
+        )));
+    }
+
+    if path.symlink_metadata().is_ok() {
+        return Err(BenchError::Publication(format!(
+            "destination path already exists: {}",
+            path.display()
+        )));
+    }
+
+    let (mut temp_file, temp_path) = create_temp_artifact_with_counter(parent, counter)?;
+
+    let write_result = (|| -> Result<()> {
+        temp_file.write_all(bytes).map_err(|error| {
+            BenchError::Publication(format!(
+                "cannot write temporary artifact {}: {error}",
+                temp_path.display()
             ))
         })?;
-    let bytes = serde_json::to_vec_pretty(reports).map_err(|error| {
-        BenchError::InvalidInput(format!("cannot serialize revision JSON report: {error}"))
-    })?;
-    file.write_all(&bytes).map_err(|error| {
-        BenchError::InvalidInput(format!("cannot write revision JSON report: {error}"))
+        temp_file.flush().map_err(|error| {
+            BenchError::Publication(format!(
+                "cannot flush temporary artifact {}: {error}",
+                temp_path.display()
+            ))
+        })?;
+        temp_file.sync_all().map_err(|error| {
+            BenchError::Publication(format!(
+                "cannot sync temporary artifact {}: {error}",
+                temp_path.display()
+            ))
+        })?;
+        Ok(())
+    })();
+
+    if let Err(error) = write_result {
+        let _ = fs::remove_file(&temp_path);
+        return Err(error);
+    }
+
+    let link_result = fs::hard_link(&temp_path, path);
+    let _ = fs::remove_file(&temp_path);
+
+    link_result.map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            BenchError::Publication(format!(
+                "destination path already exists: {}",
+                path.display()
+            ))
+        } else {
+            BenchError::Publication(format!(
+                "cannot publish artifact to {}: {error}",
+                path.display()
+            ))
+        }
     })
+}
+
+/// Writes every record as a pretty-printed JSON array to a new file, refusing to
+/// overwrite an existing destination path via atomic publication.
+pub fn write_reports_json(path: &Path, reports: &[PairRunReport]) -> Result<()> {
+    let bytes = serde_json::to_vec_pretty(reports).map_err(|error| {
+        BenchError::Publication(format!("cannot serialize revision JSON report: {error}"))
+    })?;
+    publish_new_file(path, &bytes)
+}
+
+/// Compact machine-readable revision summary document.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct RevisionSummaryReport {
+    pub schema_version: u32,
+    pub records: Vec<RevisionSummaryRecord>,
+}
+
+impl RevisionSummaryReport {
+    pub const SCHEMA_VERSION: u32 = 1;
+
+    pub fn from_reports(reports: &[PairRunReport]) -> Self {
+        Self {
+            schema_version: Self::SCHEMA_VERSION,
+            records: reports
+                .iter()
+                .map(RevisionSummaryRecord::from_pair_report)
+                .collect(),
+        }
+    }
+}
+
+/// A compact, stable machine-readable record for one revision pair evaluation.
+/// Contains all evidence fields needed to reproduce benchmark claims without
+/// runtime measurements, raw text previews, or host-specific paths. Detailed
+/// error diagnostics remain available in the full report.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct RevisionSummaryRecord {
+    pub pair_id: String,
+    pub set: String,
+    pub role: String,
+    pub in_scope: bool,
+    pub status: PairRunStatus,
+    pub provenance_verified: bool,
+    pub compared: bool,
+    pub extraction_complete: Option<bool>,
+    pub comparison_complete: Option<bool>,
+    pub limit_scale_used: f64,
+    pub resource_limit_failure: Option<String>,
+    pub coverage_old: Option<f64>,
+    pub coverage_new: Option<f64>,
+    pub coverage_comparison: Option<f64>,
+    pub unresolved_regions: Option<usize>,
+    pub unresolved_old_token_share: Option<f64>,
+    pub unresolved_new_token_share: Option<f64>,
+    pub reported_content_changes: Option<usize>,
+    pub reported_formatting_changes: Option<usize>,
+    pub reported_uncertain_changes: Option<usize>,
+    pub quality: Option<QualityMetrics>,
+    pub quality_skipped_reason: Option<String>,
+}
+
+impl RevisionSummaryRecord {
+    pub fn from_pair_report(report: &PairRunReport) -> Self {
+        Self {
+            pair_id: report.pair_id.clone(),
+            set: report.set.to_owned(),
+            role: report.role.to_owned(),
+            in_scope: report.in_scope,
+            status: report.status,
+            provenance_verified: report.provenance_verified,
+            compared: report.compared,
+            extraction_complete: report.extraction_complete,
+            comparison_complete: report.comparison_complete,
+            limit_scale_used: report.limit_scale_used,
+            resource_limit_failure: report.resource_limit_failure.clone(),
+            coverage_old: report.coverage_old,
+            coverage_new: report.coverage_new,
+            coverage_comparison: report.coverage_comparison,
+            unresolved_regions: report.unresolved_regions,
+            unresolved_old_token_share: report.unresolved_old_token_share,
+            unresolved_new_token_share: report.unresolved_new_token_share,
+            reported_content_changes: report.reported_content_changes,
+            reported_formatting_changes: report.formatting_only_changes,
+            reported_uncertain_changes: report.uncertain_changes,
+            quality: report.quality,
+            quality_skipped_reason: report.quality_skipped_reason.clone(),
+        }
+    }
+}
+
+/// Writes a compact summary of every record as pretty-printed JSON with a trailing
+/// newline to a new file, refusing to overwrite an existing destination path via
+/// atomic publication.
+pub fn write_summary_json(path: &Path, reports: &[PairRunReport]) -> Result<()> {
+    let summary = RevisionSummaryReport::from_reports(reports);
+    let mut bytes = serde_json::to_vec_pretty(&summary).map_err(|error| {
+        BenchError::Publication(format!(
+            "cannot serialize revision summary JSON report: {error}"
+        ))
+    })?;
+    bytes.push(b'\n');
+    publish_new_file(path, &bytes)
 }
 
 #[cfg(test)]
@@ -1784,6 +2019,7 @@ mod tests {
             unresolved_new_token_share: None,
             reported_content_changes: None,
             formatting_only_changes: None,
+            uncertain_changes: None,
             reported_changes_preview: Vec::new(),
             quality: None,
             quality_skipped_reason: None,
@@ -2267,6 +2503,540 @@ mod tests {
                 assert!(message.contains("without a pressure attempt"));
             }
             other => panic!("expected Other, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn publish_new_file_refuses_to_overwrite_existing_file_and_handles_temp_collisions_deterministically()
+     {
+        let mut base_path = std::env::temp_dir();
+        let unique_id = format!(
+            "pdfbench-publish-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default()
+        );
+        base_path.push(&unique_id);
+        fs::create_dir_all(&base_path).expect("create test dir");
+
+        let dest = base_path.join("output.json");
+        let bytes = b"hello\n";
+
+        // Pre-create the exact first candidate temp file for a local counter
+        let local_counter = AtomicU64::new(42);
+        let pid = std::process::id();
+        let collision_temp = base_path.join(format!(".pdfbench-artifact-{pid}-42"));
+        fs::write(&collision_temp, b"pre-existing foreign temp file")
+            .expect("write collision temp");
+
+        // Success on new file despite exact pre-existing temp file
+        publish_new_file_with_counter(&dest, bytes, &local_counter).expect("publish succeeds");
+        assert_eq!(fs::read(&dest).expect("read dest"), bytes);
+
+        // Pre-existing collision temp file was not modified or deleted
+        assert_eq!(
+            fs::read(&collision_temp).expect("read collision temp"),
+            b"pre-existing foreign temp file"
+        );
+        let _ = fs::remove_file(&collision_temp);
+
+        // Owned temp file (.pdfbench-artifact-{pid}-43) was cleaned up after publish
+        let entries = fs::read_dir(&base_path)
+            .expect("read dir")
+            .filter_map(std::result::Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(entries, vec!["output.json"]);
+
+        // Refuses to overwrite existing file
+        let error = publish_new_file(&dest, b"overwrite\n").expect_err("must refuse overwrite");
+        assert!(
+            error
+                .to_string()
+                .contains("destination path already exists")
+        );
+        assert_eq!(fs::read(&dest).expect("dest unchanged"), bytes);
+
+        // Refuses non-existent parent directory
+        let invalid_parent = base_path.join("nonexistent").join("output.json");
+        let error = publish_new_file(&invalid_parent, bytes).expect_err("must fail missing dir");
+        assert!(
+            error
+                .to_string()
+                .contains("destination directory does not exist")
+        );
+
+        let _ = fs::remove_dir_all(&base_path);
+    }
+
+    #[test]
+    fn publish_new_file_handles_long_destination_names_without_name_max_overflow() {
+        let mut base_path = std::env::temp_dir();
+        let unique_id = format!(
+            "pdfbench-long-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default()
+        );
+        base_path.push(&unique_id);
+        fs::create_dir_all(&base_path).expect("create test dir");
+
+        // Long destination name (240 chars)
+        let long_name = format!("{}.json", "a".repeat(235));
+        let dest = base_path.join(long_name);
+        let bytes = b"long destination test bytes\n";
+
+        publish_new_file(&dest, bytes).expect("publish with long name succeeds");
+        assert_eq!(fs::read(&dest).expect("read long dest"), bytes);
+
+        let _ = fs::remove_dir_all(&base_path);
+    }
+
+    #[test]
+    fn publish_new_file_exhaustion_reports_truthful_publication_error() {
+        let mut base_path = std::env::temp_dir();
+        let unique_id = format!(
+            "pdfbench-exhaust-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default()
+        );
+        base_path.push(&unique_id);
+        fs::create_dir_all(&base_path).expect("create test dir");
+
+        let pid = std::process::id();
+        let local_counter = AtomicU64::new(1000);
+
+        // Pre-create all 64 candidate temp files
+        for i in 0..MAX_TEMP_CREATE_ATTEMPTS {
+            let seq = 1000 + i as u64;
+            let path = base_path.join(format!(".pdfbench-artifact-{pid}-{seq}"));
+            fs::write(&path, b"existing").expect("write temp");
+        }
+
+        let dest = base_path.join("output.json");
+        let error = publish_new_file_with_counter(&dest, b"bytes", &local_counter)
+            .expect_err("must exhaust attempts");
+        assert!(error.to_string().contains("exhausted 64 attempts"));
+        assert!(!dest.exists(), "destination must not be created");
+
+        let _ = fs::remove_dir_all(&base_path);
+    }
+
+    #[test]
+    fn normalize_output_destination_resolves_aliases_and_rejects_missing_parents() {
+        let mut base_path = std::env::temp_dir();
+        let unique_id = format!(
+            "pdfbench-norm-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default()
+        );
+        base_path.push(&unique_id);
+        fs::create_dir_all(base_path.join("real_dir")).expect("create real dir");
+
+        let file_direct = base_path.join("real_dir").join("report.json");
+        let file_relative = base_path.join("real_dir").join(".").join("report.json");
+        let norm_direct = normalize_output_destination(&file_direct).expect("normalize direct");
+        let norm_relative =
+            normalize_output_destination(&file_relative).expect("normalize relative");
+        assert_eq!(norm_direct, norm_relative);
+
+        // Symlink parent alias if symlink creation succeeds
+        let symlink_dir = base_path.join("symlink_dir");
+        #[cfg(unix)]
+        if std::os::unix::fs::symlink(base_path.join("real_dir"), &symlink_dir).is_ok() {
+            let file_symlink = symlink_dir.join("report.json");
+            let norm_symlink =
+                normalize_output_destination(&file_symlink).expect("normalize symlink");
+            assert_eq!(norm_direct, norm_symlink);
+        }
+
+        // Missing parent directory is rejected
+        let missing = base_path.join("missing_parent").join("report.json");
+        let error = normalize_output_destination(&missing).expect_err("must reject missing parent");
+        assert!(
+            error
+                .to_string()
+                .contains("destination directory does not exist")
+        );
+
+        let _ = fs::remove_dir_all(&base_path);
+    }
+
+    #[test]
+    fn summary_json_exact_key_set_and_nested_schema_equality() {
+        let reports = vec![
+            PairRunReport {
+                pair_id: "ok-pair".to_owned(),
+                set: "dev",
+                role: "standard",
+                document_type: "single-column".to_owned(),
+                in_scope: true,
+                status: PairRunStatus::Ok,
+                provenance_verified: true,
+                compared: true,
+                extraction_complete: Some(true),
+                comparison_complete: Some(false),
+                extraction_issues: Vec::new(),
+                coverage_old: Some(0.5),
+                coverage_new: Some(0.6),
+                coverage_comparison: Some(0.5),
+                unresolved_regions: Some(0),
+                unresolved_old_token_share: Some(0.0),
+                unresolved_new_token_share: Some(0.0),
+                reported_content_changes: Some(3),
+                formatting_only_changes: Some(0),
+                uncertain_changes: Some(0),
+                reported_changes_preview: Vec::new(),
+                quality: Some(QualityMetrics {
+                    annotation: Annotation::Partial,
+                    expected_changes: 2,
+                    reported_changes: 3,
+                    recall: Some(1.0),
+                    precision: None,
+                    kind_accuracy: Some(1.0),
+                    reported_hunks_per_matched_change: Some(1.5),
+                    review_hunks_per_expected_change: None,
+                    unmatched_tiny_changes: 0,
+                    unresolvable_reported_spans: 0,
+                }),
+                quality_skipped_reason: None,
+                resource_limit_failure: None,
+                candidate_visits: None,
+                candidate_visits_required: None,
+                candidate_visits_required_exact: None,
+                candidate_visits_required_ngram: None,
+                candidate_visits_required_short_fallback: None,
+                max_candidate_visits: None,
+                candidate_visit_pressure: None,
+                runtime_ms: 50,
+                limit_scale_used: 1.0,
+                failure: None,
+            },
+            PairRunReport {
+                pair_id: "limit-pair".to_owned(),
+                set: "dev",
+                role: "standard",
+                document_type: "single-column".to_owned(),
+                in_scope: true,
+                status: PairRunStatus::Limit,
+                provenance_verified: true,
+                compared: true,
+                extraction_complete: Some(true),
+                comparison_complete: None,
+                extraction_issues: Vec::new(),
+                coverage_old: None,
+                coverage_new: None,
+                coverage_comparison: None,
+                unresolved_regions: None,
+                unresolved_old_token_share: None,
+                unresolved_new_token_share: None,
+                reported_content_changes: None,
+                formatting_only_changes: None,
+                uncertain_changes: None,
+                reported_changes_preview: Vec::new(),
+                quality: None,
+                quality_skipped_reason: Some(QUALITY_SKIP_RESOURCE_LIMIT.to_owned()),
+                resource_limit_failure: Some(
+                    "alignment candidate visit budget exceeded".to_owned(),
+                ),
+                candidate_visits: None,
+                candidate_visits_required: None,
+                candidate_visits_required_exact: None,
+                candidate_visits_required_ngram: None,
+                candidate_visits_required_short_fallback: None,
+                max_candidate_visits: None,
+                candidate_visit_pressure: None,
+                runtime_ms: 100,
+                limit_scale_used: 1.0,
+                failure: None,
+            },
+            PairRunReport {
+                pair_id: "fail-pair".to_owned(),
+                set: "holdout",
+                role: "standard",
+                document_type: "single-column".to_owned(),
+                in_scope: true,
+                status: PairRunStatus::Failed,
+                provenance_verified: true,
+                compared: true,
+                extraction_complete: Some(false),
+                comparison_complete: None,
+                extraction_issues: vec![IssueLine {
+                    side: "old",
+                    kind: "unsupported",
+                    scope: "document".to_owned(),
+                    description: "unsupported content stream operator".to_owned(),
+                }],
+                coverage_old: None,
+                coverage_new: None,
+                coverage_comparison: None,
+                unresolved_regions: None,
+                unresolved_old_token_share: None,
+                unresolved_new_token_share: None,
+                reported_content_changes: None,
+                formatting_only_changes: None,
+                uncertain_changes: None,
+                reported_changes_preview: Vec::new(),
+                quality: None,
+                quality_skipped_reason: Some(QUALITY_SKIP_INCOMPLETE_EXTRACTION.to_owned()),
+                resource_limit_failure: None,
+                candidate_visits: None,
+                candidate_visits_required: None,
+                candidate_visits_required_exact: None,
+                candidate_visits_required_ngram: None,
+                candidate_visits_required_short_fallback: None,
+                max_candidate_visits: None,
+                candidate_visit_pressure: None,
+                runtime_ms: 20,
+                limit_scale_used: 1.0,
+                failure: Some("/path/to/doc.pdf: extraction failed".to_owned()),
+            },
+        ];
+
+        let summary = RevisionSummaryReport::from_reports(&reports);
+        let value = serde_json::to_value(&summary).expect("serialize value");
+
+        // Top-level schema key-set equality
+        let top_keys = value
+            .as_object()
+            .expect("top object")
+            .keys()
+            .cloned()
+            .collect::<HashSet<_>>();
+        let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
+        assert_eq!(top_keys, expected_top_keys);
+
+        let records = value["records"].as_array().expect("records array");
+        assert_eq!(records.len(), 3);
+
+        // Record key-set equality
+        let expected_record_keys = HashSet::from([
+            "pair_id".to_owned(),
+            "set".to_owned(),
+            "role".to_owned(),
+            "in_scope".to_owned(),
+            "status".to_owned(),
+            "provenance_verified".to_owned(),
+            "compared".to_owned(),
+            "extraction_complete".to_owned(),
+            "comparison_complete".to_owned(),
+            "limit_scale_used".to_owned(),
+            "resource_limit_failure".to_owned(),
+            "coverage_old".to_owned(),
+            "coverage_new".to_owned(),
+            "coverage_comparison".to_owned(),
+            "unresolved_regions".to_owned(),
+            "unresolved_old_token_share".to_owned(),
+            "unresolved_new_token_share".to_owned(),
+            "reported_content_changes".to_owned(),
+            "reported_formatting_changes".to_owned(),
+            "reported_uncertain_changes".to_owned(),
+            "quality".to_owned(),
+            "quality_skipped_reason".to_owned(),
+        ]);
+
+        for rec in records {
+            let keys = rec
+                .as_object()
+                .expect("record object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>();
+            assert_eq!(keys, expected_record_keys);
+            assert!(!keys.contains("failure"), "failure must be excluded");
+            assert!(!keys.contains("runtime_ms"), "runtime_ms must be excluded");
+        }
+
+        // Quality key-set equality
+        let expected_quality_keys = HashSet::from([
+            "annotation".to_owned(),
+            "expected_changes".to_owned(),
+            "reported_changes".to_owned(),
+            "recall".to_owned(),
+            "precision".to_owned(),
+            "kind_accuracy".to_owned(),
+            "reported_hunks_per_matched_change".to_owned(),
+            "review_hunks_per_expected_change".to_owned(),
+            "unmatched_tiny_changes".to_owned(),
+            "unresolvable_reported_spans".to_owned(),
+        ]);
+        let quality_keys = records[0]["quality"]
+            .as_object()
+            .expect("quality object")
+            .keys()
+            .cloned()
+            .collect::<HashSet<_>>();
+        assert_eq!(quality_keys, expected_quality_keys);
+
+        // Check truthfulness of values
+        let ok_rec = &records[0];
+        assert_eq!(ok_rec["pair_id"], "ok-pair");
+        assert_eq!(ok_rec["status"], "ok");
+        assert_eq!(ok_rec["reported_formatting_changes"], 0);
+        assert_eq!(ok_rec["reported_uncertain_changes"], 0);
+        assert_eq!(ok_rec["quality"]["unmatched_tiny_changes"], 0);
+        assert_eq!(ok_rec["quality"]["precision"], serde_json::Value::Null);
+        assert_eq!(ok_rec["quality"]["recall"], 1.0);
+        assert_eq!(ok_rec["resource_limit_failure"], serde_json::Value::Null);
+
+        let limit_rec = &records[1];
+        assert_eq!(limit_rec["pair_id"], "limit-pair");
+        assert_eq!(limit_rec["status"], "limit");
+        assert_eq!(limit_rec["coverage_old"], serde_json::Value::Null);
+        assert_eq!(limit_rec["quality"], serde_json::Value::Null);
+        assert_eq!(
+            limit_rec["resource_limit_failure"],
+            "alignment candidate visit budget exceeded"
+        );
+        assert_eq!(
+            limit_rec["reported_uncertain_changes"],
+            serde_json::Value::Null
+        );
+    }
+
+    #[test]
+    fn full_json_schema_regression_does_not_gain_uncertain_changes_field() {
+        let report = PairRunReport {
+            pair_id: "regression-check".to_owned(),
+            set: "dev",
+            role: "standard",
+            document_type: "single-column".to_owned(),
+            in_scope: true,
+            status: PairRunStatus::Ok,
+            provenance_verified: true,
+            compared: true,
+            extraction_complete: Some(true),
+            comparison_complete: Some(true),
+            extraction_issues: Vec::new(),
+            coverage_old: Some(1.0),
+            coverage_new: Some(1.0),
+            coverage_comparison: Some(1.0),
+            unresolved_regions: Some(0),
+            unresolved_old_token_share: Some(0.0),
+            unresolved_new_token_share: Some(0.0),
+            reported_content_changes: Some(0),
+            formatting_only_changes: Some(0),
+            uncertain_changes: Some(0),
+            reported_changes_preview: Vec::new(),
+            quality: None,
+            quality_skipped_reason: None,
+            resource_limit_failure: None,
+            candidate_visits: None,
+            candidate_visits_required: None,
+            candidate_visits_required_exact: None,
+            candidate_visits_required_ngram: None,
+            candidate_visits_required_short_fallback: None,
+            max_candidate_visits: None,
+            candidate_visit_pressure: None,
+            runtime_ms: 10,
+            limit_scale_used: 1.0,
+            failure: None,
+        };
+
+        let full_bytes = serde_json::to_vec_pretty(&[report]).expect("serialize full");
+        let full_val: serde_json::Value = serde_json::from_slice(&full_bytes).expect("parse full");
+        let full_obj = full_val[0].as_object().expect("first report");
+
+        assert!(
+            !full_obj.contains_key("uncertain_changes"),
+            "full JSON schema must not gain uncertain_changes"
+        );
+    }
+
+    #[test]
+    fn summary_json_is_deterministic_and_excludes_forbidden_keys_and_values() {
+        let base = PairRunReport {
+            pair_id: "deterministic-pair".to_owned(),
+            set: "dev",
+            role: "standard",
+            document_type: "single-column".to_owned(),
+            in_scope: true,
+            status: PairRunStatus::Ok,
+            provenance_verified: true,
+            compared: true,
+            extraction_complete: Some(true),
+            comparison_complete: Some(false),
+            extraction_issues: vec![IssueLine {
+                side: "old",
+                kind: "unsupported",
+                scope: "page".to_owned(),
+                description: "Injected /tmp/path/document.pdf extraction issue".to_owned(),
+            }],
+            coverage_old: Some(0.4),
+            coverage_new: Some(0.5),
+            coverage_comparison: Some(0.4),
+            unresolved_regions: Some(1),
+            unresolved_old_token_share: Some(0.02),
+            unresolved_new_token_share: Some(0.03),
+            reported_content_changes: Some(5),
+            formatting_only_changes: Some(0),
+            uncertain_changes: Some(0),
+            reported_changes_preview: vec![ReportedChangeText {
+                kind: "replacement",
+                old_text: Some("Sensitive text /home/user/cache/doc.pdf".to_owned()),
+                new_text: Some("Sensitive text replacement".to_owned()),
+            }],
+            quality: None,
+            quality_skipped_reason: None,
+            resource_limit_failure: None,
+            candidate_visits: Some(10),
+            candidate_visits_required: Some(20),
+            candidate_visits_required_exact: Some(5),
+            candidate_visits_required_ngram: Some(10),
+            candidate_visits_required_short_fallback: Some(5),
+            max_candidate_visits: Some(500),
+            candidate_visit_pressure: None,
+            runtime_ms: 100,
+            limit_scale_used: 1.0,
+            failure: Some("Failure with /home/hayato/cache/old.pdf".to_owned()),
+        };
+
+        let mut report_a = base.clone();
+        report_a.runtime_ms = 42;
+        report_a.candidate_visits = Some(999);
+
+        let mut report_b = base;
+        report_b.runtime_ms = 888888;
+        report_b.candidate_visits = Some(12345);
+
+        let summary_a = RevisionSummaryReport::from_reports(&[report_a]);
+        let summary_b = RevisionSummaryReport::from_reports(&[report_b]);
+
+        let bytes_a = serde_json::to_vec_pretty(&summary_a).expect("serialize A");
+        let bytes_b = serde_json::to_vec_pretty(&summary_b).expect("serialize B");
+
+        assert_eq!(
+            bytes_a, bytes_b,
+            "summaries must be byte-for-byte deterministic"
+        );
+
+        let json_str = String::from_utf8(bytes_a).expect("utf8 string");
+        let forbidden = [
+            "/home/",
+            "/tmp/",
+            "Sensitive text",
+            "runtime_ms",
+            "\"failure\":",
+            "candidate_visits",
+            "extraction_issues",
+            "candidate_visit_pressure",
+            "reported_changes_preview",
+        ];
+        for term in forbidden {
+            assert!(
+                !json_str.contains(term),
+                "summary JSON must not contain forbidden term {term:?}"
+            );
         }
     }
 }
