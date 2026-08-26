@@ -410,6 +410,7 @@ fn fixture_extraction_limits() -> ExtractionLimits {
         max_stream_invocations: 10,
         max_total_decoded_bytes: 4096,
         max_operand_stack: 16,
+        max_array_elements: 16,
         max_operand_nodes: 64,
         max_fonts: 4,
         max_cmap_entries: 16,

@@ -1167,6 +1167,7 @@ impl Extraction<'_> {
         ContentLimits {
             max_operators: self.limits.max_operators,
             max_operand_stack: self.limits.max_operand_stack,
+            max_array_elements: self.limits.max_array_elements,
             max_operand_nodes: self.limits.max_operand_nodes,
             max_nesting_depth: self.limits.max_nesting_depth,
             max_string_bytes: self.limits.max_string_bytes,

@@ -24,6 +24,7 @@ pub(crate) struct Operation {
 pub(crate) struct ContentLimits {
     pub(crate) max_operators: usize,
     pub(crate) max_operand_stack: usize,
+    pub(crate) max_array_elements: usize,
     pub(crate) max_operand_nodes: usize,
     pub(crate) max_nesting_depth: usize,
     pub(crate) max_string_bytes: usize,
@@ -34,6 +35,7 @@ impl Default for ContentLimits {
         Self {
             max_operators: 1_000_000,
             max_operand_stack: 1_024,
+            max_array_elements: 65_536,
             max_operand_nodes: 1_000_000,
             max_nesting_depth: 64,
             max_string_bytes: 16 * 1024 * 1024,
@@ -312,7 +314,7 @@ impl<'a> Parser<'a> {
                 }
                 Some(_) => {
                     let value = self.parse_operand(depth + 1)?;
-                    self.push_operand(&mut values, value)?;
+                    self.push_array_element(&mut values, value)?;
                 }
                 None => return self.unresolved("unterminated array"),
             }
@@ -570,6 +572,17 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    fn push_array_element(&self, values: &mut Vec<Operand>, value: Operand) -> Result<()> {
+        if values.len() >= self.limits.max_array_elements {
+            return Err(Error::LimitExceeded {
+                resource: "content array elements",
+                limit: self.limits.max_array_elements,
+            });
+        }
+        values.push(value);
+        Ok(())
+    }
+
     fn reserve_operand_node(&self) -> Result<()> {
         self.operand_budget.reserve()
     }
@@ -687,6 +700,7 @@ mod tests {
         ContentLimits {
             max_operators: 20,
             max_operand_stack: 10,
+            max_array_elements: 10,
             max_operand_nodes: 100,
             max_nesting_depth: 5,
             max_string_bytes: 32,
@@ -965,6 +979,36 @@ mod tests {
         assert!(matches!(
             parser.parse_fragment(b"2 m"),
             Err(Error::LimitExceeded { .. })
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn enforces_array_element_limit_independently_of_operand_stack() -> Result<()> {
+        const ELEMENTS: usize = 4_097;
+
+        let mut input = b"[".to_vec();
+        for _ in 0..ELEMENTS {
+            input.extend_from_slice(b"0 ");
+        }
+        input.extend_from_slice(b"] TJ");
+
+        let mut constrained = limits();
+        constrained.max_operand_nodes = ELEMENTS + 1;
+        constrained.max_array_elements = ELEMENTS;
+        let operations = parse_operations(&input, constrained)?;
+        assert!(matches!(
+            &operations[0].operands[0],
+            Operand::Array(values) if values.len() == ELEMENTS
+        ));
+
+        constrained.max_array_elements = ELEMENTS - 1;
+        assert!(matches!(
+            parse_operations(&input, constrained),
+            Err(Error::LimitExceeded {
+                resource: "content array elements",
+                limit
+            }) if limit == ELEMENTS - 1
         ));
         Ok(())
     }

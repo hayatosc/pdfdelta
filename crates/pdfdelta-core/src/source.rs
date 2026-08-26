@@ -24,6 +24,8 @@ pub struct ExtractionLimits {
     pub max_stream_invocations: usize,
     pub max_total_decoded_bytes: usize,
     pub max_operand_stack: usize,
+    /// Maximum elements in one PDF array operand. Defaults to 65,536.
+    pub max_array_elements: usize,
     pub max_operand_nodes: usize,
     pub max_fonts: usize,
     pub max_cmap_entries: usize,
@@ -41,6 +43,7 @@ impl Default for ExtractionLimits {
             max_stream_invocations: 5_000_000,
             max_total_decoded_bytes: 512 * 1024 * 1024,
             max_operand_stack: 4_096,
+            max_array_elements: 65_536,
             // The measured multilingual corpus peaks at 8,732,907 operand nodes.
             max_operand_nodes: 10_000_000,
             max_fonts: 100_000,

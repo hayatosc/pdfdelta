@@ -492,6 +492,7 @@ fn extraction_limits() -> ExtractionLimits {
         max_stream_invocations: 64,
         max_total_decoded_bytes: 256 * 1024,
         max_operand_stack: 256,
+        max_array_elements: 4 * 1024,
         max_operand_nodes: 32 * 1024,
         max_fonts: 16,
         max_cmap_entries: 4 * 1024,
