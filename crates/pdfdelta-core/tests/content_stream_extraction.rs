@@ -3,7 +3,7 @@ use std::sync::Arc;
 use lopdf::{Document as LopdfDocument, Object, ObjectId, Stream, dictionary};
 use pdfdelta_core::{
     Error, Result,
-    model::{DecodedText, Document, Glyph},
+    model::{DecodedText, Document, Glyph, PageId},
     pdf::{LopdfParser, ParseLimits, PdfParser},
     source::{
         ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssueKind, ExtractionLimits,
@@ -1993,4 +1993,201 @@ fn limits_cached_empty_form_stream_invocations() {
             limit: 2,
         })
     ));
+}
+
+#[test]
+fn embedded_simple_font_with_explicit_encoding_and_unmapped_code_fails_closed_without_unmapped_identity()
+-> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = embedded_simple_font(&mut pdf, b"embedded font program", false, None);
+    // Add an explicit /Encoding dictionary with an unknown /Differences glyph name that lacks a Unicode mapping
+    let font_dictionary = pdf
+        .objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary");
+    font_dictionary.set(
+        "Encoding",
+        dictionary! {
+            "Type" => "Encoding",
+            "BaseEncoding" => "WinAnsiEncoding",
+            "Differences" => vec![
+                Object::Integer(65),
+                Object::Name(b"CustomUnmappedGlyph".to_vec()),
+            ],
+        },
+    );
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (A) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    // 1. extract_outcome must report a contextual Unresolved issue with operator provenance
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    let issues = outcome.issues();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
+    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
+    assert!(
+        issues[0]
+            .description()
+            .contains("font code has no Unicode mapping or stable font identity")
+    );
+
+    // 2. into_complete() must return Err(Error::Unresolved(...))
+    assert!(matches!(
+        outcome.into_complete(),
+        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
+    ));
+    Ok(())
+}
+
+#[test]
+fn embedded_simple_font_without_explicit_encoding_preserves_stable_unmapped_identity() -> Result<()>
+{
+    // Positive control: when simple font has NO explicit /Encoding, embedded font program hash is trusted as identity
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = embedded_simple_font(&mut pdf, b"verified embedded font program", false, None);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (A) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    let glyphs = document.items();
+    assert_eq!(glyphs.len(), 1);
+    assert_eq!(glyphs[0].raw_code, b"A");
+    match &glyphs[0].text {
+        DecodedText::Unmapped {
+            font_hash,
+            glyph_id,
+        } => {
+            assert_eq!(font_hash.0.len(), 32);
+            assert_eq!(*glyph_id, 65);
+        }
+        DecodedText::Mapped(text) => panic!("expected unmapped text, got {text}"),
+    }
+    Ok(())
+}
+
+#[test]
+fn embedded_simple_font_with_named_encoding_and_unmapped_code_fails_closed() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = embedded_simple_font(&mut pdf, b"embedded font program", false, None);
+    let font_dictionary = pdf
+        .objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary");
+    font_dictionary.set("Encoding", Object::Name(b"WinAnsiEncoding".to_vec()));
+    // Code 0x81 (129) is unmapped in WinAnsiEncoding and has no ToUnicode
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        vec![
+            b'B', b'T', b' ', b'/', b'F', b'1', b' ', b'1', b'0', b' ', b'T', b'f', b' ', b'1',
+            b' ', b'0', b' ', b'0', b' ', b'1', b' ', b'2', b'0', b' ', b'3', b'0', b' ', b'T',
+            b'm', b' ', b'(', 0x81, b')', b' ', b'T', b'j', b' ', b'E', b'T',
+        ],
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    // 1. extract_outcome must report a contextual Unresolved issue with operator provenance and zero emitted glyphs
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(!outcome.is_complete());
+    assert!(outcome.document().items().is_empty());
+    let issues = outcome.issues();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].scope(), ExtractionScope::Page(PageId(0)));
+    assert_eq!(issues[0].kind(), ExtractionIssueKind::Unresolved);
+    assert!(
+        issues[0]
+            .description()
+            .contains("font code has no Unicode mapping or stable font identity")
+    );
+
+    // 2. into_complete() must return Err(Error::Unresolved(...))
+    assert!(matches!(
+        outcome.into_complete(),
+        Err(Error::Unresolved(desc)) if desc.contains("font code has no Unicode mapping or stable font identity")
+    ));
+    Ok(())
+}
+
+#[test]
+fn cross_revision_divergent_encodings_do_not_fabricate_matching_unmapped_tokens() -> Result<()> {
+    let make_pdf = |custom_glyph_name: &[u8]| -> Result<ExtractionOutcome> {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = embedded_simple_font(&mut pdf, b"shared embedded font program", false, None);
+        let font_dictionary = pdf
+            .objects
+            .get_mut(&font)
+            .expect("fixture font should exist")
+            .as_dict_mut()
+            .expect("fixture font should be a dictionary");
+        font_dictionary.set(
+            "Encoding",
+            dictionary! {
+                "Type" => "Encoding",
+                "BaseEncoding" => "WinAnsiEncoding",
+                "Differences" => vec![
+                    Object::Integer(65),
+                    Object::Name(custom_glyph_name.to_vec()),
+                ],
+            },
+        );
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (A) Tj ET".to_vec(),
+        ));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {
+                "Font" => dictionary! { "F1" => font },
+            }),
+            None,
+            None,
+        );
+        extract_outcome(pdf, ExtractionLimits::default())
+    };
+
+    let old_outcome = make_pdf(b"CustomGlyphAlpha")?;
+    let new_outcome = make_pdf(b"CustomGlyphBeta")?;
+
+    // Both revisions must report unresolved extraction issues rather than claiming complete extraction
+    // with matching unmapped tokens (which would cause a false-match on code 65)
+    assert!(!old_outcome.is_complete());
+    assert!(!new_outcome.is_complete());
+    assert_eq!(old_outcome.issues().len(), 1);
+    assert_eq!(new_outcome.issues().len(), 1);
+    Ok(())
 }

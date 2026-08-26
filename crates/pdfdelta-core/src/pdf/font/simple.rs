@@ -232,6 +232,10 @@ impl SimpleFontDecoder {
                     identity_encoding,
                 ))
             } else if dictionary.contains_key(b"Encoding".as_slice()) {
+                // Derived from SPEC §6.4: simple fonts with an explicit /Encoding dictionary or named encoding
+                // map raw byte codes to glyph selectors through that encoding, not directly to glyph IDs
+                // in the embedded font program. Unless the code-to-glyph mapping is independently verified,
+                // unmapped codes must not receive a stable font identity solely from (font_hash, raw_code).
                 None
             } else {
                 identity_domain(pdf, &dictionary, limits.max_indirections, subtype)?
