@@ -1347,6 +1347,171 @@ fn externally_rendered_typst_case3_revision_pair_reports_exact_replacement() {
     );
 }
 
+#[test]
+fn externally_rendered_typst_japanese_revision_pair_reports_exact_replacement() {
+    let fixture_dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/external/japanese-typst");
+    let old_pdf = fixture_dir.join("old.pdf");
+    let new_pdf = fixture_dir.join("new.pdf");
+
+    assert!(
+        old_pdf.exists(),
+        "vendored old.pdf must exist at {}",
+        old_pdf.display()
+    );
+    assert!(
+        new_pdf.exists(),
+        "vendored new.pdf must exist at {}",
+        new_pdf.display()
+    );
+
+    let directory = TestDirectory::new();
+    let json_path = directory.join("report.json");
+
+    // 1. Text report to stdout
+    let text_output = compare(&old_pdf, &new_pdf, &[]);
+    assert_eq!(
+        text_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&text_output)
+    );
+    let stdout_text = stdout(&text_output);
+    assert!(stdout_text.contains("content changes: 1"), "{stdout_text}");
+    assert!(stdout_text.contains("formatting-only: 0"), "{stdout_text}");
+    assert!(stdout_text.contains("uncertain: 0"), "{stdout_text}");
+    assert!(
+        stdout_text.contains("unresolved regions: 0"),
+        "{stdout_text}"
+    );
+    assert!(stdout_text.contains("coverage 100.0%"), "{stdout_text}");
+    assert!(stdout_text.contains("@@ page 1 ·"), "{stdout_text}");
+    assert!(
+        stdout_text.contains("- 第10版の運用手順書を引き続き適用します。"),
+        "{stdout_text}"
+    );
+    assert!(
+        stdout_text.contains("+ 第20版の運用手順書を引き続き適用します。"),
+        "{stdout_text}"
+    );
+
+    // 2. Glyph inspection asserting 87 mapped horizontal glyphs per side
+    let inspect_old = inspect(&old_pdf, &["--glyphs"]);
+    assert_eq!(inspect_old.status.code(), Some(0));
+    let inspect_old_text = stdout(&inspect_old);
+    assert!(
+        inspect_old_text.contains("glyphs: 87"),
+        "{inspect_old_text}"
+    );
+    assert!(
+        inspect_old_text.contains("text=\"定\""),
+        "{inspect_old_text}"
+    );
+    assert!(
+        inspect_old_text.contains("text=\"1\""),
+        "{inspect_old_text}"
+    );
+    assert!(
+        inspect_old_text.contains("direction=(1,0)"),
+        "{inspect_old_text}"
+    );
+    assert!(
+        !inspect_old_text.contains("text=unmapped"),
+        "{inspect_old_text}"
+    );
+
+    let inspect_new = inspect(&new_pdf, &["--glyphs"]);
+    assert_eq!(inspect_new.status.code(), Some(0));
+    let inspect_new_text = stdout(&inspect_new);
+    assert!(
+        inspect_new_text.contains("glyphs: 87"),
+        "{inspect_new_text}"
+    );
+    assert!(
+        inspect_new_text.contains("text=\"定\""),
+        "{inspect_new_text}"
+    );
+    assert!(
+        inspect_new_text.contains("text=\"2\""),
+        "{inspect_new_text}"
+    );
+    assert!(
+        inspect_new_text.contains("direction=(1,0)"),
+        "{inspect_new_text}"
+    );
+    assert!(
+        !inspect_new_text.contains("text=unmapped"),
+        "{inspect_new_text}"
+    );
+
+    // 3. Structured JSON report
+    let json_output = compare(&old_pdf, &new_pdf, &["-j", path_text(&json_path)]);
+    assert_eq!(
+        json_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&json_output)
+    );
+
+    let json_text = fs::read_to_string(&json_path).expect("JSON report should be readable");
+    let report: serde_json::Value =
+        serde_json::from_str(&json_text).expect("JSON report should parse");
+
+    assert_eq!(report["schema_version"], 5);
+    assert_eq!(report["summary"]["content_changes"], 1);
+    assert_eq!(report["summary"]["formatting_only_changes"], 0);
+    assert_eq!(report["summary"]["uncertain_changes"], 0);
+    assert_eq!(report["summary"]["unresolved_regions"], 0);
+    assert_eq!(report["summary"]["unsupported_extraction_issues"], 0);
+    assert_eq!(report["summary"]["unresolved_extraction_issues"], 0);
+    assert_eq!(report["summary"]["comparison_complete"], true);
+    assert_eq!(
+        report["summary"]["old_alignment_coverage"]["total_tokens"],
+        87
+    );
+    assert_eq!(
+        report["summary"]["old_alignment_coverage"]["resolved_tokens"],
+        87
+    );
+    assert_eq!(report["summary"]["old_alignment_coverage"]["ratio"], 1.0);
+    assert_eq!(
+        report["summary"]["new_alignment_coverage"]["total_tokens"],
+        87
+    );
+    assert_eq!(
+        report["summary"]["new_alignment_coverage"]["resolved_tokens"],
+        87
+    );
+    assert_eq!(report["summary"]["new_alignment_coverage"]["ratio"], 1.0);
+    assert_eq!(report["summary"]["comparison_coverage_ratio"], 1.0);
+
+    let changes = report["changes"]
+        .as_array()
+        .expect("changes should be array");
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0]["kind"], "replacement");
+    assert_eq!(changes[0]["old_span"]["text"], "1");
+    assert_eq!(changes[0]["new_span"]["text"], "2");
+    assert_eq!(changes[0]["old_span"]["pages"], serde_json::json!([0]));
+    assert_eq!(changes[0]["new_span"]["pages"], serde_json::json!([0]));
+
+    assert_eq!(report["extraction"]["old_complete"], true);
+    assert_eq!(report["extraction"]["new_complete"], true);
+    assert_eq!(
+        report["extraction"]["issues"].as_array().map(Vec::len),
+        Some(0)
+    );
+
+    // Strict mode must succeed with exit code 1 rather than exit code 3 (incomplete).
+    let strict_output = compare(&old_pdf, &new_pdf, &["--strict"]);
+    assert_eq!(
+        strict_output.status.code(),
+        Some(1),
+        "strict mode should accept complete comparison: {}",
+        stderr(&strict_output)
+    );
+}
+
 fn compare(old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
         .arg(old)
