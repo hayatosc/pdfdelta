@@ -1845,6 +1845,315 @@ fn externally_rendered_typst_japanese_case2_pagebreak_revision_pair_reports_zero
     );
 }
 
+#[test]
+fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_insertion_and_deletion()
+ {
+    let fixture_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/external/case4-case5-japanese-typst");
+    let old_pdf = fixture_dir.join("old.pdf");
+    let new_pdf = fixture_dir.join("new.pdf");
+
+    assert!(
+        old_pdf.exists(),
+        "vendored old.pdf must exist at {}",
+        old_pdf.display()
+    );
+    assert!(
+        new_pdf.exists(),
+        "vendored new.pdf must exist at {}",
+        new_pdf.display()
+    );
+
+    let directory = TestDirectory::new();
+    let forward_json_path = directory.join("forward_report.json");
+    let reverse_json_path = directory.join("reverse_report.json");
+
+    // =========================================================================
+    // 1. FORWARD COMPARISON (old -> new: Case 4 Paragraph Insertion)
+    // =========================================================================
+    let text_output = compare(&old_pdf, &new_pdf, &[]);
+    assert_eq!(
+        text_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&text_output)
+    );
+    let stdout_text = stdout(&text_output);
+    assert!(stdout_text.contains("content changes: 1"), "{stdout_text}");
+    assert!(stdout_text.contains("formatting-only: 0"), "{stdout_text}");
+    assert!(stdout_text.contains("uncertain: 0"), "{stdout_text}");
+    assert!(
+        stdout_text.contains("unresolved regions: 0"),
+        "{stdout_text}"
+    );
+    assert!(stdout_text.contains("coverage 100.0%"), "{stdout_text}");
+    assert!(
+        stdout_text
+            .contains("+ 運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"),
+        "{stdout_text}"
+    );
+
+    // Glyph inspection: old has 66 mapped horizontal glyphs, new has 100
+    let inspect_old = inspect(&old_pdf, &["--glyphs"]);
+    assert_eq!(inspect_old.status.code(), Some(0));
+    let inspect_old_text = stdout(&inspect_old);
+    let inspect_old_lines: Vec<&str> = inspect_old_text
+        .lines()
+        .filter(|l| l.starts_with("glyph id="))
+        .collect();
+    assert_eq!(inspect_old_lines.len(), 66);
+    assert!(
+        inspect_old_lines.iter().all(|l| {
+            l.contains("text=")
+                && l.contains("direction=(1,0)")
+                && !l.contains("unmapped-font-hash=")
+                && !l.contains("unmapped-glyph-id=")
+        }),
+        "{inspect_old_text}"
+    );
+
+    let inspect_new = inspect(&new_pdf, &["--glyphs"]);
+    assert_eq!(inspect_new.status.code(), Some(0));
+    let inspect_new_text = stdout(&inspect_new);
+    let inspect_new_lines: Vec<&str> = inspect_new_text
+        .lines()
+        .filter(|l| l.starts_with("glyph id="))
+        .collect();
+    assert_eq!(inspect_new_lines.len(), 100);
+    assert!(
+        inspect_new_lines.iter().all(|l| {
+            l.contains("text=")
+                && l.contains("direction=(1,0)")
+                && !l.contains("unmapped-font-hash=")
+                && !l.contains("unmapped-glyph-id=")
+        }),
+        "{inspect_new_text}"
+    );
+
+    // Forward JSON report
+    let forward_json_output = compare(&old_pdf, &new_pdf, &["-j", path_text(&forward_json_path)]);
+    assert_eq!(
+        forward_json_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&forward_json_output)
+    );
+
+    let forward_json_text =
+        fs::read_to_string(&forward_json_path).expect("forward JSON report should be readable");
+    let forward_report: serde_json::Value =
+        serde_json::from_str(&forward_json_text).expect("forward JSON report should parse");
+
+    assert_eq!(forward_report["schema_version"], 5);
+    assert_eq!(forward_report["summary"]["content_changes"], 1);
+    assert_eq!(forward_report["summary"]["formatting_only_changes"], 0);
+    assert_eq!(forward_report["summary"]["uncertain_changes"], 0);
+    assert_eq!(forward_report["summary"]["unresolved_regions"], 0);
+    assert_eq!(
+        forward_report["summary"]["unsupported_extraction_issues"],
+        0
+    );
+    assert_eq!(forward_report["summary"]["unresolved_extraction_issues"], 0);
+    assert_eq!(forward_report["summary"]["comparison_complete"], true);
+    assert_eq!(
+        forward_report["summary"]["old_alignment_coverage"]["total_tokens"],
+        66
+    );
+    assert_eq!(
+        forward_report["summary"]["old_alignment_coverage"]["resolved_tokens"],
+        66
+    );
+    assert_eq!(
+        forward_report["summary"]["old_alignment_coverage"]["ratio"],
+        1.0
+    );
+    assert_eq!(
+        forward_report["summary"]["new_alignment_coverage"]["total_tokens"],
+        100
+    );
+    assert_eq!(
+        forward_report["summary"]["new_alignment_coverage"]["resolved_tokens"],
+        100
+    );
+    assert_eq!(
+        forward_report["summary"]["new_alignment_coverage"]["ratio"],
+        1.0
+    );
+    assert_eq!(forward_report["summary"]["comparison_coverage_ratio"], 1.0);
+
+    let forward_changes = forward_report["changes"]
+        .as_array()
+        .expect("changes should be array");
+    assert_eq!(forward_changes.len(), 1);
+    assert_eq!(forward_changes[0]["kind"], "insertion");
+    assert!(forward_changes[0]["old_span"].is_null());
+    assert_eq!(
+        forward_changes[0]["new_span"]["blocks"],
+        serde_json::json!([2])
+    );
+    assert_eq!(
+        forward_changes[0]["new_span"]["pages"],
+        serde_json::json!([0])
+    );
+    assert_eq!(
+        forward_changes[0]["new_span"]["text"],
+        "運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"
+    );
+
+    let forward_formatting = forward_report["formatting_only_changes"]
+        .as_array()
+        .expect("formatting_only_changes should be array");
+    assert_eq!(forward_formatting.len(), 0);
+
+    assert_eq!(forward_report["extraction"]["old_complete"], true);
+    assert_eq!(forward_report["extraction"]["new_complete"], true);
+    assert_eq!(
+        forward_report["extraction"]["issues"]
+            .as_array()
+            .map(Vec::len),
+        Some(0)
+    );
+
+    // Forward Strict mode
+    let forward_strict_output = compare(&old_pdf, &new_pdf, &["--strict"]);
+    assert_eq!(
+        forward_strict_output.status.code(),
+        Some(1),
+        "strict mode must still exit 1 (Changed) when content changes exist: {}",
+        stderr(&forward_strict_output)
+    );
+
+    // =========================================================================
+    // 2. REVERSE COMPARISON (new -> old: Case 5 Paragraph Deletion)
+    // =========================================================================
+    let reverse_text_output = compare(&new_pdf, &old_pdf, &[]);
+    assert_eq!(
+        reverse_text_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&reverse_text_output)
+    );
+    let reverse_stdout_text = stdout(&reverse_text_output);
+    assert!(
+        reverse_stdout_text.contains("content changes: 1"),
+        "{reverse_stdout_text}"
+    );
+    assert!(
+        reverse_stdout_text.contains("formatting-only: 0"),
+        "{reverse_stdout_text}"
+    );
+    assert!(
+        reverse_stdout_text.contains("uncertain: 0"),
+        "{reverse_stdout_text}"
+    );
+    assert!(
+        reverse_stdout_text.contains("unresolved regions: 0"),
+        "{reverse_stdout_text}"
+    );
+    assert!(
+        reverse_stdout_text.contains("coverage 100.0%"),
+        "{reverse_stdout_text}"
+    );
+    assert!(
+        reverse_stdout_text
+            .contains("- 運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"),
+        "{reverse_stdout_text}"
+    );
+
+    // Reverse JSON report
+    let reverse_json_output = compare(&new_pdf, &old_pdf, &["-j", path_text(&reverse_json_path)]);
+    assert_eq!(
+        reverse_json_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&reverse_json_output)
+    );
+
+    let reverse_json_text =
+        fs::read_to_string(&reverse_json_path).expect("reverse JSON report should be readable");
+    let reverse_report: serde_json::Value =
+        serde_json::from_str(&reverse_json_text).expect("reverse JSON report should parse");
+
+    assert_eq!(reverse_report["schema_version"], 5);
+    assert_eq!(reverse_report["summary"]["content_changes"], 1);
+    assert_eq!(reverse_report["summary"]["formatting_only_changes"], 0);
+    assert_eq!(reverse_report["summary"]["uncertain_changes"], 0);
+    assert_eq!(reverse_report["summary"]["unresolved_regions"], 0);
+    assert_eq!(
+        reverse_report["summary"]["unsupported_extraction_issues"],
+        0
+    );
+    assert_eq!(reverse_report["summary"]["unresolved_extraction_issues"], 0);
+    assert_eq!(reverse_report["summary"]["comparison_complete"], true);
+    assert_eq!(
+        reverse_report["summary"]["old_alignment_coverage"]["total_tokens"],
+        100
+    );
+    assert_eq!(
+        reverse_report["summary"]["old_alignment_coverage"]["resolved_tokens"],
+        100
+    );
+    assert_eq!(
+        reverse_report["summary"]["old_alignment_coverage"]["ratio"],
+        1.0
+    );
+    assert_eq!(
+        reverse_report["summary"]["new_alignment_coverage"]["total_tokens"],
+        66
+    );
+    assert_eq!(
+        reverse_report["summary"]["new_alignment_coverage"]["resolved_tokens"],
+        66
+    );
+    assert_eq!(
+        reverse_report["summary"]["new_alignment_coverage"]["ratio"],
+        1.0
+    );
+    assert_eq!(reverse_report["summary"]["comparison_coverage_ratio"], 1.0);
+
+    let reverse_changes = reverse_report["changes"]
+        .as_array()
+        .expect("changes should be array");
+    assert_eq!(reverse_changes.len(), 1);
+    assert_eq!(reverse_changes[0]["kind"], "deletion");
+    assert_eq!(
+        reverse_changes[0]["old_span"]["blocks"],
+        serde_json::json!([2])
+    );
+    assert_eq!(
+        reverse_changes[0]["old_span"]["pages"],
+        serde_json::json!([0])
+    );
+    assert_eq!(
+        reverse_changes[0]["old_span"]["text"],
+        "運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"
+    );
+    assert!(reverse_changes[0]["new_span"].is_null());
+
+    let reverse_formatting = reverse_report["formatting_only_changes"]
+        .as_array()
+        .expect("formatting_only_changes should be array");
+    assert_eq!(reverse_formatting.len(), 0);
+
+    assert_eq!(reverse_report["extraction"]["old_complete"], true);
+    assert_eq!(reverse_report["extraction"]["new_complete"], true);
+    assert_eq!(
+        reverse_report["extraction"]["issues"]
+            .as_array()
+            .map(Vec::len),
+        Some(0)
+    );
+
+    // Reverse Strict mode
+    let reverse_strict_output = compare(&new_pdf, &old_pdf, &["--strict"]);
+    assert_eq!(
+        reverse_strict_output.status.code(),
+        Some(1),
+        "strict mode must still exit 1 (Changed) when content changes exist: {}",
+        stderr(&reverse_strict_output)
+    );
+}
+
 fn compare(old: &Path, new: &Path, extra_arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pdfdelta"))
         .arg(old)

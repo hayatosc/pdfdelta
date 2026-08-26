@@ -146,8 +146,10 @@ subsets of the Noto Sans CJK JP family (`NotoSansCJK-Regular.ttc` and
 `fixtures/external/japanese-typst/new.pdf`,
 `fixtures/external/case1-japanese-typst/old.pdf`,
 `fixtures/external/case1-japanese-typst/new.pdf`,
-`fixtures/external/case2-japanese-typst/old.pdf`, and
-`fixtures/external/case2-japanese-typst/new.pdf`.
+`fixtures/external/case2-japanese-typst/old.pdf`,
+`fixtures/external/case2-japanese-typst/new.pdf`,
+`fixtures/external/case4-case5-japanese-typst/old.pdf`, and
+`fixtures/external/case4-case5-japanese-typst/new.pdf`.
 
 Source:
 <https://github.com/notofonts/noto-cjk> (upstream release tag `Sans2.004`; Debian package `fonts-noto-cjk` version `1:20230817+repack1-3`, `/usr/share/doc/fonts-noto-cjk/copyright` SHA-256: `849f4ea9c214fa4ac3593b770c699f387534b11ce671264c1b10d85bdcb5997b`)

@@ -1900,3 +1900,177 @@ fn externally_rendered_japanese_case2_pagebreak_fixture_proves_page_provenance_d
 
     Ok(())
 }
+
+#[test]
+fn externally_rendered_japanese_case4_case5_fixture_proves_paragraph_insertion_and_deletion_structure()
+-> pdfdelta_core::Result<()> {
+    use pdfdelta_core::{
+        layout::{BlockOptions, LineOptions, reconstruct_blocks, reconstruct_lines},
+        model::{DecodedText, PageId, Vec2},
+        pdf::{LopdfParser, ParseLimits, PdfParser},
+        source::{ContentStreamGlyphExtractor, ExtractionLimits, GlyphExtractor},
+    };
+    use std::sync::Arc;
+
+    let old_bytes = include_bytes!("../../../fixtures/external/case4-case5-japanese-typst/old.pdf");
+    let new_bytes = include_bytes!("../../../fixtures/external/case4-case5-japanese-typst/new.pdf");
+
+    let old_pdf = LopdfParser.parse(Arc::from(old_bytes.as_slice()), ParseLimits::default())?;
+    let new_pdf = LopdfParser.parse(Arc::from(new_bytes.as_slice()), ParseLimits::default())?;
+
+    assert_eq!(old_pdf.pages()?.len(), 1);
+    assert_eq!(new_pdf.pages()?.len(), 1);
+
+    let old_outcome = ContentStreamGlyphExtractor
+        .extract_outcome(old_pdf.as_ref(), ExtractionLimits::default())?;
+    let new_outcome = ContentStreamGlyphExtractor
+        .extract_outcome(new_pdf.as_ref(), ExtractionLimits::default())?;
+
+    assert!(old_outcome.is_complete());
+    assert!(new_outcome.is_complete());
+    assert!(old_outcome.issues().is_empty());
+    assert!(new_outcome.issues().is_empty());
+
+    let old_glyphs = old_outcome.document().items();
+    let new_glyphs = new_outcome.document().items();
+
+    assert_eq!(old_glyphs.len(), 66);
+    assert_eq!(new_glyphs.len(), 100);
+
+    for glyph in old_glyphs.iter().chain(new_glyphs.iter()) {
+        assert_eq!(glyph.direction, Vec2 { x: 1.0, y: 0.0 });
+        assert_eq!(glyph.page, PageId(0));
+        assert!(matches!(glyph.text, DecodedText::Mapped(_)));
+    }
+
+    let old_text = old_glyphs
+        .iter()
+        .map(|g| match &g.text {
+            DecodedText::Mapped(s) => s.as_str(),
+            DecodedText::Unmapped { .. } => panic!("all glyphs must be mapped"),
+        })
+        .collect::<String>();
+    let new_text = new_glyphs
+        .iter()
+        .map(|g| match &g.text {
+            DecodedText::Mapped(s) => s.as_str(),
+            DecodedText::Unmapped { .. } => panic!("all glyphs must be mapped"),
+        })
+        .collect::<String>();
+
+    assert_eq!(
+        old_text,
+        "定期システム運用報告書今後の保守計画およびサービス稼働状況に関する概要です。すべての基幹業務システムは各地域で正常に稼働しています。"
+    );
+    assert_eq!(
+        new_text,
+        "定期システム運用報告書今後の保守計画およびサービス稼働状況に関する概要です。運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。すべての基幹業務システムは各地域で正常に稼働しています。"
+    );
+
+    let old_lines = reconstruct_lines(old_outcome.document(), LineOptions::default())?;
+    let new_lines = reconstruct_lines(new_outcome.document(), LineOptions::default())?;
+
+    assert_eq!(old_lines.len(), 3);
+    assert_eq!(new_lines.len(), 4);
+
+    let old_blocks =
+        reconstruct_blocks(old_outcome.document(), &old_lines, BlockOptions::default())?;
+    let new_blocks =
+        reconstruct_blocks(new_outcome.document(), &new_lines, BlockOptions::default())?;
+
+    assert_eq!(old_blocks.len(), 3);
+    assert_eq!(new_blocks.len(), 4);
+
+    let extract_block_info = |blocks: &[pdfdelta_core::layout::Block],
+                              lines: &[pdfdelta_core::layout::Line],
+                              glyphs: &[pdfdelta_core::model::Glyph]|
+     -> Vec<(String, Vec<PageId>)> {
+        blocks
+            .iter()
+            .map(|block| {
+                let mut block_text = String::new();
+                let mut pages = Vec::new();
+                for lid in &block.lines {
+                    let line = lines
+                        .iter()
+                        .find(|l| l.id == *lid)
+                        .expect("line must exist");
+                    for gid in &line.glyphs {
+                        let g = glyphs
+                            .iter()
+                            .find(|g| g.id == *gid)
+                            .expect("glyph must exist");
+                        match &g.text {
+                            DecodedText::Mapped(s) => block_text.push_str(s),
+                            DecodedText::Unmapped { .. } => panic!("all glyphs must be mapped"),
+                        }
+                        if !pages.contains(&g.page) {
+                            pages.push(g.page);
+                        }
+                    }
+                }
+                (block_text, pages)
+            })
+            .collect()
+    };
+
+    let old_block_info = extract_block_info(&old_blocks, &old_lines, old_glyphs);
+    let new_block_info = extract_block_info(&new_blocks, &new_lines, new_glyphs);
+
+    assert_eq!(old_block_info.len(), 3);
+    assert_eq!(new_block_info.len(), 4);
+
+    // Old blocks
+    assert_eq!(
+        old_block_info[0],
+        ("定期システム運用報告書".to_string(), vec![PageId(0)])
+    );
+    assert_eq!(
+        old_block_info[1],
+        (
+            "今後の保守計画およびサービス稼働状況に関する概要です。".to_string(),
+            vec![PageId(0)]
+        )
+    );
+    assert_eq!(
+        old_block_info[2],
+        (
+            "すべての基幹業務システムは各地域で正常に稼働しています。".to_string(),
+            vec![PageId(0)]
+        )
+    );
+
+    // New blocks (with block 2 inserted between block 1 and block 3)
+    assert_eq!(
+        new_block_info[0],
+        ("定期システム運用報告書".to_string(), vec![PageId(0)])
+    );
+    assert_eq!(
+        new_block_info[1],
+        (
+            "今後の保守計画およびサービス稼働状況に関する概要です。".to_string(),
+            vec![PageId(0)]
+        )
+    );
+    assert_eq!(
+        new_block_info[2],
+        (
+            "運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。".to_string(),
+            vec![PageId(0)]
+        )
+    );
+    assert_eq!(
+        new_block_info[3],
+        (
+            "すべての基幹業務システムは各地域で正常に稼働しています。".to_string(),
+            vec![PageId(0)]
+        )
+    );
+
+    // Verify exact equality of shared blocks across old and new
+    assert_eq!(old_block_info[0], new_block_info[0]);
+    assert_eq!(old_block_info[1], new_block_info[1]);
+    assert_eq!(old_block_info[2], new_block_info[3]);
+
+    Ok(())
+}
