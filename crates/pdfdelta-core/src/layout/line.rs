@@ -7,7 +7,7 @@ use crate::{
 };
 
 use super::geometry::{
-    directions_are_compatible, dot, interval_gap, interval_overlap_ratio, length_squared, median,
+    directions_are_compatible, dot, interval_gap, interval_overlap_ratio, length_squared,
     normalize, perpendicular, projected_center, projected_extent, projected_interval,
 };
 
@@ -101,10 +101,16 @@ pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Re
     });
 
     let mut working_lines = Vec::<WorkingLine<'_>>::new();
+    let mut active_page = None;
+    let mut active_page_start = 0;
     for glyph in glyphs {
-        // An O(glyphs × lines) scan suffices until benchmarks demonstrate layout clustering
-        // bottlenecks; spatial binning can be introduced if measured performance requires it.
-        let best = working_lines
+        if active_page != Some(glyph.page) {
+            active_page = Some(glyph.page);
+            active_page_start = working_lines.len();
+        }
+
+        // Lines for the active page remain contiguous because glyphs are page-sorted.
+        let best = working_lines[active_page_start..]
             .iter()
             .enumerate()
             .filter_map(|(index, line)| {
@@ -114,23 +120,18 @@ pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Re
             .min_by(|(_, score_a), (_, score_b)| score_a.total_cmp(score_b));
 
         if let Some((index, _)) = best {
-            working_lines[index].glyphs.push(glyph);
+            working_lines[active_page_start + index].push(glyph);
         } else {
-            working_lines.push(WorkingLine {
-                page: glyph.page,
-                glyphs: vec![glyph],
-            });
+            working_lines.push(WorkingLine::new(glyph));
         }
     }
 
     working_lines.sort_by(|left, right| {
-        let left_bbox = left.bbox();
-        let right_bbox = right.bbox();
         left.page
             .0
             .cmp(&right.page.0)
-            .then(right_bbox.max.y.total_cmp(&left_bbox.max.y))
-            .then(left_bbox.min.x.total_cmp(&right_bbox.min.x))
+            .then(right.bbox.max.y.total_cmp(&left.bbox.max.y))
+            .then(left.bbox.min.x.total_cmp(&right.bbox.min.x))
     });
 
     Ok(working_lines
@@ -143,15 +144,65 @@ pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Re
 struct WorkingLine<'a> {
     page: PageId,
     glyphs: Vec<&'a Glyph>,
+    bbox: Rect,
+    direction: Vec2,
+    cross_axis: Vec2,
+    inline_interval: (f64, f64),
+    cross_interval: (f64, f64),
+    baseline_projections: Vec<f64>,
+    projected_heights: Vec<f64>,
+    font_sizes: Vec<f64>,
 }
 
-impl WorkingLine<'_> {
+impl<'a> WorkingLine<'a> {
+    fn new(glyph: &'a Glyph) -> Self {
+        let direction = normalize(glyph.direction);
+        let cross_axis = perpendicular(direction);
+        Self {
+            page: glyph.page,
+            glyphs: vec![glyph],
+            bbox: glyph.bbox,
+            direction,
+            cross_axis,
+            inline_interval: projected_interval(glyph.bbox, direction),
+            cross_interval: projected_interval(glyph.bbox, cross_axis),
+            baseline_projections: vec![dot(glyph.baseline, cross_axis)],
+            projected_heights: vec![projected_extent(glyph.bbox, cross_axis)],
+            font_sizes: vec![glyph.font_size],
+        }
+    }
+
+    fn push(&mut self, glyph: &'a Glyph) {
+        self.glyphs.push(glyph);
+        self.bbox.min.x = self.bbox.min.x.min(glyph.bbox.min.x);
+        self.bbox.min.y = self.bbox.min.y.min(glyph.bbox.min.y);
+        self.bbox.max.x = self.bbox.max.x.max(glyph.bbox.max.x);
+        self.bbox.max.y = self.bbox.max.y.max(glyph.bbox.max.y);
+        extend_interval(
+            &mut self.inline_interval,
+            projected_interval(glyph.bbox, self.direction),
+        );
+        extend_interval(
+            &mut self.cross_interval,
+            projected_interval(glyph.bbox, self.cross_axis),
+        );
+        insert_sorted(
+            &mut self.baseline_projections,
+            dot(glyph.baseline, self.cross_axis),
+        );
+        insert_sorted(
+            &mut self.projected_heights,
+            projected_extent(glyph.bbox, self.cross_axis),
+        );
+        insert_sorted(&mut self.font_sizes, glyph.font_size);
+    }
+
     fn candidate_score(&self, glyph: &Glyph, options: LineOptions) -> Option<f64> {
         if self.page != glyph.page {
             return None;
         }
 
-        let direction = self.direction();
+        let direction = self.direction;
         let glyph_direction = normalize(glyph.direction);
         let direction_similarity = dot(direction, glyph_direction);
         if !directions_are_compatible(direction, glyph_direction)
@@ -160,32 +211,24 @@ impl WorkingLine<'_> {
             return None;
         }
 
-        let cross_axis = perpendicular(direction);
-        let median_height = self.median_projected_height(cross_axis);
-        let baseline = median(
-            self.glyphs
-                .iter()
-                .map(|item| dot(item.baseline, cross_axis))
-                .collect(),
-        )
-        .expect("a line candidate holds at least one glyph");
-        let baseline_distance = (dot(glyph.baseline, cross_axis) - baseline).abs();
+        let median_height = sorted_median(&self.projected_heights)?;
+        let baseline = sorted_median(&self.baseline_projections)?;
+        let baseline_distance = (dot(glyph.baseline, self.cross_axis) - baseline).abs();
         let baseline_close =
             baseline_distance <= options.max_baseline_distance_ratio * median_height;
         let cross_overlap = interval_overlap_ratio(
-            self.projected_interval(cross_axis),
-            projected_interval(glyph.bbox, cross_axis),
+            self.cross_interval,
+            projected_interval(glyph.bbox, self.cross_axis),
         );
         if !baseline_close && cross_overlap < options.min_cross_axis_overlap_ratio {
             return None;
         }
 
         let inline_gap = interval_gap(
-            self.projected_interval(direction),
+            self.inline_interval,
             projected_interval(glyph.bbox, direction),
         );
-        let median_font_size = median(self.glyphs.iter().map(|item| item.font_size).collect())
-            .expect("a line candidate holds at least one glyph");
+        let median_font_size = sorted_median(&self.font_sizes)?;
         let gap_scale = median_font_size.max(glyph.font_size);
         if inline_gap > options.max_inline_gap_font_size_ratio * gap_scale {
             return None;
@@ -199,7 +242,7 @@ impl WorkingLine<'_> {
     }
 
     fn finish(mut self, id: LineId, options: LineOptions) -> Line {
-        let direction = self.direction();
+        let direction = self.direction;
         self.glyphs.sort_by(|left, right| {
             projected_center(left.bbox, direction)
                 .total_cmp(&projected_center(right.bbox, direction))
@@ -207,7 +250,7 @@ impl WorkingLine<'_> {
         });
 
         let synthetic_spaces = reconstruct_spaces(&self.glyphs, direction, options);
-        let bbox = self.bbox();
+        let bbox = self.bbox;
         let mut baseline_anchor = self.glyphs[0];
         for glyph in &self.glyphs[1..] {
             if glyph.font_size > baseline_anchor.font_size {
@@ -227,40 +270,26 @@ impl WorkingLine<'_> {
             direction,
         }
     }
+}
 
-    fn direction(&self) -> Vec2 {
-        normalize(self.glyphs[0].direction)
-    }
+fn extend_interval(interval: &mut (f64, f64), next: (f64, f64)) {
+    interval.0 = interval.0.min(next.0);
+    interval.1 = interval.1.max(next.1);
+}
 
-    fn bbox(&self) -> Rect {
-        let mut bbox = self.glyphs[0].bbox;
-        for glyph in &self.glyphs[1..] {
-            bbox.min.x = bbox.min.x.min(glyph.bbox.min.x);
-            bbox.min.y = bbox.min.y.min(glyph.bbox.min.y);
-            bbox.max.x = bbox.max.x.max(glyph.bbox.max.x);
-            bbox.max.y = bbox.max.y.max(glyph.bbox.max.y);
-        }
-        bbox
-    }
+fn insert_sorted(values: &mut Vec<f64>, value: f64) {
+    let index = values.partition_point(|existing| existing.total_cmp(&value).is_le());
+    values.insert(index, value);
+}
 
-    fn projected_interval(&self, axis: Vec2) -> (f64, f64) {
-        let mut interval = projected_interval(self.glyphs[0].bbox, axis);
-        for glyph in &self.glyphs[1..] {
-            let next = projected_interval(glyph.bbox, axis);
-            interval.0 = interval.0.min(next.0);
-            interval.1 = interval.1.max(next.1);
-        }
-        interval
-    }
-
-    fn median_projected_height(&self, cross_axis: Vec2) -> f64 {
-        median(
-            self.glyphs
-                .iter()
-                .map(|glyph| projected_extent(glyph.bbox, cross_axis))
-                .collect(),
-        )
-        .expect("a line candidate holds at least one glyph")
+fn sorted_median(values: &[f64]) -> Option<f64> {
+    let midpoint = values.len() / 2;
+    if values.is_empty() {
+        None
+    } else if values.len().is_multiple_of(2) {
+        Some(values[midpoint - 1] / 2.0 + values[midpoint] / 2.0)
+    } else {
+        Some(values[midpoint])
     }
 }
 
