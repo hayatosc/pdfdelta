@@ -464,8 +464,10 @@ fn align_interval_with_partition_fallback(
     let mut old_start = 0;
     let mut new_start = 0;
     for anchor in fallback.anchors {
-        let old_anchor = fallback.old_indices[&anchor.old] - fallback.old_offset;
-        let new_anchor = fallback.new_indices[&anchor.new] - fallback.new_offset;
+        let old_anchor =
+            relative_anchor_index(fallback.old_indices, anchor.old, fallback.old_offset, "old")?;
+        let new_anchor =
+            relative_anchor_index(fallback.new_indices, anchor.new, fallback.new_offset, "new")?;
         spans.extend(align_interval_preserving_moves(
             &old[old_start..old_anchor],
             &new[new_start..new_anchor],
@@ -487,6 +489,26 @@ fn align_interval_with_partition_fallback(
         retry_context,
     )?);
     Ok(spans)
+}
+
+fn relative_anchor_index(
+    indices: &HashMap<BlockId, usize>,
+    block: BlockId,
+    offset: usize,
+    side: &str,
+) -> Result<usize> {
+    let absolute = indices.get(&block).copied().ok_or_else(|| {
+        Error::Unresolved(format!(
+            "partition fallback {side} anchor block {} is missing from the index",
+            block.0
+        ))
+    })?;
+    absolute.checked_sub(offset).ok_or_else(|| {
+        Error::Unresolved(format!(
+            "partition fallback {side} anchor block {} precedes interval offset {offset}",
+            block.0
+        ))
+    })
 }
 
 fn align_interval_preserving_moves(
@@ -1738,6 +1760,21 @@ mod tests {
 
     use super::*;
     use crate::alignment::{Candidate, CandidateVisitBreakdown, CandidateVisitEstimate, ExactHash};
+
+    #[test]
+    fn partition_fallback_indices_fail_closed() {
+        let indices = HashMap::from([(BlockId(1), 4)]);
+
+        assert_eq!(relative_anchor_index(&indices, BlockId(1), 4, "old"), Ok(0));
+        assert!(matches!(
+            relative_anchor_index(&indices, BlockId(2), 0, "old"),
+            Err(Error::Unresolved(message)) if message.contains("missing from the index")
+        ));
+        assert!(matches!(
+            relative_anchor_index(&indices, BlockId(1), 5, "old"),
+            Err(Error::Unresolved(message)) if message.contains("precedes interval offset")
+        ));
+    }
 
     fn feature(block: u64, key: u64) -> BlockFeatures {
         let scalar = char::from_u32(0x1000 + key as u32).expect("fixture key should be valid");
