@@ -319,7 +319,6 @@ fn align_ordered_inner(
     let windows = partition_anchor_windows(&main_anchors, old, new)?;
     let mut spans = Vec::new();
     let mut remaining_dp_cells = options.max_dp_cells;
-    let mut partition_old = HashSet::new();
 
     for (interval_index, window) in windows.iter().enumerate() {
         let old_interval = &old[window.old_range.0..window.old_range.1];
@@ -345,7 +344,6 @@ fn align_ordered_inner(
                 new_offset: window.new_range.0,
                 old_indices: &old_indices,
                 new_indices: &new_indices,
-                used_old: &mut partition_old,
             },
         )?);
 
@@ -440,7 +438,6 @@ struct PartitionFallback<'a> {
     new_offset: usize,
     old_indices: &'a HashMap<BlockId, usize>,
     new_indices: &'a HashMap<BlockId, usize>,
-    used_old: &'a mut HashSet<BlockId>,
 }
 
 fn align_interval_with_partition_fallback(
@@ -489,9 +486,6 @@ fn align_interval_with_partition_fallback(
         remaining_dp_cells,
         retry_context,
     )?);
-    fallback
-        .used_old
-        .extend(fallback.anchors.iter().map(|anchor| anchor.old));
     Ok(spans)
 }
 
