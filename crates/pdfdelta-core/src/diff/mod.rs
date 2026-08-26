@@ -176,7 +176,7 @@ pub fn compare_aligned(
             AlignmentKind::Match => {
                 // A matched span only counts toward resolved coverage when
                 // compare_match actually resolved it; a span degraded to an
-                // unresolved region must not inflate the metric (SPEC §5).
+                // unresolved region must not inflate the metric.
                 if compare_match(
                     &old,
                     &new,
@@ -447,20 +447,13 @@ fn compare_match(
     Ok(true)
 }
 
-// deliberate: fixed hunk-density ceiling tuned from the IRS 1040 2024 -> 2025
-// probe; retune from benchmark layout-mutation fixtures once they exist.
+/// Maximum allowable hunk-to-token ratio for weak matches before degrading to unresolved.
 const MAX_WEAK_MATCH_HUNK_RATIO: f64 = 0.2;
 
-/// Minimum span size before hunk density carries signal: shorter spans can
-/// hold only a handful of hunks, so their density exceeds any fixed ceiling
-/// even for one clean edit. Short implausible matches stay gated by the
-/// changed-token ratio, which applies at every size.
+/// Minimum span length in tokens required to evaluate hunk density.
 const MIN_HUNK_DENSITY_TOKENS: usize = 8;
 
-/// Decides whether a weak matched span is too implausible to diff at token
-/// level: either most tokens changed outright (any size), or the edits are
-/// shredded into many tiny hunks scattered across a large-enough span
-/// (change soup).
+/// Returns true if a weak match has excessive changes or hunk fragmentation.
 fn is_implausible_match(
     edits: &[Edit],
     old_tokens: usize,

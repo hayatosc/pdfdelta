@@ -1,8 +1,8 @@
-# External Fixture: SPEC §2.1 Japanese Horizontal Born-Digital PDF (Typst)
+# External Fixture: Japanese Horizontal Born-Digital PDF (Typst)
 
 ## Overview
 
-This directory vendors an externally rendered Japanese PDF revision pair evaluating **SPEC §2.1** (born-digital horizontal Japanese support with single-column layout and exact text replacement) and **SPEC §2.2 Case 3** (`第10版` -> `第20版`). It provides an independent, real-world compiler dialect (Typst) and CJK font embedding (Noto Sans CJK JP subsets) without requiring external rendering tools at test runtime.
+This directory vendors an externally rendered Japanese PDF revision pair evaluating born-digital horizontal Japanese support with single-column layout and exact text replacement (`第10版` -> `第20版`). It provides an independent, real-world compiler dialect (Typst) and CJK font embedding (Noto Sans CJK JP subsets) without requiring external rendering tools at test runtime.
 
 ## Provenance & Environment Assumptions
 
@@ -15,7 +15,7 @@ This directory vendors an externally rendered Japanese PDF revision pair evaluat
   - Copyright: `© 2014-2021 Adobe (http://www.adobe.com/).` and `Copyright 2010-2012, Google Corporation`
   - License: SIL Open Font License, Version 1.1 (see [`THIRD-PARTY-NOTICES.md`](../../../THIRD-PARTY-NOTICES.md))
   - Authoritative license notice file: `/usr/share/doc/fonts-noto-cjk/copyright` (size: 14,712 bytes, SHA-256: `849f4ea9c214fa4ac3593b770c699f387534b11ce671264c1b10d85bdcb5997b`)
-- **Target SPEC Case**: §2.1 Japanese horizontal born-digital PDF text replacement (`第10版` -> `第20版`, character change `'1'` -> `'2'`).
+- **Target Evaluation Case**: Japanese horizontal born-digital PDF text replacement (`第10版` -> `第20版`, character change `'1'` -> `'2'`).
 - **Redistribution**: Safe public domain synthetic test text; contains no personal data, machine-specific paths, or secrets.
 
 ## Repo-Root-Complete Generation Commands

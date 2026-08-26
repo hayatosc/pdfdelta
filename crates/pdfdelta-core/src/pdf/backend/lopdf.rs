@@ -642,7 +642,7 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
         }
 
         // Broken branches degrade to document-scoped issues so independently
-        // valid branches survive (SPEC §6.2); unsupported branches keep their
+        // valid branches survive; unsupported branches keep their
         // taxonomy instead of being relabeled or aborting the walk. Password
         // and security-handler failures never reach the walk (they fail at
         // document load), and resource-limit failures stay fatal.

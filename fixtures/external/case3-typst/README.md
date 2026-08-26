@@ -1,14 +1,14 @@
-# External Fixture: SPEC §2.2 Case 3 (Typst)
+# External Fixture: Text Replacement PDF (Typst)
 
 ## Overview
 
-This directory vendors an externally rendered PDF revision pair evaluating **SPEC §2.2 Case 3** (`Release 10` -> `Release 20` numeric replacement). It provides an independent, real-world compiler dialect (Typst) without requiring external rendering tools at test runtime.
+This directory vendors an externally rendered PDF revision pair evaluating text replacement (`Release 10` -> `Release 20` numeric replacement). It provides an independent, real-world compiler dialect (Typst) without requiring external rendering tools at test runtime.
 
 ## Provenance
 
 - **Renderer**: `typst 0.15.1 (9dfd3a08)`
 - **Font & Timestamp Policy**: Built-in default font embedding (Libertinus Serif subsets, OFL-1.1; see [`THIRD-PARTY-NOTICES.md`](../../../THIRD-PARTY-NOTICES.md)) with reproducible timestamp policy (`--creation-timestamp 0 --ignore-system-fonts`).
-- **Target SPEC Case**: §2.2 Case 3 (`Release 10` -> `Release 20`, 1 replacement).
+- **Target Evaluation Case**: Numeric text replacement (`Release 10` -> `Release 20`, 1 replacement).
 - **Redistribution**: Safe public domain synthetic test text; contains no personal data, machine-specific paths, or secrets.
 
 ## Generation Commands

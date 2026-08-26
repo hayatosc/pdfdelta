@@ -102,8 +102,8 @@ pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Re
 
     let mut working_lines = Vec::<WorkingLine<'_>>::new();
     for glyph in glyphs {
-        // deliberate: use an O(glyphs × lines) scan until B1 benchmarks show layout clustering
-        // dominates; switch to page-local spatial bins when that measured trigger is reached.
+        // An O(glyphs × lines) scan suffices until benchmarks demonstrate layout clustering
+        // bottlenecks; spatial binning can be introduced if measured performance requires it.
         let best = working_lines
             .iter()
             .enumerate()

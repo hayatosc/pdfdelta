@@ -85,8 +85,6 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
                 ("target", "A simple release note remains stable"),
                 ("closing", "Closing paragraph confirms context"),
             ])?,
-            // deliberate: both 30 and 48 keep line spacing above the
-            // block-merge threshold, so only rendered geometry changes.
             Mutation::LineHeightChange { new_line_gap: 48 },
             30,
         )?,
@@ -97,8 +95,6 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
                 ("target", "A simple release note remains stable"),
                 ("closing", "Closing paragraph confirms context"),
             ])?,
-            // deliberate: every generated line remains inside the page at 96
-            // pt, and the uniform shift preserves relative glyph geometry.
             Mutation::MarginChange { new_margin: 96 },
             30,
         )?,
@@ -109,9 +105,6 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
                 ("target", "A simple release note remains stable"),
                 ("closing", "Closing paragraph confirms context"),
             ])?,
-            // deliberate: 10 -> 14 keeps the fixed 30 pt line cadence above
-            // the relative block-merge threshold, so only glyph geometry
-            // changes while line and block reconstruction stay identical.
             Mutation::FontSizeChange { new_font_size: 14 },
             30,
         )?,
@@ -122,9 +115,6 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
                 ("target", "A simple release note remains stable"),
                 ("closing", "Closing paragraph confirms context"),
             ])?,
-            // deliberate: A4 portrait (595x842) keeps the fixed text origin
-            // (36, 740) inside the page while both MediaBox dimensions change,
-            // so only rendered page geometry differs between the two PDFs.
             Mutation::PageSizeChange {
                 new_page_width: 595,
                 new_page_height: 842,
@@ -151,9 +141,6 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
                 ("target", "A simple release note remains stable"),
                 ("closing", "Closing paragraph confirms context"),
             ])?,
-            // deliberate: the inserted run uses scalars that appear nowhere
-            // else in the document, so character-level Myers cannot find an
-            // equal-cost script that fragments the insertion into hunks.
             Mutation::TextInsert {
                 paragraph_id: "target".to_owned(),
                 at: "A simple release note ".chars().count(),

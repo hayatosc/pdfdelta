@@ -1,8 +1,8 @@
-# External Fixture: SPEC §2.1 / §2.2 Case 2 Japanese Page-Break-Only PDF (Typst)
+# External Fixture: Japanese Page-Break-Only PDF (Typst)
 
 ## Overview
 
-This directory vendors an externally rendered Japanese PDF revision pair evaluating **SPEC §2.2 Case 2** (page-break-only changes producing zero content changes) extended to **SPEC §2.1** (born-digital horizontal Japanese text with single-column layout). It provides an independent, real-world compiler dialect (Typst) and CJK font embedding (Noto Sans CJK JP subsets) without requiring external rendering tools at test runtime.
+This directory vendors an externally rendered Japanese PDF revision pair evaluating page-break-only changes producing zero content changes (born-digital horizontal Japanese text with single-column layout). It provides an independent, real-world compiler dialect (Typst) and CJK font embedding (Noto Sans CJK JP subsets) without requiring external rendering tools at test runtime.
 
 The text payload between `old.typ` and `new.typ` is 100% byte-identical; only an explicit `#pagebreak()` declaration before the final paragraph in `new.typ` differs, moving the final paragraph across a page boundary to page 2 (zero-indexed page 1) without changing any glyphs, fonts, margins, or line-wrapping.
 
@@ -14,7 +14,7 @@ The text payload between `old.typ` and `new.typ` is 100% byte-identical; only an
   - `/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc` (size: 19,484,784 bytes, SHA-256: `b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a`) — used for body paragraphs.
   - `/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc` (size: 20,050,760 bytes, SHA-256: `faa5f3656a78b2e2d450d27fe8382c778bc2b6bb5ea29c986664a6a435056ceb`) — used for headings.
 - **Font Copyright & License**: SIL Open Font License, Version 1.1 (see [`THIRD-PARTY-NOTICES.md`](../../../THIRD-PARTY-NOTICES.md)).
-- **Target SPEC Case**: §2.2 Case 2 (page-break-only change with 0 content changes) in Japanese.
+- **Target Evaluation Case**: Page-break-only change with 0 content changes in Japanese.
 - **Redistribution**: Safe public domain synthetic test text; contains no personal data, machine-specific paths, or secrets.
 
 ## Repo-Root-Complete Generation Commands

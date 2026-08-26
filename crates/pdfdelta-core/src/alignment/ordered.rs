@@ -1335,17 +1335,7 @@ fn match_span(
     }
 }
 
-/// Calibrates per-span confidence from explicit evidence, score margin,
-/// candidate uniqueness, and normalization uncertainty (SPEC §5.2, §5.3 conservative policy).
-///
-/// Policy:
-/// - Exact-canonical 1:1 matches without normalization issues retain `High` confidence even
-///   when situated inside a competing interval, because identical canonical text is an unequivocal
-///   content correspondence.
-/// - Non-exact matches, split/merges, and issue-bearing matches carry margin uncertainty
-///   (`score_margin < options.min_score_margin`) or feature uncertainty and degrade to `Low`.
-/// - Note: Interval-level runner-up margin propagation along DP paths is maintained as a
-///   conservative policy; fine-grained per-cell margin isolation is recorded as a benchmark/design follow-up.
+/// Calibrates match confidence based on exactness, score margin, and normalization issues.
 fn calibrated_match_confidence(
     score: &GroupScore,
     split_merge: bool,
@@ -1367,13 +1357,7 @@ fn calibrated_match_confidence(
     }
 }
 
-/// Calibrates per-span confidence for one-sided transitions (deletions / insertions)
-/// from normalization uncertainty and runner-up score margin (SPEC §5.2, §5.3 conservative policy).
-///
-/// Policy:
-/// - Uncontested one-sided spans without normalization issues keep `Medium` confidence.
-/// - One-sided spans with a competing runner-up margin strictly below `min_score_margin`
-///   or with normalization issues degrade to `Low` confidence.
+/// Calibrates deletion/insertion confidence based on margin and normalization issues.
 fn calibrated_one_sided_confidence(
     has_normalization_issues: bool,
     score_margin: Option<f64>,

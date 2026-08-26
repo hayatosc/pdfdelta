@@ -632,7 +632,7 @@ pub(super) fn unresolved<T>(message: &str) -> Result<T> {
 }
 
 /// Replaces ascent/descent with the descriptor FontBBox extent whenever the
-/// declared metrics cannot form a positive vertical extent (SPEC section 6.4).
+/// declared metrics cannot form a positive vertical extent.
 pub(super) fn apply_bbox_vertical_fallback(
     (ascent, descent): (Option<f64>, Option<f64>),
     load_bbox: impl FnOnce() -> Result<Option<(f64, f64)>>,

@@ -2,7 +2,7 @@
 # Each row compares two genuinely different public revisions of the same document (v_old -> v_new).
 # Download both sides into a cache directory as <pair_id>-old.pdf / <pair_id>-new.pdf,
 # then validate byte_count and sha256 before comparing. benchmark/realworld/fetch.sh automates this.
-# set: dev pairs may inform alignment work; holdout pairs are evaluation-only (SPEC 12.3).
+# set: dev pairs may inform alignment work; holdout pairs are evaluation-only.
 # role: standard pairs sit near pdfdelta's current scope; stress pairs document layout-heavy ceilings
 # and must not become the sole quality target.
 # in_scope: whether the document type is inside the current product milestone's intended scope.

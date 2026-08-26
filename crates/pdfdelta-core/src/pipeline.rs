@@ -306,8 +306,7 @@ pub fn compare_extraction_outcomes_with_diagnostics(
         )
         .collect();
 
-    // deliberate: Any extraction gap suppresses the whole diff until region-aware alignment can
-    // exclude only affected pages while proving neighboring extracted evidence safe to compare.
+    // Incomplete extraction suppresses the diff to prevent false comparison output.
     Ok(ComparisonOutcome {
         comparison: Comparison {
             changes: Vec::new(),
@@ -321,8 +320,6 @@ pub fn compare_extraction_outcomes_with_diagnostics(
             new_complete,
             issues,
         },
-        // deliberate: incomplete extraction suppresses the whole diff, so no
-        // normalized block evidence is produced for report rendering.
         old_blocks: Vec::new(),
         new_blocks: Vec::new(),
     })

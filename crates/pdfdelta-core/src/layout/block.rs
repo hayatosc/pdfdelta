@@ -471,10 +471,7 @@ fn detect_repeated_margins(
     }
 
     for (key, mut remaining) in candidates {
-        // Greedy clustering uses the last encountered page in the candidate sequence (`remaining.pop()`)
-        // as the seed reference for the cluster. Because `candidates` keys and page-ordered indices are
-        // deterministic, this produces a stable, reproducible clustering. Changing the seed policy or
-        // clustering semantics requires benchmark/fixture evidence demonstrating improved margin recovery.
+        // Greedily clusters candidates with similar margin fonts using deterministic page ordering.
         while let Some(reference) = remaining.pop() {
             let mut cluster = vec![reference];
             let mut different_style = Vec::new();
@@ -721,12 +718,7 @@ fn crosses_grid_cell_boundary(
         return true;
     }
 
-    // Case 2: 2-column table with a wide wrapped description column and 1 narrow peer column (e.g. Price).
-    // Complexity note: Candidate column scanning inspects preceding lines on the active page.
-    // The current ceiling is backed by typical single-page line counts (<= 150 lines/page),
-    // where linear scans remain negligible (< 10 µs). If future benchmarks with dense multi-thousand-line
-    // single-page documents demonstrate alignment or layout bottlenecks, replace with a precomputed
-    // row-band and peer spatial index.
+    // Two-column table with a wide description column and one narrow peer column.
     if !curr_peers.is_empty() {
         let has_curr_narrow_peer = curr_peers
             .iter()

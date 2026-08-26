@@ -1319,7 +1319,7 @@ fn neutral_dictionary(entries: Vec<(&[u8], PdfObject)>) -> PdfDict {
 }
 
 proptest! {
-    // SPEC 12.5: fixture object -> backend adapter -> equivalent neutral object.
+    // Round-trip property: fixture object -> backend adapter -> equivalent neutral object.
     #[test]
     fn round_trips_generated_fixtures_through_the_adapter_neutrally(
         page_count in 1_usize..=4,

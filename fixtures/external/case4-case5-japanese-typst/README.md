@@ -1,8 +1,8 @@
-# External Fixture: SPEC §2.1 / §2.2 Case 4 & Case 5 Japanese Paragraph Insertion and Deletion PDF (Typst)
+# External Fixture: Japanese Paragraph Insertion and Deletion PDF (Typst)
 
 ## Overview
 
-This directory vendors an externally rendered Japanese PDF revision pair evaluating **SPEC §2.2 Case 4** (paragraph insertion producing 1 exact change in forward comparison) and **SPEC §2.2 Case 5** (paragraph deletion producing 1 exact change in reverse comparison) extended to **SPEC §2.1** (born-digital horizontal Japanese text with single-column layout). It provides an independent, real-world compiler dialect (Typst) and CJK font embedding (Noto Sans CJK JP subsets) without requiring external rendering tools at test runtime.
+This directory vendors an externally rendered Japanese PDF revision pair evaluating paragraph insertion producing 1 exact change in forward comparison and paragraph deletion producing 1 exact change in reverse comparison (born-digital horizontal Japanese text with single-column layout). It provides an independent, real-world compiler dialect (Typst) and CJK font embedding (Noto Sans CJK JP subsets) without requiring external rendering tools at test runtime.
 
 The two documents share identical page geometry, margins (2.5cm), font (`Noto Sans CJK JP`, 11pt), paragraph spacing (24pt), heading, and surrounding body paragraphs:
 - `old.typ` contains 3 blocks (1 heading + 2 paragraphs, 66 glyphs).
@@ -16,7 +16,7 @@ The two documents share identical page geometry, margins (2.5cm), font (`Noto Sa
   - `/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc` (size: 19,484,784 bytes, SHA-256: `b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a`) — used for body paragraphs.
   - `/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc` (size: 20,050,760 bytes, SHA-256: `faa5f3656a78b2e2d450d27fe8382c778bc2b6bb5ea29c986664a6a435056ceb`) — used for headings.
 - **Font Copyright & License**: SIL Open Font License, Version 1.1 (see [`THIRD-PARTY-NOTICES.md`](../../../THIRD-PARTY-NOTICES.md)).
-- **Target SPEC Cases**: §2.2 Case 4 (paragraph insertion) and §2.2 Case 5 (paragraph deletion) in Japanese.
+- **Target Evaluation Cases**: Paragraph insertion and paragraph deletion in Japanese.
 - **Redistribution**: Safe public domain synthetic test text; contains no personal data, machine-specific paths, or secrets.
 
 ## Repo-Root-Complete Generation Commands

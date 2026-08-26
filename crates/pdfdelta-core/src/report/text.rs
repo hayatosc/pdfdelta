@@ -19,17 +19,10 @@ use super::{
     confidence as confidence_name, issue_kind_name, lowercase_hex, percentage, side_name, yes_no,
 };
 
-/// deliberate: presentation-only coalescing threshold. Exact diffs split on
-/// every equal scalar, so human hunks merge neighboring changes separated by
-/// at most this many unchanged comparable tokens; raise only with fixture
-/// evidence that wider gaps still read as one edit.
+/// Maximum unchanged tokens between adjacent edits to coalesce into a single hunk.
 const COALESCE_MAX_EQUAL_TOKENS: usize = 16;
 
-/// deliberate: bounded comparable-token context shown around each changed
-/// region, inside the 40-80 range suggested for terminal review; token space
-/// matches scalar positions one-to-one wherever mapped text exists and also
-/// counts unmapped glyphs, so pure-unmapped edits keep visible context. Tune
-/// from benchmark evidence rather than ad-hoc screen widths.
+/// Number of context tokens displayed around changed regions in unified diffs.
 const CONTEXT_WINDOW_TOKENS: usize = 32;
 
 const CODE_FILE_HEADER: &str = "\x1b[1m";
@@ -303,15 +296,7 @@ fn append_marked_spans(
     Ok(())
 }
 
-/// Unions nearby edited comparable-token ranges so one hunk line covers the
-/// whole edited region, including the small equal runs the exact diff
-/// preserved between its changes. Comparable-token space is authoritative:
-/// unmapped-only changes have a zero-width canonical range but a non-empty
-/// token range, so scalar ranges would drop their placeholders from the
-/// changed segment. deliberate: uses the same threshold as hunk coalescing
-/// so a run never widens beyond what the clustering already considered one
-/// human edit; coordinate identity across merged spans is guaranteed by the
-/// separator check in `side_close`.
+/// Unions nearby edited comparable-token ranges into contiguous hunk spans.
 fn merged_edited_ranges<'a>(spans: impl Iterator<Item = &'a TextSpan>) -> Vec<(usize, usize)> {
     let mut merged: Vec<(usize, usize)> = Vec::new();
     for span in spans {
@@ -619,8 +604,7 @@ fn render_region(group: &ResolvedGroup, start: usize, end: usize) -> String {
     rendered
 }
 
-// deliberate: the human marker abbreviates the font hash to its first four
-// bytes; the JSON report keeps the full identity.
+// Abbreviates the font hash to its first four bytes for human-readable display.
 fn unmapped_placeholder(font_hash: &FontProgramHash, glyph_id: u16) -> String {
     let prefix = &font_hash.0[..font_hash.0.len().min(4)];
     let hash = lowercase_hex(prefix);

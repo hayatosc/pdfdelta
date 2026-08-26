@@ -1,10 +1,23 @@
 # AGENTS.md
 
-## Source of Truth
+## Documentation & Code Comments
 
-- Treat `SPEC.md` as the authoritative product and architecture specification.
-- Do not redefine the first practical release: it requires all five cases in SPEC section 2.2.
+- Do not reference `SPEC`, `SPEC.md`, or specific section numbers in code comments, docstrings, or documentation.
+- All code comments and documentation must be self-contained: describe contracts, invariants, behaviors, and design rationale directly.
+- Follow Rust documentation best practices:
+  - Write concise, accurate doc comments (`///`, `//!`) with intra-doc links where applicable.
+  - Document invariants, assumptions, pre/post-conditions, `# Errors`, `# Panics`, and `# Safety` boundaries explicitly.
+  - Omit redundant comments that merely restate obvious code operations. Focus code comments on non-obvious *why* rationale and architectural decisions.
 - Keep `README.md` honest about functionality that is not implemented yet.
+
+## Acceptance & Release Criteria
+
+- Do not redefine the first practical release: it requires all five core acceptance cases:
+  1. Line-wrap invariance (no content changes)
+  2. Page-break invariance (no content changes)
+  3. Text replacement (exact single change)
+  4. Paragraph insertion (exact single change)
+  5. Paragraph deletion (exact single change)
 
 ## Architecture Invariants
 
@@ -14,14 +27,14 @@
 - Keep layout reconstruction reversible so alignment can recover from incorrect line or block boundaries.
 - Never turn unsupported filters, encrypted input, unmapped glyphs, or uncertain regions into empty text.
 - Treat every PDF as untrusted input and enforce explicit resource limits at parser and extraction boundaries.
-- Do not add a custom PDF object parser, OCR, semantic models, table recognition, or performance optimizations before the SPEC triggers are demonstrated by fixtures or benchmarks.
+- Do not add a custom PDF object parser, OCR, semantic models, table recognition, or performance optimizations before concrete needs are demonstrated by fixtures or benchmarks.
 
 ## Workspace Boundaries
 
 - `pdfdelta-core` is a pure library and must not depend on CLI concerns.
 - `pdfdelta-cli` owns filesystem I/O, argument parsing, report destinations, and process exit codes.
 - `pdfdelta-bench` owns generated fixtures, mutations, renderers, manifests, and evaluation tooling.
-- Track B components should accept programmatically constructed `Document<Glyph>` fixtures so PDF backend work does not block diff-engine work.
+- Diff-engine components should accept programmatically constructed `Document<Glyph>` fixtures so PDF backend work does not block diff-engine work.
 
 ## Project Constraints
 

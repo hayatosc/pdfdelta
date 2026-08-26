@@ -1109,10 +1109,7 @@ impl Extraction<'_> {
             return Ok(bytes);
         }
         let bytes = Arc::new(self.pdf.decoded_stream(terminal)?.bytes);
-        // deliberate: decoded bytes are charged once per unique stream,
-        // mirroring font programs. Repeated Form XObject invocations reuse
-        // the cached evidence for free; runaway execution is bounded by the
-        // separate stream-invocation budget instead.
+        // Decoded stream bytes are charged once per unique stream.
         self.account_decoded_bytes(bytes.len())?;
         self.decoded_stream_cache
             .insert(terminal, Arc::clone(&bytes));

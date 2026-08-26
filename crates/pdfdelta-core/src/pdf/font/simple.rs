@@ -242,7 +242,7 @@ impl SimpleFontDecoder {
             let source = if let Some(source) = standard14_source {
                 Some(source)
             } else if encoding.explicit_encoding {
-                // Derived from SPEC §6.4: simple fonts with an explicit /Encoding dictionary or named encoding
+                // Simple fonts with an explicit /Encoding dictionary or named encoding
                 // map raw byte codes to glyph selectors through that encoding, not directly to glyph IDs
                 // in the embedded font program. Unless the code-to-glyph mapping is independently verified,
                 // unmapped codes must not receive a stable font identity solely from (font_hash, raw_code).
@@ -692,8 +692,7 @@ fn validate_type3(
     if determinant == 0.0 {
         return unresolved("Type 3 FontMatrix is degenerate");
     }
-    // deliberate: accept only axis-aligned scales in the horizontal simple-font model; add
-    // rotation, shear, translation, or reversed advance after fixtures require a full matrix.
+    // Only axis-aligned non-negative scales are supported in the horizontal simple-font model.
     if *b != 0.0 || *c != 0.0 || *e != 0.0 || *f != 0.0 || *a < 0.0 {
         return Err(Error::Unsupported(
             "Type 3 FontMatrix cannot be represented by horizontal simple-font metrics".into(),
@@ -924,7 +923,7 @@ fn load_encoding(
                     None => (BTreeMap::new(), false, false),
                 };
             let standard14_identity_encoding = if differences_present {
-                // Per SPEC §6.4: Differences dictionaries change code-selector meaning and
+                // Differences dictionaries change code-selector meaning and
                 // must not be canonicalized into Standard 14 font identity.
                 None
             } else if base14.is_some() {

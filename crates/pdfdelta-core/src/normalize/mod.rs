@@ -1018,9 +1018,7 @@ fn resolve_line_breaks(atoms: Vec<Atom>, issues: &mut Vec<NormalizationIssue>) -
         } else if previous_scalar.is_some_and(is_decimal_digit)
             && following_scalar.is_some_and(is_decimal_digit)
         {
-            // A break inside a number sequence must never silently merge the
-            // numerals into one value; mirror the ASCII policy and insert a
-            // canonical space instead (recorded as an auditable event).
+            // Breaks between digits insert a space to avoid merging numeric values.
             resolved.push(changed_atom(
                 &atoms[index],
                 AtomValue::Scalar(' '),
@@ -1028,15 +1026,8 @@ fn resolve_line_breaks(atoms: Vec<Atom>, issues: &mut Vec<NormalizationIssue>) -
             ));
         } else if previous_scalar.is_some_and(is_horizontal_whitespace)
             || following_scalar.is_some_and(is_horizontal_whitespace)
-            // deliberate: CJK classification keeps precedence over numeric
-            // classification whenever both sides are not decimal digits, so
-            // kanji-to-fullwidth-digit boundaries still join without a space.
+            // CJK-CJK and CJK-Latin/digit boundaries join without inserted spaces.
             || previous_scalar.is_some_and(is_cjk) && following_scalar.is_some_and(is_cjk)
-            // deliberate: Japanese typesetting sets no visible space between
-            // CJK and an adjacent Latin or digit run, so a soft break there
-            // joins like CJK-CJK instead of flagging the whole block as an
-            // ambiguous boundary and excluding it from fuzzy alignment. The
-            // deleted break stays auditable as a SoftLineBreak event.
             || previous_scalar.is_some_and(is_cjk)
                 && following_scalar.is_some_and(is_latin_letter_or_digit)
             || previous_scalar.is_some_and(is_latin_letter_or_digit)

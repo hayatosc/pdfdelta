@@ -1,4 +1,4 @@
-//! SPEC 12.5 property tests over programmatically constructed `Document<Glyph>` fixtures.
+//! Property tests over programmatically constructed `Document<Glyph>` fixtures.
 
 use std::collections::HashSet;
 

@@ -1,4 +1,4 @@
-//! Candidate generation evaluation (SPEC §12.7).
+//! Candidate generation evaluation.
 //!
 //! Measures top-K recall and per-old-block candidate counts of the
 //! inverted-index candidate generator against the exhaustive all-pairs
@@ -428,7 +428,7 @@ fn canonical_source(plan: &RenderPlan) -> String {
         .join(" ")
 }
 
-/// Applies the SPEC §12.6 n-gram token element budget with the same
+/// Applies the n-gram token element budget with the same
 /// per-side helper and pair-global limit as production alignment, so
 /// candidate evaluation fails on the same billing boundary as the pipeline.
 fn enforce_ngram_budget(
