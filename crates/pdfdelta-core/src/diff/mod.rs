@@ -1,5 +1,7 @@
 mod myers;
 
+const MAX_MYERS_EDIT_DISTANCE: usize = 32_768;
+
 use std::collections::HashMap;
 
 use crate::{
@@ -100,6 +102,10 @@ pub struct Comparison {
 pub struct DiffOptions {
     /// Maximum comparable or raw evidence tokens across both document sides.
     pub max_tokens: usize,
+    /// Maximum Myers edit distance before a matched span becomes unresolved.
+    ///
+    /// Values above the implementation cap are rejected because retained
+    /// backtracking trace memory grows quadratically with this value.
     pub max_edit_distance: usize,
     /// Weak (low-confidence) matched spans whose bounded Myers diff changes
     /// more than this fraction of tokens degrade to unresolved regions
@@ -131,6 +137,11 @@ pub(crate) fn validate_diff_options(options: DiffOptions) -> Result<()> {
         return Err(Error::InvalidConfiguration(
             "diff max_tokens must be greater than zero".to_owned(),
         ));
+    }
+    if options.max_edit_distance > MAX_MYERS_EDIT_DISTANCE {
+        return Err(Error::InvalidConfiguration(format!(
+            "diff max_edit_distance must not exceed {MAX_MYERS_EDIT_DISTANCE} because Myers trace memory grows quadratically"
+        )));
     }
     validate_unit_interval(
         "max_weak_match_change_ratio",
@@ -867,6 +878,26 @@ mod tests {
             max_weak_match_change_ratio: ratio,
             ..DiffOptions::default()
         }
+    }
+
+    #[test]
+    fn rejects_edit_distance_above_the_trace_memory_cap() {
+        let at_cap = DiffOptions {
+            max_edit_distance: MAX_MYERS_EDIT_DISTANCE,
+            ..DiffOptions::default()
+        };
+        assert_eq!(validate_diff_options(at_cap), Ok(()));
+
+        let error = validate_diff_options(DiffOptions {
+            max_edit_distance: MAX_MYERS_EDIT_DISTANCE + 1,
+            ..DiffOptions::default()
+        })
+        .expect_err("an edit distance above the trace cap must be rejected");
+        assert!(matches!(
+            error,
+            Error::InvalidConfiguration(message)
+                if message.contains("max_edit_distance") && message.contains("quadratically")
+        ));
     }
 
     #[test]
