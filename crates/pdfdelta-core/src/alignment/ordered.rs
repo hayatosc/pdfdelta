@@ -373,7 +373,11 @@ fn identity_alignment(old: &[BlockFeatures]) -> Alignment {
                 score: 1.0,
                 canonical_similarity: 1.0,
                 score_margin: None,
-                confidence: AlignmentConfidence::High,
+                confidence: if features.has_normalization_issues {
+                    AlignmentConfidence::Medium
+                } else {
+                    AlignmentConfidence::High
+                },
                 evidence: vec![AlignmentEvidence::ExactCanonical],
                 old_separator: None,
                 new_separator: None,
@@ -997,8 +1001,11 @@ fn align_interval(
     }
 
     let final_cell = &cells[old.len() * width + new.len()];
-    if final_cell.second.is_finite()
-        && final_cell.best - final_cell.second < options.min_score_margin
+    if (!context.bounded_by_anchors
+        && final_cell.second.is_finite()
+        && final_cell.best - final_cell.second < options.min_score_margin)
+        || (final_cell.second.is_finite()
+            && (final_cell.best - final_cell.second).abs() <= SCORE_TOLERANCE)
     {
         return Ok(vec![unresolved_span(
             old,
@@ -1190,14 +1197,19 @@ fn backtrack(
             }
             Transition::Deletion { move_candidate } => {
                 old_index -= 1;
+                let confidence = calibrated_one_sided_confidence(
+                    old[old_index].has_normalization_issues,
+                    score_margin,
+                    &options,
+                );
                 reversed.push(AlignmentSpan {
                     kind: AlignmentKind::Deletion,
                     old: vec![old[old_index].block],
                     new: Vec::new(),
                     score: 0.0,
                     canonical_similarity: 0.0,
-                    score_margin: None,
-                    confidence: AlignmentConfidence::Medium,
+                    score_margin,
+                    confidence,
                     evidence: if move_candidate {
                         vec![AlignmentEvidence::MoveCandidate]
                     } else {
@@ -1209,14 +1221,19 @@ fn backtrack(
             }
             Transition::Insertion { move_candidate } => {
                 new_index -= 1;
+                let confidence = calibrated_one_sided_confidence(
+                    new[new_index].has_normalization_issues,
+                    score_margin,
+                    &options,
+                );
                 reversed.push(AlignmentSpan {
                     kind: AlignmentKind::Insertion,
                     old: Vec::new(),
                     new: vec![new[new_index].block],
                     score: 0.0,
                     canonical_similarity: 0.0,
-                    score_margin: None,
-                    confidence: AlignmentConfidence::Medium,
+                    score_margin,
+                    confidence,
                     evidence: if move_candidate {
                         vec![AlignmentEvidence::MoveCandidate]
                     } else {
@@ -1229,14 +1246,24 @@ fn backtrack(
             Transition::MoveCandidates => {
                 old_index -= 1;
                 new_index -= 1;
+                let ins_confidence = calibrated_one_sided_confidence(
+                    new[new_index].has_normalization_issues,
+                    score_margin,
+                    &options,
+                );
+                let del_confidence = calibrated_one_sided_confidence(
+                    old[old_index].has_normalization_issues,
+                    score_margin,
+                    &options,
+                );
                 reversed.push(AlignmentSpan {
                     kind: AlignmentKind::Insertion,
                     old: Vec::new(),
                     new: vec![new[new_index].block],
                     score: 0.0,
                     canonical_similarity: 0.0,
-                    score_margin: None,
-                    confidence: AlignmentConfidence::Medium,
+                    score_margin,
+                    confidence: ins_confidence,
                     evidence: vec![AlignmentEvidence::MoveCandidate],
                     old_separator: None,
                     new_separator: None,
@@ -1247,8 +1274,8 @@ fn backtrack(
                     new: Vec::new(),
                     score: 0.0,
                     canonical_similarity: 0.0,
-                    score_margin: None,
-                    confidence: AlignmentConfidence::Medium,
+                    score_margin,
+                    confidence: del_confidence,
                     evidence: vec![AlignmentEvidence::MoveCandidate],
                     old_separator: None,
                     new_separator: None,
@@ -1270,6 +1297,8 @@ fn match_span(
     context: IntervalContext<'_>,
 ) -> AlignmentSpan {
     let split_merge = old.len() != new.len();
+    let has_normalization_issues = old.iter().any(|b| b.has_normalization_issues)
+        || new.iter().any(|b| b.has_normalization_issues);
     let mut evidence = vec![if score.exact_canonical {
         AlignmentEvidence::ExactCanonical
     } else {
@@ -1293,29 +1322,65 @@ fn match_span(
         score: score.score,
         canonical_similarity: score.canonical_similarity,
         score_margin,
-        confidence: calibrated_match_confidence(&score, split_merge, score_margin, &options),
+        confidence: calibrated_match_confidence(
+            &score,
+            split_merge,
+            score_margin,
+            has_normalization_issues,
+            &options,
+        ),
         evidence,
         old_separator: score.old_separator,
         new_separator: score.new_separator,
     }
 }
 
-/// Calibrates per-span confidence instead of granting every admitted
-/// non-exact match `Medium`: weak scores and locally ambiguous DP decisions
-/// degrade to `Low` so downstream consumers can tell them apart from strong
-/// correspondences (issue #6).
+/// Calibrates per-span confidence from explicit evidence, score margin,
+/// candidate uniqueness, and normalization uncertainty (SPEC §5.2, §5.3 conservative policy).
+///
+/// Policy:
+/// - Exact-canonical 1:1 matches without normalization issues retain `High` confidence even
+///   when situated inside a competing interval, because identical canonical text is an unequivocal
+///   content correspondence.
+/// - Non-exact matches, split/merges, and issue-bearing matches carry margin uncertainty
+///   (`score_margin < options.min_score_margin`) or feature uncertainty and degrade to `Low`.
+/// - Note: Interval-level runner-up margin propagation along DP paths is maintained as a
+///   conservative policy; fine-grained per-cell margin isolation is recorded as a benchmark/design follow-up.
 fn calibrated_match_confidence(
     score: &GroupScore,
     split_merge: bool,
     score_margin: Option<f64>,
+    has_normalization_issues: bool,
     options: &AlignmentOptions,
 ) -> AlignmentConfidence {
-    if score.exact_canonical && !split_merge {
+    if score.exact_canonical && !split_merge && !has_normalization_issues {
         return AlignmentConfidence::High;
     }
     let weak_score = !score.exact_canonical && score.score < options.strong_match_score;
     let ambiguous_margin = score_margin.is_some_and(|margin| margin < options.min_score_margin);
-    if !score.exact_canonical && (weak_score || ambiguous_margin) {
+    if (!score.exact_canonical && (weak_score || ambiguous_margin || has_normalization_issues))
+        || (split_merge && has_normalization_issues)
+    {
+        AlignmentConfidence::Low
+    } else {
+        AlignmentConfidence::Medium
+    }
+}
+
+/// Calibrates per-span confidence for one-sided transitions (deletions / insertions)
+/// from normalization uncertainty and runner-up score margin (SPEC §5.2, §5.3 conservative policy).
+///
+/// Policy:
+/// - Uncontested one-sided spans without normalization issues keep `Medium` confidence.
+/// - One-sided spans with a competing runner-up margin strictly below `min_score_margin`
+///   or with normalization issues degrade to `Low` confidence.
+fn calibrated_one_sided_confidence(
+    has_normalization_issues: bool,
+    score_margin: Option<f64>,
+    options: &AlignmentOptions,
+) -> AlignmentConfidence {
+    let ambiguous_margin = score_margin.is_some_and(|margin| margin < options.min_score_margin);
+    if has_normalization_issues || ambiguous_margin {
         AlignmentConfidence::Low
     } else {
         AlignmentConfidence::Medium
@@ -1418,7 +1483,10 @@ fn preserve_move_candidates(
             .get(old_start)
             .is_some_and(|block| context.move_old.contains(&block.block))
         {
-            spans.push(move_deletion_span(old[old_start].block));
+            spans.push(move_deletion_span(
+                old[old_start].block,
+                old[old_start].has_normalization_issues,
+            ));
             old_start += 1;
             continue;
         }
@@ -1426,7 +1494,10 @@ fn preserve_move_candidates(
             .get(new_start)
             .is_some_and(|block| context.move_new.contains(&block.block))
         {
-            spans.push(move_insertion_span(new[new_start].block));
+            spans.push(move_insertion_span(
+                new[new_start].block,
+                new[new_start].has_normalization_issues,
+            ));
             new_start += 1;
             continue;
         }
@@ -1459,7 +1530,7 @@ fn preserve_move_candidates(
     Some(spans)
 }
 
-fn move_deletion_span(block: BlockId) -> AlignmentSpan {
+fn move_deletion_span(block: BlockId, has_normalization_issues: bool) -> AlignmentSpan {
     AlignmentSpan {
         kind: AlignmentKind::Deletion,
         old: vec![block],
@@ -1467,14 +1538,18 @@ fn move_deletion_span(block: BlockId) -> AlignmentSpan {
         score: 0.0,
         canonical_similarity: 0.0,
         score_margin: None,
-        confidence: AlignmentConfidence::Medium,
+        confidence: if has_normalization_issues {
+            AlignmentConfidence::Low
+        } else {
+            AlignmentConfidence::Medium
+        },
         evidence: vec![AlignmentEvidence::MoveCandidate],
         old_separator: None,
         new_separator: None,
     }
 }
 
-fn move_insertion_span(block: BlockId) -> AlignmentSpan {
+fn move_insertion_span(block: BlockId, has_normalization_issues: bool) -> AlignmentSpan {
     AlignmentSpan {
         kind: AlignmentKind::Insertion,
         old: Vec::new(),
@@ -1482,7 +1557,11 @@ fn move_insertion_span(block: BlockId) -> AlignmentSpan {
         score: 0.0,
         canonical_similarity: 0.0,
         score_margin: None,
-        confidence: AlignmentConfidence::Medium,
+        confidence: if has_normalization_issues {
+            AlignmentConfidence::Low
+        } else {
+            AlignmentConfidence::Medium
+        },
         evidence: vec![AlignmentEvidence::MoveCandidate],
         old_separator: None,
         new_separator: None,
@@ -1695,6 +1774,12 @@ mod tests {
             numeric_mask_applied: false,
             has_normalization_issues: false,
         }
+    }
+
+    fn feature_with_issue(block: u64, key: u64, has_normalization_issues: bool) -> BlockFeatures {
+        let mut f = feature(block, key);
+        f.has_normalization_issues = has_normalization_issues;
+        f
     }
 
     struct FixedVisitsGenerator {
@@ -1978,6 +2063,24 @@ mod tests {
     }
 
     #[test]
+    fn identity_alignment_calibrates_each_span_independently() {
+        let blocks = vec![
+            feature_with_issue(1, 10, false),
+            feature_with_issue(2, 20, true),
+            feature_with_issue(3, 30, false),
+        ];
+        let generator = FixedVisitsGenerator::new(0);
+
+        let alignment = align_ordered(&blocks, &blocks, &generator, AlignmentOptions::default())
+            .expect("identity alignment should succeed");
+
+        assert_eq!(alignment.spans.len(), 3);
+        assert_eq!(alignment.spans[0].confidence, AlignmentConfidence::High);
+        assert_eq!(alignment.spans[1].confidence, AlignmentConfidence::Medium);
+        assert_eq!(alignment.spans[2].confidence, AlignmentConfidence::High);
+    }
+
+    #[test]
     fn pre_collect_error_leaves_required_candidate_visits_unavailable() {
         let (old, new) = distinct_features();
         let generator = FixedVisitsGenerator::new(6);
@@ -2118,11 +2221,11 @@ mod tests {
         let options = AlignmentOptions::default();
 
         assert_eq!(
-            calibrated_match_confidence(&group_score(0.84, false), false, None, &options),
+            calibrated_match_confidence(&group_score(0.84, false), false, None, false, &options),
             AlignmentConfidence::Low
         );
         assert_eq!(
-            calibrated_match_confidence(&group_score(0.85, false), false, None, &options),
+            calibrated_match_confidence(&group_score(0.85, false), false, None, false, &options),
             AlignmentConfidence::Medium
         );
     }
@@ -2131,30 +2234,154 @@ mod tests {
     fn calibrates_a_thin_local_margin_as_low_confidence() {
         let options = AlignmentOptions::default();
 
+        // Thin margin strictly below threshold (< min_score_margin) -> Low
         assert_eq!(
             calibrated_match_confidence(
                 &group_score(0.9, false),
+                false,
+                Some(options.min_score_margin - SCORE_TOLERANCE),
+                false,
+                &options
+            ),
+            AlignmentConfidence::Low
+        );
+        // Exact threshold boundary (margin == min_score_margin) is not ambiguous under `<` -> Medium
+        assert_eq!(
+            calibrated_match_confidence(
+                &group_score(0.9, false),
+                false,
+                Some(options.min_score_margin),
+                false,
+                &options
+            ),
+            AlignmentConfidence::Medium
+        );
+        // Clearly above threshold boundary -> Medium
+        assert_eq!(
+            calibrated_match_confidence(
+                &group_score(0.9, false),
+                false,
+                Some(options.min_score_margin + 0.10),
+                false,
+                &options
+            ),
+            AlignmentConfidence::Medium
+        );
+        // Clean exact split/merge is not downgraded by a thin margin.
+        assert_eq!(
+            calibrated_match_confidence(&group_score(1.0, true), true, Some(0.0), false, &options),
+            AlignmentConfidence::Medium
+        );
+        // Split/merge with normalization issues degrades to Low.
+        assert_eq!(
+            calibrated_match_confidence(&group_score(1.0, true), true, None, true, &options),
+            AlignmentConfidence::Low
+        );
+    }
+
+    #[test]
+    fn one_sided_confidence_calibrates_from_issues_and_competing_margin() {
+        let options = AlignmentOptions::default();
+
+        // Uncontested clean one-sided span -> Medium
+        assert_eq!(
+            calibrated_one_sided_confidence(false, None, &options),
+            AlignmentConfidence::Medium
+        );
+        assert_eq!(
+            calibrated_one_sided_confidence(false, Some(options.min_score_margin), &options),
+            AlignmentConfidence::Medium
+        );
+        // Contested one-sided span (near tie with runner-up) -> Low
+        assert_eq!(
+            calibrated_one_sided_confidence(
                 false,
                 Some(options.min_score_margin - SCORE_TOLERANCE),
                 &options
             ),
             AlignmentConfidence::Low
         );
-        // Exact canonical identity is not downgraded by a thin margin.
+        // Issue-bearing one-sided span -> Low
         assert_eq!(
-            calibrated_match_confidence(&group_score(1.0, true), true, Some(0.0), &options),
-            AlignmentConfidence::Medium
+            calibrated_one_sided_confidence(true, None, &options),
+            AlignmentConfidence::Low
+        );
+        assert_eq!(
+            calibrated_one_sided_confidence(true, Some(0.50), &options),
+            AlignmentConfidence::Low
         );
     }
 
     #[test]
-    fn exact_matches_keep_high_confidence() {
+    fn exact_matches_calibration_respects_normalization_issues() {
         let options = AlignmentOptions::default();
 
+        // Clean exact 1:1 match -> High
         assert_eq!(
-            calibrated_match_confidence(&group_score(1.0, true), false, Some(0.0), &options),
+            calibrated_match_confidence(&group_score(1.0, true), false, Some(0.0), false, &options),
             AlignmentConfidence::High
         );
+        // Exact 1:1 match with normalization issues -> Medium (cannot be High)
+        assert_eq!(
+            calibrated_match_confidence(&group_score(1.0, true), false, Some(0.0), true, &options),
+            AlignmentConfidence::Medium
+        );
+        // Fuzzy match with normalization issues -> Low
+        assert_eq!(
+            calibrated_match_confidence(&group_score(0.95, false), false, None, true, &options),
+            AlignmentConfidence::Low
+        );
+    }
+
+    #[test]
+    fn confidence_calibration_satisfies_monotonicity_laws() {
+        let options = AlignmentOptions::default();
+        let scores = [0.50, 0.75, 0.84, 0.85, 0.95, 1.0];
+        let margins = [
+            None,
+            Some(0.0),
+            Some(0.01),
+            Some(0.04),
+            Some(0.05),
+            Some(0.10),
+            Some(0.50),
+        ];
+
+        fn ordinal(c: AlignmentConfidence) -> u8 {
+            match c {
+                AlignmentConfidence::Low => 0,
+                AlignmentConfidence::Medium => 1,
+                AlignmentConfidence::High => 2,
+            }
+        }
+
+        // Monotonicity: adding normalization issues never raises confidence
+        for score in scores {
+            for exact in [false, true] {
+                for split in [false, true] {
+                    for margin in margins {
+                        let clean = calibrated_match_confidence(
+                            &group_score(score, exact),
+                            split,
+                            margin,
+                            false,
+                            &options,
+                        );
+                        let with_issues = calibrated_match_confidence(
+                            &group_score(score, exact),
+                            split,
+                            margin,
+                            true,
+                            &options,
+                        );
+                        assert!(
+                            ordinal(clean) >= ordinal(with_issues),
+                            "Clean confidence {clean:?} must be >= issue confidence {with_issues:?}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]
@@ -2201,7 +2428,7 @@ mod tests {
     #[test]
     fn masked_refinement_preserves_move_candidate_boundaries() {
         let mut spans = vec![
-            move_deletion_span(BlockId(1)),
+            move_deletion_span(BlockId(1), false),
             AlignmentSpan {
                 kind: AlignmentKind::Match,
                 old: vec![BlockId(2)],
@@ -2217,7 +2444,7 @@ mod tests {
                 old_separator: None,
                 new_separator: None,
             },
-            move_insertion_span(BlockId(101)),
+            move_insertion_span(BlockId(101), false),
         ];
 
         refine_masked_matches(&mut spans);

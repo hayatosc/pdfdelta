@@ -997,3 +997,277 @@ fn promotes_an_exact_unmapped_move_candidate() -> Result<()> {
     assert_eq!(result.new_coverage.ratio, Some(1.0));
     Ok(())
 }
+
+#[test]
+fn confidence_calibration_spans_and_diff_changes_taxonomy() -> Result<()> {
+    // 1. Exact canonical 1:1 clean match with raw normalization difference -> FormattingChange with High confidence
+    let old_b1 = block_with_raw(1, "Café", "Café");
+    let new_b1 = block_with_raw(101, "Cafe\u{0301}", "Café"); // combining accent in raw, identical canonical
+    let span_exact_clean = AlignmentSpan {
+        kind: AlignmentKind::Match,
+        old: vec![BlockId(1)],
+        new: vec![BlockId(101)],
+        score: 1.0,
+        canonical_similarity: 1.0,
+        score_margin: None,
+        confidence: AlignmentConfidence::High,
+        evidence: vec![AlignmentEvidence::ExactCanonical],
+        old_separator: None,
+        new_separator: None,
+    };
+
+    // 2. Strong unique fuzzy replacement -> Change with Medium confidence
+    let old_b2 = block(2, "The quick fox jumps high");
+    let new_b2 = block(102, "The quick fox jumps low");
+    let span_fuzzy_strong = AlignmentSpan {
+        kind: AlignmentKind::Match,
+        old: vec![BlockId(2)],
+        new: vec![BlockId(102)],
+        score: 0.90,
+        canonical_similarity: 0.90,
+        score_margin: Some(0.15),
+        confidence: AlignmentConfidence::Medium,
+        evidence: vec![AlignmentEvidence::TextSimilarity],
+        old_separator: None,
+        new_separator: None,
+    };
+
+    // 3. Low-margin / weak fuzzy replacement -> Change with Low confidence
+    let old_b3 = block(3, "Alpha Bravo Charlie");
+    let new_b3 = block(103, "Alpha Zulu Charlie");
+    let span_fuzzy_weak = AlignmentSpan {
+        kind: AlignmentKind::Match,
+        old: vec![BlockId(3)],
+        new: vec![BlockId(103)],
+        score: 0.70,
+        canonical_similarity: 0.70,
+        score_margin: Some(0.01),
+        confidence: AlignmentConfidence::Low,
+        evidence: vec![AlignmentEvidence::TextSimilarity],
+        old_separator: None,
+        new_separator: None,
+    };
+
+    // 4. Clean split/merge -> Change or formatting with Medium confidence
+    let old_b4 = block(4, "Combined paragraph line one line two");
+    let new_b4a = block(104, "Combined paragraph line one");
+    let new_b4b = block(105, "line two");
+    let span_split = AlignmentSpan {
+        kind: AlignmentKind::Match,
+        old: vec![BlockId(4)],
+        new: vec![BlockId(104), BlockId(105)],
+        score: 1.0,
+        canonical_similarity: 1.0,
+        score_margin: None,
+        confidence: AlignmentConfidence::Medium,
+        evidence: vec![
+            AlignmentEvidence::ExactCanonical,
+            AlignmentEvidence::SplitMerge,
+        ],
+        old_separator: None,
+        new_separator: Some(BlockSeparator::Space),
+    };
+
+    // 5. Clean Promoted Move -> Move Change with Medium confidence
+    let old_b5 = block(5, "Relocated unique section");
+    let new_b5 = block(106, "Relocated unique section");
+    let mut del_b5 = one_sided(AlignmentKind::Deletion, &[5], &[]);
+    del_b5.confidence = AlignmentConfidence::Medium;
+    del_b5.evidence.push(AlignmentEvidence::MoveCandidate);
+    let mut ins_b5 = one_sided(AlignmentKind::Insertion, &[], &[106]);
+    ins_b5.confidence = AlignmentConfidence::Medium;
+    ins_b5.evidence.push(AlignmentEvidence::MoveCandidate);
+
+    // 6. Promoted Move with weak/issue deletion -> Move Change with Low confidence (bounded by weakest component)
+    let old_b6 = block(6, "Relocated with issue");
+    let new_b6 = block(107, "Relocated with issue");
+    let mut del_b6 = one_sided(AlignmentKind::Deletion, &[6], &[]);
+    del_b6.confidence = AlignmentConfidence::Low;
+    del_b6.evidence.push(AlignmentEvidence::MoveCandidate);
+    let mut ins_b6 = one_sided(AlignmentKind::Insertion, &[], &[107]);
+    ins_b6.confidence = AlignmentConfidence::Medium;
+    ins_b6.evidence.push(AlignmentEvidence::MoveCandidate);
+
+    // 7. Clean Deletion & Insertion -> Deletion / Insertion Change with Medium confidence
+    let old_b7 = block(7, "Deleted normal paragraph");
+    let new_b7 = block(108, "Inserted normal paragraph");
+    let mut del_b7 = one_sided(AlignmentKind::Deletion, &[7], &[]);
+    del_b7.confidence = AlignmentConfidence::Medium;
+    let mut ins_b7 = one_sided(AlignmentKind::Insertion, &[], &[108]);
+    ins_b7.confidence = AlignmentConfidence::Medium;
+
+    // 8. Deletion with Low confidence (issue) -> Deletion Change with Low confidence
+    let old_b8 = block(8, "Deleted issue paragraph");
+    let mut del_b8 = one_sided(AlignmentKind::Deletion, &[8], &[]);
+    del_b8.confidence = AlignmentConfidence::Low;
+
+    // 9. Unresolved region -> UnresolvedRegion in diff, no false changes
+    let old_b9 = block(9, "Unresolved corrupted block");
+    let new_b9 = block(109, "Unresolved corrupted block replacement");
+    let span_unresolved = AlignmentSpan {
+        kind: AlignmentKind::Unresolved,
+        old: vec![BlockId(9)],
+        new: vec![BlockId(109)],
+        score: 0.0,
+        canonical_similarity: 0.0,
+        score_margin: None,
+        confidence: AlignmentConfidence::Low,
+        evidence: vec![AlignmentEvidence::NormalizationIssue],
+        old_separator: None,
+        new_separator: None,
+    };
+
+    let old_blocks = vec![
+        old_b1, old_b2, old_b3, old_b4, old_b5, old_b6, old_b7, old_b8, old_b9,
+    ];
+    let new_blocks = vec![
+        new_b1, new_b2, new_b3, new_b4a, new_b4b, new_b5, new_b6, new_b7, new_b9,
+    ];
+    let alignment = Alignment {
+        spans: vec![
+            span_exact_clean,
+            span_fuzzy_strong,
+            span_fuzzy_weak,
+            span_split,
+            del_b5,
+            ins_b5,
+            del_b6,
+            ins_b6,
+            del_b7,
+            ins_b7,
+            del_b8,
+            span_unresolved,
+        ],
+        main_anchors: Vec::new(),
+        move_candidates: vec![
+            ExactAnchor {
+                old: BlockId(5),
+                new: BlockId(106),
+            },
+            ExactAnchor {
+                old: BlockId(6),
+                new: BlockId(107),
+            },
+        ],
+    };
+    let diff = compare_aligned(&old_blocks, &new_blocks, &alignment, DiffOptions::default())?;
+
+    // Verify FormattingChanges: clean exact normalization (High) and split/merge structure (Medium)
+    assert_eq!(diff.formatting_changes.len(), 2);
+    assert_eq!(diff.formatting_changes[0].confidence, Confidence::High);
+    assert_eq!(
+        diff.formatting_changes[0].reasons,
+        [FormattingReason::Normalization]
+    );
+    assert_eq!(diff.formatting_changes[1].confidence, Confidence::Medium);
+    assert_eq!(
+        diff.formatting_changes[1].reasons,
+        [FormattingReason::BlockStructure]
+    );
+
+    // Verify Changes by kind and confidence
+    let fuzzy_strong = diff
+        .changes
+        .iter()
+        .find(|c| {
+            c.old_span
+                .as_ref()
+                .is_some_and(|s| s.blocks == [BlockId(2)])
+        })
+        .expect("fuzzy strong change must be found");
+    assert_eq!(fuzzy_strong.kind, ChangeKind::Replacement);
+    assert_eq!(fuzzy_strong.confidence, Confidence::Medium);
+
+    let fuzzy_weak = diff
+        .changes
+        .iter()
+        .find(|c| {
+            c.old_span
+                .as_ref()
+                .is_some_and(|s| s.blocks == [BlockId(3)])
+        })
+        .expect("fuzzy weak change must be found");
+    assert_eq!(fuzzy_weak.kind, ChangeKind::Replacement);
+    assert_eq!(fuzzy_weak.confidence, Confidence::Low);
+
+    let move_clean = diff
+        .changes
+        .iter()
+        .find(|c| {
+            c.old_span
+                .as_ref()
+                .is_some_and(|s| s.blocks == [BlockId(5)])
+        })
+        .expect("clean move change must be found");
+    assert_eq!(move_clean.kind, ChangeKind::Move);
+    assert_eq!(move_clean.confidence, Confidence::Medium);
+
+    let move_issue = diff
+        .changes
+        .iter()
+        .find(|c| {
+            c.old_span
+                .as_ref()
+                .is_some_and(|s| s.blocks == [BlockId(6)])
+        })
+        .expect("issue move change must be found");
+    assert_eq!(move_issue.kind, ChangeKind::Move);
+    assert_eq!(move_issue.confidence, Confidence::Low); // Bounded by weakest side
+
+    let del_clean = diff
+        .changes
+        .iter()
+        .find(|c| {
+            c.old_span
+                .as_ref()
+                .is_some_and(|s| s.blocks == [BlockId(7)])
+        })
+        .expect("clean deletion change must be found");
+    assert_eq!(del_clean.kind, ChangeKind::Deletion);
+    assert_eq!(del_clean.confidence, Confidence::Medium);
+
+    let ins_clean = diff
+        .changes
+        .iter()
+        .find(|c| {
+            c.new_span
+                .as_ref()
+                .is_some_and(|s| s.blocks == [BlockId(108)])
+        })
+        .expect("clean insertion change must be found");
+    assert_eq!(ins_clean.kind, ChangeKind::Insertion);
+    assert_eq!(ins_clean.confidence, Confidence::Medium);
+
+    let del_issue = diff
+        .changes
+        .iter()
+        .find(|c| {
+            c.old_span
+                .as_ref()
+                .is_some_and(|s| s.blocks == [BlockId(8)])
+        })
+        .expect("issue deletion change must be found");
+    assert_eq!(del_issue.kind, ChangeKind::Deletion);
+    assert_eq!(del_issue.confidence, Confidence::Low);
+
+    // Verify UnresolvedRegion
+    assert_eq!(diff.unresolved_regions.len(), 1);
+    assert_eq!(
+        diff.unresolved_regions[0]
+            .old_span
+            .as_ref()
+            .expect("old span must be present")
+            .blocks,
+        [BlockId(9)]
+    );
+    assert_eq!(
+        diff.unresolved_regions[0]
+            .new_span
+            .as_ref()
+            .expect("new span must be present")
+            .blocks,
+        [BlockId(109)]
+    );
+
+    Ok(())
+}

@@ -1974,3 +1974,160 @@ fn svg_render_escapes_xml_10_forbidden_controls_and_preserves_whitespace() -> Re
     assert_eq!(svg, svg2, "SVG serialization must be 100% deterministic");
     Ok(())
 }
+
+#[test]
+fn reports_render_and_serialize_calibrated_confidence_levels() -> Result<()> {
+    let old_blocks = vec![
+        block_with_pages(1, "Exact anchor block text", &[1]),
+        block_with_pages(2, "Strong fuzzy block text", &[1]),
+        block_with_pages(3, "Weak fuzzy block text", &[1]),
+    ];
+    let new_blocks = vec![
+        block_with_pages(101, "Exact anchor block text", &[1]),
+        block_with_pages(102, "Strong fuzzy edited text", &[1]),
+        block_with_pages(103, "Weak fuzzy edited text", &[1]),
+    ];
+
+    let old_tokens: usize = old_blocks.iter().map(|b| b.matching_tokens.len()).sum();
+    let new_tokens: usize = new_blocks.iter().map(|b| b.matching_tokens.len()).sum();
+
+    let comparison = Comparison {
+        changes: vec![
+            Change {
+                kind: ChangeKind::Replacement,
+                old_span: Some(full_span(2, "Strong fuzzy block text")),
+                new_span: Some(full_span(102, "Strong fuzzy edited text")),
+                confidence: Confidence::Medium,
+                tags: Vec::new(),
+            },
+            Change {
+                kind: ChangeKind::Replacement,
+                old_span: Some(full_span(3, "Weak fuzzy block text")),
+                new_span: Some(full_span(103, "Weak fuzzy edited text")),
+                confidence: Confidence::Low,
+                tags: Vec::new(),
+            },
+        ],
+        formatting_changes: vec![FormattingChange {
+            old_span: full_span(1, "Exact anchor block text"),
+            new_span: full_span(101, "Exact anchor block text"),
+            confidence: Confidence::High,
+            reasons: vec![FormattingReason::Normalization],
+        }],
+        unresolved_regions: Vec::new(),
+        old_coverage: Coverage {
+            resolved_tokens: old_tokens,
+            total_tokens: old_tokens,
+            ratio: Some(1.0),
+        },
+        new_coverage: Coverage {
+            resolved_tokens: new_tokens,
+            total_tokens: new_tokens,
+            ratio: Some(1.0),
+        },
+    };
+
+    let summary = summarize(&comparison, &ExtractionStatus::complete())?;
+    assert_eq!(summary.content_changes, 2);
+    assert_eq!(summary.formatting_only_changes, 1);
+    assert_eq!(
+        summary.uncertain_changes, 1,
+        "Low confidence change must count as uncertain"
+    );
+
+    let text_report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert!(text_report.contains("uncertain: 1"), "{text_report}");
+    assert!(
+        text_report.contains("@@ page 2 · old block 2 -> new block 102 · confidence: medium @@"),
+        "{text_report}"
+    );
+    assert!(
+        text_report.contains("@@ page 2 · old block 3 -> new block 103 · confidence: low @@"),
+        "{text_report}"
+    );
+
+    let mut json_bytes = Vec::new();
+    write_json(
+        &mut json_bytes,
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&json_bytes).expect("report should be valid JSON");
+
+    assert_eq!(json["summary"]["uncertain_changes"], 1);
+    assert_eq!(json["changes"][0]["confidence"], "medium");
+    assert_eq!(json["changes"][1]["confidence"], "low");
+    assert_eq!(json["formatting_only_changes"][0]["confidence"], "high");
+
+    Ok(())
+}
+
+#[test]
+fn formatting_changes_with_low_confidence_do_not_increment_uncertain_changes() -> Result<()> {
+    let old_blocks = vec![block_with_pages(1, "Combined text line one line two", &[1])];
+    let new_blocks = vec![
+        block_with_pages(101, "Combined text line one", &[1]),
+        block_with_pages(102, "line two", &[1]),
+    ];
+
+    let old_tokens: usize = old_blocks.iter().map(|b| b.matching_tokens.len()).sum();
+    let new_tokens: usize = new_blocks.iter().map(|b| b.matching_tokens.len()).sum();
+
+    // Low confidence formatting-only change (e.g. split/merge with normalization issue)
+    let comparison = Comparison {
+        changes: Vec::new(),
+        formatting_changes: vec![FormattingChange {
+            old_span: full_span(1, "Combined text line one line two"),
+            new_span: full_span(101, "Combined text line one"),
+            confidence: Confidence::Low,
+            reasons: vec![FormattingReason::BlockStructure],
+        }],
+        unresolved_regions: Vec::new(),
+        old_coverage: Coverage {
+            resolved_tokens: old_tokens,
+            total_tokens: old_tokens,
+            ratio: Some(1.0),
+        },
+        new_coverage: Coverage {
+            resolved_tokens: new_tokens,
+            total_tokens: new_tokens,
+            ratio: Some(1.0),
+        },
+    };
+
+    let summary = summarize(&comparison, &ExtractionStatus::complete())?;
+    assert_eq!(summary.content_changes, 0);
+    assert_eq!(summary.formatting_only_changes, 1);
+    assert_eq!(
+        summary.uncertain_changes, 0,
+        "Low confidence formatting changes belong to formatting_only_changes and must not increment uncertain_changes"
+    );
+
+    let mut json_bytes = Vec::new();
+    write_json(
+        &mut json_bytes,
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&json_bytes).expect("report should be valid JSON");
+
+    assert_eq!(json["summary"]["content_changes"], 0);
+    assert_eq!(json["summary"]["formatting_only_changes"], 1);
+    assert_eq!(json["summary"]["uncertain_changes"], 0);
+    assert_eq!(json["formatting_only_changes"][0]["confidence"], "low");
+
+    Ok(())
+}

@@ -96,8 +96,19 @@ impl Default for ExtractionStatus {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ReportSummary {
+    /// Number of reportable semantic content changes (replacements, deletions, insertions, moves).
     pub content_changes: usize,
+    /// Number of non-content formatting/structural changes between canonically equivalent text spans.
+    ///
+    /// Note: promoted moves with raw-token normalization differences can intentionally emit both a
+    /// [`ChangeKind::Move`] and a [`FormattingChange`], incrementing both [`Self::content_changes`] and
+    /// [`Self::formatting_only_changes`].
     pub formatting_only_changes: usize,
+    /// Number of content changes with [`Confidence::Low`] due to weak similarity, ambiguous competing DP margin,
+    /// or token normalization uncertainty.
+    ///
+    /// By contract (SPEC §5.3), formatting-only changes are reported separately in [`Self::formatting_only_changes`]
+    /// and do not increment `uncertain_changes` or affect content exit status.
     pub uncertain_changes: usize,
     pub unresolved_regions: usize,
     pub unsupported_extraction_issues: usize,

@@ -11,6 +11,7 @@ use pdfdelta_core::{
         build_block_features, exact_anchors, partition_anchor_windows,
         select_monotone_anchor_chain,
     },
+    diff::{ChangeKind, Confidence},
     layout::{Block, BlockId, BlockRole, Line, LineId},
     model::{
         DecodedText, Document, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect,
@@ -19,6 +20,7 @@ use pdfdelta_core::{
     normalize::{BlockText, normalize_blocks},
     pdf::ObjectRef,
     pipeline::{PipelineOptions, compare_glyph_documents},
+    report::{ExtractionStatus, summarize},
 };
 
 /// Word alphabet mixing repeated words, numeric runs for masking, line-break
@@ -268,6 +270,58 @@ proptest! {
                         "long block {} must not enter via the short fallback",
                         candidate.block.0
                     );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn change_confidence_and_uncertain_summary_invariant(
+        old_words in arb_block_words(),
+        new_words in arb_block_words(),
+    ) {
+        let old_fixture = fixture_from(1, old_words);
+        let new_fixture = fixture_from(10_000, new_words);
+
+        let comparison = compare_glyph_documents(
+            &old_fixture.document,
+            &new_fixture.document,
+            PipelineOptions::default(),
+        )
+        .expect("arbitrary documents should compare");
+
+        let summary = summarize(&comparison, &ExtractionStatus::complete())
+            .expect("summary should succeed");
+
+        let low_confidence_count = comparison
+            .changes
+            .iter()
+            .filter(|c| c.confidence == Confidence::Low)
+            .count();
+
+        prop_assert_eq!(
+            summary.uncertain_changes,
+            low_confidence_count,
+            "uncertain_changes summary must exactly match count of Confidence::Low changes"
+        );
+
+        for change in &comparison.changes {
+            match change.kind {
+                ChangeKind::Move => {
+                    prop_assert!(change.old_span.is_some());
+                    prop_assert!(change.new_span.is_some());
+                }
+                ChangeKind::Deletion => {
+                    prop_assert!(change.old_span.is_some());
+                    prop_assert!(change.new_span.is_none());
+                }
+                ChangeKind::Insertion => {
+                    prop_assert!(change.old_span.is_none());
+                    prop_assert!(change.new_span.is_some());
+                }
+                ChangeKind::Replacement => {
+                    prop_assert!(change.old_span.is_some());
+                    prop_assert!(change.new_span.is_some());
                 }
             }
         }

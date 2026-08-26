@@ -922,4 +922,35 @@ mod tests {
         let edits = [Edit::Equal, Edit::Delete, Edit::Equal, Edit::Delete];
         assert!(!is_implausible_match(&edits, 5, 3, options(0.5)));
     }
+
+    #[test]
+    fn weaker_confidence_satisfies_lattice_lower_bound_laws() {
+        use crate::alignment::AlignmentConfidence::*;
+
+        // Idempotency: weaker(a, a) == a
+        assert_eq!(weaker_confidence(High, High), High);
+        assert_eq!(weaker_confidence(Medium, Medium), Medium);
+        assert_eq!(weaker_confidence(Low, Low), Low);
+
+        // Commutativity: weaker(a, b) == weaker(b, a)
+        assert_eq!(weaker_confidence(High, Medium), Medium);
+        assert_eq!(weaker_confidence(Medium, High), Medium);
+        assert_eq!(weaker_confidence(High, Low), Low);
+        assert_eq!(weaker_confidence(Low, High), Low);
+        assert_eq!(weaker_confidence(Medium, Low), Low);
+        assert_eq!(weaker_confidence(Low, Medium), Low);
+
+        // Associativity: weaker(weaker(a, b), c) == weaker(a, weaker(b, c))
+        let confidences = [High, Medium, Low];
+        for a in confidences {
+            for b in confidences {
+                for c in confidences {
+                    assert_eq!(
+                        weaker_confidence(weaker_confidence(a, b), c),
+                        weaker_confidence(a, weaker_confidence(b, c))
+                    );
+                }
+            }
+        }
+    }
 }
