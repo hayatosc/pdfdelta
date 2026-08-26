@@ -33,4 +33,6 @@ dbg_macro = "deny"
 suspicious = "deny"
 todo = "deny"
 unimplemented = "deny"
+# `expect_used` stays unset: explicit `expect` is reserved for locally proven
+# invariants and test setup, and its message must explain why failure is impossible.
 unwrap_used = "deny"
