@@ -40,6 +40,8 @@ pub struct RegionOptions {
     pub min_horizontal_gap_ratio: f64,
     /// Minimum number of lines required to partition a sub-region.
     pub min_partition_lines: usize,
+    /// Maximum recursive call depth, counting the page root as depth 1.
+    pub max_recursion_depth: usize,
 }
 
 impl Default for RegionOptions {
@@ -48,6 +50,7 @@ impl Default for RegionOptions {
             min_vertical_gap_ratio: 0.03,
             min_horizontal_gap_ratio: 0.05,
             min_partition_lines: 2,
+            max_recursion_depth: 256,
         }
     }
 }
@@ -61,10 +64,21 @@ pub fn validate_region_options(options: RegionOptions) -> Result<()> {
             "min_partition_lines must be at least 1".to_owned(),
         ));
     }
+    if options.max_recursion_depth == 0 {
+        return Err(Error::InvalidConfiguration(
+            "max_recursion_depth must be at least 1".to_owned(),
+        ));
+    }
     Ok(())
 }
 
-/// Partitions a page's lines into structural regions using recursive XY-Cut and builds a RegionGraph.
+/// Partitions a page's lines into structural regions using recursive XY-Cut.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidConfiguration`] for invalid options and
+/// [`Error::LimitExceeded`] when recursive partitioning exceeds the configured
+/// depth.
 pub fn partition_regions(
     page: PageId,
     lines: &[Line],
@@ -95,21 +109,21 @@ fn partition_regions_inner(
         return Ok(Vec::new());
     }
 
-    let mut next_id = 1_u64;
-    let mut regions = Vec::new();
-
-    let initial_indices: Vec<usize> = (0..lines.len()).collect();
-    xy_cut_recursive(
-        page,
-        lines,
-        &initial_indices,
-        options,
-        &mut next_id,
-        &mut regions,
+    let mut build = RegionBuild {
+        next_id: 1,
+        regions: Vec::new(),
         edges,
-    );
+    };
+    let initial_indices: Vec<usize> = (0..lines.len()).collect();
+    xy_cut_recursive(page, lines, &initial_indices, options, 1, &mut build)?;
 
-    Ok(regions)
+    Ok(build.regions)
+}
+
+struct RegionBuild<'a> {
+    next_id: u64,
+    regions: Vec<Region>,
+    edges: Option<&'a mut Vec<(RegionId, RegionId, RegionRelation)>>,
 }
 
 fn xy_cut_recursive(
@@ -117,41 +131,26 @@ fn xy_cut_recursive(
     lines: &[&Line],
     indices: &[usize],
     options: RegionOptions,
-    next_id: &mut u64,
-    regions: &mut Vec<Region>,
-    mut edges: Option<&mut Vec<(RegionId, RegionId, RegionRelation)>>,
-) {
+    depth: usize,
+    build: &mut RegionBuild<'_>,
+) -> Result<()> {
     if indices.is_empty() {
-        return;
+        return Ok(());
     }
 
     // Try horizontal split first (Above / Below bands).
     if let Some((top_indices, bottom_indices)) = try_horizontal_cut(lines, indices, options) {
-        let top_region_start = regions.len();
-        xy_cut_recursive(
-            page,
-            lines,
-            &top_indices,
-            options,
-            next_id,
-            regions,
-            edges.as_deref_mut(),
-        );
-        let top_region_end = regions.len();
+        let next_depth = next_recursion_depth(depth, options.max_recursion_depth)?;
+        let top_region_start = build.regions.len();
+        xy_cut_recursive(page, lines, &top_indices, options, next_depth, build)?;
+        let top_region_end = build.regions.len();
 
-        let bottom_region_start = regions.len();
-        xy_cut_recursive(
-            page,
-            lines,
-            &bottom_indices,
-            options,
-            next_id,
-            regions,
-            edges.as_deref_mut(),
-        );
-        let bottom_region_end = regions.len();
+        let bottom_region_start = build.regions.len();
+        xy_cut_recursive(page, lines, &bottom_indices, options, next_depth, build)?;
+        let bottom_region_end = build.regions.len();
 
-        if let Some(edges) = edges {
+        let regions = &build.regions;
+        if let Some(edges) = build.edges.as_mut() {
             // Add spatial graph relationships between top and bottom sub-regions.
             for top_idx in top_region_start..top_region_end {
                 for bot_idx in bottom_region_start..bottom_region_end {
@@ -172,36 +171,22 @@ fn xy_cut_recursive(
                 }
             }
         }
-        return;
+        return Ok(());
     }
 
     // Try vertical split (LeftOf / RightOf columns).
     if let Some((left_indices, right_indices)) = try_vertical_cut(lines, indices, options) {
-        let left_region_start = regions.len();
-        xy_cut_recursive(
-            page,
-            lines,
-            &left_indices,
-            options,
-            next_id,
-            regions,
-            edges.as_deref_mut(),
-        );
-        let left_region_end = regions.len();
+        let next_depth = next_recursion_depth(depth, options.max_recursion_depth)?;
+        let left_region_start = build.regions.len();
+        xy_cut_recursive(page, lines, &left_indices, options, next_depth, build)?;
+        let left_region_end = build.regions.len();
 
-        let right_region_start = regions.len();
-        xy_cut_recursive(
-            page,
-            lines,
-            &right_indices,
-            options,
-            next_id,
-            regions,
-            edges.as_deref_mut(),
-        );
-        let right_region_end = regions.len();
+        let right_region_start = build.regions.len();
+        xy_cut_recursive(page, lines, &right_indices, options, next_depth, build)?;
+        let right_region_end = build.regions.len();
 
-        if let Some(edges) = edges {
+        let regions = &build.regions;
+        if let Some(edges) = build.edges.as_mut() {
             for left_idx in left_region_start..left_region_end {
                 for right_idx in right_region_start..right_region_end {
                     let left = &regions[left_idx];
@@ -221,12 +206,12 @@ fn xy_cut_recursive(
                 }
             }
         }
-        return;
+        return Ok(());
     }
 
     // Leaf region (no further cut found).
-    let region_id = RegionId(*next_id);
-    *next_id += 1;
+    let region_id = RegionId(build.next_id);
+    build.next_id += 1;
     let bbox = compute_bounding_box(lines, indices);
     let mut sorted_indices = indices.to_vec();
     // Sort lines inside leaf region in natural top-to-bottom, left-to-right order.
@@ -240,12 +225,23 @@ fn xy_cut_recursive(
             .then(lines[a].id.0.cmp(&lines[b].id.0))
     });
     let line_ids = sorted_indices.iter().map(|&i| lines[i].id).collect();
-    regions.push(Region {
+    build.regions.push(Region {
         id: region_id,
         page,
         bbox,
         line_ids,
     });
+    Ok(())
+}
+
+fn next_recursion_depth(depth: usize, limit: usize) -> Result<usize> {
+    depth
+        .checked_add(1)
+        .filter(|next| *next <= limit)
+        .ok_or(Error::LimitExceeded {
+            resource: "region XY-Cut recursion depth",
+            limit,
+        })
 }
 
 fn try_vertical_cut(

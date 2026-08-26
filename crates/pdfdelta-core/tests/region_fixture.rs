@@ -1,5 +1,5 @@
 use pdfdelta_core::{
-    Result,
+    Error, Result,
     layout::{
         Line, LineId, RegionOptions, RegionRelation, partition_regions, validate_region_options,
     },
@@ -234,6 +234,30 @@ fn single_column_page_remains_single_region() -> Result<()> {
 }
 
 #[test]
+fn region_partition_reports_recursion_depth_limit() {
+    let lines = vec![
+        make_line(1, 50.0, 700.0, 500.0, 712.0),
+        make_line(2, 50.0, 100.0, 500.0, 112.0),
+    ];
+    let options = RegionOptions {
+        min_partition_lines: 1,
+        max_recursion_depth: 1,
+        ..RegionOptions::default()
+    };
+
+    let error = partition_regions(PageId(0), &lines, options)
+        .expect_err("a recursive cut beyond the configured depth must fail");
+
+    assert!(matches!(
+        error,
+        Error::LimitExceeded {
+            resource: "region XY-Cut recursion depth",
+            limit: 1
+        }
+    ));
+}
+
+#[test]
 fn region_options_validation_rejects_invalid_values() {
     assert!(
         validate_region_options(RegionOptions {
@@ -245,6 +269,13 @@ fn region_options_validation_rejects_invalid_values() {
     assert!(
         validate_region_options(RegionOptions {
             min_partition_lines: 0,
+            ..Default::default()
+        })
+        .is_err()
+    );
+    assert!(
+        validate_region_options(RegionOptions {
+            max_recursion_depth: 0,
             ..Default::default()
         })
         .is_err()
