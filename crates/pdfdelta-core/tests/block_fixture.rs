@@ -78,6 +78,11 @@ fn keeps_horizontal_body_and_vertical_label_in_separate_blocks() {
     assert_eq!(blocks.len(), 2);
     assert_eq!(blocks[0].lines, [LineId(1)]);
     assert_eq!(blocks[1].lines, [LineId(2)]);
+    let preserved_lines = blocks
+        .iter()
+        .flat_map(|block| block.lines.iter().copied())
+        .collect::<Vec<_>>();
+    assert_eq!(preserved_lines, [LineId(1), LineId(2)]);
 }
 
 #[test]
@@ -447,6 +452,8 @@ impl Fixture {
                     y: spec.y,
                 },
                 direction: Vec2 { x: 1.0, y: 0.0 },
+                text_direction: pdfdelta_core::layout::LineTextDirection::LeftToRight,
+                render_order: spec.id as u32..=spec.id as u32,
             });
         }
         Self {
@@ -1536,6 +1543,8 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
             },
             baseline: Vec2 { x: 0.0, y: 750.0 },
             direction: Vec2 { x: 1.0, y: 0.0 },
+            text_direction: pdfdelta_core::layout::LineTextDirection::Unknown,
+            render_order: g1_id.0 as u32..=g2_id.0 as u32,
         });
         line_id_counter += 1;
 
@@ -1584,6 +1593,8 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
                 },
                 baseline: Vec2 { x: 0.0, y },
                 direction: Vec2 { x: 1.0, y: 0.0 },
+                text_direction: pdfdelta_core::layout::LineTextDirection::LeftToRight,
+                render_order: bg_id.0 as u32..=bg_id.0 as u32,
             });
             line_id_counter += 1;
         }
@@ -1658,6 +1669,8 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
             },
             baseline: Vec2 { x: 0.0, y: 50.0 },
             direction: Vec2 { x: 1.0, y: 0.0 },
+            text_direction: pdfdelta_core::layout::LineTextDirection::Unknown,
+            render_order: fg1_id.0 as u32..=fg2_id.0 as u32,
         });
         line_id_counter += 1;
     }

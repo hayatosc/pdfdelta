@@ -1,8 +1,11 @@
 use std::collections::HashSet;
+use std::ops::RangeInclusive;
+
+use unicode_bidi::{BidiClass, bidi_class};
 
 use crate::{
     Error, Result,
-    model::{Document, Glyph, GlyphId, PageId, Rect, Vec2},
+    model::{DecodedText, Document, Glyph, GlyphId, PageId, Rect, Vec2},
     validate::{validate_non_negative, validate_unit_interval},
 };
 
@@ -20,6 +23,18 @@ pub struct SyntheticSpace {
     pub following: GlyphId,
 }
 
+/// Strong text direction derived from decoded glyph text, independently of
+/// the PDF text transform.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LineTextDirection {
+    LeftToRight,
+    RightToLeft,
+    Neutral,
+    Mixed,
+    Unknown,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Line {
     pub id: LineId,
@@ -29,6 +44,10 @@ pub struct Line {
     pub bbox: Rect,
     pub baseline: Vec2,
     pub direction: Vec2,
+    /// Direction inferred from Unicode bidi classes in decoded glyph text.
+    pub text_direction: LineTextDirection,
+    /// Inclusive raw glyph paint-order extent covered by this line.
+    pub render_order: RangeInclusive<u32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -242,6 +261,19 @@ impl<'a> WorkingLine<'a> {
     }
 
     fn finish(mut self, id: LineId, options: LineOptions) -> Line {
+        let text_direction = classify_text_direction(&self.glyphs);
+        let first_render_order = self
+            .glyphs
+            .iter()
+            .map(|glyph| glyph.render_order)
+            .min()
+            .expect("a working line always contains at least one glyph");
+        let last_render_order = self
+            .glyphs
+            .iter()
+            .map(|glyph| glyph.render_order)
+            .max()
+            .expect("a working line always contains at least one glyph");
         let direction = self.direction;
         self.glyphs.sort_by(|left, right| {
             projected_center(left.bbox, direction)
@@ -268,7 +300,41 @@ impl<'a> WorkingLine<'a> {
             bbox,
             baseline,
             direction,
+            text_direction,
+            render_order: first_render_order..=last_render_order,
         }
+    }
+}
+
+fn classify_text_direction(glyphs: &[&Glyph]) -> LineTextDirection {
+    let mut has_ltr = false;
+    let mut has_rtl = false;
+    for glyph in glyphs {
+        let DecodedText::Mapped(text) = &glyph.text else {
+            return LineTextDirection::Unknown;
+        };
+        for character in text.chars() {
+            match bidi_class(character) {
+                BidiClass::L => has_ltr = true,
+                BidiClass::R | BidiClass::AL => has_rtl = true,
+                BidiClass::LRE
+                | BidiClass::LRI
+                | BidiClass::LRO
+                | BidiClass::RLE
+                | BidiClass::RLI
+                | BidiClass::RLO
+                | BidiClass::FSI
+                | BidiClass::PDI
+                | BidiClass::PDF => return LineTextDirection::Unknown,
+                _ => {}
+            }
+        }
+    }
+    match (has_ltr, has_rtl) {
+        (true, true) => LineTextDirection::Mixed,
+        (true, false) => LineTextDirection::LeftToRight,
+        (false, true) => LineTextDirection::RightToLeft,
+        (false, false) => LineTextDirection::Neutral,
     }
 }
 

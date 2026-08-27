@@ -1,6 +1,14 @@
+use std::collections::HashMap;
+
 use crate::{
     Error, Result,
-    layout::{Line, LineId, geometry::interval_overlap_ratio},
+    layout::{
+        Line, LineId, LineTextDirection,
+        geometry::{
+            directions_are_compatible, interval_overlap_ratio, is_horizontal, length_squared,
+            normalize,
+        },
+    },
     model::{PageId, Rect, Vec2},
     validate::{validate_non_negative, validate_unit_interval},
 };
@@ -26,10 +34,19 @@ pub struct Region {
     pub line_ids: Vec<LineId>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ReadingOrder {
+    Known(Vec<RegionId>),
+    #[default]
+    Unknown,
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RegionGraph {
     pub regions: Vec<Region>,
     pub edges: Vec<(RegionId, RegionId, RegionRelation)>,
+    pub reading_order: ReadingOrder,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -84,18 +101,134 @@ pub fn partition_regions(
     lines: &[Line],
     options: RegionOptions,
 ) -> Result<RegionGraph> {
-    let mut edges = Vec::new();
     let line_refs: Vec<_> = lines.iter().collect();
-    let regions = partition_regions_inner(page, &line_refs, options, Some(&mut edges))?;
-    Ok(RegionGraph { regions, edges })
+    partition_regions_from_refs(page, &line_refs, options)
 }
 
-pub(super) fn partition_regions_without_edges(
+pub(super) fn partition_regions_from_refs(
     page: PageId,
     lines: &[&Line],
     options: RegionOptions,
-) -> Result<Vec<Region>> {
-    partition_regions_inner(page, lines, options, None)
+) -> Result<RegionGraph> {
+    let mut edges = Vec::new();
+    let regions = partition_regions_inner(page, lines, options, Some(&mut edges))?;
+    let reading_order = classify_reading_order(lines, &regions, &edges);
+    Ok(RegionGraph {
+        regions,
+        edges,
+        reading_order,
+    })
+}
+
+fn classify_reading_order(
+    lines: &[&Line],
+    regions: &[Region],
+    edges: &[(RegionId, RegionId, RegionRelation)],
+) -> ReadingOrder {
+    let mut reference_direction = None;
+    for line in lines {
+        if !line_geometry_is_finite(line) || length_squared(line.direction) <= f64::EPSILON {
+            return ReadingOrder::Unknown;
+        }
+        let direction = normalize(line.direction);
+        if !is_horizontal(direction)
+            || direction.x <= 0.0
+            || !matches!(
+                line.text_direction,
+                LineTextDirection::LeftToRight | LineTextDirection::Neutral
+            )
+        {
+            return ReadingOrder::Unknown;
+        }
+        if reference_direction
+            .is_some_and(|reference| !directions_are_compatible(reference, direction))
+        {
+            return ReadingOrder::Unknown;
+        }
+        reference_direction = Some(direction);
+    }
+
+    let lines_by_id = lines
+        .iter()
+        .map(|line| (line.id, *line))
+        .collect::<HashMap<_, _>>();
+    match regions {
+        [] => ReadingOrder::Known(Vec::new()),
+        [region] if region_lines_are_monotone(region, &lines_by_id) => {
+            ReadingOrder::Known(vec![region.id])
+        }
+        [left, right]
+            if is_supported_two_column_graph(left, right, edges)
+                && region_lines_are_monotone(left, &lines_by_id)
+                && region_lines_are_monotone(right, &lines_by_id)
+                && regions_are_rendered_in_order(left, right, &lines_by_id) =>
+        {
+            ReadingOrder::Known(vec![left.id, right.id])
+        }
+        _ => ReadingOrder::Unknown,
+    }
+}
+
+fn region_lines_are_monotone(region: &Region, lines: &HashMap<LineId, &Line>) -> bool {
+    region.line_ids.windows(2).all(|pair| {
+        let Some(previous) = lines.get(&pair[0]) else {
+            return false;
+        };
+        let Some(next) = lines.get(&pair[1]) else {
+            return false;
+        };
+        previous.bbox.max.y >= next.bbox.max.y
+            && previous.render_order.end() < next.render_order.start()
+    })
+}
+
+fn is_supported_two_column_graph(
+    left: &Region,
+    right: &Region,
+    edges: &[(RegionId, RegionId, RegionRelation)],
+) -> bool {
+    edges.contains(&(left.id, right.id, RegionRelation::LeftOf))
+        && edges.contains(&(right.id, left.id, RegionRelation::RightOf))
+        && !edges.iter().any(|(source, target, relation)| {
+            ((*source == left.id && *target == right.id)
+                || (*source == right.id && *target == left.id))
+                && matches!(relation, RegionRelation::Above | RegionRelation::Below)
+        })
+}
+
+fn regions_are_rendered_in_order(
+    left: &Region,
+    right: &Region,
+    lines: &HashMap<LineId, &Line>,
+) -> bool {
+    let left_last = left
+        .line_ids
+        .iter()
+        .filter_map(|line_id| lines.get(line_id))
+        .map(|line| *line.render_order.end())
+        .max();
+    let right_first = right
+        .line_ids
+        .iter()
+        .filter_map(|line_id| lines.get(line_id))
+        .map(|line| *line.render_order.start())
+        .min();
+    matches!((left_last, right_first), (Some(left), Some(right)) if left < right)
+}
+
+fn line_geometry_is_finite(line: &Line) -> bool {
+    [
+        line.bbox.min.x,
+        line.bbox.min.y,
+        line.bbox.max.x,
+        line.bbox.max.y,
+        line.baseline.x,
+        line.baseline.y,
+        line.direction.x,
+        line.direction.y,
+    ]
+    .into_iter()
+    .all(f64::is_finite)
 }
 
 fn partition_regions_inner(

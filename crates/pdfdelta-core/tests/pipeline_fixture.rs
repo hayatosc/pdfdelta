@@ -136,6 +136,48 @@ fn moved_rotated_label_remains_content_equivalent() -> Result<()> {
 }
 
 #[test]
+fn ignores_known_two_column_reflow() -> Result<()> {
+    let old = document(&[
+        line("First paragraph remains stable", 0, 300.0),
+        line("Second paragraph remains stable", 0, 270.0),
+        line("Third paragraph remains stable", 0, 240.0),
+        line("Fourth paragraph remains stable", 0, 210.0),
+    ]);
+    let new = document(&[
+        line_at("First paragraph remains stable", 0, 0.0, 300.0),
+        line_at("Second paragraph remains stable", 0, 0.0, 270.0),
+        line_at("Third paragraph remains stable", 0, 300.0, 300.0),
+        line_at("Fourth paragraph remains stable", 0, 300.0, 270.0),
+    ]);
+
+    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+
+    assert_no_content_changes(&comparison);
+    Ok(())
+}
+
+#[test]
+fn reports_replacement_inside_known_two_column_order() -> Result<()> {
+    let old = document(&[
+        line_at("Opening paragraph remains stable", 0, 0.0, 300.0),
+        line_at("Context paragraph remains stable", 0, 0.0, 270.0),
+        line_at("Release 10 remains available", 0, 300.0, 300.0),
+        line_at("Closing paragraph remains stable", 0, 300.0, 270.0),
+    ]);
+    let new = document(&[
+        line_at("Opening paragraph remains stable", 0, 0.0, 300.0),
+        line_at("Context paragraph remains stable", 0, 0.0, 270.0),
+        line_at("Release 20 remains available", 0, 300.0, 300.0),
+        line_at("Closing paragraph remains stable", 0, 300.0, 270.0),
+    ]);
+
+    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+
+    assert_single_change(&comparison, ChangeKind::Replacement);
+    Ok(())
+}
+
+#[test]
 fn reports_one_generic_paragraph_insertion() -> Result<()> {
     let old = paragraphs(&[
         "Opening paragraph remains stable",
@@ -973,6 +1015,13 @@ fn line(text: &str, page: u32, y: f64) -> LineSpec<'_> {
         y,
         direction: Vec2 { x: 1.0, y: 0.0 },
         render_mode: TextRenderMode::Fill,
+    }
+}
+
+fn line_at(text: &str, page: u32, x: f64, y: f64) -> LineSpec<'_> {
+    LineSpec {
+        x,
+        ..line(text, page, y)
     }
 }
 

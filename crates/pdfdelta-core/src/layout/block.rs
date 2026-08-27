@@ -178,12 +178,12 @@ pub fn reconstruct_blocks(
 
     let mut ordered_stats = Vec::with_capacity(lines.len());
     for (page_num, page_lines) in page_lines_map {
-        let regions = super::region::partition_regions_without_edges(
+        let graph = super::region::partition_regions_from_refs(
             crate::model::PageId(page_num),
             &page_lines,
             super::region::RegionOptions::default(),
         )?;
-        for region in regions {
+        for region in graph.regions {
             append_region_order(&mut stats_by_line_id, &mut ordered_stats, region.line_ids)?;
         }
     }

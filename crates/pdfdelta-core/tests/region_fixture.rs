@@ -1,7 +1,8 @@
 use pdfdelta_core::{
     Error, Result,
     layout::{
-        Line, LineId, RegionOptions, RegionRelation, partition_regions, validate_region_options,
+        Line, LineId, ReadingOrder, RegionOptions, RegionRelation, partition_regions,
+        validate_region_options,
     },
     model::{PageId, Rect, Vec2},
 };
@@ -18,6 +19,8 @@ fn make_line(id: u64, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Line {
         },
         baseline: Vec2 { x: min_x, y: min_y },
         direction: Vec2 { x: 1.0, y: 0.0 },
+        text_direction: pdfdelta_core::layout::LineTextDirection::LeftToRight,
+        render_order: id as u32..=id as u32,
     }
 }
 
@@ -42,6 +45,10 @@ fn two_column_page_partitions_into_left_and_right_regions() -> Result<()> {
 
     assert_eq!(left_region.line_ids, [LineId(1), LineId(2), LineId(3)]);
     assert_eq!(right_region.line_ids, [LineId(4), LineId(5), LineId(6)]);
+    assert_eq!(
+        graph.reading_order,
+        ReadingOrder::Known(vec![left_region.id, right_region.id])
+    );
 
     // Check exact spatial relations
     let mut expected_edges = vec![
@@ -56,6 +63,89 @@ fn two_column_page_partitions_into_left_and_right_regions() -> Result<()> {
     assert_eq!(
         actual_edges, expected_edges,
         "Two-column graph must contain exactly LeftOf, RightOf, and Aligned edges without SameColumn"
+    );
+    Ok(())
+}
+
+#[test]
+fn two_column_reading_order_is_independent_of_input_order() -> Result<()> {
+    let lines = vec![
+        make_line(3, 350.0, 700.0, 550.0, 712.0),
+        make_line(2, 50.0, 680.0, 250.0, 692.0),
+        make_line(4, 350.0, 680.0, 550.0, 692.0),
+        make_line(1, 50.0, 700.0, 250.0, 712.0),
+    ];
+
+    let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
+
+    assert_eq!(graph.regions.len(), 2);
+    assert_eq!(graph.regions[0].line_ids, [LineId(1), LineId(2)]);
+    assert_eq!(graph.regions[1].line_ids, [LineId(3), LineId(4)]);
+    assert_eq!(
+        graph.reading_order,
+        ReadingOrder::Known(graph.regions.iter().map(|region| region.id).collect())
+    );
+    Ok(())
+}
+
+#[test]
+fn row_interleaved_two_column_render_order_is_unknown() -> Result<()> {
+    let mut left_bottom = make_line(2, 50.0, 680.0, 250.0, 692.0);
+    left_bottom.render_order = 3..=3;
+    let mut right_top = make_line(3, 350.0, 700.0, 550.0, 712.0);
+    right_top.render_order = 2..=2;
+    let graph = partition_regions(
+        PageId(0),
+        &[
+            make_line(1, 50.0, 700.0, 250.0, 712.0),
+            left_bottom,
+            right_top,
+            make_line(4, 350.0, 680.0, 550.0, 692.0),
+        ],
+        RegionOptions::default(),
+    )?;
+
+    assert_eq!(graph.regions.len(), 2);
+    assert_eq!(graph.reading_order, ReadingOrder::Unknown);
+    Ok(())
+}
+
+#[test]
+fn three_column_topology_is_unknown() -> Result<()> {
+    let lines = vec![
+        make_line(1, 50.0, 700.0, 200.0, 712.0),
+        make_line(2, 50.0, 680.0, 200.0, 692.0),
+        make_line(3, 300.0, 700.0, 450.0, 712.0),
+        make_line(4, 300.0, 680.0, 450.0, 692.0),
+        make_line(5, 550.0, 700.0, 700.0, 712.0),
+        make_line(6, 550.0, 680.0, 700.0, 692.0),
+    ];
+
+    let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
+
+    assert_eq!(graph.regions.len(), 3);
+    assert_eq!(graph.reading_order, ReadingOrder::Unknown);
+    Ok(())
+}
+
+#[test]
+fn non_horizontal_or_mixed_direction_has_unknown_reading_order() -> Result<()> {
+    let mut vertical = make_line(2, 350.0, 680.0, 362.0, 780.0);
+    vertical.direction = Vec2 { x: 0.0, y: 1.0 };
+    let mixed = partition_regions(
+        PageId(0),
+        &[make_line(1, 50.0, 700.0, 250.0, 712.0), vertical],
+        RegionOptions::default(),
+    )?;
+    let mut rtl = make_line(3, 50.0, 700.0, 250.0, 712.0);
+    rtl.direction = Vec2 { x: -1.0, y: 0.0 };
+    let rtl = partition_regions(PageId(0), &[rtl], RegionOptions::default())?;
+
+    assert_eq!(mixed.reading_order, ReadingOrder::Unknown);
+    assert_eq!(rtl.reading_order, ReadingOrder::Unknown);
+    assert_eq!(
+        partition_regions(PageId(0), &[], RegionOptions::default())?.reading_order,
+        ReadingOrder::Known(Vec::new())
     );
     Ok(())
 }

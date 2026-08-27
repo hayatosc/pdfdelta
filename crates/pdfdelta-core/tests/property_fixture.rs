@@ -427,6 +427,8 @@ fn line(id: u64, glyphs: Vec<GlyphId>) -> Line {
         },
         baseline: Vec2 { x: 0.0, y: 0.0 },
         direction: Vec2 { x: 1.0, y: 0.0 },
+        text_direction: pdfdelta_core::layout::LineTextDirection::LeftToRight,
+        render_order: id as u32..=id as u32,
     }
 }
 
