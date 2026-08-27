@@ -638,6 +638,8 @@ impl Mutation {
     /// the canonical coordinate space used by the expected-change manifest.
     /// Global line-height, margin, font-size, and page-size changes apply to all
     /// render lines without changing section ownership or canonical text.
+    /// Paragraph line wrapping splits only the targeted source paragraph while
+    /// preserving its canonical text and surrounding metadata lines.
     /// Paragraph deletion is allowed only when its owning section retains at
     /// least one paragraph. Other structural and layout mutations are rejected
     /// until their structured-document contracts are explicit.
@@ -660,16 +662,18 @@ impl Mutation {
             | Self::PageSizeChange { .. } => {
                 return self.apply(&document.mutation_document()?, line_gap);
             }
-            Self::TextReplace { paragraph_id, .. }
+            Self::LineWrap { paragraph_id, .. }
+            | Self::TextReplace { paragraph_id, .. }
             | Self::TextInsert { paragraph_id, .. }
             | Self::TextDelete { paragraph_id, .. }
             | Self::NumberReplace { paragraph_id, .. }
             | Self::ParagraphDelete { paragraph_id } => paragraph_id,
             _ => {
                 return Err(BenchError::InvalidInput(
-                    "structured canonical documents currently support only LineHeightChange, \
-                     MarginChange, FontSizeChange, PageSizeChange, TextReplace, TextInsert, \
-                     TextDelete, NumberReplace, and ParagraphDelete mutations"
+                    "structured canonical documents currently support only LineWrap, \
+                     LineHeightChange, MarginChange, FontSizeChange, PageSizeChange, \
+                     TextReplace, TextInsert, TextDelete, NumberReplace, and ParagraphDelete \
+                     mutations"
                         .to_owned(),
                 ));
             }

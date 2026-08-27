@@ -102,6 +102,13 @@ enum Command {
 
 #[derive(Debug, Subcommand)]
 enum YamlMutation {
+    /// Split one paragraph between words without changing its text.
+    LineWrap {
+        #[arg(long)]
+        paragraph_id: String,
+        #[arg(long)]
+        after_word: usize,
+    },
     /// Change the line gap for every line in the new revision.
     LineHeightChange {
         #[arg(long)]
@@ -166,6 +173,16 @@ enum YamlMutation {
 impl YamlMutation {
     fn into_mutation(self) -> (&'static str, Mutation) {
         match self {
+            Self::LineWrap {
+                paragraph_id,
+                after_word,
+            } => (
+                "yaml-line-wrap",
+                Mutation::LineWrap {
+                    paragraph_id,
+                    after_word,
+                },
+            ),
             Self::LineHeightChange { new_line_gap } => (
                 "yaml-line-height-change",
                 Mutation::LineHeightChange { new_line_gap },
@@ -928,6 +945,17 @@ mod tests {
     #[test]
     fn yaml_mutation_commands_map_to_the_supported_library_mutations() {
         let cases = [
+            (
+                YamlMutation::LineWrap {
+                    paragraph_id: "p".to_owned(),
+                    after_word: 2,
+                },
+                "yaml-line-wrap",
+                Mutation::LineWrap {
+                    paragraph_id: "p".to_owned(),
+                    after_word: 2,
+                },
+            ),
             (
                 YamlMutation::LineHeightChange { new_line_gap: 34 },
                 "yaml-line-height-change",

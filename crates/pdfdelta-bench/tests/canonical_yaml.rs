@@ -158,6 +158,44 @@ fn paragraph_text_mutations_feed_the_evaluator_without_dropping_metadata() {
 }
 
 #[test]
+fn paragraph_line_wrap_preserves_metadata_and_feeds_the_evaluator() {
+    let document = CanonicalRenderDocument::from_yaml(EXAMPLE_YAML).expect("valid canonical YAML");
+    let plan = Mutation::LineWrap {
+        paragraph_id: "availability-p1".to_owned(),
+        after_word: 4,
+    }
+    .apply_to_render_document(&document, 30)
+    .expect("paragraph line wrap applies");
+
+    assert_eq!(plan.old().pages()[0], document.render_lines());
+    assert_eq!(
+        plan.new_plan().pages()[0],
+        [
+            "Quarterly Service Report",
+            "Service availability",
+            "Release 10 remains available",
+            "during the transition.",
+            "Customer support",
+            "Support hours remain unchanged.",
+        ]
+    );
+    assert_eq!(plan.expectation().label(), "none");
+
+    for renderer in RendererKind::all() {
+        let record = evaluate(
+            "yaml-line-wrap",
+            plan.old(),
+            plan.new_plan(),
+            plan.expectation(),
+            renderer,
+        )
+        .expect("structured paragraph line wrap evaluates");
+        assert_eq!(record.actual_changes, 0);
+        assert!(record.passed, "{}: {}", renderer.name(), record.detail);
+    }
+}
+
+#[test]
 fn global_rendering_mutations_preserve_content_and_feed_the_evaluator() {
     let document = CanonicalRenderDocument::from_yaml(EXAMPLE_YAML).expect("valid canonical YAML");
     let cases = [
@@ -458,6 +496,41 @@ fn evaluate_yaml_command_runs_each_global_rendering_mutation() {
 }
 
 #[test]
+fn evaluate_yaml_command_runs_paragraph_line_wrap_for_each_renderer() {
+    let (input, _) = temp_fixture_paths();
+    fs::write(&input, EXAMPLE_YAML).expect("temporary canonical YAML is written");
+
+    for renderer in ["lopdf-tj", "classic-xref-tj"] {
+        let output = run_evaluate_command(
+            &input,
+            renderer,
+            &[
+                "line-wrap",
+                "--paragraph-id",
+                "availability-p1",
+                "--after-word",
+                "4",
+            ],
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+        assert!(
+            stdout.contains(&format!(
+                "PASS case=yaml-line-wrap renderer={renderer} expected=none actual=none"
+            )),
+            "{stdout}"
+        );
+    }
+
+    fs::remove_file(&input).expect("temporary canonical YAML is removed");
+}
+
+#[test]
 fn evaluate_yaml_command_rejects_invalid_mutation_inputs() {
     let (input, _) = temp_fixture_paths();
     fs::write(&input, EXAMPLE_YAML).expect("temporary canonical YAML is written");
@@ -482,6 +555,16 @@ fn evaluate_yaml_command_rejects_invalid_mutation_inputs() {
                 "twenty",
             ],
             "number replacement must use nonempty ASCII digits",
+        ),
+        (
+            [
+                "line-wrap",
+                "--paragraph-id",
+                "availability-p1",
+                "--after-word",
+                "0",
+            ],
+            "line wrap after_word must split paragraph",
         ),
     ] {
         let output = run_evaluate_command(&input, "lopdf-tj", &arguments);
