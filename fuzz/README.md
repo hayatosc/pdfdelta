@@ -19,6 +19,7 @@ Build a target:
 cargo +nightly fuzz build parser_entry
 cargo +nightly fuzz build cmap_parser
 cargo +nightly fuzz build content_stream_parser
+cargo +nightly fuzz build font_decoder
 ```
 
 Run a short smoke session with the checked-in seeds and the target's input limit:
@@ -27,6 +28,7 @@ Run a short smoke session with the checked-in seeds and the target's input limit
 cargo +nightly fuzz run parser_entry -- -max_total_time=30 -max_len=65536
 cargo +nightly fuzz run cmap_parser -- -max_total_time=30 -max_len=65536
 cargo +nightly fuzz run content_stream_parser -- -max_total_time=30 -max_len=65536
+cargo +nightly fuzz run font_decoder -- -max_total_time=30 -max_len=65536
 ```
 
 An existing fixture directory can be supplied as an additional corpus without copying its PDFs into this workspace:
@@ -41,6 +43,7 @@ Reproduce a saved failure by passing its artifact path and target:
 cargo +nightly fuzz run parser_entry fuzz/artifacts/parser_entry/crash-ARTIFACT -- -max_len=65536
 cargo +nightly fuzz run cmap_parser fuzz/artifacts/cmap_parser/crash-ARTIFACT -- -max_len=65536
 cargo +nightly fuzz run content_stream_parser fuzz/artifacts/content_stream_parser/crash-ARTIFACT -- -max_len=65536
+cargo +nightly fuzz run font_decoder fuzz/artifacts/font_decoder/crash-ARTIFACT -- -max_len=65536
 ```
 
 ## Target contract
@@ -51,10 +54,12 @@ cargo +nightly fuzz run content_stream_parser fuzz/artifacts/content_stream_pars
 
 `content_stream_parser` rejects inputs larger than 64 KiB in both the target and the feature-gated core facade. It exercises the production content stream parser first with the input as one fragment and then with two fragments split at the midpoint, including end-of-stream validation after successful fragment sequences. Each strategy receives fresh shared budgets and is limited to 1,024 operators, 256 pending operands, 1,024 array elements, 4,096 operand nodes, 32 nesting levels, and 64 KiB of string data. Successful fragment results must remain within the cumulative operator limit, and each returned operation index must be below that limit; indexes may restart in each fragment.
 
+`font_decoder` rejects inputs larger than 64 KiB in both the target and the feature-gated core facade. It builds fixed, bounded backend-neutral font skeletons and derives only selected mapping, width, fallback, and decode fields from the fuzz bytes, without introducing a generic object wire format or custom PDF parser. It exercises the production `FontDecoder` load and decode paths for both simple and Type0 fonts, covering ToUnicode priority, Differences and fallback handling, width and default-width selection, fixed source widths, odd-byte rejection, and explicit unmapped preservation. Every load and decode uses finite `FontDecoderLimits` with at most 16 indirections, 256 simple-width entries, 64 CID-width entries, 8 KiB of decoded font bytes, 512 CMap entries, and 1,024 output scalars, plus explicit budgets of 1,024 output glyphs and 4,096 mapped-text bytes. Successful decodes must keep glyph count and mapped-text bytes within those budgets, preserve the input byte-for-byte across concatenated raw codes, use the expected raw-code width for the fixture, keep all metrics finite with positive vertical extent, and keep unmapped glyphs explicit rather than as empty text or U+FFFD.
+
 Malformed, unsupported, unresolved, backend, and resource-limit results are accepted outcomes. The fuzzing oracle reports only panics, aborts, hangs, sanitizer findings, and violated success invariants. It does not require arbitrary bytes to parse successfully.
 
 ## Seed corpus
 
-The `parser_entry` corpus contains small `.pdf` files that cover basic PDF framing and malformed object syntax. The `cmap_parser` corpus contains hand-written `.cmap` files covering a one-byte ToUnicode mapping, a full-domain identity CID map, a truncated mapping block, and a declared mapping count above the finite entry limit. The `content_stream_parser` corpus contains hand-written `.content` fragments covering text operators, nested dictionaries and tagged content, an inline image, and incomplete syntax.
+The `parser_entry` corpus contains small `.pdf` files that cover basic PDF framing and malformed object syntax. The `cmap_parser` corpus contains hand-written `.cmap` files covering a one-byte ToUnicode mapping, a full-domain identity CID map, a truncated mapping block, and a declared mapping count above the finite entry limit. The `content_stream_parser` corpus contains hand-written `.content` fragments covering text operators, nested dictionaries and tagged content, an inline image, and incomplete syntax. The `font_decoder` corpus contains compact hand-written `.bin` inputs covering a simple WinAnsi font with explicit widths and fallback, a partial ToUnicode mapping with Differences and unmapped preservation, a Type0 Identity-H font with width handling and odd-byte rejection, and a vertical or bounded custom identity mapping.
 
-Generated build output and failure artifacts under `fuzz/target` and `fuzz/artifacts` are intentionally ignored. Minimize and inspect a reproducing artifact before promoting it into the matching `fuzz/corpus/<target>` directory. Only curated `.pdf`, `.cmap`, and `.content` seeds are tracked; the coverage-increasing units libFuzzer writes back into corpus directories are ignored and regenerable. Never commit sensitive or externally licensed input.
+Generated build output and failure artifacts under `fuzz/target` and `fuzz/artifacts` are intentionally ignored. Minimize and inspect a reproducing artifact before promoting it into the matching `fuzz/corpus/<target>` directory. Only curated `.pdf`, `.cmap`, `.content`, and `font_decoder` `.bin` seeds are tracked; the coverage-increasing units libFuzzer writes back into corpus directories are ignored and regenerable. Never commit sensitive or externally licensed input.
