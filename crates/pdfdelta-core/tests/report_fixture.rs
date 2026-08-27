@@ -1220,6 +1220,74 @@ fn text_report_renders_replacement_insertion_and_deletion_hunks() -> Result<()> 
 }
 
 #[test]
+fn text_report_renders_change_tags_in_hunk_headers() -> Result<()> {
+    let old_blocks = vec![block_with_text(2, "Ａ")];
+    let new_blocks = vec![block_with_text(102, "A")];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(full_span(2, "Ａ")),
+        new_span: Some(full_span(102, "A")),
+        confidence: Confidence::High,
+        tags: vec![ChangeTag::CharacterWidth, ChangeTag::OcrConfusion],
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert!(
+        report.contains(
+            "@@ page 1 · old block 2 -> new block 102 · confidence: high · \
+             tags: character_width,ocr_confusion @@"
+        ),
+        "{report}"
+    );
+    Ok(())
+}
+
+#[test]
+fn text_report_keeps_different_tag_sets_in_separate_hunks() -> Result<()> {
+    let old_blocks = vec![block_with_text(7, "abc")];
+    let new_blocks = vec![block_with_text(107, "xyz")];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(range_span(7, 0, 1)),
+        new_span: Some(range_span(107, 0, 1)),
+        confidence: Confidence::High,
+        tags: vec![ChangeTag::CharacterWidth],
+    });
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(range_span(7, 2, 3)),
+        new_span: Some(range_span(107, 2, 3)),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert_eq!(report.matches("@@ page 1").count(), 2, "{report}");
+    assert_eq!(
+        report.matches("tags: character_width").count(),
+        1,
+        "{report}"
+    );
+    Ok(())
+}
+
+#[test]
 fn text_report_coalesces_adjacent_edits_without_mutating_the_comparison() -> Result<()> {
     let old_blocks = vec![block_with_text(7, "alpha Release 10 omega")];
     let new_blocks = vec![block_with_text(9, "alpha Release 21 omega")];

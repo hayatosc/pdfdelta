@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    ExtractionStatus, ReportSummary, ResolvedGroup, SideIndex, TextReportOptions,
+    ExtractionStatus, ReportSummary, ResolvedGroup, SideIndex, TextReportOptions, change_tag,
     confidence as confidence_name, issue_kind_name, lowercase_hex, percentage, side_name, yes_no,
 };
 
@@ -386,6 +386,16 @@ impl<'a> Cluster<'a> {
             (None, None) => {}
         }
         parts.push(format!("confidence: {}", confidence_name(self.confidence),));
+        if !self.tags.is_empty() {
+            let tags = self
+                .tags
+                .iter()
+                .copied()
+                .map(change_tag)
+                .collect::<Vec<_>>()
+                .join(",");
+            parts.push(format!("tags: {tags}"));
+        }
         format!("@@ {} @@", parts.join(" · "))
     }
 }
