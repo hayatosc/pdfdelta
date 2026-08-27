@@ -1,14 +1,19 @@
+mod support;
+
 use std::sync::Arc;
 
 use lopdf::{Document as LopdfDocument, Object, ObjectId, Stream, dictionary};
 use pdfdelta_core::{
     Error, Result,
-    model::{DecodedText, Document, Glyph, PageId},
+    model::{DecodedText, Document, Glyph, PageId, Rect, Vec2},
     pdf::{LopdfParser, ParseLimits, PdfParser},
     source::{
         ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssueKind, ExtractionLimits,
         ExtractionOutcome, ExtractionScope, GlyphExtractor,
     },
+};
+use support::extraction_conformance::{
+    GeometryTolerance, PrimitiveExtractionSnapshot, SnapshotGlyph, compare_snapshots,
 };
 
 fn base_font(document: &mut LopdfDocument) -> lopdf::ObjectId {
@@ -398,18 +403,36 @@ fn extracts_rotated_simple_font_glyphs_with_provenance() -> Result<()> {
     assert_eq!(glyphs[0].raw_code, b"A");
     assert_eq!(glyphs[0].provenance.content_stream.object_number, content.0);
     assert_eq!(glyphs[0].provenance.operator_index, 3);
-    assert_eq!(glyphs[0].render_order, 0);
-    assert_eq!(glyphs[1].render_order, 1);
-    assert_close(glyphs[0].baseline.x, 20.0);
-    assert_close(glyphs[0].baseline.y, 180.0);
-    assert_close(glyphs[1].baseline.x, 20.0);
-    assert_close(glyphs[1].baseline.y, 175.0);
-    assert_close(glyphs[0].direction.x, 0.0);
-    assert_close(glyphs[0].direction.y, -1.0);
-    assert_close(glyphs[0].bbox.min.x, 18.0);
-    assert_close(glyphs[0].bbox.max.x, 28.0);
-    assert_close(glyphs[0].bbox.min.y, 175.0);
-    assert_close(glyphs[0].bbox.max.y, 180.0);
+    let expected = PrimitiveExtractionSnapshot::new(vec![
+        SnapshotGlyph::mapped(
+            "A",
+            PageId(0),
+            0,
+            Rect {
+                min: Vec2 { x: 18.0, y: 175.0 },
+                max: Vec2 { x: 28.0, y: 180.0 },
+            },
+            Vec2 { x: 20.0, y: 180.0 },
+            Vec2 { x: 0.0, y: -1.0 },
+        ),
+        SnapshotGlyph::mapped(
+            "B",
+            PageId(0),
+            1,
+            Rect {
+                min: Vec2 { x: 18.0, y: 170.0 },
+                max: Vec2 { x: 28.0, y: 175.0 },
+            },
+            Vec2 { x: 20.0, y: 175.0 },
+            Vec2 { x: 0.0, y: -1.0 },
+        ),
+    ]);
+    compare_snapshots(
+        &expected,
+        &PrimitiveExtractionSnapshot::from(&document),
+        GeometryTolerance::new(1e-9).expect("valid tolerance"),
+    )
+    .expect("rotated extraction should match the geometry oracle");
     Ok(())
 }
 
@@ -1020,12 +1043,47 @@ fn applies_text_spacing_rise_render_mode_and_tj_adjustments() -> Result<()> {
     let document = extract(pdf, ExtractionLimits::default())?;
     let glyphs = document.items();
     assert_eq!(mapped_text(glyphs), "A B");
-    assert_close(glyphs[0].baseline.x, 10.0);
-    assert_close(glyphs[1].baseline.x, 12.5);
-    assert_close(glyphs[2].baseline.x, 18.5);
-    assert_close(glyphs[0].baseline.y, 51.0);
-    assert_close(glyphs[0].bbox.min.y, 49.0);
-    assert_close(glyphs[0].bbox.max.y, 59.0);
+    let expected = PrimitiveExtractionSnapshot::new(vec![
+        SnapshotGlyph::mapped(
+            "A",
+            PageId(0),
+            0,
+            Rect {
+                min: Vec2 { x: 10.0, y: 49.0 },
+                max: Vec2 { x: 12.5, y: 59.0 },
+            },
+            Vec2 { x: 10.0, y: 51.0 },
+            Vec2 { x: 1.0, y: 0.0 },
+        ),
+        SnapshotGlyph::mapped(
+            " ",
+            PageId(0),
+            1,
+            Rect {
+                min: Vec2 { x: 12.5, y: 49.0 },
+                max: Vec2 { x: 15.0, y: 59.0 },
+            },
+            Vec2 { x: 12.5, y: 51.0 },
+            Vec2 { x: 1.0, y: 0.0 },
+        ),
+        SnapshotGlyph::mapped(
+            "B",
+            PageId(0),
+            2,
+            Rect {
+                min: Vec2 { x: 18.5, y: 49.0 },
+                max: Vec2 { x: 21.0, y: 59.0 },
+            },
+            Vec2 { x: 18.5, y: 51.0 },
+            Vec2 { x: 1.0, y: 0.0 },
+        ),
+    ]);
+    compare_snapshots(
+        &expected,
+        &PrimitiveExtractionSnapshot::from(&document),
+        GeometryTolerance::new(1e-9).expect("valid tolerance"),
+    )
+    .expect("text-state extraction should match the geometry oracle");
     assert!(
         glyphs
             .iter()
