@@ -1,4 +1,11 @@
 /target
+/fuzz/target
+/fuzz/artifacts
+
+# libFuzzer writes coverage-increasing units back into the corpus directory.
+# Only the curated `.pdf` seeds are tracked; generated units are regenerable.
+/fuzz/corpus/*/*
+!/fuzz/corpus/*/*.pdf
 
 # Downloaded real-world benchmark documents are never vendored.
 benchmark/realworld/cache/
