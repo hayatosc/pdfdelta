@@ -10,8 +10,8 @@ use pdfdelta_bench::{
     candidate_eval::{CandidateEvalRecord, evaluate_candidate_generation, write_candidates_json},
     canonical::{CanonicalRenderDocument, MAX_CANONICAL_YAML_BYTES},
     cases::built_in_cases,
-    evaluator::{EvaluationRecord, evaluate_case},
-    mutation::RenderPlan,
+    evaluator::{EvaluationRecord, evaluate, evaluate_case},
+    mutation::{Mutation, RenderPlan},
     renderers::{RenderLimits, RendererKind},
     revisions::{
         PairSet, normalize_output_destination, publish_new_file, run_revision_benchmark,
@@ -45,6 +45,16 @@ enum Command {
         /// New PDF destination; existing paths are never replaced.
         #[arg(short, long)]
         output: PathBuf,
+    },
+    /// Apply one supported mutation to canonical YAML and evaluate the generated PDF pair.
+    EvaluateYaml {
+        /// Canonical YAML document used as the old revision.
+        input: PathBuf,
+        /// PDF construction path used for both generated revisions.
+        #[arg(long, value_enum, default_value_t = RendererChoice::LopdfTj)]
+        renderer: RendererChoice,
+        #[command(subcommand)]
+        mutation: YamlMutation,
     },
     /// Evaluate candidate generation recall and visit pressure on every
     /// built-in case across both PDF renderers.
@@ -90,6 +100,102 @@ enum Command {
     },
 }
 
+#[derive(Debug, Subcommand)]
+enum YamlMutation {
+    /// Replace all text in one paragraph.
+    TextReplace {
+        #[arg(long)]
+        paragraph_id: String,
+        #[arg(long)]
+        new_text: String,
+    },
+    /// Insert text at a Unicode scalar offset in one paragraph.
+    TextInsert {
+        #[arg(long)]
+        paragraph_id: String,
+        #[arg(long)]
+        at: usize,
+        #[arg(long)]
+        text: String,
+    },
+    /// Delete a half-open Unicode scalar range from one paragraph.
+    TextDelete {
+        #[arg(long)]
+        paragraph_id: String,
+        #[arg(long)]
+        start: usize,
+        #[arg(long)]
+        end: usize,
+    },
+    /// Replace the first ASCII decimal run in one paragraph.
+    NumberReplace {
+        #[arg(long)]
+        paragraph_id: String,
+        #[arg(long)]
+        new_number: String,
+    },
+    /// Delete a paragraph while retaining at least one paragraph in its section.
+    ParagraphDelete {
+        #[arg(long)]
+        paragraph_id: String,
+    },
+}
+
+impl YamlMutation {
+    fn into_mutation(self) -> (&'static str, Mutation) {
+        match self {
+            Self::TextReplace {
+                paragraph_id,
+                new_text,
+            } => (
+                "yaml-text-replace",
+                Mutation::TextReplace {
+                    paragraph_id,
+                    new_text,
+                },
+            ),
+            Self::TextInsert {
+                paragraph_id,
+                at,
+                text,
+            } => (
+                "yaml-text-insert",
+                Mutation::TextInsert {
+                    paragraph_id,
+                    at,
+                    text,
+                },
+            ),
+            Self::TextDelete {
+                paragraph_id,
+                start,
+                end,
+            } => (
+                "yaml-text-delete",
+                Mutation::TextDelete {
+                    paragraph_id,
+                    start,
+                    end,
+                },
+            ),
+            Self::NumberReplace {
+                paragraph_id,
+                new_number,
+            } => (
+                "yaml-number-replace",
+                Mutation::NumberReplace {
+                    paragraph_id,
+                    new_number,
+                },
+            ),
+            Self::ParagraphDelete { paragraph_id } => (
+                "yaml-paragraph-delete",
+                Mutation::ParagraphDelete { paragraph_id },
+            ),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum RendererChoice {
     LopdfTj,
@@ -118,6 +224,11 @@ fn main() -> ExitCode {
             renderer,
             output,
         }) => render_fixture(&mut stdout, &input, renderer, &output),
+        Some(Command::EvaluateYaml {
+            input,
+            renderer,
+            mutation,
+        }) => evaluate_yaml(&mut stdout, &input, renderer, mutation),
         Some(Command::Candidates { top_k, json_output }) => match parse_top_k(&top_k) {
             Ok(top_k) => candidates(&mut stdout, &top_k, json_output.as_deref()),
             Err(error) => Err(error),
@@ -211,6 +322,33 @@ fn render_fixture<W: Write>(
         .flush()
         .map_err(|error| format!("cannot flush render summary: {error}"))?;
     Ok(0)
+}
+
+fn evaluate_yaml<W: Write>(
+    writer: &mut W,
+    input: &Path,
+    renderer: RendererChoice,
+    mutation: YamlMutation,
+) -> Result<u8, String> {
+    let yaml = read_canonical_yaml_file(input)?;
+    let document = CanonicalRenderDocument::from_yaml(&yaml).map_err(|error| error.to_string())?;
+    let (case_name, mutation) = mutation.into_mutation();
+    let plan = mutation
+        .apply_to_render_document(&document, CANONICAL_RENDER_LINE_GAP)
+        .map_err(|error| error.to_string())?;
+    let record = evaluate(
+        case_name,
+        plan.old(),
+        plan.new_plan(),
+        plan.expectation(),
+        renderer.kind(),
+    )
+    .map_err(|error| error.to_string())?;
+    write_record(writer, &record)?;
+    writer
+        .flush()
+        .map_err(|error| format!("cannot flush YAML evaluation output: {error}"))?;
+    Ok(u8::from(!record.passed))
 }
 
 fn verify<W: Write>(writer: &mut W) -> Result<u8, String> {
@@ -742,6 +880,112 @@ mod tests {
             shared_ngram_df_p95: 1,
             shared_ngram_df_max: 1,
         }
+    }
+
+    #[test]
+    fn yaml_mutation_commands_map_to_the_supported_library_mutations() {
+        let cases = [
+            (
+                YamlMutation::TextReplace {
+                    paragraph_id: "p".to_owned(),
+                    new_text: "Replacement".to_owned(),
+                },
+                "yaml-text-replace",
+                Mutation::TextReplace {
+                    paragraph_id: "p".to_owned(),
+                    new_text: "Replacement".to_owned(),
+                },
+            ),
+            (
+                YamlMutation::TextInsert {
+                    paragraph_id: "p".to_owned(),
+                    at: 3,
+                    text: "new ".to_owned(),
+                },
+                "yaml-text-insert",
+                Mutation::TextInsert {
+                    paragraph_id: "p".to_owned(),
+                    at: 3,
+                    text: "new ".to_owned(),
+                },
+            ),
+            (
+                YamlMutation::TextDelete {
+                    paragraph_id: "p".to_owned(),
+                    start: 2,
+                    end: 5,
+                },
+                "yaml-text-delete",
+                Mutation::TextDelete {
+                    paragraph_id: "p".to_owned(),
+                    start: 2,
+                    end: 5,
+                },
+            ),
+            (
+                YamlMutation::NumberReplace {
+                    paragraph_id: "p".to_owned(),
+                    new_number: "20".to_owned(),
+                },
+                "yaml-number-replace",
+                Mutation::NumberReplace {
+                    paragraph_id: "p".to_owned(),
+                    new_number: "20".to_owned(),
+                },
+            ),
+            (
+                YamlMutation::ParagraphDelete {
+                    paragraph_id: "p".to_owned(),
+                },
+                "yaml-paragraph-delete",
+                Mutation::ParagraphDelete {
+                    paragraph_id: "p".to_owned(),
+                },
+            ),
+        ];
+
+        for (command, expected_name, expected_mutation) in cases {
+            let (name, mutation) = command.into_mutation();
+            assert_eq!(name, expected_name);
+            assert_eq!(mutation, expected_mutation);
+        }
+    }
+
+    #[test]
+    fn parses_evaluate_yaml_with_a_nested_mutation() {
+        let cli = Cli::try_parse_from([
+            "pdfbench",
+            "evaluate-yaml",
+            "document.yaml",
+            "--renderer",
+            "classic-xref-tj",
+            "number-replace",
+            "--paragraph-id",
+            "availability-p1",
+            "--new-number",
+            "20",
+        ])
+        .expect("valid evaluate-yaml command");
+        let Some(Command::EvaluateYaml {
+            input,
+            renderer,
+            mutation,
+        }) = cli.command
+        else {
+            panic!("evaluate-yaml command is parsed");
+        };
+        assert_eq!(input, PathBuf::from("document.yaml"));
+        assert_eq!(renderer.kind(), RendererKind::ClassicXrefTj);
+        assert_eq!(
+            mutation.into_mutation(),
+            (
+                "yaml-number-replace",
+                Mutation::NumberReplace {
+                    paragraph_id: "availability-p1".to_owned(),
+                    new_number: "20".to_owned(),
+                }
+            )
+        );
     }
 
     #[test]

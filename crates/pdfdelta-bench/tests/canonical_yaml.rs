@@ -296,6 +296,79 @@ fn render_command_publishes_a_new_pdf_without_overwriting() {
 }
 
 #[test]
+fn evaluate_yaml_command_reports_a_passing_record_for_each_renderer() {
+    let (input, _) = temp_fixture_paths();
+    fs::write(&input, EXAMPLE_YAML).expect("temporary canonical YAML is written");
+
+    for renderer in ["lopdf-tj", "classic-xref-tj"] {
+        let output = run_evaluate_command(
+            &input,
+            renderer,
+            &[
+                "number-replace",
+                "--paragraph-id",
+                "availability-p1",
+                "--new-number",
+                "20",
+            ],
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+        assert!(
+            stdout.contains(&format!(
+                "PASS case=yaml-number-replace renderer={renderer} expected=replacement \
+                 actual=replacement coverage=1.000/1.000"
+            )),
+            "{stdout}"
+        );
+    }
+
+    fs::remove_file(&input).expect("temporary canonical YAML is removed");
+}
+
+#[test]
+fn evaluate_yaml_command_rejects_invalid_mutation_inputs() {
+    let (input, _) = temp_fixture_paths();
+    fs::write(&input, EXAMPLE_YAML).expect("temporary canonical YAML is written");
+
+    for (arguments, expected) in [
+        (
+            [
+                "number-replace",
+                "--paragraph-id",
+                "missing",
+                "--new-number",
+                "20",
+            ],
+            "unknown structured paragraph id",
+        ),
+        (
+            [
+                "number-replace",
+                "--paragraph-id",
+                "availability-p1",
+                "--new-number",
+                "twenty",
+            ],
+            "number replacement must use nonempty ASCII digits",
+        ),
+    ] {
+        let output = run_evaluate_command(&input, "lopdf-tj", &arguments);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+        assert!(stderr.contains(expected), "{stderr}");
+    }
+
+    fs::remove_file(&input).expect("temporary canonical YAML is removed");
+}
+
+#[test]
 fn canonical_yaml_rejects_invalid_structure_and_fields() {
     for (name, yaml, expected) in [
         (
@@ -414,6 +487,21 @@ fn run_render_command(input: &Path, output: &Path) -> std::process::Output {
         .arg("classic-xref-tj")
         .arg("--output")
         .arg(output)
+        .output()
+        .expect("pdfbench runs")
+}
+
+fn run_evaluate_command(
+    input: &Path,
+    renderer: &str,
+    mutation_arguments: &[&str],
+) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_pdfbench"))
+        .arg("evaluate-yaml")
+        .arg(input)
+        .arg("--renderer")
+        .arg(renderer)
+        .args(mutation_arguments)
         .output()
         .expect("pdfbench runs")
 }
