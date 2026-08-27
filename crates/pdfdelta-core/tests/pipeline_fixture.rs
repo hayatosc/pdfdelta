@@ -31,7 +31,7 @@ fn ignores_line_wrap_only_changes() -> Result<()> {
     assert_eq!(comparison.formatting_changes.len(), 1);
     assert_eq!(
         comparison.formatting_changes[0].reasons,
-        [FormattingReason::Normalization]
+        [FormattingReason::Normalization, FormattingReason::LineBreak]
     );
     Ok(())
 }

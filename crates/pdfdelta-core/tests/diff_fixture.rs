@@ -171,6 +171,23 @@ fn reports_moved_page_break_as_formatting_only() -> Result<()> {
 }
 
 #[test]
+fn reports_moved_line_break_as_formatting_only() -> Result<()> {
+    let old = block_with_line_breaks(1, "alpha beta gamma", &[6]);
+    let new = block_with_line_breaks(101, "alpha beta gamma", &[11]);
+    let alignment = aligned(vec![matched(&[1], &[101])]);
+
+    let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
+
+    assert!(result.changes.is_empty());
+    assert_eq!(result.formatting_changes.len(), 1);
+    assert_eq!(
+        result.formatting_changes[0].reasons,
+        [FormattingReason::LineBreak]
+    );
+    Ok(())
+}
+
+#[test]
 fn ignores_uniform_page_number_shift() -> Result<()> {
     let old = block_with_page_breaks(1, "stable text", &[0], &[]);
     let new = block_with_page_breaks(101, "stable text", &[9], &[]);
@@ -192,6 +209,18 @@ fn rejects_inconsistent_page_break_metadata() {
     assert!(matches!(
         compare_aligned(&[old], &[new], &alignment, DiffOptions::default()),
         Err(Error::Unresolved(message)) if message.contains("page-break count")
+    ));
+}
+
+#[test]
+fn rejects_invalid_line_break_offset() {
+    let old = block_with_line_breaks(1, "stable text", &[0]);
+    let new = block_with_line_breaks(101, "stable text", &[]);
+    let alignment = aligned(vec![matched(&[1], &[101])]);
+
+    assert!(matches!(
+        compare_aligned(&[old], &[new], &alignment, DiffOptions::default()),
+        Err(Error::Unresolved(message)) if message.contains("line-break offsets")
     ));
 }
 
@@ -706,6 +735,14 @@ fn block_with_page_breaks(id: u64, text: &str, pages: &[u32], page_breaks: &[usi
     block
 }
 
+fn block_with_line_breaks(id: u64, text: &str, line_breaks: &[usize]) -> BlockText {
+    let mut block = block(id, text);
+    block.pages = vec![0];
+    block.line_breaks = Some(line_breaks.to_vec());
+    block.page_breaks = Some(Vec::new());
+    block
+}
+
 fn block_with_matching(
     id: u64,
     canonical: &str,
@@ -722,6 +759,7 @@ fn block_with_matching(
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: Vec::new(),
+        line_breaks: None,
         page_breaks: None,
     }
 }
@@ -750,6 +788,7 @@ fn unmapped_block(id: u64, glyph_id: u16) -> BlockText {
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: Vec::new(),
+        line_breaks: None,
         page_breaks: None,
     }
 }
@@ -1017,6 +1056,7 @@ fn multi_unmapped_block(id: u64, font_hash: Vec<u8>, glyph_ids: &[u16]) -> Block
         normalization_events: vec![],
         issues: vec![],
         pages: vec![0],
+        line_breaks: None,
         page_breaks: None,
     }
 }

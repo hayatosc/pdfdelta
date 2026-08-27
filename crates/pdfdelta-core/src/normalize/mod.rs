@@ -348,6 +348,11 @@ pub struct BlockText {
     pub issues: Vec<NormalizationIssue>,
     /// Sorted unique page numbers covered by the block's lines.
     pub pages: Vec<u32>,
+    /// Comparable-token offsets immediately before text that starts on a new line.
+    ///
+    /// `None` means the source evidence could not locate every line boundary. When present, the
+    /// offsets are strictly increasing.
+    pub line_breaks: Option<Vec<usize>>,
     /// Comparable-token offsets immediately before text that starts on a new page.
     ///
     /// `None` means the source evidence could not locate every page boundary. When present, the
@@ -642,6 +647,7 @@ struct Atom {
 struct RawBlock {
     mapped: MappedText,
     atoms: Vec<Atom>,
+    line_break_following_glyphs: Vec<GlyphId>,
     page_break_following_glyphs: Vec<GlyphId>,
 }
 
@@ -691,6 +697,7 @@ fn build_raw_block(
                     following: line_start,
                 }),
             );
+            builder.line_break_following_glyphs.push(line_start);
             if preceding_page != line.page {
                 builder.page_break_following_glyphs.push(line_start);
             }
@@ -792,6 +799,7 @@ struct RawBuilder {
     unmapped: Vec<UnmappedToken>,
     atoms: Vec<Atom>,
     scalar_index: usize,
+    line_break_following_glyphs: Vec<GlyphId>,
     page_break_following_glyphs: Vec<GlyphId>,
 }
 
@@ -867,6 +875,7 @@ impl RawBuilder {
                 unmapped: self.unmapped,
             },
             atoms: self.atoms,
+            line_break_following_glyphs: self.line_break_following_glyphs,
             page_break_following_glyphs: self.page_break_following_glyphs,
         }
     }
@@ -904,6 +913,7 @@ fn block_pages(block: &Block, lines: &HashMap<LineId, &Line>) -> Vec<u32> {
 
 fn normalize_block(block: BlockId, raw: RawBlock, pages: Vec<u32>) -> Result<BlockText> {
     let mut issues = Vec::new();
+    let line_break_following_glyphs = raw.line_break_following_glyphs;
     let page_break_following_glyphs = raw.page_break_following_glyphs;
     let atoms = expand_ligatures(raw.atoms);
     let atoms = resolve_line_breaks(atoms, &mut issues);
@@ -911,7 +921,8 @@ fn normalize_block(block: BlockId, raw: RawBlock, pages: Vec<u32>) -> Result<Blo
     let pieces = normalize_nfc(atoms);
     let (canonical, events) = assemble_canonical(pieces);
     let matching = build_matching(&canonical, DEFAULT_MAX_NUMERIC_MASK_RATIO)?;
-    let page_breaks = canonical_page_breaks(&canonical, &page_break_following_glyphs)?;
+    let line_breaks = canonical_breaks(&canonical, &line_break_following_glyphs)?;
+    let page_breaks = canonical_breaks(&canonical, &page_break_following_glyphs)?;
 
     Ok(BlockText {
         block,
@@ -923,24 +934,28 @@ fn normalize_block(block: BlockId, raw: RawBlock, pages: Vec<u32>) -> Result<Blo
         normalization_events: events,
         issues,
         pages,
+        line_breaks,
         page_breaks,
     })
 }
 
-fn canonical_page_breaks(
+fn canonical_breaks(
     canonical: &MappedText,
     following_glyphs: &[GlyphId],
 ) -> Result<Option<Vec<usize>>> {
     let tokens = canonical.comparable_tokens_with_sources()?;
+    let mut glyph_offsets = HashMap::new();
+    for (offset, (_, source)) in tokens.iter().enumerate() {
+        for atom in &source.atoms {
+            if let TextSourceAtom::Glyph(glyph) = atom {
+                glyph_offsets.entry(*glyph).or_insert(offset);
+            }
+        }
+    }
     let mut offsets = Vec::with_capacity(following_glyphs.len());
 
     for following in following_glyphs {
-        let Some(offset) = tokens.iter().position(|(_, source)| {
-            source
-                .atoms
-                .iter()
-                .any(|atom| matches!(atom, TextSourceAtom::Glyph(glyph) if glyph == following))
-        }) else {
+        let Some(offset) = glyph_offsets.get(following).copied() else {
             return Ok(None);
         };
         if offset == 0 || offsets.last().is_some_and(|previous| *previous >= offset) {

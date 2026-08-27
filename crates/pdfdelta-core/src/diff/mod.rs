@@ -65,6 +65,7 @@ pub struct Change {
 pub enum FormattingReason {
     Normalization,
     BlockStructure,
+    LineBreak,
     PageBreak,
 }
 
@@ -423,6 +424,11 @@ fn compare_match(
         if span.old.len() != span.new.len() || span.old_separator != span.new_separator {
             reasons.push(FormattingReason::BlockStructure);
         }
+        if let (Some(old_breaks), Some(new_breaks)) = (&old.line_breaks, &new.line_breaks)
+            && old_breaks != new_breaks
+        {
+            reasons.push(FormattingReason::LineBreak);
+        }
         if let (Some(old_breaks), Some(new_breaks)) = (&old.page_breaks, &new.page_breaks)
             && old_breaks != new_breaks
         {
@@ -731,6 +737,7 @@ impl<'a> SidePlan<'a> {
                 )));
             }
             let canonical_count = block.canonical.comparable_token_count()?;
+            validate_line_breaks(name, block, canonical_count)?;
             validate_page_breaks(name, block, canonical_count)?;
             total_tokens =
                 total_tokens
@@ -788,6 +795,7 @@ impl Side<'_> {
     fn canonical_group(&self, blocks: &[BlockId], separator: Option<BlockSeparator>) -> GroupText {
         let separator = effective_group_separator(blocks.len(), separator);
         let mut tokens = Vec::new();
+        let mut line_breaks = Some(Vec::new());
         let mut page_breaks = Some(Vec::new());
         let mut previous_page = None;
         for (position, block) in blocks.iter().enumerate() {
@@ -804,6 +812,9 @@ impl Side<'_> {
             let block_start = tokens.len() - next.len();
 
             if position > 0 {
+                if let Some(breaks) = &mut line_breaks {
+                    breaks.push(block_start);
+                }
                 match (previous_page, block.pages.first().copied()) {
                     (Some(previous), Some(current)) if previous != current => {
                         if let Some(breaks) = &mut page_breaks {
@@ -814,6 +825,12 @@ impl Side<'_> {
                     _ => page_breaks = None,
                 }
             }
+            match (&mut line_breaks, &block.line_breaks) {
+                (Some(group_breaks), Some(block_breaks)) => {
+                    group_breaks.extend(block_breaks.iter().map(|offset| block_start + offset))
+                }
+                _ => line_breaks = None,
+            }
             match (&mut page_breaks, &block.page_breaks) {
                 (Some(group_breaks), Some(block_breaks)) => {
                     group_breaks.extend(block_breaks.iter().map(|offset| block_start + offset))
@@ -822,7 +839,7 @@ impl Side<'_> {
             }
             previous_page = block.pages.last().copied();
         }
-        GroupText::new(blocks.to_vec(), separator, tokens, page_breaks)
+        GroupText::new(blocks.to_vec(), separator, tokens, line_breaks, page_breaks)
     }
 
     fn raw_group(
@@ -842,8 +859,21 @@ impl Side<'_> {
                     .append(&mut tokens, &next);
             }
         }
-        Ok(GroupText::new(blocks.to_vec(), separator, tokens, None))
+        Ok(GroupText::new(
+            blocks.to_vec(),
+            separator,
+            tokens,
+            None,
+            None,
+        ))
     }
+}
+
+fn validate_line_breaks(name: &str, block: &BlockText, token_count: usize) -> Result<()> {
+    let Some(line_breaks) = &block.line_breaks else {
+        return Ok(());
+    };
+    validate_break_offsets(name, block.block, "line-break", line_breaks, token_count)
 }
 
 fn validate_page_breaks(name: &str, block: &BlockText, token_count: usize) -> Result<()> {
@@ -857,15 +887,25 @@ fn validate_page_breaks(name: &str, block: &BlockText, token_count: usize) -> Re
         )));
     }
 
+    validate_break_offsets(name, block.block, "page-break", page_breaks, token_count)
+}
+
+fn validate_break_offsets(
+    name: &str,
+    block: BlockId,
+    kind: &str,
+    offsets: &[usize],
+    token_count: usize,
+) -> Result<()> {
     let mut previous = None;
-    for offset in page_breaks {
+    for offset in offsets {
         if *offset == 0
             || *offset >= token_count
             || previous.is_some_and(|previous| previous >= *offset)
         {
             return Err(Error::Unresolved(format!(
-                "{name} block {} page-break offsets must be strictly increasing token boundaries",
-                block.block.0
+                "{name} block {} {kind} offsets must be strictly increasing token boundaries",
+                block.0
             )));
         }
         previous = Some(*offset);
@@ -884,6 +924,7 @@ struct GroupText {
     blocks: Vec<BlockId>,
     separator: Option<BlockSeparator>,
     tokens: Vec<ComparableToken>,
+    line_breaks: Option<Vec<usize>>,
     page_breaks: Option<Vec<usize>>,
     scalar_boundaries: Vec<usize>,
 }
@@ -893,6 +934,7 @@ impl GroupText {
         blocks: Vec<BlockId>,
         separator: Option<BlockSeparator>,
         tokens: Vec<ComparableToken>,
+        line_breaks: Option<Vec<usize>>,
         page_breaks: Option<Vec<usize>>,
     ) -> Self {
         let mut scalar_boundaries = Vec::with_capacity(tokens.len() + 1);
@@ -908,6 +950,7 @@ impl GroupText {
             blocks,
             separator,
             tokens,
+            line_breaks,
             page_breaks,
             scalar_boundaries,
         }

@@ -674,6 +674,7 @@ fn formatting_reason(reason: FormattingReason) -> &'static str {
     match reason {
         FormattingReason::Normalization => "normalization",
         FormattingReason::BlockStructure => "block_structure",
+        FormattingReason::LineBreak => "line_break",
         FormattingReason::PageBreak => "page_break",
     }
 }

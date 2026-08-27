@@ -1745,7 +1745,7 @@ fn externally_rendered_typst_japanese_case1_wrap_revision_pair_reports_zero_cont
     assert_eq!(formatting_changes.len(), 2);
     assert_eq!(
         formatting_changes[0]["reasons"],
-        serde_json::json!(["normalization"])
+        serde_json::json!(["normalization", "line_break"])
     );
     assert_eq!(
         formatting_changes[0]["old_span"]["pages"],
@@ -1766,7 +1766,7 @@ fn externally_rendered_typst_japanese_case1_wrap_revision_pair_reports_zero_cont
 
     assert_eq!(
         formatting_changes[1]["reasons"],
-        serde_json::json!(["normalization"])
+        serde_json::json!(["normalization", "line_break"])
     );
     assert_eq!(
         formatting_changes[1]["old_span"]["pages"],
