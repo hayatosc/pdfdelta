@@ -136,6 +136,11 @@ enum YamlMutation {
         #[arg(long)]
         new_page_height: u16,
     },
+    /// Reflow one section's paragraphs into two columns below full-width metadata.
+    ColumnChange {
+        #[arg(long)]
+        section_id: String,
+    },
     /// Replace all text in one paragraph.
     TextReplace {
         #[arg(long)]
@@ -234,6 +239,10 @@ impl YamlMutation {
                     new_page_width,
                     new_page_height,
                 },
+            ),
+            Self::ColumnChange { section_id } => (
+                "yaml-column-change",
+                Mutation::ColumnChangeInSection { section_id },
             ),
             Self::TextReplace {
                 paragraph_id,
@@ -1044,6 +1053,15 @@ mod tests {
                 Mutation::PageSizeChange {
                     new_page_width: 640,
                     new_page_height: 800,
+                },
+            ),
+            (
+                YamlMutation::ColumnChange {
+                    section_id: "body".to_owned(),
+                },
+                "yaml-column-change",
+                Mutation::ColumnChangeInSection {
+                    section_id: "body".to_owned(),
                 },
             ),
             (

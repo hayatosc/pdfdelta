@@ -331,6 +331,10 @@ pub enum Mutation {
     /// Reflows an unchanged document from one column into two column-major
     /// columns while preserving canonical paragraph order.
     ColumnChange,
+    /// Reflows one structured section's paragraphs while keeping metadata full-width.
+    ColumnChangeInSection {
+        section_id: String,
+    },
     /// Renders the unchanged document with a different line gap so both
     /// PDFs differ in layout while canonical text stays identical.
     LineHeightChange {
@@ -607,6 +611,9 @@ impl Mutation {
                 apply_page_break(document, paragraph_index(document, paragraph_id)?, line_gap)
             }
             Self::ColumnChange => apply_column_change(document, line_gap),
+            Self::ColumnChangeInSection { .. } => Err(BenchError::InvalidInput(
+                "section-local column changes require a structured canonical document".to_owned(),
+            )),
             Self::LineHeightChange { new_line_gap } => {
                 apply_line_height_change(document, *new_line_gap, line_gap)
             }
@@ -673,6 +680,8 @@ impl Mutation {
     /// beyond the section's current paragraph count.
     /// Section-local movement keeps the source paragraph under its current
     /// heading and interprets the destination as its final local index.
+    /// A structured column change requires one section and positions only its
+    /// paragraphs in columns below full-width title and heading lines.
     /// Paragraph deletion is allowed only when its owning section retains at
     /// least one paragraph. Other structural and layout mutations are rejected
     /// until their structured-document contracts are explicit.
@@ -681,8 +690,9 @@ impl Mutation {
     ///
     /// Returns [`BenchError::InvalidInput`] when the mutation kind is not yet
     /// supported for structured documents, its target paragraph or section is
-    /// unknown, a section-local index is invalid, a rendering parameter is
-    /// invalid or unchanged, or the underlying paragraph mutation is invalid.
+    /// unknown, a section-local index or structured layout shape is invalid, a
+    /// rendering parameter is invalid or unchanged, or the underlying paragraph
+    /// mutation is invalid.
     pub fn apply_to_render_document(
         &self,
         document: &CanonicalRenderDocument,
@@ -711,6 +721,9 @@ impl Mutation {
         {
             return apply_structured_paragraph_move(document, paragraph_id, *to_index, line_gap);
         }
+        if let Self::ColumnChangeInSection { section_id } = self {
+            return apply_structured_column_change(document, section_id, line_gap);
+        }
         let paragraph_id = match self {
             Self::LineHeightChange { .. }
             | Self::MarginChange { .. }
@@ -730,8 +743,8 @@ impl Mutation {
                     "structured canonical documents currently support only LineWrap, \
                      PageBreakBefore, LineHeightChange, MarginChange, FontSizeChange, \
                      PageSizeChange, TextReplace, TextInsert, TextDelete, NumberReplace, \
-                     ParagraphInsertInSection, ParagraphDelete, and ParagraphMoveInSection \
-                     mutations"
+                     ParagraphInsertInSection, ParagraphDelete, ParagraphMoveInSection, and \
+                     ColumnChangeInSection mutations"
                         .to_owned(),
                 ));
             }
@@ -942,6 +955,56 @@ fn apply_page_break(
 
 fn apply_column_change(document: &CanonicalDocument, line_gap: u16) -> Result<MutationPlan> {
     let lines = document_lines(document);
+    let positioned = position_columns(lines, 0)?;
+    MutationPlan::build(
+        document,
+        document,
+        one_page_plan(document, line_gap)?,
+        RenderPlan::positioned(vec![positioned], line_gap)?,
+        ExpectedManifest::none(),
+    )
+}
+
+fn apply_structured_column_change(
+    document: &CanonicalRenderDocument,
+    section_id: &str,
+    line_gap: u16,
+) -> Result<MutationPlan> {
+    if document.sections().len() != 1 {
+        return Err(BenchError::InvalidInput(
+            "structured column change requires exactly one section".to_owned(),
+        ));
+    }
+    let section = &document.sections()[0];
+    if section.id() != section_id {
+        return Err(BenchError::InvalidInput(format!(
+            "unknown structured section id {section_id:?}"
+        )));
+    }
+
+    let mut positioned = Vec::with_capacity(2 + section.paragraphs().len());
+    positioned.push(RenderLine::new(document.title(), 0, 0)?);
+    positioned.push(RenderLine::new(section.heading(), 1, 0)?);
+    positioned.extend(position_columns(
+        section
+            .paragraphs()
+            .iter()
+            .map(|paragraph| paragraph.text().to_owned())
+            .collect(),
+        2,
+    )?);
+
+    let flattened = document.mutation_document()?;
+    MutationPlan::build(
+        &flattened,
+        &flattened,
+        one_page_plan(&flattened, line_gap)?,
+        RenderPlan::positioned(vec![positioned], line_gap)?,
+        ExpectedManifest::none(),
+    )
+}
+
+fn position_columns(lines: Vec<String>, row_offset: usize) -> Result<Vec<RenderLine>> {
     if lines.len() < 4 {
         return Err(BenchError::InvalidInput(
             "column change requires at least four paragraphs".to_owned(),
@@ -974,20 +1037,17 @@ fn apply_column_change(document: &CanonicalDocument, line_gap: u16) -> Result<Mu
     }
     let mut positioned = Vec::with_capacity(lines.len());
     for (index, text) in lines.into_iter().enumerate() {
-        let (row, x) = if index < split {
+        let (relative_row, x) = if index < split {
             (index, 0)
         } else {
             (index - split, right_x)
         };
+        let row = row_offset
+            .checked_add(relative_row)
+            .ok_or_else(|| BenchError::InvalidInput("column row overflowed".to_owned()))?;
         positioned.push(RenderLine::new(text, row, x)?);
     }
-    MutationPlan::build(
-        document,
-        document,
-        one_page_plan(document, line_gap)?,
-        RenderPlan::positioned(vec![positioned], line_gap)?,
-        ExpectedManifest::none(),
-    )
+    Ok(positioned)
 }
 
 fn apply_line_height_change(
@@ -1590,5 +1650,41 @@ mod tests {
         let shift = new_spans[1].end() - old_spans[1].end();
         assert_eq!(new_spans[2].start(), old_spans[2].start() + shift);
         assert_eq!(new_spans[2].paragraph_id(), "closing");
+    }
+
+    #[test]
+    fn structured_column_change_keeps_title_and_heading_full_width() {
+        let document = CanonicalRenderDocument::from_yaml(
+            r#"
+document:
+  title: Column report
+  sections:
+    - id: body
+      heading: Report body
+      paragraphs:
+        - id: p1
+          text: Left first
+        - id: p2
+          text: Left second
+        - id: p3
+          text: Right first
+        - id: p4
+          text: Right second
+"#,
+        )
+        .expect("test YAML is valid");
+        let plan = Mutation::ColumnChangeInSection {
+            section_id: "body".to_owned(),
+        }
+        .apply_to_render_document(&document, 16)
+        .expect("structured column change applies");
+
+        let positions = &plan.new_plan().positions()[0];
+        assert_eq!(positions[0], LinePosition { row: 0, x: 0 });
+        assert_eq!(positions[1], LinePosition { row: 1, x: 0 });
+        assert_eq!(positions[2], LinePosition { row: 2, x: 0 });
+        assert_eq!(positions[3], LinePosition { row: 3, x: 0 });
+        assert_eq!(positions[4], LinePosition { row: 2, x: 270 });
+        assert_eq!(positions[5], LinePosition { row: 3, x: 270 });
     }
 }

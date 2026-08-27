@@ -347,6 +347,49 @@ fn global_rendering_mutations_preserve_content_and_feed_the_evaluator() {
 }
 
 #[test]
+fn single_section_column_change_preserves_metadata_and_feeds_the_evaluator() {
+    let yaml = r#"
+document:
+  title: Column report
+  sections:
+    - id: body
+      heading: Report body
+      paragraphs:
+        - id: body-p1
+          text: Left first paragraph remains stable.
+        - id: body-p2
+          text: Left second paragraph remains stable.
+        - id: body-p3
+          text: Right first paragraph remains stable.
+        - id: body-p4
+          text: Right second paragraph remains stable.
+"#;
+    let document = CanonicalRenderDocument::from_yaml(yaml).expect("valid canonical YAML");
+    let plan = Mutation::ColumnChangeInSection {
+        section_id: "body".to_owned(),
+    }
+    .apply_to_render_document(&document, 30)
+    .expect("single-section column change applies");
+
+    assert_eq!(plan.old().pages()[0], document.render_lines());
+    assert_eq!(plan.new_plan().pages()[0], document.render_lines());
+    assert_eq!(plan.expectation().label(), "none");
+
+    for renderer in RendererKind::all() {
+        let record = evaluate(
+            "yaml-column-change",
+            plan.old(),
+            plan.new_plan(),
+            plan.expectation(),
+            renderer,
+        )
+        .expect("structured column change evaluates");
+        assert_eq!(record.actual_changes, 0);
+        assert!(record.passed, "{}: {}", renderer.name(), record.detail);
+    }
+}
+
+#[test]
 fn paragraph_deletion_preserves_its_section_and_feeds_the_evaluator() {
     let yaml = EXAMPLE_YAML.replace(
         "        - id: availability-p1\n          text: Release 10 remains available during the transition.\n",
@@ -656,6 +699,43 @@ fn structured_mutations_reject_metadata_targets_empty_sections_and_ambiguous_cha
             .to_string();
         assert!(error.contains(expected), "{error}");
     }
+
+    let multi_section_column_error = Mutation::ColumnChangeInSection {
+        section_id: "availability".to_owned(),
+    }
+    .apply_to_render_document(&document, 30)
+    .expect_err("multi-section column ownership is rejected")
+    .to_string();
+    assert!(
+        multi_section_column_error.contains("requires exactly one section"),
+        "{multi_section_column_error}"
+    );
+
+    let single_section = CanonicalRenderDocument::from_yaml(
+        r#"
+document:
+  title: Short report
+  sections:
+    - id: body
+      heading: Report body
+      paragraphs:
+        - id: body-p1
+          text: Only paragraph.
+"#,
+    )
+    .expect("single-section YAML is valid");
+    for (section_id, expected) in [
+        ("missing", "unknown structured section id"),
+        ("body", "requires at least four paragraphs"),
+    ] {
+        let error = Mutation::ColumnChangeInSection {
+            section_id: section_id.to_owned(),
+        }
+        .apply_to_render_document(&single_section, 30)
+        .expect_err("invalid structured column change is rejected")
+        .to_string();
+        assert!(error.contains(expected), "{error}");
+    }
 }
 
 #[test]
@@ -787,6 +867,48 @@ fn evaluate_yaml_command_runs_each_global_rendering_mutation() {
         assert!(
             stdout.contains(&format!(
                 "PASS case={case_name} renderer=lopdf-tj expected=none actual=none"
+            )),
+            "{stdout}"
+        );
+    }
+
+    fs::remove_file(&input).expect("temporary canonical YAML is removed");
+}
+
+#[test]
+fn evaluate_yaml_command_runs_single_section_column_change_for_each_renderer() {
+    let (input, _) = temp_fixture_paths();
+    let yaml = r#"
+document:
+  title: Column report
+  sections:
+    - id: body
+      heading: Report body
+      paragraphs:
+        - id: body-p1
+          text: Left first paragraph remains stable.
+        - id: body-p2
+          text: Left second paragraph remains stable.
+        - id: body-p3
+          text: Right first paragraph remains stable.
+        - id: body-p4
+          text: Right second paragraph remains stable.
+"#;
+    fs::write(&input, yaml).expect("temporary canonical YAML is written");
+
+    for renderer in ["lopdf-tj", "classic-xref-tj"] {
+        let output =
+            run_evaluate_command(&input, renderer, &["column-change", "--section-id", "body"]);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+        assert!(
+            stdout.contains(&format!(
+                "PASS case=yaml-column-change renderer={renderer} expected=none actual=none"
             )),
             "{stdout}"
         );
