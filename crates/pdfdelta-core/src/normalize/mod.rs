@@ -112,6 +112,85 @@ impl MappedText {
         Ok(tokens)
     }
 
+    /// Returns comparable tokens paired with their source evidence in exactly
+    /// the same order as [`Self::comparable_tokens`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for invalid unmapped-token offsets or token-count
+    /// overflow.
+    pub fn comparable_tokens_with_sources(&self) -> Result<Vec<(ComparableToken, TextSource)>> {
+        let (scalar_count, token_count) = self.validated_token_counts()?;
+        self.validate_source_map(scalar_count)?;
+        let mut tokens = Vec::with_capacity(token_count);
+        let mut unmapped_index = 0;
+        let mut source_index = 0;
+
+        for (index, scalar) in self.text.chars().enumerate() {
+            while self
+                .unmapped
+                .get(unmapped_index)
+                .is_some_and(|token| token.scalar_index == index)
+            {
+                let token = &self.unmapped[unmapped_index];
+                tokens.push((
+                    ComparableToken::Unmapped {
+                        font_hash: token.font_hash.clone(),
+                        glyph_id: token.glyph_id,
+                    },
+                    token.source.clone(),
+                ));
+                unmapped_index += 1;
+            }
+            while self
+                .source_map
+                .get(source_index)
+                .is_some_and(|entry| entry.output_range.end <= index)
+            {
+                source_index += 1;
+            }
+            let source = self
+                .source_map
+                .get(source_index)
+                .filter(|entry| entry.output_range.start <= index && index < entry.output_range.end)
+                .map_or_else(
+                    || TextSource { atoms: Vec::new() },
+                    |entry| entry.source.clone(),
+                );
+            tokens.push((ComparableToken::Scalar(scalar), source));
+        }
+
+        for token in &self.unmapped[unmapped_index..] {
+            tokens.push((
+                ComparableToken::Unmapped {
+                    font_hash: token.font_hash.clone(),
+                    glyph_id: token.glyph_id,
+                },
+                token.source.clone(),
+            ));
+        }
+
+        debug_assert_eq!(tokens.len(), scalar_count + self.unmapped.len());
+        Ok(tokens)
+    }
+
+    fn validate_source_map(&self, scalar_count: usize) -> Result<()> {
+        let mut previous_end = 0;
+        for entry in &self.source_map {
+            if entry.output_range.start > entry.output_range.end
+                || entry.output_range.end > scalar_count
+                || entry.output_range.start < previous_end
+            {
+                return Err(Error::Unresolved(
+                    "source map ranges must be ordered, non-overlapping scalar offsets within the text"
+                        .to_owned(),
+                ));
+            }
+            previous_end = entry.output_range.end;
+        }
+        Ok(())
+    }
+
     pub(crate) fn comparable_token_count(&self) -> Result<usize> {
         self.validated_token_counts().map(|(_, count)| count)
     }

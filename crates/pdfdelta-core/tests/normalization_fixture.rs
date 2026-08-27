@@ -41,6 +41,7 @@ fn preserves_reversible_raw_text_and_synthetic_spaces() {
                     following: GlyphId(2),
                 }]
     }));
+    assert_token_source_parity(&text.canonical);
 }
 
 #[test]
@@ -193,6 +194,12 @@ fn applies_nfc_with_scalar_ranges_and_combined_glyph_sources() {
         .expect("NFC event should be retained");
     assert_eq!(event.raw_range, ScalarRange { start: 0, end: 2 });
     assert_eq!(event.canonical_range, ScalarRange { start: 0, end: 1 });
+    let paired = text
+        .canonical
+        .comparable_tokens_with_sources()
+        .expect("NFC sources should remain valid");
+    assert_eq!(paired[0].1.atoms.len(), 2);
+    assert_token_source_parity(&text.canonical);
 }
 
 #[test]
@@ -208,6 +215,14 @@ fn expands_typographic_ligatures_without_losing_the_glyph_source() {
     assert_eq!(event.raw_range, ScalarRange { start: 1, end: 2 });
     assert_eq!(event.canonical_range, ScalarRange { start: 1, end: 4 });
     assert_eq!(event.source.atoms, [TextSourceAtom::Glyph(GlyphId(2))]);
+    let paired = text
+        .canonical
+        .comparable_tokens_with_sources()
+        .expect("ligature sources should remain valid");
+    assert_eq!(paired[1].1.atoms, [TextSourceAtom::Glyph(GlyphId(2))]);
+    assert_eq!(paired[2].1.atoms, [TextSourceAtom::Glyph(GlyphId(2))]);
+    assert_eq!(paired[3].1.atoms, [TextSourceAtom::Glyph(GlyphId(2))]);
+    assert_token_source_parity(&text.canonical);
 }
 
 #[test]
@@ -294,6 +309,66 @@ fn retains_unmapped_tokens_in_comparison_order() {
             ComparableToken::Scalar('B'),
         ]
     );
+    let paired = text
+        .canonical
+        .comparable_tokens_with_sources()
+        .expect("unmapped sources should remain valid");
+    assert_eq!(paired[1].1.atoms, [TextSourceAtom::Glyph(GlyphId(2))]);
+    assert_token_source_parity(&text.canonical);
+}
+
+#[test]
+fn token_sources_do_not_mix_mapped_and_unmapped_evidence_at_the_same_offset() {
+    let mapped = MappedText {
+        text: "a".to_owned(),
+        source_map: vec![pdfdelta_core::normalize::SourceMapEntry {
+            output_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(1))],
+            },
+        }],
+        unmapped: vec![UnmappedToken {
+            scalar_index: 0,
+            font_hash: FontProgramHash(vec![1]),
+            glyph_id: 9,
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(2))],
+            },
+        }],
+    };
+
+    let paired = mapped
+        .comparable_tokens_with_sources()
+        .expect("token source map should be valid");
+
+    assert_eq!(paired[0].1.atoms, [TextSourceAtom::Glyph(GlyphId(2))]);
+    assert_eq!(paired[1].1.atoms, [TextSourceAtom::Glyph(GlyphId(1))]);
+    assert_token_source_parity(&mapped);
+}
+
+#[test]
+fn source_free_comparable_tokens_do_not_validate_or_walk_source_map() {
+    let mapped = MappedText {
+        text: "a".to_owned(),
+        source_map: vec![pdfdelta_core::normalize::SourceMapEntry {
+            output_range: ScalarRange {
+                start: 0,
+                end: usize::MAX,
+            },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(1)); 10_000],
+            },
+        }],
+        unmapped: Vec::new(),
+    };
+
+    assert_eq!(
+        mapped
+            .comparable_tokens()
+            .expect("source-free tokenization must ignore report source maps"),
+        [ComparableToken::Scalar('a')]
+    );
+    assert!(mapped.comparable_tokens_with_sources().is_err());
 }
 
 #[test]
@@ -463,6 +538,28 @@ fn soft_line_break_inserted_space_source_mapping() {
     let raw_space = text.canonical_to_raw_range(ScalarRange { start: 5, end: 6 });
     assert_eq!(raw_space, ScalarRange { start: 5, end: 6 });
     assert_eq!(&text.raw.text[raw_space.start..raw_space.end], "\n");
+    let paired = text
+        .canonical
+        .comparable_tokens_with_sources()
+        .expect("line-break sources should remain valid");
+    assert_eq!(paired[5].1, space_source);
+    assert_token_source_parity(&text.canonical);
+}
+
+fn assert_token_source_parity(text: &MappedText) {
+    let tokens = text
+        .comparable_tokens()
+        .expect("fixture comparable tokens should be valid");
+    let paired = text
+        .comparable_tokens_with_sources()
+        .expect("fixture token sources should be valid");
+    assert_eq!(
+        paired
+            .into_iter()
+            .map(|(token, _)| token)
+            .collect::<Vec<_>>(),
+        tokens
+    );
 }
 
 #[test]

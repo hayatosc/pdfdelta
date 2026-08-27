@@ -70,6 +70,30 @@ pub struct Glyph {
     pub provenance: GlyphProvenance,
 }
 
+/// Compact report evidence for one glyph.
+///
+/// `bbox` is the layout bounding box. `provenance.content_stream` uses the
+/// backend-neutral [`ObjectRef`] facade. Glyph ids are expected to be unique
+/// within one document side.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GlyphEvidence {
+    pub id: GlyphId,
+    pub page: PageId,
+    pub bbox: Rect,
+    pub provenance: GlyphProvenance,
+}
+
+impl From<&Glyph> for GlyphEvidence {
+    fn from(glyph: &Glyph) -> Self {
+        Self {
+            id: glyph.id,
+            page: glyph.page,
+            bbox: glyph.bbox,
+            provenance: glyph.provenance,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Document<T> {
     items: Vec<T>,
