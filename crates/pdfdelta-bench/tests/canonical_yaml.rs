@@ -435,6 +435,59 @@ document:
 }
 
 #[test]
+fn multi_section_column_change_preserves_surrounding_sections_and_feeds_the_evaluator() {
+    let yaml = r#"
+document:
+  title: Column report
+  sections:
+    - id: introduction
+      heading: Introduction
+      paragraphs:
+        - id: intro-p1
+          text: Introductory context remains full width.
+    - id: body
+      heading: Report body
+      paragraphs:
+        - id: body-p1
+          text: Left first paragraph remains stable.
+        - id: body-p2
+          text: Left second paragraph remains stable.
+        - id: body-p3
+          text: Right first paragraph remains stable.
+        - id: body-p4
+          text: Right second paragraph remains stable.
+    - id: conclusion
+      heading: Conclusion
+      paragraphs:
+        - id: conclusion-p1
+          text: Closing context remains full width.
+"#;
+    let document = CanonicalRenderDocument::from_yaml(yaml).expect("valid canonical YAML");
+    let plan = Mutation::ColumnChangeInSection {
+        section_id: "body".to_owned(),
+    }
+    .apply_to_render_document(&document, 30)
+    .expect("multi-section column change applies");
+
+    assert_eq!(plan.old().pages()[0], document.render_lines());
+    assert_eq!(plan.new_plan().pages()[0], document.render_lines());
+    assert_eq!(plan.expectation().label(), "none");
+
+    for renderer in RendererKind::all() {
+        let record = evaluate(
+            "yaml-column-change",
+            plan.old(),
+            plan.new_plan(),
+            plan.expectation(),
+            renderer,
+        )
+        .expect("multi-section column change evaluates");
+        assert_eq!(record.actual_changes, 0);
+        assert!(record.passed, "{}: {}", renderer.name(), record.detail);
+    }
+}
+
+#[test]
 fn paragraph_deletion_preserves_its_section_and_feeds_the_evaluator() {
     let yaml = EXAMPLE_YAML.replace(
         "        - id: availability-p1\n          text: Release 10 remains available during the transition.\n",
@@ -631,6 +684,87 @@ fn same_section_paragraph_move_preserves_structure_and_feeds_the_evaluator() {
 }
 
 #[test]
+fn cross_section_paragraph_move_preserves_structure_and_feeds_the_evaluator() {
+    let yaml = r#"
+document:
+  title: Transfer report
+  sections:
+    - id: source
+      heading: Source section
+      paragraphs:
+        - id: source-p1
+          text: This movable source paragraph has unique transfer details.
+        - id: source-p2
+          text: This source paragraph remains under the source heading.
+    - id: destination
+      heading: Destination section
+      paragraphs:
+        - id: destination-p1
+          text: This destination paragraph remains first.
+        - id: destination-p2
+          text: This destination paragraph remains last.
+"#;
+    let document = CanonicalRenderDocument::from_yaml(yaml).expect("valid canonical YAML");
+    let cases = [
+        (
+            "source-p1",
+            "destination",
+            1,
+            [
+                "Transfer report",
+                "Source section",
+                "This source paragraph remains under the source heading.",
+                "Destination section",
+                "This destination paragraph remains first.",
+                "This movable source paragraph has unique transfer details.",
+                "This destination paragraph remains last.",
+            ],
+        ),
+        (
+            "destination-p2",
+            "source",
+            0,
+            [
+                "Transfer report",
+                "Source section",
+                "This destination paragraph remains last.",
+                "This movable source paragraph has unique transfer details.",
+                "This source paragraph remains under the source heading.",
+                "Destination section",
+                "This destination paragraph remains first.",
+            ],
+        ),
+    ];
+
+    for (paragraph_id, to_section_id, to_index, expected_lines) in cases {
+        let plan = Mutation::ParagraphMoveToSection {
+            paragraph_id: paragraph_id.to_owned(),
+            to_section_id: to_section_id.to_owned(),
+            to_index,
+        }
+        .apply_to_render_document(&document, 30)
+        .expect("cross-section paragraph move applies");
+
+        assert_eq!(plan.old().pages()[0], document.render_lines());
+        assert_eq!(plan.new_plan().pages()[0], expected_lines);
+        assert_eq!(plan.expectation().label(), "move");
+
+        for renderer in RendererKind::all() {
+            let record = evaluate(
+                "yaml-paragraph-move",
+                plan.old(),
+                plan.new_plan(),
+                plan.expectation(),
+                renderer,
+            )
+            .expect("cross-section paragraph move evaluates");
+            assert_eq!(record.actual_changes, 1);
+            assert!(record.passed, "{}: {}", renderer.name(), record.detail);
+        }
+    }
+}
+
+#[test]
 fn structured_mutations_reject_metadata_targets_empty_sections_and_ambiguous_changes() {
     let document = CanonicalRenderDocument::from_yaml(EXAMPLE_YAML).expect("valid canonical YAML");
     let metadata_error = Mutation::TextReplace {
@@ -745,16 +879,74 @@ fn structured_mutations_reject_metadata_targets_empty_sections_and_ambiguous_cha
         assert!(error.contains(expected), "{error}");
     }
 
-    let multi_section_column_error = Mutation::ColumnChangeInSection {
-        section_id: "availability".to_owned(),
+    let cross_section_document = CanonicalRenderDocument::from_yaml(
+        r#"
+document:
+  title: Transfer report
+  sections:
+    - id: source
+      heading: Source section
+      paragraphs:
+        - id: source-p1
+          text: Movable source paragraph.
+        - id: source-p2
+          text: Retained source paragraph.
+    - id: destination
+      heading: Destination section
+      paragraphs:
+        - id: destination-p1
+          text: Existing destination paragraph.
+"#,
+    )
+    .expect("cross-section YAML is valid");
+    for (mutation, expected) in [
+        (
+            Mutation::ParagraphMoveToSection {
+                paragraph_id: "source-p1".to_owned(),
+                to_section_id: "source".to_owned(),
+                to_index: 0,
+            },
+            "requires a different destination section",
+        ),
+        (
+            Mutation::ParagraphMoveToSection {
+                paragraph_id: "source-p1".to_owned(),
+                to_section_id: "missing".to_owned(),
+                to_index: 0,
+            },
+            "unknown structured section id",
+        ),
+        (
+            Mutation::ParagraphMoveToSection {
+                paragraph_id: "missing".to_owned(),
+                to_section_id: "destination".to_owned(),
+                to_index: 0,
+            },
+            "unknown structured paragraph id",
+        ),
+        (
+            Mutation::ParagraphMoveToSection {
+                paragraph_id: "source-p1".to_owned(),
+                to_section_id: "destination".to_owned(),
+                to_index: 2,
+            },
+            "exceeds destination section",
+        ),
+        (
+            Mutation::ParagraphMoveToSection {
+                paragraph_id: "destination-p1".to_owned(),
+                to_section_id: "source".to_owned(),
+                to_index: 0,
+            },
+            "cannot leave source section",
+        ),
+    ] {
+        let error = mutation
+            .apply_to_render_document(&cross_section_document, 30)
+            .expect_err("invalid cross-section move is rejected")
+            .to_string();
+        assert!(error.contains(expected), "{error}");
     }
-    .apply_to_render_document(&document, 30)
-    .expect_err("multi-section column ownership is rejected")
-    .to_string();
-    assert!(
-        multi_section_column_error.contains("requires exactly one section"),
-        "{multi_section_column_error}"
-    );
 
     let single_section = CanonicalRenderDocument::from_yaml(
         r#"
@@ -959,12 +1151,17 @@ fn evaluate_yaml_command_runs_each_global_rendering_mutation() {
 }
 
 #[test]
-fn evaluate_yaml_command_runs_single_section_column_change_for_each_renderer() {
+fn evaluate_yaml_command_runs_multi_section_column_change_for_each_renderer() {
     let (input, _) = temp_fixture_paths();
     let yaml = r#"
 document:
   title: Column report
   sections:
+    - id: introduction
+      heading: Introduction
+      paragraphs:
+        - id: intro-p1
+          text: Introductory context remains full width.
     - id: body
       heading: Report body
       paragraphs:
@@ -976,6 +1173,11 @@ document:
           text: Right first paragraph remains stable.
         - id: body-p4
           text: Right second paragraph remains stable.
+    - id: conclusion
+      heading: Conclusion
+      paragraphs:
+        - id: conclusion-p1
+          text: Closing context remains full width.
 "#;
     fs::write(&input, yaml).expect("temporary canonical YAML is written");
 
@@ -1130,6 +1332,55 @@ fn evaluate_yaml_command_runs_same_section_paragraph_move_for_each_renderer() {
                 "availability-p3",
                 "--to-index",
                 "0",
+            ],
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+        assert!(
+            stdout.contains(&format!(
+                "PASS case=yaml-paragraph-move renderer={renderer} expected=move actual=move \
+                 coverage=1.000/1.000"
+            )),
+            "{stdout}"
+        );
+    }
+
+    fs::remove_file(&input).expect("temporary canonical YAML is removed");
+}
+
+#[test]
+fn evaluate_yaml_command_runs_cross_section_paragraph_move_for_each_renderer() {
+    let (input, _) = temp_fixture_paths();
+    let yaml = EXAMPLE_YAML.replace(
+        "        - id: availability-p1\n          text: Release 10 remains available during the transition.\n",
+        concat!(
+            "        - id: availability-p1\n",
+            "          text: Opening availability paragraph remains stable and identifies the start.\n",
+            "        - id: availability-p2\n",
+            "          text: Middle availability paragraph remains stable and identifies the center.\n",
+            "        - id: availability-p3\n",
+            "          text: Closing availability paragraph moves to customer support.\n",
+        ),
+    );
+    fs::write(&input, yaml).expect("temporary canonical YAML is written");
+
+    for renderer in ["lopdf-tj", "classic-xref-tj"] {
+        let output = run_evaluate_command(
+            &input,
+            renderer,
+            &[
+                "paragraph-move",
+                "--paragraph-id",
+                "availability-p3",
+                "--to-section-id",
+                "support",
+                "--to-index",
+                "1",
             ],
         );
         assert!(

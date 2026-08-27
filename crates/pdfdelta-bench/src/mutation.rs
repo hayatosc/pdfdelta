@@ -25,6 +25,8 @@ pub(crate) const GLYPH_WIDTH_UNITS: u16 = 500;
 const FONT_UNITS_PER_EM: u16 = 1_000;
 /// Minimum inter-column gap as a multiple of the rendered font size.
 pub const COLUMN_GUTTER_FONT_SIZE_RATIO: u16 = 5;
+/// Separates a column band from following full-width sections for reversible XY-Cut ordering.
+const COLUMN_BAND_GAP_FONT_SIZE_RATIO: usize = 4;
 
 /// Vertical text origin both renderers use for the first line of every page.
 pub(crate) const PAGE_TOP: i64 = 740;
@@ -402,6 +404,12 @@ pub enum Mutation {
         paragraph_id: String,
         to_index: usize,
     },
+    /// Moves a source paragraph to a final index within a different section.
+    ParagraphMoveToSection {
+        paragraph_id: String,
+        to_section_id: String,
+        to_index: usize,
+    },
 }
 
 /// A half-open scalar range in paragraphs joined by one canonical space.
@@ -659,10 +667,12 @@ impl Mutation {
                 paragraph_id,
                 to_index,
             } => apply_paragraph_move(document, paragraph_id, *to_index, line_gap),
-            Self::ParagraphMoveInSection { .. } => Err(BenchError::InvalidInput(
-                "section-local paragraph movement requires a structured canonical document"
-                    .to_owned(),
-            )),
+            Self::ParagraphMoveInSection { .. } | Self::ParagraphMoveToSection { .. } => {
+                Err(BenchError::InvalidInput(
+                    "section-aware paragraph movement requires a structured canonical document"
+                        .to_owned(),
+                ))
+            }
         }
     }
 
@@ -678,10 +688,10 @@ impl Mutation {
     /// section heading on the preceding page.
     /// Section-local insertion preserves the owning heading and rejects indexes
     /// beyond the section's current paragraph count.
-    /// Section-local movement keeps the source paragraph under its current
-    /// heading and interprets the destination as its final local index.
-    /// A structured column change requires one section and positions only its
-    /// paragraphs in columns below full-width title and heading lines.
+    /// Section-aware movement interprets the destination as a final local index.
+    /// Cross-section movement retains at least one paragraph in the source section.
+    /// A structured column change positions only the selected section's paragraphs
+    /// in columns while keeping all metadata and other sections full-width.
     /// Paragraph deletion is allowed only when its owning section retains at
     /// least one paragraph. Other structural and layout mutations are rejected
     /// until their structured-document contracts are explicit.
@@ -721,6 +731,20 @@ impl Mutation {
         {
             return apply_structured_paragraph_move(document, paragraph_id, *to_index, line_gap);
         }
+        if let Self::ParagraphMoveToSection {
+            paragraph_id,
+            to_section_id,
+            to_index,
+        } = self
+        {
+            return apply_structured_paragraph_move_to_section(
+                document,
+                paragraph_id,
+                to_section_id,
+                *to_index,
+                line_gap,
+            );
+        }
         if let Self::ColumnChangeInSection { section_id } = self {
             return apply_structured_column_change(document, section_id, line_gap);
         }
@@ -743,8 +767,8 @@ impl Mutation {
                     "structured canonical documents currently support only LineWrap, \
                      PageBreakBefore, LineHeightChange, MarginChange, FontSizeChange, \
                      PageSizeChange, TextReplace, TextInsert, TextDelete, NumberReplace, \
-                     ParagraphInsertInSection, ParagraphDelete, ParagraphMoveInSection, and \
-                     ColumnChangeInSection mutations"
+                     ParagraphInsertInSection, ParagraphDelete, ParagraphMoveInSection, \
+                     ParagraphMoveToSection, and ColumnChangeInSection mutations"
                         .to_owned(),
                 ));
             }
@@ -853,6 +877,81 @@ fn apply_structured_paragraph_move(
     Err(BenchError::InvalidInput(format!(
         "unknown structured paragraph id {paragraph_id:?}"
     )))
+}
+
+fn apply_structured_paragraph_move_to_section(
+    document: &CanonicalRenderDocument,
+    paragraph_id: &str,
+    to_section_id: &str,
+    to_index: usize,
+    line_gap: u16,
+) -> Result<MutationPlan> {
+    validate_paragraph_id(paragraph_id)?;
+    let mut section_start = 1usize;
+    let mut source = None;
+    let mut destination = None;
+
+    for section in document.sections() {
+        section_start = section_start.checked_add(1).ok_or_else(|| {
+            BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
+        })?;
+        if section.id() == to_section_id {
+            destination = Some((section_start, section.paragraphs().len()));
+        }
+        if let Some(local_index) = section
+            .paragraphs()
+            .iter()
+            .position(|paragraph| paragraph.id() == paragraph_id)
+        {
+            let flattened_index = section_start.checked_add(local_index).ok_or_else(|| {
+                BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
+            })?;
+            source = Some((section.id(), section.paragraphs().len(), flattened_index));
+        }
+        section_start = section_start
+            .checked_add(section.paragraphs().len())
+            .ok_or_else(|| {
+                BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
+            })?;
+    }
+
+    let (source_section_id, source_len, from_index) = source.ok_or_else(|| {
+        BenchError::InvalidInput(format!("unknown structured paragraph id {paragraph_id:?}"))
+    })?;
+    let (destination_start, destination_len) = destination.ok_or_else(|| {
+        BenchError::InvalidInput(format!("unknown structured section id {to_section_id:?}"))
+    })?;
+    if source_section_id == to_section_id {
+        return Err(BenchError::InvalidInput(format!(
+            "cross-section paragraph move for {paragraph_id:?} requires a different destination section"
+        )));
+    }
+    if source_len == 1 {
+        return Err(BenchError::InvalidInput(format!(
+            "paragraph move cannot leave source section {source_section_id:?} empty"
+        )));
+    }
+    if to_index > destination_len {
+        return Err(BenchError::InvalidInput(format!(
+            "paragraph move index {to_index} exceeds destination section {to_section_id:?} length {destination_len}"
+        )));
+    }
+
+    let destination_start = if from_index < destination_start {
+        destination_start.checked_sub(1).ok_or_else(|| {
+            BenchError::InvalidInput("structured paragraph index underflowed".to_owned())
+        })?
+    } else {
+        destination_start
+    };
+    let flattened_index = destination_start.checked_add(to_index).ok_or_else(|| {
+        BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
+    })?;
+    Mutation::ParagraphMove {
+        paragraph_id: paragraph_id.to_owned(),
+        to_index: flattened_index,
+    }
+    .apply(&document.mutation_document()?, line_gap)
 }
 
 fn apply_line_wrap(
@@ -970,31 +1069,50 @@ fn apply_structured_column_change(
     section_id: &str,
     line_gap: u16,
 ) -> Result<MutationPlan> {
-    if document.sections().len() != 1 {
-        return Err(BenchError::InvalidInput(
-            "structured column change requires exactly one section".to_owned(),
-        ));
-    }
-    let section = &document.sections()[0];
-    if section.id() != section_id {
-        return Err(BenchError::InvalidInput(format!(
-            "unknown structured section id {section_id:?}"
-        )));
-    }
-
-    let mut positioned = Vec::with_capacity(2 + section.paragraphs().len());
-    positioned.push(RenderLine::new(document.title(), 0, 0)?);
-    positioned.push(RenderLine::new(section.heading(), 1, 0)?);
-    positioned.extend(position_columns(
-        section
-            .paragraphs()
-            .iter()
-            .map(|paragraph| paragraph.text().to_owned())
-            .collect(),
-        2,
-    )?);
-
+    let target_index = document
+        .sections()
+        .iter()
+        .position(|section| section.id() == section_id)
+        .ok_or_else(|| {
+            BenchError::InvalidInput(format!("unknown structured section id {section_id:?}"))
+        })?;
     let flattened = document.mutation_document()?;
+    let mut positioned = Vec::with_capacity(flattened.paragraphs().len());
+    positioned.push(RenderLine::new(document.title(), 0, 0)?);
+    let mut row = 1usize;
+    for (section_index, section) in document.sections().iter().enumerate() {
+        positioned.push(RenderLine::new(section.heading(), row, 0)?);
+        row = row
+            .checked_add(1)
+            .ok_or_else(|| BenchError::InvalidInput("column row overflowed".to_owned()))?;
+        if section_index == target_index {
+            positioned.extend(position_columns(
+                section
+                    .paragraphs()
+                    .iter()
+                    .map(|paragraph| paragraph.text().to_owned())
+                    .collect(),
+                row,
+            )?);
+            let occupied_rows = section.paragraphs().len() - section.paragraphs().len() / 2;
+            row = row
+                .checked_add(occupied_rows)
+                .ok_or_else(|| BenchError::InvalidInput("column row overflowed".to_owned()))?;
+            if section_index + 1 < document.sections().len() {
+                row = row
+                    .checked_add(column_band_gap_rows(line_gap))
+                    .ok_or_else(|| BenchError::InvalidInput("column row overflowed".to_owned()))?;
+            }
+        } else {
+            for paragraph in section.paragraphs() {
+                positioned.push(RenderLine::new(paragraph.text(), row, 0)?);
+                row = row
+                    .checked_add(1)
+                    .ok_or_else(|| BenchError::InvalidInput("column row overflowed".to_owned()))?;
+            }
+        }
+    }
+
     MutationPlan::build(
         &flattened,
         &flattened,
@@ -1002,6 +1120,13 @@ fn apply_structured_column_change(
         RenderPlan::positioned(vec![positioned], line_gap)?,
         ExpectedManifest::none(),
     )
+}
+
+fn column_band_gap_rows(line_gap: u16) -> usize {
+    let minimum_baseline_gap = usize::from(DEFAULT_FONT_SIZE) * COLUMN_BAND_GAP_FONT_SIZE_RATIO;
+    minimum_baseline_gap
+        .div_ceil(usize::from(line_gap).max(1))
+        .saturating_sub(1)
 }
 
 fn position_columns(lines: Vec<String>, row_offset: usize) -> Result<Vec<RenderLine>> {
@@ -1653,12 +1778,17 @@ mod tests {
     }
 
     #[test]
-    fn structured_column_change_keeps_title_and_heading_full_width() {
+    fn structured_column_change_keeps_surrounding_sections_full_width() {
         let document = CanonicalRenderDocument::from_yaml(
             r#"
 document:
   title: Column report
   sections:
+    - id: introduction
+      heading: Introduction
+      paragraphs:
+        - id: intro-p1
+          text: Introductory context
     - id: body
       heading: Report body
       paragraphs:
@@ -1670,6 +1800,11 @@ document:
           text: Right first
         - id: p4
           text: Right second
+    - id: conclusion
+      heading: Conclusion
+      paragraphs:
+        - id: conclusion-p1
+          text: Closing context
 "#,
         )
         .expect("test YAML is valid");
@@ -1684,7 +1819,11 @@ document:
         assert_eq!(positions[1], LinePosition { row: 1, x: 0 });
         assert_eq!(positions[2], LinePosition { row: 2, x: 0 });
         assert_eq!(positions[3], LinePosition { row: 3, x: 0 });
-        assert_eq!(positions[4], LinePosition { row: 2, x: 270 });
-        assert_eq!(positions[5], LinePosition { row: 3, x: 270 });
+        assert_eq!(positions[4], LinePosition { row: 4, x: 0 });
+        assert_eq!(positions[5], LinePosition { row: 5, x: 0 });
+        assert_eq!(positions[6], LinePosition { row: 4, x: 270 });
+        assert_eq!(positions[7], LinePosition { row: 5, x: 270 });
+        assert_eq!(positions[8], LinePosition { row: 8, x: 0 });
+        assert_eq!(positions[9], LinePosition { row: 9, x: 0 });
     }
 }

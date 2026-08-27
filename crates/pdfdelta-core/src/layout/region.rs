@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     Error, Result,
@@ -152,21 +152,127 @@ fn classify_reading_order(
         .iter()
         .map(|line| (line.id, *line))
         .collect::<HashMap<_, _>>();
-    match regions {
-        [] => ReadingOrder::Known(Vec::new()),
-        [region] if region_lines_are_monotone(region, &lines_by_id) => {
+    if regions.is_empty() {
+        return ReadingOrder::Known(Vec::new());
+    }
+    if let [region] = regions {
+        return if region_lines_are_monotone(region, &lines_by_id) {
             ReadingOrder::Known(vec![region.id])
-        }
-        [left, right]
-            if is_supported_two_column_graph(left, right, edges)
-                && region_lines_are_monotone(left, &lines_by_id)
-                && region_lines_are_monotone(right, &lines_by_id)
-                && regions_are_rendered_in_order(left, right, &lines_by_id) =>
+        } else {
+            ReadingOrder::Unknown
+        };
+    }
+    if let [left, right] = regions {
+        return if is_supported_two_column_graph(left, right, edges)
+            && region_lines_are_monotone(left, &lines_by_id)
+            && region_lines_are_monotone(right, &lines_by_id)
+            && regions_are_rendered_in_order(left, right, &lines_by_id)
         {
             ReadingOrder::Known(vec![left.id, right.id])
-        }
-        _ => ReadingOrder::Unknown,
+        } else {
+            ReadingOrder::Unknown
+        };
     }
+
+    banded_two_column_order(regions, edges, &lines_by_id)
+        .map_or(ReadingOrder::Unknown, ReadingOrder::Known)
+}
+
+fn banded_two_column_order(
+    regions: &[Region],
+    edges: &[(RegionId, RegionId, RegionRelation)],
+    lines: &HashMap<LineId, &Line>,
+) -> Option<Vec<RegionId>> {
+    let column_pairs = edges
+        .iter()
+        .filter_map(|(source, target, relation)| {
+            (*relation == RegionRelation::LeftOf).then_some((*source, *target))
+        })
+        .collect::<HashSet<_>>();
+    if column_pairs.len() != 1 {
+        return None;
+    }
+    let (left_id, right_id) = column_pairs.into_iter().next()?;
+    let left = regions.iter().find(|region| region.id == left_id)?;
+    let right = regions.iter().find(|region| region.id == right_id)?;
+    if !is_supported_two_column_graph(left, right, edges)
+        || regions
+            .iter()
+            .any(|region| !region_lines_are_monotone(region, lines))
+    {
+        return None;
+    }
+
+    let order = unique_spatial_order(regions, edges)?;
+    if order != regions.iter().map(|region| region.id).collect::<Vec<_>>() {
+        return None;
+    }
+    let regions_by_id = regions
+        .iter()
+        .map(|region| (region.id, region))
+        .collect::<HashMap<_, _>>();
+    order
+        .windows(2)
+        .all(|pair| {
+            let Some(previous) = regions_by_id.get(&pair[0]) else {
+                return false;
+            };
+            let Some(next) = regions_by_id.get(&pair[1]) else {
+                return false;
+            };
+            regions_are_rendered_in_order(previous, next, lines)
+        })
+        .then_some(order)
+}
+
+fn unique_spatial_order(
+    regions: &[Region],
+    edges: &[(RegionId, RegionId, RegionRelation)],
+) -> Option<Vec<RegionId>> {
+    let region_ids = regions
+        .iter()
+        .map(|region| region.id)
+        .collect::<HashSet<_>>();
+    let mut indegrees = region_ids
+        .iter()
+        .copied()
+        .map(|region_id| (region_id, 0usize))
+        .collect::<HashMap<_, _>>();
+    let mut successors = HashMap::<RegionId, HashSet<RegionId>>::new();
+    for &(source, target, relation) in edges {
+        if !matches!(relation, RegionRelation::Above | RegionRelation::LeftOf) {
+            continue;
+        }
+        if !region_ids.contains(&source) || !region_ids.contains(&target) {
+            return None;
+        }
+        if successors.entry(source).or_default().insert(target) {
+            let indegree = indegrees.get_mut(&target)?;
+            *indegree = indegree.checked_add(1)?;
+        }
+    }
+
+    let mut remaining = region_ids;
+    let mut order = Vec::with_capacity(regions.len());
+    while !remaining.is_empty() {
+        let mut roots = remaining
+            .iter()
+            .copied()
+            .filter(|region_id| indegrees.get(region_id) == Some(&0));
+        let root = roots.next()?;
+        if roots.next().is_some() {
+            return None;
+        }
+        remaining.remove(&root);
+        order.push(root);
+        if let Some(targets) = successors.get(&root) {
+            for target in targets {
+                let indegree = indegrees.get_mut(target)?;
+                *indegree = indegree.checked_sub(1)?;
+            }
+        }
+    }
+    Some(order)
 }
 
 fn region_lines_are_monotone(region: &Region, lines: &HashMap<LineId, &Line>) -> bool {

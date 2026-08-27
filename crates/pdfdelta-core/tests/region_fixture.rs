@@ -219,6 +219,29 @@ fn mixed_header_and_two_column_bands_partition_hierarchically() -> Result<()> {
 }
 
 #[test]
+fn full_width_bands_and_two_columns_have_known_render_order() -> Result<()> {
+    let lines = vec![
+        make_line(1, 50.0, 780.0, 550.0, 792.0),
+        make_line(2, 50.0, 760.0, 550.0, 772.0),
+        make_line(3, 50.0, 680.0, 250.0, 692.0),
+        make_line(4, 50.0, 660.0, 250.0, 672.0),
+        make_line(5, 350.0, 680.0, 550.0, 692.0),
+        make_line(6, 350.0, 660.0, 550.0, 672.0),
+        make_line(7, 50.0, 560.0, 550.0, 572.0),
+        make_line(8, 50.0, 540.0, 550.0, 552.0),
+    ];
+
+    let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
+
+    assert_eq!(graph.regions.len(), 4);
+    assert_eq!(
+        graph.reading_order,
+        ReadingOrder::Known(graph.regions.iter().map(|region| region.id).collect())
+    );
+    Ok(())
+}
+
+#[test]
 fn vertically_stacked_bands_in_same_column_emit_same_column_relation() -> Result<()> {
     // Top band lines (y from 750 to 780, x from 50 to 450)
     let t1 = make_line(1, 50.0, 765.0, 450.0, 777.0);

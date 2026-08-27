@@ -224,10 +224,13 @@ enum YamlMutation {
         #[arg(long)]
         paragraph_id: String,
     },
-    /// Move one paragraph to a final zero-based index within its current section.
+    /// Move one paragraph to a final zero-based index within a section.
     ParagraphMove {
         #[arg(long)]
         paragraph_id: String,
+        /// Move into this section instead of reordering within the source section.
+        #[arg(long)]
+        to_section_id: Option<String>,
         #[arg(long)]
         to_index: usize,
     },
@@ -343,14 +346,22 @@ impl YamlMutation {
             ),
             Self::ParagraphMove {
                 paragraph_id,
+                to_section_id,
                 to_index,
-            } => (
-                "yaml-paragraph-move",
-                Mutation::ParagraphMoveInSection {
-                    paragraph_id,
-                    to_index,
-                },
-            ),
+            } => {
+                let mutation = match to_section_id {
+                    Some(to_section_id) => Mutation::ParagraphMoveToSection {
+                        paragraph_id,
+                        to_section_id,
+                        to_index,
+                    },
+                    None => Mutation::ParagraphMoveInSection {
+                        paragraph_id,
+                        to_index,
+                    },
+                };
+                ("yaml-paragraph-move", mutation)
+            }
         }
     }
 }
@@ -1308,12 +1319,26 @@ mod tests {
             (
                 YamlMutation::ParagraphMove {
                     paragraph_id: "moved".to_owned(),
+                    to_section_id: None,
                     to_index: 0,
                 },
                 "yaml-paragraph-move",
                 Mutation::ParagraphMoveInSection {
                     paragraph_id: "moved".to_owned(),
                     to_index: 0,
+                },
+            ),
+            (
+                YamlMutation::ParagraphMove {
+                    paragraph_id: "moved".to_owned(),
+                    to_section_id: Some("destination".to_owned()),
+                    to_index: 1,
+                },
+                "yaml-paragraph-move",
+                Mutation::ParagraphMoveToSection {
+                    paragraph_id: "moved".to_owned(),
+                    to_section_id: "destination".to_owned(),
+                    to_index: 1,
                 },
             ),
         ];
