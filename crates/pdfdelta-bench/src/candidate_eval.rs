@@ -6,8 +6,10 @@
 //! paragraph id plus global span overlap, so moved, re-wrapped, and
 //! re-paginated paragraphs still resolve to their correct new blocks.
 //!
-//! Latency and memory measurement are deferred to a later slice; this module
-//! covers recall, candidate counts, and estimated visit budgets.
+//! Latency is observed once per generator for index construction and one full
+//! candidate query pass. These observations are diagnostic rather than
+//! statistically stable benchmark measurements. Memory measurement remains
+//! deferred.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -128,6 +130,18 @@ pub struct CandidateEvalRecord {
     /// Exhaustive-oracle candidate counts per old block (nearest-rank p95).
     pub oracle_candidate_count_p95: usize,
     pub oracle_candidate_count_max: usize,
+    /// Inverted-index construction latency from one observation, in nanoseconds.
+    pub index_build_latency_ns: u64,
+    /// Inverted-index full, untruncated query-pass latency from one observation.
+    pub query_latency_ns: u64,
+    /// MinHash LSH construction latency from one observation, in nanoseconds.
+    pub minhash_index_build_latency_ns: u64,
+    /// MinHash LSH full, untruncated query-pass latency from one observation.
+    pub minhash_query_latency_ns: u64,
+    /// Exhaustive-oracle construction latency from one observation, in nanoseconds.
+    pub oracle_index_build_latency_ns: u64,
+    /// Exhaustive-oracle full, untruncated query-pass latency from one observation.
+    pub oracle_query_latency_ns: u64,
     /// Inverted-index estimated visits per old block (nearest-rank p50).
     pub estimated_visits_p50: usize,
     /// Inverted-index estimated visits per old block (nearest-rank p95).
@@ -229,6 +243,8 @@ pub fn evaluate_candidate_generation(
     renderer: RendererKind,
     top_k: &[usize],
 ) -> Result<CandidateEvalRecord> {
+    use std::time::Instant;
+
     validate_top_k(top_k)?;
     let options = PipelineOptions::default();
     let plan = case.plan();
@@ -248,12 +264,21 @@ pub fn evaluate_candidate_generation(
         .map_err(|error| core_error("candidate feature build", error))?;
     let new_features = build_block_features(&new_blocks, options.ngram_size)
         .map_err(|error| core_error("candidate feature build", error))?;
+    let index_build_started = Instant::now();
     let inverted = InvertedIndexCandidateGenerator::new(&new_features)
         .map_err(|error| core_error("candidate index build", error))?;
+    let index_build_latency_ns =
+        u64::try_from(index_build_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+    let minhash_index_build_started = Instant::now();
     let minhash = MinHashLshCandidateGenerator::new(&new_features)
         .map_err(|error| core_error("minhash candidate index build", error))?;
+    let minhash_index_build_latency_ns =
+        u64::try_from(minhash_index_build_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+    let oracle_index_build_started = Instant::now();
     let exhaustive = ExhaustiveCandidateGenerator::new(&new_features)
         .map_err(|error| core_error("candidate index build", error))?;
+    let oracle_index_build_latency_ns =
+        u64::try_from(oracle_index_build_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
 
     let mut recall = Vec::with_capacity(top_k.len());
     let mut minhash_recall = Vec::with_capacity(top_k.len());
@@ -264,9 +289,17 @@ pub fn evaluate_candidate_generation(
         oracle_recall.push(recall_at_k(&old_features, &counterparts, &exhaustive, *k)?);
     }
 
+    let query_started = Instant::now();
     let counts = candidate_counts(&old_features, &inverted)?;
+    let query_latency_ns = u64::try_from(query_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+    let minhash_query_started = Instant::now();
     let minhash_counts = candidate_counts(&old_features, &minhash)?;
+    let minhash_query_latency_ns =
+        u64::try_from(minhash_query_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+    let oracle_query_started = Instant::now();
     let oracle_counts = candidate_counts(&old_features, &exhaustive)?;
+    let oracle_query_latency_ns =
+        u64::try_from(oracle_query_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
     let pressure =
         measure_visit_metrics(&old_features, &new_features, &inverted, options.alignment)?;
     let minhash_pressure =
@@ -296,6 +329,12 @@ pub fn evaluate_candidate_generation(
         oracle_candidate_count_p50: percentile(&oracle_counts, 0.50),
         oracle_candidate_count_p95: percentile(&oracle_counts, 0.95),
         oracle_candidate_count_max: oracle_counts.iter().copied().max().unwrap_or(0),
+        index_build_latency_ns,
+        query_latency_ns,
+        minhash_index_build_latency_ns,
+        minhash_query_latency_ns,
+        oracle_index_build_latency_ns,
+        oracle_query_latency_ns,
         estimated_visits_p50: pressure.estimated_visits_p50,
         estimated_visits_p95: pressure.estimated_visits_p95,
         estimated_visits_max: pressure.estimated_visits_max,
@@ -1052,6 +1091,12 @@ mod tests {
             oracle_candidate_count_p50: 3,
             oracle_candidate_count_p95: 3,
             oracle_candidate_count_max: 3,
+            index_build_latency_ns: 11,
+            query_latency_ns: 12,
+            minhash_index_build_latency_ns: 13,
+            minhash_query_latency_ns: 14,
+            oracle_index_build_latency_ns: 15,
+            oracle_query_latency_ns: 16,
             estimated_visits_p50: 1,
             estimated_visits_p95: 1,
             estimated_visits_max: 1,
@@ -1104,6 +1149,19 @@ mod tests {
     }
 
     #[test]
+    fn healthy_ignores_latency_observations() {
+        let mut record = record_with_recall(vec![1.0, 1.0], vec![1.0, 1.0]);
+        let expected = record.healthy();
+        record.index_build_latency_ns = u64::MAX;
+        record.query_latency_ns = 0;
+        record.minhash_index_build_latency_ns = u64::MAX;
+        record.minhash_query_latency_ns = 0;
+        record.oracle_index_build_latency_ns = u64::MAX;
+        record.oracle_query_latency_ns = 0;
+        assert_eq!(record.healthy(), expected);
+    }
+
+    #[test]
     fn evaluate_candidate_generation_rejects_empty_and_zero_top_k_before_rendering() {
         // 16 lines at line_gap 48 exceed the vertical page area, so
         // rendering would fail; the top-K validation must run first and win.
@@ -1153,6 +1211,12 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&json).expect("artifact parses");
         assert_eq!(parsed[0]["renderer"], "lopdf-tj");
         assert_eq!(parsed[0]["top_k"], serde_json::json!([5, 10]));
+        assert_eq!(parsed[0]["index_build_latency_ns"], 11);
+        assert_eq!(parsed[0]["query_latency_ns"], 12);
+        assert_eq!(parsed[0]["minhash_index_build_latency_ns"], 13);
+        assert_eq!(parsed[0]["minhash_query_latency_ns"], 14);
+        assert_eq!(parsed[0]["oracle_index_build_latency_ns"], 15);
+        assert_eq!(parsed[0]["oracle_query_latency_ns"], 16);
         assert!(write_candidates_json(&path, &records).is_err());
         std::fs::remove_file(&path).expect("artifact removed");
     }

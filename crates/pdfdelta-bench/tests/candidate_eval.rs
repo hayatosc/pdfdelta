@@ -89,6 +89,29 @@ fn built_in_fixtures_recover_true_counterparts_at_top_k() {
 }
 
 #[test]
+fn candidate_evaluation_serializes_latency_observations_as_unsigned_integers() {
+    let case = built_in_cases()
+        .expect("built-in cases are valid")
+        .into_iter()
+        .next()
+        .expect("a built-in case exists");
+    let record = evaluate_candidate_generation(&case, RendererKind::LopdfTj, &[5])
+        .expect("candidate evaluation completes");
+    let value = serde_json::to_value(record).expect("candidate record serializes");
+
+    for field in [
+        "index_build_latency_ns",
+        "query_latency_ns",
+        "minhash_index_build_latency_ns",
+        "minhash_query_latency_ns",
+        "oracle_index_build_latency_ns",
+        "oracle_query_latency_ns",
+    ] {
+        assert!(value[field].as_u64().is_some(), "{field} must be a u64");
+    }
+}
+
+#[test]
 fn built_in_fixture_counterpart_denominators_match_mutation_semantics() {
     for case in built_in_cases().expect("built-in cases are valid") {
         let record = evaluate_candidate_generation(&case, RendererKind::LopdfTj, &[5])

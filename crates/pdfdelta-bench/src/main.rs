@@ -284,7 +284,7 @@ fn candidate_report_line(record: &CandidateEvalRecord) -> String {
         "mismatch".to_owned()
     };
     format!(
-        "OK case={} renderer={} top_k={} recall={} minhash_recall={} candidates={}/{}/{} minhash_candidates={}/{}/{} visits={}/{}/{}/{}/{}/{} minhash_visits={}/{}/{}/{}/{}/{} ngram={}/{}/{} shared={} top10={} n50={} n90={} df_p50={} df_p95={} df_max={}",
+        "OK case={} renderer={} top_k={} recall={} minhash_recall={} candidates={}/{}/{} minhash_candidates={}/{}/{} inverted_index_build_latency_ns={} inverted_full_query_latency_ns={} minhash_index_build_latency_ns={} minhash_full_query_latency_ns={} oracle_index_build_latency_ns={} oracle_full_query_latency_ns={} visits={}/{}/{}/{}/{}/{} minhash_visits={}/{}/{}/{}/{}/{} ngram={}/{}/{} shared={} top10={} n50={} n90={} df_p50={} df_p95={} df_max={}",
         record.case_name,
         record.renderer.name(),
         top_k,
@@ -296,6 +296,12 @@ fn candidate_report_line(record: &CandidateEvalRecord) -> String {
         record.minhash_candidate_count_p50,
         record.minhash_candidate_count_p95,
         record.minhash_candidate_count_max,
+        record.index_build_latency_ns,
+        record.query_latency_ns,
+        record.minhash_index_build_latency_ns,
+        record.minhash_query_latency_ns,
+        record.oracle_index_build_latency_ns,
+        record.oracle_query_latency_ns,
         record.estimated_visits_p50,
         record.estimated_visits_p95,
         record.estimated_visits_max,
@@ -614,6 +620,12 @@ mod tests {
             oracle_candidate_count_p50: 3,
             oracle_candidate_count_p95: 3,
             oracle_candidate_count_max: 3,
+            index_build_latency_ns: 11,
+            query_latency_ns: 12,
+            minhash_index_build_latency_ns: 13,
+            minhash_query_latency_ns: 14,
+            oracle_index_build_latency_ns: 15,
+            oracle_query_latency_ns: 16,
             estimated_visits_p50: 1,
             estimated_visits_p95: 1,
             estimated_visits_max: 1,
@@ -662,6 +674,17 @@ mod tests {
 
         let mismatched = sample_record(vec![1.0], vec![1.0, 1.0]);
         assert!(candidate_report_line(&mismatched).contains("recall=mismatch"));
+    }
+
+    #[test]
+    fn candidate_report_line_displays_generator_latency_observations() {
+        let line = candidate_report_line(&sample_record(vec![1.0, 1.0], vec![1.0, 1.0]));
+        assert!(line.contains("inverted_index_build_latency_ns=11"));
+        assert!(line.contains("inverted_full_query_latency_ns=12"));
+        assert!(line.contains("minhash_index_build_latency_ns=13"));
+        assert!(line.contains("minhash_full_query_latency_ns=14"));
+        assert!(line.contains("oracle_index_build_latency_ns=15"));
+        assert!(line.contains("oracle_full_query_latency_ns=16"));
     }
 
     #[test]
