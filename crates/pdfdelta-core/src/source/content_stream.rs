@@ -6,8 +6,8 @@ use std::{
 use crate::{
     Error, Result,
     model::{
-        DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphId, GlyphProvenance, PageId,
-        Rect, TextRenderMode, Vec2,
+        DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphId,
+        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
     },
     pdf::{
         ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject,
@@ -133,6 +133,12 @@ struct Extraction<'a> {
     render_order: u32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PageGeometry {
+    transform: Matrix,
+    crop_bounds: Rect,
+}
+
 impl<'a> Extraction<'a> {
     fn new(pdf: &'a dyn ParsedPdf, limits: ExtractionLimits) -> Self {
         let operator_budget = ContentBudget::for_operators(limits.max_operators);
@@ -179,7 +185,7 @@ impl<'a> Extraction<'a> {
     fn extract_page(&mut self, page: PageRef, page_id: PageId) -> Result<()> {
         let snapshot = self.pdf.page_snapshot(page)?;
         let dictionary = snapshot.dictionary;
-        let page_transform = self.page_transform(&dictionary)?;
+        let page_geometry = self.page_geometry(&dictionary)?;
         let resources = self.page_resources(snapshot.resources)?;
         let streams = self.content_streams(dictionary.get(b"Contents".as_slice()))?;
         let mut state = InterpreterState::default();
@@ -193,7 +199,7 @@ impl<'a> Extraction<'a> {
             self.interpret_stream(
                 stream,
                 page_id,
-                page_transform,
+                page_geometry,
                 &resources,
                 &mut state,
                 &mut parser,
@@ -243,7 +249,7 @@ impl<'a> Extraction<'a> {
         &mut self,
         stream: ObjectRef,
         page: PageId,
-        page_transform: Matrix,
+        page_geometry: PageGeometry,
         resources: &Resources,
         state: &mut InterpreterState,
         parser: &mut ContentParser,
@@ -258,7 +264,7 @@ impl<'a> Extraction<'a> {
                 &operation,
                 stream,
                 page,
-                page_transform,
+                page_geometry,
                 resources,
                 state,
                 form_depth,
@@ -273,7 +279,7 @@ impl<'a> Extraction<'a> {
         operation: &Operation,
         stream: ObjectRef,
         page: PageId,
-        page_transform: Matrix,
+        page_geometry: PageGeometry,
         resources: &Resources,
         state: &mut InterpreterState,
         form_depth: usize,
@@ -388,14 +394,14 @@ impl<'a> Extraction<'a> {
                     operation,
                     stream,
                     page,
-                    page_transform,
+                    page_geometry,
                     resources,
                     state,
                 )?;
             }
             b"TJ" => {
                 require_text_object(operation, state)?;
-                self.show_text_array(operation, stream, page, page_transform, resources, state)?;
+                self.show_text_array(operation, stream, page, page_geometry, resources, state)?;
             }
             b"'" => {
                 require_text_object(operation, state)?;
@@ -406,7 +412,7 @@ impl<'a> Extraction<'a> {
                     operation,
                     stream,
                     page,
-                    page_transform,
+                    page_geometry,
                     resources,
                     state,
                 )?;
@@ -422,7 +428,7 @@ impl<'a> Extraction<'a> {
                     operation,
                     stream,
                     page,
-                    page_transform,
+                    page_geometry,
                     resources,
                     state,
                 )?;
@@ -436,7 +442,7 @@ impl<'a> Extraction<'a> {
                     name,
                     operation,
                     page,
-                    page_transform,
+                    page_geometry,
                     resources,
                     state,
                     form_depth,
@@ -502,7 +508,7 @@ impl Extraction<'_> {
         operation: &Operation,
         stream: ObjectRef,
         page: PageId,
-        page_transform: Matrix,
+        page_geometry: PageGeometry,
         _resources: &Resources,
         state: &mut InterpreterState,
     ) -> Result<()> {
@@ -521,7 +527,7 @@ impl Extraction<'_> {
                 operation,
                 stream,
                 page,
-                page_transform,
+                page_geometry,
                 state,
             )?;
         }
@@ -534,7 +540,7 @@ impl Extraction<'_> {
         operation: &Operation,
         stream: ObjectRef,
         page: PageId,
-        page_transform: Matrix,
+        page_geometry: PageGeometry,
         resources: &Resources,
         state: &mut InterpreterState,
     ) -> Result<()> {
@@ -556,7 +562,7 @@ impl Extraction<'_> {
                     operation,
                     stream,
                     page,
-                    page_transform,
+                    page_geometry,
                     resources,
                     state,
                 )?,
@@ -598,7 +604,7 @@ impl Extraction<'_> {
         operation: &Operation,
         stream: ObjectRef,
         page: PageId,
-        page_transform: Matrix,
+        page_geometry: PageGeometry,
         state: &mut InterpreterState,
     ) -> Result<()> {
         let glyph_id = glyph.glyph_id;
@@ -622,7 +628,8 @@ impl Extraction<'_> {
             0.0,
             state.graphics.rise,
         )?;
-        let text_rendering = page_transform
+        let text_rendering = page_geometry
+            .transform
             .concatenate(state.graphics.ctm)?
             .concatenate(state.text_matrix)?
             .concatenate(scale)?;
@@ -691,6 +698,7 @@ impl Extraction<'_> {
             font_size: effective_font_size,
             render_order,
             render_mode: state.graphics.render_mode,
+            crop_status: glyph_crop_status(bbox, page_geometry.crop_bounds),
             provenance: GlyphProvenance {
                 content_stream: stream,
                 operator_index: operation.index,
@@ -1002,7 +1010,7 @@ impl Extraction<'_> {
         name: &[u8],
         operation: &Operation,
         page: PageId,
-        page_transform: Matrix,
+        page_geometry: PageGeometry,
         resources: &Resources,
         state: &InterpreterState,
         form_depth: usize,
@@ -1067,7 +1075,7 @@ impl Extraction<'_> {
             self.interpret_stream(
                 reference,
                 page,
-                page_transform,
+                page_geometry,
                 &form_resources,
                 &mut form_state,
                 &mut parser,
@@ -1594,7 +1602,7 @@ impl Extraction<'_> {
         Ok(id)
     }
 
-    fn page_transform(&self, dictionary: &PdfDict) -> Result<Matrix> {
+    fn page_geometry(&self, dictionary: &PdfDict) -> Result<PageGeometry> {
         let bounds = dictionary
             .get(b"CropBox".as_slice())
             .or_else(|| dictionary.get(b"MediaBox".as_slice()))
@@ -1633,7 +1641,22 @@ impl Extraction<'_> {
                 ));
             }
         };
-        rotation.concatenate(crop)
+        let transform = rotation.concatenate(crop)?;
+        let (canonical_width, canonical_height) = if matches!(normalized, 90 | 270) {
+            (height, width)
+        } else {
+            (width, height)
+        };
+        Ok(PageGeometry {
+            transform,
+            crop_bounds: Rect {
+                min: Vec2 { x: 0.0, y: 0.0 },
+                max: Vec2 {
+                    x: canonical_width,
+                    y: canonical_height,
+                },
+            },
+        })
     }
 
     fn matrix_value(&self, value: &PdfObject, context: &str) -> Result<Matrix> {
@@ -2074,6 +2097,24 @@ fn transformed_rect(matrix: Matrix, x0: f64, y0: f64, x1: f64, y1: f64) -> Resul
     })
 }
 
+fn glyph_crop_status(glyph: Rect, crop: Rect) -> GlyphCropStatus {
+    if glyph.max.x <= crop.min.x
+        || glyph.min.x >= crop.max.x
+        || glyph.max.y <= crop.min.y
+        || glyph.min.y >= crop.max.y
+    {
+        GlyphCropStatus::Outside
+    } else if glyph.min.x < crop.min.x
+        || glyph.max.x > crop.max.x
+        || glyph.min.y < crop.min.y
+        || glyph.max.y > crop.max.y
+    {
+        GlyphCropStatus::PartiallyOutside
+    } else {
+        GlyphCropStatus::Inside
+    }
+}
+
 fn normalized_vector(x: f64, y: f64, operation: &Operation) -> Result<Vec2> {
     let length = x.hypot(y);
     if !length.is_finite() || length <= f64::EPSILON {
@@ -2216,7 +2257,7 @@ mod tests {
         )]);
 
         assert!(matches!(
-            extraction.page_transform(&page),
+            extraction.page_geometry(&page),
             Err(Error::Unresolved(message)) if message.contains("non-finite")
         ));
     }

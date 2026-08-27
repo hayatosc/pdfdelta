@@ -3,8 +3,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use pdfdelta_core::{
     Error, Result,
     model::{
-        DecodedText, Document, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect,
-        TextRenderMode, Vec2,
+        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphProvenance, PageId,
+        Rect, TextRenderMode, Vec2,
     },
     pdf::{
         DecodedStream, ObjectRef, PageRef, ParseLimits, ParsedPdf, PdfDict, PdfObject, PdfParser,
@@ -107,6 +107,7 @@ fn fixture_glyph() -> Glyph {
         font_size: 10.0,
         render_order: 0,
         render_mode: TextRenderMode::Fill,
+        crop_status: GlyphCropStatus::Inside,
         provenance: GlyphProvenance {
             content_stream: ObjectRef {
                 object_number: 12,

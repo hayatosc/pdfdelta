@@ -1668,8 +1668,8 @@ mod tests {
     use pdfdelta_core::{
         alignment::AlignmentOptions,
         model::{
-            DecodedText, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect, TextRenderMode,
-            Vec2,
+            DecodedText, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphProvenance, PageId, Rect,
+            TextRenderMode, Vec2,
         },
         pdf::ObjectRef,
     };
@@ -2168,6 +2168,7 @@ mod tests {
                 font_size: 10.0,
                 render_order: u32::try_from(index).expect("fixture glyph index fits in u32"),
                 render_mode: TextRenderMode::Fill,
+                crop_status: GlyphCropStatus::Inside,
                 provenance: GlyphProvenance {
                     content_stream: ObjectRef {
                         object_number: 1,

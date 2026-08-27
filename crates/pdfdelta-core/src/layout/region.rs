@@ -38,9 +38,16 @@ pub struct Region {
 #[non_exhaustive]
 pub enum ReadingOrder {
     Known(Vec<RegionId>),
+    /// A row-major order proven across parallel regions. Region order alone
+    /// cannot represent alternating label/value or old/new rows.
+    KnownLines(Vec<LineId>),
     #[default]
     Unknown,
 }
+
+const MIN_PARALLEL_ROW_PAIRS: usize = 3;
+const MIN_PARALLEL_ROW_OVERLAP_RATIO: f64 = 0.8;
+const MIN_PARALLEL_ROW_GAP_HEIGHT_RATIO: f64 = 0.8;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RegionGraph {
@@ -163,19 +170,82 @@ fn classify_reading_order(
         };
     }
     if let [left, right] = regions {
-        return if is_supported_two_column_graph(left, right, edges)
+        if is_supported_two_column_graph(left, right, edges)
             && region_lines_are_monotone(left, &lines_by_id)
             && region_lines_are_monotone(right, &lines_by_id)
             && regions_are_rendered_in_order(left, right, &lines_by_id)
         {
-            ReadingOrder::Known(vec![left.id, right.id])
-        } else {
-            ReadingOrder::Unknown
-        };
+            return ReadingOrder::Known(vec![left.id, right.id]);
+        }
+        return parallel_row_order(left, right, edges, &lines_by_id)
+            .map_or(ReadingOrder::Unknown, ReadingOrder::KnownLines);
     }
 
     banded_two_column_order(regions, edges, &lines_by_id)
         .map_or(ReadingOrder::Unknown, ReadingOrder::Known)
+}
+
+fn parallel_row_order(
+    left: &Region,
+    right: &Region,
+    edges: &[(RegionId, RegionId, RegionRelation)],
+    lines: &HashMap<LineId, &Line>,
+) -> Option<Vec<LineId>> {
+    if !is_supported_two_column_graph(left, right, edges)
+        || !edges.contains(&(left.id, right.id, RegionRelation::Aligned))
+        || left.line_ids.len() != right.line_ids.len()
+        || left.line_ids.len() < MIN_PARALLEL_ROW_PAIRS
+        || !region_lines_are_monotone(left, lines)
+        || !region_lines_are_monotone(right, lines)
+        || !parallel_rows_are_separated(left, lines)
+        || !parallel_rows_are_separated(right, lines)
+    {
+        return None;
+    }
+
+    let mut order = Vec::with_capacity(left.line_ids.len().checked_mul(2)?);
+    for (&left_id, &right_id) in left.line_ids.iter().zip(&right.line_ids) {
+        let left_line = lines.get(&left_id)?;
+        let right_line = lines.get(&right_id)?;
+        let overlap = interval_overlap_ratio(
+            (left_line.bbox.min.y, left_line.bbox.max.y),
+            (right_line.bbox.min.y, right_line.bbox.max.y),
+        );
+        if overlap < MIN_PARALLEL_ROW_OVERLAP_RATIO {
+            return None;
+        }
+        order.extend([left_id, right_id]);
+    }
+
+    order
+        .windows(2)
+        .all(|pair| {
+            let Some(previous) = lines.get(&pair[0]) else {
+                return false;
+            };
+            let Some(next) = lines.get(&pair[1]) else {
+                return false;
+            };
+            previous.render_order.end() < next.render_order.start()
+        })
+        .then_some(order)
+}
+
+fn parallel_rows_are_separated(region: &Region, lines: &HashMap<LineId, &Line>) -> bool {
+    region.line_ids.windows(2).all(|pair| {
+        let Some(previous) = lines.get(&pair[0]) else {
+            return false;
+        };
+        let Some(next) = lines.get(&pair[1]) else {
+            return false;
+        };
+        let previous_height = previous.bbox.max.y - previous.bbox.min.y;
+        let next_height = next.bbox.max.y - next.bbox.min.y;
+        let reference_height = previous_height.min(next_height);
+        let gap = previous.bbox.min.y - next.bbox.max.y;
+        reference_height > f64::EPSILON
+            && gap >= MIN_PARALLEL_ROW_GAP_HEIGHT_RATIO * reference_height
+    })
 }
 
 fn banded_two_column_order(

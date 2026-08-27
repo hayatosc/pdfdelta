@@ -214,11 +214,26 @@ pub(crate) fn reconstruct_blocks_with_issues(
             &page_lines,
             super::region::RegionOptions::default(),
         )?;
-        if graph.reading_order == super::region::ReadingOrder::Unknown {
-            issues.push(LayoutIssue::UnknownReadingOrder { page });
-        }
-        for region in graph.regions {
-            append_region_order(&mut stats_by_line_id, &mut ordered_stats, region.line_ids)?;
+        match &graph.reading_order {
+            super::region::ReadingOrder::KnownLines(line_ids) => {
+                append_region_order(
+                    &mut stats_by_line_id,
+                    &mut ordered_stats,
+                    line_ids.iter().copied(),
+                )?;
+            }
+            reading_order => {
+                if matches!(reading_order, super::region::ReadingOrder::Unknown) {
+                    issues.push(LayoutIssue::UnknownReadingOrder { page });
+                }
+                for region in &graph.regions {
+                    append_region_order(
+                        &mut stats_by_line_id,
+                        &mut ordered_stats,
+                        region.line_ids.iter().copied(),
+                    )?;
+                }
+            }
         }
     }
     validate_region_order(&stats_by_line_id, &ordered_stats, lines.len())?;

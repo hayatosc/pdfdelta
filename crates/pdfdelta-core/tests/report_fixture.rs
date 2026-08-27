@@ -7,8 +7,8 @@ use pdfdelta_core::{
     },
     layout::BlockId,
     model::{
-        DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphEvidence, GlyphId,
-        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
+        DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphEvidence,
+        GlyphId, GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
     },
     normalize::{
         BlockText, MappedText, NormalizationEvent, NormalizationKind, ScalarRange, SourceMapEntry,
@@ -2167,6 +2167,7 @@ fn svg_render_creates_valid_overlay_with_provenance_and_geometry() -> Result<()>
             font_size: 12.0,
             render_order: 1,
             render_mode: TextRenderMode::Fill,
+            crop_status: GlyphCropStatus::PartiallyOutside,
             provenance: GlyphProvenance {
                 content_stream: ObjectRef {
                     object_number: 10,
@@ -2193,6 +2194,7 @@ fn svg_render_creates_valid_overlay_with_provenance_and_geometry() -> Result<()>
             font_size: 12.0,
             render_order: 2,
             render_mode: TextRenderMode::Invisible,
+            crop_status: GlyphCropStatus::Outside,
             provenance: GlyphProvenance {
                 content_stream: ObjectRef {
                     object_number: 10,
@@ -2215,6 +2217,9 @@ fn svg_render_creates_valid_overlay_with_provenance_and_geometry() -> Result<()>
     assert!(svg.contains("data-op-idx=\"3\""));
     assert!(svg.contains("glyph-unmapped"));
     assert!(svg.contains("glyph-invisible"));
+    assert!(svg.contains("glyph-crop-partial"));
+    assert!(svg.contains("glyph-crop-outside"));
+    assert!(svg.contains("data-crop-status=\"PartiallyOutside\""));
     assert!(svg.contains("U+002A:abcdef01"));
     Ok(())
 }
@@ -2242,6 +2247,7 @@ fn svg_render_handles_empty_document_and_multipage() -> Result<()> {
             font_size: 10.0,
             render_order: 1,
             render_mode: TextRenderMode::Fill,
+            crop_status: GlyphCropStatus::Inside,
             provenance: GlyphProvenance {
                 content_stream: ObjectRef {
                     object_number: 1,
@@ -2265,6 +2271,7 @@ fn svg_render_handles_empty_document_and_multipage() -> Result<()> {
             font_size: 10.0,
             render_order: 1,
             render_mode: TextRenderMode::Fill,
+            crop_status: GlyphCropStatus::Inside,
             provenance: GlyphProvenance {
                 content_stream: ObjectRef {
                     object_number: 2,
@@ -2299,6 +2306,7 @@ fn sample_svg_glyph(id: u64, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> 
         font_size: 10.0,
         render_order: 1,
         render_mode: TextRenderMode::Fill,
+        crop_status: GlyphCropStatus::Inside,
         provenance: GlyphProvenance {
             content_stream: ObjectRef {
                 object_number: 1,
@@ -2673,6 +2681,7 @@ fn svg_render_escapes_xml_10_forbidden_controls_and_preserves_whitespace() -> Re
         direction: Vec2 { x: 1.0, y: 0.0 },
         render_order: 1,
         render_mode: TextRenderMode::Fill,
+        crop_status: GlyphCropStatus::Inside,
         provenance: GlyphProvenance {
             content_stream: ObjectRef {
                 object_number: 1,

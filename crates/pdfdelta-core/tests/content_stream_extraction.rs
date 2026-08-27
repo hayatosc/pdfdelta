@@ -6,7 +6,7 @@ use pdfdelta_core::{
     extraction_conformance::{
         GeometryTolerance, PrimitiveExtractionSnapshot, SnapshotGlyph, compare_snapshots,
     },
-    model::{DecodedText, Document, Glyph, PageId, Rect, Vec2},
+    model::{DecodedText, Document, Glyph, GlyphCropStatus, PageId, Rect, Vec2},
     pdf::{LopdfParser, ParseLimits, PdfParser},
     source::{
         ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssueKind, ExtractionLimits,
@@ -399,6 +399,7 @@ fn extracts_rotated_simple_font_glyphs_with_provenance() -> Result<()> {
     let glyphs = document.items();
     assert_eq!(mapped_text(glyphs), "AB");
     assert_eq!(glyphs[0].raw_code, b"A");
+    assert_eq!(glyphs[0].crop_status, GlyphCropStatus::Inside);
     assert_eq!(glyphs[0].provenance.content_stream.object_number, content.0);
     assert_eq!(glyphs[0].provenance.operator_index, 3);
     let expected = PrimitiveExtractionSnapshot::new(vec![
@@ -458,6 +459,42 @@ fn normalizes_reversed_page_box_coordinates_before_rotation() -> Result<()> {
     assert_close(glyph.baseline.y, 180.0);
     assert_close(glyph.direction.x, 0.0);
     assert_close(glyph.direction.y, -1.0);
+    Ok(())
+}
+
+#[test]
+fn records_crop_box_visibility_without_discarding_glyph_evidence() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 60 100 Tm (I) Tj 1 0 0 1 48 100 Tm (P) Tj 1 0 0 1 30 100 Tm (O) Tj ET"
+            .to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        Some([50, 50, 250, 250]),
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    assert_eq!(mapped_text(document.items()), "IPO");
+    assert_eq!(
+        document
+            .items()
+            .iter()
+            .map(|glyph| glyph.crop_status)
+            .collect::<Vec<_>>(),
+        [
+            GlyphCropStatus::Inside,
+            GlyphCropStatus::PartiallyOutside,
+            GlyphCropStatus::Outside,
+        ]
+    );
     Ok(())
 }
 

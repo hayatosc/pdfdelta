@@ -1,8 +1,8 @@
 use pdfdelta_core::{
     layout::{LineOptions, SyntheticSpace, reconstruct_lines},
     model::{
-        DecodedText, Document, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect,
-        TextRenderMode, Vec2,
+        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphProvenance, PageId,
+        Rect, TextRenderMode, Vec2,
     },
     pdf::ObjectRef,
 };
@@ -154,6 +154,7 @@ fn glyph(
         font_size,
         render_order: u32::try_from(id).expect("fixture glyph id should fit in u32"),
         render_mode: TextRenderMode::Fill,
+        crop_status: GlyphCropStatus::Inside,
         provenance: GlyphProvenance {
             content_stream: ObjectRef {
                 object_number: 1,

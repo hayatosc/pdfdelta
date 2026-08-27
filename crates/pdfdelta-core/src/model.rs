@@ -48,6 +48,17 @@ pub enum TextRenderMode {
     Clip,
 }
 
+/// Geometric relationship between a glyph and the page CropBox.
+///
+/// This records only the page-level crop boundary. It does not claim to
+/// resolve path clipping, transparency, or later paint operations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GlyphCropStatus {
+    Inside,
+    PartiallyOutside,
+    Outside,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GlyphProvenance {
     pub content_stream: ObjectRef,
@@ -67,6 +78,7 @@ pub struct Glyph {
     pub font_size: f64,
     pub render_order: u32,
     pub render_mode: TextRenderMode,
+    pub crop_status: GlyphCropStatus,
     pub provenance: GlyphProvenance,
 }
 

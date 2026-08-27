@@ -5,8 +5,8 @@
 
 use pdfdelta_core::{
     model::{
-        DecodedText, Document, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect,
-        TextRenderMode, Vec2,
+        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphProvenance, PageId,
+        Rect, TextRenderMode, Vec2,
     },
     pdf::ObjectRef,
     pipeline::{PipelineOptions, compare_extraction_outcomes},
@@ -77,6 +77,7 @@ fn document(lines: &[&str]) -> Document<Glyph> {
                 font_size: 10.0,
                 render_order: next_id as u32,
                 render_mode: TextRenderMode::Fill,
+                crop_status: GlyphCropStatus::Inside,
                 provenance: GlyphProvenance {
                     content_stream: ObjectRef {
                         object_number: 1,

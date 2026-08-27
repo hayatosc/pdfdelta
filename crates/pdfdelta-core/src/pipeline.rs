@@ -13,7 +13,7 @@ use crate::{
         BlockOptions, LayoutIssue, LineOptions, reconstruct_blocks_with_issues, reconstruct_lines,
         validate_block_options, validate_line_options,
     },
-    model::{Document, Glyph, GlyphEvidence, TextRenderMode},
+    model::{Document, Glyph, GlyphCropStatus, GlyphEvidence, TextRenderMode},
     normalize::{BlockText, normalize_blocks},
     report::{DocumentSide, ExtractionIssueRecord, ExtractionStatus},
     source::{ExtractionIssue, ExtractionOutcome, ExtractionScope},
@@ -133,6 +133,7 @@ pub enum PipelinePhaseStatus {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PipelineMetrics {
+    /// Painting glyphs retained for comparison after page CropBox filtering.
     pub painting_glyphs: Option<usize>,
     pub lines: Option<usize>,
     pub blocks: Option<usize>,
@@ -871,7 +872,7 @@ fn painting_raw_token_lower_bound(document: &Document<Glyph>, limit: usize) -> R
     for glyph in document
         .items()
         .iter()
-        .filter(|glyph| is_painting(glyph.render_mode))
+        .filter(|glyph| is_comparison_visible(glyph))
     {
         let glyph_tokens = match &glyph.text {
             crate::model::DecodedText::Mapped(text) => text.chars().count(),
@@ -897,7 +898,7 @@ fn prepare(
         document
             .items()
             .iter()
-            .filter(|glyph| is_painting(glyph.render_mode))
+            .filter(|glyph| is_comparison_visible(glyph))
             .cloned()
             .collect(),
     );
@@ -988,4 +989,8 @@ fn is_painting(mode: TextRenderMode) -> bool {
             | TextRenderMode::StrokeAndClip
             | TextRenderMode::FillStrokeAndClip
     )
+}
+
+fn is_comparison_visible(glyph: &Glyph) -> bool {
+    is_painting(glyph.render_mode) && glyph.crop_status != GlyphCropStatus::Outside
 }

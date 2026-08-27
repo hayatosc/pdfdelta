@@ -2,8 +2,8 @@ use pdfdelta_core::{
     Error,
     layout::{BlockOptions, BlockRole, Line, LineId, SyntheticSpace, reconstruct_blocks},
     model::{
-        DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphId, GlyphProvenance, PageId,
-        Rect, TextRenderMode, Vec2,
+        DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphId,
+        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
     },
     pdf::ObjectRef,
 };
@@ -433,6 +433,7 @@ impl Fixture {
                 font_size: spec.font_size,
                 render_order: spec.id as u32,
                 render_mode: TextRenderMode::Fill,
+                crop_status: GlyphCropStatus::Inside,
                 provenance: GlyphProvenance {
                     content_stream: ObjectRef {
                         object_number: spec.page + 1,
@@ -601,6 +602,21 @@ fn form_key_value_fields_remain_separate_blocks() {
         blocks.len(),
         6,
         "Form field labels and values must not merge into paragraph blocks"
+    );
+    assert_eq!(
+        blocks
+            .iter()
+            .map(|block| block.lines.as_slice())
+            .collect::<Vec<_>>(),
+        [
+            &[LineId(1)][..],
+            &[LineId(2)][..],
+            &[LineId(3)][..],
+            &[LineId(4)][..],
+            &[LineId(5)][..],
+            &[LineId(6)][..],
+        ],
+        "Form fields must preserve label/value row order"
     );
 }
 
@@ -1491,6 +1507,7 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
             direction: Vec2 { x: 1.0, y: 0.0 },
             render_order: g1_id.0 as u32,
             render_mode: TextRenderMode::Fill,
+            crop_status: GlyphCropStatus::Inside,
             provenance: GlyphProvenance {
                 content_stream: ObjectRef {
                     object_number: page_idx + 1,
@@ -1520,6 +1537,7 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
             direction: Vec2 { x: 1.0, y: 0.0 },
             render_order: g2_id.0 as u32,
             render_mode: TextRenderMode::Fill,
+            crop_status: GlyphCropStatus::Inside,
             provenance: GlyphProvenance {
                 content_stream: ObjectRef {
                     object_number: page_idx + 1,
@@ -1571,6 +1589,7 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
                 direction: Vec2 { x: 1.0, y: 0.0 },
                 render_order: bg_id.0 as u32,
                 render_mode: TextRenderMode::Fill,
+                crop_status: GlyphCropStatus::Inside,
                 provenance: GlyphProvenance {
                     content_stream: ObjectRef {
                         object_number: page_idx + 1,
@@ -1620,6 +1639,7 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
             direction: Vec2 { x: 1.0, y: 0.0 },
             render_order: fg1_id.0 as u32,
             render_mode: TextRenderMode::Fill,
+            crop_status: GlyphCropStatus::Inside,
             provenance: GlyphProvenance {
                 content_stream: ObjectRef {
                     object_number: page_idx + 1,
@@ -1646,6 +1666,7 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
             direction: Vec2 { x: 1.0, y: 0.0 },
             render_order: fg2_id.0 as u32,
             render_mode: TextRenderMode::Fill,
+            crop_status: GlyphCropStatus::Inside,
             provenance: GlyphProvenance {
                 content_stream: ObjectRef {
                     object_number: page_idx + 1,

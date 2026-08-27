@@ -111,6 +111,52 @@ fn row_interleaved_two_column_render_order_is_unknown() -> Result<()> {
 }
 
 #[test]
+fn spacious_parallel_rows_have_known_line_level_reading_order() -> Result<()> {
+    let lines = vec![
+        make_line(1, 50.0, 700.0, 150.0, 712.0),
+        make_line(2, 250.0, 700.0, 350.0, 712.0),
+        make_line(3, 50.0, 675.0, 150.0, 687.0),
+        make_line(4, 250.0, 675.0, 350.0, 687.0),
+        make_line(5, 50.0, 650.0, 150.0, 662.0),
+        make_line(6, 250.0, 650.0, 350.0, 662.0),
+    ];
+
+    let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
+
+    assert_eq!(graph.regions.len(), 2);
+    assert_eq!(
+        graph.reading_order,
+        ReadingOrder::KnownLines(vec![
+            LineId(1),
+            LineId(2),
+            LineId(3),
+            LineId(4),
+            LineId(5),
+            LineId(6),
+        ])
+    );
+    Ok(())
+}
+
+#[test]
+fn tightly_spaced_interleaved_columns_remain_unknown() -> Result<()> {
+    let lines = vec![
+        make_line(1, 50.0, 700.0, 150.0, 712.0),
+        make_line(2, 250.0, 700.0, 350.0, 712.0),
+        make_line(3, 50.0, 680.0, 150.0, 692.0),
+        make_line(4, 250.0, 680.0, 350.0, 692.0),
+        make_line(5, 50.0, 660.0, 150.0, 672.0),
+        make_line(6, 250.0, 660.0, 350.0, 672.0),
+    ];
+
+    let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
+
+    assert_eq!(graph.regions.len(), 2);
+    assert_eq!(graph.reading_order, ReadingOrder::Unknown);
+    Ok(())
+}
+
+#[test]
 fn three_column_topology_is_unknown() -> Result<()> {
     let lines = vec![
         make_line(1, 50.0, 700.0, 200.0, 712.0),
