@@ -2,7 +2,7 @@
 
 ## Documentation & Code Comments
 
-- Do not reference `SPEC`, `SPEC.md`, or specific section numbers in code comments, docstrings, or documentation.
+- `README.md` may reference `SPEC.md`; do not reference `SPEC`, `SPEC.md`, or specific section numbers in any other code comments, docstrings, or documentation.
 - All code comments and documentation must be self-contained: describe contracts, invariants, behaviors, and design rationale directly.
 - Follow Rust documentation best practices:
   - Write concise, accurate doc comments (`///`, `//!`) with intra-doc links where applicable.
