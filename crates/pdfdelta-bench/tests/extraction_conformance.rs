@@ -7,6 +7,7 @@ use std::{
 };
 
 use pdfdelta_bench::{
+    extraction_conformance::evaluate_extraction_conformance,
     mutation::RenderPlan,
     renderers::{RenderLimits, RendererKind},
 };
@@ -17,6 +18,28 @@ use pdfdelta_core::{
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+
+#[test]
+fn curated_pdf_oxide_snapshot_matches_typst_fixture() {
+    const PDF: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fixtures/external/case1-japanese-typst/old.pdf"
+    ));
+    const ORACLE: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fixtures/extraction-conformance/pdf-oxide-0.3.77/case1-japanese-typst-old.oracle.json"
+    ));
+
+    let record = evaluate_extraction_conformance(Arc::<[u8]>::from(PDF), ORACLE, 0.25)
+        .expect("curated external oracle is valid");
+
+    assert!(record.passed(), "{:?}", record.mismatch);
+    assert_eq!(record.producer.name, "pdf_oxide");
+    assert_eq!(record.producer.version, "0.3.77");
+    assert_eq!(record.producer.parser_family, "pdf_oxide custom parser");
+    assert_eq!(record.expected_glyphs, 158);
+    assert_eq!(record.actual_glyphs, 158);
+}
 
 #[test]
 fn command_accepts_a_matching_versioned_external_snapshot() {
