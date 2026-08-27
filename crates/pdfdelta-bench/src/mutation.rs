@@ -632,12 +632,13 @@ impl Mutation {
         }
     }
 
-    /// Applies a paragraph-local text mutation to a structured render document.
+    /// Applies a supported mutation to a structured render document.
     ///
     /// The title and section headings remain immutable render lines and stay in
     /// the canonical coordinate space used by the expected-change manifest.
-    /// Structural and layout mutations are rejected until their section-level
-    /// ownership rules are explicit.
+    /// Paragraph deletion is allowed only when its owning section retains at
+    /// least one paragraph. Other structural and layout mutations are rejected
+    /// until their structured-document contracts are explicit.
     ///
     /// # Errors
     ///
@@ -653,25 +654,35 @@ impl Mutation {
             Self::TextReplace { paragraph_id, .. }
             | Self::TextInsert { paragraph_id, .. }
             | Self::TextDelete { paragraph_id, .. }
-            | Self::NumberReplace { paragraph_id, .. } => paragraph_id,
+            | Self::NumberReplace { paragraph_id, .. }
+            | Self::ParagraphDelete { paragraph_id } => paragraph_id,
             _ => {
                 return Err(BenchError::InvalidInput(
                     "structured canonical documents currently support only TextReplace, \
-                     TextInsert, TextDelete, and NumberReplace mutations"
+                     TextInsert, TextDelete, NumberReplace, and ParagraphDelete mutations"
                         .to_owned(),
                 ));
             }
         };
         validate_paragraph_id(paragraph_id)?;
-        let is_source_paragraph = document.sections().iter().any(|section| {
-            section
-                .paragraphs()
-                .iter()
-                .any(|paragraph| paragraph.id() == paragraph_id)
-        });
-        if !is_source_paragraph {
+        let section = document
+            .sections()
+            .iter()
+            .find(|section| {
+                section
+                    .paragraphs()
+                    .iter()
+                    .any(|paragraph| paragraph.id() == paragraph_id)
+            })
+            .ok_or_else(|| {
+                BenchError::InvalidInput(format!(
+                    "unknown structured paragraph id {paragraph_id:?}"
+                ))
+            })?;
+        if matches!(self, Self::ParagraphDelete { .. }) && section.paragraphs().len() == 1 {
             return Err(BenchError::InvalidInput(format!(
-                "unknown structured paragraph id {paragraph_id:?}"
+                "paragraph deletion cannot leave section {:?} empty",
+                section.id()
             )));
         }
         self.apply(&document.mutation_document()?, line_gap)

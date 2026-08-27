@@ -158,7 +158,54 @@ fn paragraph_text_mutations_feed_the_evaluator_without_dropping_metadata() {
 }
 
 #[test]
-fn structured_mutations_reject_metadata_targets_and_section_ambiguous_changes() {
+fn paragraph_deletion_preserves_its_section_and_feeds_the_evaluator() {
+    let yaml = EXAMPLE_YAML.replace(
+        "        - id: availability-p1\n          text: Release 10 remains available during the transition.\n",
+        concat!(
+            "        - id: availability-p1\n",
+            "          text: Opening availability context remains stable.\n",
+            "        - id: availability-p2\n",
+            "          text: Obsolete availability guidance is removed.\n",
+            "        - id: availability-p3\n",
+            "          text: Closing availability context remains stable.\n",
+        ),
+    );
+    let document = CanonicalRenderDocument::from_yaml(&yaml).expect("valid canonical YAML");
+    let plan = Mutation::ParagraphDelete {
+        paragraph_id: "availability-p2".to_owned(),
+    }
+    .apply_to_render_document(&document, 30)
+    .expect("paragraph deletion retains a nonempty section");
+
+    assert_eq!(plan.old().pages()[0], document.render_lines());
+    assert_eq!(
+        plan.new_plan().pages()[0],
+        [
+            "Quarterly Service Report",
+            "Service availability",
+            "Opening availability context remains stable.",
+            "Closing availability context remains stable.",
+            "Customer support",
+            "Support hours remain unchanged.",
+        ]
+    );
+    assert_eq!(plan.expectation().label(), "deletion");
+
+    for renderer in RendererKind::all() {
+        let record = evaluate(
+            "yaml-paragraph-delete",
+            plan.old(),
+            plan.new_plan(),
+            plan.expectation(),
+            renderer,
+        )
+        .expect("structured paragraph deletion evaluates");
+        assert!(record.passed, "{}: {}", renderer.name(), record.detail);
+    }
+}
+
+#[test]
+fn structured_mutations_reject_metadata_targets_empty_sections_and_ambiguous_changes() {
     let document = CanonicalRenderDocument::from_yaml(EXAMPLE_YAML).expect("valid canonical YAML");
     let metadata_error = Mutation::TextReplace {
         paragraph_id: "pdfdelta-title-0".to_owned(),
@@ -172,21 +219,28 @@ fn structured_mutations_reject_metadata_targets_and_section_ambiguous_changes() 
         "{metadata_error}"
     );
 
-    for mutation in [
-        Mutation::ParagraphDelete {
-            paragraph_id: "availability-p1".to_owned(),
-        },
-        Mutation::ParagraphMove {
-            paragraph_id: "availability-p1".to_owned(),
-            to_index: 1,
-        },
-    ] {
-        let error = mutation
-            .apply_to_render_document(&document, 30)
-            .expect_err("section-ambiguous mutation must be rejected")
-            .to_string();
-        assert!(error.contains("currently support only"), "{error}");
+    let deletion_error = Mutation::ParagraphDelete {
+        paragraph_id: "availability-p1".to_owned(),
     }
+    .apply_to_render_document(&document, 30)
+    .expect_err("deletion must not empty a section")
+    .to_string();
+    assert!(
+        deletion_error.contains("cannot leave section"),
+        "{deletion_error}"
+    );
+
+    let move_error = Mutation::ParagraphMove {
+        paragraph_id: "availability-p1".to_owned(),
+        to_index: 1,
+    }
+    .apply_to_render_document(&document, 30)
+    .expect_err("section-ambiguous mutation must be rejected")
+    .to_string();
+    assert!(
+        move_error.contains("currently support only"),
+        "{move_error}"
+    );
 }
 
 #[test]
