@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::{
     Error, Result,
@@ -7,7 +7,8 @@ use crate::{
 };
 
 use super::{
-    BlockFeatures, BlockSeparator, CandidateGenerator, CandidateSource, ExactAnchor,
+    AnchorIntervalWindow, BlockFeatures, BlockSeparator, CandidateGenerator, CandidateSource,
+    ExactAnchor,
     anchor::{exact_anchors, partition_anchor_windows, select_monotone_anchor_chain},
     score::{GroupScore, ScoreOptions, score_groups},
 };
@@ -31,6 +32,7 @@ pub enum AlignmentConfidence {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum AlignmentEvidence {
     ExactCanonical,
     TextSimilarity,
@@ -40,6 +42,8 @@ pub enum AlignmentEvidence {
     NumericMask,
     SplitMerge,
     NormalizationIssue,
+    ExtractionGap,
+    ReadingOrderUnknown,
     MoveCandidate,
     CandidateSource(CandidateSource),
 }
@@ -172,13 +176,14 @@ pub fn align_ordered(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct AlignmentVisitMetrics {
     /// Sum of `CandidateGenerator::estimated_visits` charged against
-    /// `max_candidate_visits` for non-anchor old blocks. On a limit
+    /// `max_candidate_visits` for non-anchor old blocks outside forced
+    /// uncertainty windows. On a limit
     /// failure this is the attempted cumulative charge including the block
     /// that exceeded the budget; on an earlier error it is the charge
     /// accumulated before the failure.
     pub candidate_visits: usize,
     /// Checked sum of `CandidateGenerator::estimated_visits` over every
-    /// non-anchor old block, independent of the budget: the full candidate
+    /// eligible old block, independent of the budget: the full candidate
     /// work the alignment would need. `Some` when the full sum completed
     /// (including on a limit failure); `None` when an estimate error or
     /// overflow made the sum unavailable, or the candidate preflight was
@@ -186,7 +191,7 @@ pub(crate) struct AlignmentVisitMetrics {
     /// is `Some(0)`.
     pub candidate_visits_required: Option<usize>,
     /// Exact-match posting visits of the required sum; `Some` only when
-    /// every non-anchor old block reported a breakdown and every component
+    /// every eligible old block reported a breakdown and every component
     /// sum completed. Identity alignment is `Some(0)`.
     pub candidate_visits_required_exact: Option<usize>,
     /// N-gram posting visits of the required sum; `Some` under the same
@@ -206,6 +211,35 @@ pub(crate) struct AlignmentAttempt {
     pub visit_metrics: AlignmentVisitMetrics,
 }
 
+/// One validated anchor decision shared by candidate indexing and alignment.
+pub(crate) struct AlignmentGapPlan {
+    all_anchors: Vec<ExactAnchor>,
+    main_anchors: Vec<ExactAnchor>,
+    move_candidates: Vec<ExactAnchor>,
+    windows: Vec<AnchorIntervalWindow>,
+    forced_windows: BTreeMap<usize, ForcedWindowCauses>,
+    excluded_old: HashSet<BlockId>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ForcedWindowCauses {
+    extraction_gap: bool,
+    reading_order_unknown: bool,
+}
+
+impl ForcedWindowCauses {
+    fn evidence(self) -> Vec<AlignmentEvidence> {
+        let mut evidence = Vec::with_capacity(2);
+        if self.extraction_gap {
+            evidence.push(AlignmentEvidence::ExtractionGap);
+        }
+        if self.reading_order_unknown {
+            evidence.push(AlignmentEvidence::ReadingOrderUnknown);
+        }
+        evidence
+    }
+}
+
 /// Crate-private measured alignment path used by the pipeline; the public
 /// `align_ordered` wrapper returns only the alignment.
 pub(crate) fn align_ordered_with_metrics(
@@ -214,18 +248,149 @@ pub(crate) fn align_ordered_with_metrics(
     generator: &dyn CandidateGenerator,
     options: AlignmentOptions,
 ) -> AlignmentAttempt {
-    let mut visit_metrics = AlignmentVisitMetrics {
+    match plan_ordered_gaps(old, new, options, &[], &[], &[], &[]) {
+        Ok(plan) => align_ordered_with_metrics_and_gap_plan(old, new, generator, options, plan),
+        Err(error) => AlignmentAttempt {
+            result: Err(error),
+            visit_metrics: empty_visit_metrics(options),
+        },
+    }
+}
+
+/// Builds the anchor-window plan used to isolate extraction and layout
+/// uncertainty before the candidate index is constructed.
+pub(crate) fn plan_ordered_gaps(
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    options: AlignmentOptions,
+    old_gap_boundaries: &[usize],
+    new_gap_boundaries: &[usize],
+    old_uncertain_indices: &[usize],
+    new_uncertain_indices: &[usize],
+) -> Result<AlignmentGapPlan> {
+    validate_alignment_options(options)?;
+    validate_features("old", old)?;
+    validate_features("new", new)?;
+    validate_shared_ngram_size(old, new)?;
+    validate_gap_boundaries("old", old_gap_boundaries, old.len())?;
+    validate_gap_boundaries("new", new_gap_boundaries, new.len())?;
+    validate_uncertain_indices("old", old_uncertain_indices, old.len())?;
+    validate_uncertain_indices("new", new_uncertain_indices, new.len())?;
+
+    if old == new
+        && old_gap_boundaries.is_empty()
+        && new_gap_boundaries.is_empty()
+        && old_uncertain_indices.is_empty()
+        && new_uncertain_indices.is_empty()
+    {
+        return Ok(AlignmentGapPlan {
+            all_anchors: Vec::new(),
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+            windows: Vec::new(),
+            forced_windows: BTreeMap::new(),
+            excluded_old: HashSet::new(),
+        });
+    }
+
+    let new_indices = new
+        .iter()
+        .enumerate()
+        .map(|(index, features)| (features.block, index))
+        .collect::<HashMap<_, _>>();
+    let old_indices = old
+        .iter()
+        .enumerate()
+        .map(|(index, features)| (features.block, index))
+        .collect::<HashMap<_, _>>();
+    let uncertain_old = old_uncertain_indices
+        .iter()
+        .copied()
+        .collect::<HashSet<_>>();
+    let uncertain_new = new_uncertain_indices
+        .iter()
+        .copied()
+        .collect::<HashSet<_>>();
+    let all_anchors = exact_anchors(old, new, options.anchor_min_tokens)?
+        .into_iter()
+        .filter(|anchor| {
+            !uncertain_old.contains(&old_indices[&anchor.old])
+                && !uncertain_new.contains(&new_indices[&anchor.new])
+        })
+        .collect::<Vec<_>>();
+    let chain = select_monotone_anchor_chain(&all_anchors, old, new)?;
+    let main_anchors = chain.main_chain;
+    let windows = partition_anchor_windows(&main_anchors, old, new)?;
+    let mut forced_windows = BTreeMap::<usize, ForcedWindowCauses>::new();
+    for index in forced_window_indices(
+        &main_anchors,
+        old_gap_boundaries,
+        new_gap_boundaries,
+        &old_indices,
+        &new_indices,
+    ) {
+        forced_windows.entry(index).or_default().extraction_gap = true;
+    }
+    for index in uncertain_window_indices(
+        &main_anchors,
+        old_uncertain_indices,
+        new_uncertain_indices,
+        &old_indices,
+        &new_indices,
+    ) {
+        forced_windows
+            .entry(index)
+            .or_default()
+            .reading_order_unknown = true;
+    }
+    let mut excluded_old = main_anchors
+        .iter()
+        .map(|anchor| anchor.old)
+        .collect::<HashSet<_>>();
+    for &index in forced_windows.keys() {
+        let window = &windows[index];
+        excluded_old.extend(
+            old[window.old_range.0..window.old_range.1]
+                .iter()
+                .map(|features| features.block),
+        );
+    }
+
+    Ok(AlignmentGapPlan {
+        all_anchors,
+        main_anchors,
+        move_candidates: chain.move_candidates,
+        windows,
+        forced_windows,
+        excluded_old,
+    })
+}
+
+/// Aligns with a precomputed gap plan so candidate indexing and alignment use
+/// the same anchor-window decision.
+pub(crate) fn align_ordered_with_metrics_and_gap_plan(
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    generator: &dyn CandidateGenerator,
+    options: AlignmentOptions,
+    plan: AlignmentGapPlan,
+) -> AlignmentAttempt {
+    let mut visit_metrics = empty_visit_metrics(options);
+    let result = align_ordered_inner(old, new, generator, options, plan, &mut visit_metrics);
+    AlignmentAttempt {
+        result,
+        visit_metrics,
+    }
+}
+
+fn empty_visit_metrics(options: AlignmentOptions) -> AlignmentVisitMetrics {
+    AlignmentVisitMetrics {
         candidate_visits: 0,
         candidate_visits_required: None,
         candidate_visits_required_exact: None,
         candidate_visits_required_ngram: None,
         candidate_visits_required_short_fallback: None,
         max_candidate_visits: options.max_candidate_visits,
-    };
-    let result = align_ordered_inner(old, new, generator, options, &mut visit_metrics);
-    AlignmentAttempt {
-        result,
-        visit_metrics,
     }
 }
 
@@ -234,14 +399,10 @@ fn align_ordered_inner(
     new: &[BlockFeatures],
     generator: &dyn CandidateGenerator,
     options: AlignmentOptions,
+    plan: AlignmentGapPlan,
     visit_metrics: &mut AlignmentVisitMetrics,
 ) -> Result<Alignment> {
-    validate_alignment_options(options)?;
-    validate_features("old", old)?;
-    validate_features("new", new)?;
-    validate_shared_ngram_size(old, new)?;
-
-    if old == new {
+    if old == new && plan.forced_windows.is_empty() {
         visit_metrics.candidate_visits_required = Some(0);
         visit_metrics.candidate_visits_required_exact = Some(0);
         visit_metrics.candidate_visits_required_ngram = Some(0);
@@ -259,70 +420,73 @@ fn align_ordered_inner(
         .enumerate()
         .map(|(index, features)| (features.block, index))
         .collect::<HashMap<_, _>>();
-    let all_anchors = exact_anchors(old, new, options.anchor_min_tokens)?;
-    let chain = select_monotone_anchor_chain(&all_anchors, old, new)?;
-    let main_anchors = chain.main_chain;
-    let move_candidates = chain.move_candidates;
     let secondary_chains = secondary_anchor_chains(
         old,
         new,
-        &all_anchors,
-        &main_anchors,
+        &plan.all_anchors,
+        &plan.main_anchors,
         &old_indices,
         &new_indices,
     )?;
-    let main_anchor_old = main_anchors
-        .iter()
-        .map(|anchor| anchor.old)
-        .collect::<HashSet<_>>();
     let candidate_map = collect_candidates(
         old,
         &new_indices,
-        &main_anchor_old,
+        &plan.excluded_old,
         generator,
         options.candidate_limit,
         options.max_candidate_visits,
         visit_metrics,
     )?;
-    let move_old = move_candidates
+    let move_old = plan
+        .move_candidates
         .iter()
         .map(|anchor| anchor.old)
         .collect::<HashSet<_>>();
-    let move_new = move_candidates
+    let move_new = plan
+        .move_candidates
         .iter()
         .map(|anchor| anchor.new)
         .collect::<HashSet<_>>();
 
-    let windows = partition_anchor_windows(&main_anchors, old, new)?;
     let mut spans = Vec::new();
     let mut remaining_dp_cells = options.max_dp_cells;
 
-    for (interval_index, window) in windows.iter().enumerate() {
+    for (interval_index, window) in plan.windows.iter().enumerate() {
         let old_interval = &old[window.old_range.0..window.old_range.1];
         let new_interval = &new[window.new_range.0..window.new_range.1];
         let has_left = window.left_anchor.is_some();
         let has_right = window.right_anchor.is_some();
 
-        spans.extend(align_interval_with_partition_fallback(
-            old_interval,
-            new_interval,
-            &candidate_map,
-            options,
-            &mut remaining_dp_cells,
-            IntervalContext {
-                allow_split_merge: has_left || has_right,
-                bounded_by_anchors: has_left && has_right,
-                move_old: &move_old,
-                move_new: &move_new,
-            },
-            PartitionFallback {
-                anchors: &secondary_chains[interval_index],
-                old_offset: window.old_range.0,
-                new_offset: window.new_range.0,
-                old_indices: &old_indices,
-                new_indices: &new_indices,
-            },
-        )?);
+        if let Some(causes) = plan.forced_windows.get(&interval_index) {
+            if !old_interval.is_empty() || !new_interval.is_empty() {
+                spans.push(unresolved_span_with_evidence(
+                    old_interval,
+                    new_interval,
+                    causes.evidence(),
+                ));
+            }
+        } else {
+            spans.extend(align_interval_with_partition_fallback(
+                old_interval,
+                new_interval,
+                &candidate_map,
+                options,
+                &mut remaining_dp_cells,
+                IntervalContext {
+                    allow_split_merge: has_left || has_right,
+                    bounded_by_anchors: has_left && has_right,
+                    move_old: &move_old,
+                    move_new: &move_new,
+                },
+                PartitionFallback {
+                    anchors: &secondary_chains[interval_index],
+                    old_offset: window.old_range.0,
+                    new_offset: window.new_range.0,
+                    old_indices: &old_indices,
+                    new_indices: &new_indices,
+                },
+            )?);
+        }
 
         if let Some(right_anchor) = window.right_anchor {
             spans.push(anchor_span(right_anchor));
@@ -332,9 +496,70 @@ fn align_ordered_inner(
 
     Ok(Alignment {
         spans,
-        main_anchors,
-        move_candidates,
+        main_anchors: plan.main_anchors,
+        move_candidates: plan.move_candidates,
     })
+}
+
+fn validate_gap_boundaries(side: &str, boundaries: &[usize], block_count: usize) -> Result<()> {
+    if boundaries.iter().any(|&boundary| boundary > block_count) {
+        return Err(Error::Unresolved(format!(
+            "{side} extraction gap boundary exceeds the normalized block count"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_uncertain_indices(side: &str, indices: &[usize], block_count: usize) -> Result<()> {
+    if indices.iter().any(|&index| index >= block_count) {
+        return Err(Error::Unresolved(format!(
+            "{side} uncertain block index exceeds the normalized block count"
+        )));
+    }
+    Ok(())
+}
+
+fn forced_window_indices(
+    main_anchors: &[ExactAnchor],
+    old_boundaries: &[usize],
+    new_boundaries: &[usize],
+    old_indices: &HashMap<BlockId, usize>,
+    new_indices: &HashMap<BlockId, usize>,
+) -> HashSet<usize> {
+    let old_anchor_indices = main_anchors
+        .iter()
+        .map(|anchor| old_indices[&anchor.old])
+        .collect::<Vec<_>>();
+    let new_anchor_indices = main_anchors
+        .iter()
+        .map(|anchor| new_indices[&anchor.new])
+        .collect::<Vec<_>>();
+
+    old_boundaries
+        .iter()
+        .map(|boundary| old_anchor_indices.partition_point(|index| index < boundary))
+        .chain(
+            new_boundaries
+                .iter()
+                .map(|boundary| new_anchor_indices.partition_point(|index| index < boundary)),
+        )
+        .collect()
+}
+
+fn uncertain_window_indices(
+    main_anchors: &[ExactAnchor],
+    old_uncertain_indices: &[usize],
+    new_uncertain_indices: &[usize],
+    old_indices: &HashMap<BlockId, usize>,
+    new_indices: &HashMap<BlockId, usize>,
+) -> HashSet<usize> {
+    forced_window_indices(
+        main_anchors,
+        old_uncertain_indices,
+        new_uncertain_indices,
+        old_indices,
+        new_indices,
+    )
 }
 
 fn identity_alignment(old: &[BlockFeatures]) -> Alignment {
@@ -548,7 +773,8 @@ fn collect_candidates(
     max_visits: usize,
     visit_metrics: &mut AlignmentVisitMetrics,
 ) -> Result<CandidateMap> {
-    // The required sum is the checked total over every non-anchor old block
+    // The required sum is the checked total over every eligible old block;
+    // anchors and forced extraction-gap queries are excluded.
     // and is unavailable (`None`) whenever any estimate errors or the sum
     // overflows. The attempted charge is frozen at the first budget exceed
     // while the required sum keeps accumulating, so a limit failure still
@@ -1351,6 +1577,14 @@ fn unresolved_span(
     new: &[BlockFeatures],
     evidence: AlignmentEvidence,
 ) -> AlignmentSpan {
+    unresolved_span_with_evidence(old, new, vec![evidence])
+}
+
+fn unresolved_span_with_evidence(
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    evidence: Vec<AlignmentEvidence>,
+) -> AlignmentSpan {
     AlignmentSpan {
         kind: AlignmentKind::Unresolved,
         old: old.iter().map(|features| features.block).collect(),
@@ -1359,7 +1593,7 @@ fn unresolved_span(
         canonical_similarity: 0.0,
         score_margin: None,
         confidence: AlignmentConfidence::Low,
-        evidence: vec![evidence],
+        evidence,
         old_separator: None,
         new_separator: None,
     }
@@ -1700,6 +1934,37 @@ mod tests {
         let mut f = feature(block, key);
         f.has_normalization_issues = has_normalization_issues;
         f
+    }
+
+    #[test]
+    fn uncertain_blocks_are_not_anchors_and_preserve_all_forced_causes() {
+        let old = vec![feature(1, 1), feature(2, 2), feature(3, 3)];
+        let new = vec![feature(101, 1), feature(102, 2), feature(103, 3)];
+        let options = AlignmentOptions {
+            anchor_min_tokens: 1,
+            ..AlignmentOptions::default()
+        };
+
+        let plan = plan_ordered_gaps(&old, &new, options, &[1], &[], &[1], &[])
+            .expect("uncertainty should produce a forced anchor interval");
+
+        assert!(
+            plan.all_anchors
+                .iter()
+                .all(|anchor| anchor.old != BlockId(2) && anchor.new != BlockId(102))
+        );
+        let causes = plan
+            .forced_windows
+            .values()
+            .next()
+            .expect("the uncertain block should force one interval");
+        assert_eq!(
+            causes.evidence(),
+            [
+                AlignmentEvidence::ExtractionGap,
+                AlignmentEvidence::ReadingOrderUnknown,
+            ]
+        );
     }
 
     struct FixedVisitsGenerator {

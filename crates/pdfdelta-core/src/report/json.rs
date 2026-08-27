@@ -338,6 +338,8 @@ fn evidence(value: AlignmentEvidence) -> String {
         AlignmentEvidence::NumericMask => "numeric_mask".to_owned(),
         AlignmentEvidence::SplitMerge => "split_merge".to_owned(),
         AlignmentEvidence::NormalizationIssue => "normalization_issue".to_owned(),
+        AlignmentEvidence::ExtractionGap => "extraction_gap".to_owned(),
+        AlignmentEvidence::ReadingOrderUnknown => "reading_order_unknown".to_owned(),
         AlignmentEvidence::MoveCandidate => "move_candidate".to_owned(),
         AlignmentEvidence::CandidateSource(source) => {
             format!("candidate_source:{}", candidate_source(source))
