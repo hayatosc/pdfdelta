@@ -379,6 +379,13 @@ pub enum Mutation {
         index: usize,
         paragraph: Paragraph,
     },
+    /// Inserts a source paragraph before a section-local index, or appends at its length.
+    ParagraphInsertInSection {
+        section_id: String,
+        index: usize,
+        paragraph_id: String,
+        text: String,
+    },
     ParagraphDelete {
         paragraph_id: String,
     },
@@ -629,6 +636,10 @@ impl Mutation {
             Self::ParagraphInsert { index, paragraph } => {
                 apply_paragraph_insert(document, *index, paragraph, line_gap)
             }
+            Self::ParagraphInsertInSection { .. } => Err(BenchError::InvalidInput(
+                "section-local paragraph insertion requires a structured canonical document"
+                    .to_owned(),
+            )),
             Self::ParagraphDelete { paragraph_id } => {
                 apply_paragraph_delete(document, paragraph_id, line_gap)
             }
@@ -649,6 +660,8 @@ impl Mutation {
     /// preserving its canonical text and surrounding metadata lines.
     /// Paragraph-targeted page breaks retain source order and leave a preceding
     /// section heading on the preceding page.
+    /// Section-local insertion preserves the owning heading and rejects indexes
+    /// beyond the section's current paragraph count.
     /// Paragraph deletion is allowed only when its owning section retains at
     /// least one paragraph. Other structural and layout mutations are rejected
     /// until their structured-document contracts are explicit.
@@ -656,14 +669,30 @@ impl Mutation {
     /// # Errors
     ///
     /// Returns [`BenchError::InvalidInput`] when the mutation kind is not yet
-    /// supported for structured documents, its target is not a source
-    /// paragraph, a rendering parameter is invalid or unchanged, or the
-    /// underlying paragraph mutation is invalid.
+    /// supported for structured documents, its target paragraph or section is
+    /// unknown, a section-local index is invalid, a rendering parameter is
+    /// invalid or unchanged, or the underlying paragraph mutation is invalid.
     pub fn apply_to_render_document(
         &self,
         document: &CanonicalRenderDocument,
         line_gap: u16,
     ) -> Result<MutationPlan> {
+        if let Self::ParagraphInsertInSection {
+            section_id,
+            index,
+            paragraph_id,
+            text,
+        } = self
+        {
+            let paragraph = Paragraph::new(paragraph_id, text)?;
+            let insertion_index = structured_insertion_index(document, section_id, *index)?;
+            let flattened = document.mutation_document_reserving(paragraph.id())?;
+            return Self::ParagraphInsert {
+                index: insertion_index,
+                paragraph,
+            }
+            .apply(&flattened, line_gap);
+        }
         let paragraph_id = match self {
             Self::LineHeightChange { .. }
             | Self::MarginChange { .. }
@@ -682,8 +711,8 @@ impl Mutation {
                 return Err(BenchError::InvalidInput(
                     "structured canonical documents currently support only LineWrap, \
                      PageBreakBefore, LineHeightChange, MarginChange, FontSizeChange, \
-                     PageSizeChange, TextReplace, TextInsert, TextDelete, NumberReplace, and \
-                     ParagraphDelete mutations"
+                     PageSizeChange, TextReplace, TextInsert, TextDelete, NumberReplace, \
+                     ParagraphInsertInSection, and ParagraphDelete mutations"
                         .to_owned(),
                 ));
             }
@@ -711,6 +740,38 @@ impl Mutation {
         }
         self.apply(&document.mutation_document()?, line_gap)
     }
+}
+
+fn structured_insertion_index(
+    document: &CanonicalRenderDocument,
+    section_id: &str,
+    section_index: usize,
+) -> Result<usize> {
+    let mut flattened_index = 1usize;
+    for section in document.sections() {
+        flattened_index = flattened_index.checked_add(1).ok_or_else(|| {
+            BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
+        })?;
+        if section.id() == section_id {
+            if section_index > section.paragraphs().len() {
+                return Err(BenchError::InvalidInput(format!(
+                    "paragraph insertion index {section_index} exceeds section {section_id:?} length {}",
+                    section.paragraphs().len()
+                )));
+            }
+            return flattened_index.checked_add(section_index).ok_or_else(|| {
+                BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
+            });
+        }
+        flattened_index = flattened_index
+            .checked_add(section.paragraphs().len())
+            .ok_or_else(|| {
+                BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
+            })?;
+    }
+    Err(BenchError::InvalidInput(format!(
+        "unknown structured section id {section_id:?}"
+    )))
 }
 
 fn apply_line_wrap(

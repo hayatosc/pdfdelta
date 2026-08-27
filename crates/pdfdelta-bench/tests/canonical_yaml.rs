@@ -394,6 +394,85 @@ fn paragraph_deletion_preserves_its_section_and_feeds_the_evaluator() {
 }
 
 #[test]
+fn section_local_paragraph_insertion_preserves_structure_and_feeds_the_evaluator() {
+    let yaml = EXAMPLE_YAML.replace(
+        "        - id: availability-p1\n          text: Release 10 remains available during the transition.\n",
+        concat!(
+            "        - id: availability-p1\n",
+            "          text: Opening availability context remains stable.\n",
+            "        - id: availability-p2\n",
+            "          text: Closing availability context remains stable.\n",
+        ),
+    );
+    let document = CanonicalRenderDocument::from_yaml(&yaml).expect("valid canonical YAML");
+    let cases = [
+        (
+            0,
+            "availability-insert-start",
+            "Inserted opening detail.",
+            2,
+        ),
+        (
+            1,
+            "availability-insert-middle",
+            "Inserted middle detail.",
+            3,
+        ),
+        (2, "availability-insert-end", "Inserted closing detail.", 4),
+    ];
+
+    for (index, paragraph_id, text, flattened_index) in cases {
+        let plan = Mutation::ParagraphInsertInSection {
+            section_id: "availability".to_owned(),
+            index,
+            paragraph_id: paragraph_id.to_owned(),
+            text: text.to_owned(),
+        }
+        .apply_to_render_document(&document, 30)
+        .expect("section-local paragraph insertion applies");
+
+        assert_eq!(plan.old().pages()[0], document.render_lines());
+        let mut expected_lines = document.render_lines();
+        expected_lines.insert(flattened_index, text.to_owned());
+        assert_eq!(plan.new_plan().pages()[0], expected_lines);
+        assert_eq!(plan.expectation().label(), "insertion");
+
+        for renderer in RendererKind::all() {
+            let record = evaluate(
+                "yaml-paragraph-insert",
+                plan.old(),
+                plan.new_plan(),
+                plan.expectation(),
+                renderer,
+            )
+            .expect("structured paragraph insertion evaluates");
+            assert_eq!(record.actual_changes, 1);
+            assert!(record.passed, "{}: {}", renderer.name(), record.detail);
+        }
+    }
+}
+
+#[test]
+fn section_local_paragraph_insertion_reserves_generated_metadata_ids() {
+    let document = CanonicalRenderDocument::from_yaml(EXAMPLE_YAML).expect("valid canonical YAML");
+    let plan = Mutation::ParagraphInsertInSection {
+        section_id: "support".to_owned(),
+        index: 1,
+        paragraph_id: "pdfdelta-title-0".to_owned(),
+        text: "Inserted support detail.".to_owned(),
+    }
+    .apply_to_render_document(&document, 30)
+    .expect("source-style metadata id remains usable");
+
+    assert_eq!(plan.old().pages()[0][0], document.title());
+    assert_eq!(plan.new_plan().pages()[0][0], document.title());
+    assert_eq!(
+        plan.new_plan().pages()[0].last().map(String::as_str),
+        Some("Inserted support detail.")
+    );
+}
+
+#[test]
 fn structured_mutations_reject_metadata_targets_empty_sections_and_ambiguous_changes() {
     let document = CanonicalRenderDocument::from_yaml(EXAMPLE_YAML).expect("valid canonical YAML");
     let metadata_error = Mutation::TextReplace {
@@ -441,6 +520,42 @@ fn structured_mutations_reject_metadata_targets_empty_sections_and_ambiguous_cha
         page_break_error.contains("unknown structured paragraph id"),
         "{page_break_error}"
     );
+
+    for (mutation, expected) in [
+        (
+            Mutation::ParagraphInsertInSection {
+                section_id: "missing".to_owned(),
+                index: 0,
+                paragraph_id: "inserted".to_owned(),
+                text: "Inserted paragraph.".to_owned(),
+            },
+            "unknown structured section id",
+        ),
+        (
+            Mutation::ParagraphInsertInSection {
+                section_id: "availability".to_owned(),
+                index: 2,
+                paragraph_id: "inserted".to_owned(),
+                text: "Inserted paragraph.".to_owned(),
+            },
+            "exceeds section",
+        ),
+        (
+            Mutation::ParagraphInsertInSection {
+                section_id: "availability".to_owned(),
+                index: 0,
+                paragraph_id: "support-p1".to_owned(),
+                text: "Duplicate source id.".to_owned(),
+            },
+            "duplicate paragraph id",
+        ),
+    ] {
+        let error = mutation
+            .apply_to_render_document(&document, 30)
+            .expect_err("invalid section-local insertion is rejected")
+            .to_string();
+        assert!(error.contains(expected), "{error}");
+    }
 }
 
 #[test]
@@ -636,6 +751,46 @@ fn evaluate_yaml_command_runs_paragraph_page_break_for_each_renderer() {
         assert!(
             stdout.contains(&format!(
                 "PASS case=yaml-page-break renderer={renderer} expected=none actual=none"
+            )),
+            "{stdout}"
+        );
+    }
+
+    fs::remove_file(&input).expect("temporary canonical YAML is removed");
+}
+
+#[test]
+fn evaluate_yaml_command_runs_section_local_paragraph_insertion_for_each_renderer() {
+    let (input, _) = temp_fixture_paths();
+    fs::write(&input, EXAMPLE_YAML).expect("temporary canonical YAML is written");
+
+    for renderer in ["lopdf-tj", "classic-xref-tj"] {
+        let output = run_evaluate_command(
+            &input,
+            renderer,
+            &[
+                "paragraph-insert",
+                "--section-id",
+                "availability",
+                "--index",
+                "1",
+                "--paragraph-id",
+                "availability-p2",
+                "--text",
+                "Inserted availability detail.",
+            ],
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+        assert!(
+            stdout.contains(&format!(
+                "PASS case=yaml-paragraph-insert renderer={renderer} \
+                 expected=insertion actual=insertion coverage=1.000/1.000"
             )),
             "{stdout}"
         );

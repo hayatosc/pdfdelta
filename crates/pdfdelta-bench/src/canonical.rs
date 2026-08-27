@@ -243,6 +243,21 @@ impl CanonicalRenderDocument {
     }
 
     pub(crate) fn mutation_document(&self) -> Result<CanonicalDocument> {
+        self.build_mutation_document(None)
+    }
+
+    /// Flattens the document while keeping one future source ID available.
+    pub(crate) fn mutation_document_reserving(
+        &self,
+        reserved_paragraph_id: &str,
+    ) -> Result<CanonicalDocument> {
+        self.build_mutation_document(Some(reserved_paragraph_id))
+    }
+
+    fn build_mutation_document(
+        &self,
+        reserved_paragraph_id: Option<&str>,
+    ) -> Result<CanonicalDocument> {
         let capacity = 1
             + self.sections.len()
             + self
@@ -256,6 +271,9 @@ impl CanonicalRenderDocument {
             .flat_map(|section| &section.paragraphs)
             .map(|paragraph| paragraph.id.clone())
             .collect::<HashSet<_>>();
+        if let Some(reserved_paragraph_id) = reserved_paragraph_id {
+            used_ids.insert(reserved_paragraph_id.to_owned());
+        }
         let mut paragraphs = Vec::with_capacity(capacity);
         paragraphs.push(metadata_paragraph(
             "pdfdelta-title",

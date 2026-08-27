@@ -168,6 +168,17 @@ enum YamlMutation {
         #[arg(long)]
         new_number: String,
     },
+    /// Insert one paragraph at a zero-based index within a section.
+    ParagraphInsert {
+        #[arg(long)]
+        section_id: String,
+        #[arg(long)]
+        index: usize,
+        #[arg(long)]
+        paragraph_id: String,
+        #[arg(long)]
+        text: String,
+    },
     /// Delete a paragraph while retaining at least one paragraph in its section.
     ParagraphDelete {
         #[arg(long)]
@@ -259,6 +270,20 @@ impl YamlMutation {
                 Mutation::NumberReplace {
                     paragraph_id,
                     new_number,
+                },
+            ),
+            Self::ParagraphInsert {
+                section_id,
+                index,
+                paragraph_id,
+                text,
+            } => (
+                "yaml-paragraph-insert",
+                Mutation::ParagraphInsertInSection {
+                    section_id,
+                    index,
+                    paragraph_id,
+                    text,
                 },
             ),
             Self::ParagraphDelete { paragraph_id } => (
@@ -1059,6 +1084,21 @@ mod tests {
                 "yaml-paragraph-delete",
                 Mutation::ParagraphDelete {
                     paragraph_id: "p".to_owned(),
+                },
+            ),
+            (
+                YamlMutation::ParagraphInsert {
+                    section_id: "section".to_owned(),
+                    index: 1,
+                    paragraph_id: "inserted".to_owned(),
+                    text: "Inserted paragraph".to_owned(),
+                },
+                "yaml-paragraph-insert",
+                Mutation::ParagraphInsertInSection {
+                    section_id: "section".to_owned(),
+                    index: 1,
+                    paragraph_id: "inserted".to_owned(),
+                    text: "Inserted paragraph".to_owned(),
                 },
             ),
         ];
