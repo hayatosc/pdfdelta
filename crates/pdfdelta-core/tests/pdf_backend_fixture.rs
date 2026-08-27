@@ -10,7 +10,7 @@ use pdfdelta_core::{
     Error, Result,
     pdf::{
         DecodedStream, LopdfParser, ObjectRef, PageRef, ParseLimits, ParsedPdf, PdfDict, PdfIssue,
-        PdfObject, PdfParser, PdfVersion, RawStream,
+        PdfIssueLocation, PdfObject, PdfParser, PdfVersion, RawStream,
     },
     source::{
         ContentStreamGlyphExtractor, ExtractionIssueKind, ExtractionLimits, ExtractionScope,
@@ -823,10 +823,10 @@ fn recovers_valid_page_tree_branches_and_reports_inconsistent_parents() {
             .iter()
             .any(|issue| issue.description().contains("inconsistent Parent"))
     );
-    assert!(
-        pdf.issues()
-            .iter()
-            .any(|issue| issue.description().contains("only 1 valid pages"))
+    assert_eq!(pdf.issues().len(), 1);
+    assert_eq!(
+        pdf.issues()[0].location(),
+        PdfIssueLocation::PageTreeGap { retained_before: 1 }
     );
 }
 
@@ -1229,9 +1229,151 @@ fn degraded_page_tree_branches_stay_unresolved_through_extraction() {
             .issues()
             .iter()
             .all(|issue| issue.kind() == ExtractionIssueKind::Unresolved
-                && issue.scope() == ExtractionScope::Document,)
+                && issue.scope() == ExtractionScope::PageGap { retained_before: 1 },)
     );
     // The surviving branch still yields glyph evidence.
+    assert!(!outcome.document().items().is_empty());
+}
+
+#[test]
+fn localizes_flat_page_tree_failures_in_tree_order() {
+    for (broken_index, expected_boundary) in [(0, 0), (1, 1), (2, 2)] {
+        let (mut document, ids) = fixture_document(3);
+        document.objects.remove(&ids.kids[broken_index]);
+
+        let pdf = parse(serialize_classic(document), limits())
+            .expect("a broken flat branch should preserve valid siblings");
+
+        assert_eq!(
+            pdf.pages().expect("surviving pages should resolve").len(),
+            2
+        );
+        assert_eq!(pdf.issues().len(), 1);
+        assert_eq!(
+            pdf.issues()[0].location(),
+            PdfIssueLocation::PageTreeGap {
+                retained_before: expected_boundary
+            }
+        );
+    }
+}
+
+#[test]
+fn defers_non_reference_children_until_their_tree_position() {
+    let (mut document, ids) = fixture_document(2);
+    let kids = document
+        .objects
+        .get_mut(&ids.pages)
+        .expect("Pages root should exist")
+        .as_dict_mut()
+        .expect("Pages root should be a dictionary")
+        .get_mut(b"Kids")
+        .expect("Pages root should contain Kids")
+        .as_array_mut()
+        .expect("Kids should be an array");
+    kids.insert(1, Object::Integer(7));
+    document
+        .objects
+        .get_mut(&ids.pages)
+        .expect("Pages root should exist")
+        .as_dict_mut()
+        .expect("Pages root should be a dictionary")
+        .set("Count", 3);
+
+    let pdf = parse(serialize_classic(document), limits())
+        .expect("a non-reference child should preserve valid siblings");
+
+    assert_eq!(pdf.issues().len(), 1);
+    assert_eq!(
+        pdf.issues()[0].location(),
+        PdfIssueLocation::PageTreeGap { retained_before: 1 }
+    );
+}
+
+#[test]
+fn keeps_unexplained_root_count_mismatch_document_scoped() {
+    for declared_count in [1, 3] {
+        let (mut document, ids) = fixture_document(2);
+        document
+            .objects
+            .get_mut(&ids.pages)
+            .expect("Pages root should exist")
+            .as_dict_mut()
+            .expect("Pages root should be a dictionary")
+            .set("Count", declared_count);
+
+        let pdf = parse(serialize_classic(document), limits())
+            .expect("a count mismatch should remain a parsed issue");
+
+        assert_eq!(pdf.issues().len(), 1);
+        assert_eq!(pdf.issues()[0].location(), PdfIssueLocation::Document);
+    }
+}
+
+#[test]
+fn malformed_subtree_count_does_not_localize_a_root_count_shortfall() {
+    let (mut document, ids) = fixture_document(1);
+    let subtree = document.new_object_id();
+    let child = document.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => subtree,
+        "Contents" => ids.content,
+    });
+    document.objects.insert(
+        subtree,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Parent" => ids.pages,
+            "Kids" => vec![Object::Reference(child)],
+            "Count" => Object::Name(b"malformed".to_vec()),
+        }),
+    );
+    let pages_root = document
+        .objects
+        .get_mut(&ids.pages)
+        .expect("Pages root should exist")
+        .as_dict_mut()
+        .expect("Pages root should be a dictionary");
+    pages_root
+        .get_mut(b"Kids")
+        .expect("Pages root should contain Kids")
+        .as_array_mut()
+        .expect("Kids should be an array")
+        .push(Object::Reference(subtree));
+    pages_root.set("Count", 3);
+
+    let pdf = parse(serialize_classic(document), limits())
+        .expect("malformed subtree metadata should retain recoverable children");
+    assert_eq!(
+        pdf.pages()
+            .expect("both children should be recovered")
+            .len(),
+        2
+    );
+    assert_eq!(pdf.issues().len(), 2);
+    assert!(pdf.issues().iter().all(|issue| {
+        issue.location() == PdfIssueLocation::Document && !issue.description().trim().is_empty()
+    }));
+    assert!(
+        pdf.issues()
+            .iter()
+            .any(|issue| issue.description().contains("reading page tree Count"))
+    );
+    assert!(pdf.issues().iter().any(|issue| {
+        issue
+            .description()
+            .contains("root declares 3 pages but only 2 valid pages were recovered")
+    }));
+
+    let outcome = ContentStreamGlyphExtractor
+        .extract_outcome(pdf.as_ref(), ExtractionLimits::default())
+        .expect("document-scoped parser issues should survive extraction");
+    assert!(
+        outcome
+            .issues()
+            .iter()
+            .all(|issue| issue.scope() == ExtractionScope::Document)
+    );
     assert!(!outcome.document().items().is_empty());
 }
 
@@ -1299,6 +1441,22 @@ fn preserves_the_unsupported_taxonomy_of_degraded_document_issues() {
     assert!(matches!(
         outcome.into_complete(),
         Err(Error::Unsupported(message)) if message.contains("unsupported features")
+    ));
+}
+
+#[test]
+fn rejects_page_tree_gap_beyond_recovered_page_count() {
+    let pdf = UnsupportedIssuePdf {
+        issues: vec![
+            PdfIssue::unresolved_page_tree_gap(1, "invalid parser boundary")
+                .expect("issue description should be valid"),
+        ],
+    };
+
+    assert!(matches!(
+        ContentStreamGlyphExtractor.extract_outcome(&pdf, ExtractionLimits::default()),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("exceeds the recovered page count 0")
     ));
 }
 

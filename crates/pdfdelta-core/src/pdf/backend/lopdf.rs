@@ -617,13 +617,28 @@ struct PageTree {
     issues: Vec<PdfIssue>,
 }
 
+enum PendingPageTreeEntry {
+    Node {
+        reference: lopdf::ObjectId,
+        expected_parent: Option<lopdf::ObjectId>,
+        depth: usize,
+    },
+    MalformedChild {
+        parent: lopdf::ObjectId,
+    },
+}
+
 fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
     let root = required_reference(&document.trailer, b"Root", "reading trailer Root")?;
     let catalog = resolve_document_object(document, root, limits, "reading catalog")?
         .as_dict()
         .map_err(|error| map_lopdf_error(error, "reading catalog", limits))?;
     let pages_root = required_reference(catalog, b"Pages", "reading catalog Pages")?;
-    let mut pending = vec![(pages_root, None, 0_usize)];
+    let mut pending = vec![PendingPageTreeEntry::Node {
+        reference: pages_root,
+        expected_parent: None,
+        depth: 0,
+    }];
     let mut seen = HashSet::new();
     let mut pages = Vec::new();
     let mut parents = HashMap::new();
@@ -637,7 +652,24 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
     );
     let mut scheduled_nodes = 1_usize;
 
-    while let Some((reference, expected_parent, depth)) = pending.pop() {
+    while let Some(entry) = pending.pop() {
+        let (reference, expected_parent, depth) = match entry {
+            PendingPageTreeEntry::Node {
+                reference,
+                expected_parent,
+                depth,
+            } => (reference, expected_parent, depth),
+            PendingPageTreeEntry::MalformedChild { parent } => {
+                issues.push(PdfIssue::unresolved_page_tree_gap(
+                    pages.len(),
+                    format!(
+                        "walking page tree: skipping non-reference child of object {} {}",
+                        parent.0, parent.1
+                    ),
+                )?);
+                continue;
+            }
+        };
         if depth > limits.max_recursion_depth {
             return Err(limit_error(
                 "PDF page tree depth",
@@ -645,16 +677,19 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
             ));
         }
         if !seen.insert(reference) {
-            issues.push(PdfIssue::unresolved(format!(
-                "walking page tree: repeated object {} {}",
-                reference.0, reference.1
-            ))?);
+            issues.push(PdfIssue::unresolved_page_tree_gap(
+                pages.len(),
+                format!(
+                    "walking page tree: repeated object {} {}",
+                    reference.0, reference.1
+                ),
+            )?);
             continue;
         }
 
-        // Broken branches degrade to document-scoped issues so independently
-        // valid branches survive; unsupported branches keep their
-        // taxonomy instead of being relabeled or aborting the walk. Password
+        // Broken branches retain their Page Tree position so independently
+        // valid branches survive; unsupported branches keep their taxonomy
+        // instead of being relabeled or aborting the walk. Password
         // and security-handler failures never reach the walk (they fail at
         // document load), and resource-limit failures stay fatal.
         let resolved =
@@ -662,17 +697,23 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
                 Ok(resolved) => resolved,
                 Err(error @ (Error::Backend(_) | Error::Unsupported(_))) => {
                     let issue = if matches!(error, Error::Unsupported(_)) {
-                        PdfIssue::unsupported(format!(
-                            "walking page tree: skipping object {} {}: \
+                        PdfIssue::unsupported_page_tree_gap(
+                            pages.len(),
+                            format!(
+                                "walking page tree: skipping object {} {}: \
                          branch requires unsupported features ({error})",
-                            reference.0, reference.1
-                        ))?
+                                reference.0, reference.1
+                            ),
+                        )?
                     } else {
-                        PdfIssue::unresolved(format!(
-                            "walking page tree: skipping object {} {}: \
+                        PdfIssue::unresolved_page_tree_gap(
+                            pages.len(),
+                            format!(
+                                "walking page tree: skipping object {} {}: \
                          branch could not be resolved ({error})",
-                            reference.0, reference.1
-                        ))?
+                                reference.0, reference.1
+                            ),
+                        )?
                     };
                     issues.push(issue);
                     continue;
@@ -682,10 +723,13 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
         let dictionary = match resolved.as_dict() {
             Ok(dictionary) => dictionary,
             Err(_) => {
-                issues.push(PdfIssue::unresolved(format!(
-                    "walking page tree: skipping object {} {}: node is not a dictionary",
-                    reference.0, reference.1
-                ))?);
+                issues.push(PdfIssue::unresolved_page_tree_gap(
+                    pages.len(),
+                    format!(
+                        "walking page tree: skipping object {} {}: node is not a dictionary",
+                        reference.0, reference.1
+                    ),
+                )?);
                 continue;
             }
         };
@@ -693,28 +737,37 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
             match optional_reference(dictionary, b"Parent", "reading page tree Parent") {
                 Ok(declared_parent) => declared_parent,
                 Err(error) => {
-                    issues.push(PdfIssue::unresolved(format!(
-                        "walking page tree: skipping object {} {}: {error}",
-                        reference.0, reference.1
-                    ))?);
+                    issues.push(PdfIssue::unresolved_page_tree_gap(
+                        pages.len(),
+                        format!(
+                            "walking page tree: skipping object {} {}: {error}",
+                            reference.0, reference.1
+                        ),
+                    )?);
                     continue;
                 }
             };
         if declared_parent != expected_parent {
-            issues.push(PdfIssue::unresolved(format!(
-                "walking page tree: object {} {} has an inconsistent Parent",
-                reference.0, reference.1
-            ))?);
+            issues.push(PdfIssue::unresolved_page_tree_gap(
+                pages.len(),
+                format!(
+                    "walking page tree: object {} {} has an inconsistent Parent",
+                    reference.0, reference.1
+                ),
+            )?);
             continue;
         }
         parents.insert(reference, expected_parent);
         let node_type = match dictionary.get(b"Type").and_then(Object::as_name) {
             Ok(node_type) => node_type,
             Err(_) => {
-                issues.push(PdfIssue::unresolved(format!(
-                    "walking page tree: skipping object {} {}: node has no readable /Type",
-                    reference.0, reference.1
-                ))?);
+                issues.push(PdfIssue::unresolved_page_tree_gap(
+                    pages.len(),
+                    format!(
+                        "walking page tree: skipping object {} {}: node has no readable /Type",
+                        reference.0, reference.1
+                    ),
+                )?);
                 continue;
             }
         };
@@ -727,27 +780,41 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
                 pages.push(PageRef(from_lopdf_id(reference)));
             }
             b"Pages" => {
-                let declared_count = dictionary
-                    .get(b"Count")
-                    .and_then(Object::as_i64)
-                    .map_err(|error| map_lopdf_error(error, "reading page tree Count", limits))?;
-                if declared_count < 0 {
-                    return Err(Error::Backend(
-                        "reading page tree Count: value is negative".into(),
-                    ));
-                }
-                let declared_count = usize::try_from(declared_count)
-                    .map_err(|_| limit_error("PDF page count", limits.max_pages))?;
-                if declared_count > limits.max_pages {
-                    return Err(limit_error("PDF page count", limits.max_pages));
-                }
+                let declared_count = match dictionary.get(b"Count").and_then(Object::as_i64) {
+                    Ok(declared_count) if declared_count >= 0 => {
+                        let declared_count = usize::try_from(declared_count)
+                            .map_err(|_| limit_error("PDF page count", limits.max_pages))?;
+                        if declared_count > limits.max_pages {
+                            return Err(limit_error("PDF page count", limits.max_pages));
+                        }
+                        Some(declared_count)
+                    }
+                    Ok(_) => {
+                        issues.push(PdfIssue::unresolved(
+                            "reading page tree Count: value is negative",
+                        )?);
+                        None
+                    }
+                    Err(error) => {
+                        let error = map_lopdf_error(error, "reading page tree Count", limits);
+                        issues.push(PdfIssue::unresolved(error.to_string())?);
+                        None
+                    }
+                };
                 if reference == pages_root {
-                    declared_root_count = Some(declared_count);
+                    declared_root_count = declared_count;
                 }
-                let kids = dictionary
-                    .get(b"Kids")
-                    .and_then(Object::as_array)
-                    .map_err(|error| map_lopdf_error(error, "reading page tree Kids", limits))?;
+                let kids = match dictionary.get(b"Kids").and_then(Object::as_array) {
+                    Ok(kids) => kids,
+                    Err(error) => {
+                        let error = map_lopdf_error(error, "reading page tree Kids", limits);
+                        issues.push(PdfIssue::unresolved_page_tree_gap(
+                            pages.len(),
+                            error.to_string(),
+                        )?);
+                        continue;
+                    }
+                };
                 if kids.len() > max_nodes.saturating_sub(scheduled_nodes) {
                     return Err(limit_error("PDF page tree node count", max_nodes));
                 }
@@ -760,32 +827,42 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
                 }
                 scheduled_nodes += kids.len();
                 for kid in kids.iter().rev() {
-                    let kid = match kid.as_reference() {
-                        Ok(kid) => kid,
-                        Err(_) => {
-                            issues.push(PdfIssue::unresolved(format!(
-                                "walking page tree: skipping non-reference child of object {} {}",
-                                reference.0, reference.1
-                            ))?);
-                            continue;
-                        }
+                    let entry = match kid.as_reference() {
+                        Ok(kid) => PendingPageTreeEntry::Node {
+                            reference: kid,
+                            expected_parent: Some(reference),
+                            depth: child_depth,
+                        },
+                        Err(_) => PendingPageTreeEntry::MalformedChild { parent: reference },
                     };
-                    pending.push((kid, Some(reference), child_depth));
+                    pending.push(entry);
                 }
             }
             other => {
-                issues.push(PdfIssue::unresolved(format!(
-                    "walking page tree: skipping object {} {} with unexpected node type /{}",
-                    reference.0,
-                    reference.1,
-                    String::from_utf8_lossy(other)
-                ))?);
+                issues.push(PdfIssue::unresolved_page_tree_gap(
+                    pages.len(),
+                    format!(
+                        "walking page tree: skipping object {} {} with unexpected node type /{}",
+                        reference.0,
+                        reference.1,
+                        String::from_utf8_lossy(other)
+                    ),
+                )?);
             }
         }
     }
 
+    // Only a localized issue that skipped a branch can explain a root count
+    // shortfall. Metadata issues that still traversed /Kids stay document
+    // scoped and cannot suppress the mismatch.
+    let has_skipped_branch_gaps = issues.iter().any(|issue| {
+        matches!(
+            issue.location(),
+            crate::pdf::PdfIssueLocation::PageTreeGap { .. }
+        )
+    });
     if let Some(declared) = declared_root_count
-        && declared != pages.len()
+        && (declared < pages.len() || declared > pages.len() && !has_skipped_branch_gaps)
     {
         issues.push(PdfIssue::unresolved(format!(
             "walking page tree: root declares {declared} pages but only {} valid pages were recovered",

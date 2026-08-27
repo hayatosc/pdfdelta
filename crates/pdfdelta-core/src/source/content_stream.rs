@@ -42,6 +42,16 @@ impl ContentStreamGlyphExtractor {
             Ok(pages) => pages,
             Err(error) => return ExtractionOutcome::from_error(ExtractionScope::Document, error),
         };
+        for issue in pdf.issues() {
+            if let crate::pdf::PdfIssueLocation::PageTreeGap { retained_before } = issue.location()
+                && retained_before > pages.len()
+            {
+                return Err(Error::InvalidConfiguration(format!(
+                    "PDF issue page-tree gap boundary {retained_before} exceeds the recovered page count {}",
+                    pages.len()
+                )));
+            }
+        }
         let mut extraction =
             Extraction::new_with_external_font_identities(pdf, limits, external_font_identities);
         let mut issues = pdf

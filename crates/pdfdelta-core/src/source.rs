@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     Error, Result,
     model::{Document, FontProgramHash, Glyph, PageId},
-    pdf::{ParseLimits, ParsedPdf, PdfIssue, PdfIssueKind, PdfParser},
+    pdf::{ParseLimits, ParsedPdf, PdfIssue, PdfIssueKind, PdfIssueLocation, PdfParser},
 };
 
 mod content_stream;
@@ -114,9 +114,16 @@ pub enum ExtractionIssueKind {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ExtractionScope {
     Document,
     Page(PageId),
+    /// A skipped Page Tree branch after this many recovered pages on this
+    /// document side. This is ordering evidence, not a cross-revision page
+    /// identity.
+    PageGap {
+        retained_before: usize,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -183,7 +190,12 @@ impl ExtractionIssue {
                 PdfIssueKind::Unresolved => ExtractionIssueKind::Unresolved,
                 PdfIssueKind::Unsupported => ExtractionIssueKind::Unsupported,
             },
-            ExtractionScope::Document,
+            match issue.location() {
+                PdfIssueLocation::Document => ExtractionScope::Document,
+                PdfIssueLocation::PageTreeGap { retained_before } => {
+                    ExtractionScope::PageGap { retained_before }
+                }
+            },
             issue.description(),
         )
     }
@@ -223,6 +235,7 @@ impl ExtractionOutcome {
                     )));
                 }
                 ExtractionScope::Page(_) => {}
+                ExtractionScope::PageGap { .. } => {}
             }
         }
         if let Some(glyph) = document

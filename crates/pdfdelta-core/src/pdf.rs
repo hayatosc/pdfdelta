@@ -97,33 +97,89 @@ pub enum PdfIssueKind {
     Unsupported,
 }
 
+/// Side-local location of incomplete PDF evidence.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PdfIssueLocation {
+    Document,
+    /// A skipped Page Tree branch after `retained_before` successfully
+    /// recovered pages in this PDF. The value is ordering evidence only and
+    /// must never be compared with a page position from another revision.
+    PageTreeGap {
+        retained_before: usize,
+    },
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PdfIssue {
     kind: PdfIssueKind,
+    location: PdfIssueLocation,
     description: String,
 }
 
 impl PdfIssue {
     pub fn unresolved(description: impl Into<String>) -> Result<Self> {
-        Self::new(PdfIssueKind::Unresolved, description)
+        Self::new(
+            PdfIssueKind::Unresolved,
+            PdfIssueLocation::Document,
+            description,
+        )
     }
 
     pub fn unsupported(description: impl Into<String>) -> Result<Self> {
-        Self::new(PdfIssueKind::Unsupported, description)
+        Self::new(
+            PdfIssueKind::Unsupported,
+            PdfIssueLocation::Document,
+            description,
+        )
     }
 
-    fn new(kind: PdfIssueKind, description: impl Into<String>) -> Result<Self> {
+    pub fn unresolved_page_tree_gap(
+        retained_before: usize,
+        description: impl Into<String>,
+    ) -> Result<Self> {
+        Self::new(
+            PdfIssueKind::Unresolved,
+            PdfIssueLocation::PageTreeGap { retained_before },
+            description,
+        )
+    }
+
+    pub fn unsupported_page_tree_gap(
+        retained_before: usize,
+        description: impl Into<String>,
+    ) -> Result<Self> {
+        Self::new(
+            PdfIssueKind::Unsupported,
+            PdfIssueLocation::PageTreeGap { retained_before },
+            description,
+        )
+    }
+
+    fn new(
+        kind: PdfIssueKind,
+        location: PdfIssueLocation,
+        description: impl Into<String>,
+    ) -> Result<Self> {
         let description = description.into();
         if description.trim().is_empty() {
             return Err(crate::Error::InvalidConfiguration(
                 "PDF issues require a description".to_owned(),
             ));
         }
-        Ok(Self { kind, description })
+        Ok(Self {
+            kind,
+            location,
+            description,
+        })
     }
 
     pub const fn kind(&self) -> PdfIssueKind {
         self.kind
+    }
+
+    pub const fn location(&self) -> PdfIssueLocation {
+        self.location
     }
 
     pub fn description(&self) -> &str {

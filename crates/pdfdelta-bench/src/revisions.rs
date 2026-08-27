@@ -896,6 +896,10 @@ fn issue_lines(extraction: &report::ExtractionStatus) -> Vec<IssueLine> {
             scope: match issue.scope {
                 ExtractionScope::Document => "document".to_owned(),
                 ExtractionScope::Page(page) => format!("page {}", page.0),
+                ExtractionScope::PageGap { retained_before } => {
+                    format!("page gap after {retained_before} retained pages")
+                }
+                _ => "unknown".to_owned(),
             },
             description: issue.description.clone(),
         })

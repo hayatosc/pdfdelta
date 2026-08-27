@@ -462,6 +462,18 @@ pub fn report_extraction_issues<W: Write>(
                 page.0,
                 issue.description()
             ),
+            ExtractionScope::PageGap { retained_before } => writeln!(
+                writer,
+                "extraction issue for {side} PDF {} (kind={kind}, scope=page-gap, retained-pages-before={retained_before}): {}",
+                path.display(),
+                issue.description()
+            ),
+            _ => writeln!(
+                writer,
+                "extraction issue for {side} PDF {} (kind={kind}, scope=unknown): {}",
+                path.display(),
+                issue.description()
+            ),
         }
         .map_err(|error| {
             format!(

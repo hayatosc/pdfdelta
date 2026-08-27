@@ -151,10 +151,15 @@ impl<'a> JsonExtraction<'a> {
                     scope: match issue.scope {
                         ExtractionScope::Document => "document",
                         ExtractionScope::Page(_) => "page",
+                        ExtractionScope::PageGap { .. } => "page_gap",
                     },
                     page: match issue.scope {
-                        ExtractionScope::Document => None,
+                        ExtractionScope::Document | ExtractionScope::PageGap { .. } => None,
                         ExtractionScope::Page(page) => Some(page.0),
+                    },
+                    retained_pages_before: match issue.scope {
+                        ExtractionScope::PageGap { retained_before } => Some(retained_before),
+                        ExtractionScope::Document | ExtractionScope::Page(_) => None,
                     },
                     description: &issue.description,
                 })
@@ -170,6 +175,8 @@ struct JsonExtractionIssue<'a> {
     scope: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     page: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retained_pages_before: Option<usize>,
     description: &'a str,
 }
 

@@ -78,6 +78,9 @@ pub(super) fn render(
             let scope = match issue.scope {
                 ExtractionScope::Document => "scope=document".to_owned(),
                 ExtractionScope::Page(page) => format!("scope=page, page={}", (page.0 as u64) + 1),
+                ExtractionScope::PageGap { retained_before } => {
+                    format!("scope=page-gap, retained-pages-before={retained_before}")
+                }
             };
             writeln!(
                 output,
