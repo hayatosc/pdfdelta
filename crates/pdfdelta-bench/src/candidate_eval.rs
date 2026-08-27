@@ -8,8 +8,9 @@
 //!
 //! Latency is observed once per generator for index construction and one full
 //! candidate query pass. These observations are diagnostic rather than
-//! statistically stable benchmark measurements. Memory measurement remains
-//! deferred.
+//! statistically stable benchmark measurements. Isolated synthetic
+//! large-document profiling, including Linux process-memory observations,
+//! lives in [`crate::candidate_profile`].
 
 use std::{
     collections::{HashMap, HashSet},

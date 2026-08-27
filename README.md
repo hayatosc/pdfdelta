@@ -215,6 +215,35 @@ against an independent custom PDF parser. Broader producer and corpus coverage,
 including unmapped and rotated-text oracle cases, remains future conformance
 work.
 
+## Candidate generator profiling
+
+`pdfbench candidates` checks candidate recall and visit pressure on every
+built-in rendered mutation. `candidate-profile` complements that correctness
+matrix with a deterministic identity-matched synthetic corpus and reports
+recall@K, untruncated candidate-count p50/p95/max, index-build and full-query
+latency, and Linux resident-memory observations for the inverted index,
+MinHash LSH, and exhaustive oracle.
+
+```bash
+cargo run -p pdfdelta-bench --release -- candidates --top-k 5,10
+cargo run -p pdfdelta-bench --release -- candidate-profile \
+  --blocks 1000 \
+  --top-k 5,10 \
+  --json-output candidate-profile.json
+```
+
+Each generator runs in a separate worker process so indexes do not overlap in
+the reported process footprint. `rss_before_build_bytes` is sampled after the
+shared feature corpus is constructed; `peak_rss_bytes` comes from Linux
+`/proc/self/status` after index construction and all queries. Allocator
+retention and single observations make memory and latency diagnostic rather
+than statistically stable measurements. The block count is bounded to
+`2..=10000`; the exhaustive oracle performs all-pairs work, so larger values
+can be expensive. JSON destinations must be new. This opt-in profile does not
+change the default inverted-index generator: a MinHash default still requires
+holdout recall to be no worse and candidate count or runtime to improve
+clearly on representative documents.
+
 ## Real-world revision benchmarks
 
 Self-comparison of a document with itself cannot exercise alignment under real
@@ -314,7 +343,7 @@ Text reports are written to standard output as contextual unified-diff hunks: a 
 ## Current limitations
 
 - `pdfdelta` does not run OCR and does not compare image contents or handwriting. Image-only pages can pass extraction because Image XObjects are explicitly skipped; that does not mean text visible inside the image was compared. Existing OCR text layers are retained as glyph evidence, but invisible text remains outside visible-content comparison. Empty-user-password decryption is automatic; other known passwords can be read from side-specific files and are never accepted directly as argument values or retained in reports and traces.
-- Extraction currently targets mainly single-column text using supported Type 1/Type1C/MMType1 or TrueType simple fonts, an axis-aligned Type 3 subset with declared metrics and bounded CharProcs, plus Type 0 fonts with one CIDFontType0/CIDFontType2 descendant and bounded metrics. Identity-H and an Identity-V subset using only default DW2 metrics use fixed two-byte codes; bounded custom Type 0 CMaps are accepted only for full-domain one- or two-byte identity mappings. ToUnicode is optional only when a stable embedded-font, canonical Standard 14 identity, or explicit caller-provided external CID font identity can preserve unmapped glyphs. External identities are trust assertions, not font discovery. Type 3 CharProc drawing operators and MMType1 variation axes are not interpreted, and MMType1 therefore cannot provide stable identity for unmapped glyphs. Rotated, sheared, translated, or horizontally reversed Type 3 FontMatrix values, unsupported fonts inside Type 3 resource graphs, general custom CMaps, per-CID W2 vertical metrics, general vertical-writing reading order, complex tables, and complete annotation or form handling are not implemented. A simple left-to-right horizontal region and an ordinary two-column page are treated as known only when glyph paint order independently confirms top-to-bottom lines and, for columns, the complete left column before the complete right column. Three or more regions, row-interleaved columns, headers combined with columns, right-to-left text, non-horizontal text, and mixed or unknown text direction preserve every line and glyph but report their page-local comparison window as unresolved reading order; extraction itself remains complete, and changes in independently anchored windows continue to be compared.
+- Extraction currently targets mainly single-column text using supported Type 1/Type1C/MMType1 or TrueType simple fonts, an axis-aligned Type 3 subset with declared metrics and bounded CharProcs, plus Type 0 fonts with one CIDFontType0/CIDFontType2 descendant and bounded metrics. Identity-H and an Identity-V subset using only default DW2 metrics use fixed two-byte codes; bounded custom Type 0 CMaps are accepted only for full-domain one- or two-byte identity mappings. ToUnicode is optional only when a stable embedded-font, canonical Standard 14 identity, or explicit caller-provided external CID font identity can preserve unmapped glyphs. External identities are trust assertions, not font discovery. Type 3 CharProc drawing operators and MMType1 variation axes are not interpreted, and MMType1 therefore cannot provide stable identity for unmapped glyphs. Rotated, sheared, translated, or horizontally reversed Type 3 FontMatrix values, unsupported fonts inside Type 3 resource graphs, general custom CMaps, per-CID W2 vertical metrics, general vertical-writing reading order, complex tables, and complete annotation or form handling are not implemented. A simple left-to-right horizontal region is treated as known only when glyph paint order independently confirms top-to-bottom lines. An ordinary two-column region, including one surrounded by full-width bands, is treated as known only when its spatial order is unique and paint order keeps the complete left column contiguous before the complete right column. Three or more columns, ambiguous multi-region layouts, row-interleaved columns, right-to-left text, non-horizontal text, and mixed or unknown text direction preserve every line and glyph but report their page-local comparison window as unresolved reading order; extraction itself remains complete, and changes in independently anchored windows continue to be compared.
 - Paragraph moves are reported as dedicated `Move` changes when an out-of-order anchor is unique and its canonical text matches exactly. Fuzzy or structurally changed move candidates still fall back to deletion plus insertion changes or unresolved regions.
 - PDF text operators, encodings, ToUnicode maps, and Form XObjects are supported only within the bounded subset covered by the backend fixtures.
 - Unsupported or unresolved extraction is reported as a typed document-, page-, page-tree-gap-, or glyph-gap-scoped issue in stderr and the text or JSON report.

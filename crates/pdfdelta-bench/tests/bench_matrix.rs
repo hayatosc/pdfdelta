@@ -1180,6 +1180,7 @@ fn help_lists_benchmark_commands() {
     assert!(stdout.contains("verify"));
     assert!(stdout.contains("render"));
     assert!(stdout.contains("candidates"));
+    assert!(stdout.contains("candidate-profile"));
     assert!(stdout.contains("extraction-conformance"));
 }
 
@@ -1258,6 +1259,76 @@ fn candidates_command_writes_a_create_new_json_artifact() {
 
     let second = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
         .arg("candidates")
+        .arg("--json-output")
+        .arg(&path)
+        .output()
+        .expect("pdfbench runs");
+    assert_eq!(
+        second.status.code(),
+        Some(2),
+        "create_new must refuse overwrite"
+    );
+    std::fs::remove_file(&path).expect("temp json artifact removed");
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn candidate_profile_runs_generators_in_isolated_workers_and_writes_json() {
+    let mut path = std::env::temp_dir();
+    path.push(format!(
+        "pdfbench-candidate-profile-{}-{}.json",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default()
+    ));
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
+        .arg("candidate-profile")
+        .arg("--blocks")
+        .arg("64")
+        .arg("--top-k")
+        .arg("1,5")
+        .arg("--json-output")
+        .arg(&path)
+        .output()
+        .expect("pdfbench runs");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert_eq!(
+        stdout
+            .lines()
+            .filter(|line| line.starts_with("PROFILE generator="))
+            .count(),
+        3
+    );
+    assert_eq!(
+        stdout.lines().last(),
+        Some("3/3 candidate profiles OK; default=inverted-index (diagnostic observations only)")
+    );
+
+    let json = std::fs::read_to_string(&path).expect("json artifact exists");
+    let records: serde_json::Value = serde_json::from_str(&json).expect("json artifact parses");
+    let records = records.as_array().expect("artifact is an array");
+    assert_eq!(records.len(), 3);
+    for record in records {
+        assert_eq!(record["blocks"], 64);
+        assert_eq!(record["top_k"], serde_json::json!([1, 5]));
+        assert_eq!(record["recall_at_k"], serde_json::json!([1.0, 1.0]));
+        assert_eq!(record["memory_source"], "linux-proc-status");
+        assert!(record["rss_before_build_bytes"].as_u64().unwrap_or(0) > 0);
+        assert!(record["peak_rss_bytes"].as_u64().unwrap_or(0) > 0);
+    }
+
+    let second = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
+        .arg("candidate-profile")
+        .arg("--blocks")
+        .arg("64")
         .arg("--json-output")
         .arg(&path)
         .output()

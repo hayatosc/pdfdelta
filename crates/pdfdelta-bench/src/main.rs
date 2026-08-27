@@ -2,13 +2,17 @@ use std::{
     fs,
     io::{self, Read, Write},
     path::{Path, PathBuf},
-    process::ExitCode,
+    process::{Command as ProcessCommand, ExitCode},
     sync::Arc,
 };
 
 use clap::{Parser, Subcommand, ValueEnum};
 use pdfdelta_bench::{
     candidate_eval::{CandidateEvalRecord, evaluate_candidate_generation, write_candidates_json},
+    candidate_profile::{
+        CandidateProfileGenerator, CandidateProfileRecord, DEFAULT_SYNTHETIC_PROFILE_BLOCKS,
+        profile_synthetic_candidate_generator, write_candidate_profiles_json,
+    },
     canonical::{CanonicalRenderDocument, MAX_CANONICAL_YAML_BYTES},
     cases::built_in_cases,
     evaluator::{EvaluationRecord, evaluate, evaluate_case, evaluate_rendered},
@@ -102,6 +106,30 @@ enum Command {
         #[arg(long)]
         json_output: Option<PathBuf>,
     },
+    /// Profile candidate generators in isolated Linux processes on a
+    /// deterministic synthetic large-document corpus.
+    CandidateProfile {
+        /// Number of identity-matched synthetic blocks on each side.
+        #[arg(long, default_value_t = DEFAULT_SYNTHETIC_PROFILE_BLOCKS)]
+        blocks: usize,
+        /// Comma-separated top-K values whose recall is reported, in the
+        /// given order (each greater than zero, no duplicates).
+        #[arg(long, default_value = "5,10")]
+        top_k: String,
+        /// Write all generator records to a new JSON file.
+        #[arg(long)]
+        json_output: Option<PathBuf>,
+    },
+    /// Internal isolated worker used by `candidate-profile`.
+    #[command(hide = true)]
+    CandidateProfileWorker {
+        #[arg(long)]
+        blocks: usize,
+        #[arg(long)]
+        top_k: String,
+        #[arg(long, value_enum)]
+        generator: CandidateProfileGeneratorChoice,
+    },
     /// Evaluate the non-vendored real-world revision-pair benchmark corpus.
     Revisions {
         /// Manifest describing the public revision pairs.
@@ -133,6 +161,32 @@ enum Command {
         #[arg(long)]
         summary_json_output: Option<PathBuf>,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum CandidateProfileGeneratorChoice {
+    InvertedIndex,
+    #[value(name = "minhash-lsh")]
+    MinhashLsh,
+    Exhaustive,
+}
+
+impl CandidateProfileGeneratorChoice {
+    const fn all() -> [Self; 3] {
+        [Self::InvertedIndex, Self::MinhashLsh, Self::Exhaustive]
+    }
+
+    const fn kind(self) -> CandidateProfileGenerator {
+        match self {
+            Self::InvertedIndex => CandidateProfileGenerator::InvertedIndex,
+            Self::MinhashLsh => CandidateProfileGenerator::MinhashLsh,
+            Self::Exhaustive => CandidateProfileGenerator::Exhaustive,
+        }
+    }
+
+    const fn cli_name(self) -> &'static str {
+        self.kind().label()
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -420,6 +474,22 @@ fn main() -> ExitCode {
         ),
         Some(Command::Candidates { top_k, json_output }) => match parse_top_k(&top_k) {
             Ok(top_k) => candidates(&mut stdout, &top_k, json_output.as_deref()),
+            Err(error) => Err(error),
+        },
+        Some(Command::CandidateProfile {
+            blocks,
+            top_k,
+            json_output,
+        }) => match parse_top_k(&top_k) {
+            Ok(top_k) => candidate_profile(&mut stdout, blocks, &top_k, json_output.as_deref()),
+            Err(error) => Err(error),
+        },
+        Some(Command::CandidateProfileWorker {
+            blocks,
+            top_k,
+            generator,
+        }) => match parse_top_k(&top_k) {
+            Ok(top_k) => candidate_profile_worker(&mut stdout, blocks, &top_k, generator.kind()),
             Err(error) => Err(error),
         },
         Some(Command::Revisions {
@@ -784,6 +854,144 @@ fn candidates<W: Write>(
     } else {
         0
     })
+}
+
+fn candidate_profile<W: Write>(
+    writer: &mut W,
+    blocks: usize,
+    top_k: &[usize],
+    json_output: Option<&Path>,
+) -> Result<u8, String> {
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("cannot locate candidate profile worker executable: {error}"))?;
+    let top_k_argument = top_k
+        .iter()
+        .map(usize::to_string)
+        .collect::<Vec<_>>()
+        .join(",");
+    let mut records = Vec::with_capacity(CandidateProfileGeneratorChoice::all().len());
+
+    for choice in CandidateProfileGeneratorChoice::all() {
+        let output = ProcessCommand::new(&executable)
+            .arg("candidate-profile-worker")
+            .arg("--blocks")
+            .arg(blocks.to_string())
+            .arg("--top-k")
+            .arg(&top_k_argument)
+            .arg("--generator")
+            .arg(choice.cli_name())
+            .output()
+            .map_err(|error| {
+                format!(
+                    "cannot run isolated {} candidate profile worker: {error}",
+                    choice.cli_name()
+                )
+            })?;
+        if !output.status.success() {
+            let detail = String::from_utf8_lossy(&output.stderr);
+            return Err(format!(
+                "isolated {} candidate profile worker exited with {}: {}",
+                choice.cli_name(),
+                output.status,
+                detail.trim()
+            ));
+        }
+        let record =
+            serde_json::from_slice::<CandidateProfileRecord>(&output.stdout).map_err(|error| {
+                format!(
+                    "cannot decode isolated {} candidate profile worker output: {error}",
+                    choice.cli_name()
+                )
+            })?;
+        validate_candidate_profile_worker_record(&record, choice.kind(), blocks, top_k)?;
+        records.push(record);
+    }
+
+    for record in &records {
+        writeln!(writer, "{}", candidate_profile_report_line(record))
+            .map_err(|error| format!("cannot write candidate profile result: {error}"))?;
+    }
+    let healthy = records.iter().filter(|record| record.healthy()).count();
+    writeln!(
+        writer,
+        "{healthy}/{} candidate profiles OK; default=inverted-index (diagnostic observations only)",
+        records.len()
+    )
+    .map_err(|error| format!("cannot write candidate profile summary: {error}"))?;
+    writer
+        .flush()
+        .map_err(|error| format!("cannot flush candidate profile output: {error}"))?;
+
+    if let Some(path) = json_output {
+        write_candidate_profiles_json(path, &records).map_err(|error| error.to_string())?;
+    }
+
+    Ok(if healthy == records.len() { 0 } else { 1 })
+}
+
+fn candidate_profile_worker<W: Write>(
+    writer: &mut W,
+    blocks: usize,
+    top_k: &[usize],
+    generator: CandidateProfileGenerator,
+) -> Result<u8, String> {
+    let record = profile_synthetic_candidate_generator(blocks, top_k, generator)
+        .map_err(|error| error.to_string())?;
+    serde_json::to_writer(&mut *writer, &record)
+        .map_err(|error| format!("cannot write candidate profile worker result: {error}"))?;
+    writer
+        .flush()
+        .map_err(|error| format!("cannot flush candidate profile worker output: {error}"))?;
+    Ok(0)
+}
+
+fn validate_candidate_profile_worker_record(
+    record: &CandidateProfileRecord,
+    generator: CandidateProfileGenerator,
+    blocks: usize,
+    top_k: &[usize],
+) -> Result<(), String> {
+    if record.generator != generator || record.blocks != blocks || record.top_k != top_k {
+        return Err(format!(
+            "isolated {} candidate profile worker returned mismatched parameters",
+            generator.label()
+        ));
+    }
+    Ok(())
+}
+
+fn candidate_profile_report_line(record: &CandidateProfileRecord) -> String {
+    let top_k = record
+        .top_k
+        .iter()
+        .map(usize::to_string)
+        .collect::<Vec<_>>()
+        .join(",");
+    let recall = if record.top_k.len() == record.recall_at_k.len() {
+        record
+            .recall_at_k
+            .iter()
+            .map(|recall| format!("{recall:.3}"))
+            .collect::<Vec<_>>()
+            .join(",")
+    } else {
+        "mismatch".to_owned()
+    };
+    format!(
+        "PROFILE generator={} blocks={} top_k={} recall={} candidates=p50:{},p95:{},max:{} index_build_latency_ns={} full_query_latency_ns={} memory_source=linux-proc-status rss_before_build_bytes={} peak_rss_bytes={} peak_rss_growth_bytes={}",
+        record.generator.label(),
+        record.blocks,
+        top_k,
+        recall,
+        record.candidate_count_p50,
+        record.candidate_count_p95,
+        record.candidate_count_max,
+        record.index_build_latency_ns,
+        record.query_latency_ns,
+        record.rss_before_build_bytes,
+        record.peak_rss_bytes,
+        record.peak_rss_growth_bytes,
+    )
 }
 
 fn candidate_report_line(record: &CandidateEvalRecord) -> String {
