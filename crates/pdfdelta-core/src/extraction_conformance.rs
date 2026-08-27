@@ -1,5 +1,10 @@
-use pdfdelta_core::model::{DecodedText, Document, Glyph, GlyphProvenance, PageId, Rect, Vec2};
+//! Backend-neutral snapshots for comparing primitive glyph extraction.
 
+use std::{error::Error as StdError, fmt};
+
+use crate::model::{DecodedText, Document, Glyph, GlyphProvenance, PageId, Rect, Vec2};
+
+/// Glyph evidence retained for a primitive extraction comparison.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PrimitiveExtractionSnapshot {
     pub glyphs: Vec<SnapshotGlyph>,
@@ -19,6 +24,7 @@ impl From<&Document<Glyph>> for PrimitiveExtractionSnapshot {
     }
 }
 
+/// One glyph in backend-neutral extraction order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SnapshotGlyph {
     pub text: DecodedText,
@@ -27,10 +33,12 @@ pub struct SnapshotGlyph {
     pub bbox: Rect,
     pub baseline: Vec2,
     pub direction: Vec2,
+    /// Optional local evidence used only to make mismatches actionable.
     pub provenance: Option<GlyphProvenance>,
 }
 
 impl SnapshotGlyph {
+    /// Creates a mapped glyph without implementation-specific provenance.
     pub fn mapped(
         text: impl Into<String>,
         page: PageId,
@@ -65,33 +73,121 @@ impl From<&Glyph> for SnapshotGlyph {
     }
 }
 
+/// Maximum absolute difference accepted for every geometry coordinate.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GeometryTolerance {
     absolute: f64,
 }
 
 impl GeometryTolerance {
-    pub fn new(absolute: f64) -> Result<Self, String> {
+    /// Validates a finite, non-negative absolute tolerance.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InvalidGeometryTolerance`] when `absolute` is negative or
+    /// non-finite.
+    pub fn new(absolute: f64) -> Result<Self, InvalidGeometryTolerance> {
         if !absolute.is_finite() || absolute < 0.0 {
-            return Err(format!(
-                "geometry tolerance must be finite and non-negative, got {absolute}"
-            ));
+            return Err(InvalidGeometryTolerance { value: absolute });
         }
         Ok(Self { absolute })
     }
+
+    pub fn absolute(self) -> f64 {
+        self.absolute
+    }
 }
 
+/// An invalid coordinate tolerance supplied by a comparison caller.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InvalidGeometryTolerance {
+    value: f64,
+}
+
+impl fmt::Display for InvalidGeometryTolerance {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "geometry tolerance must be finite and non-negative, got {}",
+            self.value
+        )
+    }
+}
+
+impl StdError for InvalidGeometryTolerance {}
+
+/// The first exact or geometry mismatch between two extraction snapshots.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SnapshotMismatch {
+    GlyphCount {
+        expected: usize,
+        actual: usize,
+    },
+    GlyphField {
+        index: usize,
+        field: &'static str,
+        expected: String,
+        actual: String,
+        actual_provenance: Option<GlyphProvenance>,
+    },
+}
+
+impl fmt::Display for SnapshotMismatch {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::GlyphCount { expected, actual } => {
+                write!(
+                    formatter,
+                    "glyph count mismatch: expected {expected}, got {actual}"
+                )
+            }
+            Self::GlyphField {
+                index,
+                field,
+                expected,
+                actual,
+                actual_provenance,
+            } => {
+                write!(
+                    formatter,
+                    "glyph {index} {field} mismatch: expected {expected}, got {actual}"
+                )?;
+                if let Some(provenance) = actual_provenance {
+                    write!(
+                        formatter,
+                        "; actual provenance=object {} {} operator {}",
+                        provenance.content_stream.object_number,
+                        provenance.content_stream.generation,
+                        provenance.operator_index
+                    )?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+impl StdError for SnapshotMismatch {}
+
+/// Compares extraction order and decoded text exactly, and geometry within a
+/// caller-selected absolute tolerance.
+///
+/// # Errors
+///
+/// Returns [`SnapshotMismatch::GlyphCount`] when the snapshot lengths differ,
+/// or [`SnapshotMismatch::GlyphField`] for the first exact or geometry field
+/// that does not match.
 pub fn compare_snapshots(
     expected: &PrimitiveExtractionSnapshot,
     actual: &PrimitiveExtractionSnapshot,
     tolerance: GeometryTolerance,
-) -> Result<(), String> {
+) -> Result<(), SnapshotMismatch> {
     if expected.glyphs.len() != actual.glyphs.len() {
-        return Err(format!(
-            "glyph count mismatch: expected {}, got {}",
-            expected.glyphs.len(),
-            actual.glyphs.len()
-        ));
+        return Err(SnapshotMismatch::GlyphCount {
+            expected: expected.glyphs.len(),
+            actual: actual.glyphs.len(),
+        });
     }
 
     for (index, (expected, actual)) in expected.glyphs.iter().zip(&actual.glyphs).enumerate() {
@@ -172,19 +268,19 @@ pub fn compare_snapshots(
     Ok(())
 }
 
-fn compare_exact<T: std::fmt::Debug + PartialEq>(
+fn compare_exact<T: fmt::Debug + PartialEq>(
     index: usize,
-    field: &str,
+    field: &'static str,
     expected: &T,
     actual: &T,
     actual_glyph: &SnapshotGlyph,
-) -> Result<(), String> {
+) -> Result<(), SnapshotMismatch> {
     if expected != actual {
-        return Err(mismatch(
+        return Err(field_mismatch(
             index,
             field,
-            format_args!("{expected:?}"),
-            format_args!("{actual:?}"),
+            format!("{expected:?}"),
+            format!("{actual:?}"),
             actual_glyph,
         ));
     }
@@ -193,41 +289,37 @@ fn compare_exact<T: std::fmt::Debug + PartialEq>(
 
 fn compare_float(
     index: usize,
-    field: &str,
+    field: &'static str,
     expected: f64,
     actual: f64,
     tolerance: GeometryTolerance,
     actual_glyph: &SnapshotGlyph,
-) -> Result<(), String> {
+) -> Result<(), SnapshotMismatch> {
     let difference = (actual - expected).abs();
     if !difference.is_finite() || difference > tolerance.absolute {
-        return Err(mismatch(
+        return Err(field_mismatch(
             index,
             field,
-            format_args!("{expected}"),
-            format_args!("{actual}"),
+            expected.to_string(),
+            actual.to_string(),
             actual_glyph,
         ));
     }
     Ok(())
 }
 
-fn mismatch(
+fn field_mismatch(
     index: usize,
-    field: &str,
-    expected: std::fmt::Arguments<'_>,
-    actual: std::fmt::Arguments<'_>,
+    field: &'static str,
+    expected: String,
+    actual: String,
     actual_glyph: &SnapshotGlyph,
-) -> String {
-    let provenance = actual_glyph
-        .provenance
-        .map_or_else(String::new, |provenance| {
-            format!(
-                "; actual provenance=object {} {} operator {}",
-                provenance.content_stream.object_number,
-                provenance.content_stream.generation,
-                provenance.operator_index
-            )
-        });
-    format!("glyph {index} {field} mismatch: expected {expected}, got {actual}{provenance}")
+) -> SnapshotMismatch {
+    SnapshotMismatch::GlyphField {
+        index,
+        field,
+        expected,
+        actual,
+        actual_provenance: actual_glyph.provenance,
+    }
 }

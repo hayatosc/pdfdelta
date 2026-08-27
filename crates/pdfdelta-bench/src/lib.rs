@@ -2,6 +2,7 @@ pub mod candidate_eval;
 pub mod canonical;
 pub mod cases;
 pub mod evaluator;
+pub mod extraction_conformance;
 pub mod mutation;
 pub mod renderers;
 pub mod revisions;

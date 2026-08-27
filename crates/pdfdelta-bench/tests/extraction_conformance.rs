@@ -1,0 +1,193 @@
+use std::{
+    fs,
+    path::PathBuf,
+    process::Command,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+use pdfdelta_bench::{
+    mutation::RenderPlan,
+    renderers::{RenderLimits, RendererKind},
+};
+use pdfdelta_core::{
+    model::DecodedText,
+    pdf::{LopdfParser, ParseLimits},
+    source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
+};
+use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
+
+#[test]
+fn command_accepts_a_matching_versioned_external_snapshot() {
+    let (pdf, oracle) = fixture_oracle();
+    let inputs = TempInputs::new("pass", &pdf, &oracle);
+
+    let output = run_command(&inputs, 0.25);
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(
+        stdout.starts_with("PASS extraction-conformance "),
+        "{stdout}"
+    );
+    assert!(stdout.contains("producer=\"fixture-position-extractor\""));
+    assert!(stdout.contains("parser_family=\"fixture-parser\""));
+}
+
+#[test]
+fn command_returns_one_for_a_geometry_mismatch() {
+    let (pdf, mut oracle) = fixture_oracle();
+    let x = oracle["glyphs"][0]["bbox"]["min"]["x"]
+        .as_f64()
+        .expect("fixture x is numeric");
+    oracle["glyphs"][0]["bbox"]["min"]["x"] = json!(x + 1.0);
+    let inputs = TempInputs::new("mismatch", &pdf, &oracle);
+
+    let output = run_command(&inputs, 0.25);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(
+        stdout.starts_with("FAIL extraction-conformance "),
+        "{stdout}"
+    );
+    assert!(stdout.contains("glyph 0 bbox.min.x mismatch"), "{stdout}");
+}
+
+#[test]
+fn command_returns_two_for_missing_producer_identity() {
+    let (pdf, mut oracle) = fixture_oracle();
+    oracle["producer"]["name"] = json!("");
+    let inputs = TempInputs::new("invalid-producer", &pdf, &oracle);
+
+    let output = run_command(&inputs, 0.25);
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    assert!(
+        stderr.contains("producer name must be non-empty"),
+        "{stderr}"
+    );
+}
+
+fn fixture_oracle() -> (Vec<u8>, Value) {
+    let plan = RenderPlan::new(vec![vec!["Oracle fixture".to_owned()]], 30)
+        .expect("fixture render plan is valid");
+    let pdf = RendererKind::LopdfTj
+        .render(&plan, RenderLimits::default())
+        .expect("fixture PDF renders");
+    let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
+    let document = source
+        .extract(
+            Arc::from(pdf.clone()),
+            ParseLimits::default(),
+            ExtractionLimits::default(),
+        )
+        .expect("fixture PDF extracts");
+    let glyphs = document
+        .items()
+        .iter()
+        .map(|glyph| {
+            let text = match &glyph.text {
+                DecodedText::Mapped(value) => json!({
+                    "kind": "mapped",
+                    "value": value,
+                }),
+                DecodedText::Unmapped {
+                    font_hash,
+                    glyph_id,
+                } => json!({
+                    "kind": "unmapped",
+                    "font_identity_sha256": lowercase_hex(&font_hash.0),
+                    "glyph_id": glyph_id,
+                }),
+            };
+            json!({
+                "text": text,
+                "page": glyph.page.0,
+                "render_order": glyph.render_order,
+                "bbox": {
+                    "min": { "x": glyph.bbox.min.x, "y": glyph.bbox.min.y },
+                    "max": { "x": glyph.bbox.max.x, "y": glyph.bbox.max.y },
+                },
+                "baseline": { "x": glyph.baseline.x, "y": glyph.baseline.y },
+                "direction": { "x": glyph.direction.x, "y": glyph.direction.y },
+            })
+        })
+        .collect::<Vec<_>>();
+    let oracle = json!({
+        "schema_version": 1,
+        "producer": {
+            "name": "fixture-position-extractor",
+            "version": "1.0.0",
+            "parser_family": "fixture-parser",
+        },
+        "input_sha256": lowercase_hex(&Sha256::digest(&pdf)),
+        "glyphs": glyphs,
+    });
+    (pdf, oracle)
+}
+
+fn run_command(inputs: &TempInputs, tolerance: f64) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_pdfbench"))
+        .arg("extraction-conformance")
+        .arg(&inputs.pdf)
+        .arg("--oracle")
+        .arg(&inputs.oracle)
+        .arg("--geometry-tolerance")
+        .arg(tolerance.to_string())
+        .output()
+        .expect("pdfbench runs")
+}
+
+fn lowercase_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for &byte in bytes {
+        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    encoded
+}
+
+struct TempInputs {
+    pdf: PathBuf,
+    oracle: PathBuf,
+}
+
+impl TempInputs {
+    fn new(name: &str, pdf: &[u8], oracle: &Value) -> Self {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock is after Unix epoch")
+            .as_nanos();
+        let stem = format!("pdfbench-extraction-{name}-{}-{nonce}", std::process::id());
+        let pdf_path = std::env::temp_dir().join(format!("{stem}.pdf"));
+        let oracle_path = std::env::temp_dir().join(format!("{stem}.json"));
+        fs::write(&pdf_path, pdf).expect("fixture PDF writes");
+        fs::write(
+            &oracle_path,
+            serde_json::to_vec(oracle).expect("fixture oracle serializes"),
+        )
+        .expect("fixture oracle writes");
+        Self {
+            pdf: pdf_path,
+            oracle: oracle_path,
+        }
+    }
+}
+
+impl Drop for TempInputs {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.pdf);
+        let _ = fs::remove_file(&self.oracle);
+    }
+}

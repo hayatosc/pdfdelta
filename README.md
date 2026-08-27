@@ -139,6 +139,58 @@ either generated PDF.
 paragraphs. It keeps the title and heading full-width and lays out only the
 paragraphs as two column-major columns.
 
+## External extraction conformance
+
+`pdfbench extraction-conformance` compares the default parser-backed glyph
+extractor with a versioned, position-aware snapshot produced outside pdfdelta.
+The snapshot is bound to the exact input PDF by SHA-256 and must identify the
+producer name, version, and underlying parser family. These declarations make
+the evidence auditable; the command does not independently certify that the
+producer uses an unrelated implementation.
+
+```json
+{
+  "schema_version": 1,
+  "producer": {
+    "name": "position-extractor",
+    "version": "1.2.3",
+    "parser_family": "independent-parser"
+  },
+  "input_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "glyphs": [
+    {
+      "text": { "kind": "mapped", "value": "A" },
+      "page": 0,
+      "render_order": 0,
+      "bbox": {
+        "min": { "x": 72.0, "y": 700.0 },
+        "max": { "x": 78.0, "y": 710.0 }
+      },
+      "baseline": { "x": 72.0, "y": 700.0 },
+      "direction": { "x": 1.0, "y": 0.0 }
+    }
+  ]
+}
+```
+
+Pages are zero-based. Text, page order, and render order are exact; every
+bounding-box, baseline, and direction coordinate uses the selected absolute
+geometry tolerance. Unmapped text uses
+`{"kind":"unmapped","font_identity_sha256":"...","glyph_id":42}` so uncertain
+decoding is never represented as empty mapped text. Input PDFs and oracle JSON
+are read under explicit size limits, and incomplete extraction is rejected.
+
+```bash
+cargo run -p pdfdelta-bench -- extraction-conformance input.pdf --oracle oracle.json --geometry-tolerance 0.25
+```
+
+Exit code `0` means the snapshots match, `1` reports the first comparison
+mismatch, and `2` rejects malformed input, a checksum mismatch, or incomplete
+extraction. Supplying and curating snapshots from an actually independent
+position-aware extractor, and rendering mismatch SVG overlays, remain future
+conformance work; the current command is the bounded ingestion and comparison
+boundary for that evidence.
+
 ## Real-world revision benchmarks
 
 Self-comparison of a document with itself cannot exercise alignment under real
@@ -249,7 +301,7 @@ Text reports are written to standard output as contextual unified-diff hunks: a 
 - Formatting-only reporting is best-effort and does not claim pixel-level rendering identity.
 - Engine-generated replacements receive `CharacterWidth` only when an explicit fullwidth/halfwidth fold exactly explains the changed hunk. `OcrConfusion` remains available only to programmatic callers because OCR is not implemented.
 - JSON change, formatting, and unresolved spans include glyph geometry plus content-stream object and operator provenance. Text reports do not list per-span provenance, and SVG output remains a whole-document glyph overlay rather than a per-change diff overlay.
-- The automated PDF mutation benchmark remains intentionally small and in-memory: it uses printable ASCII with Type 1 Helvetica and two deterministic PDF construction paths (15 unique mutation cases × 2 project renderers = 30 records), including a column-major two-column reflow fixture. The separate file-backed canonical YAML path renders one bounded document and can feed paragraph-local line wrapping, page breaking, text replacement, text insertion, text deletion, number replacement, section-local paragraph insertion, non-empty-section paragraph deletion, same-section paragraph movement, four global rendering changes, and a one-section paragraph-only column change through the library evaluator while retaining its title and section headings. The CLI exposes those same fourteen mutations; cross-section paragraph movement and multi-section column changes are not connected yet. A parser-independent Glyph-to-Line matrix separately covers single-column English, mixed font sizes, superscripts, reconstructed English spaces, and decoded horizontal Japanese/Latin text. A companion Line-to-Block matrix covers paragraph grouping, heading separation, relative spacing, and conservative or cadence-supported page boundaries. Primitive extraction has a neutral snapshot comparator for decoded text, glyph count and order, page, geometry, baseline, and direction, backed by hand-written rotated and positioned-text oracles; comparison against an independent position-aware extractor remains future conformance work. These are complemented by vendored external Typst raw-PDF revision pairs for SPEC §2.2 Case 3 (`Release 10` -> `Release 20`) in [`fixtures/external/case3-typst/`](fixtures/external/case3-typst/), SPEC §2.1 Japanese horizontal born-digital text replacement in [`fixtures/external/japanese-typst/`](fixtures/external/japanese-typst/), SPEC §2.2 Case 1 Japanese line-wrap invariance in [`fixtures/external/case1-japanese-typst/`](fixtures/external/case1-japanese-typst/), SPEC §2.2 Case 2 Japanese page-break invariance in [`fixtures/external/case2-japanese-typst/`](fixtures/external/case2-japanese-typst/), and SPEC §2.2 Case 4 / Case 5 Japanese paragraph insertion and deletion in [`fixtures/external/case4-case5-japanese-typst/`](fixtures/external/case4-case5-japanese-typst/). Non-vendored public smoke corpora are recorded in [`benchmark/manifests/real-world-pipeline.tsv`](benchmark/manifests/real-world-pipeline.tsv) and [`benchmark/manifests/real-world-pipeline-round2.tsv`](benchmark/manifests/real-world-pipeline-round2.tsv), but downloading and running them is not automated. With documented explicit inputs, the second manifest records 37 strict self-comparison successes and one default-mode partial success that remains strict-incomplete. Additional external renderer dialects (LaTeX, HTML/Chromium) and broader Japanese raw-PDF corpus fixtures (such as vertical writing or non-Identity-H encodings) remain future evidence validation work.
+- The automated PDF mutation benchmark remains intentionally small and in-memory: it uses printable ASCII with Type 1 Helvetica and two deterministic PDF construction paths (15 unique mutation cases × 2 project renderers = 30 records), including a column-major two-column reflow fixture. The separate file-backed canonical YAML path renders one bounded document and can feed paragraph-local line wrapping, page breaking, text replacement, text insertion, text deletion, number replacement, section-local paragraph insertion, non-empty-section paragraph deletion, same-section paragraph movement, four global rendering changes, and a one-section paragraph-only column change through the library evaluator while retaining its title and section headings. The CLI exposes those same fourteen mutations; cross-section paragraph movement and multi-section column changes are not connected yet. A parser-independent Glyph-to-Line matrix separately covers single-column English, mixed font sizes, superscripts, reconstructed English spaces, and decoded horizontal Japanese/Latin text. A companion Line-to-Block matrix covers paragraph grouping, heading separation, relative spacing, and conservative or cadence-supported page boundaries. Primitive extraction has a neutral snapshot comparator for decoded text, glyph count and order, page, geometry, baseline, and direction, backed by hand-written rotated and positioned-text oracles. A bounded CLI now accepts versioned snapshots with producer and input identity, but supplying and curating evidence from an actually independent position-aware extractor remains future conformance work. These are complemented by vendored external Typst raw-PDF revision pairs for SPEC §2.2 Case 3 (`Release 10` -> `Release 20`) in [`fixtures/external/case3-typst/`](fixtures/external/case3-typst/), SPEC §2.1 Japanese horizontal born-digital text replacement in [`fixtures/external/japanese-typst/`](fixtures/external/japanese-typst/), SPEC §2.2 Case 1 Japanese line-wrap invariance in [`fixtures/external/case1-japanese-typst/`](fixtures/external/case1-japanese-typst/), SPEC §2.2 Case 2 Japanese page-break invariance in [`fixtures/external/case2-japanese-typst/`](fixtures/external/case2-japanese-typst/), and SPEC §2.2 Case 4 / Case 5 Japanese paragraph insertion and deletion in [`fixtures/external/case4-case5-japanese-typst/`](fixtures/external/case4-case5-japanese-typst/). Non-vendored public smoke corpora are recorded in [`benchmark/manifests/real-world-pipeline.tsv`](benchmark/manifests/real-world-pipeline.tsv) and [`benchmark/manifests/real-world-pipeline-round2.tsv`](benchmark/manifests/real-world-pipeline-round2.tsv), but downloading and running them is not automated. With documented explicit inputs, the second manifest records 37 strict self-comparison successes and one default-mode partial success that remains strict-incomplete. Additional external renderer dialects (LaTeX, HTML/Chromium) and broader Japanese raw-PDF corpus fixtures (such as vertical writing or non-Identity-H encodings) remain future evidence validation work.
 - The real-world revision track ([`benchmark/realworld/`](benchmark/realworld/)) currently records five genuine public pairs: NIST FIPS 186-4 -> 186-5 and SP 800-57 Part 1 Rev 4 -> Rev 5 as the development set; EDPB Guidelines 01/2022 (consultation -> final) and SP 800-171 Rev 2 -> Rev 3 plus the IRS Form 1040 `2024 -> 2025` stress pair in the holdout set.
   On the historical 2026-08-24 capture under default budgets (release build), three pairs (NIST FIPS 186, NIST SP 800-57, and EDPB) exhausted default candidate-generation budgets (`LIMIT`) and recorded no coverage metrics, SP 800-171 Rev 2 hit an unresolved extraction boundary, and only the IRS Form 1040 stress pair completed quality evaluation (`recall=1.000`, `kind=1.000`, with heavy hunk fragmentation).
   On the 2026-08-26 rerun under manifest `limit_scale_hint` budgets, no pair ends `LIMIT` or `FAIL`, though every comparison remains incomplete. Alignment coverage on comparable pairs spans `29%`-`58%` (`29.4%` on FIPS 186, `39.3%` on SP 800-57, `45.0%` on IRS 1040, `57.5%` on EDPB). Across annotated pairs, recall is `1.000` for SP 800-57, EDPB, and IRS Form 1040; FIPS 186-4->5 yields `recall=0.429` (3/7 matched under `limit_scale 16`, identical to pre-calibration baseline `134a498`), where missing list edits fall into conservative unresolved regions around renumbered, numeric-masked items rather than emitting false diffs. `kind=1.000` holds for all matched reviewed changes (precision remains unknown under partial annotations), while severe fragmentation (`19`-`1099` reported hunks per matched change) and unmatched tiny edits (`32`-`1770`) remain major quality challenges on large documents, and SP 800-171 Rev 2 remains unannotated at its unresolved extraction boundary.

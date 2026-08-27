@@ -1180,6 +1180,7 @@ fn help_lists_benchmark_commands() {
     assert!(stdout.contains("verify"));
     assert!(stdout.contains("render"));
     assert!(stdout.contains("candidates"));
+    assert!(stdout.contains("extraction-conformance"));
 }
 
 #[test]

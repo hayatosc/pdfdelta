@@ -1,8 +1,8 @@
-mod support;
-
-use pdfdelta_core::model::{PageId, Rect, Vec2};
-use support::extraction_conformance::{
-    GeometryTolerance, PrimitiveExtractionSnapshot, SnapshotGlyph, compare_snapshots,
+use pdfdelta_core::{
+    extraction_conformance::{
+        GeometryTolerance, PrimitiveExtractionSnapshot, SnapshotGlyph, compare_snapshots,
+    },
+    model::{PageId, Rect, Vec2},
 };
 
 #[test]
@@ -29,7 +29,10 @@ fn comparator_rejects_geometry_beyond_the_tolerance_with_field_context() {
         GeometryTolerance::new(0.25).expect("valid tolerance"),
     )
     .expect_err("out-of-tolerance geometry must fail");
-    assert!(error.contains("glyph 0 bbox.min.x mismatch"), "{error}");
+    assert!(
+        error.to_string().contains("glyph 0 bbox.min.x mismatch"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -63,7 +66,7 @@ fn comparator_reports_count_text_page_and_order_mismatches() {
         let error = compare_snapshots(&expected, &actual, tolerance)
             .expect_err("mismatched snapshot must fail");
         assert!(
-            error.contains(expected_message),
+            error.to_string().contains(expected_message),
             "{name}: expected {expected_message:?} in {error:?}"
         );
     }
@@ -88,7 +91,10 @@ fn comparator_rejects_non_finite_geometry() {
         GeometryTolerance::new(0.0).expect("valid tolerance"),
     )
     .expect_err("non-finite geometry must fail");
-    assert!(error.contains("glyph 0 bbox.min.x mismatch"), "{error}");
+    assert!(
+        error.to_string().contains("glyph 0 bbox.min.x mismatch"),
+        "{error}"
+    );
 }
 
 fn snapshot(

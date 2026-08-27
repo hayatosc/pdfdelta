@@ -1,19 +1,17 @@
-mod support;
-
 use std::sync::Arc;
 
 use lopdf::{Document as LopdfDocument, Object, ObjectId, Stream, dictionary};
 use pdfdelta_core::{
     Error, Result,
+    extraction_conformance::{
+        GeometryTolerance, PrimitiveExtractionSnapshot, SnapshotGlyph, compare_snapshots,
+    },
     model::{DecodedText, Document, Glyph, PageId, Rect, Vec2},
     pdf::{LopdfParser, ParseLimits, PdfParser},
     source::{
         ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssueKind, ExtractionLimits,
         ExtractionOutcome, ExtractionScope, GlyphExtractor,
     },
-};
-use support::extraction_conformance::{
-    GeometryTolerance, PrimitiveExtractionSnapshot, SnapshotGlyph, compare_snapshots,
 };
 
 fn base_font(document: &mut LopdfDocument) -> lopdf::ObjectId {

@@ -3,6 +3,7 @@ use std::{
     io::{self, Read, Write},
     path::{Path, PathBuf},
     process::ExitCode,
+    sync::Arc,
 };
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -11,6 +12,7 @@ use pdfdelta_bench::{
     canonical::{CanonicalRenderDocument, MAX_CANONICAL_YAML_BYTES},
     cases::built_in_cases,
     evaluator::{EvaluationRecord, evaluate, evaluate_case},
+    extraction_conformance::{MAX_EXTRACTION_ORACLE_BYTES, evaluate_extraction_conformance},
     mutation::{Mutation, RenderPlan},
     renderers::{RenderLimits, RendererKind},
     revisions::{
@@ -18,7 +20,7 @@ use pdfdelta_bench::{
         summarize_reports, write_reports_json, write_summary_json,
     },
 };
-use pdfdelta_core::diff::ChangeKind;
+use pdfdelta_core::{diff::ChangeKind, pdf::ParseLimits};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -55,6 +57,17 @@ enum Command {
         renderer: RendererChoice,
         #[command(subcommand)]
         mutation: YamlMutation,
+    },
+    /// Compare default glyph extraction with a position-aware external snapshot.
+    ExtractionConformance {
+        /// PDF consumed by both the external producer and pdfdelta.
+        input: PathBuf,
+        /// Versioned external extraction snapshot in JSON format.
+        #[arg(long)]
+        oracle: PathBuf,
+        /// Maximum absolute difference accepted for each geometry coordinate.
+        #[arg(long, default_value_t = 0.25)]
+        geometry_tolerance: f64,
     },
     /// Evaluate candidate generation recall and visit pressure on every
     /// built-in case across both PDF renderers.
@@ -353,6 +366,11 @@ fn main() -> ExitCode {
             renderer,
             mutation,
         }) => evaluate_yaml(&mut stdout, &input, renderer, mutation),
+        Some(Command::ExtractionConformance {
+            input,
+            oracle,
+            geometry_tolerance,
+        }) => run_extraction_conformance(&mut stdout, &input, &oracle, geometry_tolerance),
         Some(Command::Candidates { top_k, json_output }) => match parse_top_k(&top_k) {
             Ok(top_k) => candidates(&mut stdout, &top_k, json_output.as_deref()),
             Err(error) => Err(error),
@@ -415,6 +433,68 @@ fn read_canonical_yaml_file(path: &Path) -> Result<String, String> {
         ));
     }
     Ok(yaml)
+}
+
+fn read_bounded_file(path: &Path, max_bytes: usize, description: &str) -> Result<Vec<u8>, String> {
+    let metadata = fs::metadata(path)
+        .map_err(|error| format!("cannot read {description} {}: {error}", path.display()))?;
+    if metadata.len() > max_bytes as u64 {
+        return Err(format!(
+            "cannot read {description} {}: {description} must not exceed {max_bytes} bytes",
+            path.display()
+        ));
+    }
+    let file = fs::File::open(path)
+        .map_err(|error| format!("cannot read {description} {}: {error}", path.display()))?;
+    let mut limited = file.take(max_bytes as u64 + 1);
+    let mut bytes = Vec::new();
+    limited
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("cannot read {description} {}: {error}", path.display()))?;
+    if bytes.len() > max_bytes {
+        return Err(format!(
+            "cannot read {description} {}: {description} must not exceed {max_bytes} bytes",
+            path.display()
+        ));
+    }
+    Ok(bytes)
+}
+
+fn run_extraction_conformance<W: Write>(
+    writer: &mut W,
+    input: &Path,
+    oracle: &Path,
+    geometry_tolerance: f64,
+) -> Result<u8, String> {
+    let pdf = read_bounded_file(input, ParseLimits::default().max_input_bytes, "PDF")?;
+    let oracle_json = read_bounded_file(
+        oracle,
+        MAX_EXTRACTION_ORACLE_BYTES,
+        "extraction oracle JSON",
+    )?;
+    let record = evaluate_extraction_conformance(Arc::from(pdf), &oracle_json, geometry_tolerance)
+        .map_err(|error| error.to_string())?;
+    let status = if record.passed() { "PASS" } else { "FAIL" };
+    write!(
+        writer,
+        "{status} extraction-conformance producer={:?} version={:?} parser_family={:?} expected_glyphs={} actual_glyphs={}",
+        record.producer.name,
+        record.producer.version,
+        record.producer.parser_family,
+        record.expected_glyphs,
+        record.actual_glyphs
+    )
+    .map_err(|error| format!("cannot write extraction conformance result: {error}"))?;
+    if let Some(mismatch) = &record.mismatch {
+        write!(writer, " detail={mismatch}")
+            .map_err(|error| format!("cannot write extraction conformance result: {error}"))?;
+    }
+    writeln!(writer)
+        .map_err(|error| format!("cannot write extraction conformance result: {error}"))?;
+    writer
+        .flush()
+        .map_err(|error| format!("cannot flush extraction conformance output: {error}"))?;
+    Ok(u8::from(!record.passed()))
 }
 
 fn render_fixture<W: Write>(
