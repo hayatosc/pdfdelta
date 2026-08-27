@@ -958,6 +958,7 @@ mod tests {
             normalization_events: Vec::new(),
             issues: Vec::new(),
             pages: Vec::new(),
+            page_breaks: None,
         }
     }
 

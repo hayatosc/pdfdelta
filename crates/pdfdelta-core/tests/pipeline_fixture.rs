@@ -37,7 +37,7 @@ fn ignores_line_wrap_only_changes() -> Result<()> {
 }
 
 #[test]
-fn ignores_page_break_only_changes() -> Result<()> {
+fn reports_page_break_only_as_formatting() -> Result<()> {
     let text = [
         "First line keeps a steady cadence",
         "Second line keeps a steady cadence",
@@ -60,7 +60,11 @@ fn ignores_page_break_only_changes() -> Result<()> {
     let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
 
     assert_no_content_changes(&comparison);
-    assert!(comparison.formatting_changes.is_empty());
+    assert_eq!(comparison.formatting_changes.len(), 1);
+    assert_eq!(
+        comparison.formatting_changes[0].reasons,
+        [FormattingReason::PageBreak]
+    );
     Ok(())
 }
 

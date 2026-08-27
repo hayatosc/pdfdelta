@@ -348,6 +348,11 @@ pub struct BlockText {
     pub issues: Vec<NormalizationIssue>,
     /// Sorted unique page numbers covered by the block's lines.
     pub pages: Vec<u32>,
+    /// Comparable-token offsets immediately before text that starts on a new page.
+    ///
+    /// `None` means the source evidence could not locate every page boundary. When present, the
+    /// offsets are strictly increasing and contain one entry for each transition in [`Self::pages`].
+    pub page_breaks: Option<Vec<usize>>,
 }
 
 impl BlockText {
@@ -637,6 +642,7 @@ struct Atom {
 struct RawBlock {
     mapped: MappedText,
     atoms: Vec<Atom>,
+    page_break_following_glyphs: Vec<GlyphId>,
 }
 
 fn index_lines(lines: &[Line]) -> Result<HashMap<LineId, &Line>> {
@@ -660,7 +666,7 @@ fn build_raw_block(
     assigned_glyphs: &mut HashSet<GlyphId>,
 ) -> Result<RawBlock> {
     let mut builder = RawBuilder::default();
-    let mut preceding_line_end = None;
+    let mut preceding_line = None;
 
     for line_id in block.lines.iter().copied() {
         if !assigned_lines.insert(line_id) {
@@ -677,7 +683,7 @@ fn build_raw_block(
         })?;
         let (line_start, line_end) = validate_line(line, glyphs)?;
 
-        if let Some(preceding) = preceding_line_end {
+        if let Some((preceding, preceding_page)) = preceding_line {
             builder.push_scalar(
                 '\n',
                 TextSource::single(TextSourceAtom::LineBreak {
@@ -685,6 +691,9 @@ fn build_raw_block(
                     following: line_start,
                 }),
             );
+            if preceding_page != line.page {
+                builder.page_break_following_glyphs.push(line_start);
+            }
         }
 
         let synthetic_spaces = line
@@ -721,7 +730,7 @@ fn build_raw_block(
                 );
             }
         }
-        preceding_line_end = Some(line_end);
+        preceding_line = Some((line_end, line.page));
     }
 
     Ok(builder.finish())
@@ -783,6 +792,7 @@ struct RawBuilder {
     unmapped: Vec<UnmappedToken>,
     atoms: Vec<Atom>,
     scalar_index: usize,
+    page_break_following_glyphs: Vec<GlyphId>,
 }
 
 impl RawBuilder {
@@ -857,6 +867,7 @@ impl RawBuilder {
                 unmapped: self.unmapped,
             },
             atoms: self.atoms,
+            page_break_following_glyphs: self.page_break_following_glyphs,
         }
     }
 }
@@ -893,12 +904,14 @@ fn block_pages(block: &Block, lines: &HashMap<LineId, &Line>) -> Vec<u32> {
 
 fn normalize_block(block: BlockId, raw: RawBlock, pages: Vec<u32>) -> Result<BlockText> {
     let mut issues = Vec::new();
+    let page_break_following_glyphs = raw.page_break_following_glyphs;
     let atoms = expand_ligatures(raw.atoms);
     let atoms = resolve_line_breaks(atoms, &mut issues);
     let atoms = collapse_whitespace(atoms);
     let pieces = normalize_nfc(atoms);
     let (canonical, events) = assemble_canonical(pieces);
     let matching = build_matching(&canonical, DEFAULT_MAX_NUMERIC_MASK_RATIO)?;
+    let page_breaks = canonical_page_breaks(&canonical, &page_break_following_glyphs)?;
 
     Ok(BlockText {
         block,
@@ -910,7 +923,33 @@ fn normalize_block(block: BlockId, raw: RawBlock, pages: Vec<u32>) -> Result<Blo
         normalization_events: events,
         issues,
         pages,
+        page_breaks,
     })
+}
+
+fn canonical_page_breaks(
+    canonical: &MappedText,
+    following_glyphs: &[GlyphId],
+) -> Result<Option<Vec<usize>>> {
+    let tokens = canonical.comparable_tokens_with_sources()?;
+    let mut offsets = Vec::with_capacity(following_glyphs.len());
+
+    for following in following_glyphs {
+        let Some(offset) = tokens.iter().position(|(_, source)| {
+            source
+                .atoms
+                .iter()
+                .any(|atom| matches!(atom, TextSourceAtom::Glyph(glyph) if glyph == following))
+        }) else {
+            return Ok(None);
+        };
+        if offset == 0 || offsets.last().is_some_and(|previous| *previous >= offset) {
+            return Ok(None);
+        }
+        offsets.push(offset);
+    }
+
+    Ok(Some(offsets))
 }
 
 struct MatchingText {

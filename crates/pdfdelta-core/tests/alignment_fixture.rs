@@ -2134,6 +2134,7 @@ fn unmapped_block_text(id: u64, font_hash: Vec<u8>, glyph_id: u16) -> BlockText 
         normalization_events: vec![],
         issues: vec![],
         pages: Vec::new(),
+        page_breaks: None,
     }
 }
 
@@ -2168,6 +2169,7 @@ fn block_text_with_matching(
         normalization_events: vec![],
         issues: vec![],
         pages: Vec::new(),
+        page_breaks: None,
     }
 }
 
@@ -2808,6 +2810,7 @@ fn multi_unmapped_block_text(id: u64, font_hash: Vec<u8>, glyph_ids: &[u16]) -> 
         normalization_events: vec![],
         issues: vec![],
         pages: vec![0],
+        page_breaks: None,
     }
 }
 
@@ -2852,6 +2855,7 @@ fn mixed_mapped_unmapped_block_text(
         normalization_events: vec![],
         issues: vec![],
         pages: vec![0],
+        page_breaks: None,
     }
 }
 

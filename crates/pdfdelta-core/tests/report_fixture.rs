@@ -71,6 +71,38 @@ fn formatting_only_changes_do_not_change_the_exit_status() -> Result<()> {
 }
 
 #[test]
+fn json_serializes_page_break_formatting_reason() -> Result<()> {
+    let old_blocks = [block_with_pages(1, "stable text", &[0])];
+    let new_blocks = [block_with_pages(101, "stable text", &[0, 1])];
+    let mut comparison = empty_comparison();
+    comparison.formatting_changes.push(FormattingChange {
+        old_span: full_span(1, "stable text"),
+        new_span: full_span(101, "stable text"),
+        confidence: Confidence::High,
+        reasons: vec![FormattingReason::PageBreak],
+    });
+    let mut output = Vec::new();
+
+    write_json(
+        &mut output,
+        &old_blocks,
+        &new_blocks,
+        &[],
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("report should be valid JSON");
+    assert_eq!(
+        json["formatting_only_changes"][0]["reasons"],
+        serde_json::json!(["page_break"])
+    );
+    Ok(())
+}
+
+#[test]
 fn strict_incompleteness_takes_priority_over_content_changes() -> Result<()> {
     let mut comparison = content_comparison();
     comparison.unresolved_regions.push(UnresolvedRegion {
@@ -1916,6 +1948,7 @@ fn block_with_text(id: u64, text: &str) -> BlockText {
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: vec![0],
+        page_breaks: None,
     }
 }
 
@@ -2000,6 +2033,7 @@ fn unmapped_block_fixture(id: u64) -> BlockText {
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: vec![4],
+        page_breaks: None,
     }
 }
 
@@ -2029,6 +2063,7 @@ fn unmapped_only_block(id: u64, hash: Vec<u8>, glyph_id: u16) -> BlockText {
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: if id > 100 { vec![0] } else { vec![4] },
+        page_breaks: None,
     }
 }
 

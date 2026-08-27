@@ -154,6 +154,73 @@ fn reports_block_split_as_formatting_only() -> Result<()> {
 }
 
 #[test]
+fn reports_moved_page_break_as_formatting_only() -> Result<()> {
+    let old = block_with_page_breaks(1, "alpha beta gamma", &[0, 1], &[6]);
+    let new = block_with_page_breaks(101, "alpha beta gamma", &[4, 5], &[11]);
+    let alignment = aligned(vec![matched(&[1], &[101])]);
+
+    let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
+
+    assert!(result.changes.is_empty());
+    assert_eq!(result.formatting_changes.len(), 1);
+    assert_eq!(
+        result.formatting_changes[0].reasons,
+        [FormattingReason::PageBreak]
+    );
+    Ok(())
+}
+
+#[test]
+fn ignores_uniform_page_number_shift() -> Result<()> {
+    let old = block_with_page_breaks(1, "stable text", &[0], &[]);
+    let new = block_with_page_breaks(101, "stable text", &[9], &[]);
+    let alignment = aligned(vec![matched(&[1], &[101])]);
+
+    let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
+
+    assert!(result.changes.is_empty());
+    assert!(result.formatting_changes.is_empty());
+    Ok(())
+}
+
+#[test]
+fn rejects_inconsistent_page_break_metadata() {
+    let old = block_with_page_breaks(1, "stable text", &[0, 1], &[]);
+    let new = block_with_page_breaks(101, "stable text", &[0], &[]);
+    let alignment = aligned(vec![matched(&[1], &[101])]);
+
+    assert!(matches!(
+        compare_aligned(&[old], &[new], &alignment, DiffOptions::default()),
+        Err(Error::Unresolved(message)) if message.contains("page-break count")
+    ));
+}
+
+#[test]
+fn reports_page_transition_between_aligned_blocks() -> Result<()> {
+    let old = [
+        block_with_page_breaks(1, "alpha", &[0], &[]),
+        block_with_page_breaks(2, "beta", &[0], &[]),
+    ];
+    let new = [
+        block_with_page_breaks(101, "alpha", &[7], &[]),
+        block_with_page_breaks(102, "beta", &[8], &[]),
+    ];
+    let mut span = matched(&[1, 2], &[101, 102]);
+    span.old_separator = Some(BlockSeparator::Space);
+    span.new_separator = Some(BlockSeparator::Space);
+
+    let result = compare_aligned(&old, &new, &aligned(vec![span]), DiffOptions::default())?;
+
+    assert!(result.changes.is_empty());
+    assert_eq!(result.formatting_changes.len(), 1);
+    assert_eq!(
+        result.formatting_changes[0].reasons,
+        [FormattingReason::PageBreak]
+    );
+    Ok(())
+}
+
+#[test]
 fn content_spans_retain_the_exact_multi_block_separator() -> Result<()> {
     for (separator, old) in [
         (
@@ -632,6 +699,13 @@ fn block_with_raw(id: u64, raw: &str, canonical: &str) -> BlockText {
     block
 }
 
+fn block_with_page_breaks(id: u64, text: &str, pages: &[u32], page_breaks: &[usize]) -> BlockText {
+    let mut block = block(id, text);
+    block.pages = pages.to_vec();
+    block.page_breaks = Some(page_breaks.to_vec());
+    block
+}
+
 fn block_with_matching(
     id: u64,
     canonical: &str,
@@ -648,6 +722,7 @@ fn block_with_matching(
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: Vec::new(),
+        page_breaks: None,
     }
 }
 
@@ -675,6 +750,7 @@ fn unmapped_block(id: u64, glyph_id: u16) -> BlockText {
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: Vec::new(),
+        page_breaks: None,
     }
 }
 
@@ -941,6 +1017,7 @@ fn multi_unmapped_block(id: u64, font_hash: Vec<u8>, glyph_ids: &[u16]) -> Block
         normalization_events: vec![],
         issues: vec![],
         pages: vec![0],
+        page_breaks: None,
     }
 }
 
