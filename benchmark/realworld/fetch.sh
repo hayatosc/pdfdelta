@@ -60,6 +60,11 @@ fetch_side() {
 
 # pair_id old_url old_byte_count old_sha256 new_url new_byte_count new_sha256
 while IFS=$'\t' read -r pair_id old_url old_bytes old_sha new_url new_bytes new_sha; do
+    if [[ ! "${pair_id}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        echo "FAIL invalid pair_id in manifest: ${pair_id}" >&2
+        failures=$((failures + 1))
+        continue
+    fi
     fetch_side "${pair_id}" old "${old_url}" "${old_bytes}" "${old_sha}" || failures=$((failures + 1))
     fetch_side "${pair_id}" new "${new_url}" "${new_bytes}" "${new_sha}" || failures=$((failures + 1))
 done < <(awk -F'\t' '$0 !~ /^#/ && $1 != "pair_id" && NF > 1 {print $1 "\t" $12 "\t" $13 "\t" $14 "\t" $15 "\t" $16 "\t" $17}' "${manifest}")
