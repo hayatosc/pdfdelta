@@ -8,7 +8,7 @@ use std::{
 
 use pdfdelta_bench::{
     canonical::{CanonicalRenderDocument, MAX_CANONICAL_YAML_BYTES},
-    evaluator::evaluate,
+    evaluator::{evaluate, evaluate_rendered},
     mutation::{Mutation, RenderPlan},
     renderers::{RenderLimits, RendererKind},
 };
@@ -35,6 +35,19 @@ document:
         - id: support-p1
           text: Support hours remain unchanged.
 "#;
+
+const TYPST_FIXTURE_YAML: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../fixtures/external/case3-typst/document.yaml"
+));
+const TYPST_OLD_PDF: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../fixtures/external/case3-typst/old.pdf"
+));
+const TYPST_NEW_PDF: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../fixtures/external/case3-typst/new.pdf"
+));
 
 #[test]
 fn canonical_yaml_preserves_document_order() {
@@ -74,6 +87,38 @@ fn canonical_yaml_renders_through_each_project_renderer() {
             renderer.name()
         );
     }
+}
+
+#[test]
+fn canonical_mutation_evaluates_vendored_typst_output() {
+    let document =
+        CanonicalRenderDocument::from_yaml(TYPST_FIXTURE_YAML).expect("valid fixture YAML");
+    let plan = Mutation::NumberReplace {
+        paragraph_id: "release".to_owned(),
+        new_number: "20".to_owned(),
+    }
+    .apply_to_render_document(&document, 30)
+    .expect("fixture mutation applies");
+
+    let record = evaluate_rendered(
+        "yaml-number-replace",
+        plan.old(),
+        plan.new_plan(),
+        plan.expectation(),
+        "typst-0.15.1",
+        Arc::<[u8]>::from(TYPST_OLD_PDF),
+        Arc::<[u8]>::from(TYPST_NEW_PDF),
+    )
+    .expect("vendored Typst pair evaluates");
+
+    assert!(record.passed, "{}", record.detail);
+    assert_eq!(record.renderer, "typst-0.15.1");
+    assert_eq!(
+        record.actual_kinds,
+        [pdfdelta_core::diff::ChangeKind::Replacement]
+    );
+    assert_eq!(record.old_coverage, Some(1.0));
+    assert_eq!(record.new_coverage, Some(1.0));
 }
 
 #[test]
@@ -824,6 +869,44 @@ fn evaluate_yaml_command_reports_a_passing_record_for_each_renderer() {
     }
 
     fs::remove_file(&input).expect("temporary canonical YAML is removed");
+}
+
+#[test]
+fn evaluate_rendered_yaml_command_reports_vendored_typst_result() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/external/case3-typst");
+    let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
+        .arg("evaluate-rendered-yaml")
+        .arg(fixture.join("document.yaml"))
+        .arg("--old-pdf")
+        .arg(fixture.join("old.pdf"))
+        .arg("--new-pdf")
+        .arg(fixture.join("new.pdf"))
+        .arg("--renderer")
+        .arg("typst-0.15.1")
+        .args([
+            "number-replace",
+            "--paragraph-id",
+            "release",
+            "--new-number",
+            "20",
+        ])
+        .output()
+        .expect("pdfbench runs");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(
+        stdout.contains(
+            "PASS case=yaml-number-replace renderer=typst-0.15.1 expected=replacement \
+             actual=replacement coverage=1.000/1.000"
+        ),
+        "{stdout}"
+    );
 }
 
 #[test]

@@ -11,9 +11,9 @@ use pdfdelta_bench::{
     candidate_eval::{CandidateEvalRecord, evaluate_candidate_generation, write_candidates_json},
     canonical::{CanonicalRenderDocument, MAX_CANONICAL_YAML_BYTES},
     cases::built_in_cases,
-    evaluator::{EvaluationRecord, evaluate, evaluate_case},
+    evaluator::{EvaluationRecord, evaluate, evaluate_case, evaluate_rendered},
     extraction_conformance::{MAX_EXTRACTION_ORACLE_BYTES, evaluate_extraction_conformance},
-    mutation::{Mutation, RenderPlan},
+    mutation::{Mutation, MutationPlan, RenderPlan},
     renderers::{RenderLimits, RendererKind},
     revisions::{
         PairSet, normalize_output_destination, publish_new_file, run_revision_benchmark,
@@ -55,6 +55,22 @@ enum Command {
         /// PDF construction path used for both generated revisions.
         #[arg(long, value_enum, default_value_t = RendererChoice::LopdfTj)]
         renderer: RendererChoice,
+        #[command(subcommand)]
+        mutation: YamlMutation,
+    },
+    /// Evaluate externally rendered revisions against one canonical YAML mutation.
+    EvaluateRenderedYaml {
+        /// Canonical YAML document used as the old revision.
+        input: PathBuf,
+        /// Externally rendered PDF for the unmodified canonical document.
+        #[arg(long)]
+        old_pdf: PathBuf,
+        /// Externally rendered PDF after applying the selected mutation.
+        #[arg(long)]
+        new_pdf: PathBuf,
+        /// Auditable renderer name and version shown in the result.
+        #[arg(long)]
+        renderer: String,
         #[command(subcommand)]
         mutation: YamlMutation,
     },
@@ -366,6 +382,13 @@ fn main() -> ExitCode {
             renderer,
             mutation,
         }) => evaluate_yaml(&mut stdout, &input, renderer, mutation),
+        Some(Command::EvaluateRenderedYaml {
+            input,
+            old_pdf,
+            new_pdf,
+            renderer,
+            mutation,
+        }) => evaluate_rendered_yaml(&mut stdout, &input, &old_pdf, &new_pdf, &renderer, mutation),
         Some(Command::ExtractionConformance {
             input,
             oracle,
@@ -534,12 +557,7 @@ fn evaluate_yaml<W: Write>(
     renderer: RendererChoice,
     mutation: YamlMutation,
 ) -> Result<u8, String> {
-    let yaml = read_canonical_yaml_file(input)?;
-    let document = CanonicalRenderDocument::from_yaml(&yaml).map_err(|error| error.to_string())?;
-    let (case_name, mutation) = mutation.into_mutation();
-    let plan = mutation
-        .apply_to_render_document(&document, CANONICAL_RENDER_LINE_GAP)
-        .map_err(|error| error.to_string())?;
+    let (case_name, plan) = yaml_mutation_plan(input, mutation)?;
     let record = evaluate(
         case_name,
         plan.old(),
@@ -553,6 +571,48 @@ fn evaluate_yaml<W: Write>(
         .flush()
         .map_err(|error| format!("cannot flush YAML evaluation output: {error}"))?;
     Ok(u8::from(!record.passed))
+}
+
+fn evaluate_rendered_yaml<W: Write>(
+    writer: &mut W,
+    input: &Path,
+    old_pdf: &Path,
+    new_pdf: &Path,
+    renderer: &str,
+    mutation: YamlMutation,
+) -> Result<u8, String> {
+    let (case_name, plan) = yaml_mutation_plan(input, mutation)?;
+    let max_pdf_bytes = RenderLimits::default().max_pdf_bytes;
+    let old_pdf = read_bounded_file(old_pdf, max_pdf_bytes, "old rendered PDF")?;
+    let new_pdf = read_bounded_file(new_pdf, max_pdf_bytes, "new rendered PDF")?;
+    let record = evaluate_rendered(
+        case_name,
+        plan.old(),
+        plan.new_plan(),
+        plan.expectation(),
+        renderer,
+        Arc::from(old_pdf),
+        Arc::from(new_pdf),
+    )
+    .map_err(|error| error.to_string())?;
+    write_record(writer, &record)?;
+    writer
+        .flush()
+        .map_err(|error| format!("cannot flush rendered YAML evaluation output: {error}"))?;
+    Ok(u8::from(!record.passed))
+}
+
+fn yaml_mutation_plan(
+    input: &Path,
+    mutation: YamlMutation,
+) -> Result<(&'static str, MutationPlan), String> {
+    let yaml = read_canonical_yaml_file(input)?;
+    let document = CanonicalRenderDocument::from_yaml(&yaml).map_err(|error| error.to_string())?;
+    let (case_name, mutation) = mutation.into_mutation();
+    let plan = mutation
+        .apply_to_render_document(&document, CANONICAL_RENDER_LINE_GAP)
+        .map_err(|error| error.to_string())?;
+    Ok((case_name, plan))
 }
 
 fn verify<W: Write>(writer: &mut W) -> Result<u8, String> {
@@ -962,7 +1022,7 @@ fn write_record<W: Write>(writer: &mut W, record: &EvaluationRecord) -> Result<(
         writer,
         "{status} case={} renderer={} expected={} actual={} coverage={}/{} detail={}",
         record.case_name,
-        record.renderer.name(),
+        record.renderer,
         record.expected.label(),
         actual_label(&record.actual_kinds),
         coverage_label(record.old_coverage),

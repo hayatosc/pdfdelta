@@ -44,7 +44,7 @@ struct ProjectedSpan {
 #[derive(Clone, Debug, PartialEq)]
 pub struct EvaluationRecord {
     pub case_name: String,
-    pub renderer: RendererKind,
+    pub renderer: String,
     pub expected: ExpectedManifest,
     pub actual_changes: usize,
     pub actual_kinds: Vec<ChangeKind>,
@@ -78,12 +78,46 @@ pub fn evaluate(
     let render_limits = RenderLimits::default();
     let old_pdf = renderer.render(old_plan, render_limits)?;
     let new_pdf = renderer.render(new_plan, render_limits)?;
+    evaluate_rendered(
+        case_name,
+        old_plan,
+        new_plan,
+        expected,
+        renderer.name(),
+        Arc::from(old_pdf),
+        Arc::from(new_pdf),
+    )
+}
+
+/// Evaluates a canonical mutation against a PDF pair produced outside the
+/// project renderers.
+///
+/// This keeps renderer execution out of the evaluator while applying the same
+/// extraction, comparison, and canonical-span expectation checks used by
+/// [`evaluate`].
+///
+/// # Errors
+///
+/// Returns [`BenchError::InvalidInput`] when the case or renderer identity is
+/// invalid. Returns [`BenchError::Core`] when extraction, canonical projection,
+/// comparison, or summary generation fails.
+pub fn evaluate_rendered(
+    case_name: &str,
+    old_plan: &RenderPlan,
+    new_plan: &RenderPlan,
+    expected: &ExpectedManifest,
+    renderer: &str,
+    old_pdf: Arc<[u8]>,
+    new_pdf: Arc<[u8]>,
+) -> Result<EvaluationRecord> {
+    validate_case_name(case_name)?;
+    validate_renderer_name(renderer)?;
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
     let old = source
-        .extract_outcome(Arc::from(old_pdf), parse_limits(), extraction_limits())
+        .extract_outcome(old_pdf, parse_limits(), extraction_limits())
         .map_err(|error| core_error("old extraction", error))?;
     let new = source
-        .extract_outcome(Arc::from(new_pdf), parse_limits(), extraction_limits())
+        .extract_outcome(new_pdf, parse_limits(), extraction_limits())
         .map_err(|error| core_error("new extraction", error))?;
     let options = pipeline_options();
     let (old_index, new_index) = if old.is_complete() && new.is_complete() {
@@ -155,7 +189,7 @@ pub fn evaluate(
 
     Ok(EvaluationRecord {
         case_name: case_name.to_owned(),
-        renderer,
+        renderer: renderer.to_owned(),
         expected: expected.clone(),
         actual_changes: actual_kinds.len(),
         actual_kinds,
@@ -465,6 +499,21 @@ fn validate_case_name(name: &str) -> Result<()> {
     Ok(())
 }
 
+fn validate_renderer_name(name: &str) -> Result<()> {
+    if name.is_empty()
+        || name.trim() != name
+        || name.len() > 128
+        || !name.is_ascii()
+        || name.chars().any(char::is_control)
+    {
+        return Err(BenchError::InvalidInput(
+            "evaluation renderer names must be 1-128 printable ASCII bytes without surrounding whitespace"
+                .to_owned(),
+        ));
+    }
+    Ok(())
+}
+
 fn core_error(stage: &'static str, error: pdfdelta_core::Error) -> BenchError {
     BenchError::Core {
         stage,
@@ -518,6 +567,15 @@ mod tests {
     use pdfdelta_core::{diff::TokenRange, normalize::ScalarRange};
 
     use super::*;
+
+    #[test]
+    fn renderer_identity_requires_bounded_printable_ascii() {
+        for invalid in ["", " typst", "typst ", "typst\n0.15.1", "ティプスト"] {
+            assert!(validate_renderer_name(invalid).is_err(), "{invalid:?}");
+        }
+        assert!(validate_renderer_name(&"x".repeat(129)).is_err());
+        assert!(validate_renderer_name("typst-0.15.1").is_ok());
+    }
 
     #[test]
     fn concatenate_projects_across_a_zero_scalar_source_boundary() {

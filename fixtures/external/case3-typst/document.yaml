@@ -1,0 +1,10 @@
+document:
+  title: Quarterly Service Report
+  sections:
+    - id: availability
+      heading: Service availability and maintenance schedule details for the upcoming cycle.
+      paragraphs:
+        - id: release
+          text: Release 10 remains available during the transition period.
+        - id: operations
+          text: All operations continue normally across all production regions.
