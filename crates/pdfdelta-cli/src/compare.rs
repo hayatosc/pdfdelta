@@ -470,6 +470,12 @@ pub fn report_extraction_issues<W: Write>(
                 path.display(),
                 issue.description()
             ),
+            ExtractionScope::GlyphGap { retained_before } => writeln!(
+                writer,
+                "extraction issue for {side} PDF {} (kind={kind}, scope=glyph-gap, retained-glyphs-before={retained_before}): {}",
+                path.display(),
+                issue.description()
+            ),
             _ => writeln!(
                 writer,
                 "extraction issue for {side} PDF {} (kind={kind}, scope=unknown): {}",

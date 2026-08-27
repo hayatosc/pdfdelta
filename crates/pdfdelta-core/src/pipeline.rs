@@ -430,9 +430,11 @@ fn compare_validated_glyph_documents_with_gaps(
     new: &Document<Glyph>,
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
-    old_issue_boundaries: &[usize],
-    new_issue_boundaries: &[usize],
+    old_issue_boundaries: &[LocalizedIssueBoundary],
+    new_issue_boundaries: &[LocalizedIssueBoundary],
 ) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>)> {
+    let old_document = old;
+    let new_document = new;
     record_pre_layout_token_counts(old, new, options.diff, diagnostics)?;
     let old_prepared = prepare(old, options, DocumentSide::Old, diagnostics)?;
     let new_prepared = prepare(new, options, DocumentSide::New, diagnostics)?;
@@ -444,8 +446,10 @@ fn compare_validated_glyph_documents_with_gaps(
         blocks: new,
         uncertain_block_indices: new_uncertain_block_indices,
     } = new_prepared;
-    let old_gap_boundaries = gap_boundaries(&old, old_issue_boundaries);
-    let new_gap_boundaries = gap_boundaries(&new, new_issue_boundaries);
+    let (old_gap_boundaries, old_extraction_uncertain_block_indices) =
+        gap_boundaries(old_document, &old, old_issue_boundaries);
+    let (new_gap_boundaries, new_extraction_uncertain_block_indices) =
+        gap_boundaries(new_document, &new, new_issue_boundaries);
     phase_result(
         diagnostics,
         PipelinePhase::DiffTokenBudget,
@@ -501,6 +505,8 @@ fn compare_validated_glyph_documents_with_gaps(
             options.alignment,
             &old_gap_boundaries,
             &new_gap_boundaries,
+            &old_extraction_uncertain_block_indices,
+            &new_extraction_uncertain_block_indices,
             &old_uncertain_block_indices,
             &new_uncertain_block_indices,
         ),
@@ -598,7 +604,13 @@ fn compare_validated_glyph_documents_with_gaps(
     Ok((comparison, old, new))
 }
 
-fn issue_boundaries(issues: &[ExtractionIssue]) -> Vec<usize> {
+#[derive(Clone, Copy)]
+enum LocalizedIssueBoundary {
+    Page(usize),
+    Glyph(usize),
+}
+
+fn issue_boundaries(issues: &[ExtractionIssue]) -> Vec<LocalizedIssueBoundary> {
     issues.iter().filter_map(localized_issue_boundary).collect()
 }
 
@@ -615,26 +627,96 @@ fn extraction_issue_records(
         .collect()
 }
 
-fn localized_issue_boundary(issue: &ExtractionIssue) -> Option<usize> {
+fn localized_issue_boundary(issue: &ExtractionIssue) -> Option<LocalizedIssueBoundary> {
     match issue.scope() {
-        ExtractionScope::Page(page) => Some(page.0 as usize),
-        ExtractionScope::PageGap { retained_before } => Some(retained_before),
+        ExtractionScope::Page(page) => Some(LocalizedIssueBoundary::Page(page.0 as usize)),
+        ExtractionScope::PageGap { retained_before } => {
+            Some(LocalizedIssueBoundary::Page(retained_before))
+        }
+        ExtractionScope::GlyphGap { retained_before } => {
+            Some(LocalizedIssueBoundary::Glyph(retained_before))
+        }
         ExtractionScope::Document => None,
     }
 }
 
-fn gap_boundaries(blocks: &[BlockText], boundaries: &[usize]) -> Vec<usize> {
-    boundaries
+fn gap_boundaries(
+    document: &Document<Glyph>,
+    blocks: &[BlockText],
+    boundaries: &[LocalizedIssueBoundary],
+) -> (Vec<usize>, Vec<usize>) {
+    let glyph_positions = document
+        .items()
         .iter()
-        .map(|page| {
-            blocks.partition_point(|block| {
+        .enumerate()
+        .map(|(position, glyph)| (glyph.id, position))
+        .collect::<std::collections::HashMap<_, _>>();
+    let block_extents = blocks
+        .iter()
+        .map(|block| {
+            block
+                .raw
+                .source_map
+                .iter()
+                .flat_map(|entry| &entry.source.atoms)
+                .chain(
+                    block
+                        .raw
+                        .unmapped
+                        .iter()
+                        .flat_map(|token| &token.source.atoms),
+                )
+                .flat_map(|atom| match atom {
+                    crate::normalize::TextSourceAtom::Glyph(glyph) => [Some(glyph), None],
+                    crate::normalize::TextSourceAtom::SyntheticSpace {
+                        preceding,
+                        following,
+                    }
+                    | crate::normalize::TextSourceAtom::LineBreak {
+                        preceding,
+                        following,
+                    } => [Some(preceding), Some(following)],
+                })
+                .flatten()
+                .filter_map(|glyph| glyph_positions.get(glyph).copied())
+                .fold(None, |extent: Option<(usize, usize)>, position| {
+                    Some(extent.map_or((position, position), |(min, max)| {
+                        (min.min(position), max.max(position))
+                    }))
+                })
+        })
+        .collect::<Vec<Option<(usize, usize)>>>();
+
+    let mut straddling_block_indices = Vec::new();
+    let mut result = boundaries
+        .iter()
+        .map(|boundary| match *boundary {
+            LocalizedIssueBoundary::Page(page) => blocks.partition_point(|block| {
                 block
                     .pages
                     .last()
-                    .is_some_and(|last_page| (*last_page as usize) < *page)
-            })
+                    .is_some_and(|last_page| (*last_page as usize) < page)
+            }),
+            LocalizedIssueBoundary::Glyph(retained_before) => {
+                for (index, extent) in block_extents.iter().enumerate() {
+                    if extent
+                        .is_some_and(|(min, max)| min < retained_before && retained_before <= max)
+                    {
+                        straddling_block_indices.push(index);
+                    }
+                }
+                block_extents
+                    .iter()
+                    .position(|extent| extent.is_some_and(|(_, max)| max >= retained_before))
+                    .unwrap_or(blocks.len())
+            }
         })
-        .collect()
+        .collect::<Vec<_>>();
+    result.sort_unstable();
+    result.dedup();
+    straddling_block_indices.sort_unstable();
+    straddling_block_indices.dedup();
+    (result, straddling_block_indices)
 }
 
 fn phase_result<T>(

@@ -124,6 +124,12 @@ pub enum ExtractionScope {
     PageGap {
         retained_before: usize,
     },
+    /// An extraction gap after this many retained glyphs on this document
+    /// side. The boundary is a document-local count in extraction order, not
+    /// a glyph identifier or a cross-revision identity.
+    GlyphGap {
+        retained_before: usize,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -236,6 +242,15 @@ impl ExtractionOutcome {
                 }
                 ExtractionScope::Page(_) => {}
                 ExtractionScope::PageGap { .. } => {}
+                ExtractionScope::GlyphGap { retained_before }
+                    if retained_before > document.items().len() =>
+                {
+                    return Err(Error::InvalidConfiguration(format!(
+                        "extraction glyph gap boundary {retained_before} exceeds the retained glyph count {}",
+                        document.items().len()
+                    )));
+                }
+                ExtractionScope::GlyphGap { .. } => {}
             }
         }
         if let Some(glyph) = document

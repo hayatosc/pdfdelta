@@ -379,6 +379,21 @@ fn page_scoped_outcome_rejects_glyphs_from_the_affected_page() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn glyph_gap_scope_rejects_a_boundary_past_retained_evidence() -> Result<()> {
+    let issue = ExtractionIssue::new(
+        ExtractionIssueKind::Unresolved,
+        ExtractionScope::GlyphGap { retained_before: 2 },
+        "form evidence is unavailable",
+    )?;
+
+    assert!(matches!(
+        ExtractionOutcome::new(Document::new(vec![fixture_glyph()]), vec![issue]),
+        Err(Error::InvalidConfiguration(message)) if message.contains("exceeds the retained glyph count")
+    ));
+    Ok(())
+}
+
 fn assert_error_kind(error: Error, expected: ExtractionIssueKind) {
     assert!(
         matches!(

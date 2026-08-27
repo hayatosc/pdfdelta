@@ -650,6 +650,200 @@ fn keeps_form_graphics_stack_underflow_unresolved() {
 }
 
 #[test]
+fn localizes_a_recoverable_form_failure_between_retained_page_text() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 10.into(), 10.into()],
+        },
+        b"Q".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 10 20 Tm (A) Tj ET /X1 Do \
+          BT /F1 10 Tf 1 0 0 1 20 20 Tm (B) Tj ET"
+            .to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+            "XObject" => dictionary! { "X1" => form },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert_eq!(mapped_text(outcome.document().items()), "AB");
+    assert_eq!(outcome.issues().len(), 1);
+    assert_eq!(
+        outcome.issues()[0].scope(),
+        ExtractionScope::GlyphGap { retained_before: 1 }
+    );
+    assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unresolved);
+    Ok(())
+}
+
+#[test]
+fn rolls_back_partially_emitted_form_glyphs_and_render_order() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 10.into(), 10.into()],
+        },
+        b"BT /F1 10 Tf 1 0 0 1 10 20 Tm (X) Tj ET UnsupportedOperator".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 10 20 Tm (A) Tj ET /X1 Do \
+          BT /F1 10 Tf 1 0 0 1 20 20 Tm (B) Tj ET"
+            .to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+            "XObject" => dictionary! { "X1" => form },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert_eq!(mapped_text(outcome.document().items()), "AB");
+    assert_eq!(outcome.document().items()[1].id.0, 1);
+    assert_eq!(outcome.document().items()[1].render_order, 1);
+    assert_eq!(outcome.issues().len(), 1);
+    assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unsupported);
+    Ok(())
+}
+
+#[test]
+fn discards_localized_form_issues_when_the_enclosing_page_fails() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 10.into(), 10.into()],
+        },
+        b"Q".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(dictionary! {}, b"/X1 Do Q".to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "XObject" => dictionary! { "X1" => form },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert!(outcome.document().items().is_empty());
+    assert_eq!(outcome.issues().len(), 1);
+    assert_eq!(
+        outcome.issues()[0].scope(),
+        ExtractionScope::Page(PageId(0))
+    );
+    Ok(())
+}
+
+#[test]
+fn enclosing_form_failure_discards_nested_gap_and_preserves_page_suffix() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let inner = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 10.into(), 10.into()],
+        },
+        b"Q".to_vec(),
+    ));
+    let outer = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 10.into(), 10.into()],
+        },
+        b"BT /F1 10 Tf 1 0 0 1 10 20 Tm (X) Tj ET /Inner Do UnsupportedOperator".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 10 20 Tm (A) Tj ET /Outer Do \
+          BT /F1 10 Tf 1 0 0 1 20 20 Tm (B) Tj ET"
+            .to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+            "XObject" => dictionary! { "Inner" => inner, "Outer" => outer },
+        }),
+        None,
+        None,
+    );
+
+    let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+    assert_eq!(mapped_text(outcome.document().items()), "AB");
+    assert_eq!(outcome.issues().len(), 1);
+    assert_eq!(
+        outcome.issues()[0].scope(),
+        ExtractionScope::GlyphGap { retained_before: 1 }
+    );
+    assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unsupported);
+    Ok(())
+}
+
+#[test]
+fn repeated_failing_forms_do_not_refund_the_glyph_budget() {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let form = pdf.add_object(Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 10.into(), 10.into()],
+        },
+        b"BT /F1 10 Tf 1 0 0 1 10 20 Tm (X) Tj ET UnsupportedOperator".to_vec(),
+    ));
+    let content = pdf.add_object(Stream::new(dictionary! {}, b"/X1 Do /X1 Do".to_vec()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+            "XObject" => dictionary! { "X1" => form },
+        }),
+        None,
+        None,
+    );
+
+    assert!(matches!(
+        extract_outcome(
+            pdf,
+            ExtractionLimits {
+                max_glyphs: 1,
+                ..ExtractionLimits::default()
+            }
+        ),
+        Err(Error::LimitExceeded { .. })
+    ));
+}
+
+#[test]
 fn keeps_page_graphics_stack_imbalance_unresolved() {
     let mut pdf = LopdfDocument::with_version("1.7");
     let content = pdf.add_object(Stream::new(dictionary! {}, b"q".to_vec()));

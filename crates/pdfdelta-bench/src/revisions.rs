@@ -899,6 +899,9 @@ fn issue_lines(extraction: &report::ExtractionStatus) -> Vec<IssueLine> {
                 ExtractionScope::PageGap { retained_before } => {
                     format!("page gap after {retained_before} retained pages")
                 }
+                ExtractionScope::GlyphGap { retained_before } => {
+                    format!("glyph gap after {retained_before} retained glyphs")
+                }
                 _ => "unknown".to_owned(),
             },
             description: issue.description.clone(),

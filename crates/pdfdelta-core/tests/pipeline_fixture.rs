@@ -991,6 +991,96 @@ fn preserves_replacement_outside_a_page_tree_gap() -> Result<()> {
 }
 
 #[test]
+fn preserves_replacement_outside_a_localized_glyph_gap() -> Result<()> {
+    let old_document = document(&[
+        line("Opening anchor remains exactly stable", 0, 300.0),
+        line("Boundary anchor remains exactly stable", 0, 200.0),
+        line("Release 10 remains available", 1, 300.0),
+        line("Closing anchor remains exactly stable", 2, 300.0),
+    ]);
+    let retained_before = old_document
+        .items()
+        .iter()
+        .take_while(|glyph| glyph.page == PageId(0) && glyph.baseline.y > 250.0)
+        .count();
+    let old = ExtractionOutcome::new(
+        old_document,
+        vec![ExtractionIssue::new(
+            ExtractionIssueKind::Unresolved,
+            ExtractionScope::GlyphGap { retained_before },
+            "Form content could not be extracted",
+        )?],
+    )?;
+    let new = ExtractionOutcome::complete(document(&[
+        line("Opening anchor remains exactly stable", 0, 300.0),
+        line("Unknown inserted Form content", 0, 250.0),
+        line("Boundary anchor remains exactly stable", 0, 200.0),
+        line("Release 20 remains available", 1, 300.0),
+        line("Closing anchor remains exactly stable", 2, 300.0),
+    ]));
+
+    let outcome = compare_extraction_outcomes(old, new, PipelineOptions::default())?;
+
+    assert_eq!(outcome.comparison.changes.len(), 1, "{outcome:#?}");
+    assert_eq!(outcome.comparison.changes[0].kind, ChangeKind::Replacement);
+    assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
+    assert_eq!(
+        outcome.comparison.unresolved_regions[0].evidence,
+        [pdfdelta_core::alignment::AlignmentEvidence::ExtractionGap]
+    );
+    Ok(())
+}
+
+#[test]
+fn includes_a_block_straddling_a_glyph_gap_in_the_unresolved_window() -> Result<()> {
+    let old_document = document(&[
+        line("Retained text crosses the unknown Form boundary", 0, 300.0),
+        line("Boundary anchor remains exactly stable", 1, 300.0),
+        line("Release 10 remains available", 2, 300.0),
+        line("Closing anchor remains exactly stable", 3, 300.0),
+    ]);
+    let old = ExtractionOutcome::new(
+        old_document.clone(),
+        vec![ExtractionIssue::new(
+            ExtractionIssueKind::Unresolved,
+            ExtractionScope::GlyphGap {
+                retained_before: old_document
+                    .items()
+                    .iter()
+                    .take_while(|glyph| glyph.page == PageId(0))
+                    .count()
+                    / 2,
+            },
+            "Form content could not be extracted",
+        )?],
+    )?;
+    let new = ExtractionOutcome::complete(document(&[
+        line("Retained text crosses the unknown Form boundary", 0, 300.0),
+        line("Boundary anchor remains exactly stable", 1, 300.0),
+        line("Release 20 remains available", 2, 300.0),
+        line("Closing anchor remains exactly stable", 3, 300.0),
+    ]));
+
+    let outcome = compare_extraction_outcomes(old, new, PipelineOptions::default())?;
+
+    assert_eq!(outcome.comparison.changes.len(), 1, "{outcome:#?}");
+    assert_eq!(outcome.comparison.changes[0].kind, ChangeKind::Replacement);
+    assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
+    assert_eq!(
+        outcome.comparison.unresolved_regions[0].evidence,
+        [pdfdelta_core::alignment::AlignmentEvidence::ExtractionGap]
+    );
+    assert!(
+        outcome.comparison.unresolved_regions[0]
+            .old_span
+            .as_ref()
+            .is_some_and(|span| span.blocks.iter().any(|block| block.0 == 0)),
+        "the unresolved window must cover the block that straddles the glyph gap"
+    );
+    Ok(())
+}
+
+#[test]
 fn page_scoped_gap_without_anchors_emits_no_false_changes() -> Result<()> {
     let old = ExtractionOutcome::new(
         paragraphs(&["Retained old alpha content", "Retained old beta content"]),

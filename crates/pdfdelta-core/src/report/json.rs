@@ -170,14 +170,25 @@ impl<'a> JsonExtraction<'a> {
                         ExtractionScope::Document => "document",
                         ExtractionScope::Page(_) => "page",
                         ExtractionScope::PageGap { .. } => "page_gap",
+                        ExtractionScope::GlyphGap { .. } => "glyph_gap",
                     },
                     page: match issue.scope {
-                        ExtractionScope::Document | ExtractionScope::PageGap { .. } => None,
+                        ExtractionScope::Document
+                        | ExtractionScope::PageGap { .. }
+                        | ExtractionScope::GlyphGap { .. } => None,
                         ExtractionScope::Page(page) => Some(page.0),
                     },
                     retained_pages_before: match issue.scope {
                         ExtractionScope::PageGap { retained_before } => Some(retained_before),
-                        ExtractionScope::Document | ExtractionScope::Page(_) => None,
+                        ExtractionScope::Document
+                        | ExtractionScope::Page(_)
+                        | ExtractionScope::GlyphGap { .. } => None,
+                    },
+                    retained_glyphs_before: match issue.scope {
+                        ExtractionScope::GlyphGap { retained_before } => Some(retained_before),
+                        ExtractionScope::Document
+                        | ExtractionScope::Page(_)
+                        | ExtractionScope::PageGap { .. } => None,
                     },
                     description: &issue.description,
                 })
@@ -195,6 +206,8 @@ struct JsonExtractionIssue<'a> {
     page: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     retained_pages_before: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retained_glyphs_before: Option<usize>,
     description: &'a str,
 }
 

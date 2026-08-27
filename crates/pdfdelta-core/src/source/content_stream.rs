@@ -67,13 +67,16 @@ impl ContentStreamGlyphExtractor {
                     limit: u32::MAX as usize,
                 })?;
             let glyph_start = extraction.glyphs.len();
+            let issue_start = extraction.issues.len();
             if let Err(error) = extraction.extract_page(page, page_id) {
                 let issue = ExtractionIssue::from_error(ExtractionScope::Page(page_id), error)?;
                 extraction.glyphs.truncate(glyph_start);
+                extraction.issues.truncate(issue_start);
                 extraction.active_forms.clear();
                 issues.push(issue);
             }
         }
+        issues.extend(extraction.issues);
         ExtractionOutcome::new(Document::new(extraction.glyphs), issues)
     }
 
@@ -107,6 +110,8 @@ struct Extraction<'a> {
     external_font_identities: Option<&'a ExternalFontIdentities>,
     limits: ExtractionLimits,
     glyphs: Vec<Glyph>,
+    issues: Vec<ExtractionIssue>,
+    consumed_glyphs: usize,
     font_cache: HashMap<FontCacheKey, CachedFont>,
     bound_fonts: HashMap<BoundFontKey, Arc<BoundFont>>,
     ext_gstate_fonts: HashMap<ExtGStateKey, Option<(Arc<BoundFont>, f64)>>,
@@ -137,6 +142,8 @@ impl<'a> Extraction<'a> {
             external_font_identities: None,
             limits,
             glyphs: Vec::new(),
+            issues: Vec::new(),
+            consumed_glyphs: 0,
             font_cache: HashMap::new(),
             bound_fonts: HashMap::new(),
             ext_gstate_fonts: HashMap::new(),
@@ -422,7 +429,10 @@ impl<'a> Extraction<'a> {
             }
             b"Do" => {
                 let name = one_name(operation)?;
-                self.invoke_xobject(
+                let glyph_start = self.glyphs.len();
+                let issue_start = self.issues.len();
+                let render_order = self.render_order;
+                let result = self.invoke_xobject(
                     name,
                     operation,
                     page,
@@ -430,7 +440,22 @@ impl<'a> Extraction<'a> {
                     resources,
                     state,
                     form_depth,
-                )?;
+                );
+                match result {
+                    Ok(()) => {}
+                    Err(error @ (Error::Unsupported(_) | Error::Unresolved(_))) => {
+                        self.glyphs.truncate(glyph_start);
+                        self.issues.truncate(issue_start);
+                        self.render_order = render_order;
+                        self.issues.push(ExtractionIssue::from_error(
+                            ExtractionScope::GlyphGap {
+                                retained_before: glyph_start,
+                            },
+                            error,
+                        )?);
+                    }
+                    Err(error) => return Err(error),
+                }
             }
             b"BX" => {
                 no_operands(operation)?;
@@ -576,12 +601,6 @@ impl Extraction<'_> {
         page_transform: Matrix,
         state: &mut InterpreterState,
     ) -> Result<()> {
-        if self.glyphs.len() >= self.limits.max_glyphs {
-            return Err(Error::LimitExceeded {
-                resource: "extracted glyph count",
-                limit: self.limits.max_glyphs,
-            });
-        }
         let glyph_id = glyph.glyph_id;
         let text = match glyph.mapping {
             UnicodeMapping::Mapped(text) => DecodedText::Mapped(text),
@@ -794,7 +813,7 @@ impl Extraction<'_> {
             );
         }
 
-        let remaining_glyphs = self.limits.max_glyphs.saturating_sub(self.glyphs.len());
+        let remaining_glyphs = self.limits.max_glyphs.saturating_sub(self.consumed_glyphs);
         let remaining_mapped_text_bytes = self
             .limits
             .max_total_decoded_bytes
@@ -813,6 +832,20 @@ impl Extraction<'_> {
                     .decode(bytes, remaining_glyphs, remaining_mapped_text_bytes)?,
             )
         };
+        let consumed_glyphs =
+            self.consumed_glyphs
+                .checked_add(glyphs.len())
+                .ok_or(Error::LimitExceeded {
+                    resource: "extracted glyph count",
+                    limit: self.limits.max_glyphs,
+                })?;
+        if consumed_glyphs > self.limits.max_glyphs {
+            return Err(Error::LimitExceeded {
+                resource: "extracted glyph count",
+                limit: self.limits.max_glyphs,
+            });
+        }
+        self.consumed_glyphs = consumed_glyphs;
         let mapped_text_bytes = glyphs.iter().try_fold(0usize, |total, glyph| {
             let bytes = match &glyph.mapping {
                 UnicodeMapping::Mapped(text) => text.len(),

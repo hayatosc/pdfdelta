@@ -255,7 +255,7 @@ pub(crate) fn align_ordered_with_metrics(
     generator: &dyn CandidateGenerator,
     options: AlignmentOptions,
 ) -> AlignmentAttempt {
-    match plan_ordered_gaps(old, new, options, &[], &[], &[], &[]) {
+    match plan_ordered_gaps(old, new, options, &[], &[], &[], &[], &[], &[]) {
         Ok(plan) => align_ordered_with_metrics_and_gap_plan(old, new, generator, options, plan),
         Err(error) => AlignmentAttempt {
             result: Err(error),
@@ -266,12 +266,15 @@ pub(crate) fn align_ordered_with_metrics(
 
 /// Builds the anchor-window plan used to isolate extraction and layout
 /// uncertainty before the candidate index is constructed.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn plan_ordered_gaps(
     old: &[BlockFeatures],
     new: &[BlockFeatures],
     options: AlignmentOptions,
     old_gap_boundaries: &[usize],
     new_gap_boundaries: &[usize],
+    old_extraction_uncertain_indices: &[usize],
+    new_extraction_uncertain_indices: &[usize],
     old_uncertain_indices: &[usize],
     new_uncertain_indices: &[usize],
 ) -> Result<AlignmentGapPlan> {
@@ -281,12 +284,24 @@ pub(crate) fn plan_ordered_gaps(
     validate_shared_ngram_size(old, new)?;
     validate_gap_boundaries("old", old_gap_boundaries, old.len())?;
     validate_gap_boundaries("new", new_gap_boundaries, new.len())?;
+    validate_uncertain_indices(
+        "old extraction",
+        old_extraction_uncertain_indices,
+        old.len(),
+    )?;
+    validate_uncertain_indices(
+        "new extraction",
+        new_extraction_uncertain_indices,
+        new.len(),
+    )?;
     validate_uncertain_indices("old", old_uncertain_indices, old.len())?;
     validate_uncertain_indices("new", new_uncertain_indices, new.len())?;
 
     if old == new
         && old_gap_boundaries.is_empty()
         && new_gap_boundaries.is_empty()
+        && old_extraction_uncertain_indices.is_empty()
+        && new_extraction_uncertain_indices.is_empty()
         && old_uncertain_indices.is_empty()
         && new_uncertain_indices.is_empty()
     {
@@ -313,10 +328,12 @@ pub(crate) fn plan_ordered_gaps(
         .collect::<HashMap<_, _>>();
     let uncertain_old = old_uncertain_indices
         .iter()
+        .chain(old_extraction_uncertain_indices)
         .copied()
         .collect::<HashSet<_>>();
     let uncertain_new = new_uncertain_indices
         .iter()
+        .chain(new_extraction_uncertain_indices)
         .copied()
         .collect::<HashSet<_>>();
     let all_anchors = exact_anchors(old, new, options.anchor_min_tokens)?
@@ -334,6 +351,15 @@ pub(crate) fn plan_ordered_gaps(
         &main_anchors,
         old_gap_boundaries,
         new_gap_boundaries,
+        &old_indices,
+        &new_indices,
+    ) {
+        forced_windows.entry(index).or_default().extraction_gap = true;
+    }
+    for index in uncertain_window_indices(
+        &main_anchors,
+        old_extraction_uncertain_indices,
+        new_extraction_uncertain_indices,
         &old_indices,
         &new_indices,
     ) {
@@ -1960,7 +1986,7 @@ mod tests {
             ..AlignmentOptions::default()
         };
 
-        let plan = plan_ordered_gaps(&old, &new, options, &[1], &[], &[1], &[])
+        let plan = plan_ordered_gaps(&old, &new, options, &[1], &[], &[], &[], &[1], &[])
             .expect("uncertainty should produce a forced anchor interval");
 
         assert!(

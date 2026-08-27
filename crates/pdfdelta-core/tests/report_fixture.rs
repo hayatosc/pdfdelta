@@ -226,6 +226,37 @@ fn reports_page_tree_gap_scope_without_synthesizing_a_page() -> Result<()> {
 }
 
 #[test]
+fn reports_localized_glyph_gap_scope() -> Result<()> {
+    let extraction = ExtractionStatus {
+        old_complete: false,
+        new_complete: true,
+        issues: vec![ExtractionIssueRecord {
+            side: DocumentSide::Old,
+            kind: ExtractionIssueKind::Unsupported,
+            scope: ExtractionScope::GlyphGap { retained_before: 3 },
+            description: "unsupported Form content".to_owned(),
+        }],
+    };
+    let mut comparison = empty_comparison();
+    comparison.old_coverage.ratio = None;
+
+    let text = render_text(&[], &[], &comparison, &extraction, &plain_options())?;
+    assert!(
+        text.contains("scope=glyph-gap, retained-glyphs-before=3"),
+        "{text}"
+    );
+
+    let mut output = Vec::new();
+    write_json(&mut output, &[], &[], &[], &[], &comparison, &extraction)?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("report should be valid JSON");
+    assert_eq!(json["extraction"]["issues"][0]["scope"], "glyph_gap");
+    assert_eq!(json["extraction"]["issues"][0]["retained_glyphs_before"], 3);
+    assert!(json["extraction"]["issues"][0].get("page").is_none());
+    Ok(())
+}
+
+#[test]
 fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<()> {
     let mut comparison = content_comparison();
     comparison.old_coverage = Coverage {
