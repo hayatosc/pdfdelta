@@ -1,7 +1,7 @@
 use pdfdelta_core::{
     Error, Result,
     alignment::AlignmentOptions,
-    diff::{ChangeKind, Comparison, DiffOptions, FormattingReason},
+    diff::{ChangeKind, ChangeTag, Comparison, DiffOptions, FormattingReason},
     layout::{BlockOptions, LineOptions, LineTextDirection, reconstruct_lines},
     model::{
         DecodedText, Document, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect,
@@ -126,6 +126,26 @@ fn reports_one_generic_numeric_replacement() -> Result<()> {
     let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
 
     assert_single_change(&comparison, ChangeKind::Replacement);
+    Ok(())
+}
+
+#[test]
+fn tags_character_width_replacement_end_to_end() -> Result<()> {
+    let old = paragraphs(&[
+        "Opening paragraph establishes context",
+        "Version １２ remains stable",
+        "Closing paragraph confirms context",
+    ]);
+    let new = paragraphs(&[
+        "Opening paragraph establishes context",
+        "Version 12 remains stable",
+        "Closing paragraph confirms context",
+    ]);
+
+    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+
+    assert_single_change(&comparison, ChangeKind::Replacement);
+    assert_eq!(comparison.changes[0].tags, [ChangeTag::CharacterWidth]);
     Ok(())
 }
 

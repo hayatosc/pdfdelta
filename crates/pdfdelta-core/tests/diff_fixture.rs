@@ -4,7 +4,10 @@ use pdfdelta_core::{
         Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentSpan,
         BlockSeparator, ExactAnchor,
     },
-    diff::{ChangeKind, Confidence, DiffOptions, FormattingReason, TokenRange, compare_aligned},
+    diff::{
+        ChangeKind, ChangeTag, Confidence, DiffOptions, FormattingReason, TokenRange,
+        compare_aligned,
+    },
     layout::BlockId,
     model::{FontProgramHash, Vec2},
     normalize::{
@@ -41,6 +44,77 @@ fn exact_diff_never_uses_masked_matching_text() -> Result<()> {
     );
     assert_eq!(result.old_coverage.ratio, Some(1.0));
     assert_eq!(result.new_coverage.ratio, Some(1.0));
+    Ok(())
+}
+
+#[test]
+fn tags_replacements_explained_only_by_character_width() -> Result<()> {
+    for (old_text, new_text) in [
+        ("ＡＢＣ", "ABC"),
+        ("１２", "12"),
+        ("ｶﾞ", "ガ"),
+        ("ﾊﾟ", "パ"),
+        ("xＡy", "xAy"),
+        ("\u{3000}", " "),
+    ] {
+        let result = compare_aligned(
+            &[block(1, old_text)],
+            &[block(101, new_text)],
+            &aligned(vec![matched(&[1], &[101])]),
+            DiffOptions::default(),
+        )?;
+
+        assert_eq!(result.changes.len(), 1, "{old_text:?} -> {new_text:?}");
+        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(
+            result.changes[0].tags,
+            [ChangeTag::CharacterWidth],
+            "{old_text:?} -> {new_text:?}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn does_not_tag_other_compatibility_or_semantic_replacements() -> Result<()> {
+    for (old_text, new_text) in [
+        ("①", "1"),
+        ("Ⅳ", "IV"),
+        ("ﬁ", "fi"),
+        ("²", "2"),
+        ("㍑", "リットル"),
+        ("Ａ①", "A1"),
+        ("ガ", "カ"),
+    ] {
+        let result = compare_aligned(
+            &[block(1, old_text)],
+            &[block(101, new_text)],
+            &aligned(vec![matched(&[1], &[101])]),
+            DiffOptions::default(),
+        )?;
+
+        assert!(!result.changes.is_empty(), "{old_text:?} -> {new_text:?}");
+        assert!(
+            result.changes.iter().all(|change| change.tags.is_empty()),
+            "{old_text:?} -> {new_text:?}: {:#?}",
+            result.changes
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn does_not_tag_replacements_with_unmapped_tokens() -> Result<()> {
+    let result = compare_aligned(
+        &[unmapped_block(1, 10)],
+        &[unmapped_block(101, 20)],
+        &aligned(vec![matched(&[1], &[101])]),
+        DiffOptions::default(),
+    )?;
+
+    assert_eq!(result.changes.len(), 1);
+    assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+    assert!(result.changes[0].tags.is_empty());
     Ok(())
 }
 
