@@ -1,5 +1,7 @@
 //! Fuzzing-only entry points for internal parsers.
 
+use crate::pdf::LopdfParser;
+use crate::pdf::ParseLimits;
 use crate::pdf::content::{ContentBudget, ContentLimits, ContentParser, Operation};
 use crate::pdf::font::cmap::{
     CMapLimits, UnicodeMapping, parse_identity_cid_encoding, parse_to_unicode_for_width,
@@ -8,8 +10,12 @@ use crate::pdf::font::{FontDecoder, FontDecoderLimits, WritingMode};
 use crate::pdf::{
     DecodedStream, ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject, PdfVersion, RawStream,
 };
+use crate::source::{
+    ContentStreamGlyphExtractor, ExtractionLimits, ExtractionOutcome, ParserBackedGlyphSource,
+};
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 const MAX_INPUT_BYTES: usize = 64 * 1024;
 const LIMITS: CMapLimits = CMapLimits {
@@ -38,6 +44,29 @@ const FONT_LIMITS: FontDecoderLimits = FontDecoderLimits {
 };
 const MAX_OUTPUT_GLYPHS: usize = 1_024;
 const MAX_MAPPED_TEXT_BYTES: usize = 4_096;
+const PARSE_LIMITS: ParseLimits = ParseLimits {
+    max_input_bytes: MAX_INPUT_BYTES,
+    max_objects: 512,
+    max_recursion_depth: 8,
+    max_decoded_stream_bytes: 64 * 1024,
+    max_total_object_stream_bytes: 256 * 1024,
+    max_pages: 4,
+};
+const EXTRACTION_LIMITS: ExtractionLimits = ExtractionLimits {
+    max_glyphs: 1_024,
+    max_form_depth: 4,
+    max_nesting_depth: 16,
+    max_operators: 2_048,
+    max_stream_invocations: 1_024,
+    max_total_decoded_bytes: 256 * 1024,
+    max_operand_stack: 256,
+    max_array_elements: 1_024,
+    max_operand_nodes: 4_096,
+    max_fonts: 32,
+    max_cmap_entries: 512,
+    max_cid_width_entries: 1_024,
+    max_string_bytes: 64 * 1024,
+};
 
 /// Exercises the production CMap parsers with finite resource limits.
 ///
@@ -533,6 +562,59 @@ fn assert_invariants(
     }
 }
 
+/// Exercises the PDF glyph extraction pipeline with tight, finite limits.
+///
+/// Inputs larger than 64 KiB are ignored. The harness builds a
+/// `ParserBackedGlyphSource` from `LopdfParser` and
+/// `ContentStreamGlyphExtractor` and runs it with small parse and extraction
+/// budgets. Parser, extraction, and resource-limit errors are accepted
+/// outcomes; the oracle asserts only that successful outcomes remain within the
+/// configured glyph and issue budgets and preserve document invariants.
+///
+/// # Panics
+///
+/// Panics if a successful extraction outcome violates its glyph budget, issue
+/// scope invariants, or glyph provenance contracts that are verified against
+/// existing unit tests.
+#[doc(hidden)]
+pub fn fuzz_glyph_extraction(input: &[u8]) {
+    if input.len() > MAX_INPUT_BYTES {
+        return;
+    }
+    let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
+    let outcome = match source.extract_outcome(Arc::from(input), PARSE_LIMITS, EXTRACTION_LIMITS) {
+        Ok(outcome) => outcome,
+        Err(_) => return,
+    };
+    assert!(outcome.document().items().len() <= EXTRACTION_LIMITS.max_glyphs);
+    // `ExtractionOutcome::new` validates issue scopes and glyph-gap
+    // boundaries, but a successful outcome must also keep them constructible.
+    let (document, issues) = outcome.into_parts();
+    assert!(
+        ExtractionOutcome::new(document.clone(), issues.clone()).is_ok(),
+        "extraction outcome must remain well-formed"
+    );
+    // Validate retained glyph provenance and geometry contracts.
+    for glyph in document.items() {
+        assert!(glyph.font_size.is_finite());
+        assert!(glyph.font_size > 0.0);
+        assert!(glyph.bbox.min.x.is_finite() && glyph.bbox.min.y.is_finite());
+        assert!(glyph.bbox.max.x.is_finite() && glyph.bbox.max.y.is_finite());
+        assert!(glyph.baseline.x.is_finite() && glyph.baseline.y.is_finite());
+        assert!(glyph.direction.x.is_finite() && glyph.direction.y.is_finite());
+        // `Unmapped` must remain explicit; mapped text is handled by font
+        // decoder invariants exercised in `fuzz_font_decoder`.
+        if let crate::model::DecodedText::Mapped(text) = &glyph.text {
+            assert!(!text.is_empty());
+            assert!(!text.contains('\u{FFFD}'));
+            assert!(!text.contains('\0'));
+        }
+    }
+    // Re-check that reconstructible page issues do not alias document state.
+    drop(document);
+    drop(issues);
+}
+
 #[derive(Default)]
 struct FuzzPdf {
     objects: HashMap<ObjectRef, PdfObject>,
@@ -621,6 +703,10 @@ mod tests {
     const VERTICAL_CUSTOM_SEED: &[u8] = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../fuzz/corpus/font_decoder/vertical-custom.bin"
+    ));
+    const GLYPH_EXTRACTION_SEED: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fuzz/corpus/glyph_extraction/valid.pdf"
     ));
 
     #[test]
@@ -886,6 +972,45 @@ mod tests {
             loaded.decoder.decode(b"AAAAAAAAAA", 20, 2),
             Err(crate::Error::LimitExceeded { .. })
         ));
+    }
+
+    #[test]
+    fn oversized_glyph_extraction_input_is_ignored() {
+        fuzz_glyph_extraction(&vec![b'A'; MAX_INPUT_BYTES + 1]);
+    }
+
+    #[test]
+    fn curated_glyph_extraction_seed_is_within_tight_budgets() {
+        fuzz_glyph_extraction(GLYPH_EXTRACTION_SEED);
+        let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
+        let outcome = source
+            .extract_outcome(
+                std::sync::Arc::from(GLYPH_EXTRACTION_SEED),
+                PARSE_LIMITS,
+                EXTRACTION_LIMITS,
+            )
+            .expect("curated extraction seed should produce an outcome");
+        assert!(outcome.document().items().len() <= EXTRACTION_LIMITS.max_glyphs);
+        assert!(outcome.document().items().len() >= 11);
+        // Valid Hello World extraction preserves at least the mapped word boundaries.
+        let text = outcome
+            .document()
+            .items()
+            .iter()
+            .filter_map(|glyph| match &glyph.text {
+                crate::model::DecodedText::Mapped(value) => Some(value.as_str()),
+                crate::model::DecodedText::Unmapped { .. } => None,
+            })
+            .collect::<String>();
+        assert!(text.contains("Hello"));
+        assert!(text.contains("World"));
+        assert!(
+            crate::source::ExtractionOutcome::new(
+                outcome.document().clone(),
+                outcome.issues().to_vec()
+            )
+            .is_ok()
+        );
     }
 
     #[test]

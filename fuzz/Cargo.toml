@@ -47,6 +47,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "glyph_extraction"
+path = "fuzz_targets/glyph_extraction.rs"
+test = false
+doc = false
+bench = false
+
 [workspace]
 members = ["."]
 resolver = "3"
