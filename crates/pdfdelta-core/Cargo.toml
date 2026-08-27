@@ -7,6 +7,10 @@ license = "MIT AND BSD-3-Clause"
 repository.workspace = true
 description = "Backend-neutral PDF extraction and document comparison library"
 
+[features]
+default = []
+fuzzing = []
+
 [dependencies]
 lopdf.workspace = true
 serde.workspace = true

@@ -1,0 +1,6 @@
+1 begincodespacerange
+<00> <FF>
+endcodespacerange
+1 beginbfchar
+<41> <0041>
+endbfchar

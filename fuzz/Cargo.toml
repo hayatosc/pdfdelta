@@ -9,11 +9,18 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-pdfdelta-core = { path = "../crates/pdfdelta-core" }
+pdfdelta-core = { path = "../crates/pdfdelta-core", features = ["fuzzing"] }
 
 [[bin]]
 name = "parser_entry"
 path = "fuzz_targets/parser_entry.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cmap_parser"
+path = "fuzz_targets/cmap_parser.rs"
 test = false
 doc = false
 bench = false

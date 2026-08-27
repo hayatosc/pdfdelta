@@ -1,0 +1,9 @@
+begincmap
+/WMode 0 def
+1 begincodespacerange
+<00> <FF>
+endcodespacerange
+1 begincidrange
+<00> <FF> 0
+endcidrange
+endcmap
