@@ -109,6 +109,11 @@ enum YamlMutation {
         #[arg(long)]
         after_word: usize,
     },
+    /// Start a new page immediately before one source paragraph.
+    PageBreak {
+        #[arg(long)]
+        before_paragraph_id: String,
+    },
     /// Change the line gap for every line in the new revision.
     LineHeightChange {
         #[arg(long)]
@@ -181,6 +186,14 @@ impl YamlMutation {
                 Mutation::LineWrap {
                     paragraph_id,
                     after_word,
+                },
+            ),
+            Self::PageBreak {
+                before_paragraph_id,
+            } => (
+                "yaml-page-break",
+                Mutation::PageBreakBefore {
+                    paragraph_id: before_paragraph_id,
                 },
             ),
             Self::LineHeightChange { new_line_gap } => (
@@ -954,6 +967,15 @@ mod tests {
                 Mutation::LineWrap {
                     paragraph_id: "p".to_owned(),
                     after_word: 2,
+                },
+            ),
+            (
+                YamlMutation::PageBreak {
+                    before_paragraph_id: "p".to_owned(),
+                },
+                "yaml-page-break",
+                Mutation::PageBreakBefore {
+                    paragraph_id: "p".to_owned(),
                 },
             ),
             (

@@ -196,6 +196,80 @@ fn paragraph_line_wrap_preserves_metadata_and_feeds_the_evaluator() {
 }
 
 #[test]
+fn paragraph_page_break_preserves_metadata_order_and_feeds_the_evaluator() {
+    let yaml = EXAMPLE_YAML.replace(
+        "        - id: availability-p1\n          text: Release 10 remains available during the transition.\n",
+        concat!(
+            "        - id: availability-p1\n",
+            "          text: Opening availability context remains stable.\n",
+            "        - id: availability-p2\n",
+            "          text: Continued availability context remains stable.\n",
+        ),
+    );
+    let document = CanonicalRenderDocument::from_yaml(&yaml).expect("valid canonical YAML");
+    let cases = [
+        (
+            "availability-p2",
+            vec![
+                "Quarterly Service Report".to_owned(),
+                "Service availability".to_owned(),
+                "Opening availability context remains stable.".to_owned(),
+            ],
+            vec![
+                "Continued availability context remains stable.".to_owned(),
+                "Customer support".to_owned(),
+                "Support hours remain unchanged.".to_owned(),
+            ],
+        ),
+        (
+            "support-p1",
+            vec![
+                "Quarterly Service Report".to_owned(),
+                "Service availability".to_owned(),
+                "Opening availability context remains stable.".to_owned(),
+                "Continued availability context remains stable.".to_owned(),
+                "Customer support".to_owned(),
+            ],
+            vec!["Support hours remain unchanged.".to_owned()],
+        ),
+    ];
+
+    for (paragraph_id, first_page, second_page) in cases {
+        let plan = Mutation::PageBreakBefore {
+            paragraph_id: paragraph_id.to_owned(),
+        }
+        .apply_to_render_document(&document, 30)
+        .expect("paragraph-targeted page break applies");
+
+        assert_eq!(plan.old().pages()[0], document.render_lines());
+        assert_eq!(plan.new_plan().pages(), &[first_page, second_page]);
+        assert_eq!(
+            plan.new_plan()
+                .pages()
+                .iter()
+                .flatten()
+                .cloned()
+                .collect::<Vec<_>>(),
+            document.render_lines()
+        );
+        assert_eq!(plan.expectation().label(), "none");
+
+        for renderer in RendererKind::all() {
+            let record = evaluate(
+                "yaml-page-break",
+                plan.old(),
+                plan.new_plan(),
+                plan.expectation(),
+                renderer,
+            )
+            .expect("structured paragraph page break evaluates");
+            assert_eq!(record.actual_changes, 0);
+            assert!(record.passed, "{}: {}", renderer.name(), record.detail);
+        }
+    }
+}
+
+#[test]
 fn global_rendering_mutations_preserve_content_and_feed_the_evaluator() {
     let document = CanonicalRenderDocument::from_yaml(EXAMPLE_YAML).expect("valid canonical YAML");
     let cases = [
@@ -355,6 +429,17 @@ fn structured_mutations_reject_metadata_targets_empty_sections_and_ambiguous_cha
     assert!(
         move_error.contains("currently support only"),
         "{move_error}"
+    );
+
+    let page_break_error = Mutation::PageBreakBefore {
+        paragraph_id: "pdfdelta-title-0".to_owned(),
+    }
+    .apply_to_render_document(&document, 30)
+    .expect_err("metadata must not be a page-break target")
+    .to_string();
+    assert!(
+        page_break_error.contains("unknown structured paragraph id"),
+        "{page_break_error}"
     );
 }
 
@@ -531,6 +616,35 @@ fn evaluate_yaml_command_runs_paragraph_line_wrap_for_each_renderer() {
 }
 
 #[test]
+fn evaluate_yaml_command_runs_paragraph_page_break_for_each_renderer() {
+    let (input, _) = temp_fixture_paths();
+    fs::write(&input, EXAMPLE_YAML).expect("temporary canonical YAML is written");
+
+    for renderer in ["lopdf-tj", "classic-xref-tj"] {
+        let output = run_evaluate_command(
+            &input,
+            renderer,
+            &["page-break", "--before-paragraph-id", "support-p1"],
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+        assert!(
+            stdout.contains(&format!(
+                "PASS case=yaml-page-break renderer={renderer} expected=none actual=none"
+            )),
+            "{stdout}"
+        );
+    }
+
+    fs::remove_file(&input).expect("temporary canonical YAML is removed");
+}
+
+#[test]
 fn evaluate_yaml_command_rejects_invalid_mutation_inputs() {
     let (input, _) = temp_fixture_paths();
     fs::write(&input, EXAMPLE_YAML).expect("temporary canonical YAML is written");
@@ -580,6 +694,19 @@ fn evaluate_yaml_command_rejects_invalid_mutation_inputs() {
     assert!(unchanged_margin.stdout.is_empty());
     let stderr = String::from_utf8(unchanged_margin.stderr).expect("stderr is UTF-8");
     assert!(stderr.contains("margin change must alter"), "{stderr}");
+
+    let metadata_page_break = run_evaluate_command(
+        &input,
+        "lopdf-tj",
+        &["page-break", "--before-paragraph-id", "pdfdelta-title-0"],
+    );
+    assert_eq!(metadata_page_break.status.code(), Some(2));
+    assert!(metadata_page_break.stdout.is_empty());
+    let stderr = String::from_utf8(metadata_page_break.stderr).expect("stderr is UTF-8");
+    assert!(
+        stderr.contains("unknown structured paragraph id"),
+        "{stderr}"
+    );
 
     fs::remove_file(&input).expect("temporary canonical YAML is removed");
 }

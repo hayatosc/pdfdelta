@@ -324,6 +324,10 @@ pub enum Mutation {
     PageBreak {
         before_paragraph: usize,
     },
+    /// Starts a new page immediately before the identified paragraph.
+    PageBreakBefore {
+        paragraph_id: String,
+    },
     /// Reflows an unchanged document from one column into two column-major
     /// columns while preserving canonical paragraph order.
     ColumnChange,
@@ -587,6 +591,9 @@ impl Mutation {
             Self::PageBreak { before_paragraph } => {
                 apply_page_break(document, *before_paragraph, line_gap)
             }
+            Self::PageBreakBefore { paragraph_id } => {
+                apply_page_break(document, paragraph_index(document, paragraph_id)?, line_gap)
+            }
             Self::ColumnChange => apply_column_change(document, line_gap),
             Self::LineHeightChange { new_line_gap } => {
                 apply_line_height_change(document, *new_line_gap, line_gap)
@@ -640,6 +647,8 @@ impl Mutation {
     /// render lines without changing section ownership or canonical text.
     /// Paragraph line wrapping splits only the targeted source paragraph while
     /// preserving its canonical text and surrounding metadata lines.
+    /// Paragraph-targeted page breaks retain source order and leave a preceding
+    /// section heading on the preceding page.
     /// Paragraph deletion is allowed only when its owning section retains at
     /// least one paragraph. Other structural and layout mutations are rejected
     /// until their structured-document contracts are explicit.
@@ -663,6 +672,7 @@ impl Mutation {
                 return self.apply(&document.mutation_document()?, line_gap);
             }
             Self::LineWrap { paragraph_id, .. }
+            | Self::PageBreakBefore { paragraph_id }
             | Self::TextReplace { paragraph_id, .. }
             | Self::TextInsert { paragraph_id, .. }
             | Self::TextDelete { paragraph_id, .. }
@@ -671,9 +681,9 @@ impl Mutation {
             _ => {
                 return Err(BenchError::InvalidInput(
                     "structured canonical documents currently support only LineWrap, \
-                     LineHeightChange, MarginChange, FontSizeChange, PageSizeChange, \
-                     TextReplace, TextInsert, TextDelete, NumberReplace, and ParagraphDelete \
-                     mutations"
+                     PageBreakBefore, LineHeightChange, MarginChange, FontSizeChange, \
+                     PageSizeChange, TextReplace, TextInsert, TextDelete, NumberReplace, and \
+                     ParagraphDelete mutations"
                         .to_owned(),
                 ));
             }
