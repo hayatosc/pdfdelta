@@ -473,6 +473,76 @@ fn section_local_paragraph_insertion_reserves_generated_metadata_ids() {
 }
 
 #[test]
+fn same_section_paragraph_move_preserves_structure_and_feeds_the_evaluator() {
+    let yaml = EXAMPLE_YAML.replace(
+        "        - id: availability-p1\n          text: Release 10 remains available during the transition.\n",
+        concat!(
+            "        - id: availability-p1\n",
+            "          text: Opening availability paragraph remains stable and identifies the start.\n",
+            "        - id: availability-p2\n",
+            "          text: Middle availability paragraph remains stable and identifies the center.\n",
+            "        - id: availability-p3\n",
+            "          text: Closing availability paragraph remains stable and identifies the end.\n",
+        ),
+    );
+    let document = CanonicalRenderDocument::from_yaml(&yaml).expect("valid canonical YAML");
+    let cases = [
+        (
+            "availability-p1",
+            2,
+            [
+                "Middle availability paragraph remains stable and identifies the center.",
+                "Closing availability paragraph remains stable and identifies the end.",
+                "Opening availability paragraph remains stable and identifies the start.",
+            ],
+        ),
+        (
+            "availability-p3",
+            0,
+            [
+                "Closing availability paragraph remains stable and identifies the end.",
+                "Opening availability paragraph remains stable and identifies the start.",
+                "Middle availability paragraph remains stable and identifies the center.",
+            ],
+        ),
+    ];
+
+    for (paragraph_id, to_index, expected_paragraphs) in cases {
+        let plan = Mutation::ParagraphMoveInSection {
+            paragraph_id: paragraph_id.to_owned(),
+            to_index,
+        }
+        .apply_to_render_document(&document, 30)
+        .expect("same-section paragraph move applies");
+
+        assert_eq!(plan.old().pages()[0], document.render_lines());
+        assert_eq!(
+            &plan.new_plan().pages()[0][..2],
+            ["Quarterly Service Report", "Service availability"]
+        );
+        assert_eq!(&plan.new_plan().pages()[0][2..5], expected_paragraphs);
+        assert_eq!(
+            &plan.new_plan().pages()[0][5..],
+            ["Customer support", "Support hours remain unchanged."]
+        );
+        assert_eq!(plan.expectation().label(), "move");
+
+        for renderer in RendererKind::all() {
+            let record = evaluate(
+                "yaml-paragraph-move",
+                plan.old(),
+                plan.new_plan(),
+                plan.expectation(),
+                renderer,
+            )
+            .expect("structured paragraph move evaluates");
+            assert_eq!(record.actual_changes, 1);
+            assert!(record.passed, "{}: {}", renderer.name(), record.detail);
+        }
+    }
+}
+
+#[test]
 fn structured_mutations_reject_metadata_targets_empty_sections_and_ambiguous_changes() {
     let document = CanonicalRenderDocument::from_yaml(EXAMPLE_YAML).expect("valid canonical YAML");
     let metadata_error = Mutation::TextReplace {
@@ -553,6 +623,36 @@ fn structured_mutations_reject_metadata_targets_empty_sections_and_ambiguous_cha
         let error = mutation
             .apply_to_render_document(&document, 30)
             .expect_err("invalid section-local insertion is rejected")
+            .to_string();
+        assert!(error.contains(expected), "{error}");
+    }
+
+    for (mutation, expected) in [
+        (
+            Mutation::ParagraphMoveInSection {
+                paragraph_id: "availability-p1".to_owned(),
+                to_index: 0,
+            },
+            "must change its section-local index",
+        ),
+        (
+            Mutation::ParagraphMoveInSection {
+                paragraph_id: "availability-p1".to_owned(),
+                to_index: 1,
+            },
+            "exceeds section",
+        ),
+        (
+            Mutation::ParagraphMoveInSection {
+                paragraph_id: "pdfdelta-title-0".to_owned(),
+                to_index: 0,
+            },
+            "unknown structured paragraph id",
+        ),
+    ] {
+        let error = mutation
+            .apply_to_render_document(&document, 30)
+            .expect_err("invalid same-section move is rejected")
             .to_string();
         assert!(error.contains(expected), "{error}");
     }
@@ -791,6 +891,53 @@ fn evaluate_yaml_command_runs_section_local_paragraph_insertion_for_each_rendere
             stdout.contains(&format!(
                 "PASS case=yaml-paragraph-insert renderer={renderer} \
                  expected=insertion actual=insertion coverage=1.000/1.000"
+            )),
+            "{stdout}"
+        );
+    }
+
+    fs::remove_file(&input).expect("temporary canonical YAML is removed");
+}
+
+#[test]
+fn evaluate_yaml_command_runs_same_section_paragraph_move_for_each_renderer() {
+    let (input, _) = temp_fixture_paths();
+    let yaml = EXAMPLE_YAML.replace(
+        "        - id: availability-p1\n          text: Release 10 remains available during the transition.\n",
+        concat!(
+            "        - id: availability-p1\n",
+            "          text: Opening availability paragraph remains stable and identifies the start.\n",
+            "        - id: availability-p2\n",
+            "          text: Middle availability paragraph remains stable and identifies the center.\n",
+            "        - id: availability-p3\n",
+            "          text: Closing availability paragraph remains stable and identifies the end.\n",
+        ),
+    );
+    fs::write(&input, yaml).expect("temporary canonical YAML is written");
+
+    for renderer in ["lopdf-tj", "classic-xref-tj"] {
+        let output = run_evaluate_command(
+            &input,
+            renderer,
+            &[
+                "paragraph-move",
+                "--paragraph-id",
+                "availability-p3",
+                "--to-index",
+                "0",
+            ],
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+        assert!(
+            stdout.contains(&format!(
+                "PASS case=yaml-paragraph-move renderer={renderer} expected=move actual=move \
+                 coverage=1.000/1.000"
             )),
             "{stdout}"
         );

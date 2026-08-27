@@ -184,6 +184,13 @@ enum YamlMutation {
         #[arg(long)]
         paragraph_id: String,
     },
+    /// Move one paragraph to a final zero-based index within its current section.
+    ParagraphMove {
+        #[arg(long)]
+        paragraph_id: String,
+        #[arg(long)]
+        to_index: usize,
+    },
 }
 
 impl YamlMutation {
@@ -289,6 +296,16 @@ impl YamlMutation {
             Self::ParagraphDelete { paragraph_id } => (
                 "yaml-paragraph-delete",
                 Mutation::ParagraphDelete { paragraph_id },
+            ),
+            Self::ParagraphMove {
+                paragraph_id,
+                to_index,
+            } => (
+                "yaml-paragraph-move",
+                Mutation::ParagraphMoveInSection {
+                    paragraph_id,
+                    to_index,
+                },
             ),
         }
     }
@@ -1099,6 +1116,17 @@ mod tests {
                     index: 1,
                     paragraph_id: "inserted".to_owned(),
                     text: "Inserted paragraph".to_owned(),
+                },
+            ),
+            (
+                YamlMutation::ParagraphMove {
+                    paragraph_id: "moved".to_owned(),
+                    to_index: 0,
+                },
+                "yaml-paragraph-move",
+                Mutation::ParagraphMoveInSection {
+                    paragraph_id: "moved".to_owned(),
+                    to_index: 0,
                 },
             ),
         ];

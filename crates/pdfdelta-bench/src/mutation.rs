@@ -393,6 +393,11 @@ pub enum Mutation {
         paragraph_id: String,
         to_index: usize,
     },
+    /// Moves a source paragraph to a final index within its current section.
+    ParagraphMoveInSection {
+        paragraph_id: String,
+        to_index: usize,
+    },
 }
 
 /// A half-open scalar range in paragraphs joined by one canonical space.
@@ -647,6 +652,10 @@ impl Mutation {
                 paragraph_id,
                 to_index,
             } => apply_paragraph_move(document, paragraph_id, *to_index, line_gap),
+            Self::ParagraphMoveInSection { .. } => Err(BenchError::InvalidInput(
+                "section-local paragraph movement requires a structured canonical document"
+                    .to_owned(),
+            )),
         }
     }
 
@@ -662,6 +671,8 @@ impl Mutation {
     /// section heading on the preceding page.
     /// Section-local insertion preserves the owning heading and rejects indexes
     /// beyond the section's current paragraph count.
+    /// Section-local movement keeps the source paragraph under its current
+    /// heading and interprets the destination as its final local index.
     /// Paragraph deletion is allowed only when its owning section retains at
     /// least one paragraph. Other structural and layout mutations are rejected
     /// until their structured-document contracts are explicit.
@@ -693,6 +704,13 @@ impl Mutation {
             }
             .apply(&flattened, line_gap);
         }
+        if let Self::ParagraphMoveInSection {
+            paragraph_id,
+            to_index,
+        } = self
+        {
+            return apply_structured_paragraph_move(document, paragraph_id, *to_index, line_gap);
+        }
         let paragraph_id = match self {
             Self::LineHeightChange { .. }
             | Self::MarginChange { .. }
@@ -712,7 +730,8 @@ impl Mutation {
                     "structured canonical documents currently support only LineWrap, \
                      PageBreakBefore, LineHeightChange, MarginChange, FontSizeChange, \
                      PageSizeChange, TextReplace, TextInsert, TextDelete, NumberReplace, \
-                     ParagraphInsertInSection, and ParagraphDelete mutations"
+                     ParagraphInsertInSection, ParagraphDelete, and ParagraphMoveInSection \
+                     mutations"
                         .to_owned(),
                 ));
             }
@@ -771,6 +790,55 @@ fn structured_insertion_index(
     }
     Err(BenchError::InvalidInput(format!(
         "unknown structured section id {section_id:?}"
+    )))
+}
+
+fn apply_structured_paragraph_move(
+    document: &CanonicalRenderDocument,
+    paragraph_id: &str,
+    to_index: usize,
+    line_gap: u16,
+) -> Result<MutationPlan> {
+    validate_paragraph_id(paragraph_id)?;
+    let mut section_start = 1usize;
+    for section in document.sections() {
+        section_start = section_start.checked_add(1).ok_or_else(|| {
+            BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
+        })?;
+        if let Some(from_index) = section
+            .paragraphs()
+            .iter()
+            .position(|paragraph| paragraph.id() == paragraph_id)
+        {
+            if to_index >= section.paragraphs().len() {
+                return Err(BenchError::InvalidInput(format!(
+                    "paragraph move index {to_index} exceeds section {:?} final index {}",
+                    section.id(),
+                    section.paragraphs().len() - 1
+                )));
+            }
+            if from_index == to_index {
+                return Err(BenchError::InvalidInput(format!(
+                    "paragraph move for {paragraph_id:?} must change its section-local index"
+                )));
+            }
+            let flattened_index = section_start.checked_add(to_index).ok_or_else(|| {
+                BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
+            })?;
+            return Mutation::ParagraphMove {
+                paragraph_id: paragraph_id.to_owned(),
+                to_index: flattened_index,
+            }
+            .apply(&document.mutation_document()?, line_gap);
+        }
+        section_start = section_start
+            .checked_add(section.paragraphs().len())
+            .ok_or_else(|| {
+                BenchError::InvalidInput("structured paragraph index overflowed".to_owned())
+            })?;
+    }
+    Err(BenchError::InvalidInput(format!(
+        "unknown structured paragraph id {paragraph_id:?}"
     )))
 }
 
