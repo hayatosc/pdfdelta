@@ -636,6 +636,8 @@ impl Mutation {
     ///
     /// The title and section headings remain immutable render lines and stay in
     /// the canonical coordinate space used by the expected-change manifest.
+    /// Global line-height, margin, font-size, and page-size changes apply to all
+    /// render lines without changing section ownership or canonical text.
     /// Paragraph deletion is allowed only when its owning section retains at
     /// least one paragraph. Other structural and layout mutations are rejected
     /// until their structured-document contracts are explicit.
@@ -644,13 +646,20 @@ impl Mutation {
     ///
     /// Returns [`BenchError::InvalidInput`] when the mutation kind is not yet
     /// supported for structured documents, its target is not a source
-    /// paragraph, or the underlying text mutation is invalid.
+    /// paragraph, a rendering parameter is invalid or unchanged, or the
+    /// underlying paragraph mutation is invalid.
     pub fn apply_to_render_document(
         &self,
         document: &CanonicalRenderDocument,
         line_gap: u16,
     ) -> Result<MutationPlan> {
         let paragraph_id = match self {
+            Self::LineHeightChange { .. }
+            | Self::MarginChange { .. }
+            | Self::FontSizeChange { .. }
+            | Self::PageSizeChange { .. } => {
+                return self.apply(&document.mutation_document()?, line_gap);
+            }
             Self::TextReplace { paragraph_id, .. }
             | Self::TextInsert { paragraph_id, .. }
             | Self::TextDelete { paragraph_id, .. }
@@ -658,8 +667,9 @@ impl Mutation {
             | Self::ParagraphDelete { paragraph_id } => paragraph_id,
             _ => {
                 return Err(BenchError::InvalidInput(
-                    "structured canonical documents currently support only TextReplace, \
-                     TextInsert, TextDelete, NumberReplace, and ParagraphDelete mutations"
+                    "structured canonical documents currently support only LineHeightChange, \
+                     MarginChange, FontSizeChange, PageSizeChange, TextReplace, TextInsert, \
+                     TextDelete, NumberReplace, and ParagraphDelete mutations"
                         .to_owned(),
                 ));
             }

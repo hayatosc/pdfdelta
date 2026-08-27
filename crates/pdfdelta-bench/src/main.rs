@@ -102,6 +102,28 @@ enum Command {
 
 #[derive(Debug, Subcommand)]
 enum YamlMutation {
+    /// Change the line gap for every line in the new revision.
+    LineHeightChange {
+        #[arg(long)]
+        new_line_gap: u16,
+    },
+    /// Change the left margin for every line in the new revision.
+    MarginChange {
+        #[arg(long)]
+        new_margin: u16,
+    },
+    /// Change the font size for every line in the new revision.
+    FontSizeChange {
+        #[arg(long)]
+        new_font_size: u16,
+    },
+    /// Change the page dimensions for the new revision.
+    PageSizeChange {
+        #[arg(long)]
+        new_page_width: u16,
+        #[arg(long)]
+        new_page_height: u16,
+    },
     /// Replace all text in one paragraph.
     TextReplace {
         #[arg(long)]
@@ -144,6 +166,27 @@ enum YamlMutation {
 impl YamlMutation {
     fn into_mutation(self) -> (&'static str, Mutation) {
         match self {
+            Self::LineHeightChange { new_line_gap } => (
+                "yaml-line-height-change",
+                Mutation::LineHeightChange { new_line_gap },
+            ),
+            Self::MarginChange { new_margin } => {
+                ("yaml-margin-change", Mutation::MarginChange { new_margin })
+            }
+            Self::FontSizeChange { new_font_size } => (
+                "yaml-font-size-change",
+                Mutation::FontSizeChange { new_font_size },
+            ),
+            Self::PageSizeChange {
+                new_page_width,
+                new_page_height,
+            } => (
+                "yaml-page-size-change",
+                Mutation::PageSizeChange {
+                    new_page_width,
+                    new_page_height,
+                },
+            ),
             Self::TextReplace {
                 paragraph_id,
                 new_text,
@@ -885,6 +928,32 @@ mod tests {
     #[test]
     fn yaml_mutation_commands_map_to_the_supported_library_mutations() {
         let cases = [
+            (
+                YamlMutation::LineHeightChange { new_line_gap: 34 },
+                "yaml-line-height-change",
+                Mutation::LineHeightChange { new_line_gap: 34 },
+            ),
+            (
+                YamlMutation::MarginChange { new_margin: 48 },
+                "yaml-margin-change",
+                Mutation::MarginChange { new_margin: 48 },
+            ),
+            (
+                YamlMutation::FontSizeChange { new_font_size: 12 },
+                "yaml-font-size-change",
+                Mutation::FontSizeChange { new_font_size: 12 },
+            ),
+            (
+                YamlMutation::PageSizeChange {
+                    new_page_width: 640,
+                    new_page_height: 800,
+                },
+                "yaml-page-size-change",
+                Mutation::PageSizeChange {
+                    new_page_width: 640,
+                    new_page_height: 800,
+                },
+            ),
             (
                 YamlMutation::TextReplace {
                     paragraph_id: "p".to_owned(),

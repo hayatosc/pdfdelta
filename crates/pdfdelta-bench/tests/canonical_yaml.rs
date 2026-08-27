@@ -158,6 +158,83 @@ fn paragraph_text_mutations_feed_the_evaluator_without_dropping_metadata() {
 }
 
 #[test]
+fn global_rendering_mutations_preserve_content_and_feed_the_evaluator() {
+    let document = CanonicalRenderDocument::from_yaml(EXAMPLE_YAML).expect("valid canonical YAML");
+    let cases = [
+        (
+            "yaml-line-height-change",
+            Mutation::LineHeightChange { new_line_gap: 34 },
+        ),
+        (
+            "yaml-margin-change",
+            Mutation::MarginChange { new_margin: 48 },
+        ),
+        (
+            "yaml-font-size-change",
+            Mutation::FontSizeChange { new_font_size: 12 },
+        ),
+        (
+            "yaml-page-size-change",
+            Mutation::PageSizeChange {
+                new_page_width: 640,
+                new_page_height: 800,
+            },
+        ),
+    ];
+
+    for (name, mutation) in cases {
+        let plan = mutation
+            .apply_to_render_document(&document, 30)
+            .expect("global rendering mutation applies");
+        assert_eq!(plan.old().pages(), plan.new_plan().pages());
+        assert_eq!(plan.old().pages()[0], document.render_lines());
+        assert_eq!(plan.expectation().label(), "none");
+        match mutation {
+            Mutation::LineHeightChange { new_line_gap } => {
+                assert_ne!(plan.old().line_gap(), plan.new_plan().line_gap());
+                assert_eq!(plan.new_plan().line_gap(), new_line_gap);
+            }
+            Mutation::MarginChange { new_margin } => {
+                assert_ne!(plan.old().margin(), plan.new_plan().margin());
+                assert_eq!(plan.new_plan().margin(), new_margin);
+            }
+            Mutation::FontSizeChange { new_font_size } => {
+                assert_ne!(plan.old().font_size(), plan.new_plan().font_size());
+                assert_eq!(plan.new_plan().font_size(), new_font_size);
+            }
+            Mutation::PageSizeChange {
+                new_page_width,
+                new_page_height,
+            } => {
+                assert_ne!(plan.old().page_width(), plan.new_plan().page_width());
+                assert_ne!(plan.old().page_height(), plan.new_plan().page_height());
+                assert_eq!(plan.new_plan().page_width(), new_page_width);
+                assert_eq!(plan.new_plan().page_height(), new_page_height);
+            }
+            _ => panic!("test cases contain only global rendering mutations"),
+        }
+
+        for renderer in RendererKind::all() {
+            let record = evaluate(
+                name,
+                plan.old(),
+                plan.new_plan(),
+                plan.expectation(),
+                renderer,
+            )
+            .expect("global rendering mutation evaluates");
+            assert_eq!(record.actual_changes, 0);
+            assert!(
+                record.passed,
+                "{name}/{}: {}",
+                renderer.name(),
+                record.detail
+            );
+        }
+    }
+}
+
+#[test]
 fn paragraph_deletion_preserves_its_section_and_feeds_the_evaluator() {
     let yaml = EXAMPLE_YAML.replace(
         "        - id: availability-p1\n          text: Release 10 remains available during the transition.\n",
@@ -332,6 +409,55 @@ fn evaluate_yaml_command_reports_a_passing_record_for_each_renderer() {
 }
 
 #[test]
+fn evaluate_yaml_command_runs_each_global_rendering_mutation() {
+    let (input, _) = temp_fixture_paths();
+    fs::write(&input, EXAMPLE_YAML).expect("temporary canonical YAML is written");
+    let cases: [(&str, &[&str]); 4] = [
+        (
+            "yaml-line-height-change",
+            &["line-height-change", "--new-line-gap", "34"],
+        ),
+        (
+            "yaml-margin-change",
+            &["margin-change", "--new-margin", "48"],
+        ),
+        (
+            "yaml-font-size-change",
+            &["font-size-change", "--new-font-size", "12"],
+        ),
+        (
+            "yaml-page-size-change",
+            &[
+                "page-size-change",
+                "--new-page-width",
+                "640",
+                "--new-page-height",
+                "800",
+            ],
+        ),
+    ];
+
+    for (case_name, arguments) in cases {
+        let output = run_evaluate_command(&input, "lopdf-tj", arguments);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+        assert!(
+            stdout.contains(&format!(
+                "PASS case={case_name} renderer=lopdf-tj expected=none actual=none"
+            )),
+            "{stdout}"
+        );
+    }
+
+    fs::remove_file(&input).expect("temporary canonical YAML is removed");
+}
+
+#[test]
 fn evaluate_yaml_command_rejects_invalid_mutation_inputs() {
     let (input, _) = temp_fixture_paths();
     fs::write(&input, EXAMPLE_YAML).expect("temporary canonical YAML is written");
@@ -364,6 +490,13 @@ fn evaluate_yaml_command_rejects_invalid_mutation_inputs() {
         let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
         assert!(stderr.contains(expected), "{stderr}");
     }
+
+    let unchanged_margin =
+        run_evaluate_command(&input, "lopdf-tj", &["margin-change", "--new-margin", "36"]);
+    assert_eq!(unchanged_margin.status.code(), Some(2));
+    assert!(unchanged_margin.stdout.is_empty());
+    let stderr = String::from_utf8(unchanged_margin.stderr).expect("stderr is UTF-8");
+    assert!(stderr.contains("margin change must alter"), "{stderr}");
 
     fs::remove_file(&input).expect("temporary canonical YAML is removed");
 }
