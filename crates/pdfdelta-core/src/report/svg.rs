@@ -356,7 +356,7 @@ fn is_xml_10_valid(ch: char) -> bool {
 /// Note: Literal source substrings like `<U+0000>` render identically to generated forbidden
 /// codepoint markers (`&lt;U+0000&gt;`). Any disambiguated marker or escaping scheme should
 /// be introduced only when demonstrated by benchmark/fixture evidence.
-fn xml_escape(input: &str) -> String {
+pub(super) fn xml_escape(input: &str) -> String {
     let mut escaped = String::with_capacity(input.len());
     for ch in input.chars() {
         if !is_xml_10_valid(ch) {

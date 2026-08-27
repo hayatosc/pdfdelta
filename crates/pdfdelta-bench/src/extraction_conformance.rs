@@ -10,6 +10,7 @@ use pdfdelta_core::{
     },
     model::{DecodedText, FontProgramHash, PageId, Rect, Vec2},
     pdf::{LopdfParser, ParseLimits},
+    report::render_extraction_mismatch_svg,
     source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
 };
 use serde::Deserialize;
@@ -47,6 +48,20 @@ impl ExtractionConformanceRecord {
     pub const fn passed(&self) -> bool {
         self.mismatch.is_none()
     }
+}
+
+/// Opt-in visual evidence for one extraction-conformance evaluation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExtractionConformanceDiagnostic {
+    pub record: ExtractionConformanceRecord,
+    /// Present only when the snapshots differ.
+    pub mismatch_svg: Option<String>,
+}
+
+struct ComparedSnapshots {
+    record: ExtractionConformanceRecord,
+    expected: PrimitiveExtractionSnapshot,
+    actual: PrimitiveExtractionSnapshot,
 }
 
 #[derive(Debug, Deserialize)]
@@ -113,6 +128,56 @@ pub fn evaluate_extraction_conformance(
     oracle_json: &[u8],
     geometry_tolerance: f64,
 ) -> Result<ExtractionConformanceRecord> {
+    Ok(compare_extraction_snapshots(pdf, oracle_json, geometry_tolerance)?.record)
+}
+
+/// Compares extraction snapshots and renders an SVG when they differ.
+///
+/// This opt-in entry point avoids allocating a potentially large diagnostic
+/// during ordinary conformance checks and enforces explicit diagnostic caps:
+/// at most `50 000` total glyphs, `8 MiB` of SVG output, and `8 KiB` per
+/// mapped glyph text / mismatch field value. A count mismatch with
+/// `ExtractionLimits::default` could otherwise retain `10M` glyphs and require
+/// ~5–6 GiB of serialization, while a single `64 MiB` mapped glyph would
+/// transiently allocate hundreds of MiB via `glyph_title`/`xml_escape` before
+/// the byte cap.
+///
+/// # Errors
+///
+/// Returns the same errors as [`evaluate_extraction_conformance`], plus
+/// [`BenchError::Core`] with a typed [`pdfdelta_core::Error::LimitExceeded`]
+/// when valid snapshot geometry cannot be represented as an SVG diagnostic or
+/// the diagnostic would exceed its glyph, byte, or per-field text caps.
+pub fn evaluate_extraction_conformance_with_mismatch_svg(
+    pdf: Arc<[u8]>,
+    oracle_json: &[u8],
+    geometry_tolerance: f64,
+) -> Result<ExtractionConformanceDiagnostic> {
+    let compared = compare_extraction_snapshots(pdf, oracle_json, geometry_tolerance)?;
+    let mismatch_svg = compared
+        .record
+        .mismatch
+        .as_ref()
+        .map(|mismatch| {
+            render_extraction_mismatch_svg(&compared.expected, &compared.actual, mismatch).map_err(
+                |source| BenchError::Core {
+                    stage: "extraction conformance diagnostic",
+                    source,
+                },
+            )
+        })
+        .transpose()?;
+    Ok(ExtractionConformanceDiagnostic {
+        record: compared.record,
+        mismatch_svg,
+    })
+}
+
+fn compare_extraction_snapshots(
+    pdf: Arc<[u8]>,
+    oracle_json: &[u8],
+    geometry_tolerance: f64,
+) -> Result<ComparedSnapshots> {
     if oracle_json.len() > MAX_EXTRACTION_ORACLE_BYTES {
         return Err(invalid(format!(
             "extraction oracle must not exceed {MAX_EXTRACTION_ORACLE_BYTES} bytes"
@@ -146,11 +211,15 @@ pub fn evaluate_extraction_conformance(
     let actual_glyphs = actual.glyphs.len();
     let mismatch = compare_snapshots(&expected, &actual, tolerance).err();
 
-    Ok(ExtractionConformanceRecord {
-        producer,
-        expected_glyphs,
-        actual_glyphs,
-        mismatch,
+    Ok(ComparedSnapshots {
+        record: ExtractionConformanceRecord {
+            producer,
+            expected_glyphs,
+            actual_glyphs,
+            mismatch,
+        },
+        expected,
+        actual,
     })
 }
 

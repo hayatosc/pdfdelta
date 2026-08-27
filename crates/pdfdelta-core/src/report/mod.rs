@@ -1,3 +1,4 @@
+mod extraction_svg;
 mod json;
 mod svg;
 mod text;
@@ -14,6 +15,7 @@ use crate::{
     source::{ExtractionIssue, ExtractionIssueKind, ExtractionScope},
 };
 
+pub use extraction_svg::render_extraction_mismatch_svg;
 pub use json::write_json;
 pub use svg::{render_glyph_overlay_svg, write_glyph_overlay_svg};
 

@@ -1,6 +1,6 @@
 use std::{
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
@@ -46,7 +46,7 @@ fn command_accepts_a_matching_versioned_external_snapshot() {
     let (pdf, oracle) = fixture_oracle();
     let inputs = TempInputs::new("pass", &pdf, &oracle);
 
-    let output = run_command(&inputs, 0.25);
+    let output = run_command(&inputs, 0.25, None);
 
     assert!(
         output.status.success(),
@@ -72,7 +72,7 @@ fn command_returns_one_for_a_geometry_mismatch() {
     oracle["glyphs"][0]["bbox"]["min"]["x"] = json!(x + 1.0);
     let inputs = TempInputs::new("mismatch", &pdf, &oracle);
 
-    let output = run_command(&inputs, 0.25);
+    let output = run_command(&inputs, 0.25, None);
 
     assert_eq!(output.status.code(), Some(1));
     assert!(output.stderr.is_empty());
@@ -85,12 +85,70 @@ fn command_returns_one_for_a_geometry_mismatch() {
 }
 
 #[test]
+fn command_writes_a_mismatch_svg_without_changing_the_failure_contract() {
+    let (pdf, mut oracle) = fixture_oracle();
+    oracle["glyphs"][0]["text"]["value"] = json!("Different");
+    let inputs = TempInputs::new("mismatch-svg", &pdf, &oracle);
+    let mismatch_svg = inputs.mismatch_svg_path();
+
+    let output = run_command(&inputs, 0.25, Some(&mismatch_svg));
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(
+        stdout.starts_with("FAIL extraction-conformance "),
+        "{stdout}"
+    );
+    assert!(stdout.contains("glyph 0 text mismatch"), "{stdout}");
+    let svg = fs::read_to_string(&mismatch_svg).expect("mismatch SVG is published");
+    assert!(svg.contains(r#"role="img""#));
+    assert!(svg.contains(r#"class="snapshot-glyph expected mismatch""#));
+    assert!(svg.contains(r#"class="snapshot-glyph actual mismatch""#));
+}
+
+#[test]
+fn command_does_not_create_a_mismatch_svg_for_a_match() {
+    let (pdf, oracle) = fixture_oracle();
+    let inputs = TempInputs::new("match-svg", &pdf, &oracle);
+    let mismatch_svg = inputs.mismatch_svg_path();
+
+    let output = run_command(&inputs, 0.25, Some(&mismatch_svg));
+
+    assert!(output.status.success());
+    assert!(!mismatch_svg.exists());
+}
+
+#[test]
+fn command_refuses_to_overwrite_an_existing_mismatch_svg() {
+    let (pdf, mut oracle) = fixture_oracle();
+    oracle["glyphs"][0]["text"]["value"] = json!("Different");
+    let inputs = TempInputs::new("existing-svg", &pdf, &oracle);
+    let mismatch_svg = inputs.mismatch_svg_path();
+    fs::write(&mismatch_svg, b"existing evidence\n").expect("existing artifact writes");
+
+    let output = run_command(&inputs, 0.25, Some(&mismatch_svg));
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    assert!(
+        stderr.contains("destination path already exists"),
+        "{stderr}"
+    );
+    assert_eq!(
+        fs::read(&mismatch_svg).expect("existing artifact remains readable"),
+        b"existing evidence\n"
+    );
+}
+
+#[test]
 fn command_returns_two_for_missing_producer_identity() {
     let (pdf, mut oracle) = fixture_oracle();
     oracle["producer"]["name"] = json!("");
     let inputs = TempInputs::new("invalid-producer", &pdf, &oracle);
 
-    let output = run_command(&inputs, 0.25);
+    let output = run_command(&inputs, 0.25, None);
 
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stdout.is_empty());
@@ -159,16 +217,23 @@ fn fixture_oracle() -> (Vec<u8>, Value) {
     (pdf, oracle)
 }
 
-fn run_command(inputs: &TempInputs, tolerance: f64) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_pdfbench"))
+fn run_command(
+    inputs: &TempInputs,
+    tolerance: f64,
+    mismatch_svg: Option<&Path>,
+) -> std::process::Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_pdfbench"));
+    command
         .arg("extraction-conformance")
         .arg(&inputs.pdf)
         .arg("--oracle")
         .arg(&inputs.oracle)
         .arg("--geometry-tolerance")
-        .arg(tolerance.to_string())
-        .output()
-        .expect("pdfbench runs")
+        .arg(tolerance.to_string());
+    if let Some(path) = mismatch_svg {
+        command.arg("--mismatch-svg").arg(path);
+    }
+    command.output().expect("pdfbench runs")
 }
 
 fn lowercase_hex(bytes: &[u8]) -> String {
@@ -206,10 +271,15 @@ impl TempInputs {
             oracle: oracle_path,
         }
     }
+
+    fn mismatch_svg_path(&self) -> PathBuf {
+        self.pdf.with_extension("mismatch.svg")
+    }
 }
 
 impl Drop for TempInputs {
     fn drop(&mut self) {
+        let _ = fs::remove_file(self.mismatch_svg_path());
         let _ = fs::remove_file(&self.pdf);
         let _ = fs::remove_file(&self.oracle);
     }

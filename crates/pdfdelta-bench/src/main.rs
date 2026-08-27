@@ -12,7 +12,10 @@ use pdfdelta_bench::{
     canonical::{CanonicalRenderDocument, MAX_CANONICAL_YAML_BYTES},
     cases::built_in_cases,
     evaluator::{EvaluationRecord, evaluate, evaluate_case, evaluate_rendered},
-    extraction_conformance::{MAX_EXTRACTION_ORACLE_BYTES, evaluate_extraction_conformance},
+    extraction_conformance::{
+        MAX_EXTRACTION_ORACLE_BYTES, evaluate_extraction_conformance,
+        evaluate_extraction_conformance_with_mismatch_svg,
+    },
     mutation::{Mutation, MutationPlan, RenderPlan},
     renderers::{RenderLimits, RendererKind},
     revisions::{
@@ -84,6 +87,9 @@ enum Command {
         /// Maximum absolute difference accepted for each geometry coordinate.
         #[arg(long, default_value_t = 0.25)]
         geometry_tolerance: f64,
+        /// Write a visual expected/actual overlay for a mismatch to a new SVG file.
+        #[arg(long)]
+        mismatch_svg: Option<PathBuf>,
     },
     /// Evaluate candidate generation recall and visit pressure on every
     /// built-in case across both PDF renderers.
@@ -393,7 +399,14 @@ fn main() -> ExitCode {
             input,
             oracle,
             geometry_tolerance,
-        }) => run_extraction_conformance(&mut stdout, &input, &oracle, geometry_tolerance),
+            mismatch_svg,
+        }) => run_extraction_conformance(
+            &mut stdout,
+            &input,
+            &oracle,
+            geometry_tolerance,
+            mismatch_svg.as_deref(),
+        ),
         Some(Command::Candidates { top_k, json_output }) => match parse_top_k(&top_k) {
             Ok(top_k) => candidates(&mut stdout, &top_k, json_output.as_deref()),
             Err(error) => Err(error),
@@ -488,6 +501,7 @@ fn run_extraction_conformance<W: Write>(
     input: &Path,
     oracle: &Path,
     geometry_tolerance: f64,
+    mismatch_svg_path: Option<&Path>,
 ) -> Result<u8, String> {
     let pdf = read_bounded_file(input, ParseLimits::default().max_input_bytes, "PDF")?;
     let oracle_json = read_bounded_file(
@@ -495,8 +509,23 @@ fn run_extraction_conformance<W: Write>(
         MAX_EXTRACTION_ORACLE_BYTES,
         "extraction oracle JSON",
     )?;
-    let record = evaluate_extraction_conformance(Arc::from(pdf), &oracle_json, geometry_tolerance)
+    let pdf = Arc::from(pdf);
+    let (record, mismatch_svg) = if mismatch_svg_path.is_some() {
+        let diagnostic = evaluate_extraction_conformance_with_mismatch_svg(
+            pdf,
+            &oracle_json,
+            geometry_tolerance,
+        )
         .map_err(|error| error.to_string())?;
+        (diagnostic.record, diagnostic.mismatch_svg)
+    } else {
+        let record = evaluate_extraction_conformance(pdf, &oracle_json, geometry_tolerance)
+            .map_err(|error| error.to_string())?;
+        (record, None)
+    };
+    if let (Some(path), Some(svg)) = (mismatch_svg_path, mismatch_svg.as_deref()) {
+        publish_new_file(path, svg.as_bytes()).map_err(|error| error.to_string())?;
+    }
     let status = if record.passed() { "PASS" } else { "FAIL" };
     write!(
         writer,
