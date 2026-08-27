@@ -4,8 +4,6 @@ const MAX_MYERS_EDIT_DISTANCE: usize = 32_768;
 
 use std::collections::HashMap;
 
-use unicode_normalization::UnicodeNormalization;
-
 use crate::{
     Error, Result,
     alignment::{
@@ -14,7 +12,10 @@ use crate::{
     },
     layout::BlockId,
     model::Vec2,
-    normalize::{BlockText, ComparableToken, FontSizeSignature, PositionSignature, ScalarRange},
+    normalize::{
+        BlockText, ComparableToken, FontSizeSignature, PositionSignature, ScalarRange,
+        character_width_fold,
+    },
     validate::validate_unit_interval,
 };
 
@@ -601,37 +602,14 @@ fn flush_hunk(
 }
 
 fn is_character_width_replacement(old: &[ComparableToken], new: &[ComparableToken]) -> bool {
-    let Some((old_folded, old_changed)) = restricted_width_fold(old) else {
+    let Some((old_folded, old_changed)) = character_width_fold(old) else {
         return false;
     };
-    let Some((new_folded, new_changed)) = restricted_width_fold(new) else {
+    let Some((new_folded, new_changed)) = character_width_fold(new) else {
         return false;
     };
 
     (old_changed || new_changed) && old_folded == new_folded
-}
-
-fn restricted_width_fold(tokens: &[ComparableToken]) -> Option<(String, bool)> {
-    let mut folded = String::new();
-    let mut changed = false;
-
-    for token in tokens {
-        let ComparableToken::Scalar(scalar) = token else {
-            return None;
-        };
-        if *scalar == '\u{3000}' || ('\u{ff00}'..='\u{ffef}').contains(scalar) {
-            let original = scalar.to_string();
-            let normalized = original.as_str().nfkc().collect::<String>();
-            if normalized != original {
-                folded.push_str(&normalized);
-                changed = true;
-                continue;
-            }
-        }
-        folded.push(*scalar);
-    }
-
-    Some((folded.nfc().collect(), changed))
 }
 
 fn validate_alignment(old: &Side<'_>, new: &Side<'_>, alignment: &Alignment) -> Result<()> {

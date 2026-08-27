@@ -1222,6 +1222,29 @@ fn push_compatibility_folded(output: &mut Vec<ComparableToken>, input: &mut Stri
     input.clear();
 }
 
+pub(crate) fn character_width_fold(tokens: &[ComparableToken]) -> Option<(String, bool)> {
+    let mut folded = String::new();
+    let mut changed = false;
+
+    for token in tokens {
+        let ComparableToken::Scalar(scalar) = token else {
+            return None;
+        };
+        if *scalar == '\u{3000}' || ('\u{ff00}'..='\u{ffef}').contains(scalar) {
+            let original = scalar.to_string();
+            let normalized = original.as_str().nfkc().collect::<String>();
+            if normalized != original {
+                folded.push_str(&normalized);
+                changed = true;
+                continue;
+            }
+        }
+        folded.push(*scalar);
+    }
+
+    Some((folded.nfc().collect(), changed))
+}
+
 fn mask_numbers(tokens: &[ComparableToken]) -> (Vec<ComparableToken>, usize, bool) {
     let mut masked = Vec::with_capacity(tokens.len());
     let mut masked_scalar_count = 0;
