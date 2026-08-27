@@ -1169,7 +1169,7 @@ fn verify_command_prints_a_passing_thirty_cell_matrix() {
 }
 
 #[test]
-fn help_lists_the_verify_command() {
+fn help_lists_benchmark_commands() {
     let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
         .arg("--help")
         .output()
@@ -1178,6 +1178,7 @@ fn help_lists_the_verify_command() {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(stdout.contains("verify"));
+    assert!(stdout.contains("render"));
     assert!(stdout.contains("candidates"));
 }
 

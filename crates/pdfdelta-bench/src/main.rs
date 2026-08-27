@@ -1,18 +1,21 @@
 use std::{
+    fs,
     io::{self, Write},
     path::{Path, PathBuf},
     process::ExitCode,
 };
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use pdfdelta_bench::{
     candidate_eval::{CandidateEvalRecord, evaluate_candidate_generation, write_candidates_json},
+    canonical::CanonicalRenderDocument,
     cases::built_in_cases,
     evaluator::{EvaluationRecord, evaluate_case},
-    renderers::RendererKind,
+    mutation::RenderPlan,
+    renderers::{RenderLimits, RendererKind},
     revisions::{
-        PairSet, normalize_output_destination, run_revision_benchmark, summarize_reports,
-        write_reports_json, write_summary_json,
+        PairSet, normalize_output_destination, publish_new_file, run_revision_benchmark,
+        summarize_reports, write_reports_json, write_summary_json,
     },
 };
 use pdfdelta_core::diff::ChangeKind;
@@ -32,6 +35,17 @@ struct Cli {
 enum Command {
     /// Run all built-in acceptance cases across both PDF renderers.
     Verify,
+    /// Render one structured canonical YAML document to a new PDF file.
+    Render {
+        /// Canonical YAML document to render.
+        input: PathBuf,
+        /// PDF construction path used for the generated fixture.
+        #[arg(long, value_enum, default_value_t = RendererChoice::LopdfTj)]
+        renderer: RendererChoice,
+        /// New PDF destination; existing paths are never replaced.
+        #[arg(short, long)]
+        output: PathBuf,
+    },
     /// Evaluate candidate generation recall and visit pressure on every
     /// built-in case across both PDF renderers.
     Candidates {
@@ -76,12 +90,34 @@ enum Command {
     },
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum RendererChoice {
+    LopdfTj,
+    ClassicXrefTj,
+}
+
+impl RendererChoice {
+    const fn kind(self) -> RendererKind {
+        match self {
+            Self::LopdfTj => RendererKind::LopdfTj,
+            Self::ClassicXrefTj => RendererKind::ClassicXrefTj,
+        }
+    }
+}
+
+const CANONICAL_RENDER_LINE_GAP: u16 = 30;
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
     let result = match cli.command {
         None | Some(Command::Verify) => verify(&mut stdout),
+        Some(Command::Render {
+            input,
+            renderer,
+            output,
+        }) => render_fixture(&mut stdout, &input, renderer, &output),
         Some(Command::Candidates { top_k, json_output }) => match parse_top_k(&top_k) {
             Ok(top_k) => candidates(&mut stdout, &top_k, json_output.as_deref()),
             Err(error) => Err(error),
@@ -117,6 +153,38 @@ fn main() -> ExitCode {
             ExitCode::from(2)
         }
     }
+}
+
+fn render_fixture<W: Write>(
+    writer: &mut W,
+    input: &Path,
+    renderer: RendererChoice,
+    output: &Path,
+) -> Result<u8, String> {
+    let yaml = fs::read_to_string(input)
+        .map_err(|error| format!("cannot read canonical YAML {}: {error}", input.display()))?;
+    let document = CanonicalRenderDocument::from_yaml(&yaml).map_err(|error| error.to_string())?;
+    let plan = RenderPlan::new(vec![document.render_lines()], CANONICAL_RENDER_LINE_GAP)
+        .map_err(|error| error.to_string())?;
+    let renderer = renderer.kind();
+    let pdf = renderer
+        .render(&plan, RenderLimits::default())
+        .map_err(|error| error.to_string())?;
+    publish_new_file(output, &pdf).map_err(|error| error.to_string())?;
+
+    writeln!(
+        writer,
+        "rendered {} with {} to {} ({} bytes)",
+        input.display(),
+        renderer.name(),
+        output.display(),
+        pdf.len()
+    )
+    .map_err(|error| format!("cannot write render summary: {error}"))?;
+    writer
+        .flush()
+        .map_err(|error| format!("cannot flush render summary: {error}"))?;
+    Ok(0)
 }
 
 fn verify<W: Write>(writer: &mut W) -> Result<u8, String> {

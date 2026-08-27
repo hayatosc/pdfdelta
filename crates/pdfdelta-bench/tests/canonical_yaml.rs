@@ -1,4 +1,10 @@
-use std::sync::Arc;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use pdfdelta_bench::{
     canonical::{CanonicalRenderDocument, MAX_CANONICAL_YAML_BYTES},
@@ -67,6 +73,39 @@ fn canonical_yaml_renders_through_each_project_renderer() {
             renderer.name()
         );
     }
+}
+
+#[test]
+fn render_command_publishes_a_new_pdf_without_overwriting() {
+    let (input, output) = temp_fixture_paths();
+    fs::write(&input, EXAMPLE_YAML).expect("temporary canonical YAML is written");
+
+    let first = run_render_command(&input, &output);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    assert!(first.stderr.is_empty());
+    let stdout = String::from_utf8(first.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains("classic-xref-tj"));
+    let first_pdf = fs::read(&output).expect("rendered PDF is published");
+    let expected = CanonicalRenderDocument::from_yaml(EXAMPLE_YAML)
+        .expect("valid canonical YAML")
+        .render_lines()
+        .join(" ");
+    assert_eq!(normalized_pdf_text(first_pdf.clone()), expected);
+
+    let second = run_render_command(&input, &output);
+    assert_eq!(second.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&second.stderr).contains("already exists"));
+    assert_eq!(
+        fs::read(&output).expect("first PDF remains published"),
+        first_pdf
+    );
+
+    fs::remove_file(&input).expect("temporary canonical YAML is removed");
+    fs::remove_file(&output).expect("temporary PDF is removed");
 }
 
 #[test]
@@ -141,6 +180,10 @@ fn normalized_text(plan: &RenderPlan, renderer: RendererKind) -> String {
     let pdf = renderer
         .render(plan, RenderLimits::default())
         .expect("canonical fixture renders");
+    normalized_pdf_text(pdf)
+}
+
+fn normalized_pdf_text(pdf: Vec<u8>) -> String {
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
     let document = source
         .extract_outcome(
@@ -161,4 +204,29 @@ fn normalized_text(plan: &RenderPlan, renderer: RendererKind) -> String {
         .map(|block| block.canonical.text)
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn temp_fixture_paths() -> (PathBuf, PathBuf) {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    let stem = format!("pdfbench-canonical-{}-{nonce}", std::process::id());
+    let directory = std::env::temp_dir();
+    (
+        directory.join(format!("{stem}.yaml")),
+        directory.join(format!("{stem}.pdf")),
+    )
+}
+
+fn run_render_command(input: &Path, output: &Path) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_pdfbench"))
+        .arg("render")
+        .arg(input)
+        .arg("--renderer")
+        .arg("classic-xref-tj")
+        .arg("--output")
+        .arg(output)
+        .output()
+        .expect("pdfbench runs")
 }
