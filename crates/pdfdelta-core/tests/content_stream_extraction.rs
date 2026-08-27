@@ -3,11 +3,15 @@ use std::sync::Arc;
 use lopdf::{Document as LopdfDocument, Object, ObjectId, Stream, dictionary};
 use pdfdelta_core::{
     Error, Result,
+    diff::ChangeKind,
     extraction_conformance::{
         GeometryTolerance, PrimitiveExtractionSnapshot, SnapshotGlyph, compare_snapshots,
     },
-    model::{DecodedText, Document, Glyph, GlyphCropStatus, PageId, Rect, Vec2},
+    model::{
+        DecodedText, Document, Glyph, GlyphCropStatus, GlyphPathClipStatus, PageId, Rect, Vec2,
+    },
     pdf::{LopdfParser, ParseLimits, PdfParser},
+    pipeline::{PipelineOptions, compare_glyph_documents},
     source::{
         ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionIssueKind, ExtractionLimits,
         ExtractionOutcome, ExtractionScope, GlyphExtractor,
@@ -253,6 +257,25 @@ fn extract(mut document: LopdfDocument, limits: ExtractionLimits) -> Result<Docu
     ContentStreamGlyphExtractor.extract(pdf.as_ref(), limits)
 }
 
+fn ruled_two_column_document(changed_value: &str) -> LopdfDocument {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content = format!(
+        "1 w 40 160 220 55 re S 150 160 m 150 215 l S 40 195 m 260 195 l S 40 180 m 260 180 l S BT /F1 10 Tf 1 0 0 1 50 200 Tm (Alpha) Tj 1 0 0 1 180 200 Tm (One) Tj 1 0 0 1 50 185 Tm (Beta) Tj 1 0 0 1 180 185 Tm ({changed_value}) Tj 1 0 0 1 50 170 Tm (Gamma) Tj 1 0 0 1 180 170 Tm (Three) Tj ET"
+    );
+    let content = pdf.add_object(Stream::new(dictionary! {}, content.into_bytes()));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+    pdf
+}
+
 fn extract_outcome(
     mut document: LopdfDocument,
     limits: ExtractionLimits,
@@ -494,6 +517,166 @@ fn records_crop_box_visibility_without_discarding_glyph_evidence() -> Result<()>
             GlyphCropStatus::PartiallyOutside,
             GlyphCropStatus::Outside,
         ]
+    );
+    Ok(())
+}
+
+#[test]
+fn retains_rectangular_clip_status_and_straight_path_evidence() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"q 40 40 100 80 re W n BT /F1 10 Tf 1 0 0 1 60 80 Tm (I) Tj 1 0 0 1 138 80 Tm (P) Tj 1 0 0 1 150 80 Tm (O) Tj ET Q 1 w 40 40 m 140 40 l 140 120 l 40 120 l h S 90 40 m 90 120 l S 40 80 m 140 80 l S"
+            .to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+    assert_eq!(mapped_text(document.items()), "IPO");
+    assert_eq!(
+        document
+            .items()
+            .iter()
+            .map(|glyph| glyph.path_clip_status)
+            .collect::<Vec<_>>(),
+        [
+            GlyphPathClipStatus::Inside,
+            GlyphPathClipStatus::PartiallyOutside,
+            GlyphPathClipStatus::Outside,
+        ]
+    );
+
+    let lines = document.vector_lines();
+    assert_eq!(lines.len(), 6);
+    assert_eq!(lines[0].from, Vec2 { x: 40.0, y: 40.0 });
+    assert_eq!(lines[0].to, Vec2 { x: 140.0, y: 40.0 });
+    assert_eq!(lines[4].from, Vec2 { x: 90.0, y: 40.0 });
+    assert_eq!(lines[4].to, Vec2 { x: 90.0, y: 120.0 });
+    assert_eq!(lines[5].from, Vec2 { x: 40.0, y: 80.0 });
+    assert_eq!(lines[5].to, Vec2 { x: 140.0, y: 80.0 });
+    assert!(lines.iter().all(|line| line.width == 1.0));
+    assert_eq!(lines[0].render_order, 3);
+    assert_eq!(lines[5].render_order, 8);
+    assert!(
+        lines
+            .iter()
+            .all(|line| line.provenance.content_stream.object_number == content.0)
+    );
+    assert_eq!(
+        lines
+            .iter()
+            .map(|line| line.provenance.operator_index)
+            .collect::<Vec<_>>(),
+        [20, 20, 20, 20, 23, 26]
+    );
+    Ok(())
+}
+
+#[test]
+fn ruled_two_column_pdf_reports_one_exact_cell_replacement() -> Result<()> {
+    let old = extract(
+        ruled_two_column_document("VersionTwoStable"),
+        ExtractionLimits::default(),
+    )?;
+    let new = extract(
+        ruled_two_column_document("VersionTenStable"),
+        ExtractionLimits::default(),
+    )?;
+    assert_eq!(old.vector_lines().len(), 7);
+    assert_eq!(new.vector_lines().len(), 7);
+
+    let old_without_rules = Document::new(old.items().to_vec());
+    let new_without_rules = Document::new(new.items().to_vec());
+    let ambiguous = compare_glyph_documents(
+        &old_without_rules,
+        &new_without_rules,
+        PipelineOptions::default(),
+    )?;
+    assert!(ambiguous.changes.is_empty());
+    assert!(!ambiguous.unresolved_regions.is_empty());
+
+    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+    assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");
+    assert_eq!(comparison.changes[0].kind, ChangeKind::Replacement);
+    assert!(comparison.unresolved_regions.is_empty());
+    assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
+    Ok(())
+}
+
+#[test]
+fn vector_line_and_path_segment_limits_are_enforced() -> Result<()> {
+    // Vector lines share an explicit extraction limit (`max_vector_lines`).
+    // A stroked path that would emit more lines than the limit must be
+    // reported as `LimitExceeded` rather than growing the `vector_lines`
+    // buffer without bound.
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 w 0 0 m 10 0 l S 20 0 m 30 0 l S 40 0 m 50 0 l S".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+    let limits = ExtractionLimits {
+        max_vector_lines: 2,
+        ..ExtractionLimits::default()
+    };
+    let error = extract_outcome(pdf, limits).expect_err("vector line limit must be enforced");
+    assert!(
+        matches!(
+            error,
+            pdfdelta_core::Error::LimitExceeded { resource, .. } if resource == "vector line count"
+        ),
+        "{error:?}"
+    );
+
+    // Path segment count is bounded even before stroking. A single path with
+    // many `l` operations must hit the same limit without emitting any
+    // vector line.
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let font = base_font(&mut pdf);
+    // Build a single path with 3 segments (m + l + l + l) exceeding limit 2.
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"0 0 m 10 0 l 20 0 l 30 0 l n".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+    let limits = ExtractionLimits {
+        max_vector_lines: 2,
+        ..ExtractionLimits::default()
+    };
+    let error = extract_outcome(pdf, limits).expect_err("path segment limit must be enforced");
+    assert!(
+        matches!(
+            error,
+            pdfdelta_core::Error::LimitExceeded { resource, .. } if resource == "path segment count"
+        ),
+        "{error:?}"
     );
     Ok(())
 }

@@ -3,7 +3,7 @@ use pdfdelta_core::{
     layout::{Block, BlockId, BlockRole, Line, LineId, SyntheticSpace},
     model::{
         DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphId,
-        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
+        GlyphPathClipStatus, GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
     },
     normalize::{
         ComparableToken, MappedText, NormalizationIssueKind, NormalizationKind, ScalarRange,
@@ -756,6 +756,7 @@ fn glyph(id: u64, text: DecodedText, page: u32) -> Glyph {
         render_order: id as u32,
         render_mode: TextRenderMode::Fill,
         crop_status: GlyphCropStatus::Inside,
+        path_clip_status: GlyphPathClipStatus::Unclipped,
         provenance: GlyphProvenance {
             content_stream: ObjectRef {
                 object_number: 1,

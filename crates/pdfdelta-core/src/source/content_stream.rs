@@ -7,7 +7,8 @@ use crate::{
     Error, Result,
     model::{
         DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphId,
-        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
+        GlyphPathClipStatus, GlyphProvenance, PageId, Rect, TextRenderMode, Vec2, VectorLine,
+        VectorLineId,
     },
     pdf::{
         ObjectRef, PageRef, ParsedPdf, PdfDict, PdfObject,
@@ -67,17 +68,22 @@ impl ContentStreamGlyphExtractor {
                     limit: u32::MAX as usize,
                 })?;
             let glyph_start = extraction.glyphs.len();
+            let vector_line_start = extraction.vector_lines.len();
             let issue_start = extraction.issues.len();
             if let Err(error) = extraction.extract_page(page, page_id) {
                 let issue = ExtractionIssue::from_error(ExtractionScope::Page(page_id), error)?;
                 extraction.glyphs.truncate(glyph_start);
+                extraction.vector_lines.truncate(vector_line_start);
                 extraction.issues.truncate(issue_start);
                 extraction.active_forms.clear();
                 issues.push(issue);
             }
         }
         issues.extend(extraction.issues);
-        ExtractionOutcome::new(Document::new(extraction.glyphs), issues)
+        ExtractionOutcome::new(
+            Document::with_vector_lines(extraction.glyphs, extraction.vector_lines),
+            issues,
+        )
     }
 
     pub fn extract_outcome_with_external_font_identities(
@@ -110,6 +116,7 @@ struct Extraction<'a> {
     external_font_identities: Option<&'a ExternalFontIdentities>,
     limits: ExtractionLimits,
     glyphs: Vec<Glyph>,
+    vector_lines: Vec<VectorLine>,
     issues: Vec<ExtractionIssue>,
     consumed_glyphs: usize,
     font_cache: HashMap<FontCacheKey, CachedFont>,
@@ -139,6 +146,110 @@ struct PageGeometry {
     crop_bounds: Rect,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+enum ClipRegion {
+    #[default]
+    Unbounded,
+    Rectangle(Rect),
+    Empty,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PathSegment {
+    from: Vec2,
+    to: Vec2,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct CurrentPath {
+    segments: Vec<PathSegment>,
+    current_point: Option<Vec2>,
+    subpath_start: Option<Vec2>,
+    clip_rectangle: Option<Rect>,
+    has_unsupported_segments: bool,
+    clip_pending: bool,
+}
+
+impl CurrentPath {
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    fn move_to(&mut self, point: Vec2) {
+        if self.current_point.is_some() || !self.segments.is_empty() {
+            self.clip_rectangle = None;
+        }
+        self.current_point = Some(point);
+        self.subpath_start = Some(point);
+    }
+
+    fn line_to(&mut self, point: Vec2) -> Result<()> {
+        let from = self.current_point.ok_or_else(|| {
+            Error::Unresolved("path line segment has no current point".to_owned())
+        })?;
+        self.segments.push(PathSegment { from, to: point });
+        self.current_point = Some(point);
+        self.clip_rectangle = None;
+        Ok(())
+    }
+
+    fn close(&mut self) -> Result<()> {
+        let start = self.subpath_start.ok_or_else(|| {
+            Error::Unresolved("path close operation has no current subpath".to_owned())
+        })?;
+        let current = self.current_point.ok_or_else(|| {
+            Error::Unresolved("path close operation has no current point".to_owned())
+        })?;
+        if current != start {
+            self.segments.push(PathSegment {
+                from: current,
+                to: start,
+            });
+        }
+        self.current_point = Some(start);
+        Ok(())
+    }
+
+    fn curve_to(&mut self, point: Vec2) -> Result<()> {
+        if self.current_point.is_none() {
+            return Err(Error::Unresolved(
+                "path curve has no current point".to_owned(),
+            ));
+        }
+        self.current_point = Some(point);
+        self.clip_rectangle = None;
+        self.has_unsupported_segments = true;
+        Ok(())
+    }
+
+    fn append_rectangle(&mut self, corners: [Vec2; 4], clip_rectangle: Option<Rect>) {
+        let was_empty = self.current_point.is_none()
+            && self.segments.is_empty()
+            && !self.has_unsupported_segments;
+        self.segments.extend([
+            PathSegment {
+                from: corners[0],
+                to: corners[1],
+            },
+            PathSegment {
+                from: corners[1],
+                to: corners[2],
+            },
+            PathSegment {
+                from: corners[2],
+                to: corners[3],
+            },
+            PathSegment {
+                from: corners[3],
+                to: corners[0],
+            },
+        ]);
+        self.current_point = Some(corners[0]);
+        self.subpath_start = Some(corners[0]);
+        self.clip_rectangle = was_empty.then_some(clip_rectangle).flatten();
+    }
+}
+
 impl<'a> Extraction<'a> {
     fn new(pdf: &'a dyn ParsedPdf, limits: ExtractionLimits) -> Self {
         let operator_budget = ContentBudget::for_operators(limits.max_operators);
@@ -148,6 +259,7 @@ impl<'a> Extraction<'a> {
             external_font_identities: None,
             limits,
             glyphs: Vec::new(),
+            vector_lines: Vec::new(),
             issues: Vec::new(),
             consumed_glyphs: 0,
             font_cache: HashMap::new(),
@@ -309,6 +421,89 @@ impl<'a> Extraction<'a> {
                     .ctm
                     .concatenate(Matrix::new(a, b, c, d, e, f)?)?;
             }
+            b"w" => {
+                let width = one_number(operation)?;
+                if width < 0.0 {
+                    return Err(operation_error(
+                        operation,
+                        "line width must be non-negative",
+                    ));
+                }
+                state.graphics.line_width = width;
+            }
+            b"m" => {
+                let [x, y] = number_operands(operation)?;
+                let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
+                state.current_path.move_to(point);
+            }
+            b"l" => {
+                let [x, y] = number_operands(operation)?;
+                let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
+                self.ensure_path_segment_capacity(state, 1)?;
+                state.current_path.line_to(point).map_err(|_| {
+                    operation_error(operation, "path line segment has no current point")
+                })?;
+            }
+            b"c" => {
+                let [_, _, _, _, x, y] = number_operands(operation)?;
+                let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
+                state
+                    .current_path
+                    .curve_to(point)
+                    .map_err(|_| operation_error(operation, "path curve has no current point"))?;
+            }
+            b"v" | b"y" => {
+                let [_, _, x, y] = number_operands(operation)?;
+                let point = path_point(page_geometry, state.graphics.ctm, x, y)?;
+                state
+                    .current_path
+                    .curve_to(point)
+                    .map_err(|_| operation_error(operation, "path curve has no current point"))?;
+            }
+            b"h" => {
+                no_operands(operation)?;
+                self.ensure_path_segment_capacity(state, 1)?;
+                state.current_path.close().map_err(|_| {
+                    operation_error(operation, "path close operation has no current subpath")
+                })?;
+            }
+            b"re" => {
+                let [x, y, width, height] = number_operands(operation)?;
+                let (corners, rectangle) = transformed_rectangle_path(
+                    page_geometry,
+                    state.graphics.ctm,
+                    x,
+                    y,
+                    width,
+                    height,
+                )?;
+                self.ensure_path_segment_capacity(state, 4)?;
+                state.current_path.append_rectangle(corners, rectangle);
+            }
+            b"W" | b"W*" => {
+                no_operands(operation)?;
+                state.current_path.clip_pending = true;
+            }
+            b"S" => {
+                no_operands(operation)?;
+                self.finish_path(operation, stream, page, page_geometry, state, true, false)?;
+            }
+            b"s" => {
+                no_operands(operation)?;
+                self.finish_path(operation, stream, page, page_geometry, state, true, true)?;
+            }
+            b"B" | b"B*" => {
+                no_operands(operation)?;
+                self.finish_path(operation, stream, page, page_geometry, state, true, false)?;
+            }
+            b"b" | b"b*" => {
+                no_operands(operation)?;
+                self.finish_path(operation, stream, page, page_geometry, state, true, true)?;
+            }
+            b"f" | b"F" | b"f*" | b"n" => {
+                no_operands(operation)?;
+                self.finish_path(operation, stream, page, page_geometry, state, false, false)?;
+            }
             b"BT" => {
                 no_operands(operation)?;
                 if state.in_text {
@@ -436,6 +631,7 @@ impl<'a> Extraction<'a> {
             b"Do" => {
                 let name = one_name(operation)?;
                 let glyph_start = self.glyphs.len();
+                let vector_line_start = self.vector_lines.len();
                 let issue_start = self.issues.len();
                 let render_order = self.render_order;
                 let result = self.invoke_xobject(
@@ -451,6 +647,7 @@ impl<'a> Extraction<'a> {
                     Ok(()) => {}
                     Err(error @ (Error::Unsupported(_) | Error::Unresolved(_))) => {
                         self.glyphs.truncate(glyph_start);
+                        self.vector_lines.truncate(vector_line_start);
                         self.issues.truncate(issue_start);
                         self.render_order = render_order;
                         self.issues.push(ExtractionIssue::from_error(
@@ -501,6 +698,131 @@ impl<'a> Extraction<'a> {
 }
 
 impl Extraction<'_> {
+    #[allow(clippy::too_many_arguments)]
+    fn finish_path(
+        &mut self,
+        operation: &Operation,
+        stream: ObjectRef,
+        page: PageId,
+        page_geometry: PageGeometry,
+        state: &mut InterpreterState,
+        stroke: bool,
+        close: bool,
+    ) -> Result<()> {
+        if close {
+            self.ensure_path_segment_capacity(state, 1)?;
+            state.current_path.close().map_err(|_| {
+                operation_error(operation, "path close operation has no current subpath")
+            })?;
+        }
+
+        let clip_update = if state.current_path.clip_pending {
+            if state.current_path.has_unsupported_segments {
+                return Err(Error::Unsupported(format!(
+                    "curved clipping path at content operator index {}",
+                    operation.index
+                )));
+            }
+            let rectangle = state.current_path.clip_rectangle.ok_or_else(|| {
+                Error::Unsupported(format!(
+                    "non-rectangular clipping path at content operator index {}",
+                    operation.index
+                ))
+            })?;
+            Some(intersect_clip_region(state.graphics.clip_region, rectangle))
+        } else {
+            None
+        };
+
+        if stroke && !state.current_path.has_unsupported_segments {
+            let width = transformed_line_width(
+                page_geometry,
+                state.graphics.ctm,
+                state.graphics.line_width,
+            )?;
+            for segment in state.current_path.segments.iter().copied() {
+                if segment_is_visible(segment, state.graphics.clip_region) {
+                    self.emit_vector_line(segment, width, operation, stream, page)?;
+                }
+            }
+        }
+
+        if let Some(clip_region) = clip_update {
+            state.graphics.clip_region = clip_region;
+        }
+        state.current_path.reset();
+        Ok(())
+    }
+
+    fn emit_vector_line(
+        &mut self,
+        segment: PathSegment,
+        width: f64,
+        operation: &Operation,
+        stream: ObjectRef,
+        page: PageId,
+    ) -> Result<()> {
+        let delta_x = segment.to.x - segment.from.x;
+        let delta_y = segment.to.y - segment.from.y;
+        if delta_x.hypot(delta_y) <= f64::EPSILON {
+            return Ok(());
+        }
+        if self.vector_lines.len() >= self.limits.max_vector_lines {
+            return Err(Error::LimitExceeded {
+                resource: "vector line count",
+                limit: self.limits.max_vector_lines,
+            });
+        }
+        let id = u64::try_from(self.vector_lines.len())
+            .map(VectorLineId)
+            .map_err(|_| Error::LimitExceeded {
+                resource: "vector line identifier address space",
+                limit: usize::MAX,
+            })?;
+        let render_order = self.allocate_render_order()?;
+        self.vector_lines.push(VectorLine {
+            id,
+            page,
+            from: segment.from,
+            to: segment.to,
+            width,
+            render_order,
+            provenance: GlyphProvenance {
+                content_stream: stream,
+                operator_index: operation.index,
+            },
+        });
+        Ok(())
+    }
+
+    fn allocate_render_order(&mut self) -> Result<u32> {
+        let render_order = self.render_order;
+        self.render_order = self
+            .render_order
+            .checked_add(1)
+            .ok_or(Error::LimitExceeded {
+                resource: "render-order address space",
+                limit: u32::MAX as usize,
+            })?;
+        Ok(render_order)
+    }
+
+    fn ensure_path_segment_capacity(
+        &self,
+        state: &InterpreterState,
+        additional: usize,
+    ) -> Result<()> {
+        if state.current_path.segments.len().saturating_add(additional)
+            > self.limits.max_vector_lines
+        {
+            return Err(Error::LimitExceeded {
+                resource: "path segment count",
+                limit: self.limits.max_vector_lines,
+            });
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn show_text(
         &mut self,
@@ -673,14 +995,7 @@ impl Extraction<'_> {
                     resource: "glyph identifier address space",
                     limit: usize::MAX,
                 })?;
-        let render_order = self.render_order;
-        self.render_order = self
-            .render_order
-            .checked_add(1)
-            .ok_or(Error::LimitExceeded {
-                resource: "glyph render-order address space",
-                limit: u32::MAX as usize,
-            })?;
+        let render_order = self.allocate_render_order()?;
         let raw_code = glyph.raw_code;
         let is_word_space = raw_code.as_slice() == b" ";
         self.glyphs.push(Glyph {
@@ -699,6 +1014,7 @@ impl Extraction<'_> {
             render_order,
             render_mode: state.graphics.render_mode,
             crop_status: glyph_crop_status(bbox, page_geometry.crop_bounds),
+            path_clip_status: glyph_path_clip_status(bbox, state.graphics.clip_region),
             provenance: GlyphProvenance {
                 content_stream: stream,
                 operator_index: operation.index,
@@ -1065,6 +1381,7 @@ impl Extraction<'_> {
             let mut form_state = state.clone();
             form_state.graphics.ctm = form_state.graphics.ctm.concatenate(*form_matrix)?;
             form_state.graphics_stack.clear();
+            form_state.current_path.reset();
             form_state.compatibility_depth = 0;
             let initial_text_state = form_state.in_text;
             let mut parser = ContentParser::with_budgets(
@@ -1768,6 +2085,8 @@ impl Extraction<'_> {
 #[derive(Clone)]
 struct GraphicsState {
     ctm: Matrix,
+    line_width: f64,
+    clip_region: ClipRegion,
     character_spacing: f64,
     word_spacing: f64,
     horizontal_scale: f64,
@@ -1782,6 +2101,8 @@ impl Default for GraphicsState {
     fn default() -> Self {
         Self {
             ctm: Matrix::IDENTITY,
+            line_width: 1.0,
+            clip_region: ClipRegion::Unbounded,
             character_spacing: 0.0,
             word_spacing: 0.0,
             horizontal_scale: 1.0,
@@ -1798,6 +2119,7 @@ impl Default for GraphicsState {
 struct InterpreterState {
     graphics: GraphicsState,
     graphics_stack: Vec<GraphicsState>,
+    current_path: CurrentPath,
     text_matrix: Matrix,
     text_line_matrix: Matrix,
     in_text: bool,
@@ -1809,6 +2131,7 @@ impl Default for InterpreterState {
         Self {
             graphics: GraphicsState::default(),
             graphics_stack: Vec::new(),
+            current_path: CurrentPath::default(),
             text_matrix: Matrix::IDENTITY,
             text_line_matrix: Matrix::IDENTITY,
             in_text: false,
@@ -2027,31 +2350,11 @@ fn operation_error(operation: &Operation, message: &str) -> Error {
 fn is_ignored_operator(operator: &[u8]) -> bool {
     matches!(
         operator,
-        b"w" | b"J"
-            | b"j"
+        b"J" | b"j"
             | b"M"
             | b"d"
             | b"ri"
             | b"i"
-            | b"m"
-            | b"l"
-            | b"c"
-            | b"v"
-            | b"y"
-            | b"h"
-            | b"re"
-            | b"S"
-            | b"s"
-            | b"f"
-            | b"F"
-            | b"f*"
-            | b"B"
-            | b"B*"
-            | b"b"
-            | b"b*"
-            | b"n"
-            | b"W"
-            | b"W*"
             | b"CS"
             | b"cs"
             | b"SC"
@@ -2072,6 +2375,125 @@ fn is_ignored_operator(operator: &[u8]) -> bool {
             | b"EMC"
             | b"BI"
     )
+}
+
+fn path_point(page_geometry: PageGeometry, ctm: Matrix, x: f64, y: f64) -> Result<Vec2> {
+    let (x, y) = page_geometry
+        .transform
+        .concatenate(ctm)?
+        .transform_point(x, y)?;
+    Ok(Vec2 { x, y })
+}
+
+fn transformed_rectangle_path(
+    page_geometry: PageGeometry,
+    ctm: Matrix,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<([Vec2; 4], Option<Rect>)> {
+    let max_x = x + width;
+    let max_y = y + height;
+    if !max_x.is_finite() || !max_y.is_finite() {
+        return Err(Error::Unresolved(
+            "path rectangle coordinates are not finite".to_owned(),
+        ));
+    }
+    let corners = [
+        path_point(page_geometry, ctm, x, y)?,
+        path_point(page_geometry, ctm, max_x, y)?,
+        path_point(page_geometry, ctm, max_x, max_y)?,
+        path_point(page_geometry, ctm, x, max_y)?,
+    ];
+    let rectangle = bounding_rect(corners);
+    let axis_aligned = corners.iter().all(|point| {
+        (approximately_equal(point.x, rectangle.min.x)
+            || approximately_equal(point.x, rectangle.max.x))
+            && (approximately_equal(point.y, rectangle.min.y)
+                || approximately_equal(point.y, rectangle.max.y))
+    });
+    Ok((corners, axis_aligned.then_some(rectangle)))
+}
+
+fn bounding_rect(points: [Vec2; 4]) -> Rect {
+    let mut min_x = f64::INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for point in points {
+        min_x = min_x.min(point.x);
+        min_y = min_y.min(point.y);
+        max_x = max_x.max(point.x);
+        max_y = max_y.max(point.y);
+    }
+    Rect {
+        min: Vec2 { x: min_x, y: min_y },
+        max: Vec2 { x: max_x, y: max_y },
+    }
+}
+
+fn approximately_equal(left: f64, right: f64) -> bool {
+    let scale = left.abs().max(right.abs()).max(1.0);
+    (left - right).abs() <= 64.0 * f64::EPSILON * scale
+}
+
+fn transformed_line_width(page_geometry: PageGeometry, ctm: Matrix, width: f64) -> Result<f64> {
+    let matrix = page_geometry.transform.concatenate(ctm)?;
+    let determinant = matrix.a.mul_add(matrix.d, -(matrix.b * matrix.c));
+    let width = width * determinant.abs().sqrt();
+    if width.is_finite() {
+        Ok(width)
+    } else {
+        Err(Error::Unresolved(
+            "line transform produces a non-finite width".to_owned(),
+        ))
+    }
+}
+
+fn intersect_clip_region(current: ClipRegion, rectangle: Rect) -> ClipRegion {
+    if rectangle.max.x <= rectangle.min.x || rectangle.max.y <= rectangle.min.y {
+        return ClipRegion::Empty;
+    }
+    match current {
+        ClipRegion::Unbounded => ClipRegion::Rectangle(rectangle),
+        ClipRegion::Rectangle(current) => {
+            let intersection = Rect {
+                min: Vec2 {
+                    x: current.min.x.max(rectangle.min.x),
+                    y: current.min.y.max(rectangle.min.y),
+                },
+                max: Vec2 {
+                    x: current.max.x.min(rectangle.max.x),
+                    y: current.max.y.min(rectangle.max.y),
+                },
+            };
+            if intersection.max.x <= intersection.min.x || intersection.max.y <= intersection.min.y
+            {
+                ClipRegion::Empty
+            } else {
+                ClipRegion::Rectangle(intersection)
+            }
+        }
+        ClipRegion::Empty => ClipRegion::Empty,
+    }
+}
+
+fn segment_is_visible(segment: PathSegment, clip_region: ClipRegion) -> bool {
+    match clip_region {
+        ClipRegion::Unbounded => true,
+        ClipRegion::Rectangle(rectangle) => {
+            point_is_inside(segment.from, rectangle) && point_is_inside(segment.to, rectangle)
+        }
+        ClipRegion::Empty => false,
+    }
+}
+
+fn point_is_inside(point: Vec2, rectangle: Rect) -> bool {
+    point.x >= rectangle.min.x
+        && point.x <= rectangle.max.x
+        && point.y >= rectangle.min.y
+        && point.y <= rectangle.max.y
 }
 
 fn transformed_rect(matrix: Matrix, x0: f64, y0: f64, x1: f64, y1: f64) -> Result<Rect> {
@@ -2112,6 +2534,31 @@ fn glyph_crop_status(glyph: Rect, crop: Rect) -> GlyphCropStatus {
         GlyphCropStatus::PartiallyOutside
     } else {
         GlyphCropStatus::Inside
+    }
+}
+
+fn glyph_path_clip_status(glyph: Rect, clip_region: ClipRegion) -> GlyphPathClipStatus {
+    let ClipRegion::Rectangle(clip) = clip_region else {
+        return match clip_region {
+            ClipRegion::Unbounded => GlyphPathClipStatus::Unclipped,
+            ClipRegion::Empty => GlyphPathClipStatus::Outside,
+            ClipRegion::Rectangle(_) => unreachable!(),
+        };
+    };
+    if glyph.max.x <= clip.min.x
+        || glyph.min.x >= clip.max.x
+        || glyph.max.y <= clip.min.y
+        || glyph.min.y >= clip.max.y
+    {
+        GlyphPathClipStatus::Outside
+    } else if glyph.min.x < clip.min.x
+        || glyph.max.x > clip.max.x
+        || glyph.min.y < clip.min.y
+        || glyph.max.y > clip.max.y
+    {
+        GlyphPathClipStatus::PartiallyOutside
+    } else {
+        GlyphPathClipStatus::Inside
     }
 }
 

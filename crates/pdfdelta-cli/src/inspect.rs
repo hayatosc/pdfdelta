@@ -5,7 +5,7 @@ use std::{
 };
 
 use pdfdelta_core::{
-    model::{DecodedText, Glyph, GlyphCropStatus, TextRenderMode},
+    model::{DecodedText, Glyph, GlyphCropStatus, GlyphPathClipStatus, TextRenderMode, VectorLine},
     pdf::{LopdfParser, ParseLimits, PdfDict, PdfObject},
     source::{ContentStreamGlyphExtractor, ExternalFontIdentities, ExtractionLimits},
 };
@@ -192,6 +192,15 @@ pub fn inspect_glyphs<W: Write>(
         let glyph = format_glyph(glyph);
         write_inspection_line(writer, path, format_args!("{glyph}"))?;
     }
+    write_inspection_line(
+        writer,
+        path,
+        format_args!("vector-lines: {}", document.vector_lines().len()),
+    )?;
+    for line in document.vector_lines() {
+        let line = format_vector_line(line);
+        write_inspection_line(writer, path, format_args!("{line}"))?;
+    }
     Ok(())
 }
 
@@ -293,7 +302,7 @@ pub fn format_glyph(glyph: &Glyph) -> String {
         ),
     };
     format!(
-        "glyph id={} page={} {} raw-hex={} bbox=({},{},{},{}) baseline=({},{}) direction=({},{}) font-id={} font-size={} render-order={} render-mode={} crop-status={} content-stream-object={} content-stream-generation={} operator-index={}",
+        "glyph id={} page={} {} raw-hex={} bbox=({},{},{},{}) baseline=({},{}) direction=({},{}) font-id={} font-size={} render-order={} render-mode={} crop-status={} path-clip-status={} content-stream-object={} content-stream-generation={} operator-index={}",
         glyph.id.0,
         glyph.page.0,
         text,
@@ -311,9 +320,27 @@ pub fn format_glyph(glyph: &Glyph) -> String {
         glyph.render_order,
         render_mode_name(glyph.render_mode),
         crop_status_name(glyph.crop_status),
+        path_clip_status_name(glyph.path_clip_status),
         glyph.provenance.content_stream.object_number,
         glyph.provenance.content_stream.generation,
         glyph.provenance.operator_index,
+    )
+}
+
+pub fn format_vector_line(line: &VectorLine) -> String {
+    format!(
+        "vector-line id={} page={} from=({},{}) to=({},{}) width={} render-order={} content-stream-object={} content-stream-generation={} operator-index={}",
+        line.id.0,
+        line.page.0,
+        line.from.x,
+        line.from.y,
+        line.to.x,
+        line.to.y,
+        line.width,
+        line.render_order,
+        line.provenance.content_stream.object_number,
+        line.provenance.content_stream.generation,
+        line.provenance.operator_index,
     )
 }
 
@@ -322,6 +349,15 @@ pub fn crop_status_name(status: GlyphCropStatus) -> &'static str {
         GlyphCropStatus::Inside => "inside",
         GlyphCropStatus::PartiallyOutside => "partially-outside",
         GlyphCropStatus::Outside => "outside",
+    }
+}
+
+pub fn path_clip_status_name(status: GlyphPathClipStatus) -> &'static str {
+    match status {
+        GlyphPathClipStatus::Unclipped => "unclipped",
+        GlyphPathClipStatus::Inside => "inside",
+        GlyphPathClipStatus::PartiallyOutside => "partially-outside",
+        GlyphPathClipStatus::Outside => "outside",
     }
 }
 
@@ -357,8 +393,8 @@ mod tests {
 
     use pdfdelta_core::{
         model::{
-            DecodedText, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphProvenance, PageId, Rect,
-            TextRenderMode, Vec2,
+            DecodedText, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
+            GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
         },
         pdf::{ObjectRef, PdfDict, PdfObject},
     };
@@ -442,6 +478,7 @@ mod tests {
             render_order: 4,
             render_mode: TextRenderMode::FillAndStroke,
             crop_status: GlyphCropStatus::Inside,
+            path_clip_status: GlyphPathClipStatus::Unclipped,
             provenance: GlyphProvenance {
                 content_stream: ObjectRef {
                     object_number: 12,
@@ -453,7 +490,7 @@ mod tests {
 
         assert_eq!(
             format_glyph(&glyph),
-            "glyph id=7 page=2 text=\"English\\nA\" raw-hex=410aff bbox=(10.25,20.5,16.75,30) baseline=(1,0) direction=(0,-1) font-id=3 font-size=11.5 render-order=4 render-mode=fill-and-stroke crop-status=inside content-stream-object=12 content-stream-generation=2 operator-index=9"
+            "glyph id=7 page=2 text=\"English\\nA\" raw-hex=410aff bbox=(10.25,20.5,16.75,30) baseline=(1,0) direction=(0,-1) font-id=3 font-size=11.5 render-order=4 render-mode=fill-and-stroke crop-status=inside path-clip-status=unclipped content-stream-object=12 content-stream-generation=2 operator-index=9"
         );
     }
 }

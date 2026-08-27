@@ -19,6 +19,9 @@ pub struct Rect {
 pub struct GlyphId(pub u64);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct VectorLineId(pub u64);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PageId(pub u32);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -59,6 +62,18 @@ pub enum GlyphCropStatus {
     Outside,
 }
 
+/// Geometric relationship between a glyph and a supported explicit path clip.
+///
+/// `Unclipped` means no explicit path clip was active. The page CropBox is
+/// recorded independently by [`GlyphCropStatus`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GlyphPathClipStatus {
+    Unclipped,
+    Inside,
+    PartiallyOutside,
+    Outside,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GlyphProvenance {
     pub content_stream: ObjectRef,
@@ -79,6 +94,19 @@ pub struct Glyph {
     pub render_order: u32,
     pub render_mode: TextRenderMode,
     pub crop_status: GlyphCropStatus,
+    pub path_clip_status: GlyphPathClipStatus,
+    pub provenance: GlyphProvenance,
+}
+
+/// One stroked straight path segment retained as layout and render evidence.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VectorLine {
+    pub id: VectorLineId,
+    pub page: PageId,
+    pub from: Vec2,
+    pub to: Vec2,
+    pub width: f64,
+    pub render_order: u32,
     pub provenance: GlyphProvenance,
 }
 
@@ -109,19 +137,44 @@ impl From<&Glyph> for GlyphEvidence {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Document<T> {
     items: Vec<T>,
+    vector_lines: Vec<VectorLine>,
 }
 
 impl<T> Document<T> {
     pub fn new(items: Vec<T>) -> Self {
-        Self { items }
+        Self {
+            items,
+            vector_lines: Vec::new(),
+        }
+    }
+
+    /// Creates a document with neutral straight-path evidence retained beside
+    /// its primary items.
+    pub fn with_vector_lines(items: Vec<T>, vector_lines: Vec<VectorLine>) -> Self {
+        Self {
+            items,
+            vector_lines,
+        }
     }
 
     pub fn items(&self) -> &[T] {
         &self.items
     }
 
+    pub fn vector_lines(&self) -> &[VectorLine] {
+        &self.vector_lines
+    }
+
+    /// Returns only the primary items, discarding vector-line evidence.
+    ///
+    /// Use [`Document::into_parts`] when the evidence must survive ownership
+    /// transfer.
     pub fn into_items(self) -> Vec<T> {
         self.items
+    }
+
+    pub fn into_parts(self) -> (Vec<T>, Vec<VectorLine>) {
+        (self.items, self.vector_lines)
     }
 }
 

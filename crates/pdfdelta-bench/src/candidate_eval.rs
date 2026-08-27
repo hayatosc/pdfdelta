@@ -926,8 +926,8 @@ mod tests {
         alignment::{BlockFeatures, ExactHash, NGram},
         layout::BlockId,
         model::{
-            DecodedText, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphProvenance, PageId, Rect,
-            TextRenderMode, Vec2,
+            DecodedText, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
+            GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
         },
         normalize::{BlockText, ComparableToken, MappedText},
         pdf::ObjectRef,
@@ -1258,6 +1258,7 @@ mod tests {
                     render_order: u32::try_from(next_id).expect("fixture glyph id fits in u32"),
                     render_mode: TextRenderMode::Fill,
                     crop_status: GlyphCropStatus::Inside,
+                    path_clip_status: GlyphPathClipStatus::Unclipped,
                     provenance: GlyphProvenance {
                         content_stream: ObjectRef {
                             object_number: 1,

@@ -31,6 +31,7 @@ pub struct ExtractionLimits {
     pub max_cmap_entries: usize,
     pub max_cid_width_entries: usize,
     pub max_string_bytes: usize,
+    pub max_vector_lines: usize,
 }
 
 impl Default for ExtractionLimits {
@@ -52,6 +53,7 @@ impl Default for ExtractionLimits {
             // permit billions of entries by default; callers can raise it deliberately.
             max_cid_width_entries: usize::from(u16::MAX) + 1,
             max_string_bytes: 64 * 1024 * 1024,
+            max_vector_lines: 5_000_000,
         }
     }
 }

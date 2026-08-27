@@ -4,7 +4,7 @@ use pdfdelta_core::{
     alignment::BlockSeparator,
     diff::{Change, ChangeKind, TextSpan},
     layout::{BlockId, reconstruct_blocks, reconstruct_lines},
-    model::{Document, Glyph, TextRenderMode},
+    model::{Document, Glyph, GlyphCropStatus, GlyphPathClipStatus, TextRenderMode},
     normalize::normalize_blocks,
     pdf::{LopdfParser, ParseLimits},
     pipeline::{PipelineOptions, compare_extraction_outcomes},
@@ -334,13 +334,14 @@ fn canonical_document_index(
     document: &Document<Glyph>,
     options: PipelineOptions,
 ) -> pdfdelta_core::Result<CanonicalDocumentIndex> {
-    let document = Document::new(
+    let document = Document::with_vector_lines(
         document
             .items()
             .iter()
-            .filter(|glyph| is_painting(glyph.render_mode))
+            .filter(|glyph| is_comparison_visible(glyph))
             .cloned()
             .collect(),
+        document.vector_lines().to_vec(),
     );
     let lines = reconstruct_lines(&document, options.line)?;
     let blocks = reconstruct_blocks(&document, &lines, options.block)?;
@@ -473,6 +474,12 @@ fn is_painting(mode: TextRenderMode) -> bool {
     )
 }
 
+fn is_comparison_visible(glyph: &Glyph) -> bool {
+    is_painting(glyph.render_mode)
+        && glyph.crop_status != GlyphCropStatus::Outside
+        && glyph.path_clip_status != GlyphPathClipStatus::Outside
+}
+
 fn actual_label(actual: &[ChangeKind]) -> String {
     match actual {
         [] => "none".to_owned(),
@@ -547,6 +554,7 @@ fn extraction_limits() -> ExtractionLimits {
         max_cmap_entries: 4 * 1024,
         max_cid_width_entries: 4 * 1024,
         max_string_bytes: 16 * 1024,
+        max_vector_lines: 16 * 1024,
     }
 }
 

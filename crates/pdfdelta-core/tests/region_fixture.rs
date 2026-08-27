@@ -2,9 +2,10 @@ use pdfdelta_core::{
     Error, Result,
     layout::{
         Line, LineId, ReadingOrder, RegionOptions, RegionRelation, partition_regions,
-        validate_region_options,
+        partition_regions_with_vector_lines, validate_region_options,
     },
-    model::{PageId, Rect, Vec2},
+    model::{GlyphProvenance, PageId, Rect, Vec2, VectorLine, VectorLineId},
+    pdf::ObjectRef,
 };
 
 fn make_line(id: u64, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Line {
@@ -21,6 +22,24 @@ fn make_line(id: u64, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Line {
         direction: Vec2 { x: 1.0, y: 0.0 },
         text_direction: pdfdelta_core::layout::LineTextDirection::LeftToRight,
         render_order: id as u32..=id as u32,
+    }
+}
+
+fn make_vector_line(id: u64, from: Vec2, to: Vec2) -> VectorLine {
+    VectorLine {
+        id: VectorLineId(id),
+        page: PageId(0),
+        from,
+        to,
+        width: 1.0,
+        render_order: u32::try_from(id).expect("fixture vector id should fit in u32"),
+        provenance: GlyphProvenance {
+            content_stream: ObjectRef {
+                object_number: 1,
+                generation: 0,
+            },
+            operator_index: u32::try_from(id).expect("fixture vector id should fit in u32"),
+        },
     }
 }
 
@@ -152,6 +171,70 @@ fn tightly_spaced_interleaved_columns_remain_unknown() -> Result<()> {
     let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
 
     assert_eq!(graph.regions.len(), 2);
+    assert_eq!(graph.reading_order, ReadingOrder::Unknown);
+    Ok(())
+}
+
+#[test]
+fn ruled_grid_proves_tightly_spaced_row_major_order() -> Result<()> {
+    let lines = vec![
+        make_line(1, 50.0, 700.0, 150.0, 712.0),
+        make_line(2, 250.0, 700.0, 350.0, 712.0),
+        make_line(3, 50.0, 680.0, 150.0, 692.0),
+        make_line(4, 250.0, 680.0, 350.0, 692.0),
+        make_line(5, 50.0, 660.0, 150.0, 672.0),
+        make_line(6, 250.0, 660.0, 350.0, 672.0),
+    ];
+    let vector_lines = vec![
+        make_vector_line(1, Vec2 { x: 200.0, y: 650.0 }, Vec2 { x: 200.0, y: 720.0 }),
+        make_vector_line(2, Vec2 { x: 40.0, y: 696.0 }, Vec2 { x: 360.0, y: 696.0 }),
+        make_vector_line(3, Vec2 { x: 40.0, y: 676.0 }, Vec2 { x: 360.0, y: 676.0 }),
+    ];
+
+    let graph = partition_regions_with_vector_lines(
+        PageId(0),
+        &lines,
+        &vector_lines,
+        RegionOptions::default(),
+    )?;
+
+    assert_eq!(graph.regions.len(), 2);
+    assert_eq!(
+        graph.reading_order,
+        ReadingOrder::KnownLines(vec![
+            LineId(1),
+            LineId(2),
+            LineId(3),
+            LineId(4),
+            LineId(5),
+            LineId(6),
+        ])
+    );
+    Ok(())
+}
+
+#[test]
+fn incomplete_grid_keeps_tightly_spaced_rows_unknown() -> Result<()> {
+    let lines = vec![
+        make_line(1, 50.0, 700.0, 150.0, 712.0),
+        make_line(2, 250.0, 700.0, 350.0, 712.0),
+        make_line(3, 50.0, 680.0, 150.0, 692.0),
+        make_line(4, 250.0, 680.0, 350.0, 692.0),
+        make_line(5, 50.0, 660.0, 150.0, 672.0),
+        make_line(6, 250.0, 660.0, 350.0, 672.0),
+    ];
+    let incomplete_rules = vec![
+        make_vector_line(1, Vec2 { x: 200.0, y: 650.0 }, Vec2 { x: 200.0, y: 720.0 }),
+        make_vector_line(2, Vec2 { x: 40.0, y: 696.0 }, Vec2 { x: 360.0, y: 696.0 }),
+    ];
+
+    let graph = partition_regions_with_vector_lines(
+        PageId(0),
+        &lines,
+        &incomplete_rules,
+        RegionOptions::default(),
+    )?;
+
     assert_eq!(graph.reading_order, ReadingOrder::Unknown);
     Ok(())
 }

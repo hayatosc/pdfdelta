@@ -9,7 +9,7 @@ use crate::{
             normalize,
         },
     },
-    model::{PageId, Rect, Vec2},
+    model::{PageId, Rect, Vec2, VectorLine},
     validate::{validate_non_negative, validate_unit_interval},
 };
 
@@ -48,6 +48,7 @@ pub enum ReadingOrder {
 const MIN_PARALLEL_ROW_PAIRS: usize = 3;
 const MIN_PARALLEL_ROW_OVERLAP_RATIO: f64 = 0.8;
 const MIN_PARALLEL_ROW_GAP_HEIGHT_RATIO: f64 = 0.8;
+const VECTOR_AXIS_TOLERANCE_RATIO: f64 = 1.0e-9;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RegionGraph {
@@ -108,18 +109,40 @@ pub fn partition_regions(
     lines: &[Line],
     options: RegionOptions,
 ) -> Result<RegionGraph> {
+    partition_regions_with_vector_lines(page, lines, &[], options)
+}
+
+/// Partitions lines while retaining straight vector evidence for conservative
+/// reading-order decisions.
+///
+/// Vector lines can prove a dense two-column grid, but they never create text
+/// regions or override ambiguous line geometry.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidConfiguration`] for invalid options and
+/// [`Error::LimitExceeded`] when recursive partitioning exceeds the configured
+/// depth.
+pub fn partition_regions_with_vector_lines(
+    page: PageId,
+    lines: &[Line],
+    vector_lines: &[VectorLine],
+    options: RegionOptions,
+) -> Result<RegionGraph> {
     let line_refs: Vec<_> = lines.iter().collect();
-    partition_regions_from_refs(page, &line_refs, options)
+    let vector_line_refs = vector_lines.iter().collect::<Vec<_>>();
+    partition_regions_from_refs(page, &line_refs, &vector_line_refs, options)
 }
 
 pub(super) fn partition_regions_from_refs(
     page: PageId,
     lines: &[&Line],
+    vector_lines: &[&VectorLine],
     options: RegionOptions,
 ) -> Result<RegionGraph> {
     let mut edges = Vec::new();
     let regions = partition_regions_inner(page, lines, options, Some(&mut edges))?;
-    let reading_order = classify_reading_order(lines, &regions, &edges);
+    let reading_order = classify_reading_order(lines, vector_lines, &regions, &edges);
     Ok(RegionGraph {
         regions,
         edges,
@@ -129,6 +152,7 @@ pub(super) fn partition_regions_from_refs(
 
 fn classify_reading_order(
     lines: &[&Line],
+    vector_lines: &[&VectorLine],
     regions: &[Region],
     edges: &[(RegionId, RegionId, RegionRelation)],
 ) -> ReadingOrder {
@@ -177,7 +201,7 @@ fn classify_reading_order(
         {
             return ReadingOrder::Known(vec![left.id, right.id]);
         }
-        return parallel_row_order(left, right, edges, &lines_by_id)
+        return parallel_row_order(left, right, edges, &lines_by_id, vector_lines)
             .map_or(ReadingOrder::Unknown, ReadingOrder::KnownLines);
     }
 
@@ -190,15 +214,23 @@ fn parallel_row_order(
     right: &Region,
     edges: &[(RegionId, RegionId, RegionRelation)],
     lines: &HashMap<LineId, &Line>,
+    vector_lines: &[&VectorLine],
 ) -> Option<Vec<LineId>> {
+    let ruled_grid = ruled_grid_proves_parallel_rows(left, right, lines, vector_lines);
+    let minimum_pairs = if ruled_grid {
+        2
+    } else {
+        MIN_PARALLEL_ROW_PAIRS
+    };
     if !is_supported_two_column_graph(left, right, edges)
         || !edges.contains(&(left.id, right.id, RegionRelation::Aligned))
         || left.line_ids.len() != right.line_ids.len()
-        || left.line_ids.len() < MIN_PARALLEL_ROW_PAIRS
+        || left.line_ids.len() < minimum_pairs
         || !region_lines_are_monotone(left, lines)
         || !region_lines_are_monotone(right, lines)
-        || !parallel_rows_are_separated(left, lines)
-        || !parallel_rows_are_separated(right, lines)
+        || (!ruled_grid
+            && (!parallel_rows_are_separated(left, lines)
+                || !parallel_rows_are_separated(right, lines)))
     {
         return None;
     }
@@ -246,6 +278,105 @@ fn parallel_rows_are_separated(region: &Region, lines: &HashMap<LineId, &Line>) 
         reference_height > f64::EPSILON
             && gap >= MIN_PARALLEL_ROW_GAP_HEIGHT_RATIO * reference_height
     })
+}
+
+fn ruled_grid_proves_parallel_rows(
+    left: &Region,
+    right: &Region,
+    lines: &HashMap<LineId, &Line>,
+    vector_lines: &[&VectorLine],
+) -> bool {
+    if left.page != right.page
+        || left.line_ids.len() != right.line_ids.len()
+        || left.line_ids.len() < 2
+        || left.bbox.max.x > right.bbox.min.x
+    {
+        return false;
+    }
+    let table = Rect {
+        min: Vec2 {
+            x: left.bbox.min.x,
+            y: left.bbox.min.y.min(right.bbox.min.y),
+        },
+        max: Vec2 {
+            x: right.bbox.max.x,
+            y: left.bbox.max.y.max(right.bbox.max.y),
+        },
+    };
+    let tolerance = ((table.max.x - table.min.x).hypot(table.max.y - table.min.y)
+        * VECTOR_AXIS_TOLERANCE_RATIO)
+        .max(f64::EPSILON);
+    let has_vertical_separator = vector_lines.iter().any(|line| {
+        if line.page != left.page || !vector_line_is_vertical(line, tolerance) {
+            return false;
+        }
+        let x = (line.from.x + line.to.x) / 2.0;
+        let (min_y, max_y) = ordered_pair(line.from.y, line.to.y);
+        x >= left.bbox.max.x - tolerance
+            && x <= right.bbox.min.x + tolerance
+            && min_y <= table.min.y + tolerance
+            && max_y >= table.max.y - tolerance
+    });
+    if !has_vertical_separator {
+        return false;
+    }
+
+    left.line_ids
+        .windows(2)
+        .zip(right.line_ids.windows(2))
+        .all(|(left_pair, right_pair)| {
+            let Some(upper_left) = lines.get(&left_pair[0]) else {
+                return false;
+            };
+            let Some(lower_left) = lines.get(&left_pair[1]) else {
+                return false;
+            };
+            let Some(upper_right) = lines.get(&right_pair[0]) else {
+                return false;
+            };
+            let Some(lower_right) = lines.get(&right_pair[1]) else {
+                return false;
+            };
+            let upper_bottom = upper_left.bbox.min.y.min(upper_right.bbox.min.y);
+            let lower_top = lower_left.bbox.max.y.max(lower_right.bbox.max.y);
+            if lower_top > upper_bottom + tolerance {
+                return false;
+            }
+            vector_lines.iter().any(|line| {
+                if line.page != left.page || !vector_line_is_horizontal(line, tolerance) {
+                    return false;
+                }
+                let y = (line.from.y + line.to.y) / 2.0;
+                let (min_x, max_x) = ordered_pair(line.from.x, line.to.x);
+                y >= lower_top - tolerance
+                    && y <= upper_bottom + tolerance
+                    && min_x <= table.min.x + tolerance
+                    && max_x >= table.max.x - tolerance
+            })
+        })
+}
+
+fn vector_line_is_horizontal(line: &VectorLine, tolerance: f64) -> bool {
+    vector_line_is_finite(line)
+        && (line.to.y - line.from.y).abs() <= tolerance
+        && (line.to.x - line.from.x).abs() > tolerance
+}
+
+fn vector_line_is_vertical(line: &VectorLine, tolerance: f64) -> bool {
+    vector_line_is_finite(line)
+        && (line.to.x - line.from.x).abs() <= tolerance
+        && (line.to.y - line.from.y).abs() > tolerance
+}
+
+fn vector_line_is_finite(line: &VectorLine) -> bool {
+    [line.from.x, line.from.y, line.to.x, line.to.y, line.width]
+        .into_iter()
+        .all(f64::is_finite)
+        && line.width >= 0.0
+}
+
+fn ordered_pair(first: f64, second: f64) -> (f64, f64) {
+    (first.min(second), first.max(second))
 }
 
 fn banded_two_column_order(

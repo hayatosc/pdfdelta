@@ -1,8 +1,8 @@
 use pdfdelta_core::{
     layout::{BlockOptions, BlockRole, Line, LineId, LineTextDirection, reconstruct_blocks},
     model::{
-        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphProvenance, PageId,
-        Rect, TextRenderMode, Vec2,
+        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
+        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
     },
     pdf::ObjectRef,
 };
@@ -163,6 +163,7 @@ impl Fixture {
                 render_order,
                 render_mode: TextRenderMode::Fill,
                 crop_status: GlyphCropStatus::Inside,
+                path_clip_status: GlyphPathClipStatus::Unclipped,
                 provenance: GlyphProvenance {
                     content_stream: ObjectRef {
                         object_number: spec.page + 1,

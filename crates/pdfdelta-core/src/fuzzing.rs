@@ -66,6 +66,7 @@ const EXTRACTION_LIMITS: ExtractionLimits = ExtractionLimits {
     max_cmap_entries: 512,
     max_cid_width_entries: 1_024,
     max_string_bytes: 64 * 1024,
+    max_vector_lines: 1_024,
 };
 
 /// Exercises the production CMap parsers with finite resource limits.

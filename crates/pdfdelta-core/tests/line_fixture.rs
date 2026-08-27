@@ -2,8 +2,8 @@ use pdfdelta_core::{
     Error,
     layout::{LineOptions, SyntheticSpace, reconstruct_lines},
     model::{
-        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphProvenance, PageId,
-        Rect, TextRenderMode, Vec2,
+        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
+        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
     },
     pdf::ObjectRef,
 };
@@ -200,6 +200,7 @@ fn glyph(
         render_order: id as u32,
         render_mode: TextRenderMode::Fill,
         crop_status: GlyphCropStatus::Inside,
+        path_clip_status: GlyphPathClipStatus::Unclipped,
         provenance: GlyphProvenance {
             content_stream: ObjectRef {
                 object_number: 1,

@@ -5,7 +5,10 @@ use std::{
 
 use crate::{
     Error, Result,
-    model::{DecodedText, Document, Glyph, GlyphCropStatus, PageId, TextRenderMode, Vec2},
+    model::{
+        DecodedText, Document, Glyph, GlyphCropStatus, GlyphPathClipStatus, PageId, TextRenderMode,
+        Vec2,
+    },
 };
 
 const DEFAULT_PAGE_WIDTH: f64 = 595.0;
@@ -73,6 +76,9 @@ pub fn write_glyph_overlay_svg<W: Write>(document: &Document<Glyph>, writer: &mu
       .glyph-crop-partial .glyph-bbox {{ stroke-dasharray: 3,2; stroke: rgba(217, 119, 6, 0.8); }}
       .glyph-crop-outside {{ opacity: 0.45; }}
       .glyph-crop-outside .glyph-bbox {{ stroke-dasharray: 2,2; stroke: rgba(71, 84, 103, 0.8); }}
+      .glyph-path-clip-partial .glyph-bbox {{ stroke-dasharray: 4,2; stroke: rgba(202, 138, 4, 0.9); }}
+      .glyph-path-clip-outside {{ opacity: 0.45; }}
+      .glyph-path-clip-outside .glyph-bbox {{ stroke-dasharray: 1,2; stroke: rgba(71, 84, 103, 0.8); }}
     </style>
   </defs>"#
     )
@@ -252,6 +258,13 @@ fn render_glyph_svg<W: Write>(
         GlyphCropStatus::PartiallyOutside => class_names.push("glyph-crop-partial"),
         GlyphCropStatus::Outside => class_names.push("glyph-crop-outside"),
     }
+    match glyph.path_clip_status {
+        GlyphPathClipStatus::Unclipped | GlyphPathClipStatus::Inside => {}
+        GlyphPathClipStatus::PartiallyOutside => {
+            class_names.push("glyph-path-clip-partial");
+        }
+        GlyphPathClipStatus::Outside => class_names.push("glyph-path-clip-outside"),
+    }
     let class_attr = class_names.join(" ");
 
     let text_display = match &glyph.text {
@@ -263,7 +276,7 @@ fn render_glyph_svg<W: Write>(
     };
 
     let title_text = format!(
-        "Glyph #{id} (Page {page})\nText: {text}\nBBox: ({min_x:.1}, {min_y:.1}) - ({max_x:.1}, {max_y:.1})\nBaseline: ({bx:.1}, {by:.1}) Dir: ({dx:.2}, {dy:.2})\nFont #{font_id}, Size: {font_size:.1}pt\nRender Order: {render_order}, Mode: {render_mode:?}, Crop: {crop_status:?}\nProvenance: stream {cs_num} {cs_gen} R, op #{op_idx}",
+        "Glyph #{id} (Page {page})\nText: {text}\nBBox: ({min_x:.1}, {min_y:.1}) - ({max_x:.1}, {max_y:.1})\nBaseline: ({bx:.1}, {by:.1}) Dir: ({dx:.2}, {dy:.2})\nFont #{font_id}, Size: {font_size:.1}pt\nRender Order: {render_order}, Mode: {render_mode:?}, Crop: {crop_status:?}, Path clip: {path_clip_status:?}\nProvenance: stream {cs_num} {cs_gen} R, op #{op_idx}",
         id = glyph.id.0,
         page = (glyph.page.0 as u64) + 1,
         text = text_display,
@@ -280,6 +293,7 @@ fn render_glyph_svg<W: Write>(
         render_order = glyph.render_order,
         render_mode = glyph.render_mode,
         crop_status = glyph.crop_status,
+        path_clip_status = glyph.path_clip_status,
         cs_num = glyph.provenance.content_stream.object_number,
         cs_gen = glyph.provenance.content_stream.generation,
         op_idx = glyph.provenance.operator_index,
@@ -287,11 +301,12 @@ fn render_glyph_svg<W: Write>(
 
     writeln!(
         writer,
-        r#"    <g class="{class_attr}" data-glyph-id="{id}" data-page="{page}" data-render-order="{render_order}" data-crop-status="{crop_status:?}" data-cs-num="{cs_num}" data-cs-gen="{cs_gen}" data-op-idx="{op_idx}">"#,
+        r#"    <g class="{class_attr}" data-glyph-id="{id}" data-page="{page}" data-render-order="{render_order}" data-crop-status="{crop_status:?}" data-path-clip-status="{path_clip_status:?}" data-cs-num="{cs_num}" data-cs-gen="{cs_gen}" data-op-idx="{op_idx}">"#,
         id = glyph.id.0,
         page = (glyph.page.0 as u64) + 1,
         render_order = glyph.render_order,
         crop_status = glyph.crop_status,
+        path_clip_status = glyph.path_clip_status,
         cs_num = glyph.provenance.content_stream.object_number,
         cs_gen = glyph.provenance.content_stream.generation,
         op_idx = glyph.provenance.operator_index,

@@ -14,8 +14,8 @@ use pdfdelta_core::{
     diff::{ChangeKind, Confidence},
     layout::{Block, BlockId, BlockRole, Line, LineId},
     model::{
-        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphProvenance, PageId,
-        Rect, TextRenderMode, Vec2,
+        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
+        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
     },
     normalize::{BlockText, normalize_blocks},
     pdf::ObjectRef,
@@ -458,6 +458,7 @@ fn glyph(id: u64, text: &str) -> Glyph {
         render_order: id as u32,
         render_mode: TextRenderMode::Fill,
         crop_status: GlyphCropStatus::Inside,
+        path_clip_status: GlyphPathClipStatus::Unclipped,
         provenance: GlyphProvenance {
             content_stream: ObjectRef {
                 object_number: 1,

@@ -209,9 +209,15 @@ pub(crate) fn reconstruct_blocks_with_issues(
     let mut issues = Vec::new();
     for (page_num, page_lines) in page_lines_map {
         let page = PageId(page_num);
+        let page_vector_lines = document
+            .vector_lines()
+            .iter()
+            .filter(|line| line.page == page)
+            .collect::<Vec<_>>();
         let graph = super::region::partition_regions_from_refs(
             page,
             &page_lines,
+            &page_vector_lines,
             super::region::RegionOptions::default(),
         )?;
         match &graph.reading_order {

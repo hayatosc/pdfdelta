@@ -3,7 +3,7 @@ use pdfdelta_core::{
     layout::{BlockOptions, BlockRole, Line, LineId, SyntheticSpace, reconstruct_blocks},
     model::{
         DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphId,
-        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
+        GlyphPathClipStatus, GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
     },
     pdf::ObjectRef,
 };
@@ -434,6 +434,7 @@ impl Fixture {
                 render_order: spec.id as u32,
                 render_mode: TextRenderMode::Fill,
                 crop_status: GlyphCropStatus::Inside,
+                path_clip_status: GlyphPathClipStatus::Unclipped,
                 provenance: GlyphProvenance {
                     content_stream: ObjectRef {
                         object_number: spec.page + 1,
@@ -1508,6 +1509,7 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
             render_order: g1_id.0 as u32,
             render_mode: TextRenderMode::Fill,
             crop_status: GlyphCropStatus::Inside,
+            path_clip_status: GlyphPathClipStatus::Unclipped,
             provenance: GlyphProvenance {
                 content_stream: ObjectRef {
                     object_number: page_idx + 1,
@@ -1538,6 +1540,7 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
             render_order: g2_id.0 as u32,
             render_mode: TextRenderMode::Fill,
             crop_status: GlyphCropStatus::Inside,
+            path_clip_status: GlyphPathClipStatus::Unclipped,
             provenance: GlyphProvenance {
                 content_stream: ObjectRef {
                     object_number: page_idx + 1,
@@ -1590,6 +1593,7 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
                 render_order: bg_id.0 as u32,
                 render_mode: TextRenderMode::Fill,
                 crop_status: GlyphCropStatus::Inside,
+                path_clip_status: GlyphPathClipStatus::Unclipped,
                 provenance: GlyphProvenance {
                     content_stream: ObjectRef {
                         object_number: page_idx + 1,
@@ -1640,6 +1644,7 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
             render_order: fg1_id.0 as u32,
             render_mode: TextRenderMode::Fill,
             crop_status: GlyphCropStatus::Inside,
+            path_clip_status: GlyphPathClipStatus::Unclipped,
             provenance: GlyphProvenance {
                 content_stream: ObjectRef {
                     object_number: page_idx + 1,
@@ -1667,6 +1672,7 @@ fn mixed_mapped_and_unmapped_repeated_margins_are_grouped_and_ordered_determinis
             render_order: fg2_id.0 as u32,
             render_mode: TextRenderMode::Fill,
             crop_status: GlyphCropStatus::Inside,
+            path_clip_status: GlyphPathClipStatus::Unclipped,
             provenance: GlyphProvenance {
                 content_stream: ObjectRef {
                     object_number: page_idx + 1,

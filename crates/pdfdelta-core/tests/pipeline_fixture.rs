@@ -4,8 +4,8 @@ use pdfdelta_core::{
     diff::{ChangeKind, ChangeTag, Comparison, DiffOptions, FormattingReason},
     layout::{BlockOptions, LineOptions, LineTextDirection, reconstruct_lines},
     model::{
-        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphProvenance, PageId,
-        Rect, TextRenderMode, Vec2,
+        DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
+        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
     },
     pdf::ObjectRef,
     pipeline::{
@@ -485,6 +485,40 @@ fn excludes_fully_crop_box_hidden_glyphs_but_keeps_partial_glyphs() -> Result<()
         .filter(|glyph| glyph.baseline.y == 270.0)
     {
         glyph.crop_status = GlyphCropStatus::PartiallyOutside;
+    }
+    let partial = Document::new(partial_glyphs);
+    let comparison = compare_glyph_documents(&old, &partial, PipelineOptions::default())?;
+    assert_single_change(&comparison, ChangeKind::Insertion);
+    Ok(())
+}
+
+#[test]
+fn excludes_fully_path_clipped_glyphs_but_keeps_partial_glyphs() -> Result<()> {
+    let old = document(&[line("Visible paragraph remains stable", 0, 300.0)]);
+    let candidate = document(&[
+        line("Visible paragraph remains stable", 0, 300.0),
+        line("Path boundary evidence", 0, 270.0),
+    ]);
+
+    let mut outside_glyphs = candidate.clone().into_items();
+    for glyph in outside_glyphs
+        .iter_mut()
+        .filter(|glyph| glyph.baseline.y == 270.0)
+    {
+        glyph.path_clip_status = GlyphPathClipStatus::Outside;
+    }
+    let outside = Document::new(outside_glyphs);
+    let outside_evidence = outside.clone();
+    let comparison = compare_glyph_documents(&old, &outside, PipelineOptions::default())?;
+    assert_no_content_changes(&comparison);
+    assert_eq!(outside, outside_evidence);
+
+    let mut partial_glyphs = candidate.into_items();
+    for glyph in partial_glyphs
+        .iter_mut()
+        .filter(|glyph| glyph.baseline.y == 270.0)
+    {
+        glyph.path_clip_status = GlyphPathClipStatus::PartiallyOutside;
     }
     let partial = Document::new(partial_glyphs);
     let comparison = compare_glyph_documents(&old, &partial, PipelineOptions::default())?;
@@ -1650,6 +1684,7 @@ fn document(lines: &[LineSpec<'_>]) -> Document<Glyph> {
                 render_order: u32::try_from(next_id).expect("fixture glyph id should fit in u32"),
                 render_mode: line.render_mode,
                 crop_status: GlyphCropStatus::Inside,
+                path_clip_status: GlyphPathClipStatus::Unclipped,
                 provenance: GlyphProvenance {
                     content_stream: ObjectRef {
                         object_number: u32::try_from(line_index + 1)

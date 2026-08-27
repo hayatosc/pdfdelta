@@ -13,7 +13,7 @@ use crate::{
         BlockOptions, LayoutIssue, LineOptions, reconstruct_blocks_with_issues, reconstruct_lines,
         validate_block_options, validate_line_options,
     },
-    model::{Document, Glyph, GlyphCropStatus, GlyphEvidence, TextRenderMode},
+    model::{Document, Glyph, GlyphCropStatus, GlyphEvidence, GlyphPathClipStatus, TextRenderMode},
     normalize::{BlockText, normalize_blocks},
     report::{DocumentSide, ExtractionIssueRecord, ExtractionStatus},
     source::{ExtractionIssue, ExtractionOutcome, ExtractionScope},
@@ -894,13 +894,14 @@ fn prepare(
     side: DocumentSide,
     diagnostics: &mut PipelineDiagnostics,
 ) -> Result<PreparedDocument> {
-    let document = Document::new(
+    let document = Document::with_vector_lines(
         document
             .items()
             .iter()
             .filter(|glyph| is_comparison_visible(glyph))
             .cloned()
             .collect(),
+        document.vector_lines().to_vec(),
     );
     let painting_glyphs = document.items().len();
     let lines = phase_result(
@@ -992,5 +993,7 @@ fn is_painting(mode: TextRenderMode) -> bool {
 }
 
 fn is_comparison_visible(glyph: &Glyph) -> bool {
-    is_painting(glyph.render_mode) && glyph.crop_status != GlyphCropStatus::Outside
+    is_painting(glyph.render_mode)
+        && glyph.crop_status != GlyphCropStatus::Outside
+        && glyph.path_clip_status != GlyphPathClipStatus::Outside
 }
