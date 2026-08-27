@@ -219,6 +219,7 @@ pub(crate) struct AlignmentGapPlan {
     windows: Vec<AnchorIntervalWindow>,
     forced_windows: BTreeMap<usize, ForcedWindowCauses>,
     excluded_old: HashSet<BlockId>,
+    excluded_new: HashSet<BlockId>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -237,6 +238,12 @@ impl ForcedWindowCauses {
             evidence.push(AlignmentEvidence::ReadingOrderUnknown);
         }
         evidence
+    }
+}
+
+impl AlignmentGapPlan {
+    pub(crate) fn allows_new_block(&self, block: BlockId) -> bool {
+        !self.excluded_new.contains(&block)
     }
 }
 
@@ -290,6 +297,7 @@ pub(crate) fn plan_ordered_gaps(
             windows: Vec::new(),
             forced_windows: BTreeMap::new(),
             excluded_old: HashSet::new(),
+            excluded_new: HashSet::new(),
         });
     }
 
@@ -347,10 +355,16 @@ pub(crate) fn plan_ordered_gaps(
         .iter()
         .map(|anchor| anchor.old)
         .collect::<HashSet<_>>();
+    let mut excluded_new = HashSet::new();
     for &index in forced_windows.keys() {
         let window = &windows[index];
         excluded_old.extend(
             old[window.old_range.0..window.old_range.1]
+                .iter()
+                .map(|features| features.block),
+        );
+        excluded_new.extend(
+            new[window.new_range.0..window.new_range.1]
                 .iter()
                 .map(|features| features.block),
         );
@@ -363,6 +377,7 @@ pub(crate) fn plan_ordered_gaps(
         windows,
         forced_windows,
         excluded_old,
+        excluded_new,
     })
 }
 

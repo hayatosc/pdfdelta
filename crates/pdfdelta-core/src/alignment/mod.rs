@@ -18,10 +18,10 @@ pub use features::{
     BlockFeatures, ExactHash, NGram, NGramSet, build_block_features, dice_similarity,
     estimate_ngram_token_elements,
 };
-pub(crate) use ordered::align_ordered_with_metrics;
 pub(crate) use ordered::validate_alignment_options;
 pub use ordered::{
     Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentOptions,
     AlignmentSpan, align_ordered,
 };
+pub(crate) use ordered::{align_ordered_with_metrics_and_gap_plan, plan_ordered_gaps};
 pub use score::BlockSeparator;

@@ -1,22 +1,22 @@
 use crate::{
     Error, Result,
     alignment::{
-        AlignmentOptions, InvertedIndexCandidateGenerator, align_ordered_with_metrics,
-        build_block_features, estimate_ngram_token_elements, validate_alignment_options,
-        validate_ngram_size,
+        AlignmentOptions, InvertedIndexCandidateGenerator, align_ordered_with_metrics_and_gap_plan,
+        build_block_features, estimate_ngram_token_elements, plan_ordered_gaps,
+        validate_alignment_options, validate_ngram_size,
     },
     diff::{
         Comparison, DiffOptions, compare_aligned, enforce_diff_raw_token_budget,
         enforce_diff_token_budget, validate_diff_options,
     },
     layout::{
-        BlockOptions, LineOptions, reconstruct_blocks, reconstruct_lines, validate_block_options,
-        validate_line_options,
+        BlockOptions, LayoutIssue, LineOptions, reconstruct_blocks_with_issues, reconstruct_lines,
+        validate_block_options, validate_line_options,
     },
-    model::{Document, Glyph, TextRenderMode},
+    model::{Document, Glyph, GlyphEvidence, TextRenderMode},
     normalize::{BlockText, normalize_blocks},
     report::{DocumentSide, ExtractionIssueRecord, ExtractionStatus},
-    source::ExtractionOutcome,
+    source::{ExtractionIssue, ExtractionOutcome, ExtractionScope},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -97,10 +97,15 @@ pub struct ComparisonOutcome {
     pub comparison: Comparison,
     pub extraction: ExtractionStatus,
     /// Normalized old-side blocks backing the comparison spans, for
-    /// report rendering; empty when extraction gaps suppressed the diff.
+    /// report rendering; empty when a document-scoped extraction issue
+    /// suppresses the diff.
     pub old_blocks: Vec<BlockText>,
     /// Normalized new-side blocks backing the comparison spans.
     pub new_blocks: Vec<BlockText>,
+    /// Retained old-side glyph evidence used for report provenance projection.
+    pub old_glyph_evidence: Vec<GlyphEvidence>,
+    /// Retained new-side glyph evidence used for report provenance projection.
+    pub new_glyph_evidence: Vec<GlyphEvidence>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -138,11 +143,12 @@ pub struct PipelineMetrics {
     pub indexed_features: Option<usize>,
     pub alignment_spans: Option<usize>,
     /// Sum of `CandidateGenerator::estimated_visits` charged against
-    /// `max_candidate_visits` for non-anchor old blocks; on a limit failure
+    /// `max_candidate_visits` for non-anchor old blocks outside forced
+    /// uncertainty windows; on a limit failure
     /// this is the attempted cumulative charge including the exceeding block.
     pub candidate_visits: Option<usize>,
     /// Checked sum of `CandidateGenerator::estimated_visits` over every
-    /// non-anchor old block, independent of the budget: the full candidate
+    /// eligible old block, independent of the budget: the full candidate
     /// work the alignment would need. `Some` when the full sum completed
     /// (including on a limit failure); `None` when an estimate error or
     /// overflow made the sum unavailable, or the candidate preflight was
@@ -150,7 +156,7 @@ pub struct PipelineMetrics {
     /// is `Some(0)`.
     pub candidate_visits_required: Option<usize>,
     /// Exact-match posting visits of the required candidate sum; `Some`
-    /// only when every non-anchor old block reported a breakdown and every
+    /// only when every eligible old block reported a breakdown and every
     /// component sum completed. Identity alignment is `Some(0)`.
     pub candidate_visits_required_exact: Option<usize>,
     /// N-gram posting visits of the required candidate sum; `Some` under
@@ -312,6 +318,8 @@ pub fn compare_extraction_outcomes_with_diagnostics(
     let new_complete = new.is_complete();
     let (old_document, old_issues) = old.into_parts();
     let (new_document, new_issues) = new.into_parts();
+    let old_glyph_evidence = glyph_evidence(&old_document);
+    let new_glyph_evidence = glyph_evidence(&new_document);
     if old_complete && new_complete {
         diagnostics.completed(
             PipelinePhase::CompletenessGate,
@@ -325,22 +333,53 @@ pub fn compare_extraction_outcomes_with_diagnostics(
             extraction: ExtractionStatus::complete(),
             old_blocks,
             new_blocks,
+            old_glyph_evidence,
+            new_glyph_evidence,
         });
     }
 
     diagnostics.incomplete(PipelinePhase::CompletenessGate);
 
+    let has_document_issue = old_issues
+        .iter()
+        .chain(&new_issues)
+        .any(|issue| issue.scope() == ExtractionScope::Document);
+
+    if !has_document_issue {
+        let old_gap_boundaries = issue_boundaries(&old_issues);
+        let new_gap_boundaries = issue_boundaries(&new_issues);
+        let (mut comparison, old_blocks, new_blocks) = compare_validated_glyph_documents_with_gaps(
+            &old_document,
+            &new_document,
+            options,
+            diagnostics,
+            &old_gap_boundaries,
+            &new_gap_boundaries,
+        )?;
+        if !old_complete {
+            comparison.old_coverage.ratio = None;
+        }
+        if !new_complete {
+            comparison.new_coverage.ratio = None;
+        }
+        let issues = extraction_issue_records(old_issues, new_issues);
+        return Ok(ComparisonOutcome {
+            comparison,
+            extraction: ExtractionStatus {
+                old_complete,
+                new_complete,
+                issues,
+            },
+            old_blocks,
+            new_blocks,
+            old_glyph_evidence,
+            new_glyph_evidence,
+        });
+    }
+
     let (old_tokens, new_tokens) =
         record_pre_layout_token_counts(&old_document, &new_document, options.diff, diagnostics)?;
-    let issues = old_issues
-        .into_iter()
-        .map(|issue| ExtractionIssueRecord::from_issue(DocumentSide::Old, issue))
-        .chain(
-            new_issues
-                .into_iter()
-                .map(|issue| ExtractionIssueRecord::from_issue(DocumentSide::New, issue)),
-        )
-        .collect();
+    let issues = extraction_issue_records(old_issues, new_issues);
 
     // Incomplete extraction suppresses the diff to prevent false comparison output.
     Ok(ComparisonOutcome {
@@ -358,7 +397,13 @@ pub fn compare_extraction_outcomes_with_diagnostics(
         },
         old_blocks: Vec::new(),
         new_blocks: Vec::new(),
+        old_glyph_evidence,
+        new_glyph_evidence,
     })
+}
+
+fn glyph_evidence(document: &Document<Glyph>) -> Vec<GlyphEvidence> {
+    document.items().iter().map(GlyphEvidence::from).collect()
 }
 
 pub fn compare_glyph_documents(
@@ -377,9 +422,30 @@ fn compare_validated_glyph_documents(
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
 ) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>)> {
+    compare_validated_glyph_documents_with_gaps(old, new, options, diagnostics, &[], &[])
+}
+
+fn compare_validated_glyph_documents_with_gaps(
+    old: &Document<Glyph>,
+    new: &Document<Glyph>,
+    options: PipelineOptions,
+    diagnostics: &mut PipelineDiagnostics,
+    old_issue_boundaries: &[usize],
+    new_issue_boundaries: &[usize],
+) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>)> {
     record_pre_layout_token_counts(old, new, options.diff, diagnostics)?;
-    let old = prepare(old, options, DocumentSide::Old, diagnostics)?;
-    let new = prepare(new, options, DocumentSide::New, diagnostics)?;
+    let old_prepared = prepare(old, options, DocumentSide::Old, diagnostics)?;
+    let new_prepared = prepare(new, options, DocumentSide::New, diagnostics)?;
+    let PreparedDocument {
+        blocks: old,
+        uncertain_block_indices: old_uncertain_block_indices,
+    } = old_prepared;
+    let PreparedDocument {
+        blocks: new,
+        uncertain_block_indices: new_uncertain_block_indices,
+    } = new_prepared;
+    let old_gap_boundaries = gap_boundaries(&old, old_issue_boundaries);
+    let new_gap_boundaries = gap_boundaries(&new, new_issue_boundaries);
     phase_result(
         diagnostics,
         PipelinePhase::DiffTokenBudget,
@@ -425,22 +491,46 @@ fn compare_validated_glyph_documents(
             ..PipelineMetrics::default()
         },
     );
+    let gap_plan = phase_result(
+        diagnostics,
+        PipelinePhase::Alignment,
+        None,
+        plan_ordered_gaps(
+            &old_features,
+            &new_features,
+            options.alignment,
+            &old_gap_boundaries,
+            &new_gap_boundaries,
+            &old_uncertain_block_indices,
+            &new_uncertain_block_indices,
+        ),
+    )?;
+    let indexed_new_features = new_features
+        .iter()
+        .filter(|features| gap_plan.allows_new_block(features.block))
+        .cloned()
+        .collect::<Vec<_>>();
     let candidates = phase_result(
         diagnostics,
         PipelinePhase::CandidateIndex,
         Some(DocumentSide::New),
-        InvertedIndexCandidateGenerator::new(&new_features),
+        InvertedIndexCandidateGenerator::new(&indexed_new_features),
     )?;
     diagnostics.completed(
         PipelinePhase::CandidateIndex,
         Some(DocumentSide::New),
         PipelineMetrics {
-            indexed_features: Some(new_features.len()),
+            indexed_features: Some(indexed_new_features.len()),
             ..PipelineMetrics::default()
         },
     );
-    let attempt =
-        align_ordered_with_metrics(&old_features, &new_features, &candidates, options.alignment);
+    let attempt = align_ordered_with_metrics_and_gap_plan(
+        &old_features,
+        &new_features,
+        &candidates,
+        options.alignment,
+        gap_plan,
+    );
     let alignment = match attempt.result {
         Ok(alignment) => {
             diagnostics.completed(
@@ -506,6 +596,45 @@ fn compare_validated_glyph_documents(
         },
     );
     Ok((comparison, old, new))
+}
+
+fn issue_boundaries(issues: &[ExtractionIssue]) -> Vec<usize> {
+    issues.iter().filter_map(localized_issue_boundary).collect()
+}
+
+fn extraction_issue_records(
+    old: Vec<ExtractionIssue>,
+    new: Vec<ExtractionIssue>,
+) -> Vec<ExtractionIssueRecord> {
+    old.into_iter()
+        .map(|issue| ExtractionIssueRecord::from_issue(DocumentSide::Old, issue))
+        .chain(
+            new.into_iter()
+                .map(|issue| ExtractionIssueRecord::from_issue(DocumentSide::New, issue)),
+        )
+        .collect()
+}
+
+fn localized_issue_boundary(issue: &ExtractionIssue) -> Option<usize> {
+    match issue.scope() {
+        ExtractionScope::Page(page) => Some(page.0 as usize),
+        ExtractionScope::PageGap { retained_before } => Some(retained_before),
+        ExtractionScope::Document => None,
+    }
+}
+
+fn gap_boundaries(blocks: &[BlockText], boundaries: &[usize]) -> Vec<usize> {
+    boundaries
+        .iter()
+        .map(|page| {
+            blocks.partition_point(|block| {
+                block
+                    .pages
+                    .last()
+                    .is_some_and(|last_page| (*last_page as usize) < *page)
+            })
+        })
+        .collect()
 }
 
 fn phase_result<T>(
@@ -681,7 +810,7 @@ fn prepare(
     options: PipelineOptions,
     side: DocumentSide,
     diagnostics: &mut PipelineDiagnostics,
-) -> Result<Vec<BlockText>> {
+) -> Result<PreparedDocument> {
     let document = Document::new(
         document
             .items()
@@ -706,12 +835,13 @@ fn prepare(
             ..PipelineMetrics::default()
         },
     );
-    let blocks = phase_result(
+    let reconstruction = phase_result(
         diagnostics,
         PipelinePhase::BlockReconstruction,
         Some(side),
-        reconstruct_blocks(&document, &lines, options.block),
+        reconstruct_blocks_with_issues(&document, &lines, options.block),
     )?;
+    let blocks = reconstruction.blocks;
     diagnostics.completed(
         PipelinePhase::BlockReconstruction,
         Some(side),
@@ -737,7 +867,33 @@ fn prepare(
             ..PipelineMetrics::default()
         },
     );
-    Ok(normalized)
+    let unknown_pages = reconstruction
+        .issues
+        .into_iter()
+        .map(|issue| match issue {
+            LayoutIssue::UnknownReadingOrder { page } => page.0,
+        })
+        .collect::<std::collections::HashSet<_>>();
+    let uncertain_block_indices = normalized
+        .iter()
+        .enumerate()
+        .filter_map(|(index, block)| {
+            block
+                .pages
+                .iter()
+                .any(|page| unknown_pages.contains(page))
+                .then_some(index)
+        })
+        .collect();
+    Ok(PreparedDocument {
+        blocks: normalized,
+        uncertain_block_indices,
+    })
+}
+
+struct PreparedDocument {
+    blocks: Vec<BlockText>,
+    uncertain_block_indices: Vec<usize>,
 }
 
 fn is_painting(mode: TextRenderMode) -> bool {

@@ -228,6 +228,8 @@ pub fn compare_documents_traced<W: Write>(
             json_path,
             &outcome.old_blocks,
             &outcome.new_blocks,
+            &outcome.old_glyph_evidence,
+            &outcome.new_glyph_evidence,
             &outcome.comparison,
             &outcome.extraction,
         )

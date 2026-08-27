@@ -7,10 +7,13 @@ use pdfdelta_core::{
     },
     layout::BlockId,
     model::{
-        DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphId, GlyphProvenance, PageId,
-        Rect, TextRenderMode, Vec2,
+        DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphEvidence, GlyphId,
+        GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
     },
-    normalize::{BlockText, MappedText, ScalarRange, TextSource, UnmappedToken},
+    normalize::{
+        BlockText, MappedText, NormalizationEvent, NormalizationKind, ScalarRange, SourceMapEntry,
+        TextSource, TextSourceAtom, UnmappedToken,
+    },
     pdf::ObjectRef,
     report::{
         DocumentSide, ExitStatus, ExtractionIssueRecord, ExtractionStatus, TextReportOptions,
@@ -191,6 +194,38 @@ fn reports_incomplete_extraction_in_text_and_strict_status() -> Result<()> {
 }
 
 #[test]
+fn reports_page_tree_gap_scope_without_synthesizing_a_page() -> Result<()> {
+    let extraction = ExtractionStatus {
+        old_complete: false,
+        new_complete: true,
+        issues: vec![ExtractionIssueRecord {
+            side: DocumentSide::Old,
+            kind: ExtractionIssueKind::Unresolved,
+            scope: ExtractionScope::PageGap { retained_before: 2 },
+            description: "broken page tree branch".to_owned(),
+        }],
+    };
+    let mut comparison = empty_comparison();
+    comparison.old_coverage.ratio = None;
+
+    let text = render_text(&[], &[], &comparison, &extraction, &plain_options())?;
+    assert!(
+        text.contains("scope=page-gap, retained-pages-before=2"),
+        "{text}"
+    );
+
+    let mut output = Vec::new();
+    write_json(&mut output, &[], &[], &[], &[], &comparison, &extraction)?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("report should be valid JSON");
+    assert_eq!(json["schema_version"], 7);
+    assert_eq!(json["extraction"]["issues"][0]["scope"], "page_gap");
+    assert_eq!(json["extraction"]["issues"][0]["retained_pages_before"], 2);
+    assert!(json["extraction"]["issues"][0].get("page").is_none());
+    Ok(())
+}
+
+#[test]
 fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<()> {
     let mut comparison = content_comparison();
     comparison.old_coverage = Coverage {
@@ -226,13 +261,15 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
         &mut output,
         &fixture_blocks(&[1, 2]),
         &fixture_blocks(&[101]),
+        &[],
+        &[],
         &comparison,
         &extraction,
     )?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 5);
+    assert_eq!(json["schema_version"], 7);
     assert_eq!(json["summary"]["content_changes"], 1);
     assert_eq!(
         json["summary"]["old_alignment_coverage"]["resolved_tokens"],
@@ -287,13 +324,15 @@ fn json_report_serializes_multi_block_separators() -> Result<()> {
         &mut output,
         &fixture_blocks(&[1, 2]),
         &fixture_blocks(&[101, 102]),
+        &[],
+        &[],
         &comparison,
         &ExtractionStatus::complete(),
     )?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 5);
+    assert_eq!(json["schema_version"], 7);
     assert_eq!(
         json["formatting_only_changes"][0]["old_span"]["block_separator"],
         "space"
@@ -301,6 +340,531 @@ fn json_report_serializes_multi_block_separators() -> Result<()> {
     assert_eq!(
         json["formatting_only_changes"][0]["new_span"]["block_separator"],
         "concatenate"
+    );
+    Ok(())
+}
+
+#[test]
+fn json_report_serializes_extraction_gap_evidence() -> Result<()> {
+    let mut comparison = empty_comparison();
+    comparison.unresolved_regions.push(UnresolvedRegion {
+        old_span: Some(full_span(12, "alpha beta gamma")),
+        new_span: Some(full_span(112, "alpha delta gamma")),
+        evidence: vec![AlignmentEvidence::ExtractionGap],
+    });
+    let mut output = Vec::new();
+
+    write_json(
+        &mut output,
+        &[block_with_text(12, "alpha beta gamma")],
+        &[block_with_text(112, "alpha delta gamma")],
+        &[],
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("report should be valid JSON");
+
+    assert_eq!(
+        json["unresolved_regions"][0]["evidence"][0],
+        "extraction_gap"
+    );
+    Ok(())
+}
+
+#[test]
+fn json_report_serializes_unknown_reading_order_evidence() -> Result<()> {
+    let mut comparison = empty_comparison();
+    comparison.unresolved_regions.push(UnresolvedRegion {
+        old_span: Some(full_span(12, "alpha beta gamma")),
+        new_span: Some(full_span(112, "alpha beta gamma")),
+        evidence: vec![AlignmentEvidence::ReadingOrderUnknown],
+    });
+    let mut output = Vec::new();
+
+    write_json(
+        &mut output,
+        &[block_with_text(12, "alpha beta gamma")],
+        &[block_with_text(112, "alpha beta gamma")],
+        &[],
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("report should be valid JSON");
+
+    assert_eq!(json["schema_version"], 7);
+    assert_eq!(
+        json["unresolved_regions"][0]["evidence"][0],
+        "reading_order_unknown"
+    );
+    Ok(())
+}
+
+#[test]
+fn json_report_projects_replacement_glyph_provenance() -> Result<()> {
+    let old_blocks = [sourced_block(1, "a", vec![glyph_entry(0, 1, 1)])];
+    let new_blocks = [sourced_block(101, "b", vec![glyph_entry(0, 1, 2)])];
+    let old_glyphs = [glyph_evidence(1)];
+    let new_glyphs = [glyph_evidence(2)];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(full_span(1, "a")),
+        new_span: Some(full_span(101, "b")),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    let mut output = Vec::new();
+
+    write_json(
+        &mut output,
+        &old_blocks,
+        &new_blocks,
+        &old_glyphs,
+        &new_glyphs,
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
+    let source = &json["changes"][0]["old_span"]["sources"][0];
+
+    assert_eq!(json["schema_version"], 7);
+    assert_eq!(source["kind"], "glyph");
+    assert_eq!(source["glyph_id"], 1);
+    assert_eq!(source["page"], 0);
+    assert_eq!(source["bbox"]["min"]["x"], 1.0);
+    assert_eq!(source["bbox"]["max"]["y"], 4.0);
+    assert_eq!(source["content_stream"]["object_number"], 11);
+    assert_eq!(source["content_stream"]["generation"], 0);
+    assert_eq!(source["operator_index"], 21);
+    Ok(())
+}
+
+#[test]
+fn json_report_deduplicates_expansion_and_preserves_contraction_sources() -> Result<()> {
+    let old_blocks = [sourced_block(
+        1,
+        "ffi",
+        vec![SourceMapEntry {
+            output_range: ScalarRange { start: 0, end: 3 },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(1))],
+            },
+        }],
+    )];
+    let new_blocks = [sourced_block(
+        101,
+        "é",
+        vec![SourceMapEntry {
+            output_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource {
+                atoms: vec![
+                    TextSourceAtom::Glyph(GlyphId(2)),
+                    TextSourceAtom::Glyph(GlyphId(3)),
+                ],
+            },
+        }],
+    )];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(full_span(1, "ffi")),
+        new_span: Some(full_span(101, "é")),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    let mut output = Vec::new();
+
+    write_json(
+        &mut output,
+        &old_blocks,
+        &new_blocks,
+        &[glyph_evidence(1)],
+        &[glyph_evidence(2), glyph_evidence(3)],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
+
+    assert_eq!(
+        json["changes"][0]["old_span"]["sources"]
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        json["changes"][0]["new_span"]["sources"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+    Ok(())
+}
+
+#[test]
+fn json_report_keeps_synthetic_unmapped_and_separator_sources_distinct() -> Result<()> {
+    let old_blocks = [sourced_block(
+        1,
+        " ",
+        vec![SourceMapEntry {
+            output_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::SyntheticSpace {
+                    preceding: GlyphId(1),
+                    following: GlyphId(2),
+                }],
+            },
+        }],
+    )];
+    let unmapped = BlockText {
+        block: BlockId(101),
+        canonical: MappedText {
+            text: String::new(),
+            source_map: Vec::new(),
+            unmapped: vec![UnmappedToken {
+                scalar_index: 0,
+                font_hash: FontProgramHash(vec![1]),
+                glyph_id: 9,
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(3))],
+                },
+            }],
+        },
+        ..block_with_text(101, "")
+    };
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(full_span(1, " ")),
+        new_span: Some(TextSpan {
+            blocks: vec![BlockId(101)],
+            separator: None,
+            canonical_range: ScalarRange { start: 0, end: 0 },
+            comparable_range: TokenRange { start: 0, end: 1 },
+        }),
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+    let mut output = Vec::new();
+    write_json(
+        &mut output,
+        &old_blocks,
+        &[unmapped],
+        &[glyph_evidence(1), glyph_evidence(2)],
+        &[glyph_evidence(3)],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
+    let old_sources = json["changes"][0]["old_span"]["sources"]
+        .as_array()
+        .expect("sources array");
+
+    assert_eq!(old_sources[0]["kind"], "synthetic_space");
+    assert!(old_sources[0].get("content_stream").is_none());
+    assert_eq!(old_sources[1]["kind"], "glyph");
+    assert_eq!(old_sources[2]["kind"], "glyph");
+    assert_eq!(json["changes"][0]["new_span"]["sources"][0]["glyph_id"], 3);
+
+    let grouped_blocks = [
+        sourced_block(10, "a", vec![glyph_entry(0, 1, 1)]),
+        sourced_block(11, "b", vec![glyph_entry(0, 1, 2)]),
+    ];
+    let mut grouped = empty_comparison();
+    grouped.unresolved_regions.push(UnresolvedRegion {
+        old_span: Some(TextSpan {
+            blocks: vec![BlockId(10), BlockId(11)],
+            separator: Some(BlockSeparator::Space),
+            canonical_range: ScalarRange { start: 0, end: 3 },
+            comparable_range: TokenRange { start: 0, end: 3 },
+        }),
+        new_span: None,
+        evidence: vec![AlignmentEvidence::TextSimilarity],
+    });
+    let mut grouped_output = Vec::new();
+    write_json(
+        &mut grouped_output,
+        &grouped_blocks,
+        &[],
+        &[glyph_evidence(1), glyph_evidence(2)],
+        &[],
+        &grouped,
+        &ExtractionStatus::complete(),
+    )?;
+    let grouped_json: serde_json::Value =
+        serde_json::from_slice(&grouped_output).expect("valid grouped JSON report");
+    assert!(
+        grouped_json["unresolved_regions"][0]["old_span"]["sources"]
+            .as_array()
+            .expect("sources array")
+            .iter()
+            .any(|source| source["kind"] == "block_separator_space")
+    );
+    Ok(())
+}
+
+#[test]
+fn json_report_rejects_duplicate_and_unknown_glyph_evidence() {
+    let blocks = [sourced_block(1, "a", vec![glyph_entry(0, 1, 1)])];
+    let mut comparison = empty_comparison();
+    comparison.unresolved_regions.push(UnresolvedRegion {
+        old_span: Some(full_span(1, "a")),
+        new_span: None,
+        evidence: vec![AlignmentEvidence::TextSimilarity],
+    });
+
+    let duplicate = write_json(
+        Vec::new(),
+        &blocks,
+        &[],
+        &[glyph_evidence(1), glyph_evidence(1)],
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    );
+    let unknown = write_json(
+        Vec::new(),
+        &blocks,
+        &[],
+        &[],
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    );
+
+    assert!(
+        matches!(duplicate, Err(Error::Report(message)) if message.contains("duplicate glyph evidence"))
+    );
+    assert!(
+        matches!(unknown, Err(Error::Report(message)) if message.contains("missing glyph evidence"))
+    );
+}
+
+#[test]
+fn json_report_projects_deleted_line_break_and_hyphenation_evidence() -> Result<()> {
+    let mut cjk = sourced_block(
+        1,
+        "東京特許",
+        (0..4)
+            .map(|index| glyph_entry(index, index + 1, index as u64 + 1))
+            .collect(),
+    );
+    cjk.normalization_events.push(NormalizationEvent {
+        kind: NormalizationKind::SoftLineBreak,
+        raw_range: ScalarRange { start: 2, end: 3 },
+        canonical_range: ScalarRange { start: 2, end: 2 },
+        source: TextSource {
+            atoms: vec![TextSourceAtom::LineBreak {
+                preceding: GlyphId(2),
+                following: GlyphId(3),
+            }],
+        },
+    });
+    let mut hyphenation = sourced_block(
+        2,
+        "administration",
+        (0..14)
+            .map(|index| glyph_entry(index, index + 1, index as u64 + 10))
+            .collect(),
+    );
+    hyphenation.normalization_events.push(NormalizationEvent {
+        kind: NormalizationKind::HyphenationJoin,
+        raw_range: ScalarRange { start: 7, end: 9 },
+        canonical_range: ScalarRange { start: 7, end: 7 },
+        source: TextSource {
+            atoms: vec![
+                TextSourceAtom::Glyph(GlyphId(99)),
+                TextSourceAtom::LineBreak {
+                    preceding: GlyphId(16),
+                    following: GlyphId(17),
+                },
+            ],
+        },
+    });
+    let mut comparison = empty_comparison();
+    comparison.unresolved_regions.extend([
+        UnresolvedRegion {
+            old_span: Some(full_span(1, "東京特許")),
+            new_span: None,
+            evidence: vec![AlignmentEvidence::TextSimilarity],
+        },
+        UnresolvedRegion {
+            old_span: Some(full_span(2, "administration")),
+            new_span: None,
+            evidence: vec![AlignmentEvidence::TextSimilarity],
+        },
+    ]);
+    let mut evidence = (1..=4).map(glyph_evidence).collect::<Vec<_>>();
+    evidence.extend((10..=23).map(glyph_evidence));
+    evidence.push(glyph_evidence(99));
+    let mut output = Vec::new();
+
+    write_json(
+        &mut output,
+        &[cjk, hyphenation],
+        &[],
+        &evidence,
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
+    let cjk_sources = json["unresolved_regions"][0]["old_span"]["sources"]
+        .as_array()
+        .expect("CJK sources");
+    let hyphen_sources = json["unresolved_regions"][1]["old_span"]["sources"]
+        .as_array()
+        .expect("hyphenation sources");
+
+    let cjk_preceding = source_position(cjk_sources, "glyph", Some(2));
+    let cjk_break = source_position(cjk_sources, "line_break", None);
+    let cjk_following = source_position(cjk_sources, "glyph", Some(3));
+    assert!(cjk_preceding < cjk_break && cjk_break < cjk_following);
+
+    let hyphen_preceding = source_position(hyphen_sources, "glyph", Some(16));
+    let deleted_hyphen = source_position(hyphen_sources, "glyph", Some(99));
+    let hyphen_break = source_position(hyphen_sources, "line_break", None);
+    let hyphen_following = source_position(hyphen_sources, "glyph", Some(17));
+    assert!(hyphen_preceding < deleted_hyphen);
+    assert!(deleted_hyphen < hyphen_break);
+    assert!(hyphen_break < hyphen_following);
+    Ok(())
+}
+
+#[test]
+fn json_report_orders_concatenated_boundary_events_before_the_next_token() -> Result<()> {
+    let mut previous = sourced_block(1, "a", vec![glyph_entry(0, 1, 1)]);
+    previous.normalization_events.push(NormalizationEvent {
+        kind: NormalizationKind::SoftLineBreak,
+        raw_range: ScalarRange { start: 1, end: 1 },
+        canonical_range: ScalarRange { start: 1, end: 1 },
+        source: TextSource {
+            atoms: vec![TextSourceAtom::Glyph(GlyphId(99))],
+        },
+    });
+    let mut next = sourced_block(2, "b", vec![glyph_entry(0, 1, 2)]);
+    next.normalization_events.push(NormalizationEvent {
+        kind: NormalizationKind::Nfc,
+        raw_range: ScalarRange { start: 0, end: 0 },
+        canonical_range: ScalarRange { start: 0, end: 0 },
+        source: TextSource {
+            atoms: vec![TextSourceAtom::Glyph(GlyphId(100))],
+        },
+    });
+    let mut comparison = empty_comparison();
+    comparison.unresolved_regions.push(UnresolvedRegion {
+        old_span: Some(TextSpan {
+            blocks: vec![BlockId(1), BlockId(2)],
+            separator: Some(BlockSeparator::Concatenate),
+            canonical_range: ScalarRange { start: 0, end: 2 },
+            comparable_range: TokenRange { start: 0, end: 2 },
+        }),
+        new_span: None,
+        evidence: vec![AlignmentEvidence::TextSimilarity],
+    });
+    let mut output = Vec::new();
+
+    write_json(
+        &mut output,
+        &[previous, next],
+        &[],
+        &[
+            glyph_evidence(1),
+            glyph_evidence(2),
+            glyph_evidence(99),
+            glyph_evidence(100),
+        ],
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
+    let sources = json["unresolved_regions"][0]["old_span"]["sources"]
+        .as_array()
+        .expect("sources array");
+    let glyph_ids = sources
+        .iter()
+        .filter_map(|source| source["glyph_id"].as_u64())
+        .collect::<Vec<_>>();
+
+    assert_eq!(glyph_ids, [1, 99, 100, 2]);
+    Ok(())
+}
+
+#[test]
+fn json_report_attributes_zero_width_events_only_to_interior_or_matching_points() -> Result<()> {
+    let mut block = sourced_block(
+        1,
+        "abcd",
+        (0..4)
+            .map(|index| glyph_entry(index, index + 1, index as u64 + 1))
+            .collect(),
+    );
+    block.normalization_events.push(NormalizationEvent {
+        kind: NormalizationKind::SoftLineBreak,
+        raw_range: ScalarRange { start: 2, end: 3 },
+        canonical_range: ScalarRange { start: 2, end: 2 },
+        source: TextSource {
+            atoms: vec![TextSourceAtom::LineBreak {
+                preceding: GlyphId(2),
+                following: GlyphId(3),
+            }],
+        },
+    });
+    let mut comparison = empty_comparison();
+    comparison.unresolved_regions.extend([
+        UnresolvedRegion {
+            old_span: Some(TextSpan {
+                blocks: vec![BlockId(1)],
+                separator: None,
+                canonical_range: ScalarRange { start: 2, end: 2 },
+                comparable_range: TokenRange { start: 2, end: 2 },
+            }),
+            new_span: None,
+            evidence: vec![AlignmentEvidence::TextSimilarity],
+        },
+        UnresolvedRegion {
+            old_span: Some(TextSpan {
+                blocks: vec![BlockId(1)],
+                separator: None,
+                canonical_range: ScalarRange { start: 0, end: 2 },
+                comparable_range: TokenRange { start: 0, end: 2 },
+            }),
+            new_span: None,
+            evidence: vec![AlignmentEvidence::TextSimilarity],
+        },
+    ]);
+    let mut output = Vec::new();
+
+    write_json(
+        &mut output,
+        &[block],
+        &[],
+        &(1..=4).map(glyph_evidence).collect::<Vec<_>>(),
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
+    let point_sources = json["unresolved_regions"][0]["old_span"]["sources"]
+        .as_array()
+        .expect("point sources");
+    let adjacent_sources = json["unresolved_regions"][1]["old_span"]["sources"]
+        .as_array()
+        .expect("adjacent sources");
+
+    assert!(
+        point_sources
+            .iter()
+            .any(|source| source["kind"] == "line_break")
+    );
+    assert!(
+        adjacent_sources
+            .iter()
+            .all(|source| source["kind"] != "line_break")
     );
     Ok(())
 }
@@ -330,7 +894,7 @@ fn json_report_counts_typed_extraction_issues_and_omits_document_page() -> Resul
     comparison.new_coverage.ratio = None;
     let mut output = Vec::new();
 
-    write_json(&mut output, &[], &[], &comparison, &extraction)?;
+    write_json(&mut output, &[], &[], &[], &[], &comparison, &extraction)?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
@@ -775,6 +1339,58 @@ fn text_report_renders_unresolved_regions_explicitly() -> Result<()> {
 }
 
 #[test]
+fn text_report_renders_extraction_gap_evidence() -> Result<()> {
+    let old_blocks = vec![block_with_text(12, "alpha beta gamma")];
+    let new_blocks = vec![block_with_text(112, "alpha delta gamma")];
+    let mut comparison = empty_comparison();
+    comparison.unresolved_regions.push(UnresolvedRegion {
+        old_span: Some(full_span(12, "alpha beta gamma")),
+        new_span: Some(full_span(112, "alpha delta gamma")),
+        evidence: vec![AlignmentEvidence::ExtractionGap],
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert!(
+        report.contains("? could not safely align this region (evidence: extraction_gap)"),
+        "{report}"
+    );
+    Ok(())
+}
+
+#[test]
+fn text_report_renders_unknown_reading_order_evidence() -> Result<()> {
+    let old_blocks = vec![block_with_text(12, "alpha beta gamma")];
+    let new_blocks = vec![block_with_text(112, "alpha beta gamma")];
+    let mut comparison = empty_comparison();
+    comparison.unresolved_regions.push(UnresolvedRegion {
+        old_span: Some(full_span(12, "alpha beta gamma")),
+        new_span: Some(full_span(112, "alpha beta gamma")),
+        evidence: vec![AlignmentEvidence::ReadingOrderUnknown],
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert!(
+        report.contains("? could not safely align this region (evidence: reading_order_unknown)"),
+        "{report}"
+    );
+    Ok(())
+}
+
+#[test]
 fn text_report_color_supplements_markers_and_can_be_disabled() -> Result<()> {
     let old_blocks = vec![block_with_text(7, "alpha Release 10 omega")];
     let new_blocks = vec![block_with_text(9, "alpha Release 21 omega")];
@@ -861,13 +1477,15 @@ fn json_report_resolves_span_text_pages_and_unmapped_tokens() -> Result<()> {
         &mut output,
         &old_blocks,
         &new_blocks,
+        &[],
+        &[],
         &comparison,
         &ExtractionStatus::complete(),
     )?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 5);
+    assert_eq!(json["schema_version"], 7);
     assert_eq!(json["changes"][0]["kind"], "replacement");
     assert_eq!(json["changes"][0]["confidence"], "low");
     assert_eq!(json["changes"][0]["tags"][0], "ocr_confusion");
@@ -1268,6 +1886,53 @@ fn block_with_text(id: u64, text: &str) -> BlockText {
         issues: Vec::new(),
         pages: vec![0],
     }
+}
+
+fn sourced_block(id: u64, text: &str, source_map: Vec<SourceMapEntry>) -> BlockText {
+    BlockText {
+        canonical: MappedText {
+            text: text.to_owned(),
+            source_map,
+            unmapped: Vec::new(),
+        },
+        ..block_with_text(id, text)
+    }
+}
+
+fn glyph_entry(start: usize, end: usize, glyph: u64) -> SourceMapEntry {
+    SourceMapEntry {
+        output_range: ScalarRange { start, end },
+        source: TextSource {
+            atoms: vec![TextSourceAtom::Glyph(GlyphId(glyph))],
+        },
+    }
+}
+
+fn glyph_evidence(id: u64) -> GlyphEvidence {
+    GlyphEvidence {
+        id: GlyphId(id),
+        page: PageId(0),
+        bbox: Rect {
+            min: Vec2 { x: 1.0, y: 2.0 },
+            max: Vec2 { x: 3.0, y: 4.0 },
+        },
+        provenance: GlyphProvenance {
+            content_stream: ObjectRef {
+                object_number: 10 + id as u32,
+                generation: 0,
+            },
+            operator_index: 20 + id as u32,
+        },
+    }
+}
+
+fn source_position(sources: &[serde_json::Value], kind: &str, glyph_id: Option<u64>) -> usize {
+    sources
+        .iter()
+        .position(|source| {
+            source["kind"] == kind && glyph_id.is_none_or(|glyph_id| source["glyph_id"] == glyph_id)
+        })
+        .expect("expected source should be present")
 }
 
 /// Canonical text "ab" with two distinct unmapped glyph tokens: one before
@@ -1773,6 +2438,8 @@ fn text_and_json_report_renders_promoted_move_with_formatting_normalization_chan
         &mut json_bytes,
         &old_blocks,
         &new_blocks,
+        &[],
+        &[],
         &comparison,
         &ExtractionStatus::complete(),
     )?;
@@ -2058,6 +2725,8 @@ fn reports_render_and_serialize_calibrated_confidence_levels() -> Result<()> {
         &mut json_bytes,
         &old_blocks,
         &new_blocks,
+        &[],
+        &[],
         &comparison,
         &ExtractionStatus::complete(),
     )?;
@@ -2118,6 +2787,8 @@ fn formatting_changes_with_low_confidence_do_not_increment_uncertain_changes() -
         &mut json_bytes,
         &old_blocks,
         &new_blocks,
+        &[],
+        &[],
         &comparison,
         &ExtractionStatus::complete(),
     )?;

@@ -159,6 +159,16 @@ fn replacement_exits_one() {
     assert_eq!(new_text, "2");
     assert_eq!(report_json["changes"][0]["old_span"]["pages"][0], 0);
     assert_eq!(report_json["changes"][0]["new_span"]["pages"][0], 0);
+    let source = &report_json["changes"][0]["old_span"]["sources"][0];
+    assert_eq!(source["kind"], "glyph");
+    assert!(source["glyph_id"].is_u64());
+    assert!(source["bbox"]["min"]["x"].is_number());
+    assert!(source["bbox"]["min"]["y"].is_number());
+    assert!(source["bbox"]["max"]["x"].is_number());
+    assert!(source["bbox"]["max"]["y"].is_number());
+    assert!(source["content_stream"]["object_number"].is_u64());
+    assert!(source["content_stream"]["generation"].is_u64());
+    assert!(source["operator_index"].is_u64());
 }
 
 #[test]
@@ -567,7 +577,7 @@ fn writes_json_report_atomically() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let json = fs::read_to_string(report).expect("JSON report should be readable");
-    assert!(json.contains("\"schema_version\": 5"));
+    assert!(json.contains("\"schema_version\": 7"));
     assert!(json.contains("\"content_changes\": 0"));
     assert_no_temporary_reports(&directory);
 }
@@ -710,7 +720,13 @@ fn traces_incomplete_extraction_without_calling_it_a_fatal_failure() {
         phase(&trace, "completeness_gate", None)["status"],
         "incomplete"
     );
-    assert_eq!(phase(&trace, "alignment", None)["status"], "skipped");
+    let alignment = phase(&trace, "alignment", None);
+    assert_eq!(alignment["status"], "completed");
+    assert_eq!(alignment["metrics"]["candidate_visits"], 0);
+    let exact_diff = phase(&trace, "exact_diff", None);
+    assert_eq!(exact_diff["status"], "completed");
+    assert_eq!(exact_diff["metrics"]["changes"], 0);
+    assert_eq!(exact_diff["metrics"]["unresolved_regions"], 1);
 }
 
 #[test]
@@ -865,7 +881,7 @@ fn malformed_type0_extraction_reports_without_false_changes() {
         &fs::read(report_path).expect("incomplete JSON report should be readable"),
     )
     .expect("incomplete JSON report should be valid");
-    assert_eq!(report["schema_version"], 5);
+    assert_eq!(report["schema_version"], 7);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["comparison_complete"], false);
     assert_eq!(report["summary"]["unresolved_extraction_issues"], 1);
@@ -887,6 +903,68 @@ fn malformed_type0_extraction_reports_without_false_changes() {
     assert_eq!(report["extraction"]["issues"][0]["kind"], "unresolved");
     assert_eq!(report["extraction"]["issues"][0]["scope"], "page");
     assert_eq!(report["extraction"]["issues"][0]["page"], 0);
+}
+
+#[test]
+fn localized_page_tree_gap_preserves_known_change_and_reports_boundary() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old-gap.pdf");
+    let new = directory.join("new-complete.pdf");
+    let report_path = directory.join("page-gap.json");
+    let old_pages: &[&[&str]] = &[
+        &["Opening anchor remains exactly stable"],
+        &["Old missing branch content"],
+        &["Boundary anchor remains exactly stable"],
+        &["Release 10 remains available"],
+        &["Closing anchor remains exactly stable"],
+    ];
+    let new_pages: &[&[&str]] = &[
+        &["Opening anchor remains exactly stable"],
+        &["New counterpart branch content"],
+        &["Boundary anchor remains exactly stable"],
+        &["Release 20 remains available"],
+        &["Closing anchor remains exactly stable"],
+    ];
+    write_pdf_with_missing_page_tree_child(&old, old_pages, 1);
+    write_pdf_pages(&new, new_pages, 30);
+
+    let default_output = compare(&old, &new, &[]);
+    assert_eq!(
+        default_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&default_output)
+    );
+    let text = stdout(&default_output);
+    assert!(text.contains("content changes: 1"), "{text}");
+    assert!(
+        text.contains("scope=page-gap, retained-pages-before=1"),
+        "{text}"
+    );
+
+    let strict_output = compare(&old, &new, &["--strict", "--json", path_text(&report_path)]);
+    assert_eq!(
+        strict_output.status.code(),
+        Some(3),
+        "{}",
+        stderr(&strict_output)
+    );
+    let report: Value = serde_json::from_slice(
+        &fs::read(report_path).expect("page-gap JSON report should be readable"),
+    )
+    .expect("page-gap JSON report should be valid");
+    assert_eq!(report["schema_version"], 7);
+    assert_eq!(report["summary"]["content_changes"], 1);
+    assert_eq!(report["summary"]["unresolved_regions"], 1);
+    assert_eq!(report["extraction"]["issues"][0]["scope"], "page_gap");
+    assert_eq!(
+        report["extraction"]["issues"][0]["retained_pages_before"],
+        1
+    );
+    assert_eq!(
+        report["unresolved_regions"][0]["evidence"][0],
+        "extraction_gap"
+    );
 }
 
 #[test]
@@ -1333,7 +1411,7 @@ fn externally_rendered_typst_case3_revision_pair_reports_exact_replacement() {
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 5);
+    assert_eq!(report["schema_version"], 7);
     assert_eq!(report["summary"]["content_changes"], 1);
     assert_eq!(report["summary"]["formatting_only_changes"], 0);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -1480,7 +1558,7 @@ fn externally_rendered_typst_japanese_revision_pair_reports_exact_replacement() 
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 5);
+    assert_eq!(report["schema_version"], 7);
     assert_eq!(report["summary"]["content_changes"], 1);
     assert_eq!(report["summary"]["formatting_only_changes"], 0);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -1628,7 +1706,7 @@ fn externally_rendered_typst_japanese_case1_wrap_revision_pair_reports_zero_cont
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 5);
+    assert_eq!(report["schema_version"], 7);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["formatting_only_changes"], 2);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -1813,7 +1891,7 @@ fn externally_rendered_typst_japanese_case2_pagebreak_revision_pair_reports_zero
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 5);
+    assert_eq!(report["schema_version"], 7);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["formatting_only_changes"], 0);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -1967,7 +2045,7 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     let forward_report: serde_json::Value =
         serde_json::from_str(&forward_json_text).expect("forward JSON report should parse");
 
-    assert_eq!(forward_report["schema_version"], 5);
+    assert_eq!(forward_report["schema_version"], 7);
     assert_eq!(forward_report["summary"]["content_changes"], 1);
     assert_eq!(forward_report["summary"]["formatting_only_changes"], 0);
     assert_eq!(forward_report["summary"]["uncertain_changes"], 0);
@@ -2097,7 +2175,7 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     let reverse_report: serde_json::Value =
         serde_json::from_str(&reverse_json_text).expect("reverse JSON report should parse");
 
-    assert_eq!(reverse_report["schema_version"], 5);
+    assert_eq!(reverse_report["schema_version"], 7);
     assert_eq!(reverse_report["summary"]["content_changes"], 1);
     assert_eq!(reverse_report["summary"]["formatting_only_changes"], 0);
     assert_eq!(reverse_report["summary"]["uncertain_changes"], 0);
@@ -2223,6 +2301,44 @@ fn write_pdf_pages(path: &Path, pages_content: &[&[&str]], line_gap: i64) {
         "Type1",
         TextEncoding::Literal,
     );
+}
+
+fn write_pdf_with_missing_page_tree_child(
+    path: &Path,
+    pages_content: &[&[&str]],
+    broken_index: usize,
+) {
+    let mut document = build_pdf_pages_with_font(pages_content, 30, "Type1", TextEncoding::Literal);
+    let catalog = document
+        .trailer
+        .get(b"Root")
+        .expect("fixture trailer should contain Root")
+        .as_reference()
+        .expect("fixture Root should be a reference");
+    let pages = document
+        .objects
+        .get(&catalog)
+        .expect("fixture catalog should exist")
+        .as_dict()
+        .expect("fixture catalog should be a dictionary")
+        .get(b"Pages")
+        .expect("fixture catalog should contain Pages")
+        .as_reference()
+        .expect("fixture Pages should be a reference");
+    let broken_page = document
+        .objects
+        .get(&pages)
+        .expect("fixture Pages root should exist")
+        .as_dict()
+        .expect("fixture Pages root should be a dictionary")
+        .get(b"Kids")
+        .expect("fixture Pages root should contain Kids")
+        .as_array()
+        .expect("fixture Kids should be an array")[broken_index]
+        .as_reference()
+        .expect("fixture child should be a reference");
+    document.objects.remove(&broken_page);
+    document.save(path).expect("fixture PDF should serialize");
 }
 
 fn write_positioned_pdf_pages(path: &Path, pages_content: &[&[&str]], line_gap: i64) {
@@ -2363,7 +2479,7 @@ fn assert_complete_json_report(
 ) {
     let json = fs::read_to_string(report_path).expect("JSON report should be readable");
     let report: Value = serde_json::from_str(&json).expect("JSON report should be valid");
-    assert_eq!(report["schema_version"], 5, "{report:#}");
+    assert_eq!(report["schema_version"], 7, "{report:#}");
     let summary = &report["summary"];
     assert_eq!(
         summary["content_changes"].as_u64(),

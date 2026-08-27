@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::{
     Error, Result,
-    model::{DecodedText, Document, FontId, Glyph, GlyphId, Rect, Vec2, index_glyphs},
+    model::{DecodedText, Document, FontId, Glyph, GlyphId, PageId, Rect, Vec2, index_glyphs},
     validate::{validate_non_negative, validate_unit_interval},
 };
 
@@ -32,6 +32,16 @@ pub struct Block {
     pub id: BlockId,
     pub lines: Vec<LineId>,
     pub role: BlockRole,
+}
+
+pub(crate) struct BlockReconstruction {
+    pub blocks: Vec<Block>,
+    pub issues: Vec<LayoutIssue>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LayoutIssue {
+    UnknownReadingOrder { page: PageId },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -140,11 +150,30 @@ pub(crate) fn validate_block_options(options: BlockOptions) -> Result<()> {
     Ok(())
 }
 
+/// Reconstructs best-effort structural blocks while preserving every input
+/// line and glyph assignment.
+///
+/// Reading-order uncertainty is intentionally not exposed by this structural
+/// wrapper. Use the top-level comparison pipeline when uncertain layout must
+/// be isolated from safely comparable content.
+///
+/// # Errors
+///
+/// Returns an error when options are invalid, evidence is inconsistent, or a
+/// configured reconstruction resource limit is exceeded.
 pub fn reconstruct_blocks(
     document: &Document<Glyph>,
     lines: &[Line],
     options: BlockOptions,
 ) -> Result<Vec<Block>> {
+    reconstruct_blocks_with_issues(document, lines, options).map(|result| result.blocks)
+}
+
+pub(crate) fn reconstruct_blocks_with_issues(
+    document: &Document<Glyph>,
+    lines: &[Line],
+    options: BlockOptions,
+) -> Result<BlockReconstruction> {
     validate_block_options(options)?;
     let glyphs = index_glyphs(document)?;
     let mut line_ids = HashSet::with_capacity(lines.len());
@@ -177,12 +206,17 @@ pub fn reconstruct_blocks(
     }
 
     let mut ordered_stats = Vec::with_capacity(lines.len());
+    let mut issues = Vec::new();
     for (page_num, page_lines) in page_lines_map {
+        let page = PageId(page_num);
         let graph = super::region::partition_regions_from_refs(
-            crate::model::PageId(page_num),
+            page,
             &page_lines,
             super::region::RegionOptions::default(),
         )?;
+        if graph.reading_order == super::region::ReadingOrder::Unknown {
+            issues.push(LayoutIssue::UnknownReadingOrder { page });
+        }
         for region in graph.regions {
             append_region_order(&mut stats_by_line_id, &mut ordered_stats, region.line_ids)?;
         }
@@ -224,7 +258,7 @@ pub fn reconstruct_blocks(
     }
     pending.sort_by_key(|block| block.order);
 
-    Ok(pending
+    let blocks = pending
         .into_iter()
         .enumerate()
         .map(|(index, block)| Block {
@@ -232,7 +266,8 @@ pub fn reconstruct_blocks(
             lines: block.lines,
             role: block.role,
         })
-        .collect())
+        .collect();
+    Ok(BlockReconstruction { blocks, issues })
 }
 
 fn append_region_order<T>(

@@ -280,6 +280,15 @@ impl<'a> SideIndex<'a> {
         })
     }
 
+    pub(crate) fn block(&self, block: BlockId) -> Result<&'a BlockText> {
+        self.blocks.get(&block.0).copied().ok_or_else(|| {
+            Error::InvalidConfiguration(format!(
+                "text span references block {} that has no normalized evidence",
+                block.0
+            ))
+        })
+    }
+
     /// Resolves the complete comparable-token sequence of a block group, so
     /// the presentation renderer can show bounded context around an exact
     /// change span without mutating or re-walking the comparison. Token

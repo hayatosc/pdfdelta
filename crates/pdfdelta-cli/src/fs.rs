@@ -11,6 +11,7 @@ use std::{
 
 use pdfdelta_core::{
     diff::Comparison,
+    model::GlyphEvidence,
     normalize::BlockText,
     pdf::{LopdfParser, ParseLimits, ParsedPdf, PdfParser},
     report::{ExtractionStatus, write_json},
@@ -128,6 +129,8 @@ pub fn write_json_atomically(
     output_path: &Path,
     old_blocks: &[BlockText],
     new_blocks: &[BlockText],
+    old_glyph_evidence: &[GlyphEvidence],
+    new_glyph_evidence: &[GlyphEvidence],
     comparison: &Comparison,
     extraction: &ExtractionStatus,
 ) -> Result<(), String> {
@@ -136,6 +139,8 @@ pub fn write_json_atomically(
             temporary_file,
             old_blocks,
             new_blocks,
+            old_glyph_evidence,
+            new_glyph_evidence,
             comparison,
             extraction,
         )

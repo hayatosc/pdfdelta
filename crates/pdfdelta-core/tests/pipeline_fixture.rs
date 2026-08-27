@@ -2,7 +2,7 @@ use pdfdelta_core::{
     Error, Result,
     alignment::AlignmentOptions,
     diff::{ChangeKind, Comparison, DiffOptions, FormattingReason},
-    layout::{BlockOptions, LineOptions},
+    layout::{BlockOptions, LineOptions, LineTextDirection, reconstruct_lines},
     model::{
         DecodedText, Document, FontId, Glyph, GlyphId, GlyphProvenance, PageId, Rect,
         TextRenderMode, Vec2,
@@ -84,6 +84,26 @@ fn reports_one_generic_numeric_replacement() -> Result<()> {
 }
 
 #[test]
+fn replacement_outcome_retains_each_glyph_evidence_once() -> Result<()> {
+    let old_document = paragraphs(&["Release 10 remains available"]);
+    let new_document = paragraphs(&["Release 20 remains available"]);
+    let old_count = old_document.items().len();
+    let new_count = new_document.items().len();
+
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old_document),
+        ExtractionOutcome::complete(new_document),
+        PipelineOptions::default(),
+    )?;
+
+    assert_eq!(outcome.old_glyph_evidence.len(), old_count);
+    assert_eq!(outcome.new_glyph_evidence.len(), new_count);
+    assert_unique_glyph_evidence(&outcome.old_glyph_evidence);
+    assert_unique_glyph_evidence(&outcome.new_glyph_evidence);
+    Ok(())
+}
+
+#[test]
 fn compares_mixed_axis_aligned_orientations() -> Result<()> {
     let document = document(&[
         line("Body text remains stable", 0, 100.0),
@@ -92,7 +112,7 @@ fn compares_mixed_axis_aligned_orientations() -> Result<()> {
 
     let comparison = compare_glyph_documents(&document, &document, PipelineOptions::default())?;
 
-    assert_no_content_changes(&comparison);
+    assert_unknown_reading_order(&comparison);
     Ok(())
 }
 
@@ -107,7 +127,21 @@ fn self_compares_tilted_text() -> Result<()> {
 
     let comparison = compare_glyph_documents(&document, &document, PipelineOptions::default())?;
 
-    assert_no_content_changes(&comparison);
+    assert_unknown_reading_order(&comparison);
+    Ok(())
+}
+
+#[test]
+fn positive_x_hebrew_text_has_unknown_reading_order() -> Result<()> {
+    let document = document(&[line("שלום", 0, 100.0)]);
+    let lines = reconstruct_lines(&document, LineOptions::default())?;
+
+    assert_eq!(lines.len(), 1);
+    assert!(lines[0].direction.x > 0.0);
+    assert_eq!(lines[0].text_direction, LineTextDirection::RightToLeft);
+
+    let comparison = compare_glyph_documents(&document, &document, PipelineOptions::default())?;
+    assert_unknown_reading_order(&comparison);
     Ok(())
 }
 
@@ -118,9 +152,7 @@ fn reports_content_change_in_rotated_label() -> Result<()> {
 
     let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
 
-    assert_single_change(&comparison, ChangeKind::Replacement);
-    assert!(comparison.changes[0].old_span.is_some());
-    assert!(comparison.changes[0].new_span.is_some());
+    assert_unknown_reading_order(&comparison);
     Ok(())
 }
 
@@ -131,7 +163,7 @@ fn moved_rotated_label_remains_content_equivalent() -> Result<()> {
 
     let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
 
-    assert_no_content_changes(&comparison);
+    assert_unknown_reading_order(&comparison);
     Ok(())
 }
 
@@ -174,6 +206,118 @@ fn reports_replacement_inside_known_two_column_order() -> Result<()> {
     let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
 
     assert_single_change(&comparison, ChangeKind::Replacement);
+    Ok(())
+}
+
+#[test]
+fn unknown_reading_order_is_page_scoped_while_safe_changes_continue() -> Result<()> {
+    let old = document(&[
+        line_at("Opening anchor remains stable", 0, 0.0, 300.0),
+        line_at("Ambiguous body remains stable", 1, 200.0, 300.0),
+        vertical_line("Side label", 1, 400.0, 100.0),
+        line_at("Boundary anchor remains stable", 2, 0.0, 300.0),
+        line_at("Release 10 remains available", 3, 200.0, 300.0),
+        line_at("Closing anchor remains stable", 4, 0.0, 300.0),
+    ]);
+    let new = document(&[
+        line_at("Opening anchor remains stable", 0, 0.0, 300.0),
+        line_at("Ambiguous body remains stable", 1, 200.0, 300.0),
+        vertical_line("Side label", 1, 400.0, 100.0),
+        line_at("Boundary anchor remains stable", 2, 0.0, 300.0),
+        line_at("Release 20 remains available", 3, 200.0, 300.0),
+        line_at("Closing anchor remains stable", 4, 0.0, 300.0),
+    ]);
+
+    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+
+    assert_single_change_with_unresolved(&comparison, ChangeKind::Replacement);
+    assert_eq!(comparison.unresolved_regions.len(), 1);
+    assert_eq!(
+        comparison.unresolved_regions[0].evidence,
+        [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
+    );
+    assert!(
+        comparison
+            .old_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
+    assert!(
+        comparison
+            .new_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
+    Ok(())
+}
+
+#[test]
+fn unknown_page_marks_a_cross_page_block_without_hiding_later_changes() -> Result<()> {
+    let old = document(&[
+        line("Page zero first continuation line", 0, 100.0),
+        line("Page zero second continuation line", 0, 88.0),
+        line("Page zero third continuation line", 0, 76.0),
+        line("Page one first continuation line", 1, 100.0),
+        line("Page one second continuation line", 1, 88.0),
+        line("Page one third continuation line", 1, 76.0),
+        vertical_line("Ambiguous side label", 1, 400.0, -200.0),
+        line("Boundary anchor remains stable", 2, 100.0),
+        line("Release 10 remains available", 3, 100.0),
+        line("Closing anchor remains stable", 4, 100.0),
+    ]);
+    let new = document(&[
+        line("Page zero first continuation line", 0, 100.0),
+        line("Page zero second continuation line", 0, 88.0),
+        line("Page zero third continuation line", 0, 76.0),
+        line("Page one first continuation line", 1, 100.0),
+        line("Page one second continuation line", 1, 88.0),
+        line("Page one third continuation line", 1, 76.0),
+        vertical_line("Ambiguous side label", 1, 400.0, -200.0),
+        line("Boundary anchor remains stable", 2, 100.0),
+        line("Release 20 remains available", 3, 100.0),
+        line("Closing anchor remains stable", 4, 100.0),
+    ]);
+
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+
+    let cross_page_block = outcome
+        .old_blocks
+        .iter()
+        .find(|block| block.pages == [0, 1])
+        .expect("fixture cadence should reconstruct one cross-page body block");
+    assert_eq!(outcome.comparison.changes.len(), 1, "{outcome:#?}");
+    assert_eq!(outcome.comparison.changes[0].kind, ChangeKind::Replacement);
+    assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
+    assert!(
+        outcome.comparison.unresolved_regions[0]
+            .old_span
+            .as_ref()
+            .is_some_and(|span| span.blocks.contains(&cross_page_block.block))
+    );
+    assert_eq!(
+        outcome.comparison.unresolved_regions[0].evidence,
+        [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
+    );
+    assert!(outcome.extraction.old_complete);
+    assert!(outcome.extraction.new_complete);
+    assert!(
+        outcome
+            .comparison
+            .old_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
+    assert!(
+        outcome
+            .comparison
+            .new_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
     Ok(())
 }
 
@@ -339,7 +483,7 @@ fn records_each_completed_pipeline_phase_with_bounded_metrics() -> Result<()> {
 }
 
 #[test]
-fn records_incomplete_gate_without_downstream_successes() -> Result<()> {
+fn page_scoped_issue_records_incomplete_gate_and_downstream_successes() -> Result<()> {
     let old = ExtractionOutcome::new(
         paragraphs(&["Partial evidence remains visible"]),
         vec![ExtractionIssue::new(
@@ -358,28 +502,54 @@ fn records_incomplete_gate_without_downstream_successes() -> Result<()> {
         &mut diagnostics,
     )?;
 
+    let gate = diagnostics
+        .records()
+        .iter()
+        .find(|record| record.phase == PipelinePhase::CompletenessGate)
+        .expect("completeness gate should be recorded");
+    assert_eq!(gate.status, PipelinePhaseStatus::Incomplete);
+    for phase in [
+        PipelinePhase::LineReconstruction,
+        PipelinePhase::Normalization,
+        PipelinePhase::Alignment,
+        PipelinePhase::ExactDiff,
+    ] {
+        assert!(diagnostics.records().iter().any(|record| {
+            record.phase == phase && record.status == PipelinePhaseStatus::Completed
+        }));
+    }
+    Ok(())
+}
+
+#[test]
+fn document_scoped_issue_stops_after_pre_layout_budget() -> Result<()> {
+    let old = ExtractionOutcome::new(
+        Document::new(Vec::new()),
+        vec![ExtractionIssue::new(
+            ExtractionIssueKind::Unsupported,
+            ExtractionScope::Document,
+            "document evidence is unavailable",
+        )?],
+    )?;
+    let new = ExtractionOutcome::complete(paragraphs(&["Complete evidence remains visible"]));
+    let mut diagnostics = PipelineDiagnostics::new();
+
+    compare_extraction_outcomes_with_diagnostics(
+        old,
+        new,
+        PipelineOptions::default(),
+        &mut diagnostics,
+    )?;
+
     assert_eq!(diagnostics.records().len(), 4);
-    assert_eq!(
-        diagnostics.records()[0].phase,
-        PipelinePhase::ConfigurationValidation
-    );
-    assert_eq!(
-        diagnostics.records()[1].phase,
-        PipelinePhase::CompletenessGate
-    );
     assert_eq!(
         diagnostics.records()[1].status,
         PipelinePhaseStatus::Incomplete
     );
-    for (record, side) in diagnostics.records()[2..]
-        .iter()
-        .zip([DocumentSide::Old, DocumentSide::New])
-    {
-        assert_eq!(record.phase, PipelinePhase::PreLayoutBudget);
-        assert_eq!(record.side, Some(side));
-        assert_eq!(record.status, PipelinePhaseStatus::Completed);
-        assert!(record.metrics.raw_tokens.is_some());
-    }
+    assert!(diagnostics.records()[2..].iter().all(|record| {
+        record.phase == PipelinePhase::PreLayoutBudget
+            && record.status == PipelinePhaseStatus::Completed
+    }));
     Ok(())
 }
 
@@ -676,7 +846,7 @@ fn records_zero_candidate_visits_for_identical_documents() -> Result<()> {
 }
 
 #[test]
-fn suppresses_all_changes_when_extraction_is_incomplete() -> Result<()> {
+fn page_scoped_gap_suppresses_only_its_anchor_window() -> Result<()> {
     let old = ExtractionOutcome::new(
         paragraphs(&["Retained old paragraph remains available"]),
         vec![ExtractionIssue::new(
@@ -694,13 +864,32 @@ fn suppresses_all_changes_when_extraction_is_incomplete() -> Result<()> {
 
     assert!(outcome.comparison.changes.is_empty());
     assert!(outcome.comparison.formatting_changes.is_empty());
-    assert!(outcome.comparison.unresolved_regions.is_empty());
+    assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
+    assert_eq!(
+        outcome.comparison.unresolved_regions[0].evidence,
+        [pdfdelta_core::alignment::AlignmentEvidence::ExtractionGap]
+    );
     assert_eq!(outcome.comparison.old_coverage.ratio, None);
-    assert_eq!(outcome.comparison.new_coverage.ratio, Some(0.0));
+    assert!(outcome.comparison.new_coverage.resolved_tokens > 0);
+    assert!(
+        outcome.comparison.new_coverage.resolved_tokens
+            < outcome.comparison.new_coverage.total_tokens
+    );
+    assert_eq!(
+        outcome.comparison.new_coverage.ratio,
+        Some(
+            outcome.comparison.new_coverage.resolved_tokens as f64
+                / outcome.comparison.new_coverage.total_tokens as f64
+        )
+    );
     assert!(!outcome.extraction.old_complete);
     assert!(outcome.extraction.new_complete);
     assert_eq!(outcome.extraction.issues.len(), 1);
     assert_eq!(outcome.extraction.issues[0].side, DocumentSide::Old);
+    assert!(!outcome.old_glyph_evidence.is_empty());
+    assert!(!outcome.new_glyph_evidence.is_empty());
+    assert_unique_glyph_evidence(&outcome.old_glyph_evidence);
+    assert_unique_glyph_evidence(&outcome.new_glyph_evidence);
     assert_eq!(
         outcome.extraction.issues[0].kind,
         ExtractionIssueKind::Unresolved
@@ -716,6 +905,129 @@ fn suppresses_all_changes_when_extraction_is_incomplete() -> Result<()> {
         exit_status(&outcome.comparison, &outcome.extraction, true)?,
         ExitStatus::IncompleteComparison
     );
+    Ok(())
+}
+
+#[test]
+fn preserves_replacement_outside_a_page_tree_gap() -> Result<()> {
+    let old = ExtractionOutcome::new(
+        document(&[
+            line("Opening anchor remains exactly stable", 0, 300.0),
+            line("Boundary anchor remains exactly stable", 2, 300.0),
+            line("Release 10 remains available", 3, 300.0),
+            line("Closing anchor remains exactly stable", 4, 300.0),
+        ]),
+        vec![ExtractionIssue::new(
+            ExtractionIssueKind::Unresolved,
+            ExtractionScope::PageGap { retained_before: 1 },
+            "old page could not be extracted",
+        )?],
+    )?;
+    let mut new_lines = vec![line("Opening anchor remains exactly stable", 0, 300.0)];
+    for (index, text) in [
+        "Release 10 remains nearly available alpha",
+        "Release 10 remains nearly available beta",
+        "Release 10 remains nearly available gamma",
+        "Release 10 remains nearly available delta",
+        "Release 10 remains nearly available epsilon",
+        "Release 10 remains nearly available zeta",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        new_lines.push(line(text, 1, 300.0 - index as f64 * 30.0));
+    }
+    new_lines.extend([
+        line("Boundary anchor remains exactly stable", 2, 300.0),
+        line("Release 20 remains available", 3, 300.0),
+        line("Closing anchor remains exactly stable", 4, 300.0),
+    ]);
+    let new = ExtractionOutcome::complete(document(&new_lines));
+    let options = PipelineOptions {
+        alignment: AlignmentOptions {
+            candidate_limit: 1,
+            max_candidate_visits: 100,
+            ..AlignmentOptions::default()
+        },
+        ..PipelineOptions::default()
+    };
+    let mut diagnostics = PipelineDiagnostics::new();
+
+    let outcome =
+        compare_extraction_outcomes_with_diagnostics(old, new, options, &mut diagnostics)?;
+
+    assert_eq!(outcome.comparison.changes.len(), 1, "{outcome:#?}");
+    assert_eq!(outcome.comparison.changes[0].kind, ChangeKind::Replacement);
+    assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
+    assert_eq!(
+        outcome.comparison.unresolved_regions[0].evidence,
+        [pdfdelta_core::alignment::AlignmentEvidence::ExtractionGap]
+    );
+    assert_eq!(outcome.comparison.old_coverage.ratio, None);
+    assert!(outcome.comparison.new_coverage.ratio.is_some());
+    assert_eq!(
+        outcome.new_blocks.len(),
+        10,
+        "fixture requires six gap blocks"
+    );
+    let candidate_index = diagnostics
+        .records()
+        .iter()
+        .find(|record| record.phase == PipelinePhase::CandidateIndex)
+        .expect("candidate index should be recorded");
+    assert_eq!(candidate_index.metrics.indexed_features, Some(4));
+    let alignment = diagnostics
+        .records()
+        .iter()
+        .find(|record| record.phase == PipelinePhase::Alignment)
+        .expect("alignment should be recorded");
+    let visits = alignment
+        .metrics
+        .candidate_visits
+        .expect("completed alignment should record candidate visits");
+    assert!(visits < 100);
+    assert_eq!(alignment.metrics.candidate_visits_required, Some(visits));
+    Ok(())
+}
+
+#[test]
+fn page_scoped_gap_without_anchors_emits_no_false_changes() -> Result<()> {
+    let old = ExtractionOutcome::new(
+        paragraphs(&["Retained old alpha content", "Retained old beta content"]),
+        vec![ExtractionIssue::new(
+            ExtractionIssueKind::Unresolved,
+            ExtractionScope::Page(PageId(1)),
+            "old page could not be extracted",
+        )?],
+    )?;
+    let new = ExtractionOutcome::complete(document(&[
+        line("Unbounded new gamma content", 0, 300.0),
+        line("Unbounded counterpart page content", 1, 300.0),
+    ]));
+    let options = PipelineOptions {
+        alignment: AlignmentOptions {
+            max_candidate_visits: 1,
+            max_dp_cells: 1,
+            ..AlignmentOptions::default()
+        },
+        ..PipelineOptions::default()
+    };
+    let mut diagnostics = PipelineDiagnostics::new();
+
+    let outcome =
+        compare_extraction_outcomes_with_diagnostics(old, new, options, &mut diagnostics)?;
+
+    assert!(outcome.comparison.changes.is_empty());
+    assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
+    assert_eq!(outcome.comparison.old_coverage.ratio, None);
+    assert_eq!(outcome.comparison.new_coverage.ratio, Some(0.0));
+    let alignment = diagnostics
+        .records()
+        .iter()
+        .find(|record| record.phase == PipelinePhase::Alignment)
+        .expect("alignment should be recorded");
+    assert_eq!(alignment.metrics.candidate_visits, Some(0));
+    assert_eq!(alignment.metrics.candidate_visits_required, Some(0));
     Ok(())
 }
 
@@ -737,6 +1049,41 @@ fn does_not_infer_insertion_from_empty_document_scoped_issue() -> Result<()> {
     assert_eq!(outcome.comparison.old_coverage.total_tokens, 0);
     assert_eq!(outcome.comparison.old_coverage.ratio, None);
     assert!(outcome.comparison.new_coverage.total_tokens > 0);
+    assert_eq!(outcome.comparison.new_coverage.ratio, Some(0.0));
+    Ok(())
+}
+
+#[test]
+fn malformed_subtree_count_issue_suppresses_all_diffs() -> Result<()> {
+    let old = ExtractionOutcome::new(
+        paragraphs(&[
+            "Opening anchor remains exactly stable",
+            "Release 10 remains available",
+            "Closing anchor remains exactly stable",
+        ]),
+        vec![ExtractionIssue::new(
+            ExtractionIssueKind::Unresolved,
+            ExtractionScope::Document,
+            "reading page tree Count: expected integer",
+        )?],
+    )?;
+    let new = ExtractionOutcome::complete(paragraphs(&[
+        "Opening anchor remains exactly stable",
+        "Release 20 remains available",
+        "Closing anchor remains exactly stable",
+    ]));
+
+    let outcome = compare_extraction_outcomes(old, new, PipelineOptions::default())?;
+
+    assert!(outcome.comparison.changes.is_empty());
+    assert!(outcome.comparison.unresolved_regions.is_empty());
+    assert!(outcome.old_blocks.is_empty());
+    assert!(outcome.new_blocks.is_empty());
+    assert!(!outcome.old_glyph_evidence.is_empty());
+    assert!(!outcome.new_glyph_evidence.is_empty());
+    assert_unique_glyph_evidence(&outcome.old_glyph_evidence);
+    assert_unique_glyph_evidence(&outcome.new_glyph_evidence);
+    assert_eq!(outcome.comparison.old_coverage.ratio, None);
     assert_eq!(outcome.comparison.new_coverage.ratio, Some(0.0));
     Ok(())
 }
@@ -979,6 +1326,44 @@ fn assert_single_change(comparison: &Comparison, kind: ChangeKind) {
     assert!(comparison.unresolved_regions.is_empty());
     assert_eq!(comparison.old_coverage.ratio, Some(1.0));
     assert_eq!(comparison.new_coverage.ratio, Some(1.0));
+}
+
+fn assert_single_change_with_unresolved(comparison: &Comparison, kind: ChangeKind) {
+    assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");
+    assert_eq!(comparison.changes[0].kind, kind);
+}
+
+fn assert_unknown_reading_order(comparison: &Comparison) {
+    assert!(comparison.changes.is_empty());
+    assert_eq!(comparison.unresolved_regions.len(), 1);
+    assert_eq!(
+        comparison.unresolved_regions[0].evidence,
+        [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
+    );
+    assert!(
+        comparison
+            .old_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
+    assert!(
+        comparison
+            .new_coverage
+            .ratio
+            .is_some_and(|ratio| ratio < 1.0)
+    );
+}
+
+fn assert_unique_glyph_evidence(evidence: &[pdfdelta_core::model::GlyphEvidence]) {
+    for (index, glyph) in evidence.iter().enumerate() {
+        assert!(
+            evidence[..index]
+                .iter()
+                .all(|previous| previous.id != glyph.id),
+            "duplicate glyph evidence id {}",
+            glyph.id.0
+        );
+    }
 }
 
 fn paragraphs(text: &[&str]) -> Document<Glyph> {
