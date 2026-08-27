@@ -241,6 +241,53 @@ impl CanonicalRenderDocument {
         }
         lines
     }
+
+    pub(crate) fn mutation_document(&self) -> Result<CanonicalDocument> {
+        let capacity = 1
+            + self.sections.len()
+            + self
+                .sections
+                .iter()
+                .map(|section| section.paragraphs.len())
+                .sum::<usize>();
+        let mut used_ids = self
+            .sections
+            .iter()
+            .flat_map(|section| &section.paragraphs)
+            .map(|paragraph| paragraph.id.clone())
+            .collect::<HashSet<_>>();
+        let mut paragraphs = Vec::with_capacity(capacity);
+        paragraphs.push(metadata_paragraph(
+            "pdfdelta-title",
+            &self.title,
+            &mut used_ids,
+        )?);
+        for (section_index, section) in self.sections.iter().enumerate() {
+            paragraphs.push(metadata_paragraph(
+                &format!("pdfdelta-section-{section_index}"),
+                &section.heading,
+                &mut used_ids,
+            )?);
+            paragraphs.extend(section.paragraphs.iter().cloned());
+        }
+        CanonicalDocument::new(paragraphs)
+    }
+}
+
+fn metadata_paragraph(
+    id_prefix: &str,
+    text: &str,
+    used_ids: &mut HashSet<String>,
+) -> Result<Paragraph> {
+    for suffix in 0..=MAX_PARAGRAPHS {
+        let id = format!("{id_prefix}-{suffix}");
+        if used_ids.insert(id.clone()) {
+            return Paragraph::new(id, text);
+        }
+    }
+    Err(BenchError::InvalidInput(
+        "canonical metadata identifier space is exhausted".to_owned(),
+    ))
 }
 
 impl CanonicalSection {

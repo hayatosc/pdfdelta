@@ -8,7 +8,8 @@ use std::{
 
 use pdfdelta_bench::{
     canonical::{CanonicalRenderDocument, MAX_CANONICAL_YAML_BYTES},
-    mutation::RenderPlan,
+    evaluator::evaluate,
+    mutation::{Mutation, RenderPlan},
     renderers::{RenderLimits, RendererKind},
 };
 use pdfdelta_core::{
@@ -73,6 +74,138 @@ fn canonical_yaml_renders_through_each_project_renderer() {
             renderer.name()
         );
     }
+}
+
+#[test]
+fn paragraph_text_mutations_feed_the_evaluator_without_dropping_metadata() {
+    let yaml = EXAMPLE_YAML.replace(
+        "Release 10 remains available during the transition.",
+        "A very simple Release 10 note remains stable.",
+    );
+    let document = CanonicalRenderDocument::from_yaml(&yaml).expect("valid canonical YAML");
+    let original_lines = document.render_lines();
+    let cases = [
+        (
+            "yaml-text-replace",
+            Mutation::TextReplace {
+                paragraph_id: "availability-p1".to_owned(),
+                new_text: "A very simple Release 20 note remains stable.".to_owned(),
+            },
+            "A very simple Release 20 note remains stable.",
+            "replacement",
+        ),
+        (
+            "yaml-text-insert",
+            Mutation::TextInsert {
+                paragraph_id: "availability-p1".to_owned(),
+                at: "A very simple Release 10 note ".chars().count(),
+                text: "2026 ".to_owned(),
+            },
+            "A very simple Release 10 note 2026 remains stable.",
+            "insertion",
+        ),
+        (
+            "yaml-text-delete",
+            Mutation::TextDelete {
+                paragraph_id: "availability-p1".to_owned(),
+                start: "A ".chars().count(),
+                end: "A very ".chars().count(),
+            },
+            "A simple Release 10 note remains stable.",
+            "deletion",
+        ),
+        (
+            "yaml-number-replace",
+            Mutation::NumberReplace {
+                paragraph_id: "availability-p1".to_owned(),
+                new_number: "20".to_owned(),
+            },
+            "A very simple Release 20 note remains stable.",
+            "replacement",
+        ),
+    ];
+
+    for (name, mutation, expected_text, expected_label) in cases {
+        let plan = mutation
+            .apply_to_render_document(&document, 30)
+            .expect("paragraph-local mutation applies");
+        assert_eq!(plan.old().pages(), std::slice::from_ref(&original_lines));
+        let mut expected_lines = original_lines.clone();
+        expected_lines[2] = expected_text.to_owned();
+        assert_eq!(
+            plan.new_plan().pages(),
+            std::slice::from_ref(&expected_lines)
+        );
+        assert_eq!(plan.expectation().label(), expected_label);
+
+        for renderer in RendererKind::all() {
+            let record = evaluate(
+                name,
+                plan.old(),
+                plan.new_plan(),
+                plan.expectation(),
+                renderer,
+            )
+            .expect("structured mutation evaluates");
+            assert!(
+                record.passed,
+                "{name}/{}: {}",
+                renderer.name(),
+                record.detail
+            );
+        }
+    }
+}
+
+#[test]
+fn structured_mutations_reject_metadata_targets_and_section_ambiguous_changes() {
+    let document = CanonicalRenderDocument::from_yaml(EXAMPLE_YAML).expect("valid canonical YAML");
+    let metadata_error = Mutation::TextReplace {
+        paragraph_id: "pdfdelta-title-0".to_owned(),
+        new_text: "Changed title".to_owned(),
+    }
+    .apply_to_render_document(&document, 30)
+    .expect_err("metadata must not be a mutation target")
+    .to_string();
+    assert!(
+        metadata_error.contains("unknown structured paragraph id"),
+        "{metadata_error}"
+    );
+
+    for mutation in [
+        Mutation::ParagraphDelete {
+            paragraph_id: "availability-p1".to_owned(),
+        },
+        Mutation::ParagraphMove {
+            paragraph_id: "availability-p1".to_owned(),
+            to_index: 1,
+        },
+    ] {
+        let error = mutation
+            .apply_to_render_document(&document, 30)
+            .expect_err("section-ambiguous mutation must be rejected")
+            .to_string();
+        assert!(error.contains("currently support only"), "{error}");
+    }
+}
+
+#[test]
+fn generated_metadata_ids_do_not_shadow_source_paragraph_ids() {
+    let yaml = EXAMPLE_YAML.replace("availability-p1", "pdfdelta-title-0");
+    let document = CanonicalRenderDocument::from_yaml(&yaml).expect("valid canonical YAML");
+    let plan = Mutation::NumberReplace {
+        paragraph_id: "pdfdelta-title-0".to_owned(),
+        new_number: "20".to_owned(),
+    }
+    .apply_to_render_document(&document, 30)
+    .expect("source paragraph remains addressable");
+
+    assert_eq!(plan.old().pages()[0], document.render_lines());
+    assert_eq!(
+        plan.new_plan().pages()[0][2],
+        "Release 20 remains available during the transition."
+    );
+    assert_eq!(plan.new_plan().pages()[0][0], document.title());
 }
 
 #[test]

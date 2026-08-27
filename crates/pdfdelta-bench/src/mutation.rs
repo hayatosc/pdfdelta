@@ -2,7 +2,9 @@ use pdfdelta_core::diff::ChangeKind;
 
 use crate::{
     BenchError, Result,
-    canonical::{CanonicalDocument, Paragraph, validate_paragraph_id, validate_text},
+    canonical::{
+        CanonicalDocument, CanonicalRenderDocument, Paragraph, validate_paragraph_id, validate_text,
+    },
 };
 
 pub const MIN_LINE_GAP: u16 = 8;
@@ -628,6 +630,51 @@ impl Mutation {
                 to_index,
             } => apply_paragraph_move(document, paragraph_id, *to_index, line_gap),
         }
+    }
+
+    /// Applies a paragraph-local text mutation to a structured render document.
+    ///
+    /// The title and section headings remain immutable render lines and stay in
+    /// the canonical coordinate space used by the expected-change manifest.
+    /// Structural and layout mutations are rejected until their section-level
+    /// ownership rules are explicit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BenchError::InvalidInput`] when the mutation kind is not yet
+    /// supported for structured documents, its target is not a source
+    /// paragraph, or the underlying text mutation is invalid.
+    pub fn apply_to_render_document(
+        &self,
+        document: &CanonicalRenderDocument,
+        line_gap: u16,
+    ) -> Result<MutationPlan> {
+        let paragraph_id = match self {
+            Self::TextReplace { paragraph_id, .. }
+            | Self::TextInsert { paragraph_id, .. }
+            | Self::TextDelete { paragraph_id, .. }
+            | Self::NumberReplace { paragraph_id, .. } => paragraph_id,
+            _ => {
+                return Err(BenchError::InvalidInput(
+                    "structured canonical documents currently support only TextReplace, \
+                     TextInsert, TextDelete, and NumberReplace mutations"
+                        .to_owned(),
+                ));
+            }
+        };
+        validate_paragraph_id(paragraph_id)?;
+        let is_source_paragraph = document.sections().iter().any(|section| {
+            section
+                .paragraphs()
+                .iter()
+                .any(|paragraph| paragraph.id() == paragraph_id)
+        });
+        if !is_source_paragraph {
+            return Err(BenchError::InvalidInput(format!(
+                "unknown structured paragraph id {paragraph_id:?}"
+            )));
+        }
+        self.apply(&document.mutation_document()?, line_gap)
     }
 }
 
