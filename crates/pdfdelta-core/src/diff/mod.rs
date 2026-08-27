@@ -11,7 +11,7 @@ use crate::{
         BlockSeparator,
     },
     layout::BlockId,
-    normalize::{BlockText, ComparableToken, ScalarRange},
+    normalize::{BlockText, ComparableToken, FontSizeSignature, ScalarRange},
     validate::validate_unit_interval,
 };
 
@@ -65,6 +65,7 @@ pub struct Change {
 pub enum FormattingReason {
     Normalization,
     BlockStructure,
+    FontSize,
     LineBreak,
     PageBreak,
 }
@@ -424,6 +425,12 @@ fn compare_match(
         if span.old.len() != span.new.len() || span.old_separator != span.new_separator {
             reasons.push(FormattingReason::BlockStructure);
         }
+        if let (Some(old_sizes), Some(new_sizes)) =
+            (&old.font_size_signatures, &new.font_size_signatures)
+            && old_sizes != new_sizes
+        {
+            reasons.push(FormattingReason::FontSize);
+        }
         if let (Some(old_breaks), Some(new_breaks)) = (&old.line_breaks, &new.line_breaks)
             && old_breaks != new_breaks
         {
@@ -737,6 +744,7 @@ impl<'a> SidePlan<'a> {
                 )));
             }
             let canonical_count = block.canonical.comparable_token_count()?;
+            validate_font_size_signatures(name, block, canonical_count)?;
             validate_line_breaks(name, block, canonical_count)?;
             validate_page_breaks(name, block, canonical_count)?;
             total_tokens =
@@ -795,6 +803,7 @@ impl Side<'_> {
     fn canonical_group(&self, blocks: &[BlockId], separator: Option<BlockSeparator>) -> GroupText {
         let separator = effective_group_separator(blocks.len(), separator);
         let mut tokens = Vec::new();
+        let mut font_size_signatures = Some(Vec::new());
         let mut line_breaks = Some(Vec::new());
         let mut page_breaks = Some(Vec::new());
         let mut previous_page = None;
@@ -802,6 +811,7 @@ impl Side<'_> {
             let block_index = self.index[block];
             let block = &self.blocks[block_index];
             let next = &self.canonical[block_index];
+            let preceding_token_count = tokens.len();
             if position == 0 {
                 tokens.extend_from_slice(next);
             } else {
@@ -810,6 +820,13 @@ impl Side<'_> {
                     .append(&mut tokens, next);
             }
             let block_start = tokens.len() - next.len();
+            let inserted_separator_tokens = block_start - preceding_token_count;
+
+            font_size_signatures = font_size_signatures.take().and_then(|combined| {
+                block.font_size_signatures.as_ref().and_then(|next_sizes| {
+                    append_font_size_signatures(combined, next_sizes, inserted_separator_tokens)
+                })
+            });
 
             if position > 0 {
                 if let Some(breaks) = &mut line_breaks {
@@ -839,7 +856,14 @@ impl Side<'_> {
             }
             previous_page = block.pages.last().copied();
         }
-        GroupText::new(blocks.to_vec(), separator, tokens, line_breaks, page_breaks)
+        GroupText::new(
+            blocks.to_vec(),
+            separator,
+            tokens,
+            font_size_signatures,
+            line_breaks,
+            page_breaks,
+        )
     }
 
     fn raw_group(
@@ -865,8 +889,36 @@ impl Side<'_> {
             tokens,
             None,
             None,
+            None,
         ))
     }
+}
+
+fn append_font_size_signatures(
+    mut combined: Vec<FontSizeSignature>,
+    next: &[FontSizeSignature],
+    inserted_separator_tokens: usize,
+) -> Option<Vec<FontSizeSignature>> {
+    match inserted_separator_tokens {
+        0 => {}
+        1 => combined.push(combined.last()?.union(next.first()?)),
+        _ => return None,
+    }
+    combined.extend_from_slice(next);
+    Some(combined)
+}
+
+fn validate_font_size_signatures(name: &str, block: &BlockText, token_count: usize) -> Result<()> {
+    let Some(signatures) = &block.font_size_signatures else {
+        return Ok(());
+    };
+    if signatures.len() != token_count {
+        return Err(Error::Unresolved(format!(
+            "{name} block {} font-size signature count does not match its canonical token count",
+            block.block.0
+        )));
+    }
+    Ok(())
 }
 
 fn validate_line_breaks(name: &str, block: &BlockText, token_count: usize) -> Result<()> {
@@ -924,6 +976,7 @@ struct GroupText {
     blocks: Vec<BlockId>,
     separator: Option<BlockSeparator>,
     tokens: Vec<ComparableToken>,
+    font_size_signatures: Option<Vec<FontSizeSignature>>,
     line_breaks: Option<Vec<usize>>,
     page_breaks: Option<Vec<usize>>,
     scalar_boundaries: Vec<usize>,
@@ -934,6 +987,7 @@ impl GroupText {
         blocks: Vec<BlockId>,
         separator: Option<BlockSeparator>,
         tokens: Vec<ComparableToken>,
+        font_size_signatures: Option<Vec<FontSizeSignature>>,
         line_breaks: Option<Vec<usize>>,
         page_breaks: Option<Vec<usize>>,
     ) -> Self {
@@ -950,6 +1004,7 @@ impl GroupText {
             blocks,
             separator,
             tokens,
+            font_size_signatures,
             line_breaks,
             page_breaks,
             scalar_boundaries,

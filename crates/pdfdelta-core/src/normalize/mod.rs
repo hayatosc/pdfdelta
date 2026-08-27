@@ -36,6 +36,45 @@ pub struct TextSource {
     pub atoms: Vec<TextSourceAtom>,
 }
 
+/// Exact effective font sizes observed for one canonical comparable token.
+///
+/// Values are stored as IEEE-754 bit patterns so formatting evidence remains
+/// equality-comparable without introducing a layout threshold. A signature is
+/// sorted, deduplicated, and never empty.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FontSizeSignature {
+    bits: Vec<u64>,
+}
+
+impl FontSizeSignature {
+    /// Builds a signature from positive, finite effective font sizes.
+    ///
+    /// Returns `None` when `sizes` is empty or contains an invalid value.
+    pub fn new(sizes: &[f64]) -> Option<Self> {
+        if sizes.is_empty() || sizes.iter().any(|size| !size.is_finite() || *size <= 0.0) {
+            return None;
+        }
+        let mut bits = sizes.iter().map(|size| size.to_bits()).collect::<Vec<_>>();
+        bits.sort_unstable();
+        bits.dedup();
+        Some(Self { bits })
+    }
+
+    /// Returns the represented effective font sizes in ascending order.
+    pub fn values(&self) -> impl Iterator<Item = f64> + '_ {
+        self.bits.iter().copied().map(f64::from_bits)
+    }
+
+    pub(crate) fn union(&self, other: &Self) -> Self {
+        let mut bits = Vec::with_capacity(self.bits.len() + other.bits.len());
+        bits.extend_from_slice(&self.bits);
+        bits.extend_from_slice(&other.bits);
+        bits.sort_unstable();
+        bits.dedup();
+        Self { bits }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceMapEntry {
     pub output_range: ScalarRange,
@@ -348,6 +387,11 @@ pub struct BlockText {
     pub issues: Vec<NormalizationIssue>,
     /// Sorted unique page numbers covered by the block's lines.
     pub pages: Vec<u32>,
+    /// Exact source-glyph font-size signatures aligned with canonical comparable tokens.
+    ///
+    /// `None` means at least one token lacks complete source evidence. When present, this has
+    /// exactly one entry per canonical comparable token.
+    pub font_size_signatures: Option<Vec<FontSizeSignature>>,
     /// Comparable-token offsets immediately before text that starts on a new line.
     ///
     /// `None` means the source evidence could not locate every line boundary. When present, the
@@ -604,7 +648,7 @@ pub fn normalize_blocks(
             &mut assigned_glyphs,
         )?;
         let pages = block_pages(block, &lines);
-        normalized.push(normalize_block(block.id, raw, pages)?);
+        normalized.push(normalize_block(block.id, raw, pages, &glyphs)?);
     }
 
     if assigned_lines.len() != lines.len() {
@@ -911,7 +955,12 @@ fn block_pages(block: &Block, lines: &HashMap<LineId, &Line>) -> Vec<u32> {
     pages
 }
 
-fn normalize_block(block: BlockId, raw: RawBlock, pages: Vec<u32>) -> Result<BlockText> {
+fn normalize_block(
+    block: BlockId,
+    raw: RawBlock,
+    pages: Vec<u32>,
+    glyphs: &HashMap<GlyphId, &Glyph>,
+) -> Result<BlockText> {
     let mut issues = Vec::new();
     let line_break_following_glyphs = raw.line_break_following_glyphs;
     let page_break_following_glyphs = raw.page_break_following_glyphs;
@@ -921,6 +970,7 @@ fn normalize_block(block: BlockId, raw: RawBlock, pages: Vec<u32>) -> Result<Blo
     let pieces = normalize_nfc(atoms);
     let (canonical, events) = assemble_canonical(pieces);
     let matching = build_matching(&canonical, DEFAULT_MAX_NUMERIC_MASK_RATIO)?;
+    let font_size_signatures = canonical_font_size_signatures(&canonical, glyphs)?;
     let line_breaks = canonical_breaks(&canonical, &line_break_following_glyphs)?;
     let page_breaks = canonical_breaks(&canonical, &page_break_following_glyphs)?;
 
@@ -934,9 +984,65 @@ fn normalize_block(block: BlockId, raw: RawBlock, pages: Vec<u32>) -> Result<Blo
         normalization_events: events,
         issues,
         pages,
+        font_size_signatures,
         line_breaks,
         page_breaks,
     })
+}
+
+fn canonical_font_size_signatures(
+    canonical: &MappedText,
+    glyphs: &HashMap<GlyphId, &Glyph>,
+) -> Result<Option<Vec<FontSizeSignature>>> {
+    let tokens = canonical.comparable_tokens_with_sources()?;
+    let mut signatures = Vec::with_capacity(tokens.len());
+
+    for (_, source) in tokens {
+        let mut sizes = Vec::new();
+        for atom in source.atoms {
+            match atom {
+                TextSourceAtom::Glyph(glyph) => push_font_size(&mut sizes, glyph, glyphs)?,
+                TextSourceAtom::SyntheticSpace {
+                    preceding,
+                    following,
+                }
+                | TextSourceAtom::LineBreak {
+                    preceding,
+                    following,
+                } => {
+                    push_font_size(&mut sizes, preceding, glyphs)?;
+                    push_font_size(&mut sizes, following, glyphs)?;
+                }
+            }
+        }
+        let Some(signature) = FontSizeSignature::new(&sizes) else {
+            return Ok(None);
+        };
+        signatures.push(signature);
+    }
+
+    Ok(Some(signatures))
+}
+
+fn push_font_size(
+    sizes: &mut Vec<f64>,
+    glyph_id: GlyphId,
+    glyphs: &HashMap<GlyphId, &Glyph>,
+) -> Result<()> {
+    let glyph = glyphs.get(&glyph_id).ok_or_else(|| {
+        Error::Unresolved(format!(
+            "canonical text references unknown glyph {}",
+            glyph_id.0
+        ))
+    })?;
+    if !glyph.font_size.is_finite() || glyph.font_size <= 0.0 {
+        return Err(Error::Unresolved(format!(
+            "glyph {} has an invalid effective font size",
+            glyph_id.0
+        )));
+    }
+    sizes.push(glyph.font_size);
+    Ok(())
 }
 
 fn canonical_breaks(

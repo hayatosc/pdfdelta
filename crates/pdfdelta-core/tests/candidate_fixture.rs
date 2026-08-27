@@ -608,6 +608,7 @@ fn block_text(id: u64, canonical: &str, matching: &str, numeric_mask_applied: bo
         normalization_events: vec![],
         issues: vec![],
         pages: Vec::new(),
+        font_size_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }

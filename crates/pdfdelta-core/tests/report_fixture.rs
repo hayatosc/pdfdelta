@@ -71,7 +71,7 @@ fn formatting_only_changes_do_not_change_the_exit_status() -> Result<()> {
 }
 
 #[test]
-fn json_serializes_layout_break_formatting_reasons() -> Result<()> {
+fn json_serializes_layout_formatting_reasons() -> Result<()> {
     let old_blocks = [block_with_pages(1, "stable text", &[0])];
     let new_blocks = [block_with_pages(101, "stable text", &[0, 1])];
     let mut comparison = empty_comparison();
@@ -79,7 +79,11 @@ fn json_serializes_layout_break_formatting_reasons() -> Result<()> {
         old_span: full_span(1, "stable text"),
         new_span: full_span(101, "stable text"),
         confidence: Confidence::High,
-        reasons: vec![FormattingReason::LineBreak, FormattingReason::PageBreak],
+        reasons: vec![
+            FormattingReason::FontSize,
+            FormattingReason::LineBreak,
+            FormattingReason::PageBreak,
+        ],
     });
     let mut output = Vec::new();
 
@@ -97,7 +101,7 @@ fn json_serializes_layout_break_formatting_reasons() -> Result<()> {
         serde_json::from_slice(&output).expect("report should be valid JSON");
     assert_eq!(
         json["formatting_only_changes"][0]["reasons"],
-        serde_json::json!(["line_break", "page_break"])
+        serde_json::json!(["font_size", "line_break", "page_break"])
     );
     Ok(())
 }
@@ -1948,6 +1952,7 @@ fn block_with_text(id: u64, text: &str) -> BlockText {
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: vec![0],
+        font_size_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }
@@ -2034,6 +2039,7 @@ fn unmapped_block_fixture(id: u64) -> BlockText {
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: vec![4],
+        font_size_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }
@@ -2065,6 +2071,7 @@ fn unmapped_only_block(id: u64, hash: Vec<u8>, glyph_id: u16) -> BlockText {
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: if id > 100 { vec![0] } else { vec![4] },
+        font_size_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }

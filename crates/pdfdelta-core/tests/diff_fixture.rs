@@ -7,7 +7,10 @@ use pdfdelta_core::{
     diff::{ChangeKind, Confidence, DiffOptions, FormattingReason, TokenRange, compare_aligned},
     layout::BlockId,
     model::FontProgramHash,
-    normalize::{BlockText, ComparableToken, MappedText, ScalarRange, TextSource, UnmappedToken},
+    normalize::{
+        BlockText, ComparableToken, FontSizeSignature, MappedText, ScalarRange, TextSource,
+        UnmappedToken,
+    },
 };
 
 #[test]
@@ -188,6 +191,43 @@ fn reports_moved_line_break_as_formatting_only() -> Result<()> {
 }
 
 #[test]
+fn reports_font_size_change_as_formatting_only() -> Result<()> {
+    let old = block_with_font_size(1, "stable text", 10.0);
+    let new = block_with_font_size(101, "stable text", 14.0);
+    let alignment = aligned(vec![matched(&[1], &[101])]);
+
+    let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
+
+    assert!(result.changes.is_empty());
+    assert_eq!(result.formatting_changes.len(), 1);
+    assert_eq!(
+        result.formatting_changes[0].reasons,
+        [FormattingReason::FontSize]
+    );
+    Ok(())
+}
+
+#[test]
+fn block_separator_preserves_equal_font_size_evidence() -> Result<()> {
+    let old = block_with_font_size(1, "project log", 10.0);
+    let new = [
+        block_with_font_size(101, "project", 10.0),
+        block_with_font_size(102, "log", 10.0),
+    ];
+    let mut span = matched(&[1], &[101, 102]);
+    span.new_separator = Some(BlockSeparator::Space);
+
+    let result = compare_aligned(&[old], &new, &aligned(vec![span]), DiffOptions::default())?;
+
+    assert_eq!(result.formatting_changes.len(), 1);
+    assert_eq!(
+        result.formatting_changes[0].reasons,
+        [FormattingReason::BlockStructure]
+    );
+    Ok(())
+}
+
+#[test]
 fn ignores_uniform_page_number_shift() -> Result<()> {
     let old = block_with_page_breaks(1, "stable text", &[0], &[]);
     let new = block_with_page_breaks(101, "stable text", &[9], &[]);
@@ -221,6 +261,22 @@ fn rejects_invalid_line_break_offset() {
     assert!(matches!(
         compare_aligned(&[old], &[new], &alignment, DiffOptions::default()),
         Err(Error::Unresolved(message)) if message.contains("line-break offsets")
+    ));
+}
+
+#[test]
+fn rejects_incomplete_font_size_signature_vector() {
+    let mut old = block_with_font_size(1, "stable text", 10.0);
+    old.font_size_signatures
+        .as_mut()
+        .expect("fixture has font-size evidence")
+        .pop();
+    let new = block_with_font_size(101, "stable text", 10.0);
+    let alignment = aligned(vec![matched(&[1], &[101])]);
+
+    assert!(matches!(
+        compare_aligned(&[old], &[new], &alignment, DiffOptions::default()),
+        Err(Error::Unresolved(message)) if message.contains("font-size signature count")
     ));
 }
 
@@ -743,6 +799,13 @@ fn block_with_line_breaks(id: u64, text: &str, line_breaks: &[usize]) -> BlockTe
     block
 }
 
+fn block_with_font_size(id: u64, text: &str, font_size: f64) -> BlockText {
+    let mut block = block(id, text);
+    let signature = FontSizeSignature::new(&[font_size]).expect("fixture font size is valid");
+    block.font_size_signatures = Some(vec![signature; text.chars().count()]);
+    block
+}
+
 fn block_with_matching(
     id: u64,
     canonical: &str,
@@ -759,6 +822,7 @@ fn block_with_matching(
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: Vec::new(),
+        font_size_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }
@@ -788,6 +852,7 @@ fn unmapped_block(id: u64, glyph_id: u16) -> BlockText {
         normalization_events: Vec::new(),
         issues: Vec::new(),
         pages: Vec::new(),
+        font_size_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }
@@ -1056,6 +1121,7 @@ fn multi_unmapped_block(id: u64, font_hash: Vec<u8>, glyph_ids: &[u16]) -> Block
         normalization_events: vec![],
         issues: vec![],
         pages: vec![0],
+        font_size_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }
