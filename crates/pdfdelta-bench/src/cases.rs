@@ -79,6 +79,17 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
             12,
         )?,
         BenchmarkCase::new(
+            "column-change-only",
+            document(&[
+                ("left-first", "Left first paragraph remains stable"),
+                ("left-second", "Left second paragraph remains stable"),
+                ("right-first", "Right first paragraph remains stable"),
+                ("right-second", "Right second paragraph remains stable"),
+            ])?,
+            Mutation::ColumnChange,
+            30,
+        )?,
+        BenchmarkCase::new(
             "line-height-change-only",
             document(&[
                 ("opening", "Opening paragraph establishes context"),

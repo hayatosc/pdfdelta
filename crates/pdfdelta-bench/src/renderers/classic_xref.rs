@@ -1,7 +1,10 @@
 use std::{fmt::Write as _, io::Write as _};
 
 use super::{PlanStats, RenderLimits, escape_pdf_literal, line_y, render_error};
-use crate::{BenchError, Result, mutation::RenderPlan};
+use crate::{
+    BenchError, Result,
+    mutation::{GLYPH_WIDTH_UNITS, LinePosition, RenderPlan},
+};
 
 const NAME: &str = "classic-xref-tj";
 const CATALOG_ID: usize = 1;
@@ -54,19 +57,25 @@ pub(super) fn render(plan: &RenderPlan, limits: RenderLimits, stats: PlanStats) 
     );
     emit_object(&mut output, PAGES_ID, pages_body.as_bytes(), &mut offsets)?;
 
-    let widths = (0..256).map(|_| "500").collect::<Vec<_>>().join(" ");
+    let widths = (0..256)
+        .map(|_| GLYPH_WIDTH_UNITS.to_string())
+        .collect::<Vec<_>>()
+        .join(" ");
     let font_body = format!(
         "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /FirstChar 0 /LastChar 255 /Widths [{widths}] /FontDescriptor {FONT_DESCRIPTOR_ID} 0 R >>\n"
     );
     emit_object(&mut output, FONT_ID, font_body.as_bytes(), &mut offsets)?;
+    let descriptor_body = format!(
+        "<< /Type /FontDescriptor /FontName /Helvetica /Flags 32 /FontBBox [-166 -225 1000 931] /Ascent 800 /Descent -200 /CapHeight 700 /ItalicAngle 0 /StemV 80 /MissingWidth {GLYPH_WIDTH_UNITS} >>\n"
+    );
     emit_object(
         &mut output,
         FONT_DESCRIPTOR_ID,
-        b"<< /Type /FontDescriptor /FontName /Helvetica /Flags 32 /FontBBox [-166 -225 1000 931] /Ascent 800 /Descent -200 /CapHeight 700 /ItalicAngle 0 /StemV 80 /MissingWidth 500 >>\n",
+        descriptor_body.as_bytes(),
         &mut offsets,
     )?;
 
-    for (page_index, lines) in plan.pages().iter().enumerate() {
+    for (page_index, (lines, positions)) in plan.pages().iter().zip(plan.positions()).enumerate() {
         let page_id = page_object_id(page_index)?;
         let content_id = content_object_id(page_index)?;
         let page_body = format!(
@@ -76,7 +85,13 @@ pub(super) fn render(plan: &RenderPlan, limits: RenderLimits, stats: PlanStats) 
         );
         emit_object(&mut output, page_id, page_body.as_bytes(), &mut offsets)?;
 
-        let content = positioned_content(lines, plan.line_gap(), plan.margin(), plan.font_size())?;
+        let content = positioned_content(
+            lines,
+            positions,
+            plan.line_gap(),
+            plan.margin(),
+            plan.font_size(),
+        )?;
         let mut content_body = Vec::with_capacity(content.len().saturating_add(64));
         write!(content_body, "<< /Length {} >>\nstream\n", content.len())
             .map_err(|error| render_error(NAME, error.to_string()))?;
@@ -117,19 +132,20 @@ pub(super) fn render(plan: &RenderPlan, limits: RenderLimits, stats: PlanStats) 
 
 fn positioned_content(
     lines: &[String],
+    positions: &[LinePosition],
     line_gap: u16,
     margin: u16,
     font_size: u16,
 ) -> Result<Vec<u8>> {
     let text_bytes = lines.iter().map(String::len).sum::<usize>();
     let mut content = Vec::with_capacity(text_bytes.saturating_mul(2).saturating_add(256));
-    for (line_index, line) in lines.iter().enumerate() {
+    for (line, position) in lines.iter().zip(positions) {
         write!(
             content,
             "BT /F1 {} Tf 1 0 0 1 {} {} Tm [",
             font_size,
-            margin,
-            line_y(line_index, line_gap)?
+            margin + position.x(),
+            line_y(position.row(), line_gap)?
         )
         .map_err(|error| render_error(NAME, error.to_string()))?;
         for (word_index, word) in line.split(' ').enumerate() {

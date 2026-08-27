@@ -3,7 +3,10 @@ use std::fmt::Write as _;
 use lopdf::{Document, Object, Stream, dictionary};
 
 use super::{RenderLimits, escape_pdf_literal, line_y, render_error};
-use crate::{Result, mutation::RenderPlan};
+use crate::{
+    Result,
+    mutation::{GLYPH_WIDTH_UNITS, RenderPlan},
+};
 
 const NAME: &str = "lopdf-tj";
 
@@ -25,7 +28,7 @@ pub(super) fn render(plan: &RenderPlan, limits: RenderLimits) -> Result<Vec<u8>>
         ],
         "ItalicAngle" => 0,
         "StemV" => 80,
-        "MissingWidth" => 500,
+        "MissingWidth" => i64::from(GLYPH_WIDTH_UNITS),
     });
     let font = document.add_object(dictionary! {
         "Type" => "Font",
@@ -33,7 +36,7 @@ pub(super) fn render(plan: &RenderPlan, limits: RenderLimits) -> Result<Vec<u8>>
         "BaseFont" => "Helvetica",
         "FirstChar" => 0,
         "LastChar" => 255,
-        "Widths" => vec![Object::Integer(500); 256],
+        "Widths" => vec![Object::Integer(i64::from(GLYPH_WIDTH_UNITS)); 256],
         "FontDescriptor" => font_descriptor,
     });
     let resources = document.add_object(dictionary! {
@@ -41,15 +44,15 @@ pub(super) fn render(plan: &RenderPlan, limits: RenderLimits) -> Result<Vec<u8>>
     });
 
     let mut page_ids = Vec::with_capacity(plan.pages().len());
-    for lines in plan.pages() {
+    for (lines, positions) in plan.pages().iter().zip(plan.positions()) {
         let mut content = String::new();
-        for (index, line) in lines.iter().enumerate() {
+        for (line, position) in lines.iter().zip(positions) {
             writeln!(
                 content,
                 "BT /F1 {} Tf 1 0 0 1 {} {} Tm ({}) Tj ET",
                 plan.font_size(),
-                plan.margin(),
-                line_y(index, plan.line_gap())?,
+                plan.margin() + position.x(),
+                line_y(position.row(), plan.line_gap())?,
                 escape_pdf_literal(line)
             )
             .map_err(|error| render_error(NAME, error.to_string()))?;

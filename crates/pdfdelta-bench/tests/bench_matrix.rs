@@ -6,19 +6,19 @@ use pdfdelta_bench::{
     cases::{BenchmarkCase, built_in_cases},
     evaluator::{evaluate, evaluate_case},
     mutation::{
-        DEFAULT_MARGIN, DEFAULT_PAGE_HEIGHT, DEFAULT_PAGE_WIDTH, ExpectedCanonicalSpan,
-        ExpectedManifest, ExpectedSemanticChange, MAX_LINE_GAP, MAX_MARGIN, MIN_LINE_GAP, Mutation,
-        RenderPlan,
+        COLUMN_GUTTER_FONT_SIZE_RATIO, DEFAULT_MARGIN, DEFAULT_PAGE_HEIGHT, DEFAULT_PAGE_WIDTH,
+        ExpectedCanonicalSpan, ExpectedManifest, ExpectedSemanticChange, MAX_LINE_GAP, MAX_MARGIN,
+        MIN_LINE_GAP, Mutation, RenderLine, RenderPlan,
     },
     renderers::{RenderLimits, RendererKind},
 };
 use pdfdelta_core::{
     diff::ChangeKind,
-    layout::{reconstruct_blocks, reconstruct_lines},
+    layout::{LineOptions, reconstruct_blocks, reconstruct_lines},
     model::PageId,
     normalize::normalize_blocks,
     pdf::{LopdfParser, ParseLimits, PdfObject, PdfParser},
-    pipeline::PipelineOptions,
+    pipeline::{PipelineOptions, compare_extraction_outcomes},
     source::{ContentStreamGlyphExtractor, ExtractionLimits, ParserBackedGlyphSource},
 };
 
@@ -29,6 +29,16 @@ fn sample_document() -> CanonicalDocument {
             .expect("valid paragraph"),
     ])
     .expect("valid document")
+}
+
+fn column_document(left_text: impl Into<String>) -> CanonicalDocument {
+    CanonicalDocument::new(vec![
+        Paragraph::new("left-a", left_text).expect("valid left paragraph"),
+        Paragraph::new("left-b", "Left remains stable").expect("valid left paragraph"),
+        Paragraph::new("right-a", "Right remains stable").expect("valid right paragraph"),
+        Paragraph::new("right-b", "Right also remains stable").expect("valid right paragraph"),
+    ])
+    .expect("valid column document")
 }
 
 fn assert_invalid<T>(result: Result<T, BenchError>) {
@@ -50,7 +60,14 @@ fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 }
 
 fn normalized_canonical_blocks(plan: &RenderPlan) -> Vec<String> {
-    let pdf = RendererKind::LopdfTj
+    normalized_canonical_blocks_with_renderer(plan, RendererKind::LopdfTj)
+}
+
+fn normalized_canonical_blocks_with_renderer(
+    plan: &RenderPlan,
+    renderer: RendererKind,
+) -> Vec<String> {
+    let pdf = renderer
         .render(plan, RenderLimits::default())
         .expect("renderer succeeds");
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
@@ -111,6 +128,8 @@ fn canonical_documents_reject_invalid_input() {
 #[test]
 fn mutations_reject_invalid_input_without_panicking() {
     let document = sample_document();
+
+    assert_invalid(Mutation::ColumnChange.apply(&document, 12));
 
     assert_invalid(
         Mutation::LineWrap {
@@ -233,6 +252,29 @@ fn mutations_reject_invalid_input_without_panicking() {
     assert_invalid(RenderPlan::with_page_size(lines.clone(), 12, 612, 0));
     assert_invalid(RenderPlan::with_page_size(lines.clone(), 12, 36, 792));
     assert_invalid(RenderPlan::with_page_size(lines, 12, 612, 740));
+    RenderPlan::new(vec![vec!["x".repeat(108)]], 12).expect("right-margin boundary fits");
+    assert_invalid(RenderPlan::new(vec![vec!["x".repeat(109)]], 12));
+    assert_invalid(RenderPlan::new(vec![vec!["x".repeat(512)]], 12));
+    assert_invalid(RenderPlan::positioned(
+        vec![vec![
+            RenderLine::new("outside", 0, DEFAULT_PAGE_WIDTH).expect("valid text"),
+        ]],
+        12,
+    ));
+    let vertically_outside = RenderPlan::positioned(
+        vec![vec![
+            RenderLine::new("outside", 100, 0).expect("valid text"),
+        ]],
+        12,
+    )
+    .expect("position is validated at render time");
+    for renderer in RendererKind::all() {
+        assert_invalid(renderer.render(&vertically_outside, RenderLimits::default()));
+    }
+    Mutation::ColumnChange
+        .apply(&column_document("x".repeat(44)), 12)
+        .expect("left column leaves the required gutter");
+    assert_invalid(Mutation::ColumnChange.apply(&column_document("x".repeat(45)), 12));
     assert_invalid(
         Mutation::TextReplace {
             paragraph_id: "missing".to_owned(),
@@ -418,6 +460,173 @@ fn line_wrap_exercises_one_to_two_block_alignment() {
 
     assert_eq!(normalized_canonical_blocks(case.plan().old()).len(), 3);
     assert_eq!(normalized_canonical_blocks(case.plan().new_plan()).len(), 4);
+}
+
+#[test]
+fn column_change_is_complete_and_preserves_column_major_order() {
+    let case = case_named("column-change-only");
+    let expected = [
+        "Left first paragraph remains stable",
+        "Left second paragraph remains stable",
+        "Right first paragraph remains stable",
+        "Right second paragraph remains stable",
+    ];
+
+    for renderer in RendererKind::all() {
+        assert_eq!(
+            normalized_canonical_blocks_with_renderer(case.plan().new_plan(), renderer),
+            expected
+        );
+        let record = evaluate_case(&case, renderer).expect("column evaluation completes");
+        assert!(record.passed, "{}", record.detail);
+        assert!(record.extraction_complete);
+        assert!(record.comparison_complete);
+        assert_eq!(record.actual_changes, 0);
+        assert_eq!(record.old_coverage, Some(1.0));
+        assert_eq!(record.new_coverage, Some(1.0));
+    }
+}
+
+#[test]
+fn column_change_boundary_preserves_complete_zero_diff_comparison() {
+    assert!(
+        f64::from(COLUMN_GUTTER_FONT_SIZE_RATIO)
+            > LineOptions::default().max_inline_gap_font_size_ratio
+    );
+    let boundary_text = "Maximum width left line remains unchanged 12";
+    assert_eq!(boundary_text.len(), 44);
+    let document = column_document(boundary_text);
+    let plan = Mutation::ColumnChange
+        .apply(&document, 30)
+        .expect("maximum left line leaves the required gutter");
+    let expected = [
+        boundary_text,
+        "Left remains stable",
+        "Right remains stable",
+        "Right also remains stable",
+    ];
+
+    for renderer in RendererKind::all() {
+        let old_pdf = renderer
+            .render(plan.old(), RenderLimits::default())
+            .expect("old PDF renders");
+        let new_pdf = renderer
+            .render(plan.new_plan(), RenderLimits::default())
+            .expect("new PDF renders");
+        let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
+        let old = source
+            .extract_outcome(
+                Arc::from(old_pdf),
+                ParseLimits::default(),
+                ExtractionLimits::default(),
+            )
+            .expect("old PDF extracts");
+        let new = source
+            .extract_outcome(
+                Arc::from(new_pdf),
+                ParseLimits::default(),
+                ExtractionLimits::default(),
+            )
+            .expect("new PDF extracts");
+        assert!(old.is_complete());
+        assert!(new.is_complete());
+
+        let outcome = compare_extraction_outcomes(old, new, PipelineOptions::default())
+            .expect("comparison completes");
+        assert!(outcome.extraction.old_complete);
+        assert!(outcome.extraction.new_complete);
+        assert!(outcome.extraction.issues.is_empty());
+        assert!(outcome.comparison.changes.is_empty(), "{outcome:#?}");
+        assert!(outcome.comparison.unresolved_regions.is_empty());
+        assert_eq!(outcome.comparison.old_coverage.ratio, Some(1.0));
+        assert_eq!(outcome.comparison.new_coverage.ratio, Some(1.0));
+        assert_eq!(
+            outcome
+                .new_blocks
+                .iter()
+                .map(|block| block.canonical.text.as_str())
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+}
+
+#[test]
+fn right_column_replacement_stays_out_of_the_left_column() {
+    let x = (DEFAULT_PAGE_WIDTH - DEFAULT_MARGIN * 2) / 2;
+    let positioned = |release: &str| {
+        RenderPlan::positioned(
+            vec![vec![
+                RenderLine::new("Left alpha remains stable", 0, 0).expect("valid line"),
+                RenderLine::new("Left beta remains stable", 1, 0).expect("valid line"),
+                RenderLine::new(release, 0, x).expect("valid line"),
+                RenderLine::new("Right closing remains stable", 1, x).expect("valid line"),
+            ]],
+            30,
+        )
+        .expect("valid positioned plan")
+    };
+    let old_plan = positioned("Release 10 remains available");
+    let new_plan = positioned("Release 20 remains available");
+
+    for renderer in RendererKind::all() {
+        let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
+        let old = source
+            .extract_outcome(
+                Arc::from(
+                    renderer
+                        .render(&old_plan, RenderLimits::default())
+                        .expect("old PDF renders"),
+                ),
+                ParseLimits::default(),
+                ExtractionLimits::default(),
+            )
+            .expect("old PDF extracts");
+        let new = source
+            .extract_outcome(
+                Arc::from(
+                    renderer
+                        .render(&new_plan, RenderLimits::default())
+                        .expect("new PDF renders"),
+                ),
+                ParseLimits::default(),
+                ExtractionLimits::default(),
+            )
+            .expect("new PDF extracts");
+        assert!(old.is_complete());
+        assert!(new.is_complete());
+
+        let outcome = compare_extraction_outcomes(old, new, PipelineOptions::default())
+            .expect("comparison completes");
+        assert_eq!(outcome.comparison.changes.len(), 1, "{outcome:#?}");
+        assert_eq!(outcome.comparison.changes[0].kind, ChangeKind::Replacement);
+        assert!(outcome.comparison.unresolved_regions.is_empty());
+        assert_eq!(outcome.comparison.old_coverage.ratio, Some(1.0));
+        assert_eq!(outcome.comparison.new_coverage.ratio, Some(1.0));
+        let change = &outcome.comparison.changes[0];
+        let old_span = change.old_span.as_ref().expect("replacement has old span");
+        let new_span = change.new_span.as_ref().expect("replacement has new span");
+        let selected_text =
+            |span: &pdfdelta_core::diff::TextSpan,
+             blocks: &[pdfdelta_core::normalize::BlockText]| {
+                assert_eq!(span.blocks.len(), 1, "change must stay in one column block");
+                let block = blocks
+                    .iter()
+                    .find(|block| block.block == span.blocks[0])
+                    .expect("span block exists");
+                assert!(block.canonical.text.contains("Release"));
+                assert!(!block.canonical.text.contains("Left"));
+                block
+                    .canonical
+                    .text
+                    .chars()
+                    .skip(span.canonical_range.start)
+                    .take(span.canonical_range.end - span.canonical_range.start)
+                    .collect::<String>()
+            };
+        assert_eq!(selected_text(old_span, &outcome.old_blocks), "1");
+        assert_eq!(selected_text(new_span, &outcome.new_blocks), "2");
+    }
 }
 
 #[test]
@@ -877,9 +1086,9 @@ fn bench_errors_preserve_core_error_taxonomy() {
 }
 
 #[test]
-fn built_in_matrix_passes_all_twenty_eight_cells() {
+fn built_in_matrix_passes_all_thirty_cells() {
     let cases = built_in_cases().expect("built-in cases are valid");
-    assert_eq!(cases.len(), 14);
+    assert_eq!(cases.len(), 15);
 
     let mut count = 0;
     for case in &cases {
@@ -894,11 +1103,11 @@ fn built_in_matrix_passes_all_twenty_eight_cells() {
         }
     }
 
-    assert_eq!(count, 28);
+    assert_eq!(count, 30);
 }
 
 #[test]
-fn verify_command_prints_a_passing_twenty_eight_cell_matrix() {
+fn verify_command_prints_a_passing_thirty_cell_matrix() {
     let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
         .arg("verify")
         .output()
@@ -912,9 +1121,9 @@ fn verify_command_prints_a_passing_twenty_eight_cell_matrix() {
             .lines()
             .filter(|line| line.starts_with("PASS "))
             .count(),
-        28
+        30
     );
-    assert_eq!(stdout.lines().last(), Some("28/28 passed"));
+    assert_eq!(stdout.lines().last(), Some("30/30 passed"));
 }
 
 #[test]
@@ -947,11 +1156,11 @@ fn candidates_command_prints_records_and_summary() {
             .lines()
             .filter(|line| line.starts_with("OK case="))
             .count(),
-        28
+        30
     );
     assert_eq!(
         stdout.lines().last(),
-        Some("28/28 candidate evaluations OK")
+        Some("30/30 candidate evaluations OK")
     );
 }
 
@@ -999,7 +1208,7 @@ fn candidates_command_writes_a_create_new_json_artifact() {
 
     let json = std::fs::read_to_string(&path).expect("json artifact exists");
     let records: serde_json::Value = serde_json::from_str(&json).expect("json artifact parses");
-    assert_eq!(records.as_array().expect("artifact is an array").len(), 28);
+    assert_eq!(records.as_array().expect("artifact is an array").len(), 30);
     assert_eq!(records[0]["renderer"], "lopdf-tj");
     assert_eq!(records[0]["top_k"], serde_json::json!([5, 10]));
 

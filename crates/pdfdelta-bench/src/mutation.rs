@@ -19,6 +19,10 @@ pub const DEFAULT_MARGIN: u16 = 36;
 pub const MIN_FONT_SIZE: u16 = 1;
 /// Matches the `/F1 10 Tf` size both renderers emitted before plans carried a font size.
 pub const DEFAULT_FONT_SIZE: u16 = 10;
+pub(crate) const GLYPH_WIDTH_UNITS: u16 = 500;
+const FONT_UNITS_PER_EM: u16 = 1_000;
+/// Minimum inter-column gap as a multiple of the rendered font size.
+pub const COLUMN_GUTTER_FONT_SIZE_RATIO: u16 = 5;
 
 /// Vertical text origin both renderers use for the first line of every page.
 pub(crate) const PAGE_TOP: i64 = 740;
@@ -27,11 +31,82 @@ pub(crate) const PAGE_BOTTOM: i64 = 40;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RenderPlan {
     pages: Vec<Vec<String>>,
+    positions: Vec<Vec<LinePosition>>,
     line_gap: u16,
     margin: u16,
     font_size: u16,
     page_width: u16,
     page_height: u16,
+}
+
+/// One rendered line positioned relative to the plan's margin and line grid.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RenderLine {
+    text: String,
+    row: usize,
+    x: u16,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct LinePosition {
+    row: usize,
+    x: u16,
+}
+
+impl LinePosition {
+    pub(crate) const fn row(self) -> usize {
+        self.row
+    }
+
+    pub(crate) const fn x(self) -> u16 {
+        self.x
+    }
+}
+
+impl RenderLine {
+    pub fn new(text: impl Into<String>, row: usize, x: u16) -> Result<Self> {
+        let text = text.into();
+        validate_text(&text)?;
+        Ok(Self { text, row, x })
+    }
+
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    pub const fn row(&self) -> usize {
+        self.row
+    }
+
+    /// Horizontal offset from [`RenderPlan::margin`].
+    pub const fn x(&self) -> u16 {
+        self.x
+    }
+}
+
+fn scaled_page_units(value: u16) -> Result<u128> {
+    u128::from(value)
+        .checked_mul(u128::from(FONT_UNITS_PER_EM))
+        .ok_or_else(|| BenchError::InvalidInput("render line width overflowed".to_owned()))
+}
+
+fn line_end_units(text: &str, origin: u16, font_size: u16) -> Result<u128> {
+    let glyph_count = u128::try_from(text.len())
+        .map_err(|_| BenchError::InvalidInput("render line width overflowed".to_owned()))?;
+    let advance = glyph_count
+        .checked_mul(u128::from(GLYPH_WIDTH_UNITS))
+        .and_then(|value| value.checked_mul(u128::from(font_size)))
+        .ok_or_else(|| BenchError::InvalidInput("render line width overflowed".to_owned()))?;
+    scaled_page_units(origin)?
+        .checked_add(advance)
+        .ok_or_else(|| BenchError::InvalidInput("render line width overflowed".to_owned()))
+}
+
+fn column_gutter_units(font_size: u16) -> Result<u128> {
+    u128::from(COLUMN_GUTTER_FONT_SIZE_RATIO)
+        .checked_mul(u128::from(font_size))
+        .and_then(|value| value.checked_mul(u128::from(FONT_UNITS_PER_EM)))
+        .ok_or_else(|| BenchError::InvalidInput("column gutter width overflowed".to_owned()))
 }
 
 impl RenderPlan {
@@ -85,6 +160,40 @@ impl RenderPlan {
         page_width: u16,
         page_height: u16,
     ) -> Result<Self> {
+        let pages = pages
+            .into_iter()
+            .map(|lines| {
+                lines
+                    .into_iter()
+                    .enumerate()
+                    .map(|(row, text)| RenderLine::new(text, row, 0))
+                    .collect::<Result<Vec<_>>>()
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Self::build_positioned(pages, line_gap, margin, font_size, page_width, page_height)
+    }
+
+    /// Builds a plan from explicitly positioned lines using the default page,
+    /// margin, and font settings.
+    pub fn positioned(pages: Vec<Vec<RenderLine>>, line_gap: u16) -> Result<Self> {
+        Self::build_positioned(
+            pages,
+            line_gap,
+            DEFAULT_MARGIN,
+            DEFAULT_FONT_SIZE,
+            DEFAULT_PAGE_WIDTH,
+            DEFAULT_PAGE_HEIGHT,
+        )
+    }
+
+    fn build_positioned(
+        pages: Vec<Vec<RenderLine>>,
+        line_gap: u16,
+        margin: u16,
+        font_size: u16,
+        page_width: u16,
+        page_height: u16,
+    ) -> Result<Self> {
         if pages.is_empty() {
             return Err(BenchError::InvalidInput(
                 "render plans require at least one page".to_owned(),
@@ -115,8 +224,6 @@ impl RenderPlan {
                 "text origin ({margin}, {PAGE_TOP}) must lie inside the {page_width}x{page_height} page"
             )));
         }
-        // deliberate: only the text origin is constrained to the MediaBox;
-        // add font-metric width validation when fixtures exercise clipping.
         for (page_index, lines) in pages.iter().enumerate() {
             if lines.is_empty() {
                 return Err(BenchError::InvalidInput(format!(
@@ -124,11 +231,46 @@ impl RenderPlan {
                 )));
             }
             for line in lines {
-                validate_text(line)?;
+                validate_text(line.text())?;
+                let x = margin.checked_add(line.x()).ok_or_else(|| {
+                    BenchError::InvalidInput(
+                        "render line horizontal position overflowed".to_owned(),
+                    )
+                })?;
+                if x >= page_width {
+                    return Err(BenchError::InvalidInput(format!(
+                        "render plan page {page_index} line origin {x} lies outside page width {page_width}"
+                    )));
+                }
+                let line_end = line_end_units(line.text(), x, font_size)?;
+                let right_margin = scaled_page_units(page_width - margin)?;
+                if line_end > right_margin {
+                    return Err(BenchError::InvalidInput(format!(
+                        "render plan page {page_index} line extends beyond the right margin"
+                    )));
+                }
             }
         }
+        let (pages, positions) = pages
+            .into_iter()
+            .map(|lines| {
+                lines
+                    .into_iter()
+                    .map(|line| {
+                        (
+                            line.text,
+                            LinePosition {
+                                row: line.row,
+                                x: line.x,
+                            },
+                        )
+                    })
+                    .unzip()
+            })
+            .unzip();
         Ok(Self {
             pages,
+            positions,
             line_gap,
             margin,
             font_size,
@@ -139,6 +281,10 @@ impl RenderPlan {
 
     pub fn pages(&self) -> &[Vec<String>] {
         &self.pages
+    }
+
+    pub(crate) fn positions(&self) -> &[Vec<LinePosition>] {
+        &self.positions
     }
 
     pub const fn line_gap(&self) -> u16 {
@@ -163,6 +309,7 @@ impl RenderPlan {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Mutation {
     LineWrap {
         paragraph_id: String,
@@ -175,6 +322,9 @@ pub enum Mutation {
     PageBreak {
         before_paragraph: usize,
     },
+    /// Reflows an unchanged document from one column into two column-major
+    /// columns while preserving canonical paragraph order.
+    ColumnChange,
     /// Renders the unchanged document with a different line gap so both
     /// PDFs differ in layout while canonical text stays identical.
     LineHeightChange {
@@ -435,6 +585,7 @@ impl Mutation {
             Self::PageBreak { before_paragraph } => {
                 apply_page_break(document, *before_paragraph, line_gap)
             }
+            Self::ColumnChange => apply_column_change(document, line_gap),
             Self::LineHeightChange { new_line_gap } => {
                 apply_line_height_change(document, *new_line_gap, line_gap)
             }
@@ -574,6 +725,56 @@ fn apply_page_break(
             ],
             line_gap,
         )?,
+        ExpectedManifest::none(),
+    )
+}
+
+fn apply_column_change(document: &CanonicalDocument, line_gap: u16) -> Result<MutationPlan> {
+    let lines = document_lines(document);
+    if lines.len() < 4 {
+        return Err(BenchError::InvalidInput(
+            "column change requires at least four paragraphs".to_owned(),
+        ));
+    }
+    let split = lines.len() / 2;
+    if split < 2 || lines.len() - split < 2 {
+        return Err(BenchError::InvalidInput(
+            "column change requires at least two lines per column".to_owned(),
+        ));
+    }
+    let usable_width = DEFAULT_PAGE_WIDTH
+        .checked_sub(DEFAULT_MARGIN.saturating_mul(2))
+        .ok_or_else(|| BenchError::InvalidInput("column page width is invalid".to_owned()))?;
+    let right_x = usable_width / 2;
+    let right_origin = DEFAULT_MARGIN
+        .checked_add(right_x)
+        .ok_or_else(|| BenchError::InvalidInput("column origin overflowed".to_owned()))?;
+    let right_origin = scaled_page_units(right_origin)?;
+    let required_gutter = column_gutter_units(DEFAULT_FONT_SIZE)?;
+    for text in &lines[..split] {
+        let left_with_gutter = line_end_units(text, DEFAULT_MARGIN, DEFAULT_FONT_SIZE)?
+            .checked_add(required_gutter)
+            .ok_or_else(|| BenchError::InvalidInput("column line width overflowed".to_owned()))?;
+        if left_with_gutter > right_origin {
+            return Err(BenchError::InvalidInput(
+                "left column line does not leave the required gutter".to_owned(),
+            ));
+        }
+    }
+    let mut positioned = Vec::with_capacity(lines.len());
+    for (index, text) in lines.into_iter().enumerate() {
+        let (row, x) = if index < split {
+            (index, 0)
+        } else {
+            (index - split, right_x)
+        };
+        positioned.push(RenderLine::new(text, row, x)?);
+    }
+    MutationPlan::build(
+        document,
+        document,
+        one_page_plan(document, line_gap)?,
+        RenderPlan::positioned(vec![positioned], line_gap)?,
         ExpectedManifest::none(),
     )
 }
