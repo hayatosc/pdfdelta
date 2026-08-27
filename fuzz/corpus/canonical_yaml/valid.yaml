@@ -1,0 +1,8 @@
+document:
+  title: Quarterly Service Report
+  sections:
+    - id: availability
+      heading: Service availability
+      paragraphs:
+        - id: availability-p1
+          text: Release 10 remains available during the transition.

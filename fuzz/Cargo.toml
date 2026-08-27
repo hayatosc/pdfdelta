@@ -9,6 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+pdfdelta-bench = { path = "../crates/pdfdelta-bench", features = ["fuzzing"] }
 pdfdelta-core = { path = "../crates/pdfdelta-core", features = ["fuzzing"] }
 
 [[bin]]
@@ -35,6 +36,13 @@ bench = false
 [[bin]]
 name = "font_decoder"
 path = "fuzz_targets/font_decoder.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "canonical_yaml"
+path = "fuzz_targets/canonical_yaml.rs"
 test = false
 doc = false
 bench = false

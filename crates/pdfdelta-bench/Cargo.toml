@@ -11,6 +11,9 @@ description = "Benchmark fixtures and evaluation tooling for pdfdelta"
 name = "pdfbench"
 path = "src/main.rs"
 
+[features]
+fuzzing = []
+
 [dependencies]
 clap.workspace = true
 lopdf.workspace = true

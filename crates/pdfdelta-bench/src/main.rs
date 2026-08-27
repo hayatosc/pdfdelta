@@ -1,6 +1,6 @@
 use std::{
     fs,
-    io::{self, Write},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
     process::ExitCode,
 };
@@ -8,7 +8,7 @@ use std::{
 use clap::{Parser, Subcommand, ValueEnum};
 use pdfdelta_bench::{
     candidate_eval::{CandidateEvalRecord, evaluate_candidate_generation, write_candidates_json},
-    canonical::CanonicalRenderDocument,
+    canonical::{CanonicalRenderDocument, MAX_CANONICAL_YAML_BYTES},
     cases::built_in_cases,
     evaluator::{EvaluationRecord, evaluate_case},
     mutation::RenderPlan,
@@ -155,14 +155,40 @@ fn main() -> ExitCode {
     }
 }
 
+fn read_canonical_yaml_file(path: &Path) -> Result<String, String> {
+    let metadata = fs::metadata(path)
+        .map_err(|error| format!("cannot read canonical YAML {}: {error}", path.display()))?;
+    if metadata.len() > MAX_CANONICAL_YAML_BYTES as u64 {
+        return Err(format!(
+            "cannot read canonical YAML {}: canonical YAML must not exceed {} bytes",
+            path.display(),
+            MAX_CANONICAL_YAML_BYTES
+        ));
+    }
+    let file = fs::File::open(path)
+        .map_err(|error| format!("cannot read canonical YAML {}: {error}", path.display()))?;
+    let mut limited = file.take(MAX_CANONICAL_YAML_BYTES as u64 + 1);
+    let mut yaml = String::new();
+    limited
+        .read_to_string(&mut yaml)
+        .map_err(|error| format!("cannot read canonical YAML {}: {error}", path.display()))?;
+    if yaml.len() > MAX_CANONICAL_YAML_BYTES {
+        return Err(format!(
+            "cannot read canonical YAML {}: canonical YAML must not exceed {} bytes",
+            path.display(),
+            MAX_CANONICAL_YAML_BYTES
+        ));
+    }
+    Ok(yaml)
+}
+
 fn render_fixture<W: Write>(
     writer: &mut W,
     input: &Path,
     renderer: RendererChoice,
     output: &Path,
 ) -> Result<u8, String> {
-    let yaml = fs::read_to_string(input)
-        .map_err(|error| format!("cannot read canonical YAML {}: {error}", input.display()))?;
+    let yaml = read_canonical_yaml_file(input)?;
     let document = CanonicalRenderDocument::from_yaml(&yaml).map_err(|error| error.to_string())?;
     let plan = RenderPlan::new(vec![document.render_lines()], CANONICAL_RENDER_LINE_GAP)
         .map_err(|error| error.to_string())?;

@@ -88,6 +88,11 @@ pub struct CanonicalSection {
 impl CanonicalRenderDocument {
     /// Parses one bounded YAML document and validates its renderable content.
     ///
+    /// The parser is configured with tight budgets to prevent resource amplification
+    /// from aliases, anchors, or deeply nested structures. Tags, aliases, anchors,
+    /// merge keys, and multiple documents are rejected explicitly because the
+    /// canonical fixture format does not require them.
+    ///
     /// # Errors
     ///
     /// Returns [`BenchError::InvalidInput`] when the YAML syntax, schema,
@@ -98,10 +103,32 @@ impl CanonicalRenderDocument {
                 "canonical YAML must not exceed {MAX_CANONICAL_YAML_BYTES} bytes"
             )));
         }
+        reject_disallowed_yaml_syntax(yaml)?;
 
-        let root = serde_saphyr::from_str::<YamlRoot>(yaml).map_err(|error| {
-            BenchError::InvalidInput(format!("cannot parse canonical YAML: {error}"))
-        })?;
+        let options = serde_saphyr::options! {
+            budget: serde_saphyr::budget! {
+                max_documents: 1,
+                max_nodes: 512,
+                max_events: 2048,
+                max_depth: 32,
+                max_aliases: 0,
+                max_anchors: 0,
+                max_total_scalar_bytes: MAX_CANONICAL_YAML_BYTES,
+                max_total_comment_bytes: 1024,
+                max_merge_keys: 0
+            },
+            alias_limits: serde_saphyr::alias_limits! {
+                max_total_replayed_events: 0,
+                max_replay_stack_depth: 0,
+                max_alias_expansions_per_anchor: 0
+            },
+            merge_keys: serde_saphyr::options::MergeKeyPolicy::Error,
+            duplicate_keys: serde_saphyr::options::DuplicateKeyPolicy::Error
+        };
+        let root =
+            serde_saphyr::from_str_with_options::<YamlRoot>(yaml, options).map_err(|error| {
+                BenchError::InvalidInput(format!("cannot parse canonical YAML: {error}"))
+            })?;
         Self::from_yaml_document(root.document)
     }
 
@@ -256,6 +283,76 @@ struct YamlSection {
 struct YamlParagraph {
     id: String,
     text: String,
+}
+
+fn reject_disallowed_yaml_syntax(yaml: &str) -> Result<()> {
+    for line in yaml.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if trimmed == "---"
+            || trimmed == "..."
+            || trimmed.starts_with("--- ")
+            || trimmed.starts_with("... ")
+        {
+            return Err(BenchError::InvalidInput(
+                "canonical YAML must contain a single document".into(),
+            ));
+        }
+        if trimmed.starts_with("<<:") || trimmed.starts_with("<< :") {
+            return Err(BenchError::InvalidInput(
+                "canonical YAML must not contain merge keys".into(),
+            ));
+        }
+        if trimmed.starts_with('&')
+            || trimmed.starts_with('*')
+            || trimmed.starts_with('!')
+            || trimmed.starts_with("<<")
+        {
+            return Err(BenchError::InvalidInput(
+                "canonical YAML must not contain anchors, aliases, tags, or merge keys".into(),
+            ));
+        }
+        if let Some(colon_pos) = trimmed.find(':') {
+            let after = trimmed[colon_pos + 1..].trim_start();
+            if after.starts_with('&')
+                || after.starts_with('*')
+                || after.starts_with('!')
+                || after.starts_with("<<")
+            {
+                return Err(BenchError::InvalidInput(
+                    "canonical YAML must not contain anchors, aliases, tags, or merge keys".into(),
+                ));
+            }
+        }
+        if let Some(after_dash) = trimmed.strip_prefix("- ") {
+            let after_dash = after_dash.trim_start();
+            if after_dash.starts_with('&')
+                || after_dash.starts_with('*')
+                || after_dash.starts_with('!')
+                || after_dash.starts_with("<<")
+            {
+                return Err(BenchError::InvalidInput(
+                    "canonical YAML must not contain anchors, aliases, tags, or merge keys".into(),
+                ));
+            }
+            if let Some(colon_pos) = after_dash.find(':') {
+                let after = after_dash[colon_pos + 1..].trim_start();
+                if after.starts_with('&')
+                    || after.starts_with('*')
+                    || after.starts_with('!')
+                    || after.starts_with("<<")
+                {
+                    return Err(BenchError::InvalidInput(
+                        "canonical YAML must not contain anchors, aliases, tags, or merge keys"
+                            .into(),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn validate_text(text: &str) -> Result<()> {
