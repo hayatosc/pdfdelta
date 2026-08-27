@@ -1,10 +1,15 @@
 use std::collections::HashSet;
 
+use serde::Deserialize;
+
 use crate::{BenchError, Result};
 
 pub const MAX_PARAGRAPHS: usize = 32;
 pub const MAX_PARAGRAPH_ID_BYTES: usize = 64;
 pub const MAX_PARAGRAPH_TEXT_BYTES: usize = 512;
+pub const MAX_CANONICAL_YAML_BYTES: usize = 16 * 1024;
+pub const MAX_CANONICAL_SECTIONS: usize = 8;
+pub const MAX_CANONICAL_RENDER_LINES: usize = 32;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Paragraph {
@@ -65,53 +70,249 @@ impl CanonicalDocument {
     }
 }
 
+/// A structured canonical document used to render file-backed fixtures.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CanonicalRenderDocument {
+    title: String,
+    sections: Vec<CanonicalSection>,
+}
+
+/// A titled group of canonical paragraphs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CanonicalSection {
+    id: String,
+    heading: String,
+    paragraphs: Vec<Paragraph>,
+}
+
+impl CanonicalRenderDocument {
+    /// Parses one bounded YAML document and validates its renderable content.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BenchError::InvalidInput`] when the YAML syntax, schema,
+    /// content, identifiers, or configured fixture bounds are invalid.
+    pub fn from_yaml(yaml: &str) -> Result<Self> {
+        if yaml.len() > MAX_CANONICAL_YAML_BYTES {
+            return Err(BenchError::InvalidInput(format!(
+                "canonical YAML must not exceed {MAX_CANONICAL_YAML_BYTES} bytes"
+            )));
+        }
+
+        let root = serde_saphyr::from_str::<YamlRoot>(yaml).map_err(|error| {
+            BenchError::InvalidInput(format!("cannot parse canonical YAML: {error}"))
+        })?;
+        Self::from_yaml_document(root.document)
+    }
+
+    fn from_yaml_document(document: YamlDocument) -> Result<Self> {
+        validate_named_text("document title", &document.title)?;
+        if document.sections.is_empty() {
+            return Err(BenchError::InvalidInput(
+                "canonical YAML requires at least one section".to_owned(),
+            ));
+        }
+        if document.sections.len() > MAX_CANONICAL_SECTIONS {
+            return Err(BenchError::InvalidInput(format!(
+                "canonical YAML supports at most {MAX_CANONICAL_SECTIONS} sections"
+            )));
+        }
+
+        let mut section_ids = HashSet::with_capacity(document.sections.len());
+        let mut paragraph_ids = HashSet::new();
+        let mut paragraph_count = 0_usize;
+        let mut sections = Vec::with_capacity(document.sections.len());
+        for section in document.sections {
+            validate_named_id("section ids", &section.id)?;
+            if !section_ids.insert(section.id.clone()) {
+                return Err(BenchError::InvalidInput(format!(
+                    "duplicate section id {:?}",
+                    section.id
+                )));
+            }
+            validate_named_text("section heading", &section.heading)?;
+            if section.paragraphs.is_empty() {
+                return Err(BenchError::InvalidInput(format!(
+                    "section {:?} requires at least one paragraph",
+                    section.id
+                )));
+            }
+
+            paragraph_count = paragraph_count
+                .checked_add(section.paragraphs.len())
+                .ok_or_else(|| {
+                    BenchError::InvalidInput("canonical paragraph count overflowed".to_owned())
+                })?;
+            if paragraph_count > MAX_PARAGRAPHS {
+                return Err(BenchError::InvalidInput(format!(
+                    "canonical YAML supports at most {MAX_PARAGRAPHS} paragraphs"
+                )));
+            }
+
+            let mut paragraphs = Vec::with_capacity(section.paragraphs.len());
+            for paragraph in section.paragraphs {
+                if !paragraph_ids.insert(paragraph.id.clone()) {
+                    return Err(BenchError::InvalidInput(format!(
+                        "duplicate paragraph id {:?}",
+                        paragraph.id
+                    )));
+                }
+                paragraphs.push(Paragraph::new(paragraph.id, paragraph.text)?);
+            }
+            sections.push(CanonicalSection {
+                id: section.id,
+                heading: section.heading,
+                paragraphs,
+            });
+        }
+
+        let render_line_count = 1_usize
+            .checked_add(sections.len())
+            .and_then(|count| count.checked_add(paragraph_count))
+            .ok_or_else(|| {
+                BenchError::InvalidInput("canonical render line count overflowed".to_owned())
+            })?;
+        if render_line_count > MAX_CANONICAL_RENDER_LINES {
+            return Err(BenchError::InvalidInput(format!(
+                "canonical YAML supports at most {MAX_CANONICAL_RENDER_LINES} rendered lines"
+            )));
+        }
+
+        Ok(Self {
+            title: document.title,
+            sections,
+        })
+    }
+
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn sections(&self) -> &[CanonicalSection] {
+        &self.sections
+    }
+
+    /// Flattens the title, section headings, and paragraphs in source order.
+    pub fn render_lines(&self) -> Vec<String> {
+        let capacity = 1
+            + self.sections.len()
+            + self
+                .sections
+                .iter()
+                .map(|section| section.paragraphs.len())
+                .sum::<usize>();
+        let mut lines = Vec::with_capacity(capacity);
+        lines.push(self.title.clone());
+        for section in &self.sections {
+            lines.push(section.heading.clone());
+            lines.extend(
+                section
+                    .paragraphs
+                    .iter()
+                    .map(|paragraph| paragraph.text.clone()),
+            );
+        }
+        lines
+    }
+}
+
+impl CanonicalSection {
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub fn heading(&self) -> &str {
+        &self.heading
+    }
+
+    pub fn paragraphs(&self) -> &[Paragraph] {
+        &self.paragraphs
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct YamlRoot {
+    document: YamlDocument,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct YamlDocument {
+    title: String,
+    sections: Vec<YamlSection>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct YamlSection {
+    id: String,
+    heading: String,
+    paragraphs: Vec<YamlParagraph>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct YamlParagraph {
+    id: String,
+    text: String,
+}
+
 pub(crate) fn validate_text(text: &str) -> Result<()> {
+    validate_named_text("paragraph and line text", text)
+}
+
+fn validate_named_text(name: &str, text: &str) -> Result<()> {
     if text.trim().is_empty() {
-        return Err(BenchError::InvalidInput(
-            "paragraph and line text must not be blank".to_owned(),
-        ));
+        return Err(BenchError::InvalidInput(format!(
+            "{name} must not be blank"
+        )));
     }
     if text.len() > MAX_PARAGRAPH_TEXT_BYTES {
         return Err(BenchError::InvalidInput(format!(
-            "paragraph and line text must not exceed {MAX_PARAGRAPH_TEXT_BYTES} bytes"
+            "{name} must not exceed {MAX_PARAGRAPH_TEXT_BYTES} bytes"
         )));
     }
     if text.trim() != text {
-        return Err(BenchError::InvalidInput(
-            "paragraph and line text must not have leading or trailing whitespace".to_owned(),
-        ));
+        return Err(BenchError::InvalidInput(format!(
+            "{name} must not have leading or trailing whitespace"
+        )));
     }
     if !text.bytes().all(|byte| (0x20..=0x7e).contains(&byte)) {
-        return Err(BenchError::InvalidInput(
-            "paragraph and line text must use printable ASCII".to_owned(),
-        ));
+        return Err(BenchError::InvalidInput(format!(
+            "{name} must use printable ASCII"
+        )));
     }
     if text.as_bytes().windows(2).any(|pair| pair == b"  ") {
-        return Err(BenchError::InvalidInput(
-            "paragraph and line text must use single spaces".to_owned(),
-        ));
+        return Err(BenchError::InvalidInput(format!(
+            "{name} must use single spaces"
+        )));
     }
     Ok(())
 }
 
 pub(crate) fn validate_paragraph_id(id: &str) -> Result<()> {
+    validate_named_id("paragraph ids", id)
+}
+
+fn validate_named_id(name: &str, id: &str) -> Result<()> {
     if id.is_empty() {
-        return Err(BenchError::InvalidInput(
-            "paragraph ids must not be blank".to_owned(),
-        ));
+        return Err(BenchError::InvalidInput(format!(
+            "{name} must not be blank"
+        )));
     }
     if id.len() > MAX_PARAGRAPH_ID_BYTES {
         return Err(BenchError::InvalidInput(format!(
-            "paragraph ids must not exceed {MAX_PARAGRAPH_ID_BYTES} bytes"
+            "{name} must not exceed {MAX_PARAGRAPH_ID_BYTES} bytes"
         )));
     }
     if !id
         .bytes()
         .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
     {
-        return Err(BenchError::InvalidInput(
-            "paragraph ids may contain only ASCII letters, digits, '-' and '_'".to_owned(),
-        ));
+        return Err(BenchError::InvalidInput(format!(
+            "{name} may contain only ASCII letters, digits, '-' and '_'"
+        )));
     }
     Ok(())
 }
