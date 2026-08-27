@@ -81,6 +81,7 @@ fn json_serializes_layout_formatting_reasons() -> Result<()> {
         confidence: Confidence::High,
         reasons: vec![
             FormattingReason::FontSize,
+            FormattingReason::Position,
             FormattingReason::LineBreak,
             FormattingReason::PageBreak,
         ],
@@ -101,7 +102,7 @@ fn json_serializes_layout_formatting_reasons() -> Result<()> {
         serde_json::from_slice(&output).expect("report should be valid JSON");
     assert_eq!(
         json["formatting_only_changes"][0]["reasons"],
-        serde_json::json!(["font_size", "line_break", "page_break"])
+        serde_json::json!(["font_size", "position", "line_break", "page_break"])
     );
     Ok(())
 }
@@ -1953,6 +1954,7 @@ fn block_with_text(id: u64, text: &str) -> BlockText {
         issues: Vec::new(),
         pages: vec![0],
         font_size_signatures: None,
+        position_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }
@@ -2040,6 +2042,7 @@ fn unmapped_block_fixture(id: u64) -> BlockText {
         issues: Vec::new(),
         pages: vec![4],
         font_size_signatures: None,
+        position_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }
@@ -2072,6 +2075,7 @@ fn unmapped_only_block(id: u64, hash: Vec<u8>, glyph_id: u16) -> BlockText {
         issues: Vec::new(),
         pages: if id > 100 { vec![0] } else { vec![4] },
         font_size_signatures: None,
+        position_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }

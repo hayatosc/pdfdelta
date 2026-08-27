@@ -89,6 +89,28 @@ fn reports_font_size_only_as_formatting() -> Result<()> {
 }
 
 #[test]
+fn reports_uniform_position_translation_as_formatting() -> Result<()> {
+    let old = document(&[line("Stable release note", 0, 100.0)]);
+    let mut new_glyphs = old.items().to_vec();
+    for glyph in &mut new_glyphs {
+        glyph.baseline.x += 66.0;
+        glyph.bbox.min.x += 66.0;
+        glyph.bbox.max.x += 66.0;
+    }
+    let new = Document::new(new_glyphs);
+
+    let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
+
+    assert_no_content_changes(&comparison);
+    assert_eq!(comparison.formatting_changes.len(), 1);
+    assert_eq!(
+        comparison.formatting_changes[0].reasons,
+        [FormattingReason::Position]
+    );
+    Ok(())
+}
+
+#[test]
 fn reports_one_generic_numeric_replacement() -> Result<()> {
     let old = paragraphs(&[
         "Opening paragraph establishes context",

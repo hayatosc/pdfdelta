@@ -1833,7 +1833,7 @@ fn externally_rendered_typst_japanese_case2_pagebreak_revision_pair_reports_zero
     );
     let stdout_text = stdout(&text_output);
     assert!(stdout_text.contains("content changes: 0"), "{stdout_text}");
-    assert!(stdout_text.contains("formatting-only: 0"), "{stdout_text}");
+    assert!(stdout_text.contains("formatting-only: 1"), "{stdout_text}");
     assert!(stdout_text.contains("uncertain: 0"), "{stdout_text}");
     assert!(
         stdout_text.contains("unresolved regions: 0"),
@@ -1893,7 +1893,7 @@ fn externally_rendered_typst_japanese_case2_pagebreak_revision_pair_reports_zero
 
     assert_eq!(report["schema_version"], 7);
     assert_eq!(report["summary"]["content_changes"], 0);
-    assert_eq!(report["summary"]["formatting_only_changes"], 0);
+    assert_eq!(report["summary"]["formatting_only_changes"], 1);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
     assert_eq!(report["summary"]["unresolved_regions"], 0);
     assert_eq!(report["summary"]["unsupported_extraction_issues"], 0);
@@ -1927,7 +1927,19 @@ fn externally_rendered_typst_japanese_case2_pagebreak_revision_pair_reports_zero
     let formatting_changes = report["formatting_only_changes"]
         .as_array()
         .expect("formatting_only_changes should be array");
-    assert_eq!(formatting_changes.len(), 0);
+    assert_eq!(formatting_changes.len(), 1);
+    assert_eq!(
+        formatting_changes[0]["reasons"],
+        serde_json::json!(["position"])
+    );
+    assert_eq!(
+        formatting_changes[0]["old_span"]["pages"],
+        serde_json::json!([0])
+    );
+    assert_eq!(
+        formatting_changes[0]["new_span"]["pages"],
+        serde_json::json!([1])
+    );
 
     assert_eq!(report["extraction"]["old_complete"], true);
     assert_eq!(report["extraction"]["new_complete"], true);
@@ -1981,7 +1993,7 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     );
     let stdout_text = stdout(&text_output);
     assert!(stdout_text.contains("content changes: 1"), "{stdout_text}");
-    assert!(stdout_text.contains("formatting-only: 0"), "{stdout_text}");
+    assert!(stdout_text.contains("formatting-only: 1"), "{stdout_text}");
     assert!(stdout_text.contains("uncertain: 0"), "{stdout_text}");
     assert!(
         stdout_text.contains("unresolved regions: 0"),
@@ -2047,7 +2059,7 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
 
     assert_eq!(forward_report["schema_version"], 7);
     assert_eq!(forward_report["summary"]["content_changes"], 1);
-    assert_eq!(forward_report["summary"]["formatting_only_changes"], 0);
+    assert_eq!(forward_report["summary"]["formatting_only_changes"], 1);
     assert_eq!(forward_report["summary"]["uncertain_changes"], 0);
     assert_eq!(forward_report["summary"]["unresolved_regions"], 0);
     assert_eq!(
@@ -2104,7 +2116,11 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     let forward_formatting = forward_report["formatting_only_changes"]
         .as_array()
         .expect("formatting_only_changes should be array");
-    assert_eq!(forward_formatting.len(), 0);
+    assert_eq!(forward_formatting.len(), 1);
+    assert_eq!(
+        forward_formatting[0]["reasons"],
+        serde_json::json!(["position"])
+    );
 
     assert_eq!(forward_report["extraction"]["old_complete"], true);
     assert_eq!(forward_report["extraction"]["new_complete"], true);
@@ -2140,7 +2156,7 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
         "{reverse_stdout_text}"
     );
     assert!(
-        reverse_stdout_text.contains("formatting-only: 0"),
+        reverse_stdout_text.contains("formatting-only: 1"),
         "{reverse_stdout_text}"
     );
     assert!(
@@ -2177,7 +2193,7 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
 
     assert_eq!(reverse_report["schema_version"], 7);
     assert_eq!(reverse_report["summary"]["content_changes"], 1);
-    assert_eq!(reverse_report["summary"]["formatting_only_changes"], 0);
+    assert_eq!(reverse_report["summary"]["formatting_only_changes"], 1);
     assert_eq!(reverse_report["summary"]["uncertain_changes"], 0);
     assert_eq!(reverse_report["summary"]["unresolved_regions"], 0);
     assert_eq!(
@@ -2234,7 +2250,11 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     let reverse_formatting = reverse_report["formatting_only_changes"]
         .as_array()
         .expect("formatting_only_changes should be array");
-    assert_eq!(reverse_formatting.len(), 0);
+    assert_eq!(reverse_formatting.len(), 1);
+    assert_eq!(
+        reverse_formatting[0]["reasons"],
+        serde_json::json!(["position"])
+    );
 
     assert_eq!(reverse_report["extraction"]["old_complete"], true);
     assert_eq!(reverse_report["extraction"]["new_complete"], true);

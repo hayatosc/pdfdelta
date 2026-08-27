@@ -959,6 +959,7 @@ mod tests {
             issues: Vec::new(),
             pages: Vec::new(),
             font_size_signatures: None,
+            position_signatures: None,
             line_breaks: None,
             page_breaks: None,
         }

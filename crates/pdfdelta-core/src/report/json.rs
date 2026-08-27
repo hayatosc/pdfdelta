@@ -675,6 +675,7 @@ fn formatting_reason(reason: FormattingReason) -> &'static str {
         FormattingReason::Normalization => "normalization",
         FormattingReason::BlockStructure => "block_structure",
         FormattingReason::FontSize => "font_size",
+        FormattingReason::Position => "position",
         FormattingReason::LineBreak => "line_break",
         FormattingReason::PageBreak => "page_break",
     }

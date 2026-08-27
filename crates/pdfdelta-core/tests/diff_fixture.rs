@@ -6,10 +6,10 @@ use pdfdelta_core::{
     },
     diff::{ChangeKind, Confidence, DiffOptions, FormattingReason, TokenRange, compare_aligned},
     layout::BlockId,
-    model::FontProgramHash,
+    model::{FontProgramHash, Vec2},
     normalize::{
-        BlockText, ComparableToken, FontSizeSignature, MappedText, ScalarRange, TextSource,
-        UnmappedToken,
+        BlockText, ComparableToken, FontSizeSignature, MappedText, PositionSignature, ScalarRange,
+        TextSource, UnmappedToken,
     },
 };
 
@@ -208,6 +208,39 @@ fn reports_font_size_change_as_formatting_only() -> Result<()> {
 }
 
 #[test]
+fn reports_uniform_position_translation_as_formatting_only() -> Result<()> {
+    let old = block_with_position(1, "stable text", 0.0, 100.0);
+    let new = block_with_position(101, "stable text", 66.0, 100.0);
+    let alignment = aligned(vec![matched(&[1], &[101])]);
+
+    let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
+
+    assert!(result.changes.is_empty());
+    assert_eq!(result.formatting_changes.len(), 1);
+    assert_eq!(
+        result.formatting_changes[0].reasons,
+        [FormattingReason::Position]
+    );
+    Ok(())
+}
+
+#[test]
+fn does_not_guess_position_change_for_non_translation_geometry() -> Result<()> {
+    let old = block_with_position(1, "stable text", 0.0, 100.0);
+    let mut new = block_with_position(101, "stable text", 66.0, 100.0);
+    new.position_signatures
+        .as_mut()
+        .expect("fixture has position evidence")[3] = position(85.0, 100.0);
+    let alignment = aligned(vec![matched(&[1], &[101])]);
+
+    let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
+
+    assert!(result.changes.is_empty());
+    assert!(result.formatting_changes.is_empty());
+    Ok(())
+}
+
+#[test]
 fn block_separator_preserves_equal_font_size_evidence() -> Result<()> {
     let old = block_with_font_size(1, "project log", 10.0);
     let new = [
@@ -277,6 +310,22 @@ fn rejects_incomplete_font_size_signature_vector() {
     assert!(matches!(
         compare_aligned(&[old], &[new], &alignment, DiffOptions::default()),
         Err(Error::Unresolved(message)) if message.contains("font-size signature count")
+    ));
+}
+
+#[test]
+fn rejects_incomplete_position_signature_vector() {
+    let old = block_with_position(1, "stable text", 0.0, 100.0);
+    let mut new = block_with_position(101, "stable text", 0.0, 100.0);
+    new.position_signatures
+        .as_mut()
+        .expect("fixture has position evidence")
+        .pop();
+    let alignment = aligned(vec![matched(&[1], &[101])]);
+
+    assert!(matches!(
+        compare_aligned(&[old], &[new], &alignment, DiffOptions::default()),
+        Err(Error::Unresolved(message)) if message.contains("position signature count")
     ));
 }
 
@@ -806,6 +855,25 @@ fn block_with_font_size(id: u64, text: &str, font_size: f64) -> BlockText {
     block
 }
 
+fn block_with_position(id: u64, text: &str, x: f64, y: f64) -> BlockText {
+    let mut block = block(id, text);
+    block.pages = vec![0];
+    block.position_signatures = Some(
+        text.chars()
+            .enumerate()
+            .map(|(index, _)| position(x + index as f64 * 6.0, y))
+            .collect(),
+    );
+    block.line_breaks = Some(Vec::new());
+    block.page_breaks = Some(Vec::new());
+    block
+}
+
+fn position(x: f64, y: f64) -> PositionSignature {
+    PositionSignature::new(Vec2 { x, y }, Vec2 { x: 1.0, y: 0.0 })
+        .expect("fixture position is valid")
+}
+
 fn block_with_matching(
     id: u64,
     canonical: &str,
@@ -823,6 +891,7 @@ fn block_with_matching(
         issues: Vec::new(),
         pages: Vec::new(),
         font_size_signatures: None,
+        position_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }
@@ -853,6 +922,7 @@ fn unmapped_block(id: u64, glyph_id: u16) -> BlockText {
         issues: Vec::new(),
         pages: Vec::new(),
         font_size_signatures: None,
+        position_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }
@@ -1122,6 +1192,7 @@ fn multi_unmapped_block(id: u64, font_hash: Vec<u8>, glyph_ids: &[u16]) -> Block
         issues: vec![],
         pages: vec![0],
         font_size_signatures: None,
+        position_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }

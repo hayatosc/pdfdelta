@@ -6,7 +6,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::{
     Error, Result,
     layout::{Block, BlockId, Line, LineId},
-    model::{DecodedText, Document, FontProgramHash, Glyph, GlyphId, index_glyphs},
+    model::{DecodedText, Document, FontProgramHash, Glyph, GlyphId, Vec2, index_glyphs},
 };
 
 pub const DEFAULT_MAX_NUMERIC_MASK_RATIO: f64 = 0.3;
@@ -72,6 +72,64 @@ impl FontSizeSignature {
         bits.sort_unstable();
         bits.dedup();
         Self { bits }
+    }
+}
+
+/// Exact baseline and text direction of a canonical token's first source glyph.
+///
+/// Coordinates use the normalized page space retained by [`Glyph`]. IEEE-754
+/// bit patterns keep the evidence equality-comparable without a pixel threshold.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PositionSignature {
+    baseline_x: u64,
+    baseline_y: u64,
+    direction_x: u64,
+    direction_y: u64,
+}
+
+impl PositionSignature {
+    /// Builds a signature from finite geometry and a non-zero text direction.
+    ///
+    /// Returns `None` when any component is non-finite or `direction` is zero.
+    pub fn new(baseline: Vec2, direction: Vec2) -> Option<Self> {
+        if !baseline.x.is_finite()
+            || !baseline.y.is_finite()
+            || !direction.x.is_finite()
+            || !direction.y.is_finite()
+            || direction.x == 0.0 && direction.y == 0.0
+        {
+            return None;
+        }
+        Some(Self {
+            baseline_x: canonical_f64_bits(baseline.x),
+            baseline_y: canonical_f64_bits(baseline.y),
+            direction_x: canonical_f64_bits(direction.x),
+            direction_y: canonical_f64_bits(direction.y),
+        })
+    }
+
+    /// Returns the normalized-page baseline represented by this signature.
+    pub fn baseline(self) -> Vec2 {
+        Vec2 {
+            x: f64::from_bits(self.baseline_x),
+            y: f64::from_bits(self.baseline_y),
+        }
+    }
+
+    /// Returns the text direction represented by this signature.
+    pub fn direction(self) -> Vec2 {
+        Vec2 {
+            x: f64::from_bits(self.direction_x),
+            y: f64::from_bits(self.direction_y),
+        }
+    }
+}
+
+fn canonical_f64_bits(value: f64) -> u64 {
+    if value == 0.0 {
+        0.0_f64.to_bits()
+    } else {
+        value.to_bits()
     }
 }
 
@@ -392,6 +450,11 @@ pub struct BlockText {
     /// `None` means at least one token lacks complete source evidence. When present, this has
     /// exactly one entry per canonical comparable token.
     pub font_size_signatures: Option<Vec<FontSizeSignature>>,
+    /// First-source-glyph positions aligned with canonical comparable tokens.
+    ///
+    /// `None` means at least one token lacks complete source geometry. When present, this has
+    /// exactly one entry per canonical comparable token.
+    pub position_signatures: Option<Vec<PositionSignature>>,
     /// Comparable-token offsets immediately before text that starts on a new line.
     ///
     /// `None` means the source evidence could not locate every line boundary. When present, the
@@ -970,9 +1033,11 @@ fn normalize_block(
     let pieces = normalize_nfc(atoms);
     let (canonical, events) = assemble_canonical(pieces);
     let matching = build_matching(&canonical, DEFAULT_MAX_NUMERIC_MASK_RATIO)?;
-    let font_size_signatures = canonical_font_size_signatures(&canonical, glyphs)?;
-    let line_breaks = canonical_breaks(&canonical, &line_break_following_glyphs)?;
-    let page_breaks = canonical_breaks(&canonical, &page_break_following_glyphs)?;
+    let canonical_tokens = canonical.comparable_tokens_with_sources()?;
+    let font_size_signatures = canonical_font_size_signatures(&canonical_tokens, glyphs)?;
+    let position_signatures = canonical_position_signatures(&canonical_tokens, glyphs)?;
+    let line_breaks = canonical_breaks(&canonical_tokens, &line_break_following_glyphs);
+    let page_breaks = canonical_breaks(&canonical_tokens, &page_break_following_glyphs);
 
     Ok(BlockText {
         block,
@@ -985,23 +1050,23 @@ fn normalize_block(
         issues,
         pages,
         font_size_signatures,
+        position_signatures,
         line_breaks,
         page_breaks,
     })
 }
 
 fn canonical_font_size_signatures(
-    canonical: &MappedText,
+    tokens: &[(ComparableToken, TextSource)],
     glyphs: &HashMap<GlyphId, &Glyph>,
 ) -> Result<Option<Vec<FontSizeSignature>>> {
-    let tokens = canonical.comparable_tokens_with_sources()?;
     let mut signatures = Vec::with_capacity(tokens.len());
 
     for (_, source) in tokens {
         let mut sizes = Vec::new();
-        for atom in source.atoms {
+        for atom in &source.atoms {
             match atom {
-                TextSourceAtom::Glyph(glyph) => push_font_size(&mut sizes, glyph, glyphs)?,
+                TextSourceAtom::Glyph(glyph) => push_font_size(&mut sizes, *glyph, glyphs)?,
                 TextSourceAtom::SyntheticSpace {
                     preceding,
                     following,
@@ -1010,13 +1075,45 @@ fn canonical_font_size_signatures(
                     preceding,
                     following,
                 } => {
-                    push_font_size(&mut sizes, preceding, glyphs)?;
-                    push_font_size(&mut sizes, following, glyphs)?;
+                    push_font_size(&mut sizes, *preceding, glyphs)?;
+                    push_font_size(&mut sizes, *following, glyphs)?;
                 }
             }
         }
         let Some(signature) = FontSizeSignature::new(&sizes) else {
             return Ok(None);
+        };
+        signatures.push(signature);
+    }
+
+    Ok(Some(signatures))
+}
+
+fn canonical_position_signatures(
+    tokens: &[(ComparableToken, TextSource)],
+    glyphs: &HashMap<GlyphId, &Glyph>,
+) -> Result<Option<Vec<PositionSignature>>> {
+    let mut signatures = Vec::with_capacity(tokens.len());
+
+    for (_, source) in tokens {
+        let Some(glyph_id) = source.atoms.first().map(|atom| match atom {
+            TextSourceAtom::Glyph(glyph) => *glyph,
+            TextSourceAtom::SyntheticSpace { preceding, .. }
+            | TextSourceAtom::LineBreak { preceding, .. } => *preceding,
+        }) else {
+            return Ok(None);
+        };
+        let glyph = glyphs.get(&glyph_id).ok_or_else(|| {
+            Error::Unresolved(format!(
+                "canonical text references unknown glyph {}",
+                glyph_id.0
+            ))
+        })?;
+        let Some(signature) = PositionSignature::new(glyph.baseline, glyph.direction) else {
+            return Err(Error::Unresolved(format!(
+                "glyph {} has invalid position evidence",
+                glyph_id.0
+            )));
         };
         signatures.push(signature);
     }
@@ -1046,10 +1143,9 @@ fn push_font_size(
 }
 
 fn canonical_breaks(
-    canonical: &MappedText,
+    tokens: &[(ComparableToken, TextSource)],
     following_glyphs: &[GlyphId],
-) -> Result<Option<Vec<usize>>> {
-    let tokens = canonical.comparable_tokens_with_sources()?;
+) -> Option<Vec<usize>> {
     let mut glyph_offsets = HashMap::new();
     for (offset, (_, source)) in tokens.iter().enumerate() {
         for atom in &source.atoms {
@@ -1061,16 +1157,14 @@ fn canonical_breaks(
     let mut offsets = Vec::with_capacity(following_glyphs.len());
 
     for following in following_glyphs {
-        let Some(offset) = glyph_offsets.get(following).copied() else {
-            return Ok(None);
-        };
+        let offset = glyph_offsets.get(following).copied()?;
         if offset == 0 || offsets.last().is_some_and(|previous| *previous >= offset) {
-            return Ok(None);
+            return None;
         }
         offsets.push(offset);
     }
 
-    Ok(Some(offsets))
+    Some(offsets)
 }
 
 struct MatchingText {

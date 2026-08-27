@@ -2135,6 +2135,7 @@ fn unmapped_block_text(id: u64, font_hash: Vec<u8>, glyph_id: u16) -> BlockText 
         issues: vec![],
         pages: Vec::new(),
         font_size_signatures: None,
+        position_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }
@@ -2172,6 +2173,7 @@ fn block_text_with_matching(
         issues: vec![],
         pages: Vec::new(),
         font_size_signatures: None,
+        position_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }
@@ -2815,6 +2817,7 @@ fn multi_unmapped_block_text(id: u64, font_hash: Vec<u8>, glyph_ids: &[u16]) -> 
         issues: vec![],
         pages: vec![0],
         font_size_signatures: None,
+        position_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }
@@ -2862,6 +2865,7 @@ fn mixed_mapped_unmapped_block_text(
         issues: vec![],
         pages: vec![0],
         font_size_signatures: None,
+        position_signatures: None,
         line_breaks: None,
         page_breaks: None,
     }

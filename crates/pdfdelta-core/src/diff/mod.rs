@@ -11,7 +11,8 @@ use crate::{
         BlockSeparator,
     },
     layout::BlockId,
-    normalize::{BlockText, ComparableToken, FontSizeSignature, ScalarRange},
+    model::Vec2,
+    normalize::{BlockText, ComparableToken, FontSizeSignature, PositionSignature, ScalarRange},
     validate::validate_unit_interval,
 };
 
@@ -66,6 +67,7 @@ pub enum FormattingReason {
     Normalization,
     BlockStructure,
     FontSize,
+    Position,
     LineBreak,
     PageBreak,
 }
@@ -431,6 +433,9 @@ fn compare_match(
         {
             reasons.push(FormattingReason::FontSize);
         }
+        if has_position_change(&old, &new) {
+            reasons.push(FormattingReason::Position);
+        }
         if let (Some(old_breaks), Some(new_breaks)) = (&old.line_breaks, &new.line_breaks)
             && old_breaks != new_breaks
         {
@@ -745,6 +750,7 @@ impl<'a> SidePlan<'a> {
             }
             let canonical_count = block.canonical.comparable_token_count()?;
             validate_font_size_signatures(name, block, canonical_count)?;
+            validate_position_signatures(name, block, canonical_count)?;
             validate_line_breaks(name, block, canonical_count)?;
             validate_page_breaks(name, block, canonical_count)?;
             total_tokens =
@@ -804,6 +810,7 @@ impl Side<'_> {
         let separator = effective_group_separator(blocks.len(), separator);
         let mut tokens = Vec::new();
         let mut font_size_signatures = Some(Vec::new());
+        let mut position_signatures = Some(Vec::new());
         let mut line_breaks = Some(Vec::new());
         let mut page_breaks = Some(Vec::new());
         let mut previous_page = None;
@@ -826,6 +833,18 @@ impl Side<'_> {
                 block.font_size_signatures.as_ref().and_then(|next_sizes| {
                     append_font_size_signatures(combined, next_sizes, inserted_separator_tokens)
                 })
+            });
+            position_signatures = position_signatures.take().and_then(|combined| {
+                block
+                    .position_signatures
+                    .as_ref()
+                    .and_then(|next_positions| {
+                        append_position_signatures(
+                            combined,
+                            next_positions,
+                            inserted_separator_tokens,
+                        )
+                    })
             });
 
             if position > 0 {
@@ -861,6 +880,7 @@ impl Side<'_> {
             separator,
             tokens,
             font_size_signatures,
+            position_signatures,
             line_breaks,
             page_breaks,
         )
@@ -890,6 +910,7 @@ impl Side<'_> {
             None,
             None,
             None,
+            None,
         ))
     }
 }
@@ -908,6 +929,20 @@ fn append_font_size_signatures(
     Some(combined)
 }
 
+fn append_position_signatures(
+    mut combined: Vec<Option<PositionSignature>>,
+    next: &[PositionSignature],
+    inserted_separator_tokens: usize,
+) -> Option<Vec<Option<PositionSignature>>> {
+    match inserted_separator_tokens {
+        0 => {}
+        1 => combined.push(None),
+        _ => return None,
+    }
+    combined.extend(next.iter().copied().map(Some));
+    Some(combined)
+}
+
 fn validate_font_size_signatures(name: &str, block: &BlockText, token_count: usize) -> Result<()> {
     let Some(signatures) = &block.font_size_signatures else {
         return Ok(());
@@ -919,6 +954,96 @@ fn validate_font_size_signatures(name: &str, block: &BlockText, token_count: usi
         )));
     }
     Ok(())
+}
+
+fn validate_position_signatures(name: &str, block: &BlockText, token_count: usize) -> Result<()> {
+    let Some(signatures) = &block.position_signatures else {
+        return Ok(());
+    };
+    if signatures.len() != token_count {
+        return Err(Error::Unresolved(format!(
+            "{name} block {} position signature count does not match its canonical token count",
+            block.block.0
+        )));
+    }
+    Ok(())
+}
+
+fn has_position_change(old: &GroupText, new: &GroupText) -> bool {
+    let (
+        Some(old_positions),
+        Some(new_positions),
+        Some(old_line_breaks),
+        Some(new_line_breaks),
+        Some(old_page_breaks),
+        Some(new_page_breaks),
+    ) = (
+        &old.position_signatures,
+        &new.position_signatures,
+        &old.line_breaks,
+        &new.line_breaks,
+        &old.page_breaks,
+        &new.page_breaks,
+    )
+    else {
+        return false;
+    };
+    if old_positions.len() != new_positions.len()
+        || old_line_breaks != new_line_breaks
+        || old_page_breaks != new_page_breaks
+    {
+        return false;
+    }
+
+    let mut start = 0;
+    let mut changed = false;
+    for end in old_line_breaks
+        .iter()
+        .copied()
+        .chain(std::iter::once(old_positions.len()))
+    {
+        let Some(line_changed) =
+            translated_line_change(&old_positions[start..end], &new_positions[start..end])
+        else {
+            return false;
+        };
+        changed |= line_changed;
+        start = end;
+    }
+    changed
+}
+
+fn translated_line_change(
+    old: &[Option<PositionSignature>],
+    new: &[Option<PositionSignature>],
+) -> Option<bool> {
+    let mut anchors: Option<(Vec2, Vec2)> = None;
+    let mut changed = false;
+
+    for (old, new) in old.iter().zip(new) {
+        let (old, new) = match (old, new) {
+            (Some(old), Some(new)) => (*old, *new),
+            (None, None) => continue,
+            _ => return None,
+        };
+        if old.direction() != new.direction() {
+            return None;
+        }
+        let old_baseline = old.baseline();
+        let new_baseline = new.baseline();
+        if let Some((old_anchor, new_anchor)) = anchors {
+            if old_baseline.x - old_anchor.x != new_baseline.x - new_anchor.x
+                || old_baseline.y - old_anchor.y != new_baseline.y - new_anchor.y
+            {
+                return None;
+            }
+        } else {
+            changed = old_baseline != new_baseline;
+            anchors = Some((old_baseline, new_baseline));
+        }
+    }
+
+    anchors.map(|_| changed)
 }
 
 fn validate_line_breaks(name: &str, block: &BlockText, token_count: usize) -> Result<()> {
@@ -977,6 +1102,7 @@ struct GroupText {
     separator: Option<BlockSeparator>,
     tokens: Vec<ComparableToken>,
     font_size_signatures: Option<Vec<FontSizeSignature>>,
+    position_signatures: Option<Vec<Option<PositionSignature>>>,
     line_breaks: Option<Vec<usize>>,
     page_breaks: Option<Vec<usize>>,
     scalar_boundaries: Vec<usize>,
@@ -988,6 +1114,7 @@ impl GroupText {
         separator: Option<BlockSeparator>,
         tokens: Vec<ComparableToken>,
         font_size_signatures: Option<Vec<FontSizeSignature>>,
+        position_signatures: Option<Vec<Option<PositionSignature>>>,
         line_breaks: Option<Vec<usize>>,
         page_breaks: Option<Vec<usize>>,
     ) -> Self {
@@ -1005,6 +1132,7 @@ impl GroupText {
             separator,
             tokens,
             font_size_signatures,
+            position_signatures,
             line_breaks,
             page_breaks,
             scalar_boundaries,

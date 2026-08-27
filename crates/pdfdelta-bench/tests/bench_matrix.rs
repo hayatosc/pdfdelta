@@ -13,7 +13,7 @@ use pdfdelta_bench::{
     renderers::{RenderLimits, RendererKind},
 };
 use pdfdelta_core::{
-    diff::ChangeKind,
+    diff::{ChangeKind, FormattingReason},
     layout::{LineOptions, reconstruct_blocks, reconstruct_lines},
     model::PageId,
     normalize::normalize_blocks,
@@ -88,6 +88,28 @@ fn normalized_canonical_blocks_with_renderer(
         .into_iter()
         .map(|block| block.canonical.text)
         .collect()
+}
+
+fn compare_rendered_pdfs(
+    old_pdf: Vec<u8>,
+    new_pdf: Vec<u8>,
+) -> pdfdelta_core::pipeline::ComparisonOutcome {
+    let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
+    let extract = |pdf| {
+        source
+            .extract_outcome(
+                Arc::from(pdf),
+                ParseLimits::default(),
+                ExtractionLimits::default(),
+            )
+            .expect("generated PDF extracts")
+    };
+    compare_extraction_outcomes(
+        extract(old_pdf),
+        extract(new_pdf),
+        PipelineOptions::default(),
+    )
+    .expect("comparison completes")
 }
 
 fn media_box_size(bytes: Vec<u8>) -> (i64, i64) {
@@ -654,6 +676,16 @@ fn line_height_change_alters_layout_without_content_diff() {
             "{} must change rendered bytes",
             renderer.name()
         );
+        let outcome = compare_rendered_pdfs(old_pdf, new_pdf);
+        assert!(outcome.comparison.changes.is_empty(), "{outcome:#?}");
+        assert!(
+            outcome
+                .comparison
+                .formatting_changes
+                .iter()
+                .any(|change| change.reasons.contains(&FormattingReason::Position)),
+            "{outcome:#?}"
+        );
         let record = evaluate_case(&case, renderer).expect("evaluation completes");
         assert!(record.passed, "{}", record.detail);
         assert!(record.extraction_complete);
@@ -683,6 +715,16 @@ fn margin_change_alters_layout_without_content_diff() {
             new_pdf,
             "{} must change rendered bytes",
             renderer.name()
+        );
+        let outcome = compare_rendered_pdfs(old_pdf, new_pdf);
+        assert!(outcome.comparison.changes.is_empty(), "{outcome:#?}");
+        assert!(
+            outcome
+                .comparison
+                .formatting_changes
+                .iter()
+                .any(|change| change.reasons.contains(&FormattingReason::Position)),
+            "{outcome:#?}"
         );
         let record = evaluate_case(&case, renderer).expect("evaluation completes");
         assert!(record.passed, "{}", record.detail);
