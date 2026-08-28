@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "pair": "bis-operational-risk-2011-to-2021",
+  "reviewed_on": "2026-08-29",
+  "annotation": "partial",
+  "notes": "Representative human-reviewed changes documented by the Basel Committee when revising its operational-risk principles, with emphasis on change management, ICT risk, operational resilience, and business continuity. Each quote is unique on its recorded side after whitespace collapsing and absent from the opposite side.",
+  "changes": [
+    {
+      "id": "change-management-scope-broadened",
+      "kind": "replacement",
+      "old_quote": "In general, a bank’s operational risk exposure is increased when a bank engages in new activities or develops new products; enters unfamiliar markets; implements new business processes or technology systems; and/or engages in businesses that are geographically distant from the head office.",
+      "new_quote": "In general, a bank’s operational risk exposure evolves when a bank initiates change, such as engaging in new activities or developing new products or services; entering into unfamiliar markets or jurisdictions; implementing new or modifying business processes or technology systems; and/or engaging in businesses that are geographically distant from the head office.",
+      "note": "The revised principle broadens new-product approval into lifecycle-oriented change management."
+    },
+    {
+      "id": "ict-risk-management-principle-added",
+      "kind": "insertion",
+      "new_quote": "Banks should implement a robust ICT25 risk management programme in alignment with their operational risk management framework.",
+      "note": "A dedicated ICT risk-management principle was added; 25 is the extracted superscript footnote marker."
+    },
+    {
+      "id": "operational-resilience-definition-added",
+      "kind": "insertion",
+      "new_quote": "“Operational resilience” is defined as the ability of a bank to deliver critical operations through disruption.",
+      "note": "The revision explicitly connects operational risk management with operational resilience."
+    },
+    {
+      "id": "continuity-plans-linked-to-ormf",
+      "kind": "insertion",
+      "new_quote": "Business continuity plans should be linked to the bank’s operational risk management framework.",
+      "note": "The revised continuity principle links plans to the operational-risk framework."
+    }
+  ]
+}
