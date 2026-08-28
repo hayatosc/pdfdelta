@@ -1,4 +1,5 @@
 mod myers;
+mod sentence;
 
 /// Keeps the retained Myers frontier and trace below the internal 64 MiB
 /// allocation budget while allowing benchmark runs to exceed the default.
@@ -12,7 +13,7 @@ use crate::{
         Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentSpan,
         BlockSeparator,
     },
-    layout::BlockId,
+    layout::{BlockId, TrustedRunInterval},
     model::Vec2,
     normalize::{
         BlockText, ComparableToken, FontSizeSignature, PositionSignature, ScalarRange,
@@ -174,16 +175,56 @@ pub(crate) fn enforce_diff_raw_token_budget(
     )
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SentenceRecoveryInput<'a> {
+    pub(crate) old_trusted_run_intervals: &'a [Option<TrustedRunInterval>],
+    pub(crate) new_trusted_run_intervals: &'a [Option<TrustedRunInterval>],
+    pub(crate) min_tokens: usize,
+}
+
 pub fn compare_aligned(
     old: &[BlockText],
     new: &[BlockText],
     alignment: &Alignment,
     options: DiffOptions,
 ) -> Result<Comparison> {
+    compare_aligned_inner(old, new, alignment, options, None)
+}
+
+pub(crate) fn compare_aligned_with_sentence_recovery(
+    old: &[BlockText],
+    new: &[BlockText],
+    alignment: &Alignment,
+    options: DiffOptions,
+    recovery: SentenceRecoveryInput<'_>,
+) -> Result<Comparison> {
+    compare_aligned_inner(old, new, alignment, options, Some(recovery))
+}
+
+fn compare_aligned_inner(
+    old: &[BlockText],
+    new: &[BlockText],
+    alignment: &Alignment,
+    options: DiffOptions,
+    recovery: Option<SentenceRecoveryInput<'_>>,
+) -> Result<Comparison> {
+    if let Some(recovery) = recovery {
+        validate_sentence_recovery_input(old, new, recovery)?;
+    }
     let (old, new) = inspect_sides_with_budget(old, new, options)?;
     let old = old.materialize()?;
     let new = new.materialize()?;
     validate_alignment(&old, &new, alignment)?;
+    let sentence_recovery = match recovery {
+        Some(recovery) => sentence::build_sentence_recovery_plan(
+            &old,
+            &new,
+            alignment,
+            recovery,
+            options.max_tokens,
+        )?,
+        None => None,
+    };
     let (moves_by_old, moves_by_new) = promotable_moves(&old, &new, alignment);
 
     let mut changes = Vec::new();
@@ -191,6 +232,7 @@ pub fn compare_aligned(
     let mut unresolved_regions = Vec::new();
     let mut resolved_old = 0;
     let mut resolved_new = 0;
+    let mut sentence_recovery_output_budget = RecoveryOutputBudget::default();
 
     for span in &alignment.spans {
         match span.kind {
@@ -267,11 +309,29 @@ pub fn compare_aligned(
                     });
                 }
             }
-            AlignmentKind::Unresolved => unresolved_regions.push(UnresolvedRegion {
-                old_span: full_span(&old, &span.old, span.old_separator),
-                new_span: full_span(&new, &span.new, span.new_separator),
-                evidence: span.evidence.clone(),
-            }),
+            AlignmentKind::Unresolved => {
+                if let Some(recovery) = &sentence_recovery
+                    && recovery.has_recovery(&span.old, &span.new)
+                {
+                    apply_sentence_recovery_or_fallback(
+                        &old,
+                        &new,
+                        span,
+                        recovery,
+                        &mut changes,
+                        &mut unresolved_regions,
+                        &mut resolved_old,
+                        &mut resolved_new,
+                        &mut sentence_recovery_output_budget,
+                    );
+                } else {
+                    unresolved_regions.push(UnresolvedRegion {
+                        old_span: full_span(&old, &span.old, span.old_separator),
+                        new_span: full_span(&new, &span.new, span.new_separator),
+                        evidence: span.evidence.clone(),
+                    });
+                }
+            }
         }
     }
 
@@ -282,6 +342,501 @@ pub fn compare_aligned(
         old_coverage: coverage(resolved_old, old.total_tokens),
         new_coverage: coverage(resolved_new, new.total_tokens),
     })
+}
+
+fn validate_sentence_recovery_input(
+    old: &[BlockText],
+    new: &[BlockText],
+    input: SentenceRecoveryInput<'_>,
+) -> Result<()> {
+    if input.old_trusted_run_intervals.len() != old.len() {
+        return Err(Error::InvalidConfiguration(
+            "old trusted-run interval metadata must contain one entry per normalized block"
+                .to_owned(),
+        ));
+    }
+    if input.new_trusted_run_intervals.len() != new.len() {
+        return Err(Error::InvalidConfiguration(
+            "new trusted-run interval metadata must contain one entry per normalized block"
+                .to_owned(),
+        ));
+    }
+    if input.min_tokens == 0 {
+        return Err(Error::InvalidConfiguration(
+            "sentence recovery min_tokens must be greater than zero".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+const MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS: usize = sentence::MAX_SENTENCE_RECOVERY_RANGES * 8 + 2;
+const MAX_SENTENCE_RECOVERY_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
+
+#[derive(Clone, Copy)]
+struct RecoveryOutputLimits {
+    max_items: usize,
+    max_bytes: usize,
+}
+
+impl Default for RecoveryOutputLimits {
+    fn default() -> Self {
+        Self {
+            max_items: MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS,
+            max_bytes: MAX_SENTENCE_RECOVERY_OUTPUT_BYTES,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct RecoveryOutputBudget {
+    limits: RecoveryOutputLimits,
+    items: usize,
+    bytes: usize,
+}
+
+impl RecoveryOutputBudget {
+    #[cfg(test)]
+    fn with_limits(limits: RecoveryOutputLimits) -> Self {
+        Self {
+            limits,
+            items: 0,
+            bytes: 0,
+        }
+    }
+
+    fn charge(&mut self, estimated_bytes: usize) -> bool {
+        let Some(items) = self.items.checked_add(1) else {
+            return false;
+        };
+        let Some(bytes) = self.bytes.checked_add(estimated_bytes) else {
+            return false;
+        };
+        if items > self.limits.max_items || bytes > self.limits.max_bytes {
+            return false;
+        }
+        self.items = items;
+        self.bytes = bytes;
+        true
+    }
+}
+
+struct PreparedSentenceRecovery {
+    changes: Vec<Change>,
+    unresolved_regions: Vec<UnresolvedRegion>,
+    resolved_old: usize,
+    resolved_new: usize,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_sentence_recovery_or_fallback(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    span: &AlignmentSpan,
+    recovery: &sentence::SentenceRecoveryPlan,
+    changes: &mut Vec<Change>,
+    unresolved_regions: &mut Vec<UnresolvedRegion>,
+    resolved_old: &mut usize,
+    resolved_new: &mut usize,
+    output_budget: &mut RecoveryOutputBudget,
+) {
+    if !append_sentence_recovery(
+        old,
+        new,
+        span,
+        recovery,
+        changes,
+        unresolved_regions,
+        resolved_old,
+        resolved_new,
+        output_budget,
+    ) {
+        unresolved_regions.push(UnresolvedRegion {
+            old_span: full_span(old, &span.old, span.old_separator),
+            new_span: full_span(new, &span.new, span.new_separator),
+            evidence: span.evidence.clone(),
+        });
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_sentence_recovery(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    span: &AlignmentSpan,
+    recovery: &sentence::SentenceRecoveryPlan,
+    changes: &mut Vec<Change>,
+    unresolved_regions: &mut Vec<UnresolvedRegion>,
+    resolved_old: &mut usize,
+    resolved_new: &mut usize,
+    output_budget: &mut RecoveryOutputBudget,
+) -> bool {
+    let mut tentative_budget = *output_budget;
+    let Some(prepared) = prepare_sentence_recovery(old, new, span, recovery, &mut tentative_budget)
+    else {
+        return false;
+    };
+    let Some(next_resolved_old) = resolved_old.checked_add(prepared.resolved_old) else {
+        return false;
+    };
+    let Some(next_resolved_new) = resolved_new.checked_add(prepared.resolved_new) else {
+        return false;
+    };
+    if changes.try_reserve_exact(prepared.changes.len()).is_err()
+        || unresolved_regions
+            .try_reserve_exact(prepared.unresolved_regions.len())
+            .is_err()
+    {
+        return false;
+    }
+
+    changes.extend(prepared.changes);
+    unresolved_regions.extend(prepared.unresolved_regions);
+    *resolved_old = next_resolved_old;
+    *resolved_new = next_resolved_new;
+    *output_budget = tentative_budget;
+    true
+}
+
+fn prepare_sentence_recovery(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    span: &AlignmentSpan,
+    recovery: &sentence::SentenceRecoveryPlan,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<PreparedSentenceRecovery> {
+    let deletion_count = recovered_range_count(&span.old, &recovery.deletions)?;
+    let insertion_count = recovered_range_count(&span.new, &recovery.insertions)?;
+    let change_capacity = deletion_count.checked_add(insertion_count)?;
+    let unresolved_capacity = change_capacity.checked_mul(3)?.checked_add(2)?;
+    let mut changes = Vec::new();
+    let mut unresolved_regions = Vec::new();
+    changes.try_reserve_exact(change_capacity).ok()?;
+    unresolved_regions
+        .try_reserve_exact(unresolved_capacity)
+        .ok()?;
+
+    let resolved_old = prepare_recovered_changes(
+        &span.old,
+        &recovery.deletions,
+        ChangeKind::Deletion,
+        &mut changes,
+        output_budget,
+    )?;
+    let resolved_new = prepare_recovered_changes(
+        &span.new,
+        &recovery.insertions,
+        ChangeKind::Insertion,
+        &mut changes,
+        output_budget,
+    )?;
+    prepare_unresolved_remainders(
+        old,
+        &span.old,
+        span.old_separator,
+        &recovery.deletions,
+        RemainderSide::Old,
+        &span.evidence,
+        &mut unresolved_regions,
+        output_budget,
+    )?;
+    prepare_unresolved_remainders(
+        new,
+        &span.new,
+        span.new_separator,
+        &recovery.insertions,
+        RemainderSide::New,
+        &span.evidence,
+        &mut unresolved_regions,
+        output_budget,
+    )?;
+
+    Some(PreparedSentenceRecovery {
+        changes,
+        unresolved_regions,
+        resolved_old,
+        resolved_new,
+    })
+}
+
+fn recovered_range_count(
+    blocks: &[BlockId],
+    recovered: &[sentence::LocalSentenceRange],
+) -> Option<usize> {
+    blocks.iter().try_fold(0usize, |count, block| {
+        count.checked_add(sentence::ranges_for_block(recovered, *block).len())
+    })
+}
+
+fn prepare_recovered_changes(
+    blocks: &[BlockId],
+    recovered: &[sentence::LocalSentenceRange],
+    kind: ChangeKind,
+    changes: &mut Vec<Change>,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<usize> {
+    let mut resolved = 0usize;
+    for block in blocks {
+        for range in sentence::ranges_for_block(recovered, *block) {
+            let token_count = range.comparable.end.checked_sub(range.comparable.start)?;
+            resolved = resolved.checked_add(token_count)?;
+            if !output_budget.charge(estimated_change_bytes()?) {
+                return None;
+            }
+            let span = TextSpan {
+                blocks: try_single_block(range.block)?,
+                separator: None,
+                canonical_range: range.canonical,
+                comparable_range: range.comparable,
+            };
+            let (old_span, new_span) = match kind {
+                ChangeKind::Deletion => (Some(span), None),
+                ChangeKind::Insertion => (None, Some(span)),
+                ChangeKind::Replacement | ChangeKind::Move => return None,
+            };
+            changes.push(Change {
+                kind,
+                old_span,
+                new_span,
+                confidence: Confidence::High,
+                tags: Vec::new(),
+            });
+        }
+    }
+    Some(resolved)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_unresolved_remainders(
+    side: &Side<'_>,
+    blocks: &[BlockId],
+    separator: Option<BlockSeparator>,
+    recovered: &[sentence::LocalSentenceRange],
+    remainder_side: RemainderSide,
+    evidence: &[AlignmentEvidence],
+    unresolved_regions: &mut Vec<UnresolvedRegion>,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<()> {
+    let mut full_run_start = 0usize;
+    for (block_position, block) in blocks.iter().copied().enumerate() {
+        let ranges = sentence::ranges_for_block(recovered, block);
+        if ranges.is_empty() {
+            continue;
+        }
+        prepare_unresolved_block_run(
+            side,
+            &blocks[full_run_start..block_position],
+            separator,
+            remainder_side,
+            evidence,
+            unresolved_regions,
+            output_budget,
+        )?;
+        let block_index = *side.index.get(&block)?;
+        let token_end = side.canonical.get(block_index)?.len();
+        let scalar_end = side.blocks.get(block_index)?.canonical.text.chars().count();
+        let mut token_cursor = 0usize;
+        let mut scalar_cursor = 0usize;
+        for range in ranges {
+            prepare_unresolved_remainder(
+                block,
+                token_cursor,
+                range.comparable.start,
+                scalar_cursor,
+                range.canonical.start,
+                remainder_side,
+                evidence,
+                unresolved_regions,
+                output_budget,
+            )?;
+            token_cursor = range.comparable.end;
+            scalar_cursor = range.canonical.end;
+        }
+        prepare_unresolved_remainder(
+            block,
+            token_cursor,
+            token_end,
+            scalar_cursor,
+            scalar_end,
+            remainder_side,
+            evidence,
+            unresolved_regions,
+            output_budget,
+        )?;
+        full_run_start = block_position.checked_add(1)?;
+    }
+    prepare_unresolved_block_run(
+        side,
+        &blocks[full_run_start..],
+        separator,
+        remainder_side,
+        evidence,
+        unresolved_regions,
+        output_budget,
+    )?;
+    Some(())
+}
+
+#[derive(Clone, Copy)]
+enum RemainderSide {
+    Old,
+    New,
+}
+
+fn prepare_unresolved_block_run(
+    side: &Side<'_>,
+    blocks: &[BlockId],
+    separator: Option<BlockSeparator>,
+    remainder_side: RemainderSide,
+    evidence: &[AlignmentEvidence],
+    unresolved_regions: &mut Vec<UnresolvedRegion>,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<()> {
+    if blocks.is_empty() || checked_source_token_count(side, blocks)? == 0 {
+        return Some(());
+    }
+    if !output_budget.charge(estimated_unresolved_bytes(blocks.len(), evidence.len())?) {
+        return None;
+    }
+    let span = try_group_full_span(side, blocks, separator)?;
+    let (old_span, new_span) = match remainder_side {
+        RemainderSide::Old => (Some(span), None),
+        RemainderSide::New => (None, Some(span)),
+    };
+    unresolved_regions.push(UnresolvedRegion {
+        old_span,
+        new_span,
+        evidence: try_copy_slice(evidence)?,
+    });
+    Some(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_unresolved_remainder(
+    block: BlockId,
+    token_start: usize,
+    token_end: usize,
+    scalar_start: usize,
+    scalar_end: usize,
+    remainder_side: RemainderSide,
+    evidence: &[AlignmentEvidence],
+    unresolved_regions: &mut Vec<UnresolvedRegion>,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<()> {
+    if token_start == token_end {
+        return Some(());
+    }
+    if token_start > token_end || scalar_start > scalar_end {
+        return None;
+    }
+    if !output_budget.charge(estimated_unresolved_bytes(1, evidence.len())?) {
+        return None;
+    }
+    let span = TextSpan {
+        blocks: try_single_block(block)?,
+        separator: None,
+        canonical_range: ScalarRange {
+            start: scalar_start,
+            end: scalar_end,
+        },
+        comparable_range: TokenRange {
+            start: token_start,
+            end: token_end,
+        },
+    };
+    let (old_span, new_span) = match remainder_side {
+        RemainderSide::Old => (Some(span), None),
+        RemainderSide::New => (None, Some(span)),
+    };
+    unresolved_regions.push(UnresolvedRegion {
+        old_span,
+        new_span,
+        evidence: try_copy_slice(evidence)?,
+    });
+    Some(())
+}
+
+fn checked_source_token_count(side: &Side<'_>, blocks: &[BlockId]) -> Option<usize> {
+    blocks.iter().try_fold(0usize, |count, block| {
+        let block_index = *side.index.get(block)?;
+        count.checked_add(side.canonical.get(block_index)?.len())
+    })
+}
+
+fn try_group_full_span(
+    side: &Side<'_>,
+    blocks: &[BlockId],
+    separator: Option<BlockSeparator>,
+) -> Option<TextSpan> {
+    let separator = effective_group_separator(blocks.len(), separator);
+    let mut token_count = 0usize;
+    let mut scalar_count = 0usize;
+    let mut last_is_space = None;
+    for (position, block) in blocks.iter().enumerate() {
+        let block_index = *side.index.get(block)?;
+        let next = side.canonical.get(block_index)?;
+        if position > 0
+            && separator == Some(BlockSeparator::Space)
+            && last_is_space != Some(true)
+            && !next.first().is_some_and(is_space_token)
+        {
+            token_count = token_count.checked_add(1)?;
+            scalar_count = scalar_count.checked_add(1)?;
+            last_is_space = Some(true);
+        }
+        token_count = token_count.checked_add(next.len())?;
+        scalar_count = scalar_count.checked_add(
+            next.iter()
+                .filter(|token| matches!(token, ComparableToken::Scalar(_)))
+                .count(),
+        )?;
+        if let Some(last) = next.last() {
+            last_is_space = Some(is_space_token(last));
+        }
+    }
+
+    Some(TextSpan {
+        blocks: try_copy_slice(blocks)?,
+        separator,
+        canonical_range: ScalarRange {
+            start: 0,
+            end: scalar_count,
+        },
+        comparable_range: TokenRange {
+            start: 0,
+            end: token_count,
+        },
+    })
+}
+
+fn is_space_token(token: &ComparableToken) -> bool {
+    matches!(token, ComparableToken::Scalar(scalar) if scalar.is_whitespace())
+}
+
+fn try_single_block(block: BlockId) -> Option<Vec<BlockId>> {
+    let mut blocks = Vec::new();
+    blocks.try_reserve_exact(1).ok()?;
+    blocks.push(block);
+    Some(blocks)
+}
+
+fn try_copy_slice<T: Copy>(source: &[T]) -> Option<Vec<T>> {
+    let mut copied = Vec::new();
+    copied.try_reserve_exact(source.len()).ok()?;
+    copied.extend_from_slice(source);
+    Some(copied)
+}
+
+fn estimated_change_bytes() -> Option<usize> {
+    std::mem::size_of::<Change>()
+        .checked_add(std::mem::size_of::<BlockId>())?
+        .checked_mul(2)
+}
+
+fn estimated_unresolved_bytes(block_count: usize, evidence_count: usize) -> Option<usize> {
+    std::mem::size_of::<UnresolvedRegion>()
+        .checked_add(block_count.checked_mul(std::mem::size_of::<BlockId>())?)?
+        .checked_add(evidence_count.checked_mul(std::mem::size_of::<AlignmentEvidence>())?)?
+        .checked_mul(2)
 }
 
 #[derive(Clone, Copy)]
@@ -1183,6 +1738,14 @@ impl GroupText {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        alignment::Alignment,
+        layout::TrustedRunId,
+        model::FontProgramHash,
+        normalize::{
+            MappedText, NormalizationIssue, NormalizationIssueKind, TextSource, UnmappedToken,
+        },
+    };
 
     fn options(ratio: f64) -> DiffOptions {
         DiffOptions {
@@ -1286,6 +1849,1149 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    #[test]
+    fn recovers_exact_deletion_and_insertion_with_partitioned_remainders() {
+        let short = "Retain.";
+        let long = "Retain. Removed sentence.";
+        let sentence_start = "Retain. ".chars().count();
+        let sentence_end = long.chars().count();
+        let recovered_tokens = sentence_end - sentence_start;
+        let evidence = vec![AlignmentEvidence::ReadingOrderUnknown];
+
+        let old = vec![sentence_block(1, long)];
+        let new = vec![sentence_block(2, short)];
+        let deletion = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2))],
+            5,
+            evidence.clone(),
+        );
+        assert_eq!(
+            deletion.changes,
+            vec![Change {
+                kind: ChangeKind::Deletion,
+                old_span: Some(test_span(1, sentence_start, sentence_end)),
+                new_span: None,
+                confidence: Confidence::High,
+                tags: Vec::new(),
+            }]
+        );
+        assert_eq!(
+            deletion.unresolved_regions,
+            vec![
+                UnresolvedRegion {
+                    old_span: Some(test_span(1, 0, sentence_start)),
+                    new_span: None,
+                    evidence: evidence.clone(),
+                },
+                UnresolvedRegion {
+                    old_span: None,
+                    new_span: Some(test_span(2, 0, short.chars().count())),
+                    evidence: evidence.clone(),
+                },
+            ]
+        );
+        assert_eq!(deletion.old_coverage.resolved_tokens, recovered_tokens);
+        assert_eq!(deletion.new_coverage.resolved_tokens, 0);
+
+        let old = vec![sentence_block(3, short)];
+        let new = vec![sentence_block(4, long)];
+        let insertion = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(3))],
+            &[Some(TrustedRunId(4))],
+            5,
+            evidence.clone(),
+        );
+        assert_eq!(
+            insertion.changes,
+            vec![Change {
+                kind: ChangeKind::Insertion,
+                old_span: None,
+                new_span: Some(test_span(4, sentence_start, sentence_end)),
+                confidence: Confidence::High,
+                tags: Vec::new(),
+            }]
+        );
+        assert_eq!(
+            insertion.unresolved_regions,
+            vec![
+                UnresolvedRegion {
+                    old_span: Some(test_span(3, 0, short.chars().count())),
+                    new_span: None,
+                    evidence: evidence.clone(),
+                },
+                UnresolvedRegion {
+                    old_span: None,
+                    new_span: Some(test_span(4, 0, sentence_start)),
+                    evidence,
+                },
+            ]
+        );
+        assert_eq!(insertion.old_coverage.resolved_tokens, 0);
+        assert_eq!(insertion.new_coverage.resolved_tokens, recovered_tokens);
+    }
+
+    #[test]
+    fn coalesces_thousands_of_full_block_remainders_into_maximal_runs() {
+        const RUN_LENGTH: usize = 1_000;
+
+        let recovered_text = "Recovered sentence.";
+        let recovered_block = BlockId(RUN_LENGTH as u64 + 1);
+        let mut old = Vec::with_capacity(RUN_LENGTH * 2 + 1);
+        for index in 0..RUN_LENGTH {
+            old.push(sentence_block(index as u64 + 1, "x"));
+        }
+        old.push(sentence_block(recovered_block.0, recovered_text));
+        for index in 0..RUN_LENGTH {
+            old.push(sentence_block(recovered_block.0 + index as u64 + 1, "x"));
+        }
+        let mut trusted_run_ids = vec![None; old.len()];
+        trusted_run_ids[RUN_LENGTH] = Some(TrustedRunId(1));
+        let evidence = vec![AlignmentEvidence::ReadingOrderUnknown];
+
+        let result =
+            compare_sentence_recovery(&old, &[], &trusted_run_ids, &[], 1, evidence.clone());
+
+        let before_region_count = RUN_LENGTH * 2;
+        let after_region_count = result.unresolved_regions.len();
+        assert_eq!((before_region_count, after_region_count), (2_000, 2));
+        let first = result.unresolved_regions[0]
+            .old_span
+            .as_ref()
+            .expect("first run is an old-side remainder");
+        let second = result.unresolved_regions[1]
+            .old_span
+            .as_ref()
+            .expect("second run is an old-side remainder");
+        assert_eq!(first.blocks.len(), RUN_LENGTH);
+        assert_eq!(first.blocks.first(), Some(&BlockId(1)));
+        assert_eq!(first.blocks.last(), Some(&BlockId(RUN_LENGTH as u64)));
+        assert_eq!(second.blocks.len(), RUN_LENGTH);
+        assert_eq!(second.blocks.first(), Some(&BlockId(recovered_block.0 + 1)));
+        assert_eq!(
+            second.blocks.last(),
+            Some(&BlockId(recovered_block.0 + RUN_LENGTH as u64))
+        );
+        assert_eq!(first.separator, Some(BlockSeparator::Concatenate));
+        assert_eq!(second.separator, Some(BlockSeparator::Concatenate));
+        assert!(
+            result
+                .unresolved_regions
+                .iter()
+                .all(|region| region.new_span.is_none() && region.evidence == evidence)
+        );
+        assert_eq!(
+            result.changes,
+            vec![Change {
+                kind: ChangeKind::Deletion,
+                old_span: Some(test_span(
+                    recovered_block.0,
+                    0,
+                    recovered_text.chars().count(),
+                )),
+                new_span: None,
+                confidence: Confidence::High,
+                tags: Vec::new(),
+            }]
+        );
+        assert_eq!(
+            result.old_coverage.resolved_tokens,
+            recovered_text.chars().count()
+        );
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
+    }
+
+    #[test]
+    fn full_block_runs_stop_at_partial_recovery_and_keep_exact_local_gaps_and_separator() {
+        let partial = "aa111bb222cc";
+        let first_recovered = TokenRange { start: 2, end: 5 };
+        let second_recovered = TokenRange { start: 7, end: 10 };
+        let evidence = vec![AlignmentEvidence::ReadingOrderUnknown];
+        let old = vec![
+            sentence_block(1, "before-one"),
+            sentence_block(2, "before-two"),
+            sentence_block(3, partial),
+            sentence_block(4, "after-one"),
+            sentence_block(5, "after-two"),
+        ];
+        let new = vec![sentence_block(6, "Keep. Tail.")];
+        let mut alignment = unresolved_alignment(&old, &new, evidence.clone());
+        alignment.spans[0].old_separator = Some(BlockSeparator::Space);
+        let (old_side, new_side) = inspect_sides_with_budget(&old, &new, DiffOptions::default())
+            .expect("fixture sides are valid");
+        let old_side = old_side.materialize().expect("old side materializes");
+        let new_side = new_side.materialize().expect("new side materializes");
+        let recovery = sentence::SentenceRecoveryPlan {
+            deletions: vec![
+                sentence::LocalSentenceRange {
+                    block: BlockId(3),
+                    canonical: ScalarRange {
+                        start: first_recovered.start,
+                        end: first_recovered.end,
+                    },
+                    comparable: first_recovered,
+                },
+                sentence::LocalSentenceRange {
+                    block: BlockId(3),
+                    canonical: ScalarRange {
+                        start: second_recovered.start,
+                        end: second_recovered.end,
+                    },
+                    comparable: second_recovered,
+                },
+            ],
+            ..sentence::SentenceRecoveryPlan::default()
+        };
+        let mut changes = Vec::new();
+        let mut unresolved_regions = Vec::new();
+        let mut resolved_old = 0;
+        let mut resolved_new = 0;
+        let mut output_budget = RecoveryOutputBudget::default();
+        assert!(append_sentence_recovery(
+            &old_side,
+            &new_side,
+            &alignment.spans[0],
+            &recovery,
+            &mut changes,
+            &mut unresolved_regions,
+            &mut resolved_old,
+            &mut resolved_new,
+            &mut output_budget,
+        ));
+
+        assert_eq!(
+            changes,
+            vec![
+                Change {
+                    kind: ChangeKind::Deletion,
+                    old_span: Some(test_span(3, first_recovered.start, first_recovered.end,)),
+                    new_span: None,
+                    confidence: Confidence::High,
+                    tags: Vec::new(),
+                },
+                Change {
+                    kind: ChangeKind::Deletion,
+                    old_span: Some(test_span(3, second_recovered.start, second_recovered.end,)),
+                    new_span: None,
+                    confidence: Confidence::High,
+                    tags: Vec::new(),
+                },
+            ]
+        );
+        assert_eq!(
+            coverage(resolved_old, old_side.total_tokens).resolved_tokens,
+            first_recovered.end - first_recovered.start + second_recovered.end
+                - second_recovered.start
+        );
+        assert_eq!(
+            coverage(resolved_new, new_side.total_tokens).resolved_tokens,
+            0
+        );
+        assert_eq!(
+            unresolved_regions,
+            vec![
+                UnresolvedRegion {
+                    old_span: Some(TextSpan {
+                        blocks: vec![BlockId(1), BlockId(2)],
+                        separator: Some(BlockSeparator::Space),
+                        canonical_range: ScalarRange { start: 0, end: 21 },
+                        comparable_range: TokenRange { start: 0, end: 21 },
+                    }),
+                    new_span: None,
+                    evidence: evidence.clone(),
+                },
+                UnresolvedRegion {
+                    old_span: Some(test_span(3, 0, first_recovered.start)),
+                    new_span: None,
+                    evidence: evidence.clone(),
+                },
+                UnresolvedRegion {
+                    old_span: Some(test_span(3, first_recovered.end, second_recovered.start)),
+                    new_span: None,
+                    evidence: evidence.clone(),
+                },
+                UnresolvedRegion {
+                    old_span: Some(test_span(3, second_recovered.end, partial.chars().count(),)),
+                    new_span: None,
+                    evidence: evidence.clone(),
+                },
+                UnresolvedRegion {
+                    old_span: Some(TextSpan {
+                        blocks: vec![BlockId(4), BlockId(5)],
+                        separator: Some(BlockSeparator::Space),
+                        canonical_range: ScalarRange { start: 0, end: 19 },
+                        comparable_range: TokenRange { start: 0, end: 19 },
+                    }),
+                    new_span: None,
+                    evidence: evidence.clone(),
+                },
+                UnresolvedRegion {
+                    old_span: None,
+                    new_span: Some(test_span(6, 0, "Keep. Tail.".chars().count())),
+                    evidence,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn repeated_and_one_to_one_sentences_are_not_recovered() {
+        let repeated = vec![sentence_block(1, "Repeat sentence. Repeat sentence.")];
+        let repeated_result = compare_sentence_recovery(
+            &repeated,
+            &[],
+            &[Some(TrustedRunId(1))],
+            &[],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+        assert!(repeated_result.changes.is_empty());
+
+        let old = vec![sentence_block(2, "Same sentence.")];
+        let new = vec![sentence_block(3, "Same sentence.")];
+        let one_to_one = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(2))],
+            &[Some(TrustedRunId(3))],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+        assert!(one_to_one.changes.is_empty());
+    }
+
+    #[test]
+    fn modified_sentences_stay_unresolved_symmetrically() {
+        let before = vec![sentence_block(
+            10,
+            "The reviewed clause keeps every value except alpha.",
+        )];
+        let after = vec![sentence_block(
+            11,
+            "The reviewed clause keeps every value except beta.",
+        )];
+
+        for (old, new) in [(&before, &after), (&after, &before)] {
+            let alignment =
+                unresolved_alignment(old, new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+            assert_recovery_keeps_original_unresolved(
+                old,
+                new,
+                &alignment,
+                5,
+                DiffOptions::default(),
+            );
+        }
+    }
+
+    #[test]
+    fn veto_only_near_occurrences_cover_untrusted_issue_and_unmapped_blocks() {
+        let clean_text = "Alpha value remains stable throughout this reviewed clause.";
+        let near_text = "Beta value remains stable throughout this reviewed clause.";
+        let clean = vec![sentence_block(12, clean_text)];
+        let mut issue = sentence_block(13, near_text);
+        issue.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource { atoms: Vec::new() },
+        });
+
+        for (opposite, opposite_run) in [
+            (vec![sentence_block(14, near_text)], vec![None]),
+            (vec![issue], vec![Some(TrustedRunId(2))]),
+            (
+                vec![sentence_block_with_unmapped(15, near_text)],
+                vec![Some(TrustedRunId(3))],
+            ),
+        ] {
+            assert_recovery_with_run_ids_keeps_original_unresolved(
+                &clean,
+                &opposite,
+                &[Some(TrustedRunId(1))],
+                &opposite_run,
+                5,
+            );
+            assert_recovery_with_run_ids_keeps_original_unresolved(
+                &opposite,
+                &clean,
+                &opposite_run,
+                &[Some(TrustedRunId(1))],
+                5,
+            );
+        }
+    }
+
+    #[test]
+    fn cross_block_veto_only_occurrence_suppresses_near_change_symmetrically() {
+        let clean = vec![sentence_block(
+            16,
+            "Alpha value remains stable throughout this reviewed clause.",
+        )];
+        let split = vec![
+            sentence_block(17, "Beta value remains stable"),
+            sentence_block(18, "throughout this reviewed clause."),
+        ];
+        let clean_run = [Some(TrustedRunId(1))];
+        let split_run = [Some(TrustedRunId(2)), Some(TrustedRunId(2))];
+
+        assert_recovery_with_run_ids_keeps_original_unresolved(
+            &clean, &split, &clean_run, &split_run, 5,
+        );
+        assert_recovery_with_run_ids_keeps_original_unresolved(
+            &split, &clean, &split_run, &clean_run, 5,
+        );
+    }
+
+    #[test]
+    fn occurrence_crossing_alignment_spans_fails_closed_symmetrically() {
+        let clean = vec![sentence_block(
+            19,
+            "Alpha value remains stable throughout this reviewed clause.",
+        )];
+        let split = vec![
+            sentence_block(20, "Beta value remains stable"),
+            sentence_block(21, "throughout this reviewed clause."),
+        ];
+        let forward = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(19)], vec![BlockId(20)]),
+                reading_order_unknown_span(Vec::new(), vec![BlockId(21)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        assert_recovery_keeps_original_unresolved(
+            &clean,
+            &split,
+            &forward,
+            5,
+            DiffOptions::default(),
+        );
+
+        let reverse = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(20)], vec![BlockId(19)]),
+                reading_order_unknown_span(vec![BlockId(21)], Vec::new()),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        assert_recovery_keeps_original_unresolved(
+            &split,
+            &clean,
+            &reverse,
+            5,
+            DiffOptions::default(),
+        );
+    }
+
+    #[test]
+    fn one_to_many_modified_sentences_veto_every_incident_candidate() {
+        let one = vec![sentence_block(
+            20,
+            "The reviewed clause keeps every value except alpha.",
+        )];
+        let many = vec![sentence_block(
+            21,
+            concat!(
+                "The reviewed clause keeps every value except beta. ",
+                "The reviewed clause keeps every value except gamma."
+            ),
+        )];
+
+        for (old, new) in [(&one, &many), (&many, &one)] {
+            let alignment =
+                unresolved_alignment(old, new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+            assert_recovery_keeps_original_unresolved(
+                old,
+                new,
+                &alignment,
+                5,
+                DiffOptions::default(),
+            );
+        }
+    }
+
+    #[test]
+    fn modified_sentence_veto_does_not_cross_unresolved_spans() {
+        let old = vec![sentence_block(
+            30,
+            "The reviewed clause keeps every value except alpha.",
+        )];
+        let new = vec![sentence_block(
+            31,
+            "The reviewed clause keeps every value except beta.",
+        )];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(30)], Vec::new()),
+                reading_order_unknown_span(Vec::new(), vec![BlockId(31)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let result = compare_sentence_recovery_with_intervals(
+            &old,
+            &new,
+            &alignment,
+            &trusted_run_intervals(&[Some(TrustedRunId(1))]),
+            &trusted_run_intervals(&[Some(TrustedRunId(2))]),
+            5,
+            DiffOptions::default(),
+        );
+
+        assert_eq!(result.changes.len(), 2);
+        assert!(
+            result
+                .changes
+                .iter()
+                .any(|change| change.kind == ChangeKind::Deletion)
+        );
+        assert!(
+            result
+                .changes
+                .iter()
+                .any(|change| change.kind == ChangeKind::Insertion)
+        );
+        assert!(
+            result
+                .changes
+                .iter()
+                .all(|change| change.kind != ChangeKind::Replacement)
+        );
+    }
+
+    #[test]
+    fn cross_span_near_occurrence_vetoes_only_incident_candidate_symmetrically() {
+        for reverse in [false, true] {
+            let result = compare_cross_span_occurrence(
+                "The reviewed clause keeps every value",
+                "except beta. Trailing",
+                reverse,
+            );
+
+            assert_recovered_clean_blocks(&result, reverse, &[BlockId(101)]);
+        }
+    }
+
+    #[test]
+    fn cross_span_dissimilar_occurrence_keeps_unrelated_recovery_symmetrically() {
+        for reverse in [false, true] {
+            let result = compare_cross_span_occurrence(
+                "A wholly different statement describes",
+                "unrelated archival material. Trailing",
+                reverse,
+            );
+
+            assert_recovered_clean_blocks(&result, reverse, &[BlockId(100), BlockId(101)]);
+        }
+    }
+
+    #[test]
+    fn cross_span_exact_occurrence_participates_in_global_counts_symmetrically() {
+        for reverse in [false, true] {
+            let result = compare_cross_span_occurrence(
+                "The reviewed clause keeps every value",
+                "except alpha. Trailing",
+                reverse,
+            );
+
+            assert_recovered_clean_blocks(&result, reverse, &[BlockId(101)]);
+        }
+    }
+
+    #[test]
+    fn unrelated_unique_sentences_remain_exact_deletion_and_insertion() {
+        let old = vec![sentence_block(
+            40,
+            "Completely obsolete language appears here.",
+        )];
+        let new = vec![sentence_block(
+            41,
+            "A fresh and unrelated statement replaces it.",
+        )];
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2))],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), 2);
+        assert_eq!(result.changes[0].kind, ChangeKind::Deletion);
+        assert_eq!(result.changes[1].kind, ChangeKind::Insertion);
+        assert!(
+            result
+                .changes
+                .iter()
+                .all(|change| change.kind != ChangeKind::Replacement)
+        );
+    }
+
+    #[test]
+    fn recovery_budget_exhaustion_returns_no_partial_plan_in_both_directions() {
+        let before_text = (0..40)
+            .map(|index| format!("A{index:02}."))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let after_text = (0..40)
+            .map(|index| format!("B{index:02}."))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let before = vec![sentence_block(50, &before_text)];
+        let after = vec![sentence_block(51, &after_text)];
+
+        for (old, new) in [(&before, &after), (&after, &before)] {
+            let alignment =
+                unresolved_alignment(old, new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+            assert_recovery_keeps_original_unresolved(
+                old,
+                new,
+                &alignment,
+                1,
+                DiffOptions::default(),
+            );
+        }
+    }
+
+    #[test]
+    fn span_output_failure_emits_only_original_unresolved_in_both_directions() {
+        let old = vec![sentence_block(52, "Unique old sentence.")];
+        let new = vec![sentence_block(53, "Unique new sentence.")];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let (old_side, new_side) = inspect_sides_with_budget(&old, &new, DiffOptions::default())
+            .expect("fixture sides are valid");
+        let old_side = old_side.materialize().expect("old side materializes");
+        let new_side = new_side.materialize().expect("new side materializes");
+
+        for recover_old in [true, false] {
+            let mut recovery = sentence::SentenceRecoveryPlan::default();
+            let (block, end) = if recover_old {
+                (BlockId(52), "Unique old sentence.".chars().count())
+            } else {
+                (BlockId(53), "Unique new sentence.".chars().count())
+            };
+            let range = sentence::LocalSentenceRange {
+                block,
+                canonical: ScalarRange { start: 0, end },
+                comparable: TokenRange { start: 0, end },
+            };
+            if recover_old {
+                recovery.deletions.push(range);
+            } else {
+                recovery.insertions.push(range);
+            }
+
+            let mut changes = Vec::new();
+            let mut unresolved_regions = Vec::new();
+            let mut resolved_old = 7;
+            let mut resolved_new = 11;
+            let mut output_budget = RecoveryOutputBudget::with_limits(RecoveryOutputLimits {
+                max_items: 1,
+                max_bytes: usize::MAX,
+            });
+            apply_sentence_recovery_or_fallback(
+                &old_side,
+                &new_side,
+                &alignment.spans[0],
+                &recovery,
+                &mut changes,
+                &mut unresolved_regions,
+                &mut resolved_old,
+                &mut resolved_new,
+                &mut output_budget,
+            );
+            assert!(changes.is_empty());
+            assert_eq!(
+                unresolved_regions,
+                vec![UnresolvedRegion {
+                    old_span: Some(test_span(52, 0, "Unique old sentence.".chars().count())),
+                    new_span: Some(test_span(53, 0, "Unique new sentence.".chars().count())),
+                    evidence: vec![AlignmentEvidence::ReadingOrderUnknown],
+                }]
+            );
+            assert_eq!((resolved_old, resolved_new), (7, 11));
+            assert_eq!((output_budget.items, output_budget.bytes), (0, 0));
+        }
+    }
+
+    #[test]
+    fn opposite_sentence_split_across_one_trusted_run_vetoes_recovery() {
+        let old = vec![sentence_block(1, "Shared sentence.")];
+        let new = vec![sentence_block(2, "Shared"), sentence_block(3, "sentence.")];
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2)), Some(TrustedRunId(2))],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+        assert!(result.changes.is_empty());
+    }
+
+    #[test]
+    fn different_run_fragments_remain_veto_only_near_evidence() {
+        let old = vec![sentence_block(1, "Shared sentence.")];
+        let new = vec![sentence_block(2, "Shared"), sentence_block(3, "sentence.")];
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2)), Some(TrustedRunId(3))],
+            10,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+        assert!(result.changes.is_empty());
+    }
+
+    #[test]
+    fn sentence_crossing_source_blocks_is_presence_only() {
+        let old = vec![sentence_block(1, "Unique"), sentence_block(2, "sentence.")];
+        let result = compare_sentence_recovery(
+            &old,
+            &[],
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[],
+            1,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+        assert!(result.changes.is_empty());
+        assert_eq!(result.unresolved_regions.len(), 1);
+        assert_eq!(
+            result.unresolved_regions[0]
+                .old_span
+                .as_ref()
+                .map(|span| &span.blocks),
+            Some(&vec![BlockId(1), BlockId(2)])
+        );
+    }
+
+    #[test]
+    fn issue_unmapped_and_untrusted_blocks_veto_but_never_emit() {
+        let clean = vec![sentence_block(1, "Guarded sentence.")];
+        let mut issue = sentence_block(2, "Guarded sentence.");
+        issue.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource { atoms: Vec::new() },
+        });
+        let unmapped = sentence_block_with_unmapped(3, "Guarded sentence.");
+
+        for (opposite, run) in [
+            (vec![issue.clone()], vec![Some(TrustedRunId(2))]),
+            (vec![unmapped.clone()], vec![Some(TrustedRunId(3))]),
+            (vec![sentence_block(4, "Guarded sentence.")], vec![None]),
+        ] {
+            let result = compare_sentence_recovery(
+                &clean,
+                &opposite,
+                &[Some(TrustedRunId(1))],
+                &run,
+                5,
+                vec![AlignmentEvidence::ReadingOrderUnknown],
+            );
+            assert!(result.changes.is_empty());
+        }
+
+        for (source, run) in [
+            (vec![issue], vec![Some(TrustedRunId(2))]),
+            (vec![unmapped], vec![Some(TrustedRunId(3))]),
+            (vec![sentence_block(4, "Guarded sentence.")], vec![None]),
+        ] {
+            let result = compare_sentence_recovery(
+                &source,
+                &[],
+                &run,
+                &[],
+                5,
+                vec![AlignmentEvidence::ReadingOrderUnknown],
+            );
+            assert!(result.changes.is_empty());
+        }
+    }
+
+    #[test]
+    fn minimum_token_and_exact_evidence_gates_are_fail_closed() {
+        let old = vec![sentence_block(1, "Short sentence.")];
+        let run = [Some(TrustedRunId(1))];
+        let too_short = compare_sentence_recovery(
+            &old,
+            &[],
+            &run,
+            &[],
+            "Short sentence.".chars().count() + 1,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+        assert!(too_short.changes.is_empty());
+
+        let extra_evidence = compare_sentence_recovery(
+            &old,
+            &[],
+            &run,
+            &[],
+            1,
+            vec![
+                AlignmentEvidence::ReadingOrderUnknown,
+                AlignmentEvidence::NormalizationIssue,
+            ],
+        );
+        assert!(extra_evidence.changes.is_empty());
+    }
+
+    #[test]
+    fn invalid_sentence_recovery_metadata_is_rejected() {
+        let old = vec![sentence_block(1, "Sentence.")];
+        let alignment =
+            unresolved_alignment(&old, &[], vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let error = compare_aligned_with_sentence_recovery(
+            &old,
+            &[],
+            &alignment,
+            DiffOptions::default(),
+            SentenceRecoveryInput {
+                old_trusted_run_intervals: &[],
+                new_trusted_run_intervals: &[],
+                min_tokens: 1,
+            },
+        )
+        .expect_err("metadata length mismatch must be rejected");
+        assert!(matches!(error, Error::InvalidConfiguration(_)));
+
+        let error = compare_aligned_with_sentence_recovery(
+            &old,
+            &[],
+            &alignment,
+            DiffOptions::default(),
+            SentenceRecoveryInput {
+                old_trusted_run_intervals: &[Some(TrustedRunInterval {
+                    run_id: TrustedRunId(1),
+                    start: 0,
+                    end: 1,
+                })],
+                new_trusted_run_intervals: &[],
+                min_tokens: 0,
+            },
+        )
+        .expect_err("zero sentence threshold must be rejected");
+        assert!(matches!(error, Error::InvalidConfiguration(_)));
+    }
+
+    #[test]
+    fn zero_recovery_is_structurally_identical_to_public_comparison() {
+        let old = vec![sentence_block(1, "Same sentence.")];
+        let new = vec![sentence_block(2, "Same sentence.")];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let public = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+            .expect("public comparison succeeds");
+        let recovered = compare_aligned_with_sentence_recovery(
+            &old,
+            &new,
+            &alignment,
+            DiffOptions::default(),
+            SentenceRecoveryInput {
+                old_trusted_run_intervals: &[Some(TrustedRunInterval {
+                    run_id: TrustedRunId(1),
+                    start: 0,
+                    end: 1,
+                })],
+                new_trusted_run_intervals: &[Some(TrustedRunInterval {
+                    run_id: TrustedRunId(2),
+                    start: 0,
+                    end: 1,
+                })],
+                min_tokens: 1,
+            },
+        )
+        .expect("recovery comparison succeeds");
+        assert_eq!(recovered, public);
+    }
+
+    fn compare_sentence_recovery(
+        old: &[BlockText],
+        new: &[BlockText],
+        old_trusted_run_ids: &[Option<TrustedRunId>],
+        new_trusted_run_ids: &[Option<TrustedRunId>],
+        min_tokens: usize,
+        evidence: Vec<AlignmentEvidence>,
+    ) -> Comparison {
+        let alignment = unresolved_alignment(old, new, evidence);
+        let old_trusted_run_intervals = trusted_run_intervals(old_trusted_run_ids);
+        let new_trusted_run_intervals = trusted_run_intervals(new_trusted_run_ids);
+        compare_sentence_recovery_with_intervals(
+            old,
+            new,
+            &alignment,
+            &old_trusted_run_intervals,
+            &new_trusted_run_intervals,
+            min_tokens,
+            DiffOptions::default(),
+        )
+    }
+
+    fn compare_sentence_recovery_with_intervals(
+        old: &[BlockText],
+        new: &[BlockText],
+        alignment: &Alignment,
+        old_trusted_run_intervals: &[Option<TrustedRunInterval>],
+        new_trusted_run_intervals: &[Option<TrustedRunInterval>],
+        min_tokens: usize,
+        options: DiffOptions,
+    ) -> Comparison {
+        compare_aligned_with_sentence_recovery(
+            old,
+            new,
+            alignment,
+            options,
+            SentenceRecoveryInput {
+                old_trusted_run_intervals,
+                new_trusted_run_intervals,
+                min_tokens,
+            },
+        )
+        .expect("sentence recovery comparison succeeds")
+    }
+
+    fn compare_cross_span_occurrence(
+        cross_span_start: &str,
+        cross_span_end: &str,
+        reverse: bool,
+    ) -> Comparison {
+        let clean = vec![
+            sentence_block(100, "The reviewed clause keeps every value except alpha."),
+            sentence_block(
+                101,
+                "A separate obsolete provision belongs only to this span.",
+            ),
+        ];
+        let cross_span = vec![
+            sentence_block(102, cross_span_start),
+            sentence_block(103, cross_span_end),
+        ];
+        let alignment = Alignment {
+            spans: if reverse {
+                vec![
+                    reading_order_unknown_span(vec![BlockId(102)], vec![BlockId(100)]),
+                    reading_order_unknown_span(vec![BlockId(103)], vec![BlockId(101)]),
+                ]
+            } else {
+                vec![
+                    reading_order_unknown_span(vec![BlockId(100)], vec![BlockId(102)]),
+                    reading_order_unknown_span(vec![BlockId(101)], vec![BlockId(103)]),
+                ]
+            },
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let clean_intervals =
+            trusted_run_intervals(&[Some(TrustedRunId(100)), Some(TrustedRunId(101))]);
+        let cross_span_intervals =
+            trusted_run_intervals(&[Some(TrustedRunId(102)), Some(TrustedRunId(102))]);
+        let (old, new, old_intervals, new_intervals) = if reverse {
+            (
+                cross_span.as_slice(),
+                clean.as_slice(),
+                cross_span_intervals.as_slice(),
+                clean_intervals.as_slice(),
+            )
+        } else {
+            (
+                clean.as_slice(),
+                cross_span.as_slice(),
+                clean_intervals.as_slice(),
+                cross_span_intervals.as_slice(),
+            )
+        };
+
+        compare_sentence_recovery_with_intervals(
+            old,
+            new,
+            &alignment,
+            old_intervals,
+            new_intervals,
+            5,
+            DiffOptions::default(),
+        )
+    }
+
+    fn assert_recovered_clean_blocks(
+        result: &Comparison,
+        reverse: bool,
+        expected_blocks: &[BlockId],
+    ) {
+        let expected_kind = if reverse {
+            ChangeKind::Insertion
+        } else {
+            ChangeKind::Deletion
+        };
+        let recovered_blocks = result
+            .changes
+            .iter()
+            .map(|change| {
+                assert_eq!(change.kind, expected_kind);
+                let (recovered, absent) = if reverse {
+                    (&change.new_span, &change.old_span)
+                } else {
+                    (&change.old_span, &change.new_span)
+                };
+                assert!(absent.is_none());
+                let recovered = recovered
+                    .as_ref()
+                    .expect("sentence recovery emits the expected side");
+                assert_eq!(recovered.blocks.len(), 1);
+                recovered.blocks[0]
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(recovered_blocks, expected_blocks);
+    }
+
+    fn assert_recovery_keeps_original_unresolved(
+        old: &[BlockText],
+        new: &[BlockText],
+        alignment: &Alignment,
+        min_tokens: usize,
+        options: DiffOptions,
+    ) {
+        let public = compare_aligned(old, new, alignment, options)
+            .expect("comparison without recovery succeeds");
+        let old_run_ids = vec![Some(TrustedRunId(101)); old.len()];
+        let new_run_ids = vec![Some(TrustedRunId(102)); new.len()];
+        let recovered = compare_sentence_recovery_with_intervals(
+            old,
+            new,
+            alignment,
+            &trusted_run_intervals(&old_run_ids),
+            &trusted_run_intervals(&new_run_ids),
+            min_tokens,
+            options,
+        );
+        assert_eq!(recovered, public);
+    }
+
+    fn assert_recovery_with_run_ids_keeps_original_unresolved(
+        old: &[BlockText],
+        new: &[BlockText],
+        old_trusted_run_ids: &[Option<TrustedRunId>],
+        new_trusted_run_ids: &[Option<TrustedRunId>],
+        min_tokens: usize,
+    ) {
+        let alignment =
+            unresolved_alignment(old, new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let public = compare_aligned(old, new, &alignment, DiffOptions::default())
+            .expect("comparison without recovery succeeds");
+        let recovered = compare_sentence_recovery(
+            old,
+            new,
+            old_trusted_run_ids,
+            new_trusted_run_ids,
+            min_tokens,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+        assert_eq!(recovered, public);
+    }
+
+    fn trusted_run_intervals(run_ids: &[Option<TrustedRunId>]) -> Vec<Option<TrustedRunInterval>> {
+        let mut next_by_run = std::collections::HashMap::<TrustedRunId, usize>::new();
+        run_ids
+            .iter()
+            .map(|run_id| {
+                run_id.map(|run_id| {
+                    let start = *next_by_run.entry(run_id).or_default();
+                    let end = start.checked_add(1).expect("test interval fits usize");
+                    next_by_run.insert(run_id, end);
+                    TrustedRunInterval { run_id, start, end }
+                })
+            })
+            .collect()
+    }
+
+    fn unresolved_alignment(
+        old: &[BlockText],
+        new: &[BlockText],
+        evidence: Vec<AlignmentEvidence>,
+    ) -> Alignment {
+        Alignment {
+            spans: vec![AlignmentSpan {
+                evidence,
+                ..reading_order_unknown_span(
+                    old.iter().map(|block| block.block).collect(),
+                    new.iter().map(|block| block.block).collect(),
+                )
+            }],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        }
+    }
+
+    fn reading_order_unknown_span(old: Vec<BlockId>, new: Vec<BlockId>) -> AlignmentSpan {
+        AlignmentSpan {
+            kind: AlignmentKind::Unresolved,
+            old,
+            new,
+            score: 0.0,
+            canonical_similarity: 0.0,
+            score_margin: None,
+            confidence: AlignmentConfidence::Low,
+            evidence: vec![AlignmentEvidence::ReadingOrderUnknown],
+            old_separator: None,
+            new_separator: None,
+        }
+    }
+
+    fn sentence_block(id: u64, text: &str) -> BlockText {
+        BlockText {
+            block: BlockId(id),
+            raw: test_mapped(text),
+            canonical: test_mapped(text),
+            matching: text.to_owned(),
+            matching_tokens: text.chars().map(ComparableToken::Scalar).collect(),
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: Vec::new(),
+            pages: Vec::new(),
+            font_size_signatures: None,
+            position_signatures: None,
+            line_breaks: None,
+            page_breaks: None,
+        }
+    }
+
+    fn sentence_block_with_unmapped(id: u64, text: &str) -> BlockText {
+        let mut block = sentence_block(id, text);
+        block.canonical.unmapped.push(UnmappedToken {
+            scalar_index: 0,
+            font_hash: FontProgramHash(vec![1]),
+            glyph_id: 1,
+            source: TextSource { atoms: Vec::new() },
+        });
+        block
+    }
+
+    fn test_mapped(text: &str) -> MappedText {
+        MappedText {
+            text: text.to_owned(),
+            source_map: Vec::new(),
+            unmapped: Vec::new(),
+        }
+    }
+
+    fn test_span(block: u64, start: usize, end: usize) -> TextSpan {
+        TextSpan {
+            blocks: vec![BlockId(block)],
+            separator: None,
+            canonical_range: ScalarRange { start, end },
+            comparable_range: TokenRange { start, end },
         }
     }
 }

@@ -135,14 +135,13 @@ pub fn partition_regions_with_vector_lines(
 pub(super) struct RegionPartition {
     pub graph: RegionGraph,
     pub uncertain_line_ids: Vec<LineId>,
-    #[allow(dead_code, reason = "reserved for downstream recovery")]
     pub trusted_runs: Vec<TrustedLineRun>,
 }
 
-/// A disjoint sequence whose spatial order agrees with render provenance.
+/// A maximal contiguous selected segment within one leaf region.
 ///
-/// Relative order between separate runs is unknown. Omitted uncertain lines
-/// may occur between members of a run.
+/// Relative order between separate runs is unknown. Unsupported or dropped
+/// lines are barriers and never occur between members of one run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct TrustedLineRun {
     pub line_ids: Vec<LineId>,
@@ -195,6 +194,7 @@ fn classify_reading_order(
         .iter()
         .flat_map(|region| region.line_ids.iter().copied())
         .collect::<HashSet<_>>();
+    let trusted_runs = trusted_region_segments(regions, &trusted_line_ids);
     let supported_ids = supported_regions
         .iter()
         .map(|region| region.id)
@@ -214,12 +214,6 @@ fn classify_reading_order(
     );
 
     if matches!(supported_order, ReadingOrder::Unknown) {
-        let trusted_runs = supported_regions
-            .into_iter()
-            .map(|region| TrustedLineRun {
-                line_ids: region.line_ids,
-            })
-            .collect();
         return (ReadingOrder::Unknown, sorted_line_ids(lines), trusted_runs);
     }
     let uncertain_line_ids = lines
@@ -229,17 +223,36 @@ fn classify_reading_order(
         .collect::<Vec<_>>();
     if uncertain_line_ids.is_empty() {
         (supported_order, Vec::new(), Vec::new())
-    } else if let ReadingOrder::KnownLines(line_ids) = supported_order {
+    } else if matches!(supported_order, ReadingOrder::KnownLines(_)) {
         // Block reconstruction cannot merge a proven row-major line order
         // with unsupported lines without inventing their relative position.
-        (
-            ReadingOrder::Unknown,
-            sorted_line_ids(lines),
-            vec![TrustedLineRun { line_ids }],
-        )
+        (ReadingOrder::Unknown, sorted_line_ids(lines), trusted_runs)
     } else {
-        (ReadingOrder::Unknown, uncertain_line_ids, Vec::new())
+        (ReadingOrder::Unknown, uncertain_line_ids, trusted_runs)
     }
+}
+
+fn trusted_region_segments(
+    regions: &[Region],
+    selected_line_ids: &HashSet<LineId>,
+) -> Vec<TrustedLineRun> {
+    let mut runs = Vec::new();
+    for region in regions {
+        let mut current = Vec::new();
+        for line_id in &region.line_ids {
+            if selected_line_ids.contains(line_id) {
+                current.push(*line_id);
+            } else if !current.is_empty() {
+                runs.push(TrustedLineRun {
+                    line_ids: std::mem::take(&mut current),
+                });
+            }
+        }
+        if !current.is_empty() {
+            runs.push(TrustedLineRun { line_ids: current });
+        }
+    }
+    runs
 }
 
 fn classify_supported_region_order(
@@ -1018,6 +1031,60 @@ mod tests {
             .expect("region fixture should partition")
     }
 
+    fn leaf_region(id: u64, line_ids: &[u64]) -> Region {
+        Region {
+            id: RegionId(id),
+            page: PageId(0),
+            bbox: Rect {
+                min: Vec2 { x: 0.0, y: 0.0 },
+                max: Vec2 { x: 1.0, y: 1.0 },
+            },
+            line_ids: line_ids.iter().copied().map(LineId).collect(),
+        }
+    }
+
+    #[test]
+    fn selected_lines_form_maximal_region_local_segments() {
+        let regions = [leaf_region(0, &[1, 2, 3, 4])];
+        let selected = HashSet::from([LineId(1), LineId(3), LineId(4)]);
+
+        assert_eq!(
+            trusted_region_segments(&regions, &selected),
+            vec![
+                TrustedLineRun {
+                    line_ids: vec![LineId(1)],
+                },
+                TrustedLineRun {
+                    line_ids: vec![LineId(3), LineId(4)],
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn unsupported_middle_lines_split_each_column_independently() {
+        let regions = [leaf_region(0, &[1, 3, 5]), leaf_region(1, &[2, 4, 6])];
+        let selected = HashSet::from([LineId(1), LineId(2), LineId(5), LineId(6)]);
+
+        assert_eq!(
+            trusted_region_segments(&regions, &selected),
+            vec![
+                TrustedLineRun {
+                    line_ids: vec![LineId(1)],
+                },
+                TrustedLineRun {
+                    line_ids: vec![LineId(5)],
+                },
+                TrustedLineRun {
+                    line_ids: vec![LineId(2)],
+                },
+                TrustedLineRun {
+                    line_ids: vec![LineId(6)],
+                },
+            ]
+        );
+    }
+
     #[test]
     fn ambiguous_regions_preserve_disjoint_internal_line_runs() {
         let lines = vec![
@@ -1056,7 +1123,7 @@ mod tests {
     }
 
     #[test]
-    fn known_line_order_with_unsupported_lines_preserves_one_trusted_run() {
+    fn partial_known_lines_preserve_region_local_runs() {
         let mut lines = vec![
             line(1, 50.0, 700.0, 150.0, 712.0),
             line(2, 250.0, 700.0, 350.0, 712.0),
@@ -1079,9 +1146,42 @@ mod tests {
         );
         assert_eq!(
             partition.trusted_runs,
-            vec![TrustedLineRun {
-                line_ids: (1..=6).map(LineId).collect(),
-            }]
+            vec![
+                TrustedLineRun {
+                    line_ids: vec![LineId(1), LineId(3), LineId(5)],
+                },
+                TrustedLineRun {
+                    line_ids: vec![LineId(2), LineId(4), LineId(6)],
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn lmis_dropped_middle_line_splits_partial_known_run() {
+        let mut lines = vec![
+            line(1, 50.0, 700.0, 150.0, 712.0),
+            line(2, 50.0, 680.0, 150.0, 692.0),
+            line(3, 50.0, 660.0, 150.0, 672.0),
+        ];
+        lines[0].render_order = 1..=1;
+        lines[1].render_order = 10..=10;
+        lines[2].render_order = 3..=3;
+
+        let partition = partition(&lines);
+
+        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+        assert_eq!(partition.uncertain_line_ids, vec![LineId(2)]);
+        assert_eq!(
+            partition.trusted_runs,
+            vec![
+                TrustedLineRun {
+                    line_ids: vec![LineId(1)],
+                },
+                TrustedLineRun {
+                    line_ids: vec![LineId(3)],
+                },
+            ]
         );
     }
 

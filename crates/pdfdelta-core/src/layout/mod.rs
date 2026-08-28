@@ -4,7 +4,10 @@ mod line;
 mod region;
 
 pub use block::{Block, BlockId, BlockOptions, BlockRole, reconstruct_blocks};
-pub(crate) use block::{LayoutIssue, reconstruct_blocks_with_issues, validate_block_options};
+pub(crate) use block::{
+    LayoutIssue, TrustedRunId, TrustedRunInterval, reconstruct_blocks_with_issues,
+    validate_block_options,
+};
 pub(crate) use line::validate_line_options;
 pub use line::{Line, LineId, LineOptions, LineTextDirection, SyntheticSpace, reconstruct_lines};
 pub use region::{

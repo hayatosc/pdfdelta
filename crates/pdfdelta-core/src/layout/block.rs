@@ -41,12 +41,19 @@ pub struct Block {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct TrustedRunId(pub u64);
 
+/// Identifies a contiguous half-open ordinal interval within one trusted line run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TrustedRunInterval {
+    pub(crate) run_id: TrustedRunId,
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+}
+
 pub(crate) struct BlockReconstruction {
     pub blocks: Vec<Block>,
     pub issues: Vec<LayoutIssue>,
-    /// Parallel to `blocks`; mixed or partially untrusted blocks have no run.
-    #[allow(dead_code, reason = "reserved for downstream alignment")]
-    pub trusted_run_ids: Vec<Option<TrustedRunId>>,
+    /// Parallel to `blocks`; mixed, discontinuous, or untrusted blocks have no interval.
+    pub trusted_run_intervals: Vec<Option<TrustedRunInterval>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -217,7 +224,7 @@ pub(crate) fn reconstruct_blocks_with_issues(
 
     let mut ordered_stats = Vec::with_capacity(lines.len());
     let mut partial_uncertain_line_ids = HashSet::new();
-    let mut trusted_runs_by_line_id = HashMap::new();
+    let mut trusted_run_positions_by_line_id = HashMap::new();
     let mut next_trusted_run_id = 0;
     let mut issues = Vec::new();
     for (page_num, page_lines) in page_lines_map {
@@ -233,8 +240,8 @@ pub(crate) fn reconstruct_blocks_with_issues(
             &page_vector_lines,
             super::region::RegionOptions::default(),
         )?;
-        assign_trusted_run_ids(
-            &mut trusted_runs_by_line_id,
+        assign_trusted_run_positions(
+            &mut trusted_run_positions_by_line_id,
             &partition.trusted_runs,
             &mut next_trusted_run_id,
         )?;
@@ -331,16 +338,17 @@ pub(crate) fn reconstruct_blocks_with_issues(
             role: block.role,
         })
         .collect::<Vec<_>>();
-    let trusted_run_ids = block_trusted_run_ids(&blocks, &trusted_runs_by_line_id);
+    let trusted_run_intervals =
+        block_trusted_run_intervals(&blocks, &trusted_run_positions_by_line_id);
     Ok(BlockReconstruction {
         blocks,
         issues,
-        trusted_run_ids,
+        trusted_run_intervals,
     })
 }
 
-fn assign_trusted_run_ids(
-    runs_by_line_id: &mut HashMap<LineId, TrustedRunId>,
+fn assign_trusted_run_positions(
+    run_positions_by_line_id: &mut HashMap<LineId, (TrustedRunId, usize)>,
     trusted_runs: &[super::region::TrustedLineRun],
     next_run_id: &mut u64,
 ) -> Result<()> {
@@ -353,7 +361,7 @@ fn assign_trusted_run_ids(
             .ok_or_else(|| Error::Unresolved("trusted line run id space exhausted".to_owned()))?;
         let mut run_line_ids = HashSet::with_capacity(run.line_ids.len());
         for line_id in &run.line_ids {
-            if runs_by_line_id.contains_key(line_id) || !run_line_ids.insert(*line_id) {
+            if run_positions_by_line_id.contains_key(line_id) || !run_line_ids.insert(*line_id) {
                 return Err(Error::Unresolved(format!(
                     "line {} is assigned to multiple trusted runs",
                     line_id.0
@@ -361,25 +369,32 @@ fn assign_trusted_run_ids(
             }
         }
         let run_id = TrustedRunId(*next_run_id);
-        runs_by_line_id.extend(run.line_ids.iter().map(|line_id| (*line_id, run_id)));
+        run_positions_by_line_id.extend(
+            run.line_ids
+                .iter()
+                .enumerate()
+                .map(|(ordinal, line_id)| (*line_id, (run_id, ordinal))),
+        );
         *next_run_id = following_run_id;
     }
     Ok(())
 }
 
-fn block_trusted_run_ids(
+fn block_trusted_run_intervals(
     blocks: &[Block],
-    runs_by_line_id: &HashMap<LineId, TrustedRunId>,
-) -> Vec<Option<TrustedRunId>> {
+    run_positions_by_line_id: &HashMap<LineId, (TrustedRunId, usize)>,
+) -> Vec<Option<TrustedRunInterval>> {
     blocks
         .iter()
         .map(|block| {
-            let run_id = *runs_by_line_id.get(block.lines.first()?)?;
-            block
-                .lines
-                .iter()
-                .all(|line_id| runs_by_line_id.get(line_id) == Some(&run_id))
-                .then_some(run_id)
+            let &(run_id, start) = run_positions_by_line_id.get(block.lines.first()?)?;
+            let contiguous = block.lines.iter().enumerate().all(|(offset, line_id)| {
+                start.checked_add(offset).is_some_and(|ordinal| {
+                    run_positions_by_line_id.get(line_id) == Some(&(run_id, ordinal))
+                })
+            });
+            let end = start.checked_add(block.lines.len())?;
+            contiguous.then_some(TrustedRunInterval { run_id, start, end })
         })
         .collect()
 }
@@ -1228,7 +1243,7 @@ mod tests {
     }
 
     #[test]
-    fn trusted_run_mapping_is_deterministic_and_preserves_final_blocks() {
+    fn trusted_run_intervals_are_deterministic_and_preserve_final_blocks() {
         let trusted_runs = vec![
             TrustedLineRun {
                 line_ids: vec![LineId(1), LineId(2)],
@@ -1241,41 +1256,70 @@ mod tests {
         let original_blocks = blocks.clone();
         let mut first_assignment = HashMap::new();
         let mut first_next_id = 0;
-        assign_trusted_run_ids(&mut first_assignment, &trusted_runs, &mut first_next_id)
+        assign_trusted_run_positions(&mut first_assignment, &trusted_runs, &mut first_next_id)
             .expect("disjoint trusted runs should be assigned");
         let mut second_assignment = HashMap::new();
         let mut second_next_id = 0;
-        assign_trusted_run_ids(&mut second_assignment, &trusted_runs, &mut second_next_id)
+        assign_trusted_run_positions(&mut second_assignment, &trusted_runs, &mut second_next_id)
             .expect("repeated assignment should succeed");
 
-        let first_metadata = block_trusted_run_ids(&blocks, &first_assignment);
-        let second_metadata = block_trusted_run_ids(&blocks, &second_assignment);
+        let first_metadata = block_trusted_run_intervals(&blocks, &first_assignment);
+        let second_metadata = block_trusted_run_intervals(&blocks, &second_assignment);
 
         assert_eq!(
             first_metadata,
-            vec![Some(TrustedRunId(0)), Some(TrustedRunId(1))]
+            vec![
+                Some(TrustedRunInterval {
+                    run_id: TrustedRunId(0),
+                    start: 0,
+                    end: 2,
+                }),
+                Some(TrustedRunInterval {
+                    run_id: TrustedRunId(1),
+                    start: 0,
+                    end: 2,
+                }),
+            ]
         );
+        assert_eq!(second_assignment, first_assignment);
         assert_eq!(second_metadata, first_metadata);
         assert_eq!(blocks, original_blocks);
     }
 
     #[test]
-    fn mixed_and_partially_untrusted_blocks_have_no_trusted_run() {
-        let runs_by_line_id = HashMap::from([
-            (LineId(1), TrustedRunId(0)),
-            (LineId(2), TrustedRunId(0)),
-            (LineId(3), TrustedRunId(1)),
+    fn only_contiguous_increasing_lines_have_a_trusted_run_interval() {
+        let run_positions_by_line_id = HashMap::from([
+            (LineId(1), (TrustedRunId(0), 0)),
+            (LineId(2), (TrustedRunId(0), 1)),
+            (LineId(3), (TrustedRunId(0), 3)),
+            (LineId(4), (TrustedRunId(1), 0)),
+            (LineId(6), (TrustedRunId(0), usize::MAX)),
         ]);
         let blocks = vec![
             block(0, &[1, 2]),
-            block(1, &[2, 3]),
-            block(2, &[1, 4]),
-            block(3, &[4]),
+            block(1, &[1, 3]),
+            block(2, &[2, 1]),
+            block(3, &[1, 4]),
+            block(4, &[1, 5]),
+            block(5, &[6]),
+            block(6, &[]),
         ];
 
         assert_eq!(
-            block_trusted_run_ids(&blocks, &runs_by_line_id),
-            vec![Some(TrustedRunId(0)), None, None, None]
+            block_trusted_run_intervals(&blocks, &run_positions_by_line_id),
+            vec![
+                Some(TrustedRunInterval {
+                    run_id: TrustedRunId(0),
+                    start: 0,
+                    end: 2,
+                }),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ]
         );
     }
 
@@ -1292,8 +1336,9 @@ mod tests {
         let mut runs_by_line_id = HashMap::new();
         let mut next_run_id = 0;
 
-        let error = assign_trusted_run_ids(&mut runs_by_line_id, &trusted_runs, &mut next_run_id)
-            .expect_err("a line cannot belong to two trusted runs");
+        let error =
+            assign_trusted_run_positions(&mut runs_by_line_id, &trusted_runs, &mut next_run_id)
+                .expect_err("a line cannot belong to two trusted runs");
 
         assert!(
             matches!(error, Error::Unresolved(message) if message.contains("assigned to multiple trusted runs"))

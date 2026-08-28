@@ -6,12 +6,13 @@ use crate::{
         validate_alignment_options, validate_ngram_size,
     },
     diff::{
-        Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, compare_aligned,
-        enforce_diff_raw_token_budget, enforce_diff_token_budget, validate_diff_options,
+        Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, SentenceRecoveryInput, compare_aligned,
+        compare_aligned_with_sentence_recovery, enforce_diff_raw_token_budget,
+        enforce_diff_token_budget, validate_diff_options,
     },
     layout::{
-        BlockOptions, LayoutIssue, LineOptions, reconstruct_blocks_with_issues, reconstruct_lines,
-        validate_block_options, validate_line_options,
+        BlockOptions, LayoutIssue, LineOptions, TrustedRunInterval, reconstruct_blocks_with_issues,
+        reconstruct_lines, validate_block_options, validate_line_options,
     },
     model::{Document, Glyph, GlyphCropStatus, GlyphEvidence, GlyphPathClipStatus, TextRenderMode},
     normalize::{BlockText, normalize_blocks},
@@ -425,7 +426,7 @@ fn compare_validated_glyph_documents(
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
 ) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>)> {
-    compare_validated_glyph_documents_with_gaps(old, new, options, diagnostics, &[], &[])
+    compare_validated_glyph_documents_inner(old, new, options, diagnostics, &[], &[], true)
 }
 
 fn compare_validated_glyph_documents_with_gaps(
@@ -436,6 +437,26 @@ fn compare_validated_glyph_documents_with_gaps(
     old_issue_boundaries: &[LocalizedIssueBoundary],
     new_issue_boundaries: &[LocalizedIssueBoundary],
 ) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>)> {
+    compare_validated_glyph_documents_inner(
+        old,
+        new,
+        options,
+        diagnostics,
+        old_issue_boundaries,
+        new_issue_boundaries,
+        false,
+    )
+}
+
+fn compare_validated_glyph_documents_inner(
+    old: &Document<Glyph>,
+    new: &Document<Glyph>,
+    options: PipelineOptions,
+    diagnostics: &mut PipelineDiagnostics,
+    old_issue_boundaries: &[LocalizedIssueBoundary],
+    new_issue_boundaries: &[LocalizedIssueBoundary],
+    enable_sentence_recovery: bool,
+) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>)> {
     let old_document = old;
     let new_document = new;
     record_pre_layout_token_counts(old, new, options.diff, diagnostics)?;
@@ -444,10 +465,12 @@ fn compare_validated_glyph_documents_with_gaps(
     let PreparedDocument {
         blocks: old,
         uncertain_block_indices: old_uncertain_block_indices,
+        trusted_run_intervals: old_trusted_run_intervals,
     } = old_prepared;
     let PreparedDocument {
         blocks: new,
         uncertain_block_indices: new_uncertain_block_indices,
+        trusted_run_intervals: new_trusted_run_intervals,
     } = new_prepared;
     let (old_gap_boundaries, old_extraction_uncertain_block_indices) =
         gap_boundaries(old_document, &old, old_issue_boundaries);
@@ -588,11 +611,26 @@ fn compare_validated_glyph_documents_with_gaps(
             return Err(error);
         }
     };
+    let comparison_result = if enable_sentence_recovery {
+        compare_aligned_with_sentence_recovery(
+            &old,
+            &new,
+            &alignment,
+            options.diff,
+            SentenceRecoveryInput {
+                old_trusted_run_intervals: &old_trusted_run_intervals,
+                new_trusted_run_intervals: &new_trusted_run_intervals,
+                min_tokens: options.alignment.anchor_min_tokens,
+            },
+        )
+    } else {
+        compare_aligned(&old, &new, &alignment, options.diff)
+    };
     let comparison = phase_result(
         diagnostics,
         PipelinePhase::ExactDiff,
         None,
-        compare_aligned(&old, &new, &alignment, options.diff),
+        comparison_result,
     )?;
     diagnostics.completed(
         PipelinePhase::ExactDiff,
@@ -928,6 +966,17 @@ fn prepare(
         reconstruct_blocks_with_issues(&document, &lines, options.block),
     )?;
     let blocks = reconstruction.blocks;
+    let trusted_run_intervals = reconstruction.trusted_run_intervals;
+    if let Err(error) =
+        validate_trusted_run_interval_count(blocks.len(), trusted_run_intervals.len())
+    {
+        return phase_result(
+            diagnostics,
+            PipelinePhase::BlockReconstruction,
+            Some(side),
+            Err(error),
+        );
+    }
     diagnostics.completed(
         PipelinePhase::BlockReconstruction,
         Some(side),
@@ -944,6 +993,21 @@ fn prepare(
         Some(side),
         normalize_blocks(&document, &lines, &blocks),
     )?;
+    if !normalized
+        .iter()
+        .zip(&blocks)
+        .all(|(normalized, block)| normalized.block == block.id)
+        || normalized.len() != blocks.len()
+    {
+        return phase_result(
+            diagnostics,
+            PipelinePhase::Normalization,
+            Some(side),
+            Err(Error::Unresolved(
+                "normalized blocks do not preserve reconstruction order".to_owned(),
+            )),
+        );
+    }
     diagnostics.completed(
         PipelinePhase::Normalization,
         Some(side),
@@ -978,12 +1042,23 @@ fn prepare(
     Ok(PreparedDocument {
         blocks: normalized,
         uncertain_block_indices,
+        trusted_run_intervals,
     })
 }
 
 struct PreparedDocument {
     blocks: Vec<BlockText>,
     uncertain_block_indices: Vec<usize>,
+    trusted_run_intervals: Vec<Option<TrustedRunInterval>>,
+}
+
+fn validate_trusted_run_interval_count(block_count: usize, interval_count: usize) -> Result<()> {
+    if block_count != interval_count {
+        return Err(Error::Unresolved(
+            "block reconstruction metadata length does not match blocks".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 fn is_painting(mode: TextRenderMode) -> bool {
@@ -1002,4 +1077,18 @@ fn is_comparison_visible(glyph: &Glyph) -> bool {
     is_painting(glyph.render_mode)
         && glyph.crop_status != GlyphCropStatus::Outside
         && glyph.path_clip_status != GlyphPathClipStatus::Outside
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trusted_run_interval_metadata_must_match_block_count() {
+        validate_trusted_run_interval_count(2, 2).expect("parallel metadata should be accepted");
+
+        let error = validate_trusted_run_interval_count(2, 1)
+            .expect_err("missing block metadata must be rejected");
+        assert!(matches!(error, Error::Unresolved(message) if message.contains("metadata length")));
+    }
 }

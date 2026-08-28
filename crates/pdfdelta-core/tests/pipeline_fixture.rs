@@ -323,6 +323,155 @@ fn rotated_margin_region_does_not_hide_a_same_page_replacement() -> Result<()> {
 }
 
 #[test]
+fn complete_unknown_order_recovers_unique_closed_sentences() -> Result<()> {
+    let old = document(&[
+        line_at("Left context remains open", 0, 0.0, 300.0),
+        line_at("Right context remains open", 0, 300.0, 300.0),
+        line_at("Left remainder stays open", 0, 0.0, 288.0),
+        line_at("Right remainder stays open", 0, 300.0, 288.0),
+        line_at("The legacy sentence is removed.", 0, 0.0, 276.0),
+        line_at("Right tail remains open", 0, 300.0, 276.0),
+    ]);
+    let new = document(&[
+        line_at("Left context remains open", 0, 0.0, 300.0),
+        line_at("Right context remains open", 0, 300.0, 300.0),
+        line_at("Left remainder stays open", 0, 0.0, 288.0),
+        line_at("Right remainder stays open", 0, 300.0, 288.0),
+        line_at("A fresh sentence is inserted.", 0, 0.0, 276.0),
+        line_at("Right tail remains open", 0, 300.0, 276.0),
+    ]);
+    let options = PipelineOptions {
+        alignment: AlignmentOptions {
+            anchor_min_tokens: 4,
+            ..AlignmentOptions::default()
+        },
+        ..PipelineOptions::default()
+    };
+
+    let comparison = compare_glyph_documents(&old, &new, options)?;
+
+    assert_eq!(comparison.changes.len(), 2, "{comparison:#?}");
+    assert!(
+        comparison
+            .changes
+            .iter()
+            .any(|change| change.kind == ChangeKind::Deletion)
+    );
+    assert!(
+        comparison
+            .changes
+            .iter()
+            .any(|change| change.kind == ChangeKind::Insertion)
+    );
+    assert!(!comparison.unresolved_regions.is_empty());
+    assert!(comparison.unresolved_regions.iter().all(|region| {
+        region.evidence == [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
+    }));
+    Ok(())
+}
+
+#[test]
+fn localized_extraction_gap_disables_sentence_recovery() -> Result<()> {
+    let old_document = document(&[
+        line_at("Left context remains open", 0, 0.0, 300.0),
+        line_at("Right context remains open", 0, 300.0, 300.0),
+        line_at("Left remainder stays open", 0, 0.0, 288.0),
+        line_at("Right remainder stays open", 0, 300.0, 288.0),
+        line_at("The legacy sentence is removed.", 0, 0.0, 276.0),
+        line_at("Right tail remains open", 0, 300.0, 276.0),
+    ]);
+    let retained_before = old_document.items().len() / 2;
+    let old = ExtractionOutcome::new(
+        old_document,
+        vec![ExtractionIssue::new(
+            ExtractionIssueKind::Unresolved,
+            ExtractionScope::GlyphGap { retained_before },
+            "content stream is incomplete",
+        )?],
+    )?;
+    let new = ExtractionOutcome::complete(document(&[
+        line_at("Left context remains open", 0, 0.0, 300.0),
+        line_at("Right context remains open", 0, 300.0, 300.0),
+        line_at("Left remainder stays open", 0, 0.0, 288.0),
+        line_at("Right remainder stays open", 0, 300.0, 288.0),
+        line_at("A fresh sentence is inserted.", 0, 0.0, 276.0),
+        line_at("Right tail remains open", 0, 300.0, 276.0),
+    ]));
+    let options = PipelineOptions {
+        alignment: AlignmentOptions {
+            anchor_min_tokens: 4,
+            ..AlignmentOptions::default()
+        },
+        ..PipelineOptions::default()
+    };
+
+    let outcome = compare_extraction_outcomes(old, new, options)?;
+
+    assert!(outcome.comparison.changes.is_empty());
+    assert!(!outcome.comparison.unresolved_regions.is_empty());
+    assert_eq!(outcome.comparison.old_coverage.ratio, None);
+    Ok(())
+}
+
+#[test]
+fn supported_sentence_recovers_beside_mixed_orientation_text() -> Result<()> {
+    let old = document(&[
+        line("The legacy sentence is removed.", 0, 300.0),
+        vertical_line("Unresolved side label", 0, 400.0, 100.0),
+    ]);
+    let new = document(&[
+        line("A fresh sentence is inserted.", 0, 300.0),
+        vertical_line("Unresolved side label", 0, 400.0, 100.0),
+    ]);
+    let options = PipelineOptions {
+        alignment: AlignmentOptions {
+            anchor_min_tokens: 4,
+            ..AlignmentOptions::default()
+        },
+        ..PipelineOptions::default()
+    };
+
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        options,
+    )?;
+    let mut report = Vec::new();
+    pdfdelta_core::report::write_json(
+        &mut report,
+        &outcome.old_blocks,
+        &outcome.new_blocks,
+        &outcome.old_glyph_evidence,
+        &outcome.new_glyph_evidence,
+        &outcome.comparison,
+        &outcome.extraction,
+    )?;
+    let report: serde_json::Value =
+        serde_json::from_slice(&report).expect("report should be valid JSON");
+    let changes = report["changes"]
+        .as_array()
+        .expect("changes should be an array");
+
+    assert!(changes.iter().any(|change| {
+        change["kind"] == "deletion"
+            && change["old_span"]["text"] == "The legacy sentence is removed."
+    }));
+    assert!(changes.iter().any(|change| {
+        change["kind"] == "insertion"
+            && change["new_span"]["text"] == "A fresh sentence is inserted."
+    }));
+    let unresolved = report["unresolved_regions"]
+        .as_array()
+        .expect("unresolved regions should be an array");
+    assert!(unresolved.iter().any(|region| {
+        region["old_span"]["text"] == "Unresolved side label"
+            || region["new_span"]["text"] == "Unresolved side label"
+    }));
+    assert_eq!(report["summary"]["comparison_complete"], false);
+    Ok(())
+}
+
+#[test]
 fn partial_render_order_uncertainty_isolates_one_line_from_a_safe_replacement() -> Result<()> {
     let old = document(&[
         line("Opening anchor remains stable", 0, 148.0),
