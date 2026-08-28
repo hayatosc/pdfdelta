@@ -9,7 +9,10 @@ use crate::{
     normalize::{ComparableToken, ScalarRange},
 };
 
-use super::{SentenceRecoveryInput, Side, TokenRange};
+use super::{
+    MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, SentenceRecoveryInput,
+    Side, TokenRange,
+};
 
 pub(super) const MAX_SENTENCE_RECOVERY_RANGES: usize = 4_096;
 
@@ -20,20 +23,39 @@ pub(super) struct LocalSentenceRange {
     pub comparable: TokenRange,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct RecoveredSentence {
+    pub span_index: usize,
+    pub blocks: Vec<BlockId>,
+    pub separator: Option<BlockSeparator>,
+    pub canonical: ScalarRange,
+    pub comparable: TokenRange,
+    pub source_tokens: usize,
+}
+
 #[derive(Default)]
 pub(super) struct SentenceRecoveryPlan {
-    pub deletions: Vec<LocalSentenceRange>,
-    pub insertions: Vec<LocalSentenceRange>,
+    pub deletions: Vec<RecoveredSentence>,
+    pub insertions: Vec<RecoveredSentence>,
+    pub deletion_consumed: Vec<LocalSentenceRange>,
+    pub insertion_consumed: Vec<LocalSentenceRange>,
 }
 
 impl SentenceRecoveryPlan {
-    pub fn has_recovery(&self, old: &[BlockId], new: &[BlockId]) -> bool {
-        old.iter()
-            .any(|block| !ranges_for_block(&self.deletions, *block).is_empty())
-            || new
-                .iter()
-                .any(|block| !ranges_for_block(&self.insertions, *block).is_empty())
+    pub fn has_recovery(&self, span_index: usize) -> bool {
+        !recoveries_for_span(&self.deletions, span_index).is_empty()
+            || !recoveries_for_span(&self.insertions, span_index).is_empty()
     }
+}
+
+pub(super) fn recoveries_for_span(
+    recoveries: &[RecoveredSentence],
+    span_index: usize,
+) -> &[RecoveredSentence] {
+    let start = recoveries.partition_point(|recovery| recovery.span_index < span_index);
+    let end =
+        recoveries[start..].partition_point(|recovery| recovery.span_index == span_index) + start;
+    &recoveries[start..end]
 }
 
 pub(super) fn ranges_for_block(
@@ -104,8 +126,13 @@ fn fingerprint_font_program(bytes: &[u8]) -> u64 {
 struct SentenceOccurrence {
     key: String,
     tokens: Vec<SentenceEvidenceToken>,
-    location: Option<LocalSentenceRange>,
+    location: Option<SentenceLocation>,
     span_index: Option<usize>,
+}
+
+struct SentenceLocation {
+    recovery: RecoveredSentence,
+    consumed: Vec<LocalSentenceRange>,
 }
 
 #[derive(Default)]
@@ -117,7 +144,6 @@ struct OccurrenceCount {
 struct RecoveryCandidate {
     occurrence_index: usize,
     span_index: usize,
-    location: LocalSentenceRange,
 }
 
 struct StreamPlan {
@@ -167,6 +193,9 @@ struct SentenceBoundary {
 
 struct RecoveryBudget {
     token_limit: usize,
+    // Joined evidence may own synthetic separators. The caller's token budget
+    // bounds them without counting them as source or recovered output tokens.
+    evidence_token_limit: usize,
     key_byte_limit: usize,
     comparison_limit: usize,
     output_range_limit: usize,
@@ -177,6 +206,8 @@ struct RecoveryBudget {
     evidence_tokens: usize,
     output_ranges: usize,
     output_tokens: usize,
+    location_items: usize,
+    location_bytes: usize,
 }
 
 impl RecoveryBudget {
@@ -193,6 +224,7 @@ impl RecoveryBudget {
         let scaled_limit = token_limit.checked_mul(4)?;
         Some(Self {
             token_limit,
+            evidence_token_limit: max_tokens,
             key_byte_limit: scaled_limit,
             comparison_limit: scaled_limit,
             output_range_limit: (token_limit / min_tokens).min(MAX_SENTENCE_RECOVERY_RANGES),
@@ -203,6 +235,8 @@ impl RecoveryBudget {
             evidence_tokens: 0,
             output_ranges: 0,
             output_tokens: 0,
+            location_items: 0,
+            location_bytes: 0,
         })
     }
 
@@ -223,7 +257,7 @@ impl RecoveryBudget {
     }
 
     fn charge_evidence_tokens(&mut self, amount: usize) -> bool {
-        Self::charge(&mut self.evidence_tokens, amount, self.token_limit)
+        Self::charge(&mut self.evidence_tokens, amount, self.evidence_token_limit)
     }
 
     #[cfg(test)]
@@ -243,6 +277,36 @@ impl RecoveryBudget {
         }
         self.output_ranges = output_ranges;
         self.output_tokens = output_tokens;
+        true
+    }
+
+    fn charge_location_metadata(&mut self, block_count: usize, consumed_count: usize) -> bool {
+        let Some(additional_items) = block_count.checked_add(consumed_count) else {
+            return false;
+        };
+        let Some(additional_bytes) = block_count
+            .checked_mul(std::mem::size_of::<BlockId>())
+            .and_then(|bytes| {
+                consumed_count
+                    .checked_mul(std::mem::size_of::<LocalSentenceRange>())
+                    .and_then(|consumed_bytes| bytes.checked_add(consumed_bytes))
+            })
+            .and_then(|bytes| bytes.checked_mul(2))
+        else {
+            return false;
+        };
+        let Some(items) = self.location_items.checked_add(additional_items) else {
+            return false;
+        };
+        let Some(bytes) = self.location_bytes.checked_add(additional_bytes) else {
+            return false;
+        };
+        if items > MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS || bytes > MAX_SENTENCE_RECOVERY_OUTPUT_BYTES
+        {
+            return false;
+        }
+        self.location_items = items;
+        self.location_bytes = bytes;
         true
     }
 
@@ -280,18 +344,20 @@ pub(super) fn build_sentence_recovery_plan(
         return Ok(None);
     }
 
-    let Some(old_occurrences) = collect_occurrences(
+    let Some(mut old_occurrences) = collect_occurrences(
         old,
         input.old_trusted_run_intervals,
         &membership.old,
+        &membership.recovery_spans,
         &mut budget,
     ) else {
         return Ok(None);
     };
-    let Some(new_occurrences) = collect_occurrences(
+    let Some(mut new_occurrences) = collect_occurrences(
         new,
         input.new_trusted_run_intervals,
         &membership.new,
+        &membership.recovery_spans,
         &mut budget,
     ) else {
         return Ok(None);
@@ -328,22 +394,26 @@ pub(super) fn build_sentence_recovery_plan(
     };
 
     let mut plan = SentenceRecoveryPlan::default();
-    if append_candidate_ranges(
+    if append_candidate_recoveries(
         &mut plan.deletions,
+        &mut plan.deletion_consumed,
+        &mut old_occurrences,
         &old_candidates,
         &old_vetoes,
         &mut budget,
     )
     .is_none()
-        || append_candidate_ranges(
+        || append_candidate_recoveries(
             &mut plan.insertions,
+            &mut plan.insertion_consumed,
+            &mut new_occurrences,
             &new_candidates,
             &new_vetoes,
             &mut budget,
         )
         .is_none()
-        || !normalize_ranges(&mut plan.deletions)
-        || !normalize_ranges(&mut plan.insertions)
+        || !normalize_ranges(&mut plan.deletion_consumed)
+        || !normalize_ranges(&mut plan.insertion_consumed)
     {
         return Ok(None);
     }
@@ -394,6 +464,7 @@ fn collect_occurrences(
     side: &Side<'_>,
     trusted_run_intervals: &[Option<TrustedRunInterval>],
     span_by_block: &HashMap<BlockId, usize>,
+    recovery_spans: &[bool],
     budget: &mut RecoveryBudget,
 ) -> Option<Vec<SentenceOccurrence>> {
     let plans = stream_plans(trusted_run_intervals)?;
@@ -409,9 +480,16 @@ fn collect_occurrences(
             owned_key.try_reserve_exact(key.len()).ok()?;
             owned_key.push_str(key);
 
-            let location = sentence_location(side, &stream, boundary);
+            let touched_blocks = sentence_stream_block_range(&stream, boundary)?;
             let tokens = sentence_tokens(&stream, boundary, budget)?;
-            let span_index = sentence_span_index(side, &stream, boundary, span_by_block)?;
+            let span_index =
+                sentence_span_index(side, &stream, touched_blocks.clone(), span_by_block)?;
+            let location = match span_index {
+                Some(span_index) if recovery_spans.get(span_index).copied()? => {
+                    sentence_location(side, &stream, boundary, touched_blocks, span_index, budget)?
+                }
+                Some(_) | None => None,
+            };
             occurrences.try_reserve(1).ok()?;
             occurrences.push(SentenceOccurrence {
                 key: owned_key,
@@ -622,47 +700,127 @@ fn scalar_to_token_boundaries(tokens: &[SentenceEvidenceToken]) -> Option<Vec<us
         .then_some(boundaries)
 }
 
+fn sentence_stream_block_range(
+    stream: &Stream,
+    boundary: SentenceBoundary,
+) -> Option<Range<usize>> {
+    let overlaps = |block: &StreamBlock| {
+        boundary.scalar_start < block.scalar_range.end
+            && block.scalar_range.start < boundary.scalar_end
+    };
+    let first = stream.blocks.iter().position(overlaps)?;
+    let last = stream.blocks.iter().rposition(overlaps)?;
+    Some(first..last.checked_add(1)?)
+}
+
 fn sentence_location(
     side: &Side<'_>,
     stream: &Stream,
     boundary: SentenceBoundary,
-) -> Option<LocalSentenceRange> {
+    touched_blocks: Range<usize>,
+    span_index: usize,
+    budget: &mut RecoveryBudget,
+) -> Option<Option<SentenceLocation>> {
     if !stream.trusted {
-        return None;
+        return Some(None);
     }
-    let stream_block = stream.blocks.iter().find(|block| {
-        block.scalar_range.start <= boundary.scalar_start
-            && boundary.scalar_end <= block.scalar_range.end
-    })?;
-    let block = side.blocks.get(stream_block.side_index)?;
-    let tokens = side.canonical.get(stream_block.side_index)?;
-    if !block.issues.is_empty() || !block.canonical.unmapped.is_empty() {
-        return None;
-    }
-
-    let local_scalar_start = boundary
+    let stream_blocks = stream.blocks.get(touched_blocks)?;
+    let first = stream_blocks.first()?;
+    let canonical_start = boundary
         .scalar_start
-        .checked_sub(stream_block.scalar_range.start)?;
-    let local_scalar_end = boundary
-        .scalar_end
-        .checked_sub(stream_block.scalar_range.start)?;
-    let token_start = *stream_block.scalar_to_token.get(local_scalar_start)?;
-    let token_end = *stream_block.scalar_to_token.get(local_scalar_end)?;
-    if token_start >= token_end || token_end > tokens.len() {
+        .checked_sub(first.scalar_range.start)?;
+    let canonical_end = boundary.scalar_end.checked_sub(first.scalar_range.start)?;
+    let token_origin = *stream.scalar_to_token.get(first.scalar_range.start)?;
+    let comparable_start = stream
+        .scalar_to_token
+        .get(boundary.scalar_start)?
+        .checked_sub(token_origin)?;
+    let comparable_end = stream
+        .scalar_to_token
+        .get(boundary.scalar_end)?
+        .checked_sub(token_origin)?;
+    if comparable_start >= comparable_end {
         return None;
     }
 
-    Some(LocalSentenceRange {
-        block: block.block,
-        canonical: ScalarRange {
-            start: local_scalar_start,
-            end: local_scalar_end,
+    let mut source_tokens = 0usize;
+    let mut consumed_count = 0usize;
+    for stream_block in stream_blocks {
+        let block = side.blocks.get(stream_block.side_index)?;
+        let tokens = side.canonical.get(stream_block.side_index)?;
+        if !block.issues.is_empty() || !block.canonical.unmapped.is_empty() {
+            return Some(None);
+        }
+
+        let overlap_start = boundary.scalar_start.max(stream_block.scalar_range.start);
+        let overlap_end = boundary.scalar_end.min(stream_block.scalar_range.end);
+        if overlap_start >= overlap_end {
+            continue;
+        }
+        let local_scalar_start = overlap_start.checked_sub(stream_block.scalar_range.start)?;
+        let local_scalar_end = overlap_end.checked_sub(stream_block.scalar_range.start)?;
+        let token_start = *stream_block.scalar_to_token.get(local_scalar_start)?;
+        let token_end = *stream_block.scalar_to_token.get(local_scalar_end)?;
+        if token_start >= token_end || token_end > tokens.len() {
+            return None;
+        }
+        consumed_count = consumed_count.checked_add(1)?;
+        source_tokens = source_tokens.checked_add(token_end.checked_sub(token_start)?)?;
+    }
+    if source_tokens == 0 {
+        return None;
+    }
+    if !budget.charge_location_metadata(stream_blocks.len(), consumed_count) {
+        return None;
+    }
+
+    let mut block_ids = Vec::new();
+    let mut consumed = Vec::new();
+    block_ids.try_reserve_exact(stream_blocks.len()).ok()?;
+    consumed.try_reserve_exact(consumed_count).ok()?;
+    for stream_block in stream_blocks {
+        let block = side.blocks.get(stream_block.side_index)?;
+        block_ids.push(block.block);
+
+        let overlap_start = boundary.scalar_start.max(stream_block.scalar_range.start);
+        let overlap_end = boundary.scalar_end.min(stream_block.scalar_range.end);
+        if overlap_start >= overlap_end {
+            continue;
+        }
+        let local_scalar_start = overlap_start.checked_sub(stream_block.scalar_range.start)?;
+        let local_scalar_end = overlap_end.checked_sub(stream_block.scalar_range.start)?;
+        let token_start = *stream_block.scalar_to_token.get(local_scalar_start)?;
+        let token_end = *stream_block.scalar_to_token.get(local_scalar_end)?;
+        consumed.push(LocalSentenceRange {
+            block: block.block,
+            canonical: ScalarRange {
+                start: local_scalar_start,
+                end: local_scalar_end,
+            },
+            comparable: TokenRange {
+                start: token_start,
+                end: token_end,
+            },
+        });
+    }
+
+    Some(Some(SentenceLocation {
+        recovery: RecoveredSentence {
+            span_index,
+            separator: (block_ids.len() > 1).then_some(BlockSeparator::Space),
+            blocks: block_ids,
+            canonical: ScalarRange {
+                start: canonical_start,
+                end: canonical_end,
+            },
+            comparable: TokenRange {
+                start: comparable_start,
+                end: comparable_end,
+            },
+            source_tokens,
         },
-        comparable: TokenRange {
-            start: token_start,
-            end: token_end,
-        },
-    })
+        consumed,
+    }))
 }
 
 fn sentence_tokens(
@@ -685,18 +843,13 @@ fn sentence_tokens(
 fn sentence_span_index(
     side: &Side<'_>,
     stream: &Stream,
-    boundary: SentenceBoundary,
+    touched_blocks: Range<usize>,
     span_by_block: &HashMap<BlockId, usize>,
 ) -> Option<Option<usize>> {
     let mut span_index = None;
     let mut ambiguous = false;
-    for block in &stream.blocks {
-        let overlap_start = boundary.scalar_start.max(block.scalar_range.start);
-        let overlap_end = boundary.scalar_end.min(block.scalar_range.end);
-        if overlap_start >= overlap_end {
-            continue;
-        }
-        let block_id = side.blocks.get(block.side_index)?.block;
+    for stream_block in stream.blocks.get(touched_blocks)? {
+        let block_id = side.blocks.get(stream_block.side_index)?.block;
         let next_span = *span_by_block.get(&block_id)?;
         match span_index {
             Some(current) if current != next_span => ambiguous = true,
@@ -746,9 +899,9 @@ fn recovery_candidates(
     let mut candidates = Vec::new();
     candidates.try_reserve(occurrences.len()).ok()?;
     for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
-        let Some(location) = occurrence.location else {
+        if occurrence.location.is_none() {
             continue;
-        };
+        }
         let Some(span_index) = occurrence.span_index else {
             continue;
         };
@@ -767,7 +920,6 @@ fn recovery_candidates(
             candidates.push(RecoveryCandidate {
                 occurrence_index,
                 span_index,
-                location,
             });
         }
     }
@@ -966,8 +1118,10 @@ fn sentences_are_near(
     Some(shared >= shorter - shorter / 5)
 }
 
-fn append_candidate_ranges(
-    ranges: &mut Vec<LocalSentenceRange>,
+fn append_candidate_recoveries(
+    recoveries: &mut Vec<RecoveredSentence>,
+    consumed: &mut Vec<LocalSentenceRange>,
+    occurrences: &mut [SentenceOccurrence],
     candidates: &[RecoveryCandidate],
     vetoes: &[bool],
     budget: &mut RecoveryBudget,
@@ -977,28 +1131,34 @@ fn append_candidate_ranges(
     }
     let mut retained_count = 0usize;
     let mut retained_tokens = 0usize;
+    let mut consumed_count = 0usize;
     for (candidate, vetoed) in candidates.iter().zip(vetoes) {
         if *vetoed {
             continue;
         }
+        let location = occurrences
+            .get(candidate.occurrence_index)?
+            .location
+            .as_ref()?;
         retained_count = retained_count.checked_add(1)?;
-        retained_tokens = retained_tokens.checked_add(
-            candidate
-                .location
-                .comparable
-                .end
-                .checked_sub(candidate.location.comparable.start)?,
-        )?;
+        retained_tokens = retained_tokens.checked_add(location.recovery.source_tokens)?;
+        consumed_count = consumed_count.checked_add(location.consumed.len())?;
     }
     if !budget.charge_outputs(retained_count, retained_tokens) {
         return None;
     }
-    ranges.try_reserve_exact(retained_count).ok()?;
+    recoveries.try_reserve_exact(retained_count).ok()?;
+    consumed.try_reserve_exact(consumed_count).ok()?;
     for (candidate, vetoed) in candidates.iter().zip(vetoes) {
         if *vetoed {
             continue;
         }
-        ranges.push(candidate.location);
+        let location = occurrences
+            .get_mut(candidate.occurrence_index)?
+            .location
+            .take()?;
+        recoveries.push(location.recovery);
+        consumed.extend(location.consumed);
     }
     Some(())
 }
@@ -1214,6 +1374,20 @@ mod tests {
             .collect()
     }
 
+    fn test_location(range: LocalSentenceRange, span_index: usize) -> SentenceLocation {
+        SentenceLocation {
+            recovery: RecoveredSentence {
+                span_index,
+                blocks: vec![range.block],
+                separator: None,
+                canonical: range.canonical,
+                comparable: range.comparable,
+                source_tokens: range.comparable.end - range.comparable.start,
+            },
+            consumed: vec![range],
+        }
+    }
+
     #[test]
     fn stream_plans_use_run_ordinals_across_column_major_block_order() {
         let metadata = [interval(1, 1, 2), interval(2, 0, 1), interval(1, 0, 1)];
@@ -1274,7 +1448,8 @@ mod tests {
             scalar_end: 1,
         };
 
-        assert!(sentence_span_index(&side, &stream, boundary, &HashMap::new()).is_none());
+        assert!(sentence_stream_block_range(&stream, boundary).is_none());
+        assert!(sentence_span_index(&side, &stream, 0..0, &HashMap::new()).is_none());
     }
 
     #[test]
@@ -1399,7 +1574,7 @@ mod tests {
         let old_occurrences = [SentenceOccurrence {
             key: "candidate".to_owned(),
             tokens: candidate_tokens,
-            location: Some(location),
+            location: Some(test_location(location, 0)),
             span_index: Some(0),
         }];
         let new_occurrences = [SentenceOccurrence {
@@ -1411,7 +1586,6 @@ mod tests {
         let old_candidates = [RecoveryCandidate {
             occurrence_index: 0,
             span_index: 0,
-            location,
         }];
         let mut budget = RecoveryBudget::new(10, 10, 20, 1).expect("test budget is valid");
 
@@ -1475,12 +1649,106 @@ mod tests {
         assert!(!budget.charge_pair_visits(1));
         assert!(budget.charge_comparisons(20));
         assert!(!budget.charge_comparisons(1));
+        assert!(budget.charge_evidence_tokens(5));
+        assert!(!budget.charge_evidence_tokens(1));
 
         let mut output = RecoveryBudget::new(3, 2, 5, 1).expect("budget is valid");
         for _ in 0..5 {
             assert!(output.charge_output(1));
         }
         assert!(!output.charge_output(1));
+    }
+
+    #[test]
+    fn synthetic_evidence_uses_max_token_headroom_but_not_source_output_headroom() {
+        let mut budget = RecoveryBudget::new(5, 0, 6, 1).expect("budget is valid");
+        assert!(budget.charge_evidence_tokens(6));
+        assert!(!budget.charge_evidence_tokens(1));
+        assert!(budget.charge_outputs(1, 5));
+        assert!(!budget.charge_outputs(1, 1));
+    }
+
+    #[test]
+    fn location_metadata_budget_rejects_one_item_over_limit_without_allocating() {
+        let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("budget is valid");
+        let block_count = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS / 2;
+        let consumed_count = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS - block_count;
+        assert!(budget.charge_location_metadata(block_count, consumed_count));
+        assert_eq!(budget.location_items, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS);
+        let bytes = budget.location_bytes;
+
+        assert!(!budget.charge_location_metadata(1, 0));
+        assert_eq!(budget.location_items, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS);
+        assert_eq!(budget.location_bytes, bytes);
+    }
+
+    #[test]
+    fn location_metadata_exhaustion_aborts_after_an_earlier_recovery() {
+        use crate::normalize::{BlockText, MappedText};
+
+        let text = "Alpha.";
+        let mapped = MappedText {
+            text: text.to_owned(),
+            source_map: Vec::new(),
+            unmapped: Vec::new(),
+        };
+        let canonical = text
+            .chars()
+            .map(ComparableToken::Scalar)
+            .collect::<Vec<_>>();
+        let block = BlockText {
+            block: BlockId(1),
+            raw: mapped.clone(),
+            canonical: mapped,
+            matching: text.to_owned(),
+            matching_tokens: canonical.clone(),
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: Vec::new(),
+            pages: Vec::new(),
+            font_size_signatures: None,
+            position_signatures: None,
+            line_breaks: None,
+            page_breaks: None,
+        };
+        let side = Side {
+            blocks: std::slice::from_ref(&block),
+            index: HashMap::from([(BlockId(1), 0)]),
+            canonical: vec![canonical],
+            total_tokens: text.chars().count(),
+        };
+        let boundaries = (0..=text.chars().count()).collect::<Vec<_>>();
+        let stream = Stream {
+            text: text.to_owned(),
+            tokens: text.chars().map(SentenceEvidenceToken::Scalar).collect(),
+            scalar_to_token: boundaries.clone(),
+            blocks: vec![StreamBlock {
+                side_index: 0,
+                scalar_range: 0..text.chars().count(),
+                scalar_to_token: boundaries,
+            }],
+            trusted: true,
+        };
+        let boundary = SentenceBoundary {
+            byte_start: 0,
+            byte_end: text.len(),
+            scalar_start: 0,
+            scalar_end: text.chars().count(),
+        };
+        let mut budget = RecoveryBudget::new(text.chars().count(), 0, text.chars().count(), 1)
+            .expect("budget is valid");
+        budget.location_items = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS - 2;
+
+        assert!(
+            sentence_location(&side, &stream, boundary, 0..1, 0, &mut budget)
+                .is_some_and(|location| location.is_some())
+        );
+        assert_eq!(budget.location_items, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS);
+        let bytes = budget.location_bytes;
+
+        assert!(sentence_location(&side, &stream, boundary, 0..1, 0, &mut budget).is_none());
+        assert_eq!(budget.location_items, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS);
+        assert_eq!(budget.location_bytes, bytes);
     }
 
     #[test]
@@ -1505,21 +1773,14 @@ mod tests {
             location: None,
             span_index: None,
         }];
-        let location = LocalSentenceRange {
-            block: BlockId(1),
-            canonical: ScalarRange { start: 0, end: 1 },
-            comparable: TokenRange { start: 0, end: 1 },
-        };
         let old_candidates = [
             RecoveryCandidate {
                 occurrence_index: 0,
                 span_index: 0,
-                location,
             },
             RecoveryCandidate {
                 occurrence_index: 1,
                 span_index: 0,
-                location,
             },
         ];
         let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("test budget is valid");

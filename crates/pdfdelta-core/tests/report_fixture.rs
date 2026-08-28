@@ -675,6 +675,65 @@ fn json_report_keeps_synthetic_unmapped_and_separator_sources_distinct() -> Resu
 }
 
 #[test]
+fn json_group_sources_skip_separator_space_at_existing_whitespace_boundaries() -> Result<()> {
+    let cases = [
+        (
+            "trailing whitespace",
+            vec![
+                sourced_block(10, "a ", vec![glyph_entry(0, 1, 1), glyph_entry(1, 2, 2)]),
+                sourced_block(11, "b", vec![glyph_entry(0, 1, 3)]),
+            ],
+            vec![glyph_evidence(1), glyph_evidence(2), glyph_evidence(3)],
+            [1, 2, 3],
+        ),
+        (
+            "leading whitespace",
+            vec![
+                sourced_block(20, "a", vec![glyph_entry(0, 1, 4)]),
+                sourced_block(21, " b", vec![glyph_entry(0, 1, 5), glyph_entry(1, 2, 6)]),
+            ],
+            vec![glyph_evidence(4), glyph_evidence(5), glyph_evidence(6)],
+            [4, 5, 6],
+        ),
+    ];
+
+    for (case, blocks, glyphs, expected_glyphs) in cases {
+        let mut comparison = empty_comparison();
+        comparison.unresolved_regions.push(UnresolvedRegion {
+            old_span: Some(TextSpan {
+                blocks: blocks.iter().map(|block| block.block).collect(),
+                separator: Some(BlockSeparator::Space),
+                canonical_range: ScalarRange { start: 0, end: 3 },
+                comparable_range: TokenRange { start: 0, end: 3 },
+            }),
+            new_span: None,
+            evidence: vec![AlignmentEvidence::TextSimilarity],
+        });
+        let mut output = Vec::new();
+        write_json(
+            &mut output,
+            &blocks,
+            &[],
+            &glyphs,
+            &[],
+            &comparison,
+            &ExtractionStatus::complete(),
+        )?;
+        let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
+        let span = &json["unresolved_regions"][0]["old_span"];
+        assert_eq!(span["text"], "a b", "{case}");
+        assert_eq!(span["block_separator"], "space", "{case}");
+        let sources = span["sources"].as_array().expect("sources array");
+        assert_eq!(sources.len(), expected_glyphs.len(), "{case}");
+        for (source, glyph_id) in sources.iter().zip(expected_glyphs) {
+            assert_eq!(source["kind"], "glyph", "{case}");
+            assert_eq!(source["glyph_id"], glyph_id, "{case}");
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn json_report_rejects_duplicate_and_unknown_glyph_evidence() {
     let blocks = [sourced_block(1, "a", vec![glyph_entry(0, 1, 1)])];
     let mut comparison = empty_comparison();

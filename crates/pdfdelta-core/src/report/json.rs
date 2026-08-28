@@ -403,7 +403,15 @@ fn project_span_sources(
     let mut event_sources = Vec::new();
     let mut canonical_offset = 0;
     for (position, block_id) in span.blocks.iter().copied().enumerate() {
-        if position > 0 && span.separator == Some(BlockSeparator::Space) {
+        let block = side.block(block_id)?;
+        let block_tokens = block.canonical.comparable_tokens_with_sources()?;
+        if position > 0
+            && separator_inserts_space(
+                span.separator.unwrap_or(BlockSeparator::Concatenate),
+                tokens.last().map(|token: &ProjectedToken| &token.token),
+                block_tokens.first().map(|(token, _)| token),
+            )
+        {
             tokens.push(ProjectedToken {
                 token: ComparableToken::Scalar(' '),
                 canonical_position: canonical_offset,
@@ -411,10 +419,9 @@ fn project_span_sources(
             });
             canonical_offset += 1;
         }
-        let block = side.block(block_id)?;
         let block_scalar_count = block.canonical.text.chars().count();
         let block_start = canonical_offset;
-        for (token, source) in block.canonical.comparable_tokens_with_sources()? {
+        for (token, source) in block_tokens {
             let is_scalar = token.is_scalar();
             tokens.push(ProjectedToken {
                 canonical_position: canonical_offset,
@@ -552,6 +559,17 @@ fn project_span_sources(
         }
     }
     Ok(output)
+}
+
+fn separator_inserts_space(
+    separator: BlockSeparator,
+    previous: Option<&ComparableToken>,
+    next: Option<&ComparableToken>,
+) -> bool {
+    let mut boundary = previous.cloned().into_iter().collect::<Vec<_>>();
+    let unseparated_len = boundary.len() + usize::from(next.is_some());
+    separator.append(&mut boundary, next.map_or(&[], std::slice::from_ref));
+    boundary.len() > unseparated_len
 }
 
 /// Selects deleted or transformed normalization evidence without attributing
