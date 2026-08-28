@@ -301,7 +301,7 @@ fn compare_aligned_inner(
     let requires_atomic_recovery = sentence_recovery
         .plan
         .as_ref()
-        .is_some_and(sentence::SentenceRecoveryPlan::has_cross_span_exact_matches);
+        .is_some_and(sentence::SentenceRecoveryPlan::has_cross_span_recovery);
     let mut atomic_recovery = requires_atomic_recovery
         .then(|| {
             prepare_sentence_recovery_batch(
@@ -950,8 +950,7 @@ fn prepare_recovered_replacements(
     let mut resolved_old = 0usize;
     let mut resolved_new = 0usize;
     for replacement in replacements {
-        if replacement.old.span_index != replacement.new.span_index
-            || !valid_recovered_sentence(&replacement.old)
+        if !valid_recovered_sentence(&replacement.old)
             || !valid_recovered_sentence(&replacement.new)
         {
             return None;
@@ -3041,7 +3040,7 @@ mod tests {
     }
 
     #[test]
-    fn modified_sentence_veto_does_not_cross_unresolved_spans() {
+    fn reciprocal_modified_sentences_cross_unresolved_spans() {
         let old = vec![sentence_block(
             30,
             "The reviewed clause keeps every value except alpha.",
@@ -3068,25 +3067,81 @@ mod tests {
             DiffOptions::default(),
         );
 
-        assert_eq!(result.changes.len(), 2);
-        assert!(
-            result
-                .changes
-                .iter()
-                .any(|change| change.kind == ChangeKind::Deletion)
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert!(result.unresolved_regions.is_empty());
+        assert_eq!(result.old_coverage.ratio, Some(1.0));
+        assert_eq!(result.new_coverage.ratio, Some(1.0));
+    }
+
+    #[test]
+    fn word_similarity_recovers_cross_span_replacement_with_internal_edits() {
+        let old = vec![sentence_block(
+            34,
+            "In general, a bank's operational risk exposure is increased when a bank engages in new activities or develops new products; enters unfamiliar markets; implements new business processes or technology systems; and engages in businesses that are geographically distant from the head office.",
+        )];
+        let new = vec![sentence_block(
+            35,
+            "In general, a bank's operational risk exposure evolves when a bank initiates change, such as engaging in new activities or developing new products or services; entering unfamiliar markets or jurisdictions; implementing new or modifying business processes or technology systems; and engaging in businesses that are geographically distant from the head office.",
+        )];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(34)], Vec::new()),
+                reading_order_unknown_span(Vec::new(), vec![BlockId(35)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+
+        let result = compare_sentence_recovery_with_intervals(
+            &old,
+            &new,
+            &alignment,
+            &trusted_run_intervals(&[Some(TrustedRunId(34))]),
+            &trusted_run_intervals(&[Some(TrustedRunId(35))]),
+            5,
+            DiffOptions::default(),
         );
-        assert!(
-            result
-                .changes
-                .iter()
-                .any(|change| change.kind == ChangeKind::Insertion)
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert!(result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn cross_span_replacement_requires_a_clear_score_margin() {
+        let old = vec![sentence_block(
+            36,
+            "The reviewed clause keeps every value except alpha.",
+        )];
+        let new = vec![
+            sentence_block(37, "The reviewed clause keeps every value except beta."),
+            sentence_block(38, "The reviewed clause keeps every value except gamma."),
+        ];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(36)], Vec::new()),
+                reading_order_unknown_span(Vec::new(), vec![BlockId(37)]),
+                reading_order_unknown_span(Vec::new(), vec![BlockId(38)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+
+        let result = compare_sentence_recovery_with_intervals(
+            &old,
+            &new,
+            &alignment,
+            &trusted_run_intervals(&[Some(TrustedRunId(36))]),
+            &trusted_run_intervals(&[Some(TrustedRunId(37)), Some(TrustedRunId(38))]),
+            5,
+            DiffOptions::default(),
         );
-        assert!(
-            result
-                .changes
-                .iter()
-                .all(|change| change.kind != ChangeKind::Replacement)
-        );
+
+        assert!(result.changes.is_empty());
+        assert_eq!(result.unresolved_regions.len(), 3);
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
     }
 
     #[test]
@@ -3600,6 +3655,63 @@ mod tests {
         assert_eq!(metrics.exact_shared_units, 2);
         assert_eq!(metrics.recovered_exact_match_old_tokens, 0);
         assert_eq!(metrics.recovered_exact_match_new_tokens, 0);
+        assert_eq!(
+            metrics.unresolved_remainder_old_source_tokens,
+            source_tokens(&old)
+        );
+        assert_eq!(
+            metrics.unresolved_remainder_new_source_tokens,
+            source_tokens(&new)
+        );
+    }
+
+    #[test]
+    fn cross_span_replacement_output_fallback_is_atomic() {
+        let old = vec![sentence_block(
+            72,
+            "The reviewed clause keeps every value except alpha.",
+        )];
+        let new = vec![sentence_block(
+            73,
+            "The reviewed clause keeps every value except beta.",
+        )];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(72)], Vec::new()),
+                reading_order_unknown_span(Vec::new(), vec![BlockId(73)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let old_intervals = trusted_run_intervals(&[Some(TrustedRunId(72))]);
+        let new_intervals = trusted_run_intervals(&[Some(TrustedRunId(73))]);
+
+        let outcome = compare_aligned_inner(
+            &old,
+            &new,
+            &alignment,
+            DiffOptions::default(),
+            Some(SentenceRecoveryInput {
+                old_trusted_run_intervals: &old_intervals,
+                new_trusted_run_intervals: &new_intervals,
+                min_tokens: 5,
+            }),
+            RecoveryOutputLimits {
+                max_items: 1,
+                max_bytes: usize::MAX,
+            },
+        )
+        .expect("cross-span replacement fallback comparison succeeds");
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("cross-span replacement diagnostics remain available");
+
+        assert!(outcome.comparison.changes.is_empty());
+        assert_eq!(outcome.comparison.unresolved_regions.len(), 2);
+        assert_eq!(outcome.comparison.old_coverage.resolved_tokens, 0);
+        assert_eq!(outcome.comparison.new_coverage.resolved_tokens, 0);
+        assert_eq!(metrics.recovered_replacement_old_tokens, 0);
+        assert_eq!(metrics.recovered_replacement_new_tokens, 0);
         assert_eq!(
             metrics.unresolved_remainder_old_source_tokens,
             source_tokens(&old)

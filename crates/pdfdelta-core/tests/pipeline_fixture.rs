@@ -324,7 +324,7 @@ fn rotated_margin_region_does_not_hide_a_same_page_replacement() -> Result<()> {
 }
 
 #[test]
-fn complete_unknown_order_recovers_unique_closed_sentences() -> Result<()> {
+fn complete_unknown_order_recovers_unique_modified_sentences() -> Result<()> {
     let old = document(&[
         line_at("Left context remains open", 0, 0.0, 300.0),
         line_at("Right context remains open", 0, 300.0, 300.0),
@@ -351,19 +351,7 @@ fn complete_unknown_order_recovers_unique_closed_sentences() -> Result<()> {
 
     let comparison = compare_glyph_documents(&old, &new, options)?;
 
-    assert_eq!(comparison.changes.len(), 2, "{comparison:#?}");
-    assert!(
-        comparison
-            .changes
-            .iter()
-            .any(|change| change.kind == ChangeKind::Deletion)
-    );
-    assert!(
-        comparison
-            .changes
-            .iter()
-            .any(|change| change.kind == ChangeKind::Insertion)
-    );
+    assert_single_change_with_unresolved(&comparison, ChangeKind::Replacement);
     assert!(!comparison.unresolved_regions.is_empty());
     assert!(comparison.unresolved_regions.iter().all(|region| {
         region.evidence == [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]

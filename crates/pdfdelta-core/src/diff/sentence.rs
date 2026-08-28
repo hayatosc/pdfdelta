@@ -16,6 +16,9 @@ use super::{
 };
 
 pub(super) const MAX_SENTENCE_RECOVERY_RANGES: usize = 4_096;
+const MIN_NEAR_SCORE: u16 = 7_000;
+const MIN_NEAR_SCORE_MARGIN: u16 = 500;
+const MIN_WORD_SCORE_EDGE_EVIDENCE: u16 = 3_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct LocalSentenceRange {
@@ -51,6 +54,7 @@ pub(super) struct SentenceRecoveryPlan {
     pub matches: Vec<RecoveredExactMatch>,
     pub cross_span_match_old: Vec<RecoveredSentence>,
     pub cross_span_match_new: Vec<RecoveredSentence>,
+    pub cross_span_replacement_new_spans: Vec<usize>,
     pub deletions: Vec<RecoveredSentence>,
     pub insertions: Vec<RecoveredSentence>,
     pub replacements: Vec<RecoveredReplacement>,
@@ -65,8 +69,10 @@ impl SentenceRecoveryPlan {
             || !self.cross_span_match_new.is_empty()
     }
 
-    pub fn has_cross_span_exact_matches(&self) -> bool {
-        !self.cross_span_match_old.is_empty() || !self.cross_span_match_new.is_empty()
+    pub fn has_cross_span_recovery(&self) -> bool {
+        !self.cross_span_match_old.is_empty()
+            || !self.cross_span_match_new.is_empty()
+            || !self.cross_span_replacement_new_spans.is_empty()
     }
 
     pub fn has_recovery(&self, span_index: usize) -> bool {
@@ -76,6 +82,10 @@ impl SentenceRecoveryPlan {
             || !recoveries_for_span(&self.deletions, span_index).is_empty()
             || !recoveries_for_span(&self.insertions, span_index).is_empty()
             || !replacements_for_span(&self.replacements, span_index).is_empty()
+            || self
+                .cross_span_replacement_new_spans
+                .binary_search(&span_index)
+                .is_ok()
     }
 }
 
@@ -85,6 +95,7 @@ pub(super) struct SentenceRecoveryBuildOutcome {
     diagnostics: Option<SentenceRecoveryDiagnostics>,
 }
 
+#[derive(Clone, Copy)]
 struct SentenceRecoveryDiagnostics {
     metrics: SentenceRecoveryMetrics,
     eligible_old_source_tokens: usize,
@@ -195,7 +206,7 @@ enum OccurrenceSide {
     New,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum SentenceEvidenceToken {
     Scalar(char),
     Unmapped {
@@ -248,6 +259,7 @@ fn fingerprint_font_program(bytes: &[u8]) -> u64 {
 struct SentenceOccurrence {
     key: String,
     tokens: Vec<SentenceEvidenceToken>,
+    word_ranges: Vec<Range<usize>>,
     location: Option<SentenceLocation>,
     span_index: Option<usize>,
 }
@@ -277,47 +289,49 @@ struct ExactMatchCandidate {
     new_occurrence_index: usize,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct CandidateNearRelation {
-    eligible_degree: u8,
-    eligible_partner: usize,
-    disqualified: bool,
-}
-
-impl Default for CandidateNearRelation {
-    fn default() -> Self {
-        Self {
-            eligible_degree: 0,
-            eligible_partner: usize::MAX,
-            disqualified: false,
-        }
-    }
+    best_score: u16,
+    second_score: u16,
+    best_partner: Option<usize>,
 }
 
 impl CandidateNearRelation {
-    fn record_eligible(&mut self, partner: usize) {
-        if self.eligible_degree == 0 {
-            self.eligible_partner = partner;
+    fn record_eligible(&mut self, partner: usize, score: u16) {
+        if score > self.best_score {
+            self.second_score = self.best_score;
+            self.best_score = score;
+            self.best_partner = Some(partner);
+        } else {
+            self.second_score = self.second_score.max(score);
         }
-        self.eligible_degree = self.eligible_degree.saturating_add(1).min(2);
     }
 
-    fn record_disqualifying(&mut self) {
-        self.disqualified = true;
+    fn record_disqualifying(&mut self, score: u16) {
+        if score > self.best_score {
+            self.second_score = self.best_score;
+            self.best_score = score;
+            self.best_partner = None;
+        } else {
+            self.second_score = self.second_score.max(score);
+        }
     }
 
     fn vetoed(self) -> bool {
-        self.eligible_degree != 0 || self.disqualified
+        self.best_score >= MIN_NEAR_SCORE
     }
 
     fn unique_partner(self) -> Option<usize> {
-        (self.eligible_degree == 1 && !self.disqualified).then_some(self.eligible_partner)
+        let margin = self.best_score.checked_sub(self.second_score)?;
+        (self.best_score >= MIN_NEAR_SCORE && margin >= MIN_NEAR_SCORE_MARGIN)
+            .then_some(self.best_partner?)
     }
 }
 
 struct ModifiedSentenceRelations {
     old: Vec<CandidateNearRelation>,
     new: Vec<CandidateNearRelation>,
+    complete: bool,
 }
 
 struct StreamPlan {
@@ -372,6 +386,7 @@ struct SentenceBoundary {
     scalar_end: usize,
 }
 
+#[derive(Clone, Copy)]
 struct RecoveryBudget {
     token_limit: usize,
     // Joined evidence may own synthetic separators. The caller's token budget
@@ -389,6 +404,7 @@ struct RecoveryBudget {
     output_tokens: usize,
     location_items: usize,
     location_bytes: usize,
+    word_ranges: usize,
 }
 
 impl RecoveryBudget {
@@ -418,6 +434,7 @@ impl RecoveryBudget {
             output_tokens: 0,
             location_items: 0,
             location_bytes: 0,
+            word_ranges: 0,
         })
     }
 
@@ -439,6 +456,10 @@ impl RecoveryBudget {
 
     fn charge_evidence_tokens(&mut self, amount: usize) -> bool {
         Self::charge(&mut self.evidence_tokens, amount, self.evidence_token_limit)
+    }
+
+    fn charge_word_ranges(&mut self, amount: usize) -> bool {
+        Self::charge(&mut self.word_ranges, amount, self.token_limit)
     }
 
     #[cfg(test)]
@@ -629,7 +650,7 @@ pub(super) fn build_sentence_recovery_plan(
     };
     record_vetoed_near_pairs(&mut diagnostics, &relations);
     if let Some(diagnostics) = diagnostics.as_mut() {
-        diagnostics.metrics.near_relation_complete = true;
+        diagnostics.metrics.near_relation_complete = relations.complete;
     }
 
     if append_replacements(
@@ -794,6 +815,7 @@ fn collect_occurrences(
             let mut owned_key = String::new();
             owned_key.try_reserve_exact(key.len()).ok()?;
             owned_key.push_str(key);
+            let word_ranges = sorted_word_ranges(&owned_key, budget)?;
 
             let touched_blocks = sentence_stream_block_range(&stream, boundary)?;
             let tokens = sentence_tokens(&stream, boundary, budget)?;
@@ -809,6 +831,7 @@ fn collect_occurrences(
             occurrences.push(SentenceOccurrence {
                 key: owned_key,
                 tokens,
+                word_ranges,
                 location,
                 span_index,
             });
@@ -816,6 +839,23 @@ fn collect_occurrences(
     }
     occurrences.sort_unstable_by_key(|occurrence| occurrence.span_index);
     Some(occurrences)
+}
+
+fn sorted_word_ranges(text: &str, budget: &mut RecoveryBudget) -> Option<Vec<Range<usize>>> {
+    let mut ranges = Vec::new();
+    for (start, word) in text.unicode_word_indices() {
+        ranges.try_reserve(1).ok()?;
+        ranges.push(start..start.checked_add(word.len())?);
+    }
+    if !budget.charge_word_ranges(ranges.len()) {
+        return None;
+    }
+    ranges.sort_unstable_by(|left, right| {
+        text[left.clone()]
+            .cmp(&text[right.clone()])
+            .then_with(|| left.start.cmp(&right.start))
+    });
+    Some(ranges)
 }
 
 fn stream_plans(trusted_run_intervals: &[Option<TrustedRunInterval>]) -> Option<Vec<StreamPlan>> {
@@ -1334,135 +1374,249 @@ fn modified_sentence_relations(
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
 ) -> Option<ModifiedSentenceRelations> {
-    let mut old_relations = Vec::new();
-    let mut new_relations = Vec::new();
-    old_relations.try_reserve_exact(old_candidates.len()).ok()?;
-    new_relations.try_reserve_exact(new_candidates.len()).ok()?;
-    old_relations.resize(old_candidates.len(), CandidateNearRelation::default());
-    new_relations.resize(new_candidates.len(), CandidateNearRelation::default());
+    let mut relations = empty_modified_sentence_relations(old_candidates, new_candidates)?;
+    extend_modified_sentence_relations(
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        NearRelationScope::SameOrAmbiguous,
+        &mut relations,
+        budget,
+        diagnostics,
+    )?;
 
-    let ambiguous_old_end = ambiguous_occurrence_end(old_occurrences);
-    let ambiguous_new_end = ambiguous_occurrence_end(new_occurrences);
-    let ambiguous_visits = old_candidates
-        .len()
-        .checked_mul(ambiguous_new_end)?
-        .checked_add(new_candidates.len().checked_mul(ambiguous_old_end)?)?;
-    if !budget.charge_pair_visits(ambiguous_visits) {
+    let Some(mut cross_relations) = try_clone_modified_sentence_relations(&relations) else {
+        return Some(relations);
+    };
+    let mut cross_budget = *budget;
+    let mut cross_diagnostics = *diagnostics;
+    if extend_modified_sentence_relations(
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        NearRelationScope::CrossSpan,
+        &mut cross_relations,
+        &mut cross_budget,
+        &mut cross_diagnostics,
+    )
+    .is_some()
+    {
+        cross_relations.complete = true;
+        *budget = cross_budget;
+        *diagnostics = cross_diagnostics;
+        return Some(cross_relations);
+    }
+
+    budget.pair_visits = cross_budget.pair_visits;
+    budget.comparisons = cross_budget.comparisons;
+    Some(relations)
+}
+
+#[derive(Clone, Copy)]
+enum NearRelationScope {
+    SameOrAmbiguous,
+    CrossSpan,
+}
+
+impl NearRelationScope {
+    fn includes(self, candidate_span: Option<usize>, occurrence_span: Option<usize>) -> bool {
+        match self {
+            Self::SameOrAmbiguous => occurrence_span.is_none() || occurrence_span == candidate_span,
+            Self::CrossSpan => {
+                candidate_span.is_some()
+                    && occurrence_span.is_some()
+                    && occurrence_span != candidate_span
+            }
+        }
+    }
+}
+
+fn empty_modified_sentence_relations(
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+) -> Option<ModifiedSentenceRelations> {
+    let mut old = Vec::new();
+    let mut new = Vec::new();
+    old.try_reserve_exact(old_candidates.len()).ok()?;
+    new.try_reserve_exact(new_candidates.len()).ok()?;
+    old.resize(old_candidates.len(), CandidateNearRelation::default());
+    new.resize(new_candidates.len(), CandidateNearRelation::default());
+    Some(ModifiedSentenceRelations {
+        old,
+        new,
+        complete: false,
+    })
+}
+
+fn try_clone_modified_sentence_relations(
+    relations: &ModifiedSentenceRelations,
+) -> Option<ModifiedSentenceRelations> {
+    let mut old = Vec::new();
+    let mut new = Vec::new();
+    old.try_reserve_exact(relations.old.len()).ok()?;
+    new.try_reserve_exact(relations.new.len()).ok()?;
+    old.extend_from_slice(&relations.old);
+    new.extend_from_slice(&relations.new);
+    Some(ModifiedSentenceRelations {
+        old,
+        new,
+        complete: relations.complete,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn extend_modified_sentence_relations(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    scope: NearRelationScope,
+    relations: &mut ModifiedSentenceRelations,
+    budget: &mut RecoveryBudget,
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+) -> Option<()> {
+    if relations.old.len() != old_candidates.len() || relations.new.len() != new_candidates.len() {
         return None;
     }
+    let old_candidate_by_occurrence =
+        candidate_index_by_occurrence(old_occurrences.len(), old_candidates)?;
+    let new_candidate_by_occurrence =
+        candidate_index_by_occurrence(new_occurrences.len(), new_candidates)?;
+    let old_edges = occurrence_edge_index(old_occurrences)?;
+    let new_edges = occurrence_edge_index(new_occurrences)?;
+    let mut plausible = Vec::new();
 
-    let mut old_candidate_start = 0usize;
-    while old_candidate_start < old_candidates.len() {
-        let old_candidate_end = candidate_group_end(old_candidates, old_candidate_start);
-        let span_index = old_candidates[old_candidate_start].span_index;
-        let (new_occurrence_start, new_occurrence_end) =
-            occurrence_span_range(new_occurrences, span_index);
-        let visits = old_candidate_end
-            .checked_sub(old_candidate_start)?
-            .checked_mul(new_occurrence_end.checked_sub(new_occurrence_start)?)?;
-        if !budget.charge_pair_visits(visits) {
+    for (old_candidate_index, old_candidate) in old_candidates.iter().enumerate() {
+        let old_occurrence = old_occurrences.get(old_candidate.occurrence_index)?;
+        collect_plausible_occurrences(&mut plausible, &new_edges, &old_occurrence.tokens)?;
+        plausible.retain(|occurrence_index| {
+            scope.includes(
+                old_occurrence.span_index,
+                new_occurrences[*occurrence_index].span_index,
+            )
+        });
+        if !budget.charge_pair_visits(plausible.len()) {
             return None;
         }
-        let (new_candidate_start, new_candidate_end) =
-            candidate_span_range(new_candidates, span_index);
-        for old_candidate_index in old_candidate_start..old_candidate_end {
-            for (new_occurrence_offset, new_occurrence) in new_occurrences
-                [new_occurrence_start..new_occurrence_end]
+        for &new_occurrence_index in &plausible {
+            let new_occurrence = new_occurrences.get(new_occurrence_index)?;
+            let score = sentence_similarity(old_occurrence, new_occurrence, budget)?;
+            if let Some(new_candidate_index) = new_candidate_by_occurrence[new_occurrence_index] {
+                relations.old[old_candidate_index].record_eligible(new_candidate_index, score);
+                relations.new[new_candidate_index].record_eligible(old_candidate_index, score);
+            } else {
+                relations.old[old_candidate_index].record_disqualifying(score);
+            }
+            if score >= MIN_NEAR_SCORE {
+                record_near_pair(diagnostics);
+            }
+        }
+    }
+
+    for (new_candidate_index, new_candidate) in new_candidates.iter().enumerate() {
+        let new_occurrence = new_occurrences.get(new_candidate.occurrence_index)?;
+        collect_plausible_occurrences(&mut plausible, &old_edges, &new_occurrence.tokens)?;
+        plausible.retain(|occurrence_index| {
+            scope.includes(
+                new_occurrence.span_index,
+                old_occurrences[*occurrence_index].span_index,
+            )
+        });
+        let noncandidate_visits =
+            plausible
                 .iter()
-                .enumerate()
-            {
-                let new_occurrence_index = new_occurrence_start + new_occurrence_offset;
-                if sentences_are_near(
-                    &old_occurrences[old_candidates[old_candidate_index].occurrence_index].tokens,
-                    &new_occurrence.tokens,
-                    budget,
-                )? {
-                    record_near_pair(diagnostics);
-                    if let Ok(offset) = new_candidates[new_candidate_start..new_candidate_end]
-                        .binary_search_by_key(&new_occurrence_index, |candidate| {
-                            candidate.occurrence_index
-                        })
+                .try_fold(0usize, |count, occurrence_index| {
+                    if old_candidate_by_occurrence
+                        .get(*occurrence_index)?
+                        .is_none()
                     {
-                        let new_candidate_index = new_candidate_start + offset;
-                        old_relations[old_candidate_index].record_eligible(new_candidate_index);
-                        new_relations[new_candidate_index].record_eligible(old_candidate_index);
+                        count.checked_add(1)
                     } else {
-                        old_relations[old_candidate_index].record_disqualifying();
+                        Some(count)
                     }
-                }
-            }
-            for new_occurrence in &new_occurrences[..ambiguous_new_end] {
-                if sentences_are_near(
-                    &old_occurrences[old_candidates[old_candidate_index].occurrence_index].tokens,
-                    &new_occurrence.tokens,
-                    budget,
-                )? {
-                    record_near_pair(diagnostics);
-                    old_relations[old_candidate_index].record_disqualifying();
-                }
-            }
-        }
-        old_candidate_start = old_candidate_end;
-    }
-
-    let mut new_candidate_start = 0usize;
-    while new_candidate_start < new_candidates.len() {
-        let new_candidate_end = candidate_group_end(new_candidates, new_candidate_start);
-        let span_index = new_candidates[new_candidate_start].span_index;
-        let (old_occurrence_start, old_occurrence_end) =
-            occurrence_span_range(old_occurrences, span_index);
-        let (old_candidate_start, old_candidate_end) =
-            candidate_span_range(old_candidates, span_index);
-        let noncandidate_count = old_occurrence_end
-            .checked_sub(old_occurrence_start)?
-            .checked_sub(old_candidate_end.checked_sub(old_candidate_start)?)?;
-        let visits = new_candidate_end
-            .checked_sub(new_candidate_start)?
-            .checked_mul(noncandidate_count)?;
-        if !budget.charge_pair_visits(visits) {
+                })?;
+        if !budget.charge_pair_visits(noncandidate_visits) {
             return None;
         }
-        for new_candidate_index in new_candidate_start..new_candidate_end {
-            for (old_occurrence_offset, old_occurrence) in old_occurrences
-                [old_occurrence_start..old_occurrence_end]
-                .iter()
-                .enumerate()
-            {
-                let old_occurrence_index = old_occurrence_start + old_occurrence_offset;
-                if old_candidates[old_candidate_start..old_candidate_end]
-                    .binary_search_by_key(&old_occurrence_index, |candidate| {
-                        candidate.occurrence_index
-                    })
-                    .is_ok()
-                {
-                    continue;
-                }
-                if sentences_are_near(
-                    &old_occurrence.tokens,
-                    &new_occurrences[new_candidates[new_candidate_index].occurrence_index].tokens,
-                    budget,
-                )? {
-                    record_near_pair(diagnostics);
-                    new_relations[new_candidate_index].record_disqualifying();
-                }
+        for &old_occurrence_index in &plausible {
+            if old_candidate_by_occurrence[old_occurrence_index].is_some() {
+                continue;
             }
-            for old_occurrence in &old_occurrences[..ambiguous_old_end] {
-                if sentences_are_near(
-                    &old_occurrence.tokens,
-                    &new_occurrences[new_candidates[new_candidate_index].occurrence_index].tokens,
-                    budget,
-                )? {
-                    record_near_pair(diagnostics);
-                    new_relations[new_candidate_index].record_disqualifying();
-                }
+            let old_occurrence = old_occurrences.get(old_occurrence_index)?;
+            let score = sentence_similarity(old_occurrence, new_occurrence, budget)?;
+            relations.new[new_candidate_index].record_disqualifying(score);
+            if score >= MIN_NEAR_SCORE {
+                record_near_pair(diagnostics);
             }
         }
-        new_candidate_start = new_candidate_end;
     }
-    Some(ModifiedSentenceRelations {
-        old: old_relations,
-        new: new_relations,
-    })
+    Some(())
+}
+
+fn candidate_index_by_occurrence(
+    occurrence_count: usize,
+    candidates: &[RecoveryCandidate],
+) -> Option<Vec<Option<usize>>> {
+    let mut indices = Vec::new();
+    indices.try_reserve_exact(occurrence_count).ok()?;
+    indices.resize(occurrence_count, None);
+    for (candidate_index, candidate) in candidates.iter().enumerate() {
+        let slot = indices.get_mut(candidate.occurrence_index)?;
+        if slot.replace(candidate_index).is_some() {
+            return None;
+        }
+    }
+    Some(indices)
+}
+
+fn occurrence_edge_index(
+    occurrences: &[SentenceOccurrence],
+) -> Option<HashMap<SentenceEvidenceToken, Vec<usize>>> {
+    let mut index = HashMap::<SentenceEvidenceToken, Vec<usize>>::new();
+    index.try_reserve(occurrences.len()).ok()?;
+    for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
+        let first = *occurrence.tokens.first()?;
+        let last = *occurrence.tokens.last()?;
+        let first_occurrences = index.entry(first).or_default();
+        first_occurrences.try_reserve(1).ok()?;
+        first_occurrences.push(occurrence_index);
+        if last != first {
+            let last_occurrences = index.entry(last).or_default();
+            last_occurrences.try_reserve(1).ok()?;
+            last_occurrences.push(occurrence_index);
+        }
+    }
+    Some(index)
+}
+
+fn collect_plausible_occurrences(
+    plausible: &mut Vec<usize>,
+    index: &HashMap<SentenceEvidenceToken, Vec<usize>>,
+    tokens: &[SentenceEvidenceToken],
+) -> Option<()> {
+    plausible.clear();
+    let first = tokens.first()?;
+    let last = tokens.last()?;
+    // A pair satisfying the prefix/suffix threshold must share at least one
+    // edge token, so this index prunes work without reducing candidate recall.
+    let first_occurrences = index.get(first).map_or(&[][..], Vec::as_slice);
+    let last_occurrences = index.get(last).map_or(&[][..], Vec::as_slice);
+    plausible
+        .try_reserve(
+            first_occurrences
+                .len()
+                .checked_add(last_occurrences.len())?,
+        )
+        .ok()?;
+    plausible.extend_from_slice(first_occurrences);
+    if first != last {
+        plausible.extend_from_slice(last_occurrences);
+    }
+    plausible.sort_unstable();
+    plausible.dedup();
+    Some(())
 }
 
 fn record_near_pair(diagnostics: &mut Option<SentenceRecoveryDiagnostics>) {
@@ -1507,41 +1661,14 @@ fn record_vetoed_near_pairs(
     }
 }
 
-fn candidate_group_end(candidates: &[RecoveryCandidate], start: usize) -> usize {
-    let span_index = candidates[start].span_index;
-    candidates[start..]
-        .iter()
-        .position(|candidate| candidate.span_index != span_index)
-        .map_or(candidates.len(), |offset| start + offset)
-}
-
-fn candidate_span_range(candidates: &[RecoveryCandidate], span_index: usize) -> (usize, usize) {
-    let start = candidates.partition_point(|candidate| candidate.span_index < span_index);
-    let end =
-        candidates[start..].partition_point(|candidate| candidate.span_index == span_index) + start;
-    (start, end)
-}
-
-fn occurrence_span_range(occurrences: &[SentenceOccurrence], span_index: usize) -> (usize, usize) {
-    let start = occurrences.partition_point(|occurrence| occurrence.span_index < Some(span_index));
-    let end = occurrences[start..]
-        .partition_point(|occurrence| occurrence.span_index == Some(span_index))
-        + start;
-    (start, end)
-}
-
-fn ambiguous_occurrence_end(occurrences: &[SentenceOccurrence]) -> usize {
-    occurrences.partition_point(|occurrence| occurrence.span_index.is_none())
-}
-
-fn sentences_are_near(
-    old: &[SentenceEvidenceToken],
-    new: &[SentenceEvidenceToken],
+fn sentence_similarity(
+    old: &SentenceOccurrence,
+    new: &SentenceOccurrence,
     budget: &mut RecoveryBudget,
-) -> Option<bool> {
-    let shorter = old.len().min(new.len());
+) -> Option<u16> {
+    let shorter = old.tokens.len().min(new.tokens.len());
     if shorter == 0 {
-        return Some(false);
+        return Some(0);
     }
 
     let mut prefix = 0usize;
@@ -1549,7 +1676,7 @@ fn sentences_are_near(
         if !budget.charge_comparisons(1) {
             return None;
         }
-        if old[prefix] != new[prefix] {
+        if old.tokens[prefix] != new.tokens[prefix] {
             break;
         }
         prefix += 1;
@@ -1560,14 +1687,58 @@ fn sentences_are_near(
         if !budget.charge_comparisons(1) {
             return None;
         }
-        if old[old.len() - suffix - 1] != new[new.len() - suffix - 1] {
+        if old.tokens[old.tokens.len() - suffix - 1] != new.tokens[new.tokens.len() - suffix - 1] {
             break;
         }
         suffix += 1;
     }
 
     let shared = prefix.checked_add(suffix)?;
-    Some(shared >= shorter - shorter / 5)
+    let edge_score = basis_points(shared, shorter)?;
+    if edge_score < MIN_WORD_SCORE_EDGE_EVIDENCE {
+        return Some(edge_score);
+    }
+    let word_score = word_multiset_dice(old, new, budget)?;
+    Some(edge_score.max(word_score))
+}
+
+fn word_multiset_dice(
+    old: &SentenceOccurrence,
+    new: &SentenceOccurrence,
+    budget: &mut RecoveryBudget,
+) -> Option<u16> {
+    let total = old.word_ranges.len().checked_add(new.word_ranges.len())?;
+    if total == 0 {
+        return Some(0);
+    }
+    let mut old_index = 0usize;
+    let mut new_index = 0usize;
+    let mut shared = 0usize;
+    while old_index < old.word_ranges.len() && new_index < new.word_ranges.len() {
+        if !budget.charge_comparisons(1) {
+            return None;
+        }
+        let old_word = old.key.get(old.word_ranges[old_index].clone())?;
+        let new_word = new.key.get(new.word_ranges[new_index].clone())?;
+        match old_word.cmp(new_word) {
+            std::cmp::Ordering::Less => old_index += 1,
+            std::cmp::Ordering::Greater => new_index += 1,
+            std::cmp::Ordering::Equal => {
+                shared = shared.checked_add(1)?;
+                old_index += 1;
+                new_index += 1;
+            }
+        }
+    }
+    basis_points(shared.checked_mul(2)?, total)
+}
+
+fn basis_points(numerator: usize, denominator: usize) -> Option<u16> {
+    if denominator == 0 {
+        return Some(0);
+    }
+    let score = numerator.checked_mul(10_000)?.checked_div(denominator)?;
+    u16::try_from(score).ok()
 }
 
 fn append_exact_matches(
@@ -1679,9 +1850,6 @@ fn append_replacements(
         };
         let old_candidate = old_candidates.get(old_candidate_index)?;
         let new_candidate = new_candidates.get(new_candidate_index)?;
-        if old_candidate.span_index != new_candidate.span_index {
-            return None;
-        }
         let old_location = old_occurrences
             .get(old_candidate.occurrence_index)?
             .location
@@ -1703,6 +1871,9 @@ fn append_replacements(
         return None;
     }
     plan.replacements
+        .try_reserve_exact(replacement_count)
+        .ok()?;
+    plan.cross_span_replacement_new_spans
         .try_reserve_exact(replacement_count)
         .ok()?;
     plan.deletion_consumed
@@ -1732,9 +1903,24 @@ fn append_replacements(
             old: old_location.recovery,
             new: new_location.recovery,
         });
+        let replacement = plan.replacements.last()?;
+        if replacement.old.span_index != replacement.new.span_index {
+            plan.cross_span_replacement_new_spans
+                .push(replacement.new.span_index);
+        }
         plan.deletion_consumed.extend(old_location.consumed);
         plan.insertion_consumed.extend(new_location.consumed);
     }
+    plan.replacements.sort_unstable_by_key(|replacement| {
+        (
+            replacement.old.span_index,
+            replacement.new.span_index,
+            replacement.old.comparable.start,
+            replacement.new.comparable.start,
+        )
+    });
+    plan.cross_span_replacement_new_spans.sort_unstable();
+    plan.cross_span_replacement_new_spans.dedup();
     Some(())
 }
 
@@ -2246,12 +2432,14 @@ mod tests {
         let old_occurrences = [SentenceOccurrence {
             key: "candidate".to_owned(),
             tokens: candidate_tokens,
+            word_ranges: Vec::new(),
             location: Some(test_location(location, 0)),
             span_index: Some(0),
         }];
         let new_occurrences = [SentenceOccurrence {
             key: "counterpart".to_owned(),
             tokens: counterpart_tokens,
+            word_ranges: Vec::new(),
             location: None,
             span_index: Some(0),
         }];
@@ -2274,6 +2462,16 @@ mod tests {
         assert!(relations.old[0].vetoed());
         assert!(relations.old[0].unique_partner().is_none());
         assert!(relations.new.is_empty());
+    }
+
+    #[test]
+    fn replacement_margin_counts_runner_up_below_adoption_threshold() {
+        let mut relation = CandidateNearRelation::default();
+        relation.record_eligible(3, 7_200);
+        relation.record_eligible(4, 6_800);
+
+        assert!(relation.vetoed());
+        assert_eq!(relation.unique_partner(), None);
     }
 
     #[test]
@@ -2349,12 +2547,14 @@ mod tests {
         let mut old_occurrences = [SentenceOccurrence {
             key: "same".to_owned(),
             tokens: Vec::new(),
+            word_ranges: Vec::new(),
             location: Some(test_location(old_range, 0)),
             span_index: Some(0),
         }];
         let mut new_occurrences = [SentenceOccurrence {
             key: "same".to_owned(),
             tokens: Vec::new(),
+            word_ranges: Vec::new(),
             location: Some(test_location(new_range, 0)),
             span_index: Some(0),
         }];
@@ -2400,6 +2600,7 @@ mod tests {
             SentenceOccurrence {
                 key: key.to_owned(),
                 tokens: vec![SentenceEvidenceToken::Scalar('a'); 5],
+                word_ranges: Vec::new(),
                 location: Some(test_location(range, span_index)),
                 span_index: Some(span_index),
             }
@@ -2532,17 +2733,19 @@ mod tests {
     }
 
     #[test]
-    fn ambiguous_pair_visits_are_charged_before_comparisons() {
+    fn edge_index_prunes_impossible_pair_visits() {
         let old_occurrences = [
             SentenceOccurrence {
                 key: "old-a".to_owned(),
                 tokens: vec![SentenceEvidenceToken::Scalar('a')],
+                word_ranges: Vec::new(),
                 location: None,
                 span_index: Some(0),
             },
             SentenceOccurrence {
                 key: "old-b".to_owned(),
                 tokens: vec![SentenceEvidenceToken::Scalar('b')],
+                word_ranges: Vec::new(),
                 location: None,
                 span_index: Some(0),
             },
@@ -2550,6 +2753,7 @@ mod tests {
         let new_occurrences = [SentenceOccurrence {
             key: "new".to_owned(),
             tokens: vec![SentenceEvidenceToken::Scalar('a')],
+            word_ranges: Vec::new(),
             location: None,
             span_index: None,
         }];
@@ -2566,19 +2770,71 @@ mod tests {
         let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("test budget is valid");
         let mut diagnostics = None;
 
-        assert!(
-            modified_sentence_relations(
-                &old_occurrences,
-                &new_occurrences,
-                &old_candidates,
-                &[],
-                &mut budget,
-                &mut diagnostics,
-            )
-            .is_none()
-        );
-        assert_eq!(budget.pair_visits, 0);
-        assert_eq!(budget.comparisons, 0);
+        let relations = modified_sentence_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &old_candidates,
+            &[],
+            &mut budget,
+            &mut diagnostics,
+        )
+        .expect("only the edge-compatible pair is visited");
+
+        assert_eq!(budget.pair_visits, 1);
+        assert_eq!(budget.comparisons, 1);
+        assert!(relations.old[0].vetoed());
+        assert!(!relations.old[1].vetoed());
+    }
+
+    #[test]
+    fn cross_span_budget_failure_keeps_same_span_relations_and_spent_work() {
+        let occurrence = |key: &str, span_index: usize| SentenceOccurrence {
+            key: key.to_owned(),
+            tokens: vec![SentenceEvidenceToken::Scalar('a')],
+            word_ranges: Vec::new(),
+            location: None,
+            span_index: Some(span_index),
+        };
+        let old_occurrences = [occurrence("old-a", 0), occurrence("old-b", 1)];
+        let new_occurrences = [occurrence("new-a", 0), occurrence("new-b", 1)];
+        let old_candidates = [
+            RecoveryCandidate {
+                occurrence_index: 0,
+                span_index: 0,
+            },
+            RecoveryCandidate {
+                occurrence_index: 1,
+                span_index: 1,
+            },
+        ];
+        let new_candidates = [
+            RecoveryCandidate {
+                occurrence_index: 0,
+                span_index: 0,
+            },
+            RecoveryCandidate {
+                occurrence_index: 1,
+                span_index: 1,
+            },
+        ];
+        let mut budget = RecoveryBudget::new(3, 0, 3, 1).expect("test budget is valid");
+        let mut diagnostics = None;
+
+        let relations = modified_sentence_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &old_candidates,
+            &new_candidates,
+            &mut budget,
+            &mut diagnostics,
+        )
+        .expect("same-span relations survive optional cross-span exhaustion");
+
+        assert!(!relations.complete);
+        assert_eq!(relations.old[0].unique_partner(), Some(0));
+        assert_eq!(relations.old[1].unique_partner(), Some(1));
+        assert_eq!(budget.pair_visits, 3);
+        assert_eq!(budget.comparisons, 3);
     }
 
     #[test]
