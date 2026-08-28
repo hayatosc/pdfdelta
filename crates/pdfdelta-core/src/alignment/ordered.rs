@@ -15,6 +15,9 @@ use super::{
 
 const WEIGHT_SUM_TOLERANCE: f64 = 1.0e-9;
 const SCORE_TOLERANCE: f64 = 1.0e-12;
+// deliberate: keep shorter exact matches confined to collapse fallback; tune
+// this direct-boundary threshold from real-PDF benchmark evidence.
+const READING_ORDER_BOUNDARY_MIN_TOKENS: usize = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AlignmentKind {
@@ -377,9 +380,22 @@ pub(crate) fn plan_ordered_gaps(
             .or_default()
             .reading_order_unknown = true;
     }
-    let mut excluded_old = main_anchors
+    let (windows, forced_windows) = refine_reading_order_windows(
+        old,
+        new,
+        &all_anchors,
+        windows,
+        forced_windows,
+        &uncertain_old,
+        &uncertain_new,
+        old_uncertain_indices,
+        new_uncertain_indices,
+        &old_indices,
+        &new_indices,
+    )?;
+    let mut excluded_old = windows
         .iter()
-        .map(|anchor| anchor.old)
+        .filter_map(|window| window.right_anchor.map(|anchor| anchor.old))
         .collect::<HashSet<_>>();
     let mut excluded_new = HashSet::new();
     for &index in forced_windows.keys() {
@@ -461,11 +477,16 @@ fn align_ordered_inner(
         .enumerate()
         .map(|(index, features)| (features.block, index))
         .collect::<HashMap<_, _>>();
+    let interval_anchors = plan
+        .windows
+        .iter()
+        .filter_map(|window| window.right_anchor)
+        .collect::<Vec<_>>();
     let secondary_chains = secondary_anchor_chains(
         old,
         new,
         &plan.all_anchors,
-        &plan.main_anchors,
+        &interval_anchors,
         &old_indices,
         &new_indices,
     )?;
@@ -491,6 +512,7 @@ fn align_ordered_inner(
 
     let mut spans = Vec::new();
     let mut remaining_dp_cells = options.max_dp_cells;
+    let main_anchor_set = plan.main_anchors.iter().copied().collect::<HashSet<_>>();
 
     for (interval_index, window) in plan.windows.iter().enumerate() {
         let old_interval = &old[window.old_range.0..window.old_range.1];
@@ -530,7 +552,11 @@ fn align_ordered_inner(
         }
 
         if let Some(right_anchor) = window.right_anchor {
-            spans.push(anchor_span(right_anchor));
+            spans.push(if main_anchor_set.contains(&right_anchor) {
+                anchor_span(right_anchor)
+            } else {
+                partition_span(right_anchor)
+            });
         }
     }
     refine_masked_matches(&mut spans);
@@ -603,6 +629,109 @@ fn uncertain_window_indices(
     )
 }
 
+/// Subdivides reading-order-only windows without weakening extraction gaps.
+#[allow(clippy::too_many_arguments)]
+fn refine_reading_order_windows(
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    primary_anchors: &[ExactAnchor],
+    windows: Vec<AnchorIntervalWindow>,
+    forced_windows: BTreeMap<usize, ForcedWindowCauses>,
+    uncertain_old: &HashSet<usize>,
+    uncertain_new: &HashSet<usize>,
+    old_reading_order_uncertain: &[usize],
+    new_reading_order_uncertain: &[usize],
+    old_indices: &HashMap<BlockId, usize>,
+    new_indices: &HashMap<BlockId, usize>,
+) -> Result<(
+    Vec<AnchorIntervalWindow>,
+    BTreeMap<usize, ForcedWindowCauses>,
+)> {
+    let primary_old = primary_anchors
+        .iter()
+        .map(|anchor| anchor.old)
+        .collect::<HashSet<_>>();
+    let secondary = exact_anchors(old, new, READING_ORDER_BOUNDARY_MIN_TOKENS)?
+        .into_iter()
+        .filter(|anchor| {
+            !primary_old.contains(&anchor.old)
+                && !uncertain_old.contains(&old_indices[&anchor.old])
+                && !uncertain_new.contains(&new_indices[&anchor.new])
+        })
+        .collect::<Vec<_>>();
+    let mut refined = Vec::new();
+    let mut refined_forced = BTreeMap::new();
+    let mut old_reading_order_uncertain = old_reading_order_uncertain.to_vec();
+    old_reading_order_uncertain.sort_unstable();
+    let mut new_reading_order_uncertain = new_reading_order_uncertain.to_vec();
+    new_reading_order_uncertain.sort_unstable();
+
+    for (window_index, window) in windows.into_iter().enumerate() {
+        let Some(causes) = forced_windows.get(&window_index).copied() else {
+            refined.push(window);
+            continue;
+        };
+        if causes.extraction_gap || !causes.reading_order_unknown {
+            refined_forced.insert(refined.len(), causes);
+            refined.push(window);
+            continue;
+        }
+
+        let candidates = secondary
+            .iter()
+            .copied()
+            .filter(|anchor| {
+                window.old_range.0 <= old_indices[&anchor.old]
+                    && old_indices[&anchor.old] < window.old_range.1
+                    && window.new_range.0 <= new_indices[&anchor.new]
+                    && new_indices[&anchor.new] < window.new_range.1
+            })
+            .collect::<Vec<_>>();
+        let anchors = select_monotone_anchor_chain(&candidates, old, new)?.main_chain;
+        if anchors.is_empty() {
+            refined_forced.insert(refined.len(), causes);
+            refined.push(window);
+            continue;
+        }
+
+        let mut old_start = window.old_range.0;
+        let mut new_start = window.new_range.0;
+        let mut left_anchor = window.left_anchor;
+        for right_anchor in anchors.into_iter().map(Some).chain([window.right_anchor]) {
+            let old_end = right_anchor
+                .map(|anchor| old_indices[&anchor.old])
+                .unwrap_or(window.old_range.1);
+            let new_end = right_anchor
+                .map(|anchor| new_indices[&anchor.new])
+                .unwrap_or(window.new_range.1);
+            let child = AnchorIntervalWindow {
+                old_range: (old_start, old_end),
+                new_range: (new_start, new_end),
+                left_anchor,
+                right_anchor,
+            };
+            if contains_index(&old_reading_order_uncertain, child.old_range)
+                || contains_index(&new_reading_order_uncertain, child.new_range)
+            {
+                refined_forced.insert(refined.len(), causes);
+            }
+            refined.push(child);
+            if let Some(anchor) = right_anchor {
+                old_start = old_end + 1;
+                new_start = new_end + 1;
+                left_anchor = Some(anchor);
+            }
+        }
+    }
+
+    Ok((refined, refined_forced))
+}
+
+fn contains_index(indices: &[usize], range: (usize, usize)) -> bool {
+    let first = indices.partition_point(|&index| index < range.0);
+    indices.get(first).is_some_and(|&index| index < range.1)
+}
+
 fn identity_alignment(old: &[BlockFeatures]) -> Alignment {
     Alignment {
         spans: old
@@ -633,23 +762,24 @@ fn secondary_anchor_chains(
     old: &[BlockFeatures],
     new: &[BlockFeatures],
     primary_anchors: &[ExactAnchor],
-    main_anchors: &[ExactAnchor],
+    interval_anchors: &[ExactAnchor],
     old_indices: &HashMap<BlockId, usize>,
     new_indices: &HashMap<BlockId, usize>,
 ) -> Result<Vec<Vec<ExactAnchor>>> {
     let primary_old = primary_anchors
         .iter()
+        .chain(interval_anchors)
         .map(|anchor| anchor.old)
         .collect::<HashSet<_>>();
-    let old_boundaries = main_anchors
+    let old_boundaries = interval_anchors
         .iter()
         .map(|anchor| old_indices[&anchor.old])
         .collect::<Vec<_>>();
-    let new_boundaries = main_anchors
+    let new_boundaries = interval_anchors
         .iter()
         .map(|anchor| new_indices[&anchor.new])
         .collect::<Vec<_>>();
-    let mut candidates = vec![Vec::new(); main_anchors.len() + 1];
+    let mut candidates = vec![Vec::new(); interval_anchors.len() + 1];
     for anchor in exact_anchors(old, new, 1)?
         .into_iter()
         .filter(|anchor| !primary_old.contains(&anchor.old))
@@ -1957,11 +2087,21 @@ mod tests {
     }
 
     fn feature(block: u64, key: u64) -> BlockFeatures {
-        let scalar = char::from_u32(0x1000 + key as u32).expect("fixture key should be valid");
-        let tokens = vec![ComparableToken::Scalar(scalar)];
+        feature_with_tokens(block, key, &[key])
+    }
+
+    fn feature_with_tokens(block: u64, exact_hash: u64, keys: &[u64]) -> BlockFeatures {
+        let tokens = keys
+            .iter()
+            .map(|key| {
+                ComparableToken::Scalar(
+                    char::from_u32(0x1000 + *key as u32).expect("fixture key should be valid"),
+                )
+            })
+            .collect::<Vec<_>>();
         BlockFeatures {
             block: BlockId(block),
-            exact_hash: ExactHash(key),
+            exact_hash: ExactHash(exact_hash),
             canonical_tokens: tokens.clone(),
             matching_tokens: tokens,
             ngrams: Default::default(),
@@ -2008,10 +2148,226 @@ mod tests {
         );
     }
 
+    #[test]
+    fn secondary_anchors_localize_reading_order_uncertainty() {
+        let old = vec![
+            feature_with_tokens(1, 1, &[1, 2, 3, 4, 5]),
+            feature_with_tokens(2, 10, &[10, 11, 12, 13]),
+            feature(3, 20),
+            feature_with_tokens(4, 30, &[30, 31, 32, 33]),
+            feature_with_tokens(5, 40, &[40, 41, 42, 43, 44, 45, 46, 47, 48, 49]),
+            feature_with_tokens(6, 50, &[50, 51, 52, 53]),
+            feature_with_tokens(7, 60, &[60, 61, 62, 63, 64]),
+        ];
+        let new = vec![
+            feature_with_tokens(101, 1, &[1, 2, 3, 4, 5]),
+            feature_with_tokens(102, 10, &[10, 11, 12, 13]),
+            feature(103, 20),
+            feature_with_tokens(104, 30, &[30, 31, 32, 33]),
+            feature_with_tokens(105, 41, &[40, 41, 42, 99, 44, 45, 46, 47, 48, 49]),
+            feature_with_tokens(106, 50, &[50, 51, 52, 53]),
+            feature_with_tokens(107, 60, &[60, 61, 62, 63, 64]),
+        ];
+        let options = AlignmentOptions {
+            anchor_min_tokens: 5,
+            ..AlignmentOptions::default()
+        };
+        let plan = plan_ordered_gaps(&old, &new, options, &[], &[], &[], &[], &[2], &[2])
+            .expect("reading-order uncertainty should be localized");
+
+        assert_eq!(
+            plan.main_anchors,
+            [
+                ExactAnchor {
+                    old: BlockId(1),
+                    new: BlockId(101),
+                },
+                ExactAnchor {
+                    old: BlockId(7),
+                    new: BlockId(107),
+                },
+            ]
+        );
+        assert_eq!(plan.forced_windows.len(), 1);
+        let forced_window = &plan.windows[*plan
+            .forced_windows
+            .keys()
+            .next()
+            .expect("one child interval should remain forced")];
+        assert_eq!(forced_window.old_range, (2, 3));
+        assert_eq!(forced_window.new_range, (2, 3));
+
+        let alignment = align_ordered_with_metrics_and_gap_plan(
+            &old,
+            &new,
+            &ReplacementGenerator,
+            options,
+            plan,
+        )
+        .result
+        .expect("stable child intervals should remain alignable");
+        let unresolved = alignment
+            .spans
+            .iter()
+            .filter(|span| span.kind == AlignmentKind::Unresolved)
+            .collect::<Vec<_>>();
+        assert_eq!(unresolved.len(), 1, "spans: {:?}", alignment.spans);
+        assert_eq!(unresolved[0].old, [BlockId(3)]);
+        assert_eq!(unresolved[0].new, [BlockId(103)]);
+        assert!(alignment.spans.iter().any(|span| {
+            span.kind == AlignmentKind::Match
+                && span.old == [BlockId(5)]
+                && span.new == [BlockId(105)]
+                && !span.evidence.contains(&AlignmentEvidence::ExactCanonical)
+        }));
+        let anchors = alignment
+            .spans
+            .iter()
+            .filter(|span| span.evidence.contains(&AlignmentEvidence::Anchor))
+            .map(|span| ExactAnchor {
+                old: span.old[0],
+                new: span.new[0],
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(anchors, alignment.main_anchors);
+    }
+
+    #[test]
+    fn uncertain_exact_text_is_not_a_secondary_anchor() {
+        let old = vec![
+            feature_with_tokens(1, 10, &[10, 11, 12, 13]),
+            feature_with_tokens(2, 20, &[20, 21, 22, 23]),
+            feature_with_tokens(3, 30, &[30, 31, 32, 33]),
+        ];
+        let new = vec![
+            feature_with_tokens(101, 10, &[10, 11, 12, 13]),
+            feature_with_tokens(102, 20, &[20, 21, 22, 23]),
+            feature_with_tokens(103, 30, &[30, 31, 32, 33]),
+        ];
+        let options = AlignmentOptions {
+            anchor_min_tokens: 5,
+            ..AlignmentOptions::default()
+        };
+
+        let plan = plan_ordered_gaps(&old, &new, options, &[], &[], &[], &[], &[1], &[1])
+            .expect("secondary anchors should exclude uncertain blocks");
+
+        assert!(plan.windows.iter().all(|window| {
+            window
+                .right_anchor
+                .is_none_or(|anchor| anchor.old != BlockId(2) && anchor.new != BlockId(102))
+        }));
+        let forced_window = &plan.windows[*plan
+            .forced_windows
+            .keys()
+            .next()
+            .expect("the uncertain exact pair should remain forced")];
+        assert_eq!(forced_window.old_range, (1, 2));
+        assert_eq!(forced_window.new_range, (1, 2));
+    }
+
+    #[test]
+    fn unique_one_token_matches_do_not_split_a_forced_window() {
+        let old = vec![feature(1, 10), feature(2, 20), feature(3, 30)];
+        let new = vec![feature(101, 10), feature(102, 20), feature(103, 30)];
+        let options = AlignmentOptions {
+            anchor_min_tokens: 2,
+            ..AlignmentOptions::default()
+        };
+        let plan = plan_ordered_gaps(&old, &new, options, &[], &[], &[], &[], &[1], &[1])
+            .expect("short exact coincidences must not become direct boundaries");
+
+        assert_eq!(plan.windows.len(), 1);
+        assert_eq!(plan.windows[0].old_range, (0, old.len()));
+        assert_eq!(plan.windows[0].new_range, (0, new.len()));
+        assert_eq!(plan.forced_windows.keys().copied().collect::<Vec<_>>(), [0]);
+
+        let alignment = align_ordered_with_metrics_and_gap_plan(
+            &old,
+            &new,
+            &FixedVisitsGenerator::new(0),
+            options,
+            plan,
+        )
+        .result
+        .expect("the unpartitioned reading-order window should remain unresolved");
+        assert_eq!(alignment.spans.len(), 1);
+        assert_eq!(alignment.spans[0].kind, AlignmentKind::Unresolved);
+        assert_eq!(alignment.spans[0].old, [BlockId(1), BlockId(2), BlockId(3)]);
+        assert_eq!(
+            alignment.spans[0].new,
+            [BlockId(101), BlockId(102), BlockId(103)]
+        );
+    }
+
+    #[test]
+    fn extraction_gap_windows_are_not_subdivided_by_secondary_anchors() {
+        let old = vec![
+            feature_with_tokens(1, 10, &[10, 11, 12, 13]),
+            feature(2, 20),
+            feature_with_tokens(3, 30, &[30, 31, 32, 33]),
+        ];
+        let new = vec![
+            feature_with_tokens(101, 10, &[10, 11, 12, 13]),
+            feature(102, 20),
+            feature_with_tokens(103, 30, &[30, 31, 32, 33]),
+        ];
+        let options = AlignmentOptions {
+            anchor_min_tokens: 5,
+            ..AlignmentOptions::default()
+        };
+        let plan = plan_ordered_gaps(&old, &new, options, &[], &[], &[1], &[1], &[], &[])
+            .expect("extraction uncertainty should remain conservative");
+
+        assert_eq!(plan.windows.len(), 1);
+        assert_eq!(plan.windows[0].old_range, (0, old.len()));
+        assert_eq!(plan.windows[0].new_range, (0, new.len()));
+        assert_eq!(
+            plan.forced_windows[&0].evidence(),
+            [AlignmentEvidence::ExtractionGap]
+        );
+
+        let alignment = align_ordered_with_metrics_and_gap_plan(
+            &old,
+            &new,
+            &FixedVisitsGenerator::new(0),
+            options,
+            plan,
+        )
+        .result
+        .expect("forced extraction interval should produce an unresolved span");
+        assert_eq!(alignment.spans.len(), 1);
+        assert_eq!(alignment.spans[0].kind, AlignmentKind::Unresolved);
+        assert_eq!(alignment.spans[0].old, [BlockId(1), BlockId(2), BlockId(3)]);
+        assert_eq!(
+            alignment.spans[0].new,
+            [BlockId(101), BlockId(102), BlockId(103)]
+        );
+    }
+
     struct FixedVisitsGenerator {
         visits: usize,
         estimated: RefCell<Vec<BlockId>>,
         generated: RefCell<Vec<BlockId>>,
+    }
+
+    struct ReplacementGenerator;
+
+    impl CandidateGenerator for ReplacementGenerator {
+        fn estimated_visits(&self, _old: &BlockFeatures, _limit: usize) -> Result<usize> {
+            Ok(1)
+        }
+
+        fn candidates(&self, old: &BlockFeatures, _limit: usize) -> Result<Vec<Candidate>> {
+            Ok((old.block == BlockId(5))
+                .then_some(Candidate {
+                    block: BlockId(105),
+                    sources: vec![CandidateSource::Exhaustive],
+                    coarse_score: 0.8,
+                })
+                .into_iter()
+                .collect())
+        }
     }
 
     impl FixedVisitsGenerator {
