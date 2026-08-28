@@ -135,6 +135,17 @@ pub fn partition_regions_with_vector_lines(
 pub(super) struct RegionPartition {
     pub graph: RegionGraph,
     pub uncertain_line_ids: Vec<LineId>,
+    #[allow(dead_code, reason = "reserved for downstream recovery")]
+    pub trusted_runs: Vec<TrustedLineRun>,
+}
+
+/// A disjoint sequence whose spatial order agrees with render provenance.
+///
+/// Relative order between separate runs is unknown. Omitted uncertain lines
+/// may occur between members of a run.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct TrustedLineRun {
+    pub line_ids: Vec<LineId>,
 }
 
 pub(super) fn partition_regions_from_refs(
@@ -145,7 +156,7 @@ pub(super) fn partition_regions_from_refs(
 ) -> Result<RegionPartition> {
     let mut edges = Vec::new();
     let regions = partition_regions_inner(page, lines, options, Some(&mut edges))?;
-    let (reading_order, uncertain_line_ids) =
+    let (reading_order, uncertain_line_ids, trusted_runs) =
         classify_reading_order(lines, vector_lines, &regions, &edges);
     Ok(RegionPartition {
         graph: RegionGraph {
@@ -154,6 +165,7 @@ pub(super) fn partition_regions_from_refs(
             reading_order,
         },
         uncertain_line_ids,
+        trusted_runs,
     })
 }
 
@@ -162,7 +174,7 @@ fn classify_reading_order(
     vector_lines: &[&VectorLine],
     regions: &[Region],
     edges: &[(RegionId, RegionId, RegionRelation)],
-) -> (ReadingOrder, Vec<LineId>) {
+) -> (ReadingOrder, Vec<LineId>, Vec<TrustedLineRun>) {
     let lines_by_id = lines
         .iter()
         .map(|line| (line.id, *line))
@@ -202,7 +214,13 @@ fn classify_reading_order(
     );
 
     if matches!(supported_order, ReadingOrder::Unknown) {
-        return (ReadingOrder::Unknown, sorted_line_ids(lines));
+        let trusted_runs = supported_regions
+            .into_iter()
+            .map(|region| TrustedLineRun {
+                line_ids: region.line_ids,
+            })
+            .collect();
+        return (ReadingOrder::Unknown, sorted_line_ids(lines), trusted_runs);
     }
     let uncertain_line_ids = lines
         .iter()
@@ -210,13 +228,17 @@ fn classify_reading_order(
         .filter(|line_id| !trusted_line_ids.contains(line_id))
         .collect::<Vec<_>>();
     if uncertain_line_ids.is_empty() {
-        (supported_order, Vec::new())
-    } else if matches!(supported_order, ReadingOrder::KnownLines(_)) {
+        (supported_order, Vec::new(), Vec::new())
+    } else if let ReadingOrder::KnownLines(line_ids) = supported_order {
         // Block reconstruction cannot merge a proven row-major line order
         // with unsupported lines without inventing their relative position.
-        (ReadingOrder::Unknown, sorted_line_ids(lines))
+        (
+            ReadingOrder::Unknown,
+            sorted_line_ids(lines),
+            vec![TrustedLineRun { line_ids }],
+        )
     } else {
-        (ReadingOrder::Unknown, uncertain_line_ids)
+        (ReadingOrder::Unknown, uncertain_line_ids, Vec::new())
     }
 }
 
@@ -966,5 +988,121 @@ fn compute_bounding_box(lines: &[&Line], indices: &[usize]) -> Rect {
             min: Vec2 { x: min_x, y: min_y },
             max: Vec2 { x: max_x, y: max_y },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn line(id: u64, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Line {
+        Line {
+            id: LineId(id),
+            page: PageId(0),
+            glyphs: Vec::new(),
+            synthetic_spaces: Vec::new(),
+            bbox: Rect {
+                min: Vec2 { x: min_x, y: min_y },
+                max: Vec2 { x: max_x, y: max_y },
+            },
+            baseline: Vec2 { x: min_x, y: min_y },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+            text_direction: LineTextDirection::LeftToRight,
+            render_order: id as u32..=id as u32,
+        }
+    }
+
+    fn partition(lines: &[Line]) -> RegionPartition {
+        let line_refs = lines.iter().collect::<Vec<_>>();
+        partition_regions_from_refs(PageId(0), &line_refs, &[], RegionOptions::default())
+            .expect("region fixture should partition")
+    }
+
+    #[test]
+    fn ambiguous_regions_preserve_disjoint_internal_line_runs() {
+        let lines = vec![
+            line(1, 50.0, 700.0, 150.0, 712.0),
+            line(2, 250.0, 700.0, 350.0, 712.0),
+            line(3, 50.0, 680.0, 150.0, 692.0),
+            line(4, 250.0, 680.0, 350.0, 692.0),
+            line(5, 50.0, 660.0, 150.0, 672.0),
+            line(6, 250.0, 660.0, 350.0, 672.0),
+        ];
+
+        let partition = partition(&lines);
+
+        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+        assert_eq!(
+            partition.uncertain_line_ids,
+            (1..=6).map(LineId).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            partition.trusted_runs,
+            vec![
+                TrustedLineRun {
+                    line_ids: vec![LineId(1), LineId(3), LineId(5)],
+                },
+                TrustedLineRun {
+                    line_ids: vec![LineId(2), LineId(4), LineId(6)],
+                },
+            ]
+        );
+        let distinct_line_ids = partition
+            .trusted_runs
+            .iter()
+            .flat_map(|run| run.line_ids.iter().copied())
+            .collect::<HashSet<_>>();
+        assert_eq!(distinct_line_ids.len(), 6);
+    }
+
+    #[test]
+    fn known_line_order_with_unsupported_lines_preserves_one_trusted_run() {
+        let mut lines = vec![
+            line(1, 50.0, 700.0, 150.0, 712.0),
+            line(2, 250.0, 700.0, 350.0, 712.0),
+            line(3, 50.0, 675.0, 150.0, 687.0),
+            line(4, 250.0, 675.0, 350.0, 687.0),
+            line(5, 50.0, 650.0, 150.0, 662.0),
+            line(6, 250.0, 650.0, 350.0, 662.0),
+            line(7, 50.0, 625.0, 150.0, 637.0),
+            line(8, 250.0, 625.0, 350.0, 637.0),
+        ];
+        lines[6].direction = Vec2 { x: 0.0, y: 0.0 };
+        lines[7].direction = Vec2 { x: 0.0, y: 0.0 };
+
+        let partition = partition(&lines);
+
+        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+        assert_eq!(
+            partition.uncertain_line_ids,
+            (1..=8).map(LineId).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            partition.trusted_runs,
+            vec![TrustedLineRun {
+                line_ids: (1..=6).map(LineId).collect(),
+            }]
+        );
+    }
+
+    #[test]
+    fn fully_known_line_order_does_not_expose_recovery_runs() {
+        let lines = vec![
+            line(1, 50.0, 700.0, 150.0, 712.0),
+            line(2, 250.0, 700.0, 350.0, 712.0),
+            line(3, 50.0, 675.0, 150.0, 687.0),
+            line(4, 250.0, 675.0, 350.0, 687.0),
+            line(5, 50.0, 650.0, 150.0, 662.0),
+            line(6, 250.0, 650.0, 350.0, 662.0),
+        ];
+
+        let partition = partition(&lines);
+
+        assert_eq!(
+            partition.graph.reading_order,
+            ReadingOrder::KnownLines((1..=6).map(LineId).collect())
+        );
+        assert!(partition.uncertain_line_ids.is_empty());
+        assert!(partition.trusted_runs.is_empty());
     }
 }
