@@ -109,6 +109,31 @@ pub struct Comparison {
     pub new_coverage: Coverage,
 }
 
+/// Constant-space diagnostics for sentence recovery inside uncertain spans.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SentenceRecoveryMetrics {
+    pub old_trusted_run_source_tokens: usize,
+    pub new_trusted_run_source_tokens: usize,
+    pub exact_shared_units: usize,
+    pub old_exact_one_sided_units: usize,
+    pub new_exact_one_sided_units: usize,
+    pub near_pair_candidates: usize,
+    pub vetoed_near_pairs: usize,
+    pub recovered_exact_match_old_tokens: usize,
+    pub recovered_exact_match_new_tokens: usize,
+    pub recovered_replacement_old_tokens: usize,
+    pub recovered_replacement_new_tokens: usize,
+    pub recovered_deletion_tokens: usize,
+    pub recovered_insertion_tokens: usize,
+    pub unresolved_remainder_old_source_tokens: usize,
+    pub unresolved_remainder_new_source_tokens: usize,
+}
+
+pub(crate) struct ComparisonWithSentenceRecoveryMetrics {
+    pub(crate) comparison: Comparison,
+    pub(crate) sentence_recovery_metrics: Option<SentenceRecoveryMetrics>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DiffOptions {
     /// Maximum comparable or raw evidence tokens across both document sides.
@@ -188,9 +213,18 @@ pub fn compare_aligned(
     alignment: &Alignment,
     options: DiffOptions,
 ) -> Result<Comparison> {
-    compare_aligned_inner(old, new, alignment, options, None)
+    compare_aligned_inner(
+        old,
+        new,
+        alignment,
+        options,
+        None,
+        RecoveryOutputLimits::default(),
+    )
+    .map(|outcome| outcome.comparison)
 }
 
+#[cfg(test)]
 pub(crate) fn compare_aligned_with_sentence_recovery(
     old: &[BlockText],
     new: &[BlockText],
@@ -198,7 +232,32 @@ pub(crate) fn compare_aligned_with_sentence_recovery(
     options: DiffOptions,
     recovery: SentenceRecoveryInput<'_>,
 ) -> Result<Comparison> {
-    compare_aligned_inner(old, new, alignment, options, Some(recovery))
+    compare_aligned_inner(
+        old,
+        new,
+        alignment,
+        options,
+        Some(recovery),
+        RecoveryOutputLimits::default(),
+    )
+    .map(|outcome| outcome.comparison)
+}
+
+pub(crate) fn compare_aligned_with_sentence_recovery_metrics(
+    old: &[BlockText],
+    new: &[BlockText],
+    alignment: &Alignment,
+    options: DiffOptions,
+    recovery: SentenceRecoveryInput<'_>,
+) -> Result<ComparisonWithSentenceRecoveryMetrics> {
+    compare_aligned_inner(
+        old,
+        new,
+        alignment,
+        options,
+        Some(recovery),
+        RecoveryOutputLimits::default(),
+    )
 }
 
 fn compare_aligned_inner(
@@ -207,7 +266,8 @@ fn compare_aligned_inner(
     alignment: &Alignment,
     options: DiffOptions,
     recovery: Option<SentenceRecoveryInput<'_>>,
-) -> Result<Comparison> {
+    recovery_output_limits: RecoveryOutputLimits,
+) -> Result<ComparisonWithSentenceRecoveryMetrics> {
     if let Some(recovery) = recovery {
         validate_sentence_recovery_input(old, new, recovery)?;
     }
@@ -215,7 +275,7 @@ fn compare_aligned_inner(
     let old = old.materialize()?;
     let new = new.materialize()?;
     validate_alignment(&old, &new, alignment)?;
-    let sentence_recovery = match recovery {
+    let mut sentence_recovery = match recovery {
         Some(recovery) => sentence::build_sentence_recovery_plan(
             &old,
             &new,
@@ -223,7 +283,7 @@ fn compare_aligned_inner(
             recovery,
             options.max_tokens,
         )?,
-        None => None,
+        None => sentence::SentenceRecoveryBuildOutcome::default(),
     };
     let (moves_by_old, moves_by_new) = promotable_moves(&old, &new, alignment);
 
@@ -232,7 +292,11 @@ fn compare_aligned_inner(
     let mut unresolved_regions = Vec::new();
     let mut resolved_old = 0;
     let mut resolved_new = 0;
-    let mut sentence_recovery_output_budget = RecoveryOutputBudget::default();
+    let mut sentence_recovery_output_budget = RecoveryOutputBudget {
+        limits: recovery_output_limits,
+        items: 0,
+        bytes: 0,
+    };
 
     for (span_index, span) in alignment.spans.iter().enumerate() {
         match span.kind {
@@ -310,10 +374,10 @@ fn compare_aligned_inner(
                 }
             }
             AlignmentKind::Unresolved => {
-                if let Some(recovery) = &sentence_recovery
+                if let Some(recovery) = &sentence_recovery.plan
                     && recovery.has_recovery(span_index)
                 {
-                    apply_sentence_recovery_or_fallback(
+                    let committed = apply_sentence_recovery_or_fallback(
                         &old,
                         &new,
                         span_index,
@@ -325,6 +389,9 @@ fn compare_aligned_inner(
                         &mut resolved_new,
                         &mut sentence_recovery_output_budget,
                     );
+                    if let Some(committed) = committed {
+                        sentence_recovery.record_committed(committed);
+                    }
                 } else {
                     unresolved_regions.push(UnresolvedRegion {
                         old_span: full_span(&old, &span.old, span.old_separator),
@@ -336,12 +403,15 @@ fn compare_aligned_inner(
         }
     }
 
-    Ok(Comparison {
-        changes,
-        formatting_changes,
-        unresolved_regions,
-        old_coverage: coverage(resolved_old, old.total_tokens),
-        new_coverage: coverage(resolved_new, new.total_tokens),
+    Ok(ComparisonWithSentenceRecoveryMetrics {
+        comparison: Comparison {
+            changes,
+            formatting_changes,
+            unresolved_regions,
+            old_coverage: coverage(resolved_old, old.total_tokens),
+            new_coverage: coverage(resolved_new, new.total_tokens),
+        },
+        sentence_recovery_metrics: sentence_recovery.finish_metrics(),
     })
 }
 
@@ -430,6 +500,15 @@ struct PreparedSentenceRecovery {
     unresolved_regions: Vec<UnresolvedRegion>,
     resolved_old: usize,
     resolved_new: usize,
+    committed: SentenceRecoveryCommittedTokens,
+}
+
+#[derive(Clone, Copy, Default)]
+struct SentenceRecoveryCommittedTokens {
+    replacement_old: usize,
+    replacement_new: usize,
+    deletion: usize,
+    insertion: usize,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -444,8 +523,8 @@ fn apply_sentence_recovery_or_fallback(
     resolved_old: &mut usize,
     resolved_new: &mut usize,
     output_budget: &mut RecoveryOutputBudget,
-) {
-    if !append_sentence_recovery(
+) -> Option<SentenceRecoveryCommittedTokens> {
+    let committed = append_sentence_recovery(
         old,
         new,
         span_index,
@@ -456,13 +535,15 @@ fn apply_sentence_recovery_or_fallback(
         resolved_old,
         resolved_new,
         output_budget,
-    ) {
+    );
+    if committed.is_none() {
         unresolved_regions.push(UnresolvedRegion {
             old_span: full_span(old, &span.old, span.old_separator),
             new_span: full_span(new, &span.new, span.new_separator),
             evidence: span.evidence.clone(),
         });
     }
+    committed
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -477,33 +558,27 @@ fn append_sentence_recovery(
     resolved_old: &mut usize,
     resolved_new: &mut usize,
     output_budget: &mut RecoveryOutputBudget,
-) -> bool {
+) -> Option<SentenceRecoveryCommittedTokens> {
     let mut tentative_budget = *output_budget;
-    let Some(prepared) =
-        prepare_sentence_recovery(old, new, span_index, span, recovery, &mut tentative_budget)
-    else {
-        return false;
-    };
-    let Some(next_resolved_old) = resolved_old.checked_add(prepared.resolved_old) else {
-        return false;
-    };
-    let Some(next_resolved_new) = resolved_new.checked_add(prepared.resolved_new) else {
-        return false;
-    };
+    let prepared =
+        prepare_sentence_recovery(old, new, span_index, span, recovery, &mut tentative_budget)?;
+    let next_resolved_old = resolved_old.checked_add(prepared.resolved_old)?;
+    let next_resolved_new = resolved_new.checked_add(prepared.resolved_new)?;
     if changes.try_reserve_exact(prepared.changes.len()).is_err()
         || unresolved_regions
             .try_reserve_exact(prepared.unresolved_regions.len())
             .is_err()
     {
-        return false;
+        return None;
     }
 
+    let committed = prepared.committed;
     changes.extend(prepared.changes);
     unresolved_regions.extend(prepared.unresolved_regions);
     *resolved_old = next_resolved_old;
     *resolved_new = next_resolved_new;
     *output_budget = tentative_budget;
-    true
+    Some(committed)
 }
 
 fn prepare_sentence_recovery(
@@ -543,19 +618,17 @@ fn prepare_sentence_recovery(
 
     let (replacement_old, replacement_new) =
         prepare_recovered_replacements(replacements, &mut changes, output_budget)?;
-    let resolved_old = replacement_old.checked_add(prepare_recovered_changes(
-        deletions,
-        ChangeKind::Deletion,
-        &mut changes,
-        output_budget,
-    )?)?;
+    let deletion =
+        prepare_recovered_changes(deletions, ChangeKind::Deletion, &mut changes, output_budget)?;
+    let resolved_old = replacement_old.checked_add(deletion)?;
     sort_recovered_old_changes(old, &mut changes)?;
-    let resolved_new = replacement_new.checked_add(prepare_recovered_changes(
+    let insertion = prepare_recovered_changes(
         insertions,
         ChangeKind::Insertion,
         &mut changes,
         output_budget,
-    )?)?;
+    )?;
+    let resolved_new = replacement_new.checked_add(insertion)?;
     prepare_unresolved_remainders(
         old,
         &span.old,
@@ -582,6 +655,12 @@ fn prepare_sentence_recovery(
         unresolved_regions,
         resolved_old,
         resolved_new,
+        committed: SentenceRecoveryCommittedTokens {
+            replacement_old,
+            replacement_new,
+            deletion,
+            insertion,
+        },
     })
 }
 
@@ -2176,18 +2255,21 @@ mod tests {
         let mut resolved_old = 0;
         let mut resolved_new = 0;
         let mut output_budget = RecoveryOutputBudget::default();
-        assert!(append_sentence_recovery(
-            &old_side,
-            &new_side,
-            0,
-            &alignment.spans[0],
-            &recovery,
-            &mut changes,
-            &mut unresolved_regions,
-            &mut resolved_old,
-            &mut resolved_new,
-            &mut output_budget,
-        ));
+        assert!(
+            append_sentence_recovery(
+                &old_side,
+                &new_side,
+                0,
+                &alignment.spans[0],
+                &recovery,
+                &mut changes,
+                &mut unresolved_regions,
+                &mut resolved_old,
+                &mut resolved_new,
+                &mut output_budget,
+            )
+            .is_some()
+        );
 
         assert_eq!(
             changes,
@@ -2868,7 +2950,7 @@ mod tests {
                 max_items: 1,
                 max_bytes: usize::MAX,
             });
-            apply_sentence_recovery_or_fallback(
+            let committed = apply_sentence_recovery_or_fallback(
                 &old_side,
                 &new_side,
                 0,
@@ -2880,6 +2962,7 @@ mod tests {
                 &mut resolved_new,
                 &mut output_budget,
             );
+            assert!(committed.is_none());
             assert!(changes.is_empty());
             assert_eq!(
                 unresolved_regions,
@@ -2892,6 +2975,51 @@ mod tests {
             assert_eq!((resolved_old, resolved_new), (7, 11));
             assert_eq!((output_budget.items, output_budget.bytes), (0, 0));
         }
+    }
+
+    #[test]
+    fn span_output_fallback_keeps_recovered_metrics_zero_and_remainder_full() {
+        let old = vec![sentence_block(54, "Unique old sentence.")];
+        let new = vec![sentence_block(55, "Unique new sentence.")];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let old_intervals = trusted_run_intervals(&[Some(TrustedRunId(1))]);
+        let new_intervals = trusted_run_intervals(&[Some(TrustedRunId(2))]);
+
+        let outcome = compare_aligned_inner(
+            &old,
+            &new,
+            &alignment,
+            DiffOptions::default(),
+            Some(SentenceRecoveryInput {
+                old_trusted_run_intervals: &old_intervals,
+                new_trusted_run_intervals: &new_intervals,
+                min_tokens: 1,
+            }),
+            RecoveryOutputLimits {
+                max_items: 1,
+                max_bytes: usize::MAX,
+            },
+        )
+        .expect("fallback comparison succeeds");
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("plan diagnostics completed before output fallback");
+
+        assert!(outcome.comparison.changes.is_empty());
+        assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
+        assert_eq!(metrics.recovered_replacement_old_tokens, 0);
+        assert_eq!(metrics.recovered_replacement_new_tokens, 0);
+        assert_eq!(metrics.recovered_deletion_tokens, 0);
+        assert_eq!(metrics.recovered_insertion_tokens, 0);
+        assert_eq!(
+            metrics.unresolved_remainder_old_source_tokens,
+            source_tokens(&old)
+        );
+        assert_eq!(
+            metrics.unresolved_remainder_new_source_tokens,
+            source_tokens(&new)
+        );
     }
 
     #[test]
@@ -2942,7 +3070,7 @@ mod tests {
             max_bytes: usize::MAX,
         });
 
-        apply_sentence_recovery_or_fallback(
+        let committed = apply_sentence_recovery_or_fallback(
             &old_side,
             &new_side,
             0,
@@ -2954,6 +3082,7 @@ mod tests {
             &mut resolved_new,
             &mut output_budget,
         );
+        assert!(committed.is_none());
 
         assert!(changes.is_empty());
         assert_eq!(unresolved_regions.len(), 1);
@@ -3095,6 +3224,156 @@ mod tests {
             result.new_coverage.resolved_tokens,
             new_parameter.chars().count()
         );
+    }
+
+    #[test]
+    fn sentence_recovery_metrics_count_exact_near_and_committed_replacement_evidence() {
+        let definition = "Hash(M) The result of applying a hash function.";
+        let old_parameter = "k A per-message secret number used in the signing process.";
+        let new_parameter = "k A per-message secret value used in the signing process.";
+        let old = vec![
+            sentence_block(20, definition),
+            sentence_block(21, old_parameter),
+        ];
+        let new = vec![
+            sentence_block(22, definition),
+            sentence_block(23, new_parameter),
+        ];
+
+        let outcome = compare_sentence_recovery_with_metrics(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2)), Some(TrustedRunId(2))],
+            5,
+        );
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("completed diagnostics remain present");
+
+        assert_eq!(metrics.old_trusted_run_source_tokens, source_tokens(&old));
+        assert_eq!(metrics.new_trusted_run_source_tokens, source_tokens(&new));
+        assert_eq!(metrics.exact_shared_units, 1);
+        assert_eq!(metrics.old_exact_one_sided_units, 1);
+        assert_eq!(metrics.new_exact_one_sided_units, 1);
+        assert_eq!(metrics.near_pair_candidates, 1);
+        assert_eq!(metrics.vetoed_near_pairs, 0);
+        assert_eq!(metrics.recovered_exact_match_old_tokens, 0);
+        assert_eq!(metrics.recovered_exact_match_new_tokens, 0);
+        assert_eq!(
+            metrics.recovered_replacement_old_tokens,
+            old_parameter.chars().count()
+        );
+        assert_eq!(
+            metrics.recovered_replacement_new_tokens,
+            new_parameter.chars().count()
+        );
+        assert_eq!(metrics.recovered_deletion_tokens, 0);
+        assert_eq!(metrics.recovered_insertion_tokens, 0);
+        assert_eq!(
+            metrics.unresolved_remainder_old_source_tokens,
+            definition.chars().count()
+        );
+        assert_eq!(
+            metrics.unresolved_remainder_new_source_tokens,
+            definition.chars().count()
+        );
+    }
+
+    #[test]
+    fn completed_empty_sentence_recovery_diagnostics_are_present_as_real_zeros() {
+        let outcome = compare_aligned_with_sentence_recovery_metrics(
+            &[],
+            &[],
+            &Alignment {
+                spans: Vec::new(),
+                main_anchors: Vec::new(),
+                move_candidates: Vec::new(),
+            },
+            DiffOptions::default(),
+            SentenceRecoveryInput {
+                old_trusted_run_intervals: &[],
+                new_trusted_run_intervals: &[],
+                min_tokens: 1,
+            },
+        )
+        .expect("empty comparison succeeds");
+
+        assert_eq!(
+            outcome.sentence_recovery_metrics,
+            Some(SentenceRecoveryMetrics::default())
+        );
+    }
+
+    #[test]
+    fn sentence_recovery_metrics_count_each_vetoed_near_pair_once() {
+        let old = vec![sentence_block(
+            30,
+            "The reviewed clause keeps every value except alpha.",
+        )];
+        let new = vec![sentence_block(
+            31,
+            concat!(
+                "The reviewed clause keeps every value except beta. ",
+                "The reviewed clause keeps every value except gamma."
+            ),
+        )];
+
+        let outcome = compare_sentence_recovery_with_metrics(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2))],
+            5,
+        );
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("completed diagnostics remain present");
+
+        assert_eq!(metrics.old_exact_one_sided_units, 1);
+        assert_eq!(metrics.new_exact_one_sided_units, 2);
+        assert_eq!(metrics.near_pair_candidates, 2);
+        assert_eq!(metrics.vetoed_near_pairs, 2);
+        assert_eq!(metrics.recovered_replacement_old_tokens, 0);
+        assert_eq!(metrics.recovered_replacement_new_tokens, 0);
+        assert_eq!(
+            metrics.unresolved_remainder_old_source_tokens,
+            source_tokens(&old)
+        );
+        assert_eq!(
+            metrics.unresolved_remainder_new_source_tokens,
+            source_tokens(&new)
+        );
+    }
+
+    #[test]
+    fn sentence_recovery_metrics_count_committed_deletion_and_insertion_tokens() {
+        let old = vec![sentence_block(
+            40,
+            "Completely obsolete language appears here.",
+        )];
+        let new = vec![sentence_block(
+            41,
+            "A fresh and unrelated statement replaces it.",
+        )];
+
+        let outcome = compare_sentence_recovery_with_metrics(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2))],
+            5,
+        );
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("completed diagnostics remain present");
+
+        assert_eq!(metrics.near_pair_candidates, 0);
+        assert_eq!(metrics.vetoed_near_pairs, 0);
+        assert_eq!(metrics.recovered_deletion_tokens, source_tokens(&old));
+        assert_eq!(metrics.recovered_insertion_tokens, source_tokens(&new));
+        assert_eq!(metrics.unresolved_remainder_old_source_tokens, 0);
+        assert_eq!(metrics.unresolved_remainder_new_source_tokens, 0);
     }
 
     #[test]
@@ -3459,6 +3738,35 @@ mod tests {
             min_tokens,
             DiffOptions::default(),
         )
+    }
+
+    fn compare_sentence_recovery_with_metrics(
+        old: &[BlockText],
+        new: &[BlockText],
+        old_trusted_run_ids: &[Option<TrustedRunId>],
+        new_trusted_run_ids: &[Option<TrustedRunId>],
+        min_tokens: usize,
+    ) -> ComparisonWithSentenceRecoveryMetrics {
+        let alignment =
+            unresolved_alignment(old, new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let old_trusted_run_intervals = trusted_run_intervals(old_trusted_run_ids);
+        let new_trusted_run_intervals = trusted_run_intervals(new_trusted_run_ids);
+        compare_aligned_with_sentence_recovery_metrics(
+            old,
+            new,
+            &alignment,
+            DiffOptions::default(),
+            SentenceRecoveryInput {
+                old_trusted_run_intervals: &old_trusted_run_intervals,
+                new_trusted_run_intervals: &new_trusted_run_intervals,
+                min_tokens,
+            },
+        )
+        .expect("sentence recovery comparison succeeds")
+    }
+
+    fn source_tokens(blocks: &[BlockText]) -> usize {
+        blocks.iter().map(|block| block.matching_tokens.len()).sum()
     }
 
     fn compare_sentence_recovery_with_intervals(

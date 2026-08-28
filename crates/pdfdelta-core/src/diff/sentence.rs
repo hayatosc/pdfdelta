@@ -10,8 +10,9 @@ use crate::{
 };
 
 use super::{
-    MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, SentenceRecoveryInput,
-    Side, TokenRange,
+    MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS,
+    SentenceRecoveryCommittedTokens, SentenceRecoveryInput, SentenceRecoveryMetrics, Side,
+    TokenRange,
 };
 
 pub(super) const MAX_SENTENCE_RECOVERY_RANGES: usize = 4_096;
@@ -53,6 +54,76 @@ impl SentenceRecoveryPlan {
         !recoveries_for_span(&self.deletions, span_index).is_empty()
             || !recoveries_for_span(&self.insertions, span_index).is_empty()
             || !replacements_for_span(&self.replacements, span_index).is_empty()
+    }
+}
+
+#[derive(Default)]
+pub(super) struct SentenceRecoveryBuildOutcome {
+    pub plan: Option<SentenceRecoveryPlan>,
+    diagnostics: Option<SentenceRecoveryDiagnostics>,
+}
+
+struct SentenceRecoveryDiagnostics {
+    metrics: SentenceRecoveryMetrics,
+    eligible_old_source_tokens: usize,
+    eligible_new_source_tokens: usize,
+}
+
+impl SentenceRecoveryBuildOutcome {
+    pub(super) fn record_committed(&mut self, committed: SentenceRecoveryCommittedTokens) {
+        let Some(diagnostics) = self.diagnostics.as_mut() else {
+            return;
+        };
+        let metrics = &mut diagnostics.metrics;
+        let updated = metrics
+            .recovered_replacement_old_tokens
+            .checked_add(committed.replacement_old)
+            .and_then(|replacement_old| {
+                metrics
+                    .recovered_replacement_new_tokens
+                    .checked_add(committed.replacement_new)
+                    .map(|replacement_new| (replacement_old, replacement_new))
+            })
+            .and_then(|(replacement_old, replacement_new)| {
+                metrics
+                    .recovered_deletion_tokens
+                    .checked_add(committed.deletion)
+                    .map(|deletion| (replacement_old, replacement_new, deletion))
+            })
+            .and_then(|(replacement_old, replacement_new, deletion)| {
+                metrics
+                    .recovered_insertion_tokens
+                    .checked_add(committed.insertion)
+                    .map(|insertion| (replacement_old, replacement_new, deletion, insertion))
+            });
+        let Some((replacement_old, replacement_new, deletion, insertion)) = updated else {
+            self.diagnostics = None;
+            return;
+        };
+        metrics.recovered_replacement_old_tokens = replacement_old;
+        metrics.recovered_replacement_new_tokens = replacement_new;
+        metrics.recovered_deletion_tokens = deletion;
+        metrics.recovered_insertion_tokens = insertion;
+    }
+
+    pub(super) fn finish_metrics(self) -> Option<SentenceRecoveryMetrics> {
+        let diagnostics = self.diagnostics?;
+        let mut metrics = diagnostics.metrics;
+        let recovered_old = metrics
+            .recovered_exact_match_old_tokens
+            .checked_add(metrics.recovered_replacement_old_tokens)?
+            .checked_add(metrics.recovered_deletion_tokens)?;
+        let recovered_new = metrics
+            .recovered_exact_match_new_tokens
+            .checked_add(metrics.recovered_replacement_new_tokens)?
+            .checked_add(metrics.recovered_insertion_tokens)?;
+        metrics.unresolved_remainder_old_source_tokens = diagnostics
+            .eligible_old_source_tokens
+            .checked_sub(recovered_old)?;
+        metrics.unresolved_remainder_new_source_tokens = diagnostics
+            .eligible_new_source_tokens
+            .checked_sub(recovered_new)?;
+        Some(metrics)
     }
 }
 
@@ -158,6 +229,8 @@ struct SentenceLocation {
 struct OccurrenceCount {
     old: usize,
     new: usize,
+    old_index: Option<usize>,
+    new_index: Option<usize>,
 }
 
 struct RecoveryCandidate {
@@ -397,20 +470,31 @@ pub(super) fn build_sentence_recovery_plan(
     alignment: &Alignment,
     input: SentenceRecoveryInput<'_>,
     max_tokens: usize,
-) -> Result<Option<SentenceRecoveryPlan>> {
+) -> Result<SentenceRecoveryBuildOutcome> {
     let Some(mut budget) = RecoveryBudget::new(
         old.total_tokens,
         new.total_tokens,
         max_tokens,
         input.min_tokens,
     ) else {
-        return Ok(None);
+        return Ok(SentenceRecoveryBuildOutcome::default());
     };
     let Some(membership) = span_membership(alignment) else {
-        return Ok(None);
+        return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    let mut diagnostics = sentence_recovery_diagnostics(
+        old,
+        new,
+        alignment,
+        input.old_trusted_run_intervals,
+        input.new_trusted_run_intervals,
+        &membership.recovery_spans,
+    );
     if !membership.recovery_spans.iter().any(|eligible| *eligible) {
-        return Ok(None);
+        return Ok(SentenceRecoveryBuildOutcome {
+            plan: None,
+            diagnostics,
+        });
     }
 
     let Some(mut old_occurrences) = collect_occurrences(
@@ -420,7 +504,7 @@ pub(super) fn build_sentence_recovery_plan(
         &membership.recovery_spans,
         &mut budget,
     ) else {
-        return Ok(None);
+        return Ok(SentenceRecoveryBuildOutcome::default());
     };
     let Some(mut new_occurrences) = collect_occurrences(
         new,
@@ -429,10 +513,10 @@ pub(super) fn build_sentence_recovery_plan(
         &membership.recovery_spans,
         &mut budget,
     ) else {
-        return Ok(None);
+        return Ok(SentenceRecoveryBuildOutcome::default());
     };
     let Some(counts) = occurrence_counts(&old_occurrences, &new_occurrences) else {
-        return Ok(None);
+        return Ok(SentenceRecoveryBuildOutcome::default());
     };
     let Some(old_candidates) = recovery_candidates(
         &old_occurrences,
@@ -441,7 +525,7 @@ pub(super) fn build_sentence_recovery_plan(
         &membership.recovery_spans,
         input.min_tokens,
     ) else {
-        return Ok(None);
+        return Ok(SentenceRecoveryBuildOutcome::default());
     };
     let Some(new_candidates) = recovery_candidates(
         &new_occurrences,
@@ -450,17 +534,29 @@ pub(super) fn build_sentence_recovery_plan(
         &membership.recovery_spans,
         input.min_tokens,
     ) else {
-        return Ok(None);
+        return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    record_exact_candidate_metrics(
+        &mut diagnostics,
+        &old_occurrences,
+        &new_occurrences,
+        &counts,
+        &old_candidates,
+        &new_candidates,
+        &membership.recovery_spans,
+        input.min_tokens,
+    );
     let Some(relations) = modified_sentence_relations(
         &old_occurrences,
         &new_occurrences,
         &old_candidates,
         &new_candidates,
         &mut budget,
+        &mut diagnostics,
     ) else {
-        return Ok(None);
+        return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    record_vetoed_near_pairs(&mut diagnostics, &relations);
 
     let mut plan = SentenceRecoveryPlan::default();
     if append_replacements(
@@ -494,9 +590,73 @@ pub(super) fn build_sentence_recovery_plan(
         || !normalize_ranges(&mut plan.deletion_consumed)
         || !normalize_ranges(&mut plan.insertion_consumed)
     {
-        return Ok(None);
+        return Ok(SentenceRecoveryBuildOutcome::default());
     }
-    Ok(Some(plan))
+    Ok(SentenceRecoveryBuildOutcome {
+        plan: Some(plan),
+        diagnostics,
+    })
+}
+
+fn sentence_recovery_diagnostics(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    alignment: &Alignment,
+    old_trusted_run_intervals: &[Option<TrustedRunInterval>],
+    new_trusted_run_intervals: &[Option<TrustedRunInterval>],
+    recovery_spans: &[bool],
+) -> Option<SentenceRecoveryDiagnostics> {
+    Some(SentenceRecoveryDiagnostics {
+        metrics: SentenceRecoveryMetrics {
+            old_trusted_run_source_tokens: trusted_run_source_tokens(
+                old,
+                old_trusted_run_intervals,
+            )?,
+            new_trusted_run_source_tokens: trusted_run_source_tokens(
+                new,
+                new_trusted_run_intervals,
+            )?,
+            ..SentenceRecoveryMetrics::default()
+        },
+        eligible_old_source_tokens: eligible_source_tokens(old, alignment, recovery_spans, true)?,
+        eligible_new_source_tokens: eligible_source_tokens(new, alignment, recovery_spans, false)?,
+    })
+}
+
+fn trusted_run_source_tokens(
+    side: &Side<'_>,
+    trusted_run_intervals: &[Option<TrustedRunInterval>],
+) -> Option<usize> {
+    if side.blocks.len() != trusted_run_intervals.len() {
+        return None;
+    }
+    trusted_run_intervals
+        .iter()
+        .enumerate()
+        .filter(|(_, interval)| interval.is_some())
+        .try_fold(0usize, |tokens, (block_index, _)| {
+            tokens.checked_add(side.canonical.get(block_index)?.len())
+        })
+}
+
+fn eligible_source_tokens(
+    side: &Side<'_>,
+    alignment: &Alignment,
+    recovery_spans: &[bool],
+    old_side: bool,
+) -> Option<usize> {
+    alignment
+        .spans
+        .iter()
+        .zip(recovery_spans)
+        .filter(|(_, eligible)| **eligible)
+        .try_fold(0usize, |tokens, (span, _)| {
+            let blocks = if old_side { &span.old } else { &span.new };
+            blocks.iter().try_fold(tokens, |tokens, block| {
+                let block_index = *side.index.get(block)?;
+                tokens.checked_add(side.canonical.get(block_index)?.len())
+            })
+        })
 }
 
 fn span_membership(alignment: &Alignment) -> Option<SpanMembership> {
@@ -970,15 +1130,81 @@ fn count_occurrences<'a>(
     occurrences: &'a [SentenceOccurrence],
     side: OccurrenceSide,
 ) -> Option<()> {
-    for occurrence in occurrences {
+    for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
         let count = counts.entry(occurrence.key.as_str()).or_default();
-        let target = match side {
-            OccurrenceSide::Old => &mut count.old,
-            OccurrenceSide::New => &mut count.new,
-        };
-        *target = target.checked_add(1)?;
+        match side {
+            OccurrenceSide::Old => {
+                count.old = count.old.checked_add(1)?;
+                count.old_index.get_or_insert(occurrence_index);
+            }
+            OccurrenceSide::New => {
+                count.new = count.new.checked_add(1)?;
+                count.new_index.get_or_insert(occurrence_index);
+            }
+        }
     }
     Some(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_exact_candidate_metrics(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    counts: &HashMap<&str, OccurrenceCount>,
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    recovery_spans: &[bool],
+    min_tokens: usize,
+) {
+    let Some(exact_shared_units) = exact_shared_units(
+        old_occurrences,
+        new_occurrences,
+        counts,
+        recovery_spans,
+        min_tokens,
+    ) else {
+        *diagnostics = None;
+        return;
+    };
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    diagnostics.metrics.exact_shared_units = exact_shared_units;
+    diagnostics.metrics.old_exact_one_sided_units = old_candidates.len();
+    diagnostics.metrics.new_exact_one_sided_units = new_candidates.len();
+}
+
+fn exact_shared_units(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    counts: &HashMap<&str, OccurrenceCount>,
+    recovery_spans: &[bool],
+    min_tokens: usize,
+) -> Option<usize> {
+    counts.values().try_fold(0usize, |units, count| {
+        if count.old != 1 || count.new != 1 {
+            return Some(units);
+        }
+        let old = old_occurrences.get(count.old_index?)?;
+        let new = new_occurrences.get(count.new_index?)?;
+        let shared_span = old.span_index == new.span_index
+            && old
+                .span_index
+                .and_then(|span_index| recovery_spans.get(span_index))
+                .copied()
+                == Some(true);
+        let eligible = shared_span
+            && old.location.is_some()
+            && new.location.is_some()
+            && old.tokens.len() >= min_tokens
+            && new.tokens.len() >= min_tokens;
+        if eligible {
+            units.checked_add(1)
+        } else {
+            Some(units)
+        }
+    })
 }
 
 fn recovery_candidates(
@@ -1025,6 +1251,7 @@ fn modified_sentence_relations(
     old_candidates: &[RecoveryCandidate],
     new_candidates: &[RecoveryCandidate],
     budget: &mut RecoveryBudget,
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
 ) -> Option<ModifiedSentenceRelations> {
     let mut old_relations = Vec::new();
     let mut new_relations = Vec::new();
@@ -1069,6 +1296,7 @@ fn modified_sentence_relations(
                     &new_occurrence.tokens,
                     budget,
                 )? {
+                    record_near_pair(diagnostics);
                     if let Ok(offset) = new_candidates[new_candidate_start..new_candidate_end]
                         .binary_search_by_key(&new_occurrence_index, |candidate| {
                             candidate.occurrence_index
@@ -1088,6 +1316,7 @@ fn modified_sentence_relations(
                     &new_occurrence.tokens,
                     budget,
                 )? {
+                    record_near_pair(diagnostics);
                     old_relations[old_candidate_index].record_disqualifying();
                 }
             }
@@ -1132,6 +1361,7 @@ fn modified_sentence_relations(
                     &new_occurrences[new_candidates[new_candidate_index].occurrence_index].tokens,
                     budget,
                 )? {
+                    record_near_pair(diagnostics);
                     new_relations[new_candidate_index].record_disqualifying();
                 }
             }
@@ -1141,6 +1371,7 @@ fn modified_sentence_relations(
                     &new_occurrences[new_candidates[new_candidate_index].occurrence_index].tokens,
                     budget,
                 )? {
+                    record_near_pair(diagnostics);
                     new_relations[new_candidate_index].record_disqualifying();
                 }
             }
@@ -1151,6 +1382,48 @@ fn modified_sentence_relations(
         old: old_relations,
         new: new_relations,
     })
+}
+
+fn record_near_pair(diagnostics: &mut Option<SentenceRecoveryDiagnostics>) {
+    let failed = diagnostics.as_mut().is_some_and(|diagnostics| {
+        let Some(next) = diagnostics.metrics.near_pair_candidates.checked_add(1) else {
+            return true;
+        };
+        diagnostics.metrics.near_pair_candidates = next;
+        false
+    });
+    if failed {
+        *diagnostics = None;
+    }
+}
+
+fn record_vetoed_near_pairs(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    relations: &ModifiedSentenceRelations,
+) {
+    let Some(near_pair_candidates) = diagnostics
+        .as_ref()
+        .map(|diagnostics| diagnostics.metrics.near_pair_candidates)
+    else {
+        return;
+    };
+    let adopted = relations.old.iter().copied().enumerate().try_fold(
+        0usize,
+        |count, (old_candidate_index, relation)| {
+            if mutual_replacement_partner(old_candidate_index, relation, &relations.new).is_some() {
+                count.checked_add(1)
+            } else {
+                Some(count)
+            }
+        },
+    );
+    let Some(vetoed) = adopted.and_then(|adopted| near_pair_candidates.checked_sub(adopted)) else {
+        *diagnostics = None;
+        return;
+    };
+    if let Some(diagnostics) = diagnostics.as_mut() {
+        diagnostics.metrics.vetoed_near_pairs = vetoed;
+    }
 }
 
 fn candidate_group_end(candidates: &[RecoveryCandidate], start: usize) -> usize {
@@ -1823,6 +2096,7 @@ mod tests {
             span_index: 0,
         }];
         let mut budget = RecoveryBudget::new(10, 10, 20, 1).expect("test budget is valid");
+        let mut diagnostics = None;
 
         let relations = modified_sentence_relations(
             &old_occurrences,
@@ -1830,6 +2104,7 @@ mod tests {
             &old_candidates,
             &[],
             &mut budget,
+            &mut diagnostics,
         )
         .expect("near-match veto stays within budget");
         assert!(relations.old[0].vetoed());
@@ -2021,6 +2296,7 @@ mod tests {
             },
         ];
         let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("test budget is valid");
+        let mut diagnostics = None;
 
         assert!(
             modified_sentence_relations(
@@ -2029,6 +2305,7 @@ mod tests {
                 &old_candidates,
                 &[],
                 &mut budget,
+                &mut diagnostics,
             )
             .is_none()
         );

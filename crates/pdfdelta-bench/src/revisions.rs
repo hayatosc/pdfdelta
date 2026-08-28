@@ -20,12 +20,12 @@ use std::{
 
 use pdfdelta_core::{
     alignment::BlockSeparator,
-    diff::{ChangeKind, Comparison, TextSpan},
+    diff::{ChangeKind, Comparison, SentenceRecoveryMetrics, TextSpan},
     model::Document,
     normalize::{BlockText, ComparableToken},
     pdf::{LopdfParser, ParseLimits},
     pipeline::{
-        PipelineDiagnostics, PipelineOptions, PipelinePhase,
+        PipelineDiagnostics, PipelineOptions, PipelinePhase, PipelinePhaseStatus,
         compare_extraction_outcomes_with_diagnostics,
         validate_limit_scale as validate_pipeline_limit_scale,
     },
@@ -149,6 +149,47 @@ fn truncate_preview(text: &str) -> String {
     text.chars().take(CHANGE_TEXT_PREVIEW_CHARS).collect()
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct SentenceRecoveryMetricsReport {
+    pub old_trusted_run_source_tokens: usize,
+    pub new_trusted_run_source_tokens: usize,
+    pub exact_shared_units: usize,
+    pub old_exact_one_sided_units: usize,
+    pub new_exact_one_sided_units: usize,
+    pub near_pair_candidates: usize,
+    pub vetoed_near_pairs: usize,
+    pub recovered_exact_match_old_tokens: usize,
+    pub recovered_exact_match_new_tokens: usize,
+    pub recovered_replacement_old_tokens: usize,
+    pub recovered_replacement_new_tokens: usize,
+    pub recovered_deletion_tokens: usize,
+    pub recovered_insertion_tokens: usize,
+    pub unresolved_remainder_old_source_tokens: usize,
+    pub unresolved_remainder_new_source_tokens: usize,
+}
+
+impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
+    fn from(metrics: SentenceRecoveryMetrics) -> Self {
+        Self {
+            old_trusted_run_source_tokens: metrics.old_trusted_run_source_tokens,
+            new_trusted_run_source_tokens: metrics.new_trusted_run_source_tokens,
+            exact_shared_units: metrics.exact_shared_units,
+            old_exact_one_sided_units: metrics.old_exact_one_sided_units,
+            new_exact_one_sided_units: metrics.new_exact_one_sided_units,
+            near_pair_candidates: metrics.near_pair_candidates,
+            vetoed_near_pairs: metrics.vetoed_near_pairs,
+            recovered_exact_match_old_tokens: metrics.recovered_exact_match_old_tokens,
+            recovered_exact_match_new_tokens: metrics.recovered_exact_match_new_tokens,
+            recovered_replacement_old_tokens: metrics.recovered_replacement_old_tokens,
+            recovered_replacement_new_tokens: metrics.recovered_replacement_new_tokens,
+            recovered_deletion_tokens: metrics.recovered_deletion_tokens,
+            recovered_insertion_tokens: metrics.recovered_insertion_tokens,
+            unresolved_remainder_old_source_tokens: metrics.unresolved_remainder_old_source_tokens,
+            unresolved_remainder_new_source_tokens: metrics.unresolved_remainder_new_source_tokens,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct PairRunReport {
     pub pair_id: String,
@@ -211,6 +252,10 @@ pub struct PairRunReport {
     /// The `AlignmentOptions::max_candidate_visits` budget the charge was
     /// compared against.
     pub max_candidate_visits: Option<usize>,
+    /// Kept out of the unversioned full-report v1 key set. The versioned
+    /// compact summary exposes these diagnostics starting with schema v2.
+    #[serde(skip)]
+    pub sentence_recovery_metrics: Option<SentenceRecoveryMetricsReport>,
     /// All-old-block candidate visit pressure measured from the extracted
     /// documents; `None` when either side's extraction is incomplete or the
     /// comparison stopped at a pre-alignment resource limit/error.
@@ -954,6 +999,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         candidate_visits_required_ngram: None,
         candidate_visits_required_short_fallback: None,
         max_candidate_visits: None,
+        sentence_recovery_metrics: None,
         candidate_visit_pressure: None,
         runtime_ms: 0,
         limit_scale_used: effective_scale,
@@ -978,9 +1024,11 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
             Ok(ComparisonWithMetrics {
                 outcome,
                 metrics,
+                sentence_recovery_metrics,
                 pressure,
             }) => {
                 metrics.apply_to(&mut record);
+                record.sentence_recovery_metrics = sentence_recovery_metrics;
                 record.candidate_visit_pressure = pressure;
                 outcome
             }
@@ -1251,6 +1299,60 @@ fn alignment_visit_metrics(
     })
 }
 
+fn validate_sentence_recovery_metrics(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<SentenceRecoveryMetricsReport, String> {
+    if metrics.vetoed_near_pairs > metrics.near_pair_candidates {
+        return Err(format!(
+            "vetoed near pairs {} exceed near pair candidates {}",
+            metrics.vetoed_near_pairs, metrics.near_pair_candidates
+        ));
+    }
+    let recovered_old = metrics
+        .recovered_exact_match_old_tokens
+        .checked_add(metrics.recovered_replacement_old_tokens)
+        .and_then(|tokens| tokens.checked_add(metrics.recovered_deletion_tokens))
+        .ok_or_else(|| "old recovered token counters overflow".to_owned())?;
+    let recovered_new = metrics
+        .recovered_exact_match_new_tokens
+        .checked_add(metrics.recovered_replacement_new_tokens)
+        .and_then(|tokens| tokens.checked_add(metrics.recovered_insertion_tokens))
+        .ok_or_else(|| "new recovered token counters overflow".to_owned())?;
+    if recovered_old > metrics.old_trusted_run_source_tokens
+        || recovered_new > metrics.new_trusted_run_source_tokens
+    {
+        return Err(format!(
+            "recovered source tokens exceed trusted-run source tokens: old={recovered_old}/{} new={recovered_new}/{}",
+            metrics.old_trusted_run_source_tokens, metrics.new_trusted_run_source_tokens
+        ));
+    }
+    Ok(metrics.into())
+}
+
+/// Extracts the optional nested sentence-recovery metrics from the completed
+/// exact-diff diagnostic record. Real zero measurements remain present.
+fn sentence_recovery_metrics(
+    diagnostics: &PipelineDiagnostics,
+) -> std::result::Result<Option<SentenceRecoveryMetricsReport>, String> {
+    let mut records = diagnostics
+        .records()
+        .iter()
+        .filter(|record| record.phase == PipelinePhase::ExactDiff);
+    let Some(record) = records.next() else {
+        return Ok(None);
+    };
+    if records.next().is_some() {
+        return Err("diagnostics contain multiple exact-diff records".to_owned());
+    }
+    let Some(metrics) = record.metrics.sentence_recovery_metrics else {
+        return Ok(None);
+    };
+    if record.status != PipelinePhaseStatus::Completed {
+        return Err("incomplete exact-diff record contains sentence recovery metrics".to_owned());
+    }
+    validate_sentence_recovery_metrics(metrics).map(Some)
+}
+
 /// Resolves the supplementary pressure from the alignment charge and the
 /// pressure attempt. Complete extraction requires a successful attempt once
 /// alignment is reached; incomplete extraction intentionally has no attempt.
@@ -1282,6 +1384,7 @@ fn resolve_pressure(
 struct ComparisonWithMetrics {
     outcome: RevisionOutcome,
     metrics: VisitMetrics,
+    sentence_recovery_metrics: Option<SentenceRecoveryMetricsReport>,
     pressure: Option<CandidateVisitPressure>,
 }
 
@@ -1316,6 +1419,9 @@ fn compare_outcomes_with_metrics(
     let metrics = alignment_visit_metrics(&diagnostics).map_err(|message| {
         RevisionRunError::Other("alignment metrics contract violation", message)
     })?;
+    let sentence_recovery_metrics = sentence_recovery_metrics(&diagnostics).map_err(|message| {
+        RevisionRunError::Other("sentence recovery metrics contract violation", message)
+    })?;
     let pressure = resolve_pressure(metrics.candidate_visits, pressure_required, pressure_result)?;
     let outcome = result.map_err(|error| match error {
         pdfdelta_core::Error::LimitExceeded { .. } => RevisionRunError::Limit {
@@ -1328,6 +1434,7 @@ fn compare_outcomes_with_metrics(
     Ok(ComparisonWithMetrics {
         outcome,
         metrics,
+        sentence_recovery_metrics,
         pressure,
     })
 }
@@ -1582,7 +1689,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 1;
+    pub const SCHEMA_VERSION: u32 = 2;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -1621,6 +1728,7 @@ pub struct RevisionSummaryRecord {
     pub reported_content_changes: Option<usize>,
     pub reported_formatting_changes: Option<usize>,
     pub reported_uncertain_changes: Option<usize>,
+    pub sentence_recovery_metrics: Option<SentenceRecoveryMetricsReport>,
     pub quality: Option<QualityMetrics>,
     pub quality_skipped_reason: Option<String>,
 }
@@ -1648,6 +1756,7 @@ impl RevisionSummaryRecord {
             reported_content_changes: report.reported_content_changes,
             reported_formatting_changes: report.formatting_only_changes,
             reported_uncertain_changes: report.uncertain_changes,
+            sentence_recovery_metrics: report.sentence_recovery_metrics,
             quality: report.quality,
             quality_skipped_reason: report.quality_skipped_reason.clone(),
         }
@@ -2030,6 +2139,7 @@ mod tests {
             candidate_visits_required_ngram: None,
             candidate_visits_required_short_fallback: None,
             max_candidate_visits: None,
+            sentence_recovery_metrics: None,
             candidate_visit_pressure: None,
             runtime_ms: 0,
             limit_scale_used: 1.0,
@@ -2197,11 +2307,16 @@ mod tests {
         let ComparisonWithMetrics {
             outcome,
             metrics,
+            sentence_recovery_metrics,
             pressure,
         } = compare_outcomes_with_metrics(old, new, PipelineOptions::default())
             .expect("comparison succeeds");
 
         assert!(!outcome.comparison.changes.is_empty());
+        let sentence_recovery_metrics = sentence_recovery_metrics
+            .expect("completed exact diff records sentence recovery metrics");
+        assert!(sentence_recovery_metrics.old_trusted_run_source_tokens > 0);
+        assert!(sentence_recovery_metrics.new_trusted_run_source_tokens > 0);
         let visits = metrics.candidate_visits.expect("candidate visits recorded");
         assert!(visits > 0, "non-anchor old blocks must be charged");
         assert_eq!(
@@ -2237,6 +2352,23 @@ mod tests {
     }
 
     #[test]
+    fn compare_outcomes_with_metrics_preserves_present_all_zero_sentence_metrics() {
+        let old = ExtractionOutcome::complete(Document::<Glyph>::new(Vec::new()));
+        let new = ExtractionOutcome::complete(Document::<Glyph>::new(Vec::new()));
+
+        let ComparisonWithMetrics {
+            sentence_recovery_metrics,
+            ..
+        } = compare_outcomes_with_metrics(old, new, PipelineOptions::default())
+            .expect("empty comparison succeeds");
+
+        assert_eq!(
+            sentence_recovery_metrics,
+            Some(SentenceRecoveryMetricsReport::default())
+        );
+    }
+
+    #[test]
     fn compare_outcomes_with_metrics_keeps_attempted_charge_on_candidate_limit() {
         let old =
             ExtractionOutcome::complete(glyph_document("Stable old paragraph remains visible"));
@@ -2246,6 +2378,7 @@ mod tests {
         let ComparisonWithMetrics {
             outcome: _,
             metrics,
+            sentence_recovery_metrics: _,
             pressure: _,
         } = compare_outcomes_with_metrics(old.clone(), new.clone(), PipelineOptions::default())
             .expect("baseline comparison succeeds");
@@ -2347,6 +2480,7 @@ mod tests {
         let ComparisonWithMetrics {
             outcome: _,
             metrics,
+            sentence_recovery_metrics,
             pressure,
         } = compare_outcomes_with_metrics(incomplete, complete, PipelineOptions::default())
             .expect("incomplete comparison is not an error");
@@ -2356,6 +2490,7 @@ mod tests {
         assert_eq!(metrics.candidate_visits_required_exact, None);
         assert_eq!(metrics.candidate_visits_required_ngram, None);
         assert_eq!(metrics.candidate_visits_required_short_fallback, None);
+        assert_eq!(sentence_recovery_metrics, None);
         assert_eq!(pressure, None);
     }
 
@@ -2368,6 +2503,14 @@ mod tests {
         report.candidate_visits_required_ngram = Some(40);
         report.candidate_visits_required_short_fallback = Some(24);
         report.max_candidate_visits = Some(1_000_000);
+        report.sentence_recovery_metrics = Some(SentenceRecoveryMetricsReport {
+            old_trusted_run_source_tokens: 42,
+            near_pair_candidates: 3,
+            vetoed_near_pairs: 2,
+            recovered_deletion_tokens: 18,
+            unresolved_remainder_old_source_tokens: 24,
+            ..SentenceRecoveryMetricsReport::default()
+        });
         report.candidate_visit_pressure = Some(CandidateVisitPressure {
             estimated_visits_p50: 1,
             estimated_visits_p95: 2,
@@ -2394,6 +2537,7 @@ mod tests {
         assert_eq!(json["candidate_visits_required_ngram"], 40);
         assert_eq!(json["candidate_visits_required_short_fallback"], 24);
         assert_eq!(json["max_candidate_visits"], 1_000_000);
+        assert!(json.get("sentence_recovery_metrics").is_none());
         assert_eq!(
             json["candidate_visit_pressure"]["estimated_visits_upper_bound_total"],
             9
@@ -2404,6 +2548,62 @@ mod tests {
             json["candidate_visit_pressure"]["ngrams_for_90_percent_visits"],
             1
         );
+    }
+
+    #[test]
+    fn summary_json_uses_null_for_unavailable_sentence_metrics() {
+        let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
+        let json = serde_json::to_value(summary).expect("summary serializes");
+
+        assert_eq!(json["schema_version"], 2);
+        assert_eq!(
+            json["records"][0]["sentence_recovery_metrics"],
+            serde_json::Value::Null
+        );
+    }
+
+    #[test]
+    fn validates_zero_and_populated_sentence_recovery_metrics() {
+        assert_eq!(
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics::default()),
+            Ok(SentenceRecoveryMetricsReport::default())
+        );
+
+        let populated = SentenceRecoveryMetrics {
+            old_trusted_run_source_tokens: 30,
+            new_trusted_run_source_tokens: 40,
+            near_pair_candidates: 2,
+            vetoed_near_pairs: 1,
+            recovered_replacement_old_tokens: 10,
+            recovered_replacement_new_tokens: 12,
+            recovered_deletion_tokens: 5,
+            recovered_insertion_tokens: 6,
+            unresolved_remainder_old_source_tokens: 15,
+            unresolved_remainder_new_source_tokens: 22,
+            ..SentenceRecoveryMetrics::default()
+        };
+        let validated = validate_sentence_recovery_metrics(populated)
+            .expect("populated metrics satisfy the contract");
+        assert_eq!(validated.old_trusted_run_source_tokens, 30);
+        assert_eq!(validated.recovered_replacement_new_tokens, 12);
+        assert_eq!(validated.vetoed_near_pairs, 1);
+    }
+
+    #[test]
+    fn rejects_invalid_sentence_recovery_metrics() {
+        let invalid_veto = SentenceRecoveryMetrics {
+            near_pair_candidates: 1,
+            vetoed_near_pairs: 2,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(invalid_veto).is_err());
+
+        let invalid_recovered_total = SentenceRecoveryMetrics {
+            recovered_exact_match_old_tokens: 2,
+            old_trusted_run_source_tokens: 1,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(invalid_recovered_total).is_err());
     }
 
     #[test]
@@ -2734,6 +2934,14 @@ mod tests {
                 candidate_visits_required_ngram: None,
                 candidate_visits_required_short_fallback: None,
                 max_candidate_visits: None,
+                sentence_recovery_metrics: Some(SentenceRecoveryMetricsReport {
+                    old_trusted_run_source_tokens: 42,
+                    near_pair_candidates: 3,
+                    vetoed_near_pairs: 2,
+                    recovered_deletion_tokens: 18,
+                    unresolved_remainder_old_source_tokens: 24,
+                    ..SentenceRecoveryMetricsReport::default()
+                }),
                 candidate_visit_pressure: None,
                 runtime_ms: 50,
                 limit_scale_used: 1.0,
@@ -2772,6 +2980,7 @@ mod tests {
                 candidate_visits_required_ngram: None,
                 candidate_visits_required_short_fallback: None,
                 max_candidate_visits: None,
+                sentence_recovery_metrics: None,
                 candidate_visit_pressure: None,
                 runtime_ms: 100,
                 limit_scale_used: 1.0,
@@ -2813,6 +3022,7 @@ mod tests {
                 candidate_visits_required_ngram: None,
                 candidate_visits_required_short_fallback: None,
                 max_candidate_visits: None,
+                sentence_recovery_metrics: None,
                 candidate_visit_pressure: None,
                 runtime_ms: 20,
                 limit_scale_used: 1.0,
@@ -2832,6 +3042,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
+        assert_eq!(value["schema_version"], 2);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -2858,6 +3069,7 @@ mod tests {
             "reported_content_changes".to_owned(),
             "reported_formatting_changes".to_owned(),
             "reported_uncertain_changes".to_owned(),
+            "sentence_recovery_metrics".to_owned(),
             "quality".to_owned(),
             "quality_skipped_reason".to_owned(),
         ]);
@@ -2895,12 +3107,41 @@ mod tests {
             .collect::<HashSet<_>>();
         assert_eq!(quality_keys, expected_quality_keys);
 
+        let expected_sentence_recovery_keys = HashSet::from([
+            "old_trusted_run_source_tokens".to_owned(),
+            "new_trusted_run_source_tokens".to_owned(),
+            "exact_shared_units".to_owned(),
+            "old_exact_one_sided_units".to_owned(),
+            "new_exact_one_sided_units".to_owned(),
+            "near_pair_candidates".to_owned(),
+            "vetoed_near_pairs".to_owned(),
+            "recovered_exact_match_old_tokens".to_owned(),
+            "recovered_exact_match_new_tokens".to_owned(),
+            "recovered_replacement_old_tokens".to_owned(),
+            "recovered_replacement_new_tokens".to_owned(),
+            "recovered_deletion_tokens".to_owned(),
+            "recovered_insertion_tokens".to_owned(),
+            "unresolved_remainder_old_source_tokens".to_owned(),
+            "unresolved_remainder_new_source_tokens".to_owned(),
+        ]);
+        let sentence_recovery_keys = records[0]["sentence_recovery_metrics"]
+            .as_object()
+            .expect("sentence recovery metrics object")
+            .keys()
+            .cloned()
+            .collect::<HashSet<_>>();
+        assert_eq!(sentence_recovery_keys, expected_sentence_recovery_keys);
+
         // Check truthfulness of values
         let ok_rec = &records[0];
         assert_eq!(ok_rec["pair_id"], "ok-pair");
         assert_eq!(ok_rec["status"], "ok");
         assert_eq!(ok_rec["reported_formatting_changes"], 0);
         assert_eq!(ok_rec["reported_uncertain_changes"], 0);
+        assert_eq!(
+            ok_rec["sentence_recovery_metrics"]["recovered_deletion_tokens"],
+            18
+        );
         assert_eq!(ok_rec["quality"]["unmatched_tiny_changes"], 0);
         assert_eq!(ok_rec["quality"]["precision"], serde_json::Value::Null);
         assert_eq!(ok_rec["quality"]["recall"], 1.0);
@@ -2922,7 +3163,7 @@ mod tests {
     }
 
     #[test]
-    fn full_json_schema_regression_does_not_gain_uncertain_changes_field() {
+    fn full_json_v1_schema_excludes_new_diagnostic_fields() {
         let report = PairRunReport {
             pair_id: "regression-check".to_owned(),
             set: "dev",
@@ -2954,6 +3195,10 @@ mod tests {
             candidate_visits_required_ngram: None,
             candidate_visits_required_short_fallback: None,
             max_candidate_visits: None,
+            sentence_recovery_metrics: Some(SentenceRecoveryMetricsReport {
+                old_trusted_run_source_tokens: 1,
+                ..SentenceRecoveryMetricsReport::default()
+            }),
             candidate_visit_pressure: None,
             runtime_ms: 10,
             limit_scale_used: 1.0,
@@ -2967,6 +3212,10 @@ mod tests {
         assert!(
             !full_obj.contains_key("uncertain_changes"),
             "full JSON schema must not gain uncertain_changes"
+        );
+        assert!(
+            !full_obj.contains_key("sentence_recovery_metrics"),
+            "full JSON v1 schema must not gain sentence recovery diagnostics"
         );
     }
 
@@ -3012,6 +3261,7 @@ mod tests {
             candidate_visits_required_ngram: Some(10),
             candidate_visits_required_short_fallback: Some(5),
             max_candidate_visits: Some(500),
+            sentence_recovery_metrics: None,
             candidate_visit_pressure: None,
             runtime_ms: 100,
             limit_scale_used: 1.0,

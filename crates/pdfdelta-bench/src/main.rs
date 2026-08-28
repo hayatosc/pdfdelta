@@ -1336,6 +1336,7 @@ mod tests {
             candidate_visits_required_ngram: None,
             candidate_visits_required_short_fallback: None,
             max_candidate_visits: None,
+            sentence_recovery_metrics: None,
             candidate_visit_pressure: None,
             runtime_ms: 0,
             limit_scale_used: 1.0,

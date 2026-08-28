@@ -6,9 +6,9 @@ use crate::{
         validate_alignment_options, validate_ngram_size,
     },
     diff::{
-        Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, SentenceRecoveryInput, compare_aligned,
-        compare_aligned_with_sentence_recovery, enforce_diff_raw_token_budget,
-        enforce_diff_token_budget, validate_diff_options,
+        Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, SentenceRecoveryInput,
+        SentenceRecoveryMetrics, compare_aligned, compare_aligned_with_sentence_recovery_metrics,
+        enforce_diff_raw_token_budget, enforce_diff_token_budget, validate_diff_options,
     },
     layout::{
         BlockOptions, LayoutIssue, LineOptions, TrustedRunInterval, reconstruct_blocks_with_issues,
@@ -175,6 +175,8 @@ pub struct PipelineMetrics {
     pub changes: Option<usize>,
     pub formatting_changes: Option<usize>,
     pub unresolved_regions: Option<usize>,
+    /// Sentence recovery diagnostics for the completed exact-diff phase.
+    pub sentence_recovery_metrics: Option<SentenceRecoveryMetrics>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -612,7 +614,7 @@ fn compare_validated_glyph_documents_inner(
         }
     };
     let comparison_result = if enable_sentence_recovery {
-        compare_aligned_with_sentence_recovery(
+        compare_aligned_with_sentence_recovery_metrics(
             &old,
             &new,
             &alignment,
@@ -623,10 +625,11 @@ fn compare_validated_glyph_documents_inner(
                 min_tokens: options.alignment.anchor_min_tokens,
             },
         )
+        .map(|outcome| (outcome.comparison, outcome.sentence_recovery_metrics))
     } else {
-        compare_aligned(&old, &new, &alignment, options.diff)
+        compare_aligned(&old, &new, &alignment, options.diff).map(|comparison| (comparison, None))
     };
-    let comparison = phase_result(
+    let (comparison, sentence_recovery_metrics) = phase_result(
         diagnostics,
         PipelinePhase::ExactDiff,
         None,
@@ -639,6 +642,7 @@ fn compare_validated_glyph_documents_inner(
             changes: Some(comparison.changes.len()),
             formatting_changes: Some(comparison.formatting_changes.len()),
             unresolved_regions: Some(comparison.unresolved_regions.len()),
+            sentence_recovery_metrics,
             ..PipelineMetrics::default()
         },
     );

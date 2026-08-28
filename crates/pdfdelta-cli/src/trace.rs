@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 1;
+const TRACE_SCHEMA_VERSION: u8 = 2;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -317,7 +317,7 @@ fn pipeline_metrics(
     metrics: PipelineMetrics,
     _side: Option<DocumentSide>,
 ) -> BTreeMap<&'static str, usize> {
-    [
+    let mut flattened = [
         ("painting_glyphs", metrics.painting_glyphs),
         ("lines", metrics.lines),
         ("blocks", metrics.blocks),
@@ -351,7 +351,72 @@ fn pipeline_metrics(
     ]
     .into_iter()
     .filter_map(|(name, value)| value.map(|value| (name, value)))
-    .collect()
+    .collect::<BTreeMap<_, _>>();
+    if let Some(sentence) = metrics.sentence_recovery_metrics {
+        flattened.extend([
+            (
+                "sentence_recovery_old_trusted_run_source_tokens",
+                sentence.old_trusted_run_source_tokens,
+            ),
+            (
+                "sentence_recovery_new_trusted_run_source_tokens",
+                sentence.new_trusted_run_source_tokens,
+            ),
+            (
+                "sentence_recovery_exact_shared_units",
+                sentence.exact_shared_units,
+            ),
+            (
+                "sentence_recovery_old_exact_one_sided_units",
+                sentence.old_exact_one_sided_units,
+            ),
+            (
+                "sentence_recovery_new_exact_one_sided_units",
+                sentence.new_exact_one_sided_units,
+            ),
+            (
+                "sentence_recovery_near_pair_candidates",
+                sentence.near_pair_candidates,
+            ),
+            (
+                "sentence_recovery_vetoed_near_pairs",
+                sentence.vetoed_near_pairs,
+            ),
+            (
+                "sentence_recovery_recovered_exact_match_old_tokens",
+                sentence.recovered_exact_match_old_tokens,
+            ),
+            (
+                "sentence_recovery_recovered_exact_match_new_tokens",
+                sentence.recovered_exact_match_new_tokens,
+            ),
+            (
+                "sentence_recovery_recovered_replacement_old_tokens",
+                sentence.recovered_replacement_old_tokens,
+            ),
+            (
+                "sentence_recovery_recovered_replacement_new_tokens",
+                sentence.recovered_replacement_new_tokens,
+            ),
+            (
+                "sentence_recovery_recovered_deletion_tokens",
+                sentence.recovered_deletion_tokens,
+            ),
+            (
+                "sentence_recovery_recovered_insertion_tokens",
+                sentence.recovered_insertion_tokens,
+            ),
+            (
+                "sentence_recovery_unresolved_remainder_old_source_tokens",
+                sentence.unresolved_remainder_old_source_tokens,
+            ),
+            (
+                "sentence_recovery_unresolved_remainder_new_source_tokens",
+                sentence.unresolved_remainder_new_source_tokens,
+            ),
+        ]);
+    }
+    flattened
 }
 
 fn pipeline_phase_name(phase: PipelinePhase) -> &'static str {
@@ -438,7 +503,9 @@ fn expected_phases() -> Vec<(&'static str, Option<TraceSide>)> {
 
 #[cfg(test)]
 mod tests {
-    use super::bounded_message;
+    use pdfdelta_core::{diff::SentenceRecoveryMetrics, pipeline::PipelineMetrics};
+
+    use super::{bounded_message, pipeline_metrics};
 
     #[test]
     fn bounds_error_messages_at_utf8_boundaries() {
@@ -447,5 +514,45 @@ mod tests {
 
         assert!(bounded.len() <= 2_051);
         assert!(bounded.ends_with('…'));
+    }
+
+    #[test]
+    fn flattens_sentence_recovery_metrics_including_real_zeros() {
+        let sentence = SentenceRecoveryMetrics {
+            old_trusted_run_source_tokens: 41,
+            recovered_deletion_tokens: 17,
+            unresolved_remainder_old_source_tokens: 24,
+            ..SentenceRecoveryMetrics::default()
+        };
+
+        let metrics = pipeline_metrics(
+            PipelineMetrics {
+                sentence_recovery_metrics: Some(sentence),
+                ..PipelineMetrics::default()
+            },
+            None,
+        );
+
+        assert_eq!(
+            metrics["sentence_recovery_old_trusted_run_source_tokens"],
+            41
+        );
+        assert_eq!(metrics["sentence_recovery_recovered_deletion_tokens"], 17);
+        assert_eq!(metrics["sentence_recovery_exact_shared_units"], 0);
+        assert_eq!(
+            metrics["sentence_recovery_unresolved_remainder_old_source_tokens"],
+            24
+        );
+    }
+
+    #[test]
+    fn omits_sentence_recovery_metrics_when_unavailable() {
+        let metrics = pipeline_metrics(PipelineMetrics::default(), None);
+
+        assert!(
+            !metrics
+                .keys()
+                .any(|name| name.starts_with("sentence_recovery_"))
+        );
     }
 }
