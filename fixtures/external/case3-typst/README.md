@@ -19,7 +19,7 @@ typst compile --creation-timestamp 0 --ignore-system-fonts old.typ old.pdf
 typst compile --creation-timestamp 0 --ignore-system-fonts new.typ new.pdf
 
 # From the repository root, evaluate the vendored outputs against the canonical mutation.
-cargo run -p pdfdelta-bench -- evaluate-rendered-yaml \
+mise run bench-evaluate-rendered-yaml -- \
   fixtures/external/case3-typst/document.yaml \
   --old-pdf fixtures/external/case3-typst/old.pdf \
   --new-pdf fixtures/external/case3-typst/new.pdf \

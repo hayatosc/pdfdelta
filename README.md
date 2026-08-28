@@ -80,8 +80,8 @@ The workspace requires stable Rust with Edition 2024 support.
 
 ```bash
 mise run ci
-cargo run --bin pdfdelta -- --help
-cargo run -p pdfdelta-core --example glyph_comparison
+mise run pdfdelta -- --help
+mise run example-glyph-comparison
 ```
 
 `pdfdelta-core/examples/glyph_comparison.rs` demonstrates the backend-independent
@@ -90,6 +90,8 @@ for developing and testing the alignment pipeline without needing PDF fixtures.
 
 `mise run ci` runs the same formatting, linting, workspace tests, and benchmark
 verification as the GitHub Actions quality gate.
+Run `mise tasks ls --local` to discover the reusable development and benchmark
+tasks.
 
 ## Generated benchmark fixtures
 
@@ -117,18 +119,18 @@ document:
 ```
 
 ```bash
-cargo run -p pdfdelta-bench -- render document.yaml --renderer lopdf-tj --output document.pdf
-cargo run -p pdfdelta-bench -- render document.yaml --renderer classic-xref-tj --output document-classic.pdf
-cargo run -p pdfdelta-bench -- evaluate-yaml document.yaml --renderer lopdf-tj number-replace --paragraph-id availability-p1 --new-number 20
-cargo run -p pdfdelta-bench -- evaluate-yaml document.yaml --renderer lopdf-tj line-wrap --paragraph-id availability-p1 --after-word 4
-cargo run -p pdfdelta-bench -- evaluate-yaml document.yaml --renderer lopdf-tj page-break --before-paragraph-id support-p1
-cargo run -p pdfdelta-bench -- evaluate-yaml document.yaml --renderer lopdf-tj paragraph-insert --section-id availability --index 2 --paragraph-id availability-p3 --text "Inserted availability detail."
-cargo run -p pdfdelta-bench -- evaluate-yaml document.yaml --renderer lopdf-tj paragraph-move --paragraph-id availability-p2 --to-index 0
-cargo run -p pdfdelta-bench -- evaluate-yaml document.yaml --renderer lopdf-tj paragraph-move --paragraph-id availability-p2 --to-section-id support --to-index 1
-cargo run -p pdfdelta-bench -- evaluate-yaml document.yaml --renderer lopdf-tj margin-change --new-margin 48
+mise run bench-render -- document.yaml --renderer lopdf-tj --output document.pdf
+mise run bench-render -- document.yaml --renderer classic-xref-tj --output document-classic.pdf
+mise run bench-evaluate-yaml -- document.yaml --renderer lopdf-tj number-replace --paragraph-id availability-p1 --new-number 20
+mise run bench-evaluate-yaml -- document.yaml --renderer lopdf-tj line-wrap --paragraph-id availability-p1 --after-word 4
+mise run bench-evaluate-yaml -- document.yaml --renderer lopdf-tj page-break --before-paragraph-id support-p1
+mise run bench-evaluate-yaml -- document.yaml --renderer lopdf-tj paragraph-insert --section-id availability --index 2 --paragraph-id availability-p3 --text "Inserted availability detail."
+mise run bench-evaluate-yaml -- document.yaml --renderer lopdf-tj paragraph-move --paragraph-id availability-p2 --to-index 0
+mise run bench-evaluate-yaml -- document.yaml --renderer lopdf-tj paragraph-move --paragraph-id availability-p2 --to-section-id support --to-index 1
+mise run bench-evaluate-yaml -- document.yaml --renderer lopdf-tj margin-change --new-margin 48
 
 # Evaluate a pair produced by an external renderer without invoking it in CI.
-cargo run -p pdfdelta-bench -- evaluate-rendered-yaml \
+mise run bench-evaluate-rendered-yaml -- \
   fixtures/external/case3-typst/document.yaml \
   --old-pdf fixtures/external/case3-typst/old.pdf \
   --new-pdf fixtures/external/case3-typst/new.pdf \
@@ -197,7 +199,7 @@ decoding is never represented as empty mapped text. Input PDFs and oracle JSON
 are read under explicit size limits, and incomplete extraction is rejected.
 
 ```bash
-cargo run -p pdfdelta-bench -- extraction-conformance input.pdf \
+mise run bench-extraction-conformance -- input.pdf \
   --oracle oracle.json \
   --geometry-tolerance 0.25 \
   --mismatch-svg mismatch.svg
@@ -225,8 +227,8 @@ latency, and Linux resident-memory observations for the inverted index,
 MinHash LSH, and exhaustive oracle.
 
 ```bash
-cargo run -p pdfdelta-bench --release -- candidates --top-k 5,10
-cargo run -p pdfdelta-bench --release -- candidate-profile \
+mise run bench-candidates -- --top-k 5,10
+mise run bench-candidate-profile -- \
   --blocks 1000 \
   --top-k 5,10 \
   --json-output candidate-profile.json
@@ -256,11 +258,11 @@ committed to this repository.
 
 ```bash
 # download both sides of every pair and verify byte counts and checksums
-benchmark/realworld/fetch.sh
-cargo run -p pdfdelta-bench -- revisions --cache-dir benchmark/realworld/cache --checksums-only
+mise run bench-fetch
+mise run bench-revisions-checksums
 
 # run comparisons and report metrics (add --summary-json-output summary.json for deterministic compact summaries or --json-output report.json for full reports)
-cargo run -p pdfdelta-bench -- revisions --cache-dir benchmark/realworld/cache
+mise run bench-revisions
 ```
 
 The command reports extraction conformance separately from revision-diff

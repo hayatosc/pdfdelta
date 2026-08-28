@@ -13,43 +13,34 @@ cargo install cargo-fuzz
 
 ## Build and run
 
-Build a target:
+Build every target, or pass one target after `--` to build it alone:
 
 ```console
-cargo +nightly fuzz build parser_entry
-cargo +nightly fuzz build cmap_parser
-cargo +nightly fuzz build content_stream_parser
-cargo +nightly fuzz build font_decoder
-cargo +nightly fuzz build canonical_yaml
-cargo +nightly fuzz build glyph_extraction
+mise run fuzz-build
+mise run fuzz-build -- parser_entry
 ```
 
 Run a short smoke session with the checked-in seeds and the target's input limit:
 
 ```console
-cargo +nightly fuzz run parser_entry -- -max_total_time=30 -max_len=65536
-cargo +nightly fuzz run cmap_parser -- -max_total_time=30 -max_len=65536
-cargo +nightly fuzz run content_stream_parser -- -max_total_time=30 -max_len=65536
-cargo +nightly fuzz run font_decoder -- -max_total_time=30 -max_len=65536
-cargo +nightly fuzz run canonical_yaml -- -max_total_time=30 -max_len=65536
-cargo +nightly fuzz run glyph_extraction -- -max_total_time=30 -max_len=65536
+mise run fuzz-smoke
 ```
 
 An existing fixture directory can be supplied as an additional corpus without copying its PDFs into this workspace:
 
 ```console
-cargo +nightly fuzz run parser_entry fuzz/corpus/parser_entry fixtures/external/japanese-typst -- -max_len=65536
+mise run fuzz-run -- parser_entry fuzz/corpus/parser_entry fixtures/external/japanese-typst -- -max_len=65536
 ```
 
 Reproduce a saved failure by passing its artifact path and target:
 
 ```console
-cargo +nightly fuzz run parser_entry fuzz/artifacts/parser_entry/crash-ARTIFACT -- -max_len=65536
-cargo +nightly fuzz run cmap_parser fuzz/artifacts/cmap_parser/crash-ARTIFACT -- -max_len=65536
-cargo +nightly fuzz run content_stream_parser fuzz/artifacts/content_stream_parser/crash-ARTIFACT -- -max_len=65536
-cargo +nightly fuzz run font_decoder fuzz/artifacts/font_decoder/crash-ARTIFACT -- -max_len=65536
-cargo +nightly fuzz run canonical_yaml fuzz/artifacts/canonical_yaml/crash-ARTIFACT -- -max_len=65536
-cargo +nightly fuzz run glyph_extraction fuzz/artifacts/glyph_extraction/crash-ARTIFACT -- -max_len=65536
+mise run fuzz-run -- parser_entry fuzz/artifacts/parser_entry/crash-ARTIFACT -- -max_len=65536
+mise run fuzz-run -- cmap_parser fuzz/artifacts/cmap_parser/crash-ARTIFACT -- -max_len=65536
+mise run fuzz-run -- content_stream_parser fuzz/artifacts/content_stream_parser/crash-ARTIFACT -- -max_len=65536
+mise run fuzz-run -- font_decoder fuzz/artifacts/font_decoder/crash-ARTIFACT -- -max_len=65536
+mise run fuzz-run -- canonical_yaml fuzz/artifacts/canonical_yaml/crash-ARTIFACT -- -max_len=65536
+mise run fuzz-run -- glyph_extraction fuzz/artifacts/glyph_extraction/crash-ARTIFACT -- -max_len=65536
 ```
 
 ## Target contract

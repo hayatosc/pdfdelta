@@ -27,7 +27,7 @@ automatic independence certificate.
 Verify it from the repository root:
 
 ```bash
-cargo run -p pdfdelta-bench -- extraction-conformance \
+mise run bench-extraction-conformance -- \
   fixtures/external/case1-japanese-typst/old.pdf \
   --oracle fixtures/extraction-conformance/pdf-oxide-0.3.77/case1-japanese-typst-old.oracle.json \
   --geometry-tolerance 0.25

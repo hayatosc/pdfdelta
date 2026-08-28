@@ -10,14 +10,85 @@ run = [
   "cargo run -p pdfdelta-bench --locked -- verify",
 ]
 
+[tasks.fmt]
+description = "Check Rust formatting"
+run = "cargo fmt --all -- --check"
+
+[tasks.clippy]
+description = "Lint every workspace target"
+run = "cargo clippy --workspace --all-targets --locked -- -D warnings"
+
+[tasks.test]
+description = "Run the workspace test suite"
+run = "cargo test --workspace --locked"
+
+[tasks.pdfdelta]
+description = "Run the pdfdelta CLI (usage: mise run pdfdelta -- <args>)"
+run = "cargo run --bin pdfdelta --locked --"
+
+[tasks.example-glyph-comparison]
+description = "Run the backend-independent glyph comparison example"
+run = "cargo run -p pdfdelta-core --locked --example glyph_comparison"
+
 [tasks.bench]
 description = "Run the in-memory acceptance benchmark matrix"
 run = "cargo run -p pdfdelta-bench --locked -- verify"
+
+[tasks.bench-render]
+description = "Render a canonical YAML fixture (usage: mise run bench-render -- <args>)"
+run = "cargo run -p pdfdelta-bench --locked -- render"
+
+[tasks.bench-evaluate-yaml]
+description = "Evaluate a canonical YAML mutation (usage: mise run bench-evaluate-yaml -- <args>)"
+run = "cargo run -p pdfdelta-bench --locked -- evaluate-yaml"
+
+[tasks.bench-evaluate-rendered-yaml]
+description = "Evaluate externally rendered YAML revisions (usage: mise run bench-evaluate-rendered-yaml -- <args>)"
+run = "cargo run -p pdfdelta-bench --locked -- evaluate-rendered-yaml"
+
+[tasks.bench-extraction-conformance]
+description = "Compare extracted glyphs with an oracle (usage: mise run bench-extraction-conformance -- <args>)"
+run = "cargo run -p pdfdelta-bench --locked -- extraction-conformance"
+
+[tasks.bench-candidates]
+description = "Run candidate recall and visit-pressure benchmarks (usage: mise run bench-candidates -- <args>)"
+run = "cargo run -p pdfdelta-bench --release --locked -- candidates"
+
+[tasks.bench-candidate-profile]
+description = "Profile candidate generators (usage: mise run bench-candidate-profile -- <args>)"
+run = "cargo run -p pdfdelta-bench --release --locked -- candidate-profile"
 
 [tasks.bench-fetch]
 description = "Download and checksum-verify the real-world revision corpus"
 run = "benchmark/realworld/fetch.sh"
 
+[tasks.bench-revisions-checksums]
+description = "Verify the cached real-world revision corpus"
+run = "cargo run -p pdfdelta-bench --locked -- revisions --cache-dir benchmark/realworld/cache --checksums-only"
+
 [tasks.bench-revisions]
-description = "Run the real-world revision-pair benchmark (run bench-fetch first)"
+description = "Run real-world revision comparisons (usage: mise run bench-revisions -- <args>)"
 run = "cargo run -p pdfdelta-bench --locked -- revisions --cache-dir benchmark/realworld/cache"
+
+[tasks.bench-revisions-release]
+description = "Run release-mode real-world revision comparisons (usage: mise run bench-revisions-release -- <args>)"
+run = "cargo run -p pdfdelta-bench --release --locked -- revisions --cache-dir benchmark/realworld/cache"
+
+[tasks.fuzz-build]
+description = "Build all fuzz targets, or one target passed after --"
+run = "cargo +nightly fuzz build"
+
+[tasks.fuzz-run]
+description = "Run a fuzz target (usage: mise run fuzz-run -- <target> [args])"
+run = "cargo +nightly fuzz run"
+
+[tasks.fuzz-smoke]
+description = "Run a 30-second smoke session for every fuzz target"
+run = [
+  "cargo +nightly fuzz run parser_entry -- -max_total_time=30 -max_len=65536",
+  "cargo +nightly fuzz run cmap_parser -- -max_total_time=30 -max_len=65536",
+  "cargo +nightly fuzz run content_stream_parser -- -max_total_time=30 -max_len=65536",
+  "cargo +nightly fuzz run font_decoder -- -max_total_time=30 -max_len=65536",
+  "cargo +nightly fuzz run canonical_yaml -- -max_total_time=30 -max_len=65536",
+  "cargo +nightly fuzz run glyph_extraction -- -max_total_time=30 -max_len=65536",
+]

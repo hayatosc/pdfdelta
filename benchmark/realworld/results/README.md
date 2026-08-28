@@ -18,8 +18,7 @@ This directory contains dated, compact machine-readable evaluation summaries for
   Because atomic publication refuses to overwrite existing files, write the reproduction summary to a temporary path and compare it to the committed artifact:
   ```bash
   # Generate reproduction summary to /tmp
-  cargo run -p pdfdelta-bench --release -- revisions \
-    --cache-dir benchmark/realworld/cache \
+  mise run bench-revisions-release -- \
     --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 
   # Byte-compare against the committed artifact
@@ -28,9 +27,7 @@ This directory contains dated, compact machine-readable evaluation summaries for
 - **Provenance Verification**:
   All cached PDF pairs were verified against [`benchmark/realworld/manifest.tsv`](../manifest.tsv) via:
   ```bash
-  cargo run -p pdfdelta-bench --release -- revisions \
-    --cache-dir benchmark/realworld/cache \
-    --checksums-only
+  mise run bench-revisions-checksums
   ```
 
 ## Evaluation Budget Configuration
