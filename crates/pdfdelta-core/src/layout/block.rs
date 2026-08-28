@@ -34,9 +34,19 @@ pub struct Block {
     pub role: BlockRole,
 }
 
+/// Identifies a trusted line run within one reconstructed document side.
+///
+/// Numeric ID order is deterministic but does not establish reading order
+/// between distinct runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct TrustedRunId(pub u64);
+
 pub(crate) struct BlockReconstruction {
     pub blocks: Vec<Block>,
     pub issues: Vec<LayoutIssue>,
+    /// Parallel to `blocks`; mixed or partially untrusted blocks have no run.
+    #[allow(dead_code, reason = "reserved for downstream alignment")]
+    pub trusted_run_ids: Vec<Option<TrustedRunId>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -207,6 +217,8 @@ pub(crate) fn reconstruct_blocks_with_issues(
 
     let mut ordered_stats = Vec::with_capacity(lines.len());
     let mut partial_uncertain_line_ids = HashSet::new();
+    let mut trusted_runs_by_line_id = HashMap::new();
+    let mut next_trusted_run_id = 0;
     let mut issues = Vec::new();
     for (page_num, page_lines) in page_lines_map {
         let page = PageId(page_num);
@@ -220,6 +232,11 @@ pub(crate) fn reconstruct_blocks_with_issues(
             &page_lines,
             &page_vector_lines,
             super::region::RegionOptions::default(),
+        )?;
+        assign_trusted_run_ids(
+            &mut trusted_runs_by_line_id,
+            &partition.trusted_runs,
+            &mut next_trusted_run_id,
         )?;
         // Partial uncertainty remains deterministic evidence serialization, not proven order.
         // Barriers only keep already-classified uncertain lines from contaminating trusted blocks.
@@ -313,8 +330,58 @@ pub(crate) fn reconstruct_blocks_with_issues(
             lines: block.lines,
             role: block.role,
         })
-        .collect();
-    Ok(BlockReconstruction { blocks, issues })
+        .collect::<Vec<_>>();
+    let trusted_run_ids = block_trusted_run_ids(&blocks, &trusted_runs_by_line_id);
+    Ok(BlockReconstruction {
+        blocks,
+        issues,
+        trusted_run_ids,
+    })
+}
+
+fn assign_trusted_run_ids(
+    runs_by_line_id: &mut HashMap<LineId, TrustedRunId>,
+    trusted_runs: &[super::region::TrustedLineRun],
+    next_run_id: &mut u64,
+) -> Result<()> {
+    for run in trusted_runs {
+        if run.line_ids.is_empty() {
+            continue;
+        }
+        let following_run_id = next_run_id
+            .checked_add(1)
+            .ok_or_else(|| Error::Unresolved("trusted line run id space exhausted".to_owned()))?;
+        let mut run_line_ids = HashSet::with_capacity(run.line_ids.len());
+        for line_id in &run.line_ids {
+            if runs_by_line_id.contains_key(line_id) || !run_line_ids.insert(*line_id) {
+                return Err(Error::Unresolved(format!(
+                    "line {} is assigned to multiple trusted runs",
+                    line_id.0
+                )));
+            }
+        }
+        let run_id = TrustedRunId(*next_run_id);
+        runs_by_line_id.extend(run.line_ids.iter().map(|line_id| (*line_id, run_id)));
+        *next_run_id = following_run_id;
+    }
+    Ok(())
+}
+
+fn block_trusted_run_ids(
+    blocks: &[Block],
+    runs_by_line_id: &HashMap<LineId, TrustedRunId>,
+) -> Vec<Option<TrustedRunId>> {
+    blocks
+        .iter()
+        .map(|block| {
+            let run_id = *runs_by_line_id.get(block.lines.first()?)?;
+            block
+                .lines
+                .iter()
+                .all(|line_id| runs_by_line_id.get(line_id) == Some(&run_id))
+                .then_some(run_id)
+        })
+        .collect()
 }
 
 fn crosses_partial_uncertainty(
@@ -1149,8 +1216,89 @@ fn invalid_line(line: &Line, reason: &str) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::FontProgramHash;
+    use crate::{layout::region::TrustedLineRun, model::FontProgramHash};
     use std::cmp::Ordering;
+
+    fn block(id: u64, lines: &[u64]) -> Block {
+        Block {
+            id: BlockId(id),
+            lines: lines.iter().copied().map(LineId).collect(),
+            role: BlockRole::Body,
+        }
+    }
+
+    #[test]
+    fn trusted_run_mapping_is_deterministic_and_preserves_final_blocks() {
+        let trusted_runs = vec![
+            TrustedLineRun {
+                line_ids: vec![LineId(1), LineId(2)],
+            },
+            TrustedLineRun {
+                line_ids: vec![LineId(3), LineId(4)],
+            },
+        ];
+        let blocks = vec![block(0, &[1, 2]), block(1, &[3, 4])];
+        let original_blocks = blocks.clone();
+        let mut first_assignment = HashMap::new();
+        let mut first_next_id = 0;
+        assign_trusted_run_ids(&mut first_assignment, &trusted_runs, &mut first_next_id)
+            .expect("disjoint trusted runs should be assigned");
+        let mut second_assignment = HashMap::new();
+        let mut second_next_id = 0;
+        assign_trusted_run_ids(&mut second_assignment, &trusted_runs, &mut second_next_id)
+            .expect("repeated assignment should succeed");
+
+        let first_metadata = block_trusted_run_ids(&blocks, &first_assignment);
+        let second_metadata = block_trusted_run_ids(&blocks, &second_assignment);
+
+        assert_eq!(
+            first_metadata,
+            vec![Some(TrustedRunId(0)), Some(TrustedRunId(1))]
+        );
+        assert_eq!(second_metadata, first_metadata);
+        assert_eq!(blocks, original_blocks);
+    }
+
+    #[test]
+    fn mixed_and_partially_untrusted_blocks_have_no_trusted_run() {
+        let runs_by_line_id = HashMap::from([
+            (LineId(1), TrustedRunId(0)),
+            (LineId(2), TrustedRunId(0)),
+            (LineId(3), TrustedRunId(1)),
+        ]);
+        let blocks = vec![
+            block(0, &[1, 2]),
+            block(1, &[2, 3]),
+            block(2, &[1, 4]),
+            block(3, &[4]),
+        ];
+
+        assert_eq!(
+            block_trusted_run_ids(&blocks, &runs_by_line_id),
+            vec![Some(TrustedRunId(0)), None, None, None]
+        );
+    }
+
+    #[test]
+    fn duplicate_trusted_line_assignment_is_rejected() {
+        let trusted_runs = vec![
+            TrustedLineRun {
+                line_ids: vec![LineId(1), LineId(2)],
+            },
+            TrustedLineRun {
+                line_ids: vec![LineId(2), LineId(3)],
+            },
+        ];
+        let mut runs_by_line_id = HashMap::new();
+        let mut next_run_id = 0;
+
+        let error = assign_trusted_run_ids(&mut runs_by_line_id, &trusted_runs, &mut next_run_id)
+            .expect_err("a line cannot belong to two trusted runs");
+
+        assert!(
+            matches!(error, Error::Unresolved(message) if message.contains("assigned to multiple trusted runs"))
+        );
+    }
 
     #[test]
     fn region_ordering_rejects_missing_and_duplicate_line_ids() {
