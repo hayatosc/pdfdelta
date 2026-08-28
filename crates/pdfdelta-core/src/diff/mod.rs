@@ -1244,29 +1244,47 @@ fn compare_match(
         return Ok(true);
     }
 
-    let edits = match myers::diff(&old.tokens, &new.tokens, options.max_edit_distance)? {
-        Some(edits)
-            if span.confidence != AlignmentConfidence::Low
-                || !is_implausible_match(&edits, old.tokens.len(), new.tokens.len(), options) =>
-        {
-            edits
-        }
-        _ => {
-            // Either the edit distance budget was exceeded, or a weak alignment
-            // produced an implausible match / change soup. Keep the comparison alive
-            // and report the matched group as an unresolved region instead of failing
-            // the whole document.
-            unresolved_regions.push(UnresolvedRegion {
-                old_span: Some(old.full_span()),
-                new_span: Some(new.full_span()),
-                evidence: span.evidence.clone(),
-            });
-            return Ok(false);
-        }
+    let Some(edits) = myers::diff(&old.tokens, &new.tokens, options.max_edit_distance)? else {
+        push_unresolved_match(
+            &old,
+            &new,
+            span,
+            AlignmentEvidence::DiffEditDistanceExceeded,
+            unresolved_regions,
+        );
+        return Ok(false);
     };
+    if span.confidence == AlignmentConfidence::Low
+        && is_implausible_match(&edits, old.tokens.len(), new.tokens.len(), options)
+    {
+        push_unresolved_match(
+            &old,
+            &new,
+            span,
+            AlignmentEvidence::DiffRejectedAsImplausible,
+            unresolved_regions,
+        );
+        return Ok(false);
+    }
 
     append_changes(&old, &new, &edits, span.confidence.into(), changes);
     Ok(true)
+}
+
+fn push_unresolved_match(
+    old: &GroupText,
+    new: &GroupText,
+    span: &AlignmentSpan,
+    cause: AlignmentEvidence,
+    unresolved_regions: &mut Vec<UnresolvedRegion>,
+) {
+    let mut evidence = span.evidence.clone();
+    evidence.push(cause);
+    unresolved_regions.push(UnresolvedRegion {
+        old_span: Some(old.full_span()),
+        new_span: Some(new.full_span()),
+        evidence,
+    });
 }
 
 /// Maximum allowable hunk-to-token ratio for weak matches before degrading to unresolved.

@@ -703,6 +703,11 @@ fn evidence(value: AlignmentEvidence) -> String {
     match value {
         AlignmentEvidence::ExactCanonical => "exact_canonical".to_owned(),
         AlignmentEvidence::TextSimilarity => "text_similarity".to_owned(),
+        AlignmentEvidence::CandidateSetEmpty => "candidate_set_empty".to_owned(),
+        AlignmentEvidence::CandidateScoringRejected => "candidate_scoring_rejected".to_owned(),
+        AlignmentEvidence::CandidateCompetition => "candidate_competition".to_owned(),
+        AlignmentEvidence::DiffEditDistanceExceeded => "diff_edit_distance_exceeded".to_owned(),
+        AlignmentEvidence::DiffRejectedAsImplausible => "diff_rejected_as_implausible".to_owned(),
         AlignmentEvidence::Anchor => "anchor".to_owned(),
         AlignmentEvidence::AnchorInterval => "anchor_interval".to_owned(),
         AlignmentEvidence::NeighborConsistency => "neighbor_consistency".to_owned(),
@@ -735,5 +740,34 @@ fn candidate_source(source: CandidateSource) -> &'static str {
         CandidateSource::MinHashLsh => "minhash_lsh",
         CandidateSource::ShortBlockFallback => "short_block_fallback",
         CandidateSource::Exhaustive => "exhaustive",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn diagnostic_evidence_uses_snake_case_json_strings() {
+        assert_eq!(
+            evidence(AlignmentEvidence::CandidateSetEmpty),
+            "candidate_set_empty"
+        );
+        assert_eq!(
+            evidence(AlignmentEvidence::CandidateScoringRejected),
+            "candidate_scoring_rejected"
+        );
+        assert_eq!(
+            evidence(AlignmentEvidence::CandidateCompetition),
+            "candidate_competition"
+        );
+        assert_eq!(
+            evidence(AlignmentEvidence::DiffEditDistanceExceeded),
+            "diff_edit_distance_exceeded"
+        );
+        assert_eq!(
+            evidence(AlignmentEvidence::DiffRejectedAsImplausible),
+            "diff_rejected_as_implausible"
+        );
     }
 }

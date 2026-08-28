@@ -39,6 +39,16 @@ pub enum AlignmentConfidence {
 pub enum AlignmentEvidence {
     ExactCanonical,
     TextSimilarity,
+    /// No candidate edge connected the collapsed alignment interval.
+    CandidateSetEmpty,
+    /// Candidate edges existed, but scoring or admission filters rejected every match proposal.
+    CandidateScoringRejected,
+    /// Admissible match proposals existed, but competing DP paths remained ambiguous.
+    CandidateCompetition,
+    /// The token diff exceeded its configured edit-distance bound.
+    DiffEditDistanceExceeded,
+    /// A low-confidence match failed the token-diff plausibility gate.
+    DiffRejectedAsImplausible,
     Anchor,
     AnchorInterval,
     NeighborConsistency,
@@ -955,7 +965,15 @@ fn is_full_text_similarity_collapse(
         return false;
     };
     span.kind == AlignmentKind::Unresolved
-        && span.evidence == [AlignmentEvidence::TextSimilarity]
+        && matches!(
+            span.evidence.as_slice(),
+            [
+                AlignmentEvidence::TextSimilarity,
+                AlignmentEvidence::CandidateSetEmpty
+                    | AlignmentEvidence::CandidateScoringRejected
+                    | AlignmentEvidence::CandidateCompetition
+            ]
+        )
         && span
             .old
             .iter()
@@ -1164,10 +1182,20 @@ fn align_interval(
         })?;
     cells.resize(cell_count, Cell::default());
     cells[0].best = 0.0;
+    let mut has_candidate_edge = false;
+    let mut has_match_proposal = false;
 
     for old_index in 0..=old.len() {
         for new_index in 0..=new.len() {
             let from = old_index * width + new_index;
+            if !has_candidate_edge
+                && let Some((old, new)) = old.get(old_index).zip(new.get(new_index))
+                && candidates
+                    .get(&old.block)
+                    .is_some_and(|by_new| by_new.contains_key(&new.block))
+            {
+                has_candidate_edge = true;
+            }
             if !cells[from].best.is_finite() {
                 continue;
             }
@@ -1181,6 +1209,7 @@ fn align_interval(
                 .zip(new.get(new_index))
                 .filter(|(old, new)| is_exact_normalization_pair(old, new, context));
             if let Some((old, new)) = exact_normalization {
+                has_match_proposal = true;
                 propose(
                     &mut cells,
                     from,
@@ -1311,7 +1340,7 @@ fn align_interval(
                     candidates,
                 )
             {
-                propose_group_match(
+                has_match_proposal |= propose_group_match(
                     &mut cells,
                     (from, (old_index + 1) * width + new_index + 1),
                     &old[old_index..old_index + 1],
@@ -1338,7 +1367,7 @@ fn align_interval(
                             candidates,
                         )
                     {
-                        propose_group_match(
+                        has_match_proposal |= propose_group_match(
                             &mut cells,
                             (from, old_end * width + new_end),
                             &old[old_index..old_end],
@@ -1360,10 +1389,17 @@ fn align_interval(
         || (final_cell.second.is_finite()
             && (final_cell.best - final_cell.second).abs() <= SCORE_TOLERANCE)
     {
-        return Ok(vec![unresolved_span(
+        let cause = if !has_candidate_edge {
+            AlignmentEvidence::CandidateSetEmpty
+        } else if !has_match_proposal {
+            AlignmentEvidence::CandidateScoringRejected
+        } else {
+            AlignmentEvidence::CandidateCompetition
+        };
+        return Ok(vec![unresolved_span_with_evidence(
             old,
             new,
-            AlignmentEvidence::TextSimilarity,
+            vec![AlignmentEvidence::TextSimilarity, cause],
         )]);
     }
     backtrack(old, new, &cells, width, options, context)
@@ -1425,7 +1461,7 @@ fn propose_group_match(
     sources: Vec<CandidateSource>,
     options: AlignmentOptions,
     require_exact_canonical: bool,
-) {
+) -> bool {
     let group_score = score_groups(
         old,
         new,
@@ -1442,7 +1478,7 @@ fn propose_group_match(
             && !group_score.exact_canonical
             && group_score.canonical_similarity < options.min_masked_canonical_similarity
     {
-        return;
+        return false;
     }
     let split_merge = old.len() != new.len();
     let reward = group_score.score
@@ -1458,6 +1494,7 @@ fn propose_group_match(
         sources,
     };
     propose(cells, edge.0, edge.1, reward, transition);
+    true
 }
 
 fn update_cell(cell: &mut Cell, score: f64, transition: Option<Transition>) {
@@ -2150,6 +2187,190 @@ mod tests {
         let mut f = feature(block, key);
         f.has_normalization_issues = has_normalization_issues;
         f
+    }
+
+    fn candidate_map(edges: &[(u64, u64)]) -> CandidateMap {
+        let mut candidates = CandidateMap::new();
+        for &(old, new) in edges {
+            candidates
+                .entry(BlockId(old))
+                .or_default()
+                .insert(BlockId(new), vec![CandidateSource::Exhaustive]);
+        }
+        candidates
+    }
+
+    fn align_unbounded_interval(
+        old: &[BlockFeatures],
+        new: &[BlockFeatures],
+        candidates: &CandidateMap,
+    ) -> Vec<AlignmentSpan> {
+        let options = AlignmentOptions::default();
+        let mut dp_cell_budget = DpCellBudget::new(options.max_dp_cells);
+        let move_old = HashSet::new();
+        let move_new = HashSet::new();
+        align_interval(
+            old,
+            new,
+            candidates,
+            options,
+            &mut dp_cell_budget,
+            IntervalContext {
+                allow_split_merge: false,
+                bounded_by_anchors: false,
+                move_old: &move_old,
+                move_new: &move_new,
+            },
+        )
+        .expect("test interval should align")
+    }
+
+    #[test]
+    fn ambiguity_collapse_reports_an_empty_candidate_set() {
+        let old = [feature(1, 1)];
+        let new = [feature(101, 2)];
+
+        let spans = align_unbounded_interval(&old, &new, &CandidateMap::new());
+
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].kind, AlignmentKind::Unresolved);
+        assert_eq!(spans[0].old, [BlockId(1)]);
+        assert_eq!(spans[0].new, [BlockId(101)]);
+        assert_eq!(
+            spans[0].evidence,
+            [
+                AlignmentEvidence::TextSimilarity,
+                AlignmentEvidence::CandidateSetEmpty,
+            ]
+        );
+    }
+
+    #[test]
+    fn ambiguity_collapse_reports_rejected_candidate_scoring() {
+        let old = [feature(1, 1)];
+        let new = [feature(101, 2)];
+
+        let spans = align_unbounded_interval(&old, &new, &candidate_map(&[(1, 101)]));
+
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].kind, AlignmentKind::Unresolved);
+        assert_eq!(spans[0].old, [BlockId(1)]);
+        assert_eq!(spans[0].new, [BlockId(101)]);
+        assert_eq!(
+            spans[0].evidence,
+            [
+                AlignmentEvidence::TextSimilarity,
+                AlignmentEvidence::CandidateScoringRejected,
+            ]
+        );
+    }
+
+    #[test]
+    fn ambiguity_collapse_reports_competing_admissible_candidates() {
+        let old = [feature(1, 1)];
+        let new = [feature(101, 1), feature(102, 1)];
+
+        let spans = align_unbounded_interval(&old, &new, &candidate_map(&[(1, 101), (1, 102)]));
+
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].kind, AlignmentKind::Unresolved);
+        assert_eq!(spans[0].old, [BlockId(1)]);
+        assert_eq!(spans[0].new, [BlockId(101), BlockId(102)]);
+        assert_eq!(
+            spans[0].evidence,
+            [
+                AlignmentEvidence::TextSimilarity,
+                AlignmentEvidence::CandidateCompetition,
+            ]
+        );
+    }
+
+    #[test]
+    fn candidate_diagnostics_preserve_partition_fallback_and_dp_charging() {
+        let old = [feature(1, 1), feature(2, 2)];
+        let new = [feature(101, 1), feature(102, 3)];
+        let anchor = ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(101),
+        };
+        let old_indices = HashMap::from([(BlockId(1), 0), (BlockId(2), 1)]);
+        let new_indices = HashMap::from([(BlockId(101), 0), (BlockId(102), 1)]);
+        let options = AlignmentOptions::default();
+        let mut dp_cell_budget = DpCellBudget::new(options.max_dp_cells);
+        let move_old = HashSet::new();
+        let move_new = HashSet::new();
+
+        let spans = align_interval_with_partition_fallback(
+            &old,
+            &new,
+            &CandidateMap::new(),
+            options,
+            &mut dp_cell_budget,
+            IntervalContext {
+                allow_split_merge: false,
+                bounded_by_anchors: false,
+                move_old: &move_old,
+                move_new: &move_new,
+            },
+            PartitionFallback {
+                anchors: std::slice::from_ref(&anchor),
+                old_offset: 0,
+                new_offset: 0,
+                old_indices: &old_indices,
+                new_indices: &new_indices,
+            },
+        )
+        .expect("partition fallback should remain available");
+
+        assert_eq!(dp_cell_budget.consumed(), 13);
+        assert_eq!(spans.len(), 2);
+        assert_eq!(spans[0], partition_span(anchor));
+        assert_eq!(spans[1].old, [BlockId(2)]);
+        assert_eq!(spans[1].new, [BlockId(102)]);
+        assert_eq!(
+            spans[1].evidence,
+            [
+                AlignmentEvidence::TextSimilarity,
+                AlignmentEvidence::CandidateSetEmpty,
+            ]
+        );
+    }
+
+    #[test]
+    fn candidate_diagnostics_preserve_move_boundaries_after_collapse() {
+        let old = [feature(1, 1), feature(2, 2)];
+        let new = [feature(101, 3), feature(102, 2)];
+        let move_old = HashSet::from([BlockId(2)]);
+        let move_new = HashSet::from([BlockId(102)]);
+        let collapsed = vec![unresolved_span_with_evidence(
+            &old,
+            &new,
+            vec![
+                AlignmentEvidence::TextSimilarity,
+                AlignmentEvidence::CandidateCompetition,
+            ],
+        )];
+
+        let spans = preserve_collapsed_moves(
+            collapsed,
+            &old,
+            &new,
+            IntervalContext {
+                allow_split_merge: false,
+                bounded_by_anchors: false,
+                move_old: &move_old,
+                move_new: &move_new,
+            },
+        );
+
+        assert_eq!(spans.len(), 3);
+        assert_eq!(spans[0].kind, AlignmentKind::Unresolved);
+        assert_eq!(spans[0].old, [BlockId(1)]);
+        assert_eq!(spans[0].new, [BlockId(101)]);
+        assert_eq!(spans[1].kind, AlignmentKind::Deletion);
+        assert_eq!(spans[1].old, [BlockId(2)]);
+        assert_eq!(spans[2].kind, AlignmentKind::Insertion);
+        assert_eq!(spans[2].new, [BlockId(102)]);
     }
 
     #[test]

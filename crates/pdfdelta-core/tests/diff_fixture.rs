@@ -632,6 +632,13 @@ fn degrades_a_weak_match_whose_tokens_mostly_changed() -> Result<()> {
 
     assert!(result.changes.is_empty());
     assert_eq!(result.unresolved_regions.len(), 1);
+    assert_eq!(
+        result.unresolved_regions[0].evidence,
+        [
+            AlignmentEvidence::TextSimilarity,
+            AlignmentEvidence::DiffRejectedAsImplausible,
+        ]
+    );
     // The degraded span must not count as resolved coverage.
     assert_eq!(result.old_coverage.resolved_tokens, 0);
     assert_eq!(result.new_coverage.resolved_tokens, 0);
@@ -815,6 +822,13 @@ fn enforces_token_and_edit_distance_limits() {
     .expect("an edit distance overrun should degrade the span, not the comparison");
     assert!(distance_limited.changes.is_empty());
     assert_eq!(distance_limited.unresolved_regions.len(), 1);
+    assert_eq!(
+        distance_limited.unresolved_regions[0].evidence,
+        [
+            AlignmentEvidence::TextSimilarity,
+            AlignmentEvidence::DiffEditDistanceExceeded,
+        ]
+    );
     assert!(
         distance_limited
             .unresolved_regions
