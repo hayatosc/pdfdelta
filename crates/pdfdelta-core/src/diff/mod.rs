@@ -505,6 +505,8 @@ struct PreparedSentenceRecovery {
 
 #[derive(Clone, Copy, Default)]
 struct SentenceRecoveryCommittedTokens {
+    exact_match_old: usize,
+    exact_match_new: usize,
     replacement_old: usize,
     replacement_new: usize,
     deletion: usize,
@@ -589,6 +591,7 @@ fn prepare_sentence_recovery(
     recovery: &sentence::SentenceRecoveryPlan,
     output_budget: &mut RecoveryOutputBudget,
 ) -> Option<PreparedSentenceRecovery> {
+    let matches = sentence::matches_for_span(&recovery.matches, span_index);
     let deletions = sentence::recoveries_for_span(&recovery.deletions, span_index);
     let insertions = sentence::recoveries_for_span(&recovery.insertions, span_index);
     let replacements = sentence::replacements_for_span(&recovery.replacements, span_index);
@@ -616,11 +619,14 @@ fn prepare_sentence_recovery(
         .try_reserve_exact(unresolved_capacity)
         .ok()?;
 
+    let (exact_match_old, exact_match_new) = recovered_exact_match_tokens(matches)?;
     let (replacement_old, replacement_new) =
         prepare_recovered_replacements(replacements, &mut changes, output_budget)?;
     let deletion =
         prepare_recovered_changes(deletions, ChangeKind::Deletion, &mut changes, output_budget)?;
-    let resolved_old = replacement_old.checked_add(deletion)?;
+    let resolved_old = exact_match_old
+        .checked_add(replacement_old)?
+        .checked_add(deletion)?;
     sort_recovered_old_changes(old, &mut changes)?;
     let insertion = prepare_recovered_changes(
         insertions,
@@ -628,7 +634,9 @@ fn prepare_sentence_recovery(
         &mut changes,
         output_budget,
     )?;
-    let resolved_new = replacement_new.checked_add(insertion)?;
+    let resolved_new = exact_match_new
+        .checked_add(replacement_new)?
+        .checked_add(insertion)?;
     prepare_unresolved_remainders(
         old,
         &span.old,
@@ -656,12 +664,33 @@ fn prepare_sentence_recovery(
         resolved_old,
         resolved_new,
         committed: SentenceRecoveryCommittedTokens {
+            exact_match_old,
+            exact_match_new,
             replacement_old,
             replacement_new,
             deletion,
             insertion,
         },
     })
+}
+
+fn recovered_exact_match_tokens(
+    matches: &[sentence::RecoveredExactMatch],
+) -> Option<(usize, usize)> {
+    matches
+        .iter()
+        .try_fold((0usize, 0usize), |(resolved_old, resolved_new), matched| {
+            if matched.old.span_index != matched.new.span_index
+                || !valid_recovered_sentence(&matched.old)
+                || !valid_recovered_sentence(&matched.new)
+            {
+                return None;
+            }
+            Some((
+                resolved_old.checked_add(matched.old.source_tokens)?,
+                resolved_new.checked_add(matched.new.source_tokens)?,
+            ))
+        })
 }
 
 fn recovered_range_count(
@@ -2081,21 +2110,17 @@ mod tests {
         );
         assert_eq!(
             deletion.unresolved_regions,
-            vec![
-                UnresolvedRegion {
-                    old_span: Some(test_span(1, 0, sentence_start)),
-                    new_span: None,
-                    evidence: evidence.clone(),
-                },
-                UnresolvedRegion {
-                    old_span: None,
-                    new_span: Some(test_span(2, 0, short.chars().count())),
-                    evidence: evidence.clone(),
-                },
-            ]
+            vec![UnresolvedRegion {
+                old_span: Some(test_span(1, short.chars().count(), sentence_start)),
+                new_span: None,
+                evidence: evidence.clone(),
+            }]
         );
-        assert_eq!(deletion.old_coverage.resolved_tokens, recovered_tokens);
-        assert_eq!(deletion.new_coverage.resolved_tokens, 0);
+        assert_eq!(
+            deletion.old_coverage.resolved_tokens,
+            recovered_tokens + short.chars().count()
+        );
+        assert_eq!(deletion.new_coverage.resolved_tokens, short.chars().count());
 
         let old = vec![sentence_block(3, short)];
         let new = vec![sentence_block(4, long)];
@@ -2119,21 +2144,20 @@ mod tests {
         );
         assert_eq!(
             insertion.unresolved_regions,
-            vec![
-                UnresolvedRegion {
-                    old_span: Some(test_span(3, 0, short.chars().count())),
-                    new_span: None,
-                    evidence: evidence.clone(),
-                },
-                UnresolvedRegion {
-                    old_span: None,
-                    new_span: Some(test_span(4, 0, sentence_start)),
-                    evidence,
-                },
-            ]
+            vec![UnresolvedRegion {
+                old_span: None,
+                new_span: Some(test_span(4, short.chars().count(), sentence_start)),
+                evidence,
+            }]
         );
-        assert_eq!(insertion.old_coverage.resolved_tokens, 0);
-        assert_eq!(insertion.new_coverage.resolved_tokens, recovered_tokens);
+        assert_eq!(
+            insertion.old_coverage.resolved_tokens,
+            short.chars().count()
+        );
+        assert_eq!(
+            insertion.new_coverage.resolved_tokens,
+            recovered_tokens + short.chars().count()
+        );
     }
 
     #[test]
@@ -2347,29 +2371,56 @@ mod tests {
     }
 
     #[test]
-    fn repeated_and_one_to_one_sentences_are_not_recovered() {
-        let repeated = vec![sentence_block(1, "Repeat sentence. Repeat sentence.")];
-        let repeated_result = compare_sentence_recovery(
-            &repeated,
-            &[],
+    fn duplicate_sentences_on_both_sides_remain_unresolved() {
+        let old = vec![sentence_block(1, "Repeat sentence. Repeat sentence.")];
+        let new = vec![sentence_block(2, "Repeat sentence. Repeat sentence.")];
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
             &[Some(TrustedRunId(1))],
-            &[],
+            &[Some(TrustedRunId(2))],
             5,
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
-        assert!(repeated_result.changes.is_empty());
+        assert!(result.changes.is_empty());
+        assert_eq!(result.unresolved_regions.len(), 1);
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
+    }
 
+    #[test]
+    fn unique_exact_sentence_recovers_without_a_change() {
         let old = vec![sentence_block(2, "Same sentence.")];
         let new = vec![sentence_block(3, "Same sentence.")];
-        let one_to_one = compare_sentence_recovery(
+        let outcome = compare_sentence_recovery_with_metrics(
             &old,
             &new,
             &[Some(TrustedRunId(2))],
             &[Some(TrustedRunId(3))],
             5,
-            vec![AlignmentEvidence::ReadingOrderUnknown],
         );
-        assert!(one_to_one.changes.is_empty());
+        let comparison = outcome.comparison;
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("exact recovery diagnostics complete");
+
+        assert!(comparison.changes.is_empty());
+        assert!(comparison.unresolved_regions.is_empty());
+        assert_eq!(comparison.old_coverage.resolved_tokens, source_tokens(&old));
+        assert_eq!(comparison.new_coverage.resolved_tokens, source_tokens(&new));
+        assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+        assert_eq!(comparison.new_coverage.ratio, Some(1.0));
+        assert_eq!(metrics.exact_shared_units, 1);
+        assert_eq!(
+            metrics.recovered_exact_match_old_tokens,
+            source_tokens(&old)
+        );
+        assert_eq!(
+            metrics.recovered_exact_match_new_tokens,
+            source_tokens(&new)
+        );
+        assert_eq!(metrics.unresolved_remainder_old_source_tokens, 0);
+        assert_eq!(metrics.unresolved_remainder_new_source_tokens, 0);
     }
 
     #[test]
@@ -2461,34 +2512,34 @@ mod tests {
             result.unresolved_regions,
             vec![
                 UnresolvedRegion {
-                    old_span: Some(test_span(12, 0, old_start)),
+                    old_span: Some(test_span(12, old_start - 1, old_start)),
                     new_span: None,
                     evidence: evidence.clone(),
                 },
                 UnresolvedRegion {
-                    old_span: Some(test_span(12, old_end, old_text.chars().count())),
+                    old_span: Some(test_span(12, old_end, old_end + 1)),
                     new_span: None,
                     evidence: evidence.clone(),
                 },
                 UnresolvedRegion {
                     old_span: None,
-                    new_span: Some(test_span(13, 0, new_start)),
+                    new_span: Some(test_span(13, new_start - 1, new_start)),
                     evidence: evidence.clone(),
                 },
                 UnresolvedRegion {
                     old_span: None,
-                    new_span: Some(test_span(13, new_end, new_text.chars().count())),
+                    new_span: Some(test_span(13, new_end, new_end + 1)),
                     evidence,
                 },
             ]
         );
         assert_eq!(
             result.old_coverage.resolved_tokens,
-            old_sentence.chars().count()
+            old_text.chars().count() - 2
         );
         assert_eq!(
             result.new_coverage.resolved_tokens,
-            new_sentence.chars().count()
+            new_text.chars().count() - 2
         );
     }
 
@@ -2817,6 +2868,35 @@ mod tests {
     }
 
     #[test]
+    fn globally_unique_exact_sentences_in_different_spans_remain_unresolved() {
+        let old = vec![sentence_block(32, "Same sentence belongs to the old span.")];
+        let new = vec![sentence_block(33, "Same sentence belongs to the old span.")];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(32)], Vec::new()),
+                reading_order_unknown_span(Vec::new(), vec![BlockId(33)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+
+        let result = compare_sentence_recovery_with_intervals(
+            &old,
+            &new,
+            &alignment,
+            &trusted_run_intervals(&[Some(TrustedRunId(1))]),
+            &trusted_run_intervals(&[Some(TrustedRunId(2))]),
+            5,
+            DiffOptions::default(),
+        );
+
+        assert!(result.changes.is_empty());
+        assert_eq!(result.unresolved_regions.len(), 2);
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
+    }
+
+    #[test]
     fn cross_span_near_occurrence_vetoes_only_incident_candidate_symmetrically() {
         for reverse in [false, true] {
             let result = compare_cross_span_occurrence(
@@ -3023,6 +3103,52 @@ mod tests {
     }
 
     #[test]
+    fn exact_match_output_fallback_is_atomic_and_does_not_commit_match_metrics() {
+        let old = vec![sentence_block(58, "Same exact sentence remains stable.")];
+        let new = vec![sentence_block(59, "Same exact sentence remains stable.")];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let old_intervals = trusted_run_intervals(&[Some(TrustedRunId(1))]);
+        let new_intervals = trusted_run_intervals(&[Some(TrustedRunId(2))]);
+
+        let outcome = compare_aligned_inner(
+            &old,
+            &new,
+            &alignment,
+            DiffOptions::default(),
+            Some(SentenceRecoveryInput {
+                old_trusted_run_intervals: &old_intervals,
+                new_trusted_run_intervals: &new_intervals,
+                min_tokens: 5,
+            }),
+            RecoveryOutputLimits {
+                max_items: 1,
+                max_bytes: usize::MAX,
+            },
+        )
+        .expect("exact fallback comparison succeeds");
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("plan diagnostics completed before output fallback");
+
+        assert!(outcome.comparison.changes.is_empty());
+        assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
+        assert_eq!(outcome.comparison.old_coverage.resolved_tokens, 0);
+        assert_eq!(outcome.comparison.new_coverage.resolved_tokens, 0);
+        assert_eq!(metrics.exact_shared_units, 1);
+        assert_eq!(metrics.recovered_exact_match_old_tokens, 0);
+        assert_eq!(metrics.recovered_exact_match_new_tokens, 0);
+        assert_eq!(
+            metrics.unresolved_remainder_old_source_tokens,
+            source_tokens(&old)
+        );
+        assert_eq!(
+            metrics.unresolved_remainder_new_source_tokens,
+            source_tokens(&new)
+        );
+    }
+
+    #[test]
     fn many_block_recovery_preflights_small_output_limit_and_falls_back_atomically() {
         const BLOCK_COUNT: usize = 64;
 
@@ -3185,6 +3311,41 @@ mod tests {
     }
 
     #[test]
+    fn multi_block_and_single_block_exact_sentences_recover_as_one_match() {
+        let first = "This exact sentence spans";
+        let second = "multiple trusted blocks.";
+        let joined = format!("{first} {second}");
+        let old = vec![sentence_block(14, first), sentence_block(15, second)];
+        let new = vec![sentence_block(16, &joined)];
+
+        let outcome = compare_sentence_recovery_with_metrics(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2))],
+            5,
+        );
+        let comparison = outcome.comparison;
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("cross-block exact diagnostics complete");
+
+        assert!(comparison.changes.is_empty());
+        assert!(comparison.unresolved_regions.is_empty());
+        assert_eq!(comparison.old_coverage.resolved_tokens, source_tokens(&old));
+        assert_eq!(comparison.new_coverage.resolved_tokens, source_tokens(&new));
+        assert_eq!(metrics.exact_shared_units, 1);
+        assert_eq!(
+            metrics.recovered_exact_match_old_tokens,
+            source_tokens(&old)
+        );
+        assert_eq!(
+            metrics.recovered_exact_match_new_tokens,
+            source_tokens(&new)
+        );
+    }
+
+    #[test]
     fn fips_like_terminal_rows_recover_only_the_near_replacement() {
         let definition = "Hash(M) The result of applying a hash function.";
         let old_parameter = "k A per-message secret number used in the signing process.";
@@ -3218,12 +3379,13 @@ mod tests {
         );
         assert_eq!(
             result.old_coverage.resolved_tokens,
-            old_parameter.chars().count()
+            definition.chars().count() + old_parameter.chars().count()
         );
         assert_eq!(
             result.new_coverage.resolved_tokens,
-            new_parameter.chars().count()
+            definition.chars().count() + new_parameter.chars().count()
         );
+        assert!(result.unresolved_regions.is_empty());
     }
 
     #[test]
@@ -3258,8 +3420,14 @@ mod tests {
         assert_eq!(metrics.new_exact_one_sided_units, 1);
         assert_eq!(metrics.near_pair_candidates, 1);
         assert_eq!(metrics.vetoed_near_pairs, 0);
-        assert_eq!(metrics.recovered_exact_match_old_tokens, 0);
-        assert_eq!(metrics.recovered_exact_match_new_tokens, 0);
+        assert_eq!(
+            metrics.recovered_exact_match_old_tokens,
+            definition.chars().count()
+        );
+        assert_eq!(
+            metrics.recovered_exact_match_new_tokens,
+            definition.chars().count()
+        );
         assert_eq!(
             metrics.recovered_replacement_old_tokens,
             old_parameter.chars().count()
@@ -3270,14 +3438,8 @@ mod tests {
         );
         assert_eq!(metrics.recovered_deletion_tokens, 0);
         assert_eq!(metrics.recovered_insertion_tokens, 0);
-        assert_eq!(
-            metrics.unresolved_remainder_old_source_tokens,
-            definition.chars().count()
-        );
-        assert_eq!(
-            metrics.unresolved_remainder_new_source_tokens,
-            definition.chars().count()
-        );
+        assert_eq!(metrics.unresolved_remainder_old_source_tokens, 0);
+        assert_eq!(metrics.unresolved_remainder_new_source_tokens, 0);
     }
 
     #[test]
@@ -3347,6 +3509,43 @@ mod tests {
     }
 
     #[test]
+    fn recovered_exact_occurrence_remains_near_veto_evidence() {
+        let exact = "The reviewed clause keeps every value except alpha.";
+        let near_old_only = "The reviewed clause keeps every value except beta.";
+        let old = vec![sentence_block(34, exact), sentence_block(35, near_old_only)];
+        let new = vec![sentence_block(36, exact)];
+
+        let outcome = compare_sentence_recovery_with_metrics(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(2))],
+            &[Some(TrustedRunId(3))],
+            5,
+        );
+        let comparison = outcome.comparison;
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("exact and veto diagnostics complete");
+
+        assert!(comparison.changes.is_empty());
+        assert_eq!(comparison.unresolved_regions.len(), 1);
+        assert_eq!(
+            comparison.old_coverage.resolved_tokens,
+            exact.chars().count()
+        );
+        assert_eq!(comparison.new_coverage.resolved_tokens, source_tokens(&new));
+        assert_eq!(metrics.exact_shared_units, 1);
+        assert_eq!(metrics.near_pair_candidates, 1);
+        assert_eq!(metrics.vetoed_near_pairs, 1);
+        assert_eq!(metrics.recovered_deletion_tokens, 0);
+        assert_eq!(
+            metrics.unresolved_remainder_old_source_tokens,
+            near_old_only.chars().count()
+        );
+        assert_eq!(metrics.unresolved_remainder_new_source_tokens, 0);
+    }
+
+    #[test]
     fn sentence_recovery_metrics_count_committed_deletion_and_insertion_tokens() {
         let old = vec![sentence_block(
             40,
@@ -3374,6 +3573,99 @@ mod tests {
         assert_eq!(metrics.recovered_insertion_tokens, source_tokens(&new));
         assert_eq!(metrics.unresolved_remainder_old_source_tokens, 0);
         assert_eq!(metrics.unresolved_remainder_new_source_tokens, 0);
+    }
+
+    #[test]
+    fn exact_replacement_deletion_and_insertion_coexist_with_exact_remainders() {
+        let exact = "Stable exact sentence remains unchanged.";
+        let replacement_old = "The reviewed clause keeps every value except alpha.";
+        let replacement_new = "The reviewed clause keeps every value except beta.";
+        let deleted = "Completely obsolete language appears here.";
+        let inserted = "A fresh and unrelated statement appears here.";
+        let short = "Tiny.";
+        let old = vec![
+            sentence_block(50, exact),
+            sentence_block(51, replacement_old),
+            sentence_block(52, deleted),
+            sentence_block(53, short),
+        ];
+        let new = vec![
+            sentence_block(54, exact),
+            sentence_block(55, replacement_new),
+            sentence_block(56, inserted),
+            sentence_block(57, short),
+        ];
+
+        let outcome = compare_sentence_recovery_with_metrics(
+            &old,
+            &new,
+            &[
+                Some(TrustedRunId(1)),
+                Some(TrustedRunId(2)),
+                Some(TrustedRunId(3)),
+                Some(TrustedRunId(4)),
+            ],
+            &[
+                Some(TrustedRunId(5)),
+                Some(TrustedRunId(6)),
+                Some(TrustedRunId(7)),
+                Some(TrustedRunId(8)),
+            ],
+            10,
+        );
+        let comparison = outcome.comparison;
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("mixed recovery diagnostics complete");
+
+        assert_eq!(
+            comparison
+                .changes
+                .iter()
+                .map(|change| change.kind)
+                .collect::<Vec<_>>(),
+            [
+                ChangeKind::Replacement,
+                ChangeKind::Deletion,
+                ChangeKind::Insertion,
+            ]
+        );
+        assert_eq!(comparison.unresolved_regions.len(), 2);
+        assert_eq!(metrics.exact_shared_units, 1);
+        assert_eq!(
+            metrics.recovered_exact_match_old_tokens,
+            exact.chars().count()
+        );
+        assert_eq!(
+            metrics.recovered_exact_match_new_tokens,
+            exact.chars().count()
+        );
+        assert_eq!(
+            metrics.recovered_replacement_old_tokens,
+            replacement_old.chars().count()
+        );
+        assert_eq!(
+            metrics.recovered_replacement_new_tokens,
+            replacement_new.chars().count()
+        );
+        assert_eq!(metrics.recovered_deletion_tokens, deleted.chars().count());
+        assert_eq!(metrics.recovered_insertion_tokens, inserted.chars().count());
+        assert_eq!(
+            metrics.unresolved_remainder_old_source_tokens,
+            short.chars().count()
+        );
+        assert_eq!(
+            metrics.unresolved_remainder_new_source_tokens,
+            short.chars().count()
+        );
+        assert_eq!(
+            comparison.old_coverage.resolved_tokens,
+            source_tokens(&old) - short.chars().count()
+        );
+        assert_eq!(
+            comparison.new_coverage.resolved_tokens,
+            source_tokens(&new) - short.chars().count()
+        );
     }
 
     #[test]
@@ -3602,6 +3894,9 @@ mod tests {
                 vec![AlignmentEvidence::ReadingOrderUnknown],
             );
             assert!(result.changes.is_empty());
+            assert_eq!(result.unresolved_regions.len(), 1);
+            assert_eq!(result.old_coverage.resolved_tokens, 0);
+            assert_eq!(result.new_coverage.resolved_tokens, 0);
         }
 
         for (source, run) in [
@@ -3618,6 +3913,9 @@ mod tests {
                 vec![AlignmentEvidence::ReadingOrderUnknown],
             );
             assert!(result.changes.is_empty());
+            assert_eq!(result.unresolved_regions.len(), 1);
+            assert_eq!(result.old_coverage.resolved_tokens, 0);
+            assert_eq!(result.new_coverage.resolved_tokens, 0);
         }
     }
 
@@ -3634,6 +3932,20 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
         assert!(too_short.changes.is_empty());
+
+        let exact_new = [sentence_block(2, "Short sentence.")];
+        let exact_short = compare_sentence_recovery(
+            &old,
+            &exact_new,
+            &run,
+            &[Some(TrustedRunId(2))],
+            "Short sentence.".chars().count() + 1,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+        assert!(exact_short.changes.is_empty());
+        assert_eq!(exact_short.unresolved_regions.len(), 1);
+        assert_eq!(exact_short.old_coverage.resolved_tokens, 0);
+        assert_eq!(exact_short.new_coverage.resolved_tokens, 0);
 
         let extra_evidence = compare_sentence_recovery(
             &old,
@@ -3688,7 +4000,7 @@ mod tests {
     }
 
     #[test]
-    fn zero_recovery_is_structurally_identical_to_public_comparison() {
+    fn sentence_recovery_resolves_an_exact_pair_left_unresolved_by_public_comparison() {
         let old = vec![sentence_block(1, "Same sentence.")];
         let new = vec![sentence_block(2, "Same sentence.")];
         let alignment =
@@ -3715,7 +4027,13 @@ mod tests {
             },
         )
         .expect("recovery comparison succeeds");
-        assert_eq!(recovered, public);
+        assert_eq!(public.unresolved_regions.len(), 1);
+        assert_eq!(public.old_coverage.resolved_tokens, 0);
+        assert_eq!(public.new_coverage.resolved_tokens, 0);
+        assert!(recovered.changes.is_empty());
+        assert!(recovered.unresolved_regions.is_empty());
+        assert_eq!(recovered.old_coverage.resolved_tokens, source_tokens(&old));
+        assert_eq!(recovered.new_coverage.resolved_tokens, source_tokens(&new));
     }
 
     fn compare_sentence_recovery(

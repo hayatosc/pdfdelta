@@ -40,8 +40,15 @@ pub(super) struct RecoveredReplacement {
     pub new: RecoveredSentence,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct RecoveredExactMatch {
+    pub old: RecoveredSentence,
+    pub new: RecoveredSentence,
+}
+
 #[derive(Default)]
 pub(super) struct SentenceRecoveryPlan {
+    pub matches: Vec<RecoveredExactMatch>,
     pub deletions: Vec<RecoveredSentence>,
     pub insertions: Vec<RecoveredSentence>,
     pub replacements: Vec<RecoveredReplacement>,
@@ -51,7 +58,8 @@ pub(super) struct SentenceRecoveryPlan {
 
 impl SentenceRecoveryPlan {
     pub fn has_recovery(&self, span_index: usize) -> bool {
-        !recoveries_for_span(&self.deletions, span_index).is_empty()
+        !matches_for_span(&self.matches, span_index).is_empty()
+            || !recoveries_for_span(&self.deletions, span_index).is_empty()
             || !recoveries_for_span(&self.insertions, span_index).is_empty()
             || !replacements_for_span(&self.replacements, span_index).is_empty()
     }
@@ -74,36 +82,11 @@ impl SentenceRecoveryBuildOutcome {
         let Some(diagnostics) = self.diagnostics.as_mut() else {
             return;
         };
-        let metrics = &mut diagnostics.metrics;
-        let updated = metrics
-            .recovered_replacement_old_tokens
-            .checked_add(committed.replacement_old)
-            .and_then(|replacement_old| {
-                metrics
-                    .recovered_replacement_new_tokens
-                    .checked_add(committed.replacement_new)
-                    .map(|replacement_new| (replacement_old, replacement_new))
-            })
-            .and_then(|(replacement_old, replacement_new)| {
-                metrics
-                    .recovered_deletion_tokens
-                    .checked_add(committed.deletion)
-                    .map(|deletion| (replacement_old, replacement_new, deletion))
-            })
-            .and_then(|(replacement_old, replacement_new, deletion)| {
-                metrics
-                    .recovered_insertion_tokens
-                    .checked_add(committed.insertion)
-                    .map(|insertion| (replacement_old, replacement_new, deletion, insertion))
-            });
-        let Some((replacement_old, replacement_new, deletion, insertion)) = updated else {
+        let Some(metrics) = checked_committed_metrics(diagnostics.metrics, committed) else {
             self.diagnostics = None;
             return;
         };
-        metrics.recovered_replacement_old_tokens = replacement_old;
-        metrics.recovered_replacement_new_tokens = replacement_new;
-        metrics.recovered_deletion_tokens = deletion;
-        metrics.recovered_insertion_tokens = insertion;
+        diagnostics.metrics = metrics;
     }
 
     pub(super) fn finish_metrics(self) -> Option<SentenceRecoveryMetrics> {
@@ -127,6 +110,31 @@ impl SentenceRecoveryBuildOutcome {
     }
 }
 
+fn checked_committed_metrics(
+    mut metrics: SentenceRecoveryMetrics,
+    committed: SentenceRecoveryCommittedTokens,
+) -> Option<SentenceRecoveryMetrics> {
+    metrics.recovered_exact_match_old_tokens = metrics
+        .recovered_exact_match_old_tokens
+        .checked_add(committed.exact_match_old)?;
+    metrics.recovered_exact_match_new_tokens = metrics
+        .recovered_exact_match_new_tokens
+        .checked_add(committed.exact_match_new)?;
+    metrics.recovered_replacement_old_tokens = metrics
+        .recovered_replacement_old_tokens
+        .checked_add(committed.replacement_old)?;
+    metrics.recovered_replacement_new_tokens = metrics
+        .recovered_replacement_new_tokens
+        .checked_add(committed.replacement_new)?;
+    metrics.recovered_deletion_tokens = metrics
+        .recovered_deletion_tokens
+        .checked_add(committed.deletion)?;
+    metrics.recovered_insertion_tokens = metrics
+        .recovered_insertion_tokens
+        .checked_add(committed.insertion)?;
+    Some(metrics)
+}
+
 pub(super) fn recoveries_for_span(
     recoveries: &[RecoveredSentence],
     span_index: usize,
@@ -146,6 +154,16 @@ pub(super) fn replacements_for_span(
         .partition_point(|replacement| replacement.old.span_index == span_index)
         + start;
     &replacements[start..end]
+}
+
+pub(super) fn matches_for_span(
+    matches: &[RecoveredExactMatch],
+    span_index: usize,
+) -> &[RecoveredExactMatch] {
+    let start = matches.partition_point(|matched| matched.old.span_index < span_index);
+    let end =
+        matches[start..].partition_point(|matched| matched.old.span_index == span_index) + start;
+    &matches[start..end]
 }
 
 pub(super) fn ranges_for_block(
@@ -236,6 +254,12 @@ struct OccurrenceCount {
 struct RecoveryCandidate {
     occurrence_index: usize,
     span_index: usize,
+}
+
+struct ExactMatchCandidate {
+    span_index: usize,
+    old_occurrence_index: usize,
+    new_occurrence_index: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -518,6 +542,16 @@ pub(super) fn build_sentence_recovery_plan(
     let Some(counts) = occurrence_counts(&old_occurrences, &new_occurrences) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    let Some(exact_match_candidates) = exact_match_candidates(
+        &old_occurrences,
+        &new_occurrences,
+        &counts,
+        &membership.recovery_spans,
+        input.min_tokens,
+        budget.output_range_limit / 2,
+    ) else {
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    };
     let Some(old_candidates) = recovery_candidates(
         &old_occurrences,
         &counts,
@@ -536,16 +570,26 @@ pub(super) fn build_sentence_recovery_plan(
     ) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
-    record_exact_candidate_metrics(
+    record_candidate_metrics(
         &mut diagnostics,
-        &old_occurrences,
-        &new_occurrences,
-        &counts,
+        exact_match_candidates.len(),
         &old_candidates,
         &new_candidates,
-        &membership.recovery_spans,
-        input.min_tokens,
     );
+    drop(counts);
+
+    let mut plan = SentenceRecoveryPlan::default();
+    if append_exact_matches(
+        &mut plan,
+        &mut old_occurrences,
+        &mut new_occurrences,
+        &exact_match_candidates,
+        &mut budget,
+    )
+    .is_none()
+    {
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    }
     let Some(relations) = modified_sentence_relations(
         &old_occurrences,
         &new_occurrences,
@@ -558,7 +602,6 @@ pub(super) fn build_sentence_recovery_plan(
     };
     record_vetoed_near_pairs(&mut diagnostics, &relations);
 
-    let mut plan = SentenceRecoveryPlan::default();
     if append_replacements(
         &mut plan,
         &mut old_occurrences,
@@ -1146,27 +1189,12 @@ fn count_occurrences<'a>(
     Some(())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn record_exact_candidate_metrics(
+fn record_candidate_metrics(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
-    old_occurrences: &[SentenceOccurrence],
-    new_occurrences: &[SentenceOccurrence],
-    counts: &HashMap<&str, OccurrenceCount>,
+    exact_shared_units: usize,
     old_candidates: &[RecoveryCandidate],
     new_candidates: &[RecoveryCandidate],
-    recovery_spans: &[bool],
-    min_tokens: usize,
 ) {
-    let Some(exact_shared_units) = exact_shared_units(
-        old_occurrences,
-        new_occurrences,
-        counts,
-        recovery_spans,
-        min_tokens,
-    ) else {
-        *diagnostics = None;
-        return;
-    };
     let Some(diagnostics) = diagnostics.as_mut() else {
         return;
     };
@@ -1175,36 +1203,53 @@ fn record_exact_candidate_metrics(
     diagnostics.metrics.new_exact_one_sided_units = new_candidates.len();
 }
 
-fn exact_shared_units(
+fn exact_match_candidates(
     old_occurrences: &[SentenceOccurrence],
     new_occurrences: &[SentenceOccurrence],
     counts: &HashMap<&str, OccurrenceCount>,
     recovery_spans: &[bool],
     min_tokens: usize,
-) -> Option<usize> {
-    counts.values().try_fold(0usize, |units, count| {
+    max_candidates: usize,
+) -> Option<Vec<ExactMatchCandidate>> {
+    let mut candidates = Vec::new();
+    candidates
+        .try_reserve_exact(counts.len().min(max_candidates))
+        .ok()?;
+    for count in counts.values() {
         if count.old != 1 || count.new != 1 {
-            return Some(units);
+            continue;
         }
         let old = old_occurrences.get(count.old_index?)?;
         let new = new_occurrences.get(count.new_index?)?;
-        let shared_span = old.span_index == new.span_index
-            && old
-                .span_index
-                .and_then(|span_index| recovery_spans.get(span_index))
-                .copied()
-                == Some(true);
-        let eligible = shared_span
-            && old.location.is_some()
-            && new.location.is_some()
-            && old.tokens.len() >= min_tokens
-            && new.tokens.len() >= min_tokens;
-        if eligible {
-            units.checked_add(1)
-        } else {
-            Some(units)
+        let Some(span_index) = old.span_index else {
+            continue;
+        };
+        if new.span_index != Some(span_index)
+            || !recovery_spans.get(span_index).copied()?
+            || old.location.is_none()
+            || new.location.is_none()
+            || old.tokens.len() < min_tokens
+            || new.tokens.len() < min_tokens
+        {
+            continue;
         }
-    })
+        if candidates.len() == max_candidates {
+            return None;
+        }
+        candidates.push(ExactMatchCandidate {
+            span_index,
+            old_occurrence_index: count.old_index?,
+            new_occurrence_index: count.new_index?,
+        });
+    }
+    candidates.sort_unstable_by_key(|candidate| {
+        (
+            candidate.span_index,
+            candidate.old_occurrence_index,
+            candidate.new_occurrence_index,
+        )
+    });
+    Some(candidates)
 }
 
 fn recovery_candidates(
@@ -1487,6 +1532,67 @@ fn sentences_are_near(
 
     let shared = prefix.checked_add(suffix)?;
     Some(shared >= shorter - shorter / 5)
+}
+
+fn append_exact_matches(
+    plan: &mut SentenceRecoveryPlan,
+    old_occurrences: &mut [SentenceOccurrence],
+    new_occurrences: &mut [SentenceOccurrence],
+    candidates: &[ExactMatchCandidate],
+    budget: &mut RecoveryBudget,
+) -> Option<()> {
+    let mut source_tokens = 0usize;
+    let mut old_consumed_count = 0usize;
+    let mut new_consumed_count = 0usize;
+    for candidate in candidates {
+        let old_location = old_occurrences
+            .get(candidate.old_occurrence_index)?
+            .location
+            .as_ref()?;
+        let new_location = new_occurrences
+            .get(candidate.new_occurrence_index)?
+            .location
+            .as_ref()?;
+        if old_location.recovery.span_index != candidate.span_index
+            || new_location.recovery.span_index != candidate.span_index
+        {
+            return None;
+        }
+        source_tokens = source_tokens
+            .checked_add(old_location.recovery.source_tokens)?
+            .checked_add(new_location.recovery.source_tokens)?;
+        old_consumed_count = old_consumed_count.checked_add(old_location.consumed.len())?;
+        new_consumed_count = new_consumed_count.checked_add(new_location.consumed.len())?;
+    }
+
+    if !budget.charge_outputs(candidates.len().checked_mul(2)?, source_tokens) {
+        return None;
+    }
+    plan.matches.try_reserve_exact(candidates.len()).ok()?;
+    plan.deletion_consumed
+        .try_reserve_exact(old_consumed_count)
+        .ok()?;
+    plan.insertion_consumed
+        .try_reserve_exact(new_consumed_count)
+        .ok()?;
+
+    for candidate in candidates {
+        let old_location = old_occurrences
+            .get_mut(candidate.old_occurrence_index)?
+            .location
+            .take()?;
+        let new_location = new_occurrences
+            .get_mut(candidate.new_occurrence_index)?
+            .location
+            .take()?;
+        plan.matches.push(RecoveredExactMatch {
+            old: old_location.recovery,
+            new: new_location.recovery,
+        });
+        plan.deletion_consumed.extend(old_location.consumed);
+        plan.insertion_consumed.extend(new_location.consumed);
+    }
+    Some(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2168,6 +2274,105 @@ mod tests {
             assert!(output.charge_output(1));
         }
         assert!(!output.charge_output(1));
+    }
+
+    #[test]
+    fn exact_match_budget_failure_keeps_the_plan_and_locations_untouched() {
+        let old_range = LocalSentenceRange {
+            block: BlockId(1),
+            canonical: ScalarRange { start: 0, end: 5 },
+            comparable: TokenRange { start: 0, end: 5 },
+        };
+        let new_range = LocalSentenceRange {
+            block: BlockId(2),
+            canonical: ScalarRange { start: 0, end: 5 },
+            comparable: TokenRange { start: 0, end: 5 },
+        };
+        let mut old_occurrences = [SentenceOccurrence {
+            key: "same".to_owned(),
+            tokens: Vec::new(),
+            location: Some(test_location(old_range, 0)),
+            span_index: Some(0),
+        }];
+        let mut new_occurrences = [SentenceOccurrence {
+            key: "same".to_owned(),
+            tokens: Vec::new(),
+            location: Some(test_location(new_range, 0)),
+            span_index: Some(0),
+        }];
+        let candidates = [ExactMatchCandidate {
+            span_index: 0,
+            old_occurrence_index: 0,
+            new_occurrence_index: 0,
+        }];
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+        budget.output_range_limit = 1;
+
+        assert!(
+            append_exact_matches(
+                &mut plan,
+                &mut old_occurrences,
+                &mut new_occurrences,
+                &candidates,
+                &mut budget,
+            )
+            .is_none()
+        );
+        assert!(plan.matches.is_empty());
+        assert!(plan.deletion_consumed.is_empty());
+        assert!(plan.insertion_consumed.is_empty());
+        assert!(old_occurrences[0].location.is_some());
+        assert!(new_occurrences[0].location.is_some());
+        assert_eq!(budget.output_ranges, 0);
+        assert_eq!(budget.output_tokens, 0);
+    }
+
+    #[test]
+    fn exact_match_candidates_are_sorted_for_span_partitioning() {
+        let occurrence = |key: &str, block: BlockId, span_index: usize| {
+            let range = LocalSentenceRange {
+                block,
+                canonical: ScalarRange { start: 0, end: 5 },
+                comparable: TokenRange { start: 0, end: 5 },
+            };
+            SentenceOccurrence {
+                key: key.to_owned(),
+                tokens: vec![SentenceEvidenceToken::Scalar('a'); 5],
+                location: Some(test_location(range, span_index)),
+                span_index: Some(span_index),
+            }
+        };
+        let old = [
+            occurrence("late", BlockId(1), 1),
+            occurrence("early", BlockId(2), 0),
+        ];
+        let new = [
+            occurrence("early", BlockId(3), 0),
+            occurrence("late", BlockId(4), 1),
+        ];
+        let counts = occurrence_counts(&old, &new).expect("occurrence counts fit");
+
+        let candidates =
+            exact_match_candidates(&old, &new, &counts, &[true, true], 5, 2).expect("matches fit");
+
+        assert_eq!(candidates.len(), 2);
+        assert_eq!(
+            (
+                candidates[0].span_index,
+                candidates[0].old_occurrence_index,
+                candidates[0].new_occurrence_index,
+            ),
+            (0, 1, 0)
+        );
+        assert_eq!(
+            (
+                candidates[1].span_index,
+                candidates[1].old_occurrence_index,
+                candidates[1].new_occurrence_index,
+            ),
+            (1, 0, 1)
+        );
     }
 
     #[test]
