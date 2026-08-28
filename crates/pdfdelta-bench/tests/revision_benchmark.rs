@@ -452,7 +452,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 2);
+    assert_eq!(val["schema_version"], 3);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 
@@ -480,6 +480,16 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert_eq!(q["kind_accuracy"], 1.0);
     assert_eq!(q["review_hunks_per_expected_change"], 1.0);
     assert_eq!(q["unmatched_tiny_changes"], 0);
+    assert_eq!(rec["candidate_recall"]["top_k"], 32);
+    assert_eq!(rec["candidate_recall"]["annotated_counterparts"], 1);
+    assert_eq!(rec["candidate_recall"]["evaluable_counterparts"], 1);
+    assert_eq!(rec["candidate_recall"]["recalled_counterparts"], 1);
+    assert_eq!(rec["candidate_recall"]["recall_at_k"], 1.0);
+    assert_eq!(rec["expected_change_diagnostics"]["complete"], true);
+    assert_eq!(
+        rec["expected_change_diagnostics"]["failures"],
+        serde_json::json!([])
+    );
 
     // Verify raw content contains no forbidden fields
     assert!(!content.contains("runtime_ms"));

@@ -43,6 +43,11 @@ use crate::{
     candidate_eval::{CandidateVisitPressure, evaluate_candidate_visit_pressure},
 };
 
+#[path = "revision_diagnostics.rs"]
+mod revision_diagnostics;
+
+use revision_diagnostics::evaluate_reviewed_diagnostics;
+
 pub const QUALITY_SKIP_RESOURCE_LIMIT: &str = "comparison stopped at a resource limit";
 pub const QUALITY_SKIP_INCOMPLETE_EXTRACTION: &str =
     "extraction was incomplete so reported diffs are suppressed";
@@ -101,6 +106,59 @@ pub struct QualityMetrics {
     pub review_hunks_per_expected_change: Option<f64>,
     pub unmatched_tiny_changes: usize,
     pub unresolvable_reported_spans: usize,
+}
+
+/// Recall of human-reviewed replacement and move counterparts in the
+/// production inverted-index candidate generator's top-K output.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct CandidateRecallMetrics {
+    pub top_k: usize,
+    pub annotated_counterparts: usize,
+    pub evaluable_counterparts: usize,
+    pub recalled_counterparts: usize,
+    pub unavailable_counterparts: usize,
+    pub recall_at_k: Option<f64>,
+}
+
+/// Document side on which an expected quote could not be diagnosed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MissSide {
+    Old,
+    New,
+    Both,
+}
+
+/// Most specific evidence-backed reason one reviewed expected change failed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "reason", rename_all = "snake_case")]
+pub enum ExpectedChangeFailureReason {
+    QuoteNotExtracted { side: MissSide },
+    UnitSegmentationFailure { side: MissSide },
+    CandidateNotGenerated,
+    CandidateScoringRejected,
+    AlignmentAmbiguous,
+    ReadingOrderUnresolved { side: MissSide },
+    DiffEditDistanceExceeded,
+    DiffRejectedAsImplausible,
+    WrongChangeKind { expected: String, actual: String },
+    FragmentedAcrossHunks { old_hunks: usize, new_hunks: usize },
+    AlignmentOrCandidate { diagnostic_limited: bool },
+}
+
+/// Failure diagnosis for one reviewed expected change.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ExpectedChangeFailure {
+    pub expected_id: String,
+    #[serde(flatten)]
+    pub reason: ExpectedChangeFailureReason,
+}
+
+/// Bounded failure diagnostics for reviewed expected changes.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ExpectedChangeDiagnostics {
+    pub complete: bool,
+    pub failures: Vec<ExpectedChangeFailure>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -225,6 +283,14 @@ pub struct PairRunReport {
     pub reported_changes_preview: Vec<ReportedChangeText>,
     pub quality: Option<QualityMetrics>,
     pub quality_skipped_reason: Option<String>,
+    /// Reviewed candidate recall is published only in compact summary schema
+    /// v3 so the full report v1 key set remains unchanged.
+    #[serde(skip)]
+    pub candidate_recall: Option<CandidateRecallMetrics>,
+    /// Expected-change failure reasons are published only in compact summary
+    /// schema v3 so the full report v1 key set remains unchanged.
+    #[serde(skip)]
+    pub expected_change_diagnostics: Option<ExpectedChangeDiagnostics>,
     pub resource_limit_failure: Option<String>,
     /// Sum of `CandidateGenerator::estimated_visits` charged against
     /// `max_candidate_visits` for non-anchor old blocks; on a candidate
@@ -430,6 +496,7 @@ struct MatchOutcome {
     matched: usize,
     kind_agreements: usize,
     claimed_actuals: HashSet<usize>,
+    claimed_actual_by_expected: Vec<Option<usize>>,
 }
 
 struct ActualTexts {
@@ -803,8 +870,9 @@ fn match_changes(expected: &[ExpectedChange], actuals: &[ActualChange]) -> Match
         })
         .collect();
     let mut claimed_actuals = HashSet::new();
+    let mut claimed_actual_by_expected = vec![None; expected.len()];
     let mut kind_agreements = 0_usize;
-    for change in expected {
+    for (expected_index, change) in expected.iter().enumerate() {
         let needle_old = change.old_quote.as_deref().map(collapse_whitespace);
         let needle_new = change.new_quote.as_deref().map(collapse_whitespace);
         for (index, actual) in collapsed_actuals.iter().enumerate() {
@@ -815,6 +883,7 @@ fn match_changes(expected: &[ExpectedChange], actuals: &[ActualChange]) -> Match
             let new_ok = contains_needle(actual.new.as_deref(), needle_new.as_deref());
             if old_ok && new_ok {
                 claimed_actuals.insert(index);
+                claimed_actual_by_expected[expected_index] = Some(index);
                 if change.kind.agrees_with(actuals[index].kind) {
                     kind_agreements += 1;
                 }
@@ -826,6 +895,7 @@ fn match_changes(expected: &[ExpectedChange], actuals: &[ActualChange]) -> Match
         matched: claimed_actuals.len(),
         kind_agreements,
         claimed_actuals,
+        claimed_actual_by_expected,
     }
 }
 
@@ -843,6 +913,15 @@ pub fn compute_quality(
     actuals: &[ActualChange],
 ) -> QualityMetrics {
     let outcome = match_changes(expected, actuals);
+    quality_from_match_outcome(annotation, expected, actuals, &outcome)
+}
+
+fn quality_from_match_outcome(
+    annotation: Annotation,
+    expected: &[ExpectedChange],
+    actuals: &[ActualChange],
+    outcome: &MatchOutcome,
+) -> QualityMetrics {
     let reported = actuals.len();
     let unmatched_tiny = actuals
         .iter()
@@ -992,6 +1071,8 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         reported_changes_preview: Vec::new(),
         quality: None,
         quality_skipped_reason: None,
+        candidate_recall: None,
+        expected_change_diagnostics: None,
         resource_limit_failure: None,
         candidate_visits: None,
         candidate_visits_required: None,
@@ -1149,11 +1230,31 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     match (expected, extraction_complete) {
         (Some(document), true) => {
             let actuals = actuals.unwrap_or_default();
-            record.quality = Some(compute_quality(
+            let match_outcome = match_changes(&document.changes, &actuals);
+            record.quality = Some(quality_from_match_outcome(
                 document.annotation,
                 &document.changes,
                 &actuals,
+                &match_outcome,
             ));
+            match evaluate_reviewed_diagnostics(
+                &document.changes,
+                &outcome.old_blocks,
+                &outcome.new_blocks,
+                &outcome.comparison,
+                &actuals,
+                &match_outcome,
+            ) {
+                Ok(diagnostics) => {
+                    record.candidate_recall = diagnostics.candidate_recall;
+                    record.expected_change_diagnostics =
+                        Some(diagnostics.expected_change_diagnostics);
+                }
+                Err(reason) if record.failure.is_none() => {
+                    record.failure = Some(format!("reviewed diagnostics failed: {reason}"));
+                }
+                Err(_) => {}
+            }
         }
         (Some(_), false) => {
             record.quality_skipped_reason = Some(QUALITY_SKIP_INCOMPLETE_EXTRACTION.to_owned());
@@ -1689,7 +1790,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 2;
+    pub const SCHEMA_VERSION: u32 = 3;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -1731,6 +1832,8 @@ pub struct RevisionSummaryRecord {
     pub sentence_recovery_metrics: Option<SentenceRecoveryMetricsReport>,
     pub quality: Option<QualityMetrics>,
     pub quality_skipped_reason: Option<String>,
+    pub candidate_recall: Option<CandidateRecallMetrics>,
+    pub expected_change_diagnostics: Option<ExpectedChangeDiagnostics>,
 }
 
 impl RevisionSummaryRecord {
@@ -1759,6 +1862,8 @@ impl RevisionSummaryRecord {
             sentence_recovery_metrics: report.sentence_recovery_metrics,
             quality: report.quality,
             quality_skipped_reason: report.quality_skipped_reason.clone(),
+            candidate_recall: report.candidate_recall,
+            expected_change_diagnostics: report.expected_change_diagnostics.clone(),
         }
     }
 }
@@ -1971,6 +2076,122 @@ mod tests {
     }
 
     #[test]
+    fn diagnostic_json_uses_exact_stable_tags_without_internal_evidence() {
+        let cases = [
+            (
+                ExpectedChangeFailureReason::QuoteNotExtracted {
+                    side: MissSide::Old,
+                },
+                serde_json::json!({"expected_id":"c","reason":"quote_not_extracted","side":"old"}),
+            ),
+            (
+                ExpectedChangeFailureReason::UnitSegmentationFailure {
+                    side: MissSide::Both,
+                },
+                serde_json::json!({"expected_id":"c","reason":"unit_segmentation_failure","side":"both"}),
+            ),
+            (
+                ExpectedChangeFailureReason::CandidateNotGenerated,
+                serde_json::json!({"expected_id":"c","reason":"candidate_not_generated"}),
+            ),
+            (
+                ExpectedChangeFailureReason::CandidateScoringRejected,
+                serde_json::json!({"expected_id":"c","reason":"candidate_scoring_rejected"}),
+            ),
+            (
+                ExpectedChangeFailureReason::AlignmentAmbiguous,
+                serde_json::json!({"expected_id":"c","reason":"alignment_ambiguous"}),
+            ),
+            (
+                ExpectedChangeFailureReason::ReadingOrderUnresolved {
+                    side: MissSide::New,
+                },
+                serde_json::json!({"expected_id":"c","reason":"reading_order_unresolved","side":"new"}),
+            ),
+            (
+                ExpectedChangeFailureReason::DiffEditDistanceExceeded,
+                serde_json::json!({"expected_id":"c","reason":"diff_edit_distance_exceeded"}),
+            ),
+            (
+                ExpectedChangeFailureReason::DiffRejectedAsImplausible,
+                serde_json::json!({"expected_id":"c","reason":"diff_rejected_as_implausible"}),
+            ),
+            (
+                ExpectedChangeFailureReason::WrongChangeKind {
+                    expected: "replacement".to_owned(),
+                    actual: "move".to_owned(),
+                },
+                serde_json::json!({"expected_id":"c","reason":"wrong_change_kind","expected":"replacement","actual":"move"}),
+            ),
+            (
+                ExpectedChangeFailureReason::FragmentedAcrossHunks {
+                    old_hunks: 2,
+                    new_hunks: 3,
+                },
+                serde_json::json!({"expected_id":"c","reason":"fragmented_across_hunks","old_hunks":2,"new_hunks":3}),
+            ),
+            (
+                ExpectedChangeFailureReason::AlignmentOrCandidate {
+                    diagnostic_limited: true,
+                },
+                serde_json::json!({"expected_id":"c","reason":"alignment_or_candidate","diagnostic_limited":true}),
+            ),
+        ];
+        for (reason, expected) in cases {
+            let value = serde_json::to_value(ExpectedChangeFailure {
+                expected_id: "c".to_owned(),
+                reason,
+            })
+            .expect("failure serializes");
+            assert_eq!(value, expected);
+            let object = value.as_object().expect("failure object");
+            for forbidden in ["quote", "block", "candidate", "old_quote", "new_quote"] {
+                assert!(!object.contains_key(forbidden));
+            }
+        }
+    }
+
+    #[test]
+    fn summary_distinguishes_unavailable_diagnostics_from_completed_empty_diagnostics() {
+        let unavailable = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
+        let unavailable = serde_json::to_value(unavailable).expect("summary serializes");
+        assert_eq!(
+            unavailable["records"][0]["candidate_recall"],
+            serde_json::Value::Null
+        );
+        assert_eq!(
+            unavailable["records"][0]["expected_change_diagnostics"],
+            serde_json::Value::Null
+        );
+
+        let mut report = record(PairRunStatus::Ok);
+        report.candidate_recall = Some(CandidateRecallMetrics {
+            top_k: 32,
+            annotated_counterparts: 0,
+            evaluable_counterparts: 0,
+            recalled_counterparts: 0,
+            unavailable_counterparts: 0,
+            recall_at_k: None,
+        });
+        report.expected_change_diagnostics = Some(ExpectedChangeDiagnostics {
+            complete: true,
+            failures: Vec::new(),
+        });
+        let completed = RevisionSummaryReport::from_reports(&[report]);
+        let completed = serde_json::to_value(completed).expect("summary serializes");
+        assert_eq!(completed["schema_version"], 3);
+        assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
+        assert_eq!(
+            completed["records"][0]["candidate_recall"]["recall_at_k"],
+            serde_json::Value::Null
+        );
+        assert_eq!(
+            completed["records"][0]["expected_change_diagnostics"],
+            serde_json::json!({"complete":true,"failures":[]})
+        );
+    }
+
+    #[test]
     fn matching_is_one_to_one_and_tracks_kind_agreement() {
         let expected = vec![
             expected_change(
@@ -2132,6 +2353,8 @@ mod tests {
             reported_changes_preview: Vec::new(),
             quality: None,
             quality_skipped_reason: None,
+            candidate_recall: None,
+            expected_change_diagnostics: None,
             resource_limit_failure: None,
             candidate_visits: None,
             candidate_visits_required: None,
@@ -2555,7 +2778,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 2);
+        assert_eq!(json["schema_version"], 3);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -2927,6 +3150,8 @@ mod tests {
                     unresolvable_reported_spans: 0,
                 }),
                 quality_skipped_reason: None,
+                candidate_recall: None,
+                expected_change_diagnostics: None,
                 resource_limit_failure: None,
                 candidate_visits: None,
                 candidate_visits_required: None,
@@ -2971,6 +3196,8 @@ mod tests {
                 reported_changes_preview: Vec::new(),
                 quality: None,
                 quality_skipped_reason: Some(QUALITY_SKIP_RESOURCE_LIMIT.to_owned()),
+                candidate_recall: None,
+                expected_change_diagnostics: None,
                 resource_limit_failure: Some(
                     "alignment candidate visit budget exceeded".to_owned(),
                 ),
@@ -3015,6 +3242,8 @@ mod tests {
                 reported_changes_preview: Vec::new(),
                 quality: None,
                 quality_skipped_reason: Some(QUALITY_SKIP_INCOMPLETE_EXTRACTION.to_owned()),
+                candidate_recall: None,
+                expected_change_diagnostics: None,
                 resource_limit_failure: None,
                 candidate_visits: None,
                 candidate_visits_required: None,
@@ -3042,7 +3271,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 2);
+        assert_eq!(value["schema_version"], 3);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -3072,6 +3301,8 @@ mod tests {
             "sentence_recovery_metrics".to_owned(),
             "quality".to_owned(),
             "quality_skipped_reason".to_owned(),
+            "candidate_recall".to_owned(),
+            "expected_change_diagnostics".to_owned(),
         ]);
 
         for rec in records {
@@ -3188,6 +3419,21 @@ mod tests {
             reported_changes_preview: Vec::new(),
             quality: None,
             quality_skipped_reason: None,
+            candidate_recall: Some(CandidateRecallMetrics {
+                top_k: 32,
+                annotated_counterparts: 1,
+                evaluable_counterparts: 1,
+                recalled_counterparts: 1,
+                unavailable_counterparts: 0,
+                recall_at_k: Some(1.0),
+            }),
+            expected_change_diagnostics: Some(ExpectedChangeDiagnostics {
+                complete: true,
+                failures: vec![ExpectedChangeFailure {
+                    expected_id: "change-1".to_owned(),
+                    reason: ExpectedChangeFailureReason::CandidateNotGenerated,
+                }],
+            }),
             resource_limit_failure: None,
             candidate_visits: None,
             candidate_visits_required: None,
@@ -3209,6 +3455,46 @@ mod tests {
         let full_val: serde_json::Value = serde_json::from_slice(&full_bytes).expect("parse full");
         let full_obj = full_val[0].as_object().expect("first report");
 
+        let keys = full_obj.keys().cloned().collect::<HashSet<_>>();
+        assert_eq!(
+            keys,
+            HashSet::from([
+                "pair_id".to_owned(),
+                "set".to_owned(),
+                "role".to_owned(),
+                "document_type".to_owned(),
+                "in_scope".to_owned(),
+                "status".to_owned(),
+                "provenance_verified".to_owned(),
+                "compared".to_owned(),
+                "extraction_complete".to_owned(),
+                "comparison_complete".to_owned(),
+                "extraction_issues".to_owned(),
+                "coverage_old".to_owned(),
+                "coverage_new".to_owned(),
+                "coverage_comparison".to_owned(),
+                "unresolved_regions".to_owned(),
+                "unresolved_old_token_share".to_owned(),
+                "unresolved_new_token_share".to_owned(),
+                "reported_content_changes".to_owned(),
+                "formatting_only_changes".to_owned(),
+                "reported_changes_preview".to_owned(),
+                "quality".to_owned(),
+                "quality_skipped_reason".to_owned(),
+                "resource_limit_failure".to_owned(),
+                "candidate_visits".to_owned(),
+                "candidate_visits_required".to_owned(),
+                "candidate_visits_required_exact".to_owned(),
+                "candidate_visits_required_ngram".to_owned(),
+                "candidate_visits_required_short_fallback".to_owned(),
+                "max_candidate_visits".to_owned(),
+                "candidate_visit_pressure".to_owned(),
+                "runtime_ms".to_owned(),
+                "limit_scale_used".to_owned(),
+                "failure".to_owned(),
+            ])
+        );
+
         assert!(
             !full_obj.contains_key("uncertain_changes"),
             "full JSON schema must not gain uncertain_changes"
@@ -3217,6 +3503,8 @@ mod tests {
             !full_obj.contains_key("sentence_recovery_metrics"),
             "full JSON v1 schema must not gain sentence recovery diagnostics"
         );
+        assert!(!full_obj.contains_key("candidate_recall"));
+        assert!(!full_obj.contains_key("expected_change_diagnostics"));
     }
 
     #[test]
@@ -3254,6 +3542,8 @@ mod tests {
             }],
             quality: None,
             quality_skipped_reason: None,
+            candidate_recall: None,
+            expected_change_diagnostics: None,
             resource_limit_failure: None,
             candidate_visits: Some(10),
             candidate_visits_required: Some(20),
