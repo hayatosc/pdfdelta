@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::{
     Error, Result,
@@ -206,6 +206,7 @@ pub(crate) fn reconstruct_blocks_with_issues(
     }
 
     let mut ordered_stats = Vec::with_capacity(lines.len());
+    let mut partial_uncertain_line_ids = HashSet::new();
     let mut issues = Vec::new();
     for (page_num, page_lines) in page_lines_map {
         let page = PageId(page_num);
@@ -220,6 +221,13 @@ pub(crate) fn reconstruct_blocks_with_issues(
             &page_vector_lines,
             super::region::RegionOptions::default(),
         )?;
+        // Partial uncertainty remains deterministic evidence serialization, not proven order.
+        // Barriers only keep already-classified uncertain lines from contaminating trusted blocks.
+        if !partition.uncertain_line_ids.is_empty()
+            && partition.uncertain_line_ids.len() < page_lines.len()
+        {
+            partial_uncertain_line_ids.extend(partition.uncertain_line_ids.iter().copied());
+        }
         let graph = partition.graph;
         match &graph.reading_order {
             super::region::ReadingOrder::KnownLines(line_ids) => {
@@ -247,6 +255,15 @@ pub(crate) fn reconstruct_blocks_with_issues(
         }
     }
     validate_region_order(&stats_by_line_id, &ordered_stats, lines.len())?;
+    let partial_uncertain_indices = ordered_stats
+        .iter()
+        .enumerate()
+        .filter_map(|(index, stats)| {
+            partial_uncertain_line_ids
+                .contains(&stats.line.id)
+                .then_some(index)
+        })
+        .collect::<BTreeSet<_>>();
     let stats = ordered_stats;
 
     let pages = page_groups(&stats);
@@ -259,8 +276,13 @@ pub(crate) fn reconstruct_blocks_with_issues(
 
     let mut pending = Vec::<PendingBlock>::new();
     for (position, index) in body_indices.iter().copied().enumerate() {
-        let joins_previous =
-            position > 0 && should_join_body(&stats, &body_indices, position, options)?;
+        let joins_previous = position > 0
+            && !crosses_partial_uncertainty(
+                body_indices[position - 1],
+                body_indices[position],
+                &partial_uncertain_indices,
+            )
+            && should_join_body(&stats, &body_indices, position, options)?;
         if joins_previous && let Some(block) = pending.last_mut() {
             block.lines.push(stats[index].line.id);
             continue;
@@ -293,6 +315,14 @@ pub(crate) fn reconstruct_blocks_with_issues(
         })
         .collect();
     Ok(BlockReconstruction { blocks, issues })
+}
+
+fn crosses_partial_uncertainty(
+    previous: usize,
+    current: usize,
+    uncertain_indices: &BTreeSet<usize>,
+) -> bool {
+    uncertain_indices.range(previous..=current).next().is_some()
 }
 
 fn append_region_order<T>(
@@ -1145,6 +1175,28 @@ mod tests {
         assert!(
             matches!(duplicate, Error::Unresolved(message) if message.contains("duplicate or unknown"))
         );
+    }
+
+    #[test]
+    fn one_partial_uncertain_line_splits_trusted_runs() {
+        let uncertain = BTreeSet::from([2]);
+
+        assert!(!crosses_partial_uncertainty(0, 1, &uncertain));
+        assert!(crosses_partial_uncertainty(1, 2, &uncertain));
+        assert!(crosses_partial_uncertainty(2, 3, &uncertain));
+        assert!(!crosses_partial_uncertainty(3, 4, &uncertain));
+        assert!(crosses_partial_uncertainty(1, 4, &uncertain));
+    }
+
+    #[test]
+    fn consecutive_partial_uncertain_lines_each_block_adjacent_joins() {
+        let uncertain = BTreeSet::from([2, 3]);
+
+        assert!(crosses_partial_uncertainty(1, 2, &uncertain));
+        assert!(crosses_partial_uncertainty(2, 3, &uncertain));
+        assert!(crosses_partial_uncertainty(3, 4, &uncertain));
+        assert!(!crosses_partial_uncertainty(0, 1, &uncertain));
+        assert!(!crosses_partial_uncertainty(4, 5, &uncertain));
     }
 
     #[test]

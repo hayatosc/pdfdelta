@@ -2,7 +2,7 @@ use pdfdelta_core::{
     Error, Result,
     alignment::AlignmentOptions,
     diff::{ChangeKind, ChangeTag, Comparison, DiffOptions, FormattingReason},
-    layout::{BlockOptions, LineOptions, LineTextDirection, reconstruct_lines},
+    layout::{BlockOptions, LineOptions, LineTextDirection, reconstruct_blocks, reconstruct_lines},
     model::{
         DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
         GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
@@ -319,6 +319,102 @@ fn rotated_margin_region_does_not_hide_a_same_page_replacement() -> Result<()> {
         .join(" ");
     assert!(unresolved_text.contains("Side A"));
     assert!(!unresolved_text.contains("Release 10"));
+    Ok(())
+}
+
+#[test]
+fn partial_render_order_uncertainty_isolates_one_line_from_a_safe_replacement() -> Result<()> {
+    let old = document(&[
+        line("Opening anchor remains stable", 0, 148.0),
+        line_at("Boundary anchor remains stable", 0, 20.0, 124.0),
+        line("Release 10 remains available", 0, 112.0),
+        line("Omitted middle evidence remains stable", 0, 136.0),
+        line_at("Closing anchor remains stable", 0, 20.0, 100.0),
+    ]);
+    let new = document(&[
+        line("Opening anchor remains stable", 0, 148.0),
+        line_at("Boundary anchor remains stable", 0, 20.0, 124.0),
+        line("Release 20 remains available", 0, 112.0),
+        line("Omitted middle evidence remains stable", 0, 136.0),
+        line_at("Closing anchor remains stable", 0, 20.0, 100.0),
+    ]);
+    let old_lines = reconstruct_lines(&old, LineOptions::default())?;
+    let omitted = old_lines
+        .iter()
+        .find(|line| (line.baseline.y - 136.0).abs() <= f64::EPSILON)
+        .expect("fixture should reconstruct the omitted middle line")
+        .id;
+    let old_structural_blocks = reconstruct_blocks(&old, &old_lines, BlockOptions::default())?;
+
+    assert!(
+        old_structural_blocks
+            .iter()
+            .any(|block| block.lines == [omitted])
+    );
+    let mut retained = old_structural_blocks
+        .iter()
+        .flat_map(|block| block.lines.iter().copied())
+        .collect::<Vec<_>>();
+    retained.sort_unstable_by_key(|line_id| line_id.0);
+    let mut expected = old_lines.iter().map(|line| line.id).collect::<Vec<_>>();
+    expected.sort_unstable_by_key(|line_id| line_id.0);
+    assert_eq!(retained, expected);
+
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+
+    assert_single_change_with_unresolved(&outcome.comparison, ChangeKind::Replacement);
+    assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
+    let unresolved_blocks = &outcome.comparison.unresolved_regions[0]
+        .old_span
+        .as_ref()
+        .expect("old-side omitted line evidence should be retained")
+        .blocks;
+    let unresolved_text = outcome
+        .old_blocks
+        .iter()
+        .filter(|block| unresolved_blocks.contains(&block.block))
+        .map(|block| block.canonical.text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(unresolved_text.contains("Omitted middle evidence"));
+    assert!(!unresolved_text.contains("Release 10"));
+    Ok(())
+}
+
+#[test]
+fn consecutive_partial_render_order_lines_are_singletons_without_evidence_loss() -> Result<()> {
+    let document = document(&[
+        line("Opening anchor remains stable", 0, 148.0),
+        line("Release 10 remains available", 0, 112.0),
+        line("Closing anchor remains stable", 0, 100.0),
+        line("First omitted evidence remains stable", 0, 136.0),
+        line("Second omitted evidence remains stable", 0, 124.0),
+    ]);
+    let lines = reconstruct_lines(&document, LineOptions::default())?;
+    let omitted = [136.0, 124.0].map(|baseline| {
+        lines
+            .iter()
+            .find(|line| (line.baseline.y - baseline).abs() <= f64::EPSILON)
+            .expect("fixture should reconstruct each omitted line")
+            .id
+    });
+    let blocks = reconstruct_blocks(&document, &lines, BlockOptions::default())?;
+
+    for line_id in omitted {
+        assert!(blocks.iter().any(|block| block.lines == [line_id]));
+    }
+    let mut retained = blocks
+        .iter()
+        .flat_map(|block| block.lines.iter().copied())
+        .collect::<Vec<_>>();
+    retained.sort_unstable_by_key(|line_id| line_id.0);
+    let mut expected = lines.iter().map(|line| line.id).collect::<Vec<_>>();
+    expected.sort_unstable_by_key(|line_id| line_id.0);
+    assert_eq!(retained, expected);
     Ok(())
 }
 
