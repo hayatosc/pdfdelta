@@ -33,10 +33,17 @@ pub(super) struct RecoveredSentence {
     pub source_tokens: usize,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct RecoveredReplacement {
+    pub old: RecoveredSentence,
+    pub new: RecoveredSentence,
+}
+
 #[derive(Default)]
 pub(super) struct SentenceRecoveryPlan {
     pub deletions: Vec<RecoveredSentence>,
     pub insertions: Vec<RecoveredSentence>,
+    pub replacements: Vec<RecoveredReplacement>,
     pub deletion_consumed: Vec<LocalSentenceRange>,
     pub insertion_consumed: Vec<LocalSentenceRange>,
 }
@@ -45,6 +52,7 @@ impl SentenceRecoveryPlan {
     pub fn has_recovery(&self, span_index: usize) -> bool {
         !recoveries_for_span(&self.deletions, span_index).is_empty()
             || !recoveries_for_span(&self.insertions, span_index).is_empty()
+            || !replacements_for_span(&self.replacements, span_index).is_empty()
     }
 }
 
@@ -56,6 +64,17 @@ pub(super) fn recoveries_for_span(
     let end =
         recoveries[start..].partition_point(|recovery| recovery.span_index == span_index) + start;
     &recoveries[start..end]
+}
+
+pub(super) fn replacements_for_span(
+    replacements: &[RecoveredReplacement],
+    span_index: usize,
+) -> &[RecoveredReplacement] {
+    let start = replacements.partition_point(|replacement| replacement.old.span_index < span_index);
+    let end = replacements[start..]
+        .partition_point(|replacement| replacement.old.span_index == span_index)
+        + start;
+    &replacements[start..end]
 }
 
 pub(super) fn ranges_for_block(
@@ -146,6 +165,49 @@ struct RecoveryCandidate {
     span_index: usize,
 }
 
+#[derive(Clone, Copy)]
+struct CandidateNearRelation {
+    eligible_degree: u8,
+    eligible_partner: usize,
+    disqualified: bool,
+}
+
+impl Default for CandidateNearRelation {
+    fn default() -> Self {
+        Self {
+            eligible_degree: 0,
+            eligible_partner: usize::MAX,
+            disqualified: false,
+        }
+    }
+}
+
+impl CandidateNearRelation {
+    fn record_eligible(&mut self, partner: usize) {
+        if self.eligible_degree == 0 {
+            self.eligible_partner = partner;
+        }
+        self.eligible_degree = self.eligible_degree.saturating_add(1).min(2);
+    }
+
+    fn record_disqualifying(&mut self) {
+        self.disqualified = true;
+    }
+
+    fn vetoed(self) -> bool {
+        self.eligible_degree != 0 || self.disqualified
+    }
+
+    fn unique_partner(self) -> Option<usize> {
+        (self.eligible_degree == 1 && !self.disqualified).then_some(self.eligible_partner)
+    }
+}
+
+struct ModifiedSentenceRelations {
+    old: Vec<CandidateNearRelation>,
+    new: Vec<CandidateNearRelation>,
+}
+
 struct StreamPlan {
     block_indices: Vec<usize>,
     trusted: bool,
@@ -174,7 +236,14 @@ struct Stream {
     tokens: Vec<SentenceEvidenceToken>,
     scalar_to_token: Vec<usize>,
     blocks: Vec<StreamBlock>,
+    forced_sentence_boundaries: Vec<ForcedSentenceBoundary>,
     trusted: bool,
+}
+
+#[derive(Clone, Copy)]
+struct ForcedSentenceBoundary {
+    byte_offset: usize,
+    scalar_offset: usize,
 }
 
 struct SpanMembership {
@@ -383,7 +452,7 @@ pub(super) fn build_sentence_recovery_plan(
     ) else {
         return Ok(None);
     };
-    let Some((old_vetoes, new_vetoes)) = modified_sentence_vetoes(
+    let Some(relations) = modified_sentence_relations(
         &old_occurrences,
         &new_occurrences,
         &old_candidates,
@@ -394,21 +463,31 @@ pub(super) fn build_sentence_recovery_plan(
     };
 
     let mut plan = SentenceRecoveryPlan::default();
-    if append_candidate_recoveries(
-        &mut plan.deletions,
-        &mut plan.deletion_consumed,
+    if append_replacements(
+        &mut plan,
         &mut old_occurrences,
+        &mut new_occurrences,
         &old_candidates,
-        &old_vetoes,
+        &new_candidates,
+        &relations,
         &mut budget,
     )
     .is_none()
+        || append_candidate_recoveries(
+            &mut plan.deletions,
+            &mut plan.deletion_consumed,
+            &mut old_occurrences,
+            &old_candidates,
+            &relations.old,
+            &mut budget,
+        )
+        .is_none()
         || append_candidate_recoveries(
             &mut plan.insertions,
             &mut plan.insertion_consumed,
             &mut new_occurrences,
             &new_candidates,
-            &new_vetoes,
+            &relations.new,
             &mut budget,
         )
         .is_none()
@@ -471,7 +550,9 @@ fn collect_occurrences(
     let mut occurrences = Vec::new();
     for plan in plans {
         let stream = build_stream(side, &plan)?;
-        for boundary in sentence_boundaries(&stream.text, budget)? {
+        for boundary in
+            sentence_boundaries(&stream.text, &stream.forced_sentence_boundaries, budget)?
+        {
             let key = stream.text.get(boundary.byte_start..boundary.byte_end)?;
             if !budget.charge_key_bytes(key.len()) {
                 return None;
@@ -639,14 +720,23 @@ fn build_stream(side: &Side<'_>, plan: &StreamPlan) -> Option<Stream> {
     let mut text = String::new();
     let mut tokens = Vec::<SentenceEvidenceToken>::new();
     let mut blocks = Vec::new();
+    let mut forced_sentence_boundaries = Vec::new();
     text.try_reserve_exact(text_capacity).ok()?;
     tokens.try_reserve_exact(token_capacity).ok()?;
     blocks.try_reserve_exact(plan.block_indices.len()).ok()?;
     let mut scalar_count = 0usize;
+    let mut previous_ended_terminal = false;
 
     for (position, side_index) in plan.block_indices.iter().copied().enumerate() {
         let block = side.blocks.get(side_index)?;
         let next = side.canonical.get(side_index)?;
+        if plan.trusted && previous_ended_terminal {
+            forced_sentence_boundaries.try_reserve(1).ok()?;
+            forced_sentence_boundaries.push(ForcedSentenceBoundary {
+                byte_offset: text.len(),
+                scalar_offset: scalar_count,
+            });
+        }
         let previous_len = tokens.len();
         let separator = if position == 0 {
             BlockSeparator::Concatenate
@@ -668,6 +758,7 @@ fn build_stream(side: &Side<'_>, plan: &StreamPlan) -> Option<Stream> {
             scalar_range: scalar_start..scalar_count,
             scalar_to_token: scalar_to_token_boundaries(tokens.get(block_token_start..)?)?,
         });
+        previous_ended_terminal = is_true_sentence_terminal(block.canonical.text.trim());
     }
 
     let scalar_to_token = scalar_to_token_boundaries(&tokens)?;
@@ -676,6 +767,7 @@ fn build_stream(side: &Side<'_>, plan: &StreamPlan) -> Option<Stream> {
         tokens,
         scalar_to_token,
         blocks,
+        forced_sentence_boundaries,
         trusted: plan.trusted,
     })
 }
@@ -927,19 +1019,19 @@ fn recovery_candidates(
     Some(candidates)
 }
 
-fn modified_sentence_vetoes(
+fn modified_sentence_relations(
     old_occurrences: &[SentenceOccurrence],
     new_occurrences: &[SentenceOccurrence],
     old_candidates: &[RecoveryCandidate],
     new_candidates: &[RecoveryCandidate],
     budget: &mut RecoveryBudget,
-) -> Option<(Vec<bool>, Vec<bool>)> {
-    let mut old_vetoes = Vec::new();
-    let mut new_vetoes = Vec::new();
-    old_vetoes.try_reserve_exact(old_candidates.len()).ok()?;
-    new_vetoes.try_reserve_exact(new_candidates.len()).ok()?;
-    old_vetoes.resize(old_candidates.len(), false);
-    new_vetoes.resize(new_candidates.len(), false);
+) -> Option<ModifiedSentenceRelations> {
+    let mut old_relations = Vec::new();
+    let mut new_relations = Vec::new();
+    old_relations.try_reserve_exact(old_candidates.len()).ok()?;
+    new_relations.try_reserve_exact(new_candidates.len()).ok()?;
+    old_relations.resize(old_candidates.len(), CandidateNearRelation::default());
+    new_relations.resize(new_candidates.len(), CandidateNearRelation::default());
 
     let ambiguous_old_end = ambiguous_occurrence_end(old_occurrences);
     let ambiguous_new_end = ambiguous_occurrence_end(new_occurrences);
@@ -977,13 +1069,16 @@ fn modified_sentence_vetoes(
                     &new_occurrence.tokens,
                     budget,
                 )? {
-                    old_vetoes[old_candidate_index] = true;
                     if let Ok(offset) = new_candidates[new_candidate_start..new_candidate_end]
                         .binary_search_by_key(&new_occurrence_index, |candidate| {
                             candidate.occurrence_index
                         })
                     {
-                        new_vetoes[new_candidate_start + offset] = true;
+                        let new_candidate_index = new_candidate_start + offset;
+                        old_relations[old_candidate_index].record_eligible(new_candidate_index);
+                        new_relations[new_candidate_index].record_eligible(old_candidate_index);
+                    } else {
+                        old_relations[old_candidate_index].record_disqualifying();
                     }
                 }
             }
@@ -993,7 +1088,7 @@ fn modified_sentence_vetoes(
                     &new_occurrence.tokens,
                     budget,
                 )? {
-                    old_vetoes[old_candidate_index] = true;
+                    old_relations[old_candidate_index].record_disqualifying();
                 }
             }
         }
@@ -1037,7 +1132,7 @@ fn modified_sentence_vetoes(
                     &new_occurrences[new_candidates[new_candidate_index].occurrence_index].tokens,
                     budget,
                 )? {
-                    new_vetoes[new_candidate_index] = true;
+                    new_relations[new_candidate_index].record_disqualifying();
                 }
             }
             for old_occurrence in &old_occurrences[..ambiguous_old_end] {
@@ -1046,13 +1141,16 @@ fn modified_sentence_vetoes(
                     &new_occurrences[new_candidates[new_candidate_index].occurrence_index].tokens,
                     budget,
                 )? {
-                    new_vetoes[new_candidate_index] = true;
+                    new_relations[new_candidate_index].record_disqualifying();
                 }
             }
         }
         new_candidate_start = new_candidate_end;
     }
-    Some((old_vetoes, new_vetoes))
+    Some(ModifiedSentenceRelations {
+        old: old_relations,
+        new: new_relations,
+    })
 }
 
 fn candidate_group_end(candidates: &[RecoveryCandidate], start: usize) -> usize {
@@ -1118,22 +1216,117 @@ fn sentences_are_near(
     Some(shared >= shorter - shorter / 5)
 }
 
+#[allow(clippy::too_many_arguments)]
+fn append_replacements(
+    plan: &mut SentenceRecoveryPlan,
+    old_occurrences: &mut [SentenceOccurrence],
+    new_occurrences: &mut [SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    relations: &ModifiedSentenceRelations,
+    budget: &mut RecoveryBudget,
+) -> Option<()> {
+    if old_candidates.len() != relations.old.len() || new_candidates.len() != relations.new.len() {
+        return None;
+    }
+
+    let mut replacement_count = 0usize;
+    let mut source_tokens = 0usize;
+    let mut old_consumed_count = 0usize;
+    let mut new_consumed_count = 0usize;
+    for (old_candidate_index, old_relation) in relations.old.iter().copied().enumerate() {
+        let Some(new_candidate_index) =
+            mutual_replacement_partner(old_candidate_index, old_relation, &relations.new)
+        else {
+            continue;
+        };
+        let old_candidate = old_candidates.get(old_candidate_index)?;
+        let new_candidate = new_candidates.get(new_candidate_index)?;
+        if old_candidate.span_index != new_candidate.span_index {
+            return None;
+        }
+        let old_location = old_occurrences
+            .get(old_candidate.occurrence_index)?
+            .location
+            .as_ref()?;
+        let new_location = new_occurrences
+            .get(new_candidate.occurrence_index)?
+            .location
+            .as_ref()?;
+        replacement_count = replacement_count.checked_add(1)?;
+        source_tokens = source_tokens
+            .checked_add(old_location.recovery.source_tokens)?
+            .checked_add(new_location.recovery.source_tokens)?;
+        old_consumed_count = old_consumed_count.checked_add(old_location.consumed.len())?;
+        new_consumed_count = new_consumed_count.checked_add(new_location.consumed.len())?;
+    }
+
+    let output_ranges = replacement_count.checked_mul(2)?;
+    if !budget.charge_outputs(output_ranges, source_tokens) {
+        return None;
+    }
+    plan.replacements
+        .try_reserve_exact(replacement_count)
+        .ok()?;
+    plan.deletion_consumed
+        .try_reserve_exact(old_consumed_count)
+        .ok()?;
+    plan.insertion_consumed
+        .try_reserve_exact(new_consumed_count)
+        .ok()?;
+
+    for (old_candidate_index, old_relation) in relations.old.iter().copied().enumerate() {
+        let Some(new_candidate_index) =
+            mutual_replacement_partner(old_candidate_index, old_relation, &relations.new)
+        else {
+            continue;
+        };
+        let old_occurrence_index = old_candidates.get(old_candidate_index)?.occurrence_index;
+        let new_occurrence_index = new_candidates.get(new_candidate_index)?.occurrence_index;
+        let old_location = old_occurrences
+            .get_mut(old_occurrence_index)?
+            .location
+            .take()?;
+        let new_location = new_occurrences
+            .get_mut(new_occurrence_index)?
+            .location
+            .take()?;
+        plan.replacements.push(RecoveredReplacement {
+            old: old_location.recovery,
+            new: new_location.recovery,
+        });
+        plan.deletion_consumed.extend(old_location.consumed);
+        plan.insertion_consumed.extend(new_location.consumed);
+    }
+    Some(())
+}
+
+fn mutual_replacement_partner(
+    old_candidate_index: usize,
+    old_relation: CandidateNearRelation,
+    new_relations: &[CandidateNearRelation],
+) -> Option<usize> {
+    let new_candidate_index = old_relation.unique_partner()?;
+    (new_relations.get(new_candidate_index)?.unique_partner()? == old_candidate_index)
+        .then_some(new_candidate_index)
+}
+
 fn append_candidate_recoveries(
     recoveries: &mut Vec<RecoveredSentence>,
     consumed: &mut Vec<LocalSentenceRange>,
     occurrences: &mut [SentenceOccurrence],
     candidates: &[RecoveryCandidate],
-    vetoes: &[bool],
+    relations: &[CandidateNearRelation],
     budget: &mut RecoveryBudget,
 ) -> Option<()> {
-    if candidates.len() != vetoes.len() {
+    if candidates.len() != relations.len() {
         return None;
     }
     let mut retained_count = 0usize;
     let mut retained_tokens = 0usize;
     let mut consumed_count = 0usize;
-    for (candidate, vetoed) in candidates.iter().zip(vetoes) {
-        if *vetoed {
+    for (candidate, relation) in candidates.iter().zip(relations) {
+        if relation.vetoed() {
             continue;
         }
         let location = occurrences
@@ -1149,8 +1342,8 @@ fn append_candidate_recoveries(
     }
     recoveries.try_reserve_exact(retained_count).ok()?;
     consumed.try_reserve_exact(consumed_count).ok()?;
-    for (candidate, vetoed) in candidates.iter().zip(vetoes) {
-        if *vetoed {
+    for (candidate, relation) in candidates.iter().zip(relations) {
+        if relation.vetoed() {
             continue;
         }
         let location = occurrences
@@ -1171,8 +1364,46 @@ fn normalize_ranges(ranges: &mut [LocalSentenceRange]) -> bool {
     })
 }
 
-fn sentence_boundaries(text: &str, budget: &mut RecoveryBudget) -> Option<Vec<SentenceBoundary>> {
+fn sentence_boundaries(
+    text: &str,
+    forced: &[ForcedSentenceBoundary],
+    budget: &mut RecoveryBudget,
+) -> Option<Vec<SentenceBoundary>> {
     let mut boundaries = Vec::new();
+    let mut byte_offset = 0usize;
+    let mut scalar_offset = 0usize;
+    for forced_boundary in forced {
+        if forced_boundary.byte_offset <= byte_offset
+            || forced_boundary.scalar_offset <= scalar_offset
+        {
+            return None;
+        }
+        let segment = text.get(byte_offset..forced_boundary.byte_offset)?;
+        let scalar_end = scalar_offset.checked_add(segment.chars().count())?;
+        if scalar_end != forced_boundary.scalar_offset {
+            return None;
+        }
+        append_sentence_boundaries(segment, byte_offset, scalar_offset, &mut boundaries, budget)?;
+        byte_offset = forced_boundary.byte_offset;
+        scalar_offset = forced_boundary.scalar_offset;
+    }
+    append_sentence_boundaries(
+        text.get(byte_offset..)?,
+        byte_offset,
+        scalar_offset,
+        &mut boundaries,
+        budget,
+    )?;
+    Some(boundaries)
+}
+
+fn append_sentence_boundaries(
+    text: &str,
+    byte_offset: usize,
+    scalar_offset: usize,
+    boundaries: &mut Vec<SentenceBoundary>,
+    budget: &mut RecoveryBudget,
+) -> Option<()> {
     let mut pending_byte_start = None;
     let mut pending_scalar_start = 0usize;
     let mut scalar_cursor = 0usize;
@@ -1195,18 +1426,21 @@ fn sentence_boundaries(text: &str, budget: &mut RecoveryBudget) -> Option<Vec<Se
             }
             boundaries.try_reserve(1).ok()?;
             boundaries.push(SentenceBoundary {
-                byte_start: start.checked_add(leading_bytes)?,
-                byte_end: byte_end.checked_sub(trailing_bytes)?,
-                scalar_start: pending_scalar_start
+                byte_start: byte_offset.checked_add(start)?.checked_add(leading_bytes)?,
+                byte_end: byte_offset.checked_add(byte_end.checked_sub(trailing_bytes)?)?,
+                scalar_start: scalar_offset
+                    .checked_add(pending_scalar_start)?
                     .checked_add(raw.get(..leading_bytes)?.chars().count())?,
-                scalar_end: scalar_end.checked_sub(raw.get(trailing_start..)?.chars().count())?,
+                scalar_end: scalar_offset.checked_add(
+                    scalar_end.checked_sub(raw.get(trailing_start..)?.chars().count())?,
+                )?,
             });
             pending_byte_start = None;
         }
         scalar_cursor = scalar_end;
     }
 
-    Some(boundaries)
+    Some(())
 }
 
 fn is_true_sentence_terminal(text: &str) -> bool {
@@ -1367,7 +1601,7 @@ mod tests {
     fn boundary_texts(text: &str, token_limit: usize) -> Vec<&str> {
         let mut budget =
             RecoveryBudget::new(token_limit, 0, token_limit, 1).expect("test budget is valid");
-        sentence_boundaries(text, &mut budget)
+        sentence_boundaries(text, &[], &mut budget)
             .expect("sentence scan stays within budget")
             .iter()
             .map(|range| &text[range.byte_start..range.byte_end])
@@ -1439,6 +1673,7 @@ mod tests {
             tokens: Vec::new(),
             scalar_to_token: Vec::new(),
             blocks: Vec::new(),
+            forced_sentence_boundaries: Vec::new(),
             trusted: true,
         };
         let boundary = SentenceBoundary {
@@ -1589,7 +1824,7 @@ mod tests {
         }];
         let mut budget = RecoveryBudget::new(10, 10, 20, 1).expect("test budget is valid");
 
-        let (old_vetoes, new_vetoes) = modified_sentence_vetoes(
+        let relations = modified_sentence_relations(
             &old_occurrences,
             &new_occurrences,
             &old_candidates,
@@ -1597,8 +1832,9 @@ mod tests {
             &mut budget,
         )
         .expect("near-match veto stays within budget");
-        assert_eq!(old_vetoes, [true]);
-        assert!(new_vetoes.is_empty());
+        assert!(relations.old[0].vetoed());
+        assert!(relations.old[0].unique_partner().is_none());
+        assert!(relations.new.is_empty());
     }
 
     #[test]
@@ -1727,6 +1963,7 @@ mod tests {
                 scalar_range: 0..text.chars().count(),
                 scalar_to_token: boundaries,
             }],
+            forced_sentence_boundaries: Vec::new(),
             trusted: true,
         };
         let boundary = SentenceBoundary {
@@ -1786,7 +2023,7 @@ mod tests {
         let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("test budget is valid");
 
         assert!(
-            modified_sentence_vetoes(
+            modified_sentence_relations(
                 &old_occurrences,
                 &new_occurrences,
                 &old_candidates,

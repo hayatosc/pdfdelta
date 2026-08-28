@@ -43,10 +43,11 @@
       "note": "Requirement block reported as a move; identical canonical text on both sides."
     },
     {
-      "id": "per-message-secret-number-dsa-note-removed",
-      "kind": "deletion",
+      "id": "per-message-secret-number-scope-generalized",
+      "kind": "replacement",
       "old_quote": "For DSA and ECDSA, a per-message secret number.",
-      "note": "DSA-specific signing guidance removed with the algorithm."
+      "new_quote": "A per-message secret number.",
+      "note": "The glossary definition removes the DSA/ECDSA qualifier while retaining the concept."
     }
   ]
 }
