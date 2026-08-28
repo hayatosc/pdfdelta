@@ -214,6 +214,7 @@ pub struct SentenceRecoveryMetricsReport {
     pub exact_shared_units: usize,
     pub old_exact_one_sided_units: usize,
     pub new_exact_one_sided_units: usize,
+    pub near_relation_complete: bool,
     pub near_pair_candidates: usize,
     pub vetoed_near_pairs: usize,
     pub recovered_exact_match_old_tokens: usize,
@@ -234,6 +235,7 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             exact_shared_units: metrics.exact_shared_units,
             old_exact_one_sided_units: metrics.old_exact_one_sided_units,
             new_exact_one_sided_units: metrics.new_exact_one_sided_units,
+            near_relation_complete: metrics.near_relation_complete,
             near_pair_candidates: metrics.near_pair_candidates,
             vetoed_near_pairs: metrics.vetoed_near_pairs,
             recovered_exact_match_old_tokens: metrics.recovered_exact_match_old_tokens,
@@ -1795,7 +1797,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 3;
+    pub const SCHEMA_VERSION: u32 = 4;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -2192,7 +2194,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 3);
+        assert_eq!(completed["schema_version"], 4);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -2600,7 +2602,10 @@ mod tests {
 
         assert_eq!(
             sentence_recovery_metrics,
-            Some(SentenceRecoveryMetricsReport::default())
+            Some(SentenceRecoveryMetricsReport {
+                near_relation_complete: true,
+                ..SentenceRecoveryMetricsReport::default()
+            })
         );
     }
 
@@ -2791,7 +2796,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 3);
+        assert_eq!(json["schema_version"], 4);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -2808,6 +2813,7 @@ mod tests {
         let populated = SentenceRecoveryMetrics {
             old_trusted_run_source_tokens: 30,
             new_trusted_run_source_tokens: 40,
+            near_relation_complete: true,
             near_pair_candidates: 2,
             vetoed_near_pairs: 1,
             recovered_replacement_old_tokens: 10,
@@ -2821,6 +2827,7 @@ mod tests {
         let validated = validate_sentence_recovery_metrics(populated)
             .expect("populated metrics satisfy the contract");
         assert_eq!(validated.old_trusted_run_source_tokens, 30);
+        assert!(validated.near_relation_complete);
         assert_eq!(validated.recovered_replacement_new_tokens, 12);
         assert_eq!(validated.vetoed_near_pairs, 1);
     }
@@ -3174,6 +3181,7 @@ mod tests {
                 max_candidate_visits: None,
                 sentence_recovery_metrics: Some(SentenceRecoveryMetricsReport {
                     old_trusted_run_source_tokens: 42,
+                    near_relation_complete: true,
                     near_pair_candidates: 3,
                     vetoed_near_pairs: 2,
                     recovered_deletion_tokens: 18,
@@ -3284,7 +3292,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 3);
+        assert_eq!(value["schema_version"], 4);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -3357,6 +3365,7 @@ mod tests {
             "exact_shared_units".to_owned(),
             "old_exact_one_sided_units".to_owned(),
             "new_exact_one_sided_units".to_owned(),
+            "near_relation_complete".to_owned(),
             "near_pair_candidates".to_owned(),
             "vetoed_near_pairs".to_owned(),
             "recovered_exact_match_old_tokens".to_owned(),
@@ -3385,6 +3394,10 @@ mod tests {
         assert_eq!(
             ok_rec["sentence_recovery_metrics"]["recovered_deletion_tokens"],
             18
+        );
+        assert_eq!(
+            ok_rec["sentence_recovery_metrics"]["near_relation_complete"],
+            true
         );
         assert_eq!(ok_rec["quality"]["unmatched_tiny_changes"], 0);
         assert_eq!(ok_rec["quality"]["precision"], serde_json::Value::Null);

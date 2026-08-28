@@ -590,6 +590,9 @@ pub(super) fn build_sentence_recovery_plan(
     {
         return Ok(SentenceRecoveryBuildOutcome::default());
     }
+    if let Some(diagnostics) = diagnostics.as_mut() {
+        diagnostics.metrics.near_relation_complete = false;
+    }
     let Some(relations) = modified_sentence_relations(
         &old_occurrences,
         &new_occurrences,
@@ -598,9 +601,18 @@ pub(super) fn build_sentence_recovery_plan(
         &mut budget,
         &mut diagnostics,
     ) else {
+        if !plan.matches.is_empty() {
+            return Ok(SentenceRecoveryBuildOutcome {
+                plan: Some(plan),
+                diagnostics,
+            });
+        }
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
     record_vetoed_near_pairs(&mut diagnostics, &relations);
+    if let Some(diagnostics) = diagnostics.as_mut() {
+        diagnostics.metrics.near_relation_complete = true;
+    }
 
     if append_replacements(
         &mut plan,
@@ -659,6 +671,7 @@ fn sentence_recovery_diagnostics(
                 new,
                 new_trusted_run_intervals,
             )?,
+            near_relation_complete: true,
             ..SentenceRecoveryMetrics::default()
         },
         eligible_old_source_tokens: eligible_source_tokens(old, alignment, recovery_spans, true)?,

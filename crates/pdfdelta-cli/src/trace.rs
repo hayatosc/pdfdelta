@@ -375,6 +375,10 @@ fn pipeline_metrics(
                 sentence.new_exact_one_sided_units,
             ),
             (
+                "sentence_recovery_near_relation_complete",
+                usize::from(sentence.near_relation_complete),
+            ),
+            (
                 "sentence_recovery_near_pair_candidates",
                 sentence.near_pair_candidates,
             ),
@@ -520,6 +524,7 @@ mod tests {
     fn flattens_sentence_recovery_metrics_including_real_zeros() {
         let sentence = SentenceRecoveryMetrics {
             old_trusted_run_source_tokens: 41,
+            near_relation_complete: true,
             recovered_deletion_tokens: 17,
             unresolved_remainder_old_source_tokens: 24,
             ..SentenceRecoveryMetrics::default()
@@ -539,6 +544,7 @@ mod tests {
         );
         assert_eq!(metrics["sentence_recovery_recovered_deletion_tokens"], 17);
         assert_eq!(metrics["sentence_recovery_exact_shared_units"], 0);
+        assert_eq!(metrics["sentence_recovery_near_relation_complete"], 1);
         assert_eq!(
             metrics["sentence_recovery_unresolved_remainder_old_source_tokens"],
             24

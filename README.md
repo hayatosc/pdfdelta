@@ -295,7 +295,7 @@ ended `LIMIT`/`FAIL`; low quality scores never fail a run because the dated
 captures serve as calibration evidence and current fragmentation and recall
 remain too unstable for rigid quality-gate thresholds (confidence calibration
 has landed, but broader large-document alignment quality remains ongoing work).
-Compact revision summaries use schema version 3 and include optional nested
+Compact revision summaries use schema version 4 and include optional nested
 sentence-recovery diagnostics, reviewed candidate recall at the production
 top-K limit, and bounded evidence-backed reasons for missed expected changes.
 Candidate recall is unavailable when either reviewed quote does not identify

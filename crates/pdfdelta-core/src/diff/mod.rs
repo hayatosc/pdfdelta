@@ -117,6 +117,7 @@ pub struct SentenceRecoveryMetrics {
     pub exact_shared_units: usize,
     pub old_exact_one_sided_units: usize,
     pub new_exact_one_sided_units: usize,
+    pub near_relation_complete: bool,
     pub near_pair_candidates: usize,
     pub vetoed_near_pairs: usize,
     pub recovered_exact_match_old_tokens: usize,
@@ -2429,6 +2430,7 @@ mod tests {
         assert_eq!(comparison.old_coverage.ratio, Some(1.0));
         assert_eq!(comparison.new_coverage.ratio, Some(1.0));
         assert_eq!(metrics.exact_shared_units, 1);
+        assert!(metrics.near_relation_complete);
         assert_eq!(
             metrics.recovered_exact_match_old_tokens,
             source_tokens(&old)
@@ -3010,6 +3012,60 @@ mod tests {
     }
 
     #[test]
+    fn recovery_budget_exhaustion_preserves_committed_exact_matches() {
+        let shared = "Shared exact sentence.";
+        let old_text = std::iter::once(shared.to_owned())
+            .chain((0..40).map(|index| format!("A{index:02}.")))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let new_text = std::iter::once(shared.to_owned())
+            .chain((0..40).map(|index| format!("B{index:02}.")))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let old = vec![sentence_block(52, &old_text)];
+        let new = vec![sentence_block(53, &new_text)];
+        let exact_tokens = shared.chars().count();
+
+        for (old, new, old_run, new_run) in [
+            (&old, &new, TrustedRunId(1), TrustedRunId(2)),
+            (&new, &old, TrustedRunId(2), TrustedRunId(1)),
+        ] {
+            let outcome = compare_sentence_recovery_with_metrics(
+                old,
+                new,
+                &[Some(old_run)],
+                &[Some(new_run)],
+                1,
+            );
+            let comparison = outcome.comparison;
+            let metrics = outcome
+                .sentence_recovery_metrics
+                .expect("exact-only recovery diagnostics complete");
+
+            assert!(comparison.changes.is_empty());
+            assert!(!comparison.unresolved_regions.is_empty());
+            assert_eq!(comparison.old_coverage.resolved_tokens, exact_tokens);
+            assert_eq!(comparison.new_coverage.resolved_tokens, exact_tokens);
+            assert_eq!(metrics.exact_shared_units, 1);
+            assert!(!metrics.near_relation_complete);
+            assert_eq!(metrics.recovered_exact_match_old_tokens, exact_tokens);
+            assert_eq!(metrics.recovered_exact_match_new_tokens, exact_tokens);
+            assert_eq!(
+                metrics.unresolved_remainder_old_source_tokens,
+                source_tokens(old) - exact_tokens
+            );
+            assert_eq!(
+                metrics.unresolved_remainder_new_source_tokens,
+                source_tokens(new) - exact_tokens
+            );
+            assert_eq!(metrics.recovered_replacement_old_tokens, 0);
+            assert_eq!(metrics.recovered_replacement_new_tokens, 0);
+            assert_eq!(metrics.recovered_deletion_tokens, 0);
+            assert_eq!(metrics.recovered_insertion_tokens, 0);
+        }
+    }
+
+    #[test]
     fn span_output_failure_emits_only_original_unresolved_in_both_directions() {
         let old = vec![sentence_block(52, "Unique old sentence.")];
         let new = vec![sentence_block(53, "Unique new sentence.")];
@@ -3154,6 +3210,7 @@ mod tests {
         assert_eq!(outcome.comparison.old_coverage.resolved_tokens, 0);
         assert_eq!(outcome.comparison.new_coverage.resolved_tokens, 0);
         assert_eq!(metrics.exact_shared_units, 1);
+        assert!(metrics.near_relation_complete);
         assert_eq!(metrics.recovered_exact_match_old_tokens, 0);
         assert_eq!(metrics.recovered_exact_match_new_tokens, 0);
         assert_eq!(
@@ -3353,6 +3410,7 @@ mod tests {
         assert_eq!(comparison.old_coverage.resolved_tokens, source_tokens(&old));
         assert_eq!(comparison.new_coverage.resolved_tokens, source_tokens(&new));
         assert_eq!(metrics.exact_shared_units, 1);
+        assert!(metrics.near_relation_complete);
         assert_eq!(
             metrics.recovered_exact_match_old_tokens,
             source_tokens(&old)
@@ -3436,6 +3494,7 @@ mod tests {
         assert_eq!(metrics.exact_shared_units, 1);
         assert_eq!(metrics.old_exact_one_sided_units, 1);
         assert_eq!(metrics.new_exact_one_sided_units, 1);
+        assert!(metrics.near_relation_complete);
         assert_eq!(metrics.near_pair_candidates, 1);
         assert_eq!(metrics.vetoed_near_pairs, 0);
         assert_eq!(
@@ -3481,7 +3540,10 @@ mod tests {
 
         assert_eq!(
             outcome.sentence_recovery_metrics,
-            Some(SentenceRecoveryMetrics::default())
+            Some(SentenceRecoveryMetrics {
+                near_relation_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
         );
     }
 
@@ -3511,6 +3573,7 @@ mod tests {
             .expect("completed diagnostics remain present");
 
         assert_eq!(metrics.old_exact_one_sided_units, 1);
+        assert!(metrics.near_relation_complete);
         assert_eq!(metrics.new_exact_one_sided_units, 2);
         assert_eq!(metrics.near_pair_candidates, 2);
         assert_eq!(metrics.vetoed_near_pairs, 2);
@@ -3553,6 +3616,7 @@ mod tests {
         );
         assert_eq!(comparison.new_coverage.resolved_tokens, source_tokens(&new));
         assert_eq!(metrics.exact_shared_units, 1);
+        assert!(metrics.near_relation_complete);
         assert_eq!(metrics.near_pair_candidates, 1);
         assert_eq!(metrics.vetoed_near_pairs, 1);
         assert_eq!(metrics.recovered_deletion_tokens, 0);
@@ -3585,6 +3649,7 @@ mod tests {
             .sentence_recovery_metrics
             .expect("completed diagnostics remain present");
 
+        assert!(metrics.near_relation_complete);
         assert_eq!(metrics.near_pair_candidates, 0);
         assert_eq!(metrics.vetoed_near_pairs, 0);
         assert_eq!(metrics.recovered_deletion_tokens, source_tokens(&old));
@@ -3650,6 +3715,7 @@ mod tests {
         );
         assert_eq!(comparison.unresolved_regions.len(), 2);
         assert_eq!(metrics.exact_shared_units, 1);
+        assert!(metrics.near_relation_complete);
         assert_eq!(
             metrics.recovered_exact_match_old_tokens,
             exact.chars().count()
