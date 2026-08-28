@@ -206,9 +206,14 @@ pub(crate) struct AlignmentVisitMetrics {
     /// The `AlignmentOptions::max_candidate_visits` budget the charge was
     /// compared against.
     pub max_candidate_visits: usize,
+    /// Exact number of dynamic-programming cells charged during the attempt.
+    pub dp_cells: usize,
+    /// The `AlignmentOptions::max_dp_cells` budget the charge was compared
+    /// against.
+    pub max_dp_cells: usize,
 }
 
-/// Alignment result plus the candidate visit charge of the attempt.
+/// Alignment result plus resource-accounting metrics for the attempt.
 pub(crate) struct AlignmentAttempt {
     pub result: Result<Alignment>,
     pub visit_metrics: AlignmentVisitMetrics,
@@ -433,7 +438,17 @@ pub(crate) fn align_ordered_with_metrics_and_gap_plan(
     plan: AlignmentGapPlan,
 ) -> AlignmentAttempt {
     let mut visit_metrics = empty_visit_metrics(options);
-    let result = align_ordered_inner(old, new, generator, options, plan, &mut visit_metrics);
+    let mut dp_cell_budget = DpCellBudget::new(options.max_dp_cells);
+    let result = align_ordered_inner(
+        old,
+        new,
+        generator,
+        options,
+        plan,
+        &mut visit_metrics,
+        &mut dp_cell_budget,
+    );
+    visit_metrics.dp_cells = dp_cell_budget.consumed();
     AlignmentAttempt {
         result,
         visit_metrics,
@@ -448,6 +463,26 @@ fn empty_visit_metrics(options: AlignmentOptions) -> AlignmentVisitMetrics {
         candidate_visits_required_ngram: None,
         candidate_visits_required_short_fallback: None,
         max_candidate_visits: options.max_candidate_visits,
+        dp_cells: 0,
+        max_dp_cells: options.max_dp_cells,
+    }
+}
+
+struct DpCellBudget {
+    initial: usize,
+    remaining: usize,
+}
+
+impl DpCellBudget {
+    fn new(limit: usize) -> Self {
+        Self {
+            initial: limit,
+            remaining: limit,
+        }
+    }
+
+    fn consumed(&self) -> usize {
+        self.initial - self.remaining
     }
 }
 
@@ -458,6 +493,7 @@ fn align_ordered_inner(
     options: AlignmentOptions,
     plan: AlignmentGapPlan,
     visit_metrics: &mut AlignmentVisitMetrics,
+    dp_cell_budget: &mut DpCellBudget,
 ) -> Result<Alignment> {
     if old == new && plan.forced_windows.is_empty() {
         visit_metrics.candidate_visits_required = Some(0);
@@ -511,7 +547,6 @@ fn align_ordered_inner(
         .collect::<HashSet<_>>();
 
     let mut spans = Vec::new();
-    let mut remaining_dp_cells = options.max_dp_cells;
     let main_anchor_set = plan.main_anchors.iter().copied().collect::<HashSet<_>>();
 
     for (interval_index, window) in plan.windows.iter().enumerate() {
@@ -534,7 +569,7 @@ fn align_ordered_inner(
                 new_interval,
                 &candidate_map,
                 options,
-                &mut remaining_dp_cells,
+                dp_cell_budget,
                 IntervalContext {
                     allow_split_merge: has_left || has_right,
                     bounded_by_anchors: has_left && has_right,
@@ -818,11 +853,11 @@ fn align_interval_with_partition_fallback(
     new: &[BlockFeatures],
     candidates: &CandidateMap,
     options: AlignmentOptions,
-    remaining_dp_cells: &mut usize,
+    dp_cell_budget: &mut DpCellBudget,
     context: IntervalContext<'_>,
     fallback: PartitionFallback<'_>,
 ) -> Result<Vec<AlignmentSpan>> {
-    let initial = align_interval(old, new, candidates, options, remaining_dp_cells, context)?;
+    let initial = align_interval(old, new, candidates, options, dp_cell_budget, context)?;
     if fallback.anchors.is_empty() || !is_full_text_similarity_collapse(&initial, old, new) {
         return Ok(preserve_collapsed_moves(initial, old, new, context));
     }
@@ -846,7 +881,7 @@ fn align_interval_with_partition_fallback(
             &new[new_start..new_anchor],
             candidates,
             options,
-            remaining_dp_cells,
+            dp_cell_budget,
             retry_context,
         )?);
         spans.push(partition_span(*anchor));
@@ -858,7 +893,7 @@ fn align_interval_with_partition_fallback(
         &new[new_start..],
         candidates,
         options,
-        remaining_dp_cells,
+        dp_cell_budget,
         retry_context,
     )?);
     Ok(spans)
@@ -889,10 +924,10 @@ fn align_interval_preserving_moves(
     new: &[BlockFeatures],
     candidates: &CandidateMap,
     options: AlignmentOptions,
-    remaining_dp_cells: &mut usize,
+    dp_cell_budget: &mut DpCellBudget,
     context: IntervalContext<'_>,
 ) -> Result<Vec<AlignmentSpan>> {
-    let spans = align_interval(old, new, candidates, options, remaining_dp_cells, context)?;
+    let spans = align_interval(old, new, candidates, options, dp_cell_budget, context)?;
     Ok(preserve_collapsed_moves(spans, old, new, context))
 }
 
@@ -1094,7 +1129,7 @@ fn align_interval(
     new: &[BlockFeatures],
     candidates: &CandidateMap,
     options: AlignmentOptions,
-    remaining_dp_cells: &mut usize,
+    dp_cell_budget: &mut DpCellBudget,
     context: IntervalContext<'_>,
 ) -> Result<Vec<AlignmentSpan>> {
     if old.is_empty() && new.is_empty() {
@@ -1113,13 +1148,13 @@ fn align_interval(
         resource: "alignment DP cells",
         limit: options.max_dp_cells,
     })?;
-    if cell_count > *remaining_dp_cells {
+    if cell_count > dp_cell_budget.remaining {
         return Err(Error::LimitExceeded {
             resource: "alignment DP cells",
             limit: options.max_dp_cells,
         });
     }
-    *remaining_dp_cells -= cell_count;
+    dp_cell_budget.remaining -= cell_count;
     let mut cells = Vec::new();
     cells
         .try_reserve_exact(cell_count)
@@ -2533,6 +2568,11 @@ mod tests {
             *generator.generated.borrow(),
             [BlockId(1), BlockId(2), BlockId(3)]
         );
+        assert_eq!(attempt.visit_metrics.dp_cells, 16);
+        assert_eq!(
+            attempt.visit_metrics.max_dp_cells,
+            AlignmentOptions::default().max_dp_cells
+        );
     }
 
     #[test]
@@ -2642,6 +2682,60 @@ mod tests {
         );
         assert!(generator.estimated.borrow().is_empty());
         assert!(generator.generated.borrow().is_empty());
+        assert_eq!(attempt.visit_metrics.dp_cells, 0);
+        assert_eq!(
+            attempt.visit_metrics.max_dp_cells,
+            AlignmentOptions::default().max_dp_cells
+        );
+    }
+
+    #[test]
+    fn anchor_only_alignment_consumes_no_dp_cells() {
+        let old = vec![feature(1, 10)];
+        let new = vec![feature(101, 10)];
+        let options = AlignmentOptions {
+            anchor_min_tokens: 1,
+            ..AlignmentOptions::default()
+        };
+
+        let attempt =
+            align_ordered_with_metrics(&old, &new, &FixedVisitsGenerator::new(0), options);
+
+        assert!(attempt.result.is_ok());
+        assert_eq!(attempt.visit_metrics.dp_cells, 0);
+        assert_eq!(attempt.visit_metrics.max_dp_cells, options.max_dp_cells);
+    }
+
+    #[test]
+    fn dp_limit_failure_reports_cells_consumed_by_completed_intervals() {
+        let old = vec![
+            feature(1, 1),
+            feature_with_tokens(2, 50, &[50, 51, 52, 53]),
+            feature(3, 3),
+        ];
+        let new = vec![
+            feature(101, 101),
+            feature_with_tokens(102, 50, &[50, 51, 52, 53]),
+            feature(103, 103),
+        ];
+        let options = AlignmentOptions {
+            anchor_min_tokens: 4,
+            max_dp_cells: 4,
+            ..AlignmentOptions::default()
+        };
+
+        let attempt =
+            align_ordered_with_metrics(&old, &new, &FixedVisitsGenerator::new(0), options);
+
+        assert!(matches!(
+            attempt.result,
+            Err(Error::LimitExceeded {
+                resource: "alignment DP cells",
+                limit: 4,
+            })
+        ));
+        assert_eq!(attempt.visit_metrics.dp_cells, 4);
+        assert_eq!(attempt.visit_metrics.max_dp_cells, 4);
     }
 
     #[test]
