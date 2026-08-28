@@ -11,6 +11,7 @@ use pdfdelta_core::{
     pipeline::{
         PipelineDiagnostics, PipelineErrorKind, PipelineOptions, PipelinePhase,
         PipelinePhaseStatus, compare_extraction_outcomes,
+        compare_extraction_outcomes_with_alignment_diagnostics,
         compare_extraction_outcomes_with_diagnostics, compare_glyph_documents,
     },
     report::{DocumentSide, ExitStatus, exit_status, summarize},
@@ -889,13 +890,20 @@ fn compares_complete_extraction_outcomes_with_the_existing_pipeline() -> Result<
         "Closing paragraph confirms context",
     ]));
 
-    let outcome = compare_extraction_outcomes(old, new, PipelineOptions::default())?;
+    let mut diagnostics = PipelineDiagnostics::new();
+    let (outcome, alignment) = compare_extraction_outcomes_with_alignment_diagnostics(
+        old,
+        new,
+        PipelineOptions::default(),
+        &mut diagnostics,
+    )?;
 
     assert_single_change(&outcome.comparison, ChangeKind::Replacement);
     assert_eq!(
         outcome.extraction,
         pdfdelta_core::report::ExtractionStatus::complete()
     );
+    assert!(alignment.is_some());
     Ok(())
 }
 
@@ -1334,7 +1342,13 @@ fn page_scoped_gap_suppresses_only_its_anchor_window() -> Result<()> {
         "Additional new paragraph is visible",
     ]));
 
-    let outcome = compare_extraction_outcomes(old, new, PipelineOptions::default())?;
+    let mut diagnostics = PipelineDiagnostics::new();
+    let (outcome, alignment) = compare_extraction_outcomes_with_alignment_diagnostics(
+        old,
+        new,
+        PipelineOptions::default(),
+        &mut diagnostics,
+    )?;
 
     assert!(outcome.comparison.changes.is_empty());
     assert!(outcome.comparison.formatting_changes.is_empty());
@@ -1343,6 +1357,7 @@ fn page_scoped_gap_suppresses_only_its_anchor_window() -> Result<()> {
         outcome.comparison.unresolved_regions[0].evidence,
         [pdfdelta_core::alignment::AlignmentEvidence::ExtractionGap]
     );
+    assert!(alignment.is_some());
     assert_eq!(outcome.comparison.old_coverage.ratio, None);
     assert!(outcome.comparison.new_coverage.resolved_tokens > 0);
     assert!(
@@ -1637,10 +1652,17 @@ fn malformed_subtree_count_issue_suppresses_all_diffs() -> Result<()> {
         "Closing anchor remains exactly stable",
     ]));
 
-    let outcome = compare_extraction_outcomes(old, new, PipelineOptions::default())?;
+    let mut diagnostics = PipelineDiagnostics::new();
+    let (outcome, alignment) = compare_extraction_outcomes_with_alignment_diagnostics(
+        old,
+        new,
+        PipelineOptions::default(),
+        &mut diagnostics,
+    )?;
 
     assert!(outcome.comparison.changes.is_empty());
     assert!(outcome.comparison.unresolved_regions.is_empty());
+    assert!(alignment.is_none());
     assert!(outcome.old_blocks.is_empty());
     assert!(outcome.new_blocks.is_empty());
     assert!(!outcome.old_glyph_evidence.is_empty());

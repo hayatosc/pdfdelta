@@ -19,14 +19,14 @@ use std::{
 };
 
 use pdfdelta_core::{
-    alignment::BlockSeparator,
+    alignment::{Alignment, BlockSeparator},
     diff::{ChangeKind, Comparison, SentenceRecoveryMetrics, TextSpan},
     model::Document,
     normalize::{BlockText, ComparableToken},
     pdf::{LopdfParser, ParseLimits},
     pipeline::{
         PipelineDiagnostics, PipelineOptions, PipelinePhase, PipelinePhaseStatus,
-        compare_extraction_outcomes_with_diagnostics,
+        compare_extraction_outcomes_with_alignment_diagnostics,
         validate_limit_scale as validate_pipeline_limit_scale,
     },
     report::{self, DocumentSide, summarize},
@@ -138,6 +138,7 @@ pub enum ExpectedChangeFailureReason {
     CandidateNotGenerated,
     CandidateScoringRejected,
     AlignmentAmbiguous,
+    AlignmentSpanMismatch,
     ReadingOrderUnresolved { side: MissSide },
     DiffEditDistanceExceeded,
     DiffRejectedAsImplausible,
@@ -1107,10 +1108,11 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     }
 
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
-    let outcome =
+    let (outcome, alignment) =
         match run_extraction_and_comparison(&source, &old_path, &new_path, effective_scale) {
             Ok(ComparisonWithMetrics {
                 outcome,
+                alignment,
                 metrics,
                 sentence_recovery_metrics,
                 pressure,
@@ -1118,7 +1120,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                 metrics.apply_to(&mut record);
                 record.sentence_recovery_metrics = sentence_recovery_metrics;
                 record.candidate_visit_pressure = pressure;
-                outcome
+                (outcome, alignment)
             }
             Err(RevisionRunError::Read(reason)) => {
                 record.failure = Some(reason);
@@ -1248,6 +1250,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                 &document.changes,
                 &outcome.old_blocks,
                 &outcome.new_blocks,
+                alignment.as_ref(),
                 &outcome.comparison,
                 &actuals,
                 &match_outcome,
@@ -1491,6 +1494,7 @@ fn resolve_pressure(
 #[derive(Debug)]
 struct ComparisonWithMetrics {
     outcome: RevisionOutcome,
+    alignment: Option<Alignment>,
     metrics: VisitMetrics,
     sentence_recovery_metrics: Option<SentenceRecoveryMetricsReport>,
     pressure: Option<CandidateVisitPressure>,
@@ -1523,7 +1527,8 @@ fn compare_outcomes_with_metrics(
         None
     };
     let mut diagnostics = PipelineDiagnostics::new();
-    let result = compare_extraction_outcomes_with_diagnostics(old, new, options, &mut diagnostics);
+    let result =
+        compare_extraction_outcomes_with_alignment_diagnostics(old, new, options, &mut diagnostics);
     let metrics = alignment_visit_metrics(&diagnostics).map_err(|message| {
         RevisionRunError::Other("alignment metrics contract violation", message)
     })?;
@@ -1531,7 +1536,7 @@ fn compare_outcomes_with_metrics(
         RevisionRunError::Other("sentence recovery metrics contract violation", message)
     })?;
     let pressure = resolve_pressure(metrics.candidate_visits, pressure_required, pressure_result)?;
-    let outcome = result.map_err(|error| match error {
+    let (outcome, alignment) = result.map_err(|error| match error {
         pdfdelta_core::Error::LimitExceeded { .. } => RevisionRunError::Limit {
             message: error.to_string(),
             metrics: Box::new(metrics),
@@ -1541,6 +1546,7 @@ fn compare_outcomes_with_metrics(
     })?;
     Ok(ComparisonWithMetrics {
         outcome,
+        alignment,
         metrics,
         sentence_recovery_metrics,
         pressure,
@@ -1797,7 +1803,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 4;
+    pub const SCHEMA_VERSION: u32 = 5;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -2194,7 +2200,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 4);
+        assert_eq!(completed["schema_version"], 5);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -2544,6 +2550,7 @@ mod tests {
 
         let ComparisonWithMetrics {
             outcome,
+            alignment,
             metrics,
             sentence_recovery_metrics,
             pressure,
@@ -2551,6 +2558,7 @@ mod tests {
             .expect("comparison succeeds");
 
         assert!(!outcome.comparison.changes.is_empty());
+        assert!(alignment.is_some());
         let sentence_recovery_metrics = sentence_recovery_metrics
             .expect("completed exact diff records sentence recovery metrics");
         assert!(sentence_recovery_metrics.old_trusted_run_source_tokens > 0);
@@ -2618,6 +2626,7 @@ mod tests {
 
         let ComparisonWithMetrics {
             outcome: _,
+            alignment: _,
             metrics,
             sentence_recovery_metrics: _,
             pressure: _,
@@ -2720,6 +2729,7 @@ mod tests {
 
         let ComparisonWithMetrics {
             outcome: _,
+            alignment,
             metrics,
             sentence_recovery_metrics,
             pressure,
@@ -2733,6 +2743,7 @@ mod tests {
         assert_eq!(metrics.candidate_visits_required_short_fallback, None);
         assert_eq!(sentence_recovery_metrics, None);
         assert_eq!(pressure, None);
+        assert!(alignment.is_none());
     }
 
     #[test]
@@ -2796,7 +2807,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 4);
+        assert_eq!(json["schema_version"], 5);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -3292,7 +3303,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 4);
+        assert_eq!(value["schema_version"], 5);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

@@ -1,9 +1,10 @@
 use crate::{
     Error, Result,
     alignment::{
-        AlignmentOptions, InvertedIndexCandidateGenerator, align_ordered_with_metrics_and_gap_plan,
-        build_block_features, estimate_ngram_token_elements, plan_ordered_gaps,
-        validate_alignment_options, validate_ngram_size,
+        Alignment, AlignmentOptions, InvertedIndexCandidateGenerator,
+        align_ordered_with_metrics_and_gap_plan, build_block_features,
+        estimate_ngram_token_elements, plan_ordered_gaps, validate_alignment_options,
+        validate_ngram_size,
     },
     diff::{
         Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, SentenceRecoveryInput,
@@ -307,6 +308,27 @@ pub fn compare_extraction_outcomes_with_diagnostics(
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
 ) -> Result<ComparisonOutcome> {
+    compare_extraction_outcomes_with_alignment_diagnostics(old, new, options, diagnostics)
+        .map(|(outcome, _)| outcome)
+}
+
+/// Compares extracted documents while retaining the block alignment used by
+/// the exact-diff phase.
+///
+/// The alignment is `None` when a document-scoped extraction issue suppresses
+/// the diff. Callers that only need the public comparison should use
+/// [`compare_extraction_outcomes_with_diagnostics`].
+///
+/// # Errors
+///
+/// Returns an error when configuration validation, layout reconstruction,
+/// alignment, or exact diffing fails.
+pub fn compare_extraction_outcomes_with_alignment_diagnostics(
+    old: ExtractionOutcome,
+    new: ExtractionOutcome,
+    options: PipelineOptions,
+    diagnostics: &mut PipelineDiagnostics,
+) -> Result<(ComparisonOutcome, Option<Alignment>)> {
     diagnostics.begin();
     let options = match options.validate() {
         Ok(options) => options,
@@ -332,16 +354,19 @@ pub fn compare_extraction_outcomes_with_diagnostics(
             None,
             PipelineMetrics::default(),
         );
-        let (comparison, old_blocks, new_blocks) =
+        let (comparison, old_blocks, new_blocks, alignment) =
             compare_validated_glyph_documents(&old_document, &new_document, options, diagnostics)?;
-        return Ok(ComparisonOutcome {
-            comparison,
-            extraction: ExtractionStatus::complete(),
-            old_blocks,
-            new_blocks,
-            old_glyph_evidence,
-            new_glyph_evidence,
-        });
+        return Ok((
+            ComparisonOutcome {
+                comparison,
+                extraction: ExtractionStatus::complete(),
+                old_blocks,
+                new_blocks,
+                old_glyph_evidence,
+                new_glyph_evidence,
+            },
+            Some(alignment),
+        ));
     }
 
     diagnostics.incomplete(PipelinePhase::CompletenessGate);
@@ -354,14 +379,15 @@ pub fn compare_extraction_outcomes_with_diagnostics(
     if !has_document_issue {
         let old_gap_boundaries = issue_boundaries(&old_issues);
         let new_gap_boundaries = issue_boundaries(&new_issues);
-        let (mut comparison, old_blocks, new_blocks) = compare_validated_glyph_documents_with_gaps(
-            &old_document,
-            &new_document,
-            options,
-            diagnostics,
-            &old_gap_boundaries,
-            &new_gap_boundaries,
-        )?;
+        let (mut comparison, old_blocks, new_blocks, alignment) =
+            compare_validated_glyph_documents_with_gaps(
+                &old_document,
+                &new_document,
+                options,
+                diagnostics,
+                &old_gap_boundaries,
+                &new_gap_boundaries,
+            )?;
         if !old_complete {
             comparison.old_coverage.ratio = None;
         }
@@ -369,18 +395,21 @@ pub fn compare_extraction_outcomes_with_diagnostics(
             comparison.new_coverage.ratio = None;
         }
         let issues = extraction_issue_records(old_issues, new_issues);
-        return Ok(ComparisonOutcome {
-            comparison,
-            extraction: ExtractionStatus {
-                old_complete,
-                new_complete,
-                issues,
+        return Ok((
+            ComparisonOutcome {
+                comparison,
+                extraction: ExtractionStatus {
+                    old_complete,
+                    new_complete,
+                    issues,
+                },
+                old_blocks,
+                new_blocks,
+                old_glyph_evidence,
+                new_glyph_evidence,
             },
-            old_blocks,
-            new_blocks,
-            old_glyph_evidence,
-            new_glyph_evidence,
-        });
+            Some(alignment),
+        ));
     }
 
     let (old_tokens, new_tokens) =
@@ -388,24 +417,27 @@ pub fn compare_extraction_outcomes_with_diagnostics(
     let issues = extraction_issue_records(old_issues, new_issues);
 
     // Incomplete extraction suppresses the diff to prevent false comparison output.
-    Ok(ComparisonOutcome {
-        comparison: Comparison {
-            changes: Vec::new(),
-            formatting_changes: Vec::new(),
-            unresolved_regions: Vec::new(),
-            old_coverage: conservative_coverage(old_tokens, old_complete),
-            new_coverage: conservative_coverage(new_tokens, new_complete),
+    Ok((
+        ComparisonOutcome {
+            comparison: Comparison {
+                changes: Vec::new(),
+                formatting_changes: Vec::new(),
+                unresolved_regions: Vec::new(),
+                old_coverage: conservative_coverage(old_tokens, old_complete),
+                new_coverage: conservative_coverage(new_tokens, new_complete),
+            },
+            extraction: ExtractionStatus {
+                old_complete,
+                new_complete,
+                issues,
+            },
+            old_blocks: Vec::new(),
+            new_blocks: Vec::new(),
+            old_glyph_evidence,
+            new_glyph_evidence,
         },
-        extraction: ExtractionStatus {
-            old_complete,
-            new_complete,
-            issues,
-        },
-        old_blocks: Vec::new(),
-        new_blocks: Vec::new(),
-        old_glyph_evidence,
-        new_glyph_evidence,
-    })
+        None,
+    ))
 }
 
 fn glyph_evidence(document: &Document<Glyph>) -> Vec<GlyphEvidence> {
@@ -419,7 +451,7 @@ pub fn compare_glyph_documents(
 ) -> Result<Comparison> {
     let options = options.validate()?;
     compare_validated_glyph_documents(old, new, options, &mut PipelineDiagnostics::new())
-        .map(|(comparison, _, _)| comparison)
+        .map(|(comparison, _, _, _)| comparison)
 }
 
 fn compare_validated_glyph_documents(
@@ -427,7 +459,7 @@ fn compare_validated_glyph_documents(
     new: &Document<Glyph>,
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
-) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>)> {
+) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>, Alignment)> {
     compare_validated_glyph_documents_inner(old, new, options, diagnostics, &[], &[], true)
 }
 
@@ -438,7 +470,7 @@ fn compare_validated_glyph_documents_with_gaps(
     diagnostics: &mut PipelineDiagnostics,
     old_issue_boundaries: &[LocalizedIssueBoundary],
     new_issue_boundaries: &[LocalizedIssueBoundary],
-) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>)> {
+) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>, Alignment)> {
     compare_validated_glyph_documents_inner(
         old,
         new,
@@ -458,7 +490,7 @@ fn compare_validated_glyph_documents_inner(
     old_issue_boundaries: &[LocalizedIssueBoundary],
     new_issue_boundaries: &[LocalizedIssueBoundary],
     enable_sentence_recovery: bool,
-) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>)> {
+) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>, Alignment)> {
     let old_document = old;
     let new_document = new;
     record_pre_layout_token_counts(old, new, options.diff, diagnostics)?;
@@ -646,7 +678,7 @@ fn compare_validated_glyph_documents_inner(
             ..PipelineMetrics::default()
         },
     );
-    Ok((comparison, old, new))
+    Ok((comparison, old, new, alignment))
 }
 
 #[derive(Clone, Copy)]

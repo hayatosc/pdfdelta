@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet, VecDeque, hash_map::Entry};
 
 use pdfdelta_core::{
     alignment::{
-        AlignmentEvidence, BlockFeatures, BlockSeparator, CandidateGenerator,
+        Alignment, AlignmentEvidence, BlockFeatures, BlockSeparator, CandidateGenerator,
         InvertedIndexCandidateGenerator, build_block_features,
     },
     diff::{Comparison, TextSpan},
@@ -1008,11 +1008,72 @@ fn fragmentation_reason(
 }
 
 struct FailureContext<'a> {
+    alignment_index: Option<&'a AlignmentSpanIndex>,
+    alignment_index_limited: bool,
     comparison: &'a Comparison,
     blocks_by_side: [&'a HashMap<u64, &'a BlockText>; 2],
     claimed_actuals: &'a HashSet<usize>,
     budget: &'a mut DiagnosticBudget,
     limits: DiagnosticLimits,
+}
+
+#[derive(Clone, Copy)]
+struct ComparisonDiagnosticInput<'a> {
+    alignment: Option<&'a Alignment>,
+    comparison: &'a Comparison,
+}
+
+struct AlignmentSpanIndex {
+    old: HashMap<BlockId, usize>,
+    new: HashMap<BlockId, usize>,
+}
+
+fn build_alignment_span_index(
+    alignment: &Alignment,
+    budget: &mut DiagnosticBudget,
+    limits: DiagnosticLimits,
+) -> DiagnosticScanResult<AlignmentSpanIndex> {
+    let mut old = HashMap::new();
+    let mut new = HashMap::new();
+    for (index, span) in alignment.spans.iter().enumerate() {
+        budget.charge_region(limits)?;
+        for block in &span.old {
+            budget.charge_scan(1, limits)?;
+            if old.insert(*block, index).is_some() {
+                return Err(DiagnosticScanError::Invalid(format!(
+                    "old block {} occurs in multiple alignment spans",
+                    block.0
+                )));
+            }
+        }
+        for block in &span.new {
+            budget.charge_scan(1, limits)?;
+            if new.insert(*block, index).is_some() {
+                return Err(DiagnosticScanError::Invalid(format!(
+                    "new block {} occurs in multiple alignment spans",
+                    block.0
+                )));
+            }
+        }
+    }
+    Ok(AlignmentSpanIndex { old, new })
+}
+
+fn split_alignment_reason(
+    index: Option<&AlignmentSpanIndex>,
+    locations: &ExpectedQuoteLocations,
+) -> Option<ExpectedChangeFailureReason> {
+    let (Some(index), Some(old), Some(new)) =
+        (index, location(&locations.old), location(&locations.new))
+    else {
+        return None;
+    };
+    match (index.old.get(&old.block), index.new.get(&new.block)) {
+        (Some(old_span), Some(new_span)) if old_span != new_span => {
+            Some(ExpectedChangeFailureReason::AlignmentSpanMismatch)
+        }
+        _ => None,
+    }
 }
 
 fn classify_expected_failure(
@@ -1032,6 +1093,16 @@ fn classify_expected_failure(
     }
     if candidate == ReviewedCandidateResult::Missed {
         return Ok(ExpectedChangeFailureReason::CandidateNotGenerated);
+    }
+    if candidate == ReviewedCandidateResult::Recalled {
+        if context.alignment_index_limited {
+            return Ok(ExpectedChangeFailureReason::AlignmentOrCandidate {
+                diagnostic_limited: true,
+            });
+        }
+        if let Some(reason) = split_alignment_reason(context.alignment_index, locations) {
+            return Ok(reason);
+        }
     }
     match unresolved_failure_reason(
         context.comparison,
@@ -1111,11 +1182,15 @@ fn evaluate_reviewed_diagnostics_with_limits(
     expected: &[ExpectedChange],
     old_blocks: &[BlockText],
     new_blocks: &[BlockText],
-    comparison: &Comparison,
+    input: ComparisonDiagnosticInput<'_>,
     actuals: &[ActualChange],
     outcome: &MatchOutcome,
     limits: DiagnosticLimits,
 ) -> std::result::Result<ReviewedDiagnostics, String> {
+    let ComparisonDiagnosticInput {
+        alignment,
+        comparison,
+    } = input;
     let processed_expected = &expected[..expected.len().min(limits.max_expected_changes)];
     let first_unprocessed = expected.get(processed_expected.len());
     let production = PipelineOptions::default();
@@ -1235,8 +1310,25 @@ fn evaluate_reviewed_diagnostics_with_limits(
 
     let old_map = build_block_map(old_blocks);
     let new_map = build_block_map(new_blocks);
+    let needs_alignment_index = candidate_results
+        .iter()
+        .zip(&outcome.claimed_actual_by_expected)
+        .any(|(result, actual)| *result == ReviewedCandidateResult::Recalled && actual.is_none());
+    let (alignment_index, alignment_index_limited) = if needs_alignment_index {
+        match alignment.map(|alignment| build_alignment_span_index(alignment, &mut budget, limits))
+        {
+            Some(Ok(index)) => (Some(index), false),
+            Some(Err(DiagnosticScanError::Limited)) => (None, true),
+            Some(Err(DiagnosticScanError::Invalid(error))) => return Err(error),
+            None => (None, false),
+        }
+    } else {
+        (None, false)
+    };
     let mut failures = Vec::new();
     let mut context = FailureContext {
+        alignment_index: alignment_index.as_ref(),
+        alignment_index_limited,
         comparison,
         blocks_by_side: [&old_map, &new_map],
         claimed_actuals: &outcome.claimed_actuals,
@@ -1301,6 +1393,7 @@ pub(super) fn evaluate_reviewed_diagnostics(
     expected: &[ExpectedChange],
     old_blocks: &[BlockText],
     new_blocks: &[BlockText],
+    alignment: Option<&Alignment>,
     comparison: &Comparison,
     actuals: &[ActualChange],
     outcome: &MatchOutcome,
@@ -1309,7 +1402,10 @@ pub(super) fn evaluate_reviewed_diagnostics(
         expected,
         old_blocks,
         new_blocks,
-        comparison,
+        ComparisonDiagnosticInput {
+            alignment,
+            comparison,
+        },
         actuals,
         outcome,
         DiagnosticLimits::default(),
@@ -1319,6 +1415,7 @@ pub(super) fn evaluate_reviewed_diagnostics(
 #[cfg(test)]
 mod tests {
     use pdfdelta_core::{
+        alignment::{AlignmentConfidence, AlignmentKind, AlignmentSpan},
         diff::{Change, ChangeKind, Confidence, Coverage, TokenRange, UnresolvedRegion},
         model::FontProgramHash,
         normalize::{
@@ -1437,15 +1534,113 @@ mod tests {
     ) -> ReviewedDiagnostics {
         let outcome = match_changes(expected, actuals);
         evaluate_reviewed_diagnostics(
-            expected, old_blocks, new_blocks, comparison, actuals, &outcome,
+            expected, old_blocks, new_blocks, None, comparison, actuals, &outcome,
         )
         .expect("diagnostics succeed")
+    }
+
+    fn one_sided_alignment_span(kind: AlignmentKind, block: BlockId) -> AlignmentSpan {
+        let (old, new) = match kind {
+            AlignmentKind::Deletion => (vec![block], Vec::new()),
+            AlignmentKind::Insertion => (Vec::new(), vec![block]),
+            _ => panic!("test helper requires a one-sided alignment kind"),
+        };
+        AlignmentSpan {
+            kind,
+            old,
+            new,
+            score: 0.0,
+            canonical_similarity: 0.0,
+            score_margin: None,
+            confidence: AlignmentConfidence::Low,
+            evidence: Vec::new(),
+            old_separator: None,
+            new_separator: None,
+        }
     }
 
     fn candidate_recall(diagnostics: &ReviewedDiagnostics) -> CandidateRecallMetrics {
         diagnostics
             .candidate_recall
             .expect("candidate diagnostics are complete")
+    }
+
+    #[test]
+    fn recalled_counterparts_in_separate_alignment_spans_report_a_span_mismatch() {
+        let expected = [expected_change(
+            "fee-replacement",
+            ExpectedKind::Replacement,
+            Some("annual fee of fifty dollars"),
+            Some("annual fee of sixty dollars"),
+        )];
+        let old = [diagnostic_block(1, "annual fee of fifty dollars")];
+        let new = [diagnostic_block(2, "annual fee of sixty dollars")];
+        let alignment = Alignment {
+            spans: vec![
+                one_sided_alignment_span(AlignmentKind::Deletion, BlockId(1)),
+                one_sided_alignment_span(AlignmentKind::Insertion, BlockId(2)),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = diagnostic_comparison(Vec::new(), Vec::new());
+        let outcome = match_changes(&expected, &[]);
+
+        let diagnostics = evaluate_reviewed_diagnostics(
+            &expected,
+            &old,
+            &new,
+            Some(&alignment),
+            &comparison,
+            &[],
+            &outcome,
+        )
+        .expect("diagnostics succeed");
+
+        assert_eq!(candidate_recall(&diagnostics).recalled_counterparts, 1);
+        assert_eq!(
+            diagnostics.expected_change_diagnostics.failures[0].reason,
+            ExpectedChangeFailureReason::AlignmentSpanMismatch
+        );
+    }
+
+    #[test]
+    fn alignment_span_index_charges_each_block_and_rejects_duplicate_membership() {
+        let alignment = Alignment {
+            spans: vec![
+                one_sided_alignment_span(AlignmentKind::Deletion, BlockId(1)),
+                one_sided_alignment_span(AlignmentKind::Insertion, BlockId(2)),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let mut budget = DiagnosticBudget::default();
+        assert!(matches!(
+            build_alignment_span_index(
+                &alignment,
+                &mut budget,
+                DiagnosticLimits {
+                    max_scan_work: 1,
+                    ..DiagnosticLimits::default()
+                }
+            ),
+            Err(DiagnosticScanError::Limited)
+        ));
+        assert!(budget.limited);
+
+        let duplicate = Alignment {
+            spans: vec![
+                one_sided_alignment_span(AlignmentKind::Deletion, BlockId(1)),
+                one_sided_alignment_span(AlignmentKind::Deletion, BlockId(1)),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let mut budget = DiagnosticBudget::default();
+        assert!(matches!(
+            build_alignment_span_index(&duplicate, &mut budget, DiagnosticLimits::default()),
+            Err(DiagnosticScanError::Invalid(_))
+        ));
     }
 
     #[test]
@@ -1742,7 +1937,10 @@ mod tests {
             &expected,
             &old,
             &new,
-            &comparison,
+            ComparisonDiagnosticInput {
+                alignment: None,
+                comparison: &comparison,
+            },
             &[],
             &outcome,
             DiagnosticLimits {
@@ -1762,7 +1960,10 @@ mod tests {
             one_expected,
             &old,
             &new,
-            &comparison,
+            ComparisonDiagnosticInput {
+                alignment: None,
+                comparison: &comparison,
+            },
             &[],
             &outcome,
             DiagnosticLimits {
@@ -1966,7 +2167,10 @@ mod tests {
             &expected,
             &old,
             &new,
-            &comparison,
+            ComparisonDiagnosticInput {
+                alignment: None,
+                comparison: &comparison,
+            },
             &[],
             &outcome,
             DiagnosticLimits {
@@ -2018,6 +2222,7 @@ mod tests {
             &expected,
             &[diagnostic_block(1, "old reviewed text")],
             &[diagnostic_block(2, "new reviewed text")],
+            None,
             &diagnostic_comparison(Vec::new(), Vec::new()),
             &actuals,
             &outcome,
@@ -2224,7 +2429,10 @@ mod tests {
             &expected,
             &[diagnostic_block(1, "too long")],
             &[diagnostic_block(2, "other")],
-            &empty_comparison,
+            ComparisonDiagnosticInput {
+                alignment: None,
+                comparison: &empty_comparison,
+            },
             &[],
             &outcome,
             DiagnosticLimits {
@@ -2255,7 +2463,10 @@ mod tests {
             &expected,
             &[diagnostic_block(1, "other")],
             &[diagnostic_block(2, "remaining")],
-            &empty_comparison,
+            ComparisonDiagnosticInput {
+                alignment: None,
+                comparison: &empty_comparison,
+            },
             &[],
             &outcome,
             DiagnosticLimits {

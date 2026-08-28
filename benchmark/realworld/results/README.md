@@ -53,7 +53,11 @@ All 11 annotation files in this capture are partial review sets. Recall and kind
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
 
-## Schema v4
+## Current Writer Schema (v5)
+
+The benchmark writer on `HEAD` emits schema v5. The latest immutable capture
+above predates the alignment-span diagnostic and remains schema v4; the next
+dated capture will use v5.
 
 The compact summary preserves manifest order and omits runtime, raw preview text, general failure and extraction-issue details, and local paths so identical engine and corpus states serialize deterministically. It retains the stable `resource_limit_failure` and `quality_skipped_reason` fields.
 
@@ -62,7 +66,9 @@ Each record includes:
 - identity and execution state: `pair_id`, set, role, scope, status, provenance, extraction, comparison, and applied limits;
 - comparison metrics: per-side coverage, unresolved regions and token shares, and reported content, formatting, and uncertain changes;
 - reviewed quality metrics when annotations are available;
-- `expected_change_diagnostics`, including classified miss reasons;
+- `expected_change_diagnostics`, including classified miss reasons and a
+  distinct `alignment_span_mismatch` reason when a recalled counterpart was
+  assigned to separate old/new alignment spans;
 - `candidate_recall` for reviewed replacement counterparts;
 - `sentence_recovery_metrics`, including exact matches, near replacements, recovered insertions/deletions, vetoes, remainders, and whether near-relation analysis completed within its budget.
 
