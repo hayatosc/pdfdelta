@@ -49,6 +49,8 @@ pub(super) struct RecoveredExactMatch {
 #[derive(Default)]
 pub(super) struct SentenceRecoveryPlan {
     pub matches: Vec<RecoveredExactMatch>,
+    pub cross_span_match_old: Vec<RecoveredSentence>,
+    pub cross_span_match_new: Vec<RecoveredSentence>,
     pub deletions: Vec<RecoveredSentence>,
     pub insertions: Vec<RecoveredSentence>,
     pub replacements: Vec<RecoveredReplacement>,
@@ -57,8 +59,20 @@ pub(super) struct SentenceRecoveryPlan {
 }
 
 impl SentenceRecoveryPlan {
+    fn has_exact_matches(&self) -> bool {
+        !self.matches.is_empty()
+            || !self.cross_span_match_old.is_empty()
+            || !self.cross_span_match_new.is_empty()
+    }
+
+    pub fn has_cross_span_exact_matches(&self) -> bool {
+        !self.cross_span_match_old.is_empty() || !self.cross_span_match_new.is_empty()
+    }
+
     pub fn has_recovery(&self, span_index: usize) -> bool {
         !matches_for_span(&self.matches, span_index).is_empty()
+            || !recoveries_for_span(&self.cross_span_match_old, span_index).is_empty()
+            || !recoveries_for_span(&self.cross_span_match_new, span_index).is_empty()
             || !recoveries_for_span(&self.deletions, span_index).is_empty()
             || !recoveries_for_span(&self.insertions, span_index).is_empty()
             || !replacements_for_span(&self.replacements, span_index).is_empty()
@@ -257,7 +271,8 @@ struct RecoveryCandidate {
 }
 
 struct ExactMatchCandidate {
-    span_index: usize,
+    old_span_index: usize,
+    new_span_index: usize,
     old_occurrence_index: usize,
     new_occurrence_index: usize,
 }
@@ -601,7 +616,10 @@ pub(super) fn build_sentence_recovery_plan(
         &mut budget,
         &mut diagnostics,
     ) else {
-        if !plan.matches.is_empty() {
+        if plan.has_exact_matches()
+            && normalize_ranges(&mut plan.deletion_consumed)
+            && normalize_ranges(&mut plan.insertion_consumed)
+        {
             return Ok(SentenceRecoveryBuildOutcome {
                 plan: Some(plan),
                 diagnostics,
@@ -1234,11 +1252,14 @@ fn exact_match_candidates(
         }
         let old = old_occurrences.get(count.old_index?)?;
         let new = new_occurrences.get(count.new_index?)?;
-        let Some(span_index) = old.span_index else {
+        let Some(old_span_index) = old.span_index else {
             continue;
         };
-        if new.span_index != Some(span_index)
-            || !recovery_spans.get(span_index).copied()?
+        let Some(new_span_index) = new.span_index else {
+            continue;
+        };
+        if !recovery_spans.get(old_span_index).copied()?
+            || !recovery_spans.get(new_span_index).copied()?
             || old.location.is_none()
             || new.location.is_none()
             || old.tokens.len() < min_tokens
@@ -1250,14 +1271,16 @@ fn exact_match_candidates(
             return None;
         }
         candidates.push(ExactMatchCandidate {
-            span_index,
+            old_span_index,
+            new_span_index,
             old_occurrence_index: count.old_index?,
             new_occurrence_index: count.new_index?,
         });
     }
     candidates.sort_unstable_by_key(|candidate| {
         (
-            candidate.span_index,
+            candidate.old_span_index,
+            candidate.new_span_index,
             candidate.old_occurrence_index,
             candidate.new_occurrence_index,
         )
@@ -1557,6 +1580,8 @@ fn append_exact_matches(
     let mut source_tokens = 0usize;
     let mut old_consumed_count = 0usize;
     let mut new_consumed_count = 0usize;
+    let mut same_span_count = 0usize;
+    let mut cross_span_count = 0usize;
     for candidate in candidates {
         let old_location = old_occurrences
             .get(candidate.old_occurrence_index)?
@@ -1566,10 +1591,15 @@ fn append_exact_matches(
             .get(candidate.new_occurrence_index)?
             .location
             .as_ref()?;
-        if old_location.recovery.span_index != candidate.span_index
-            || new_location.recovery.span_index != candidate.span_index
+        if old_location.recovery.span_index != candidate.old_span_index
+            || new_location.recovery.span_index != candidate.new_span_index
         {
             return None;
+        }
+        if candidate.old_span_index == candidate.new_span_index {
+            same_span_count = same_span_count.checked_add(1)?;
+        } else {
+            cross_span_count = cross_span_count.checked_add(1)?;
         }
         source_tokens = source_tokens
             .checked_add(old_location.recovery.source_tokens)?
@@ -1581,7 +1611,13 @@ fn append_exact_matches(
     if !budget.charge_outputs(candidates.len().checked_mul(2)?, source_tokens) {
         return None;
     }
-    plan.matches.try_reserve_exact(candidates.len()).ok()?;
+    plan.matches.try_reserve_exact(same_span_count).ok()?;
+    plan.cross_span_match_old
+        .try_reserve_exact(cross_span_count)
+        .ok()?;
+    plan.cross_span_match_new
+        .try_reserve_exact(cross_span_count)
+        .ok()?;
     plan.deletion_consumed
         .try_reserve_exact(old_consumed_count)
         .ok()?;
@@ -1598,13 +1634,22 @@ fn append_exact_matches(
             .get_mut(candidate.new_occurrence_index)?
             .location
             .take()?;
-        plan.matches.push(RecoveredExactMatch {
-            old: old_location.recovery,
-            new: new_location.recovery,
-        });
+        if candidate.old_span_index == candidate.new_span_index {
+            plan.matches.push(RecoveredExactMatch {
+                old: old_location.recovery,
+                new: new_location.recovery,
+            });
+        } else {
+            plan.cross_span_match_old.push(old_location.recovery);
+            plan.cross_span_match_new.push(new_location.recovery);
+        }
         plan.deletion_consumed.extend(old_location.consumed);
         plan.insertion_consumed.extend(new_location.consumed);
     }
+    plan.cross_span_match_old
+        .sort_unstable_by_key(|recovery| recovery.span_index);
+    plan.cross_span_match_new
+        .sort_unstable_by_key(|recovery| recovery.span_index);
     Some(())
 }
 
@@ -2314,7 +2359,8 @@ mod tests {
             span_index: Some(0),
         }];
         let candidates = [ExactMatchCandidate {
-            span_index: 0,
+            old_span_index: 0,
+            new_span_index: 0,
             old_occurrence_index: 0,
             new_occurrence_index: 0,
         }];
@@ -2333,6 +2379,8 @@ mod tests {
             .is_none()
         );
         assert!(plan.matches.is_empty());
+        assert!(plan.cross_span_match_old.is_empty());
+        assert!(plan.cross_span_match_new.is_empty());
         assert!(plan.deletion_consumed.is_empty());
         assert!(plan.insertion_consumed.is_empty());
         assert!(old_occurrences[0].location.is_some());
@@ -2372,19 +2420,21 @@ mod tests {
         assert_eq!(candidates.len(), 2);
         assert_eq!(
             (
-                candidates[0].span_index,
+                candidates[0].old_span_index,
+                candidates[0].new_span_index,
                 candidates[0].old_occurrence_index,
                 candidates[0].new_occurrence_index,
             ),
-            (0, 1, 0)
+            (0, 0, 1, 0)
         );
         assert_eq!(
             (
-                candidates[1].span_index,
+                candidates[1].old_span_index,
+                candidates[1].new_span_index,
                 candidates[1].old_occurrence_index,
                 candidates[1].new_occurrence_index,
             ),
-            (1, 0, 1)
+            (1, 1, 0, 1)
         );
     }
 

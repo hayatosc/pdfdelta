@@ -298,6 +298,25 @@ fn compare_aligned_inner(
         items: 0,
         bytes: 0,
     };
+    let requires_atomic_recovery = sentence_recovery
+        .plan
+        .as_ref()
+        .is_some_and(sentence::SentenceRecoveryPlan::has_cross_span_exact_matches);
+    let mut atomic_recovery = requires_atomic_recovery
+        .then(|| {
+            prepare_sentence_recovery_batch(
+                &old,
+                &new,
+                alignment,
+                sentence_recovery.plan.as_ref()?,
+                &mut sentence_recovery_output_budget,
+            )
+        })
+        .flatten();
+    if requires_atomic_recovery && atomic_recovery.is_none() {
+        sentence_recovery.plan = None;
+    }
+    let mut atomic_recovery_cursor = 0usize;
 
     for (span_index, span) in alignment.spans.iter().enumerate() {
         match span.kind {
@@ -375,7 +394,20 @@ fn compare_aligned_inner(
                 }
             }
             AlignmentKind::Unresolved => {
-                if let Some(recovery) = &sentence_recovery.plan
+                if let Some(entry) = atomic_recovery
+                    .as_mut()
+                    .and_then(|batch| batch.entries.get_mut(atomic_recovery_cursor))
+                    .filter(|entry| entry.span_index == span_index)
+                {
+                    entry.fallback_change_index = changes.len();
+                    entry.fallback_unresolved_index = unresolved_regions.len();
+                    atomic_recovery_cursor += 1;
+                    unresolved_regions.push(UnresolvedRegion {
+                        old_span: full_span(&old, &span.old, span.old_separator),
+                        new_span: full_span(&new, &span.new, span.new_separator),
+                        evidence: span.evidence.clone(),
+                    });
+                } else if let Some(recovery) = &sentence_recovery.plan
                     && recovery.has_recovery(span_index)
                 {
                     let committed = apply_sentence_recovery_or_fallback(
@@ -402,6 +434,18 @@ fn compare_aligned_inner(
                 }
             }
         }
+    }
+
+    if let Some(batch) = atomic_recovery
+        && let Some(committed) = commit_prepared_sentence_recovery_batch(
+            batch,
+            &mut changes,
+            &mut unresolved_regions,
+            &mut resolved_old,
+            &mut resolved_new,
+        )
+    {
+        sentence_recovery.record_committed(committed);
     }
 
     Ok(ComparisonWithSentenceRecoveryMetrics {
@@ -504,6 +548,17 @@ struct PreparedSentenceRecovery {
     committed: SentenceRecoveryCommittedTokens,
 }
 
+struct PreparedSentenceRecoveryBatch {
+    entries: Vec<PreparedSentenceRecoveryEntry>,
+}
+
+struct PreparedSentenceRecoveryEntry {
+    span_index: usize,
+    fallback_change_index: usize,
+    fallback_unresolved_index: usize,
+    prepared: PreparedSentenceRecovery,
+}
+
 #[derive(Clone, Copy, Default)]
 struct SentenceRecoveryCommittedTokens {
     exact_match_old: usize,
@@ -512,6 +567,136 @@ struct SentenceRecoveryCommittedTokens {
     replacement_new: usize,
     deletion: usize,
     insertion: usize,
+}
+
+impl SentenceRecoveryCommittedTokens {
+    fn checked_add(self, other: Self) -> Option<Self> {
+        Some(Self {
+            exact_match_old: self.exact_match_old.checked_add(other.exact_match_old)?,
+            exact_match_new: self.exact_match_new.checked_add(other.exact_match_new)?,
+            replacement_old: self.replacement_old.checked_add(other.replacement_old)?,
+            replacement_new: self.replacement_new.checked_add(other.replacement_new)?,
+            deletion: self.deletion.checked_add(other.deletion)?,
+            insertion: self.insertion.checked_add(other.insertion)?,
+        })
+    }
+}
+
+fn prepare_sentence_recovery_batch(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    alignment: &Alignment,
+    recovery: &sentence::SentenceRecoveryPlan,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<PreparedSentenceRecoveryBatch> {
+    let mut tentative_budget = *output_budget;
+    let mut entries = Vec::new();
+    for (span_index, span) in alignment.spans.iter().enumerate() {
+        if span.kind != AlignmentKind::Unresolved || !recovery.has_recovery(span_index) {
+            continue;
+        }
+        if entries.len() == sentence::MAX_SENTENCE_RECOVERY_RANGES {
+            return None;
+        }
+        let prepared =
+            prepare_sentence_recovery(old, new, span_index, span, recovery, &mut tentative_budget)?;
+        entries.try_reserve(1).ok()?;
+        entries.push(PreparedSentenceRecoveryEntry {
+            span_index,
+            fallback_change_index: usize::MAX,
+            fallback_unresolved_index: usize::MAX,
+            prepared,
+        });
+    }
+    *output_budget = tentative_budget;
+    Some(PreparedSentenceRecoveryBatch { entries })
+}
+
+fn commit_prepared_sentence_recovery_batch(
+    mut batch: PreparedSentenceRecoveryBatch,
+    changes: &mut Vec<Change>,
+    unresolved_regions: &mut Vec<UnresolvedRegion>,
+    resolved_old: &mut usize,
+    resolved_new: &mut usize,
+) -> Option<SentenceRecoveryCommittedTokens> {
+    let mut change_count = changes.len();
+    let mut unresolved_count = unresolved_regions.len().checked_sub(batch.entries.len())?;
+    let mut recovered_old = 0usize;
+    let mut recovered_new = 0usize;
+    let mut committed = SentenceRecoveryCommittedTokens::default();
+    let mut previous_change_index = 0usize;
+    let mut previous_unresolved_index = None;
+    for entry in &batch.entries {
+        if entry.fallback_change_index < previous_change_index
+            || entry.fallback_change_index > changes.len()
+            || entry.fallback_unresolved_index >= unresolved_regions.len()
+            || previous_unresolved_index
+                .is_some_and(|previous| entry.fallback_unresolved_index <= previous)
+        {
+            return None;
+        }
+        previous_change_index = entry.fallback_change_index;
+        previous_unresolved_index = Some(entry.fallback_unresolved_index);
+        change_count = change_count.checked_add(entry.prepared.changes.len())?;
+        unresolved_count = unresolved_count.checked_add(entry.prepared.unresolved_regions.len())?;
+        recovered_old = recovered_old.checked_add(entry.prepared.resolved_old)?;
+        recovered_new = recovered_new.checked_add(entry.prepared.resolved_new)?;
+        committed = committed.checked_add(entry.prepared.committed)?;
+    }
+    let next_resolved_old = resolved_old.checked_add(recovered_old)?;
+    let next_resolved_new = resolved_new.checked_add(recovered_new)?;
+
+    let mut merged_changes = Vec::new();
+    let mut merged_unresolved = Vec::new();
+    merged_changes.try_reserve_exact(change_count).ok()?;
+    merged_unresolved.try_reserve_exact(unresolved_count).ok()?;
+
+    let mut fallback_changes = std::mem::take(changes).into_iter().enumerate().peekable();
+    for entry in &mut batch.entries {
+        while fallback_changes
+            .peek()
+            .is_some_and(|(index, _)| *index < entry.fallback_change_index)
+        {
+            merged_changes.push(
+                fallback_changes
+                    .next()
+                    .expect("validated fallback change index remains available")
+                    .1,
+            );
+        }
+        merged_changes.append(&mut entry.prepared.changes);
+    }
+    merged_changes.extend(fallback_changes.map(|(_, change)| change));
+
+    let mut fallback_unresolved = std::mem::take(unresolved_regions)
+        .into_iter()
+        .enumerate()
+        .peekable();
+    for entry in &mut batch.entries {
+        while fallback_unresolved
+            .peek()
+            .is_some_and(|(index, _)| *index < entry.fallback_unresolved_index)
+        {
+            merged_unresolved.push(
+                fallback_unresolved
+                    .next()
+                    .expect("validated fallback unresolved index remains available")
+                    .1,
+            );
+        }
+        let (index, _) = fallback_unresolved
+            .next()
+            .expect("validated fallback unresolved replacement remains available");
+        debug_assert_eq!(index, entry.fallback_unresolved_index);
+        merged_unresolved.append(&mut entry.prepared.unresolved_regions);
+    }
+    merged_unresolved.extend(fallback_unresolved.map(|(_, region)| region));
+
+    *changes = merged_changes;
+    *unresolved_regions = merged_unresolved;
+    *resolved_old = next_resolved_old;
+    *resolved_new = next_resolved_new;
+    Some(committed)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -593,6 +778,10 @@ fn prepare_sentence_recovery(
     output_budget: &mut RecoveryOutputBudget,
 ) -> Option<PreparedSentenceRecovery> {
     let matches = sentence::matches_for_span(&recovery.matches, span_index);
+    let cross_span_match_old =
+        sentence::recoveries_for_span(&recovery.cross_span_match_old, span_index);
+    let cross_span_match_new =
+        sentence::recoveries_for_span(&recovery.cross_span_match_new, span_index);
     let deletions = sentence::recoveries_for_span(&recovery.deletions, span_index);
     let insertions = sentence::recoveries_for_span(&recovery.insertions, span_index);
     let replacements = sentence::replacements_for_span(&recovery.replacements, span_index);
@@ -620,7 +809,11 @@ fn prepare_sentence_recovery(
         .try_reserve_exact(unresolved_capacity)
         .ok()?;
 
-    let (exact_match_old, exact_match_new) = recovered_exact_match_tokens(matches)?;
+    let (same_span_match_old, same_span_match_new) = recovered_exact_match_tokens(matches)?;
+    let exact_match_old =
+        same_span_match_old.checked_add(recovered_sentence_tokens(cross_span_match_old)?)?;
+    let exact_match_new =
+        same_span_match_new.checked_add(recovered_sentence_tokens(cross_span_match_new)?)?;
     let (replacement_old, replacement_new) =
         prepare_recovered_replacements(replacements, &mut changes, output_budget)?;
     let deletion =
@@ -692,6 +885,15 @@ fn recovered_exact_match_tokens(
                 resolved_new.checked_add(matched.new.source_tokens)?,
             ))
         })
+}
+
+fn recovered_sentence_tokens(recovered: &[sentence::RecoveredSentence]) -> Option<usize> {
+    recovered.iter().try_fold(0usize, |resolved, recovery| {
+        if !valid_recovered_sentence(recovery) {
+            return None;
+        }
+        resolved.checked_add(recovery.source_tokens)
+    })
 }
 
 fn recovered_range_count(
@@ -2888,7 +3090,7 @@ mod tests {
     }
 
     #[test]
-    fn globally_unique_exact_sentences_in_different_spans_remain_unresolved() {
+    fn globally_unique_exact_sentences_in_different_spans_are_resolved() {
         let old = vec![sentence_block(32, "Same sentence belongs to the old span.")];
         let new = vec![sentence_block(33, "Same sentence belongs to the old span.")];
         let alignment = Alignment {
@@ -2911,9 +3113,9 @@ mod tests {
         );
 
         assert!(result.changes.is_empty());
-        assert_eq!(result.unresolved_regions.len(), 2);
-        assert_eq!(result.old_coverage.resolved_tokens, 0);
-        assert_eq!(result.new_coverage.resolved_tokens, 0);
+        assert!(result.unresolved_regions.is_empty());
+        assert_eq!(result.old_coverage.ratio, Some(1.0));
+        assert_eq!(result.new_coverage.ratio, Some(1.0));
     }
 
     #[test]
@@ -3066,6 +3268,131 @@ mod tests {
     }
 
     #[test]
+    fn unique_exact_sentences_cross_uncertain_span_boundaries_without_becoming_moves() {
+        let old = vec![
+            sentence_block(60, "Alpha remains exactly stable."),
+            sentence_block(61, "Beta remains exactly stable."),
+        ];
+        let new = vec![
+            sentence_block(70, "Beta remains exactly stable."),
+            sentence_block(71, "Alpha remains exactly stable."),
+        ];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(60)], vec![BlockId(70)]),
+                reading_order_unknown_span(vec![BlockId(61)], vec![BlockId(71)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let old_intervals =
+            trusted_run_intervals(&[Some(TrustedRunId(60)), Some(TrustedRunId(61))]);
+        let new_intervals =
+            trusted_run_intervals(&[Some(TrustedRunId(70)), Some(TrustedRunId(71))]);
+
+        let outcome = compare_aligned_with_sentence_recovery_metrics(
+            &old,
+            &new,
+            &alignment,
+            DiffOptions::default(),
+            SentenceRecoveryInput {
+                old_trusted_run_intervals: &old_intervals,
+                new_trusted_run_intervals: &new_intervals,
+                min_tokens: 5,
+            },
+        )
+        .expect("cross-span exact recovery succeeds");
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("cross-span recovery diagnostics are complete");
+
+        assert!(outcome.comparison.changes.is_empty());
+        assert!(outcome.comparison.unresolved_regions.is_empty());
+        assert_eq!(outcome.comparison.old_coverage.ratio, Some(1.0));
+        assert_eq!(outcome.comparison.new_coverage.ratio, Some(1.0));
+        assert_eq!(metrics.exact_shared_units, 2);
+        assert_eq!(
+            metrics.recovered_exact_match_old_tokens,
+            source_tokens(&old)
+        );
+        assert_eq!(
+            metrics.recovered_exact_match_new_tokens,
+            source_tokens(&new)
+        );
+    }
+
+    #[test]
+    fn cross_span_exact_remainders_stay_sorted_when_near_relation_budget_exhausts() {
+        let alpha = "Alpha remains exactly stable.";
+        let beta = "Beta remains exactly stable.";
+        let old_noise = (0..40)
+            .map(|index| format!("A{index:02}."))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let new_noise = (0..40)
+            .map(|index| format!("B{index:02}."))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let old = vec![
+            sentence_block(80, &format!("{alpha} {old_noise}")),
+            sentence_block(81, beta),
+        ];
+        let new = vec![
+            sentence_block(90, &format!("{beta} {new_noise}")),
+            sentence_block(91, alpha),
+        ];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(80)], vec![BlockId(90)]),
+                reading_order_unknown_span(vec![BlockId(81)], vec![BlockId(91)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let old_intervals =
+            trusted_run_intervals(&[Some(TrustedRunId(80)), Some(TrustedRunId(81))]);
+        let new_intervals =
+            trusted_run_intervals(&[Some(TrustedRunId(90)), Some(TrustedRunId(91))]);
+
+        let outcome = compare_aligned_with_sentence_recovery_metrics(
+            &old,
+            &new,
+            &alignment,
+            DiffOptions::default(),
+            SentenceRecoveryInput {
+                old_trusted_run_intervals: &old_intervals,
+                new_trusted_run_intervals: &new_intervals,
+                min_tokens: 1,
+            },
+        )
+        .expect("exact-only fallback comparison succeeds");
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("exact-only fallback diagnostics are retained");
+
+        assert!(!metrics.near_relation_complete);
+        assert_eq!(metrics.exact_shared_units, 2);
+        assert_eq!(
+            metrics.recovered_exact_match_old_tokens,
+            alpha.chars().count() + beta.chars().count()
+        );
+        assert_eq!(
+            metrics.recovered_exact_match_new_tokens,
+            alpha.chars().count() + beta.chars().count()
+        );
+        assert!(outcome.comparison.unresolved_regions.iter().all(|region| {
+            region
+                .old_span
+                .as_ref()
+                .is_none_or(|span| !span.blocks.contains(&BlockId(81)))
+                && region
+                    .new_span
+                    .as_ref()
+                    .is_none_or(|span| !span.blocks.contains(&BlockId(91)))
+        }));
+    }
+
+    #[test]
     fn span_output_failure_emits_only_original_unresolved_in_both_directions() {
         let old = vec![sentence_block(52, "Unique old sentence.")];
         let new = vec![sentence_block(53, "Unique new sentence.")];
@@ -3211,6 +3538,66 @@ mod tests {
         assert_eq!(outcome.comparison.new_coverage.resolved_tokens, 0);
         assert_eq!(metrics.exact_shared_units, 1);
         assert!(metrics.near_relation_complete);
+        assert_eq!(metrics.recovered_exact_match_old_tokens, 0);
+        assert_eq!(metrics.recovered_exact_match_new_tokens, 0);
+        assert_eq!(
+            metrics.unresolved_remainder_old_source_tokens,
+            source_tokens(&old)
+        );
+        assert_eq!(
+            metrics.unresolved_remainder_new_source_tokens,
+            source_tokens(&new)
+        );
+    }
+
+    #[test]
+    fn cross_span_exact_match_output_fallback_is_atomic() {
+        let old = vec![
+            sentence_block(60, "Alpha remains exactly stable. Old."),
+            sentence_block(61, "Beta remains exactly stable. Old."),
+        ];
+        let new = vec![
+            sentence_block(70, "Beta remains exactly stable. New."),
+            sentence_block(71, "Alpha remains exactly stable. New."),
+        ];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(60)], vec![BlockId(70)]),
+                reading_order_unknown_span(vec![BlockId(61)], vec![BlockId(71)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let old_intervals =
+            trusted_run_intervals(&[Some(TrustedRunId(60)), Some(TrustedRunId(61))]);
+        let new_intervals =
+            trusted_run_intervals(&[Some(TrustedRunId(70)), Some(TrustedRunId(71))]);
+
+        let outcome = compare_aligned_inner(
+            &old,
+            &new,
+            &alignment,
+            DiffOptions::default(),
+            Some(SentenceRecoveryInput {
+                old_trusted_run_intervals: &old_intervals,
+                new_trusted_run_intervals: &new_intervals,
+                min_tokens: 5,
+            }),
+            RecoveryOutputLimits {
+                max_items: 8,
+                max_bytes: usize::MAX,
+            },
+        )
+        .expect("cross-span fallback comparison succeeds");
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("cross-span plan diagnostics remain available");
+
+        assert!(outcome.comparison.changes.is_empty());
+        assert_eq!(outcome.comparison.unresolved_regions.len(), 2);
+        assert_eq!(outcome.comparison.old_coverage.resolved_tokens, 0);
+        assert_eq!(outcome.comparison.new_coverage.resolved_tokens, 0);
+        assert_eq!(metrics.exact_shared_units, 2);
         assert_eq!(metrics.recovered_exact_match_old_tokens, 0);
         assert_eq!(metrics.recovered_exact_match_new_tokens, 0);
         assert_eq!(
