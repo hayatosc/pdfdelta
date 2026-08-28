@@ -45,6 +45,10 @@ pub enum ReadingOrder {
 const MIN_PARALLEL_ROW_PAIRS: usize = 3;
 const MIN_PARALLEL_ROW_OVERLAP_RATIO: f64 = 0.8;
 const MIN_PARALLEL_ROW_GAP_HEIGHT_RATIO: f64 = 0.8;
+const MIN_LEAF_ROW_OVERLAP_RATIO: f64 = 0.75;
+const MAX_LEAF_ROW_BASELINE_DISTANCE_HEIGHT_RATIO: f64 = 0.1;
+const MAX_PROVEN_LEAF_ROW_LINES: usize = 16;
+const MAX_ACTIVE_LEAF_ROWS: usize = 16;
 const VECTOR_AXIS_TOLERANCE_RATIO: f64 = 1.0e-9;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -222,7 +226,14 @@ fn classify_reading_order(
         .filter(|line_id| !trusted_line_ids.contains(line_id))
         .collect::<Vec<_>>();
     if uncertain_line_ids.is_empty() {
-        (supported_order, Vec::new(), Vec::new())
+        let trusted_runs = match &supported_order {
+            ReadingOrder::KnownLines(line_ids) if !line_ids.is_empty() => vec![TrustedLineRun {
+                line_ids: line_ids.clone(),
+            }],
+            ReadingOrder::KnownLines(_) => Vec::new(),
+            _ => trusted_runs,
+        };
+        (supported_order, Vec::new(), trusted_runs)
     } else if matches!(supported_order, ReadingOrder::KnownLines(_)) {
         // Block reconstruction cannot merge a proven row-major line order
         // with unsupported lines without inventing their relative position.
@@ -643,7 +654,7 @@ fn unique_spatial_order(
 }
 
 fn region_lines_are_monotone(region: &Region, lines: &HashMap<LineId, &Line>) -> bool {
-    region.line_ids.windows(2).all(|pair| {
+    let is_exact_spatial_order = region.line_ids.windows(2).all(|pair| {
         let Some(previous) = lines.get(&pair[0]) else {
             return false;
         };
@@ -652,7 +663,127 @@ fn region_lines_are_monotone(region: &Region, lines: &HashMap<LineId, &Line>) ->
         };
         previous.bbox.max.y >= next.bbox.max.y
             && previous.render_order.end() < next.render_order.start()
+    });
+    if is_exact_spatial_order {
+        return true;
+    }
+
+    let Some(region_lines) = region
+        .line_ids
+        .iter()
+        .map(|line_id| lines.get(line_id).copied())
+        .collect::<Option<Vec<_>>>()
+    else {
+        return false;
+    };
+    proven_row_cluster_order(&region_lines).is_some_and(|order| {
+        order == region.line_ids && region_lines_are_render_monotone(region, lines)
     })
+}
+
+fn region_lines_are_render_monotone(region: &Region, lines: &HashMap<LineId, &Line>) -> bool {
+    region.line_ids.windows(2).all(|pair| {
+        let Some(previous) = lines.get(&pair[0]) else {
+            return false;
+        };
+        let Some(next) = lines.get(&pair[1]) else {
+            return false;
+        };
+        previous.render_order.end() < next.render_order.start()
+    })
+}
+
+fn proven_row_cluster_order(lines: &[&Line]) -> Option<Vec<LineId>> {
+    if lines.is_empty() || lines.iter().any(|line| !line_is_supported(line)) {
+        return None;
+    }
+    let mut spatial = lines.to_vec();
+    spatial.sort_by(|left, right| {
+        right
+            .bbox
+            .max
+            .y
+            .total_cmp(&left.bbox.max.y)
+            .then(left.bbox.min.x.total_cmp(&right.bbox.min.x))
+            .then(left.id.0.cmp(&right.id.0))
+    });
+
+    let spatial_order = spatial.iter().map(|line| line.id).collect::<Vec<_>>();
+    let mut rows = Vec::<Vec<&Line>>::new();
+    let mut active_rows = Vec::<usize>::new();
+    for line in spatial {
+        if line.bbox.min.x > line.bbox.max.x || line.bbox.min.y >= line.bbox.max.y {
+            return None;
+        }
+        active_rows.retain(|row_index| {
+            rows[*row_index]
+                .iter()
+                .any(|member| line.bbox.max.y > member.bbox.min.y)
+        });
+        let mut matching_row = None;
+        for &row_index in &active_rows {
+            let row = &rows[row_index];
+            let strong_matches = row
+                .iter()
+                .filter(|member| {
+                    interval_overlap_ratio(
+                        (member.bbox.min.y, member.bbox.max.y),
+                        (line.bbox.min.y, line.bbox.max.y),
+                    ) >= MIN_LEAF_ROW_OVERLAP_RATIO
+                        && baselines_prove_same_row(member, line)
+                })
+                .count();
+            if strong_matches == 0 {
+                continue;
+            }
+            if strong_matches != row.len() || matching_row.replace(row_index).is_some() {
+                return None;
+            }
+        }
+        if let Some(row_index) = matching_row {
+            let row = &mut rows[row_index];
+            if row.len() >= MAX_PROVEN_LEAF_ROW_LINES {
+                return None;
+            }
+            row.push(line);
+        } else {
+            if active_rows.len() >= MAX_ACTIVE_LEAF_ROWS {
+                return None;
+            }
+            let row_index = rows.len();
+            rows.push(vec![line]);
+            active_rows.push(row_index);
+        }
+    }
+
+    let mut ordered_lines = Vec::with_capacity(lines.len());
+    for row in &mut rows {
+        row.sort_by(|left, right| {
+            left.bbox
+                .min
+                .x
+                .total_cmp(&right.bbox.min.x)
+                .then(left.bbox.max.x.total_cmp(&right.bbox.max.x))
+                .then(left.id.0.cmp(&right.id.0))
+        });
+        if row.windows(2).any(|pair| {
+            pair[0].bbox.max.x > pair[1].bbox.min.x
+                || pair[0].render_order.end() >= pair[1].render_order.start()
+        }) {
+            return None;
+        }
+        ordered_lines.extend(row.iter().copied());
+    }
+    let order = ordered_lines.iter().map(|line| line.id).collect::<Vec<_>>();
+    (order != spatial_order).then_some(order)
+}
+
+fn baselines_prove_same_row(left: &Line, right: &Line) -> bool {
+    let reference_height =
+        (left.bbox.max.y - left.bbox.min.y).min(right.bbox.max.y - right.bbox.min.y);
+    reference_height > f64::EPSILON
+        && (left.baseline.y - right.baseline.y).abs()
+            <= MAX_LEAF_ROW_BASELINE_DISTANCE_HEIGHT_RATIO * reference_height
 }
 
 fn is_supported_two_column_graph(
@@ -830,6 +961,22 @@ fn xy_cut_recursive(
             .then(lines[a].bbox.min.x.total_cmp(&lines[b].bbox.min.x))
             .then(lines[a].id.0.cmp(&lines[b].id.0))
     });
+    let leaf_lines = sorted_indices
+        .iter()
+        .map(|index| lines[*index])
+        .collect::<Vec<_>>();
+    if let Some(row_order) = proven_row_cluster_order(&leaf_lines) {
+        let indices_by_id = sorted_indices
+            .iter()
+            .map(|index| (lines[*index].id, *index))
+            .collect::<HashMap<_, _>>();
+        if indices_by_id.len() == sorted_indices.len() {
+            sorted_indices = row_order
+                .iter()
+                .filter_map(|line_id| indices_by_id.get(line_id).copied())
+                .collect();
+        }
+    }
     let line_ids = sorted_indices.iter().map(|&i| lines[i].id).collect();
     build.regions.push(Region {
         id: region_id,
@@ -1124,7 +1271,7 @@ mod tests {
 
     #[test]
     fn partial_known_lines_preserve_region_local_runs() {
-        let mut lines = vec![
+        let mut lines = [
             line(1, 50.0, 700.0, 150.0, 712.0),
             line(2, 250.0, 700.0, 350.0, 712.0),
             line(3, 50.0, 675.0, 150.0, 687.0),
@@ -1186,7 +1333,7 @@ mod tests {
     }
 
     #[test]
-    fn fully_known_line_order_does_not_expose_recovery_runs() {
+    fn fully_known_line_order_preserves_global_row_major_run() {
         let lines = vec![
             line(1, 50.0, 700.0, 150.0, 712.0),
             line(2, 250.0, 700.0, 350.0, 712.0),
@@ -1203,6 +1350,138 @@ mod tests {
             ReadingOrder::KnownLines((1..=6).map(LineId).collect())
         );
         assert!(partition.uncertain_line_ids.is_empty());
-        assert!(partition.trusted_runs.is_empty());
+        assert_eq!(
+            partition.trusted_runs,
+            vec![TrustedLineRun {
+                line_ids: (1..=6).map(LineId).collect(),
+            }]
+        );
+    }
+
+    #[test]
+    fn jittered_glossary_rows_use_render_consistent_horizontal_order() {
+        let mut lines = [
+            line(592, 90.0, 340.0, 350.0, 348.540),
+            line(593, 50.0, 340.0, 70.0, 348.396),
+            line(594, 90.0, 332.92, 350.0, 341.08),
+            line(595, 90.0, 320.0, 350.0, 328.540),
+            line(596, 50.0, 320.0, 70.0, 328.396),
+            line(597, 90.0, 300.0, 350.0, 308.540),
+            line(598, 50.0, 300.0, 70.0, 308.396),
+        ];
+        let expected = [593, 592, 594, 596, 595, 598, 597].map(LineId);
+        for (render_order, line_id) in expected.iter().enumerate() {
+            let line = lines
+                .iter_mut()
+                .find(|line| line.id == *line_id)
+                .expect("expected line should exist");
+            line.render_order = render_order as u32..=render_order as u32;
+        }
+        let line_refs = lines.iter().collect::<Vec<_>>();
+        let partition = partition_regions_from_refs(
+            PageId(0),
+            &line_refs,
+            &[],
+            RegionOptions {
+                min_partition_lines: 10,
+                ..RegionOptions::default()
+            },
+        )
+        .expect("glossary fixture should partition");
+
+        assert_eq!(partition.graph.regions[0].line_ids, expected);
+        assert!(matches!(
+            partition.graph.reading_order,
+            ReadingOrder::Known(_)
+        ));
+        assert!(partition.uncertain_line_ids.is_empty());
+        assert_eq!(
+            partition.trusted_runs,
+            vec![TrustedLineRun {
+                line_ids: expected.to_vec(),
+            }]
+        );
+    }
+
+    #[test]
+    fn ambiguous_vertical_overlap_chain_remains_unknown() {
+        let mut lines = vec![
+            line(1, 10.0, 10.0, 20.0, 20.0),
+            line(3, 30.0, 8.0, 40.0, 20.0),
+            line(2, 50.0, 7.0, 60.0, 17.0),
+        ];
+        for line in &mut lines {
+            line.baseline.y = 10.0;
+        }
+
+        let partition = partition(&lines);
+
+        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+        assert!(!partition.uncertain_line_ids.is_empty());
+    }
+
+    #[test]
+    fn vertically_offset_overlapping_lines_remain_unknown() {
+        let lines = vec![
+            line(1, 10.0, 10.0, 20.0, 20.0),
+            line(2, 30.0, 8.0, 100.0, 20.1),
+        ];
+        let line_refs = lines.iter().collect::<Vec<_>>();
+
+        assert_eq!(proven_row_cluster_order(&line_refs), None);
+        assert_eq!(partition(&lines).graph.reading_order, ReadingOrder::Unknown);
+    }
+
+    #[test]
+    fn local_row_proof_survives_a_distant_render_barrier() {
+        let mut lines = vec![
+            line(1, 10.0, 10.0, 20.0, 20.0),
+            line(2, 30.0, 10.0, 100.0, 20.1),
+            line(3, 10.0, 0.0, 100.0, 5.0),
+        ];
+        lines[0].render_order = 1..=1;
+        lines[1].render_order = 2..=2;
+        lines[2].render_order = 0..=0;
+
+        let partition = partition(&lines);
+
+        assert_eq!(
+            partition.graph.regions[0].line_ids,
+            [LineId(1), LineId(2), LineId(3)]
+        );
+        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+        assert_eq!(partition.uncertain_line_ids, vec![LineId(3)]);
+        assert_eq!(
+            partition.trusted_runs,
+            vec![TrustedLineRun {
+                line_ids: vec![LineId(1), LineId(2)],
+            }]
+        );
+    }
+
+    #[test]
+    fn horizontally_overlapping_row_lines_remain_unknown() {
+        let lines = vec![
+            line(2, 10.0, 10.0, 60.0, 20.0),
+            line(1, 50.0, 10.0, 100.0, 20.0),
+        ];
+
+        let partition = partition(&lines);
+
+        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+        assert!(!partition.uncertain_line_ids.is_empty());
+    }
+
+    #[test]
+    fn unsupported_lines_cannot_prove_jittered_row_order() {
+        let mut lines = vec![
+            line(1, 10.0, 10.0, 20.0, 20.0),
+            line(2, 30.0, 10.0, 100.0, 20.1),
+        ];
+        lines[1].direction = Vec2 { x: 0.0, y: 1.0 };
+        let line_refs = lines.iter().collect::<Vec<_>>();
+
+        assert_eq!(proven_row_cluster_order(&line_refs), None);
+        assert_eq!(partition(&lines).graph.reading_order, ReadingOrder::Unknown);
     }
 }
