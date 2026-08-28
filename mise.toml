@@ -62,6 +62,10 @@ run = "cargo run -p pdfdelta-bench --release --locked -- candidate-profile"
 description = "Download and checksum-verify the real-world revision corpus"
 run = "benchmark/realworld/fetch.sh"
 
+[tasks.bench-capture]
+description = "Capture provenance for a new real-world PDF pair (usage: mise run bench-capture -- <pair-id> <old-url> <new-url>)"
+run = "benchmark/realworld/capture.sh"
+
 [tasks.bench-revisions-checksums]
 description = "Verify the cached real-world revision corpus"
 run = "cargo run -p pdfdelta-bench --locked -- revisions --cache-dir benchmark/realworld/cache --checksums-only"

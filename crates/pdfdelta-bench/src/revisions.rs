@@ -543,6 +543,11 @@ pub fn parse_manifest(manifest: &str) -> Result<Vec<RevisionPair>> {
         let limit_scale_hint = parse_limit_scale_hint(columns[9], line_number)?;
         let old = parse_side_provenance(columns[11], columns[12], columns[13], "old", line_number)?;
         let new = parse_side_provenance(columns[14], columns[15], columns[16], "new", line_number)?;
+        if old.sha256 == new.sha256 {
+            return Err(BenchError::InvalidInput(format!(
+                "revision manifest row {line_number} records byte-identical old and new PDFs"
+            )));
+        }
         pairs.push(RevisionPair {
             pair_id,
             set,
@@ -2008,6 +2013,14 @@ mod tests {
                 "{header}\n{}\n",
                 manifest_row("alpha", "dev", "standard", "true", "complete")
                     .replace("\t1.0\t", "\t0.5\t")
+            ))
+            .is_err()
+        );
+        assert!(
+            parse_manifest(&format!(
+                "{header}\n{}\n",
+                manifest_row("alpha", "dev", "standard", "true", "complete")
+                    .replace(&"b".repeat(64), &"a".repeat(64))
             ))
             .is_err()
         );
