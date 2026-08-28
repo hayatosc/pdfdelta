@@ -232,6 +232,181 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
             },
             30,
         )?,
+        BenchmarkCase::new(
+            "repeated-obligations-number-replacement",
+            document(&[
+                (
+                    "service",
+                    "The supplier shall retain service records for 5 years",
+                ),
+                (
+                    "security",
+                    "The supplier shall retain security records for 7 years",
+                ),
+                (
+                    "billing",
+                    "The supplier shall retain billing records for 5 years",
+                ),
+                (
+                    "audit",
+                    "The supplier shall retain audit records for 5 years",
+                ),
+            ])?,
+            Mutation::NumberReplace {
+                paragraph_id: "security".to_owned(),
+                new_number: "10".to_owned(),
+            },
+            30,
+        )?,
+        BenchmarkCase::new(
+            "repeated-terms-text-replacement",
+            document(&[
+                (
+                    "north",
+                    "Regional support remains available during local business hours",
+                ),
+                (
+                    "south",
+                    "Regional support remains available during local office hours",
+                ),
+                (
+                    "east",
+                    "Regional support remains available during local business hours",
+                ),
+                (
+                    "west",
+                    "Regional support remains available during local business hours",
+                ),
+            ])?,
+            Mutation::TextReplace {
+                paragraph_id: "south".to_owned(),
+                new_text: "Regional support remains available during extended office hours"
+                    .to_owned(),
+            },
+            30,
+        )?,
+        BenchmarkCase::new(
+            "long-prose-double-reflow",
+            document(&[
+                (
+                    "summary",
+                    "Executive summary and review scope remain unchanged",
+                ),
+                (
+                    "analysis",
+                    "The review team examined each control and recorded the evidence before issuing its final assessment",
+                ),
+                (
+                    "finding",
+                    "The resulting finding and recommendation remain unchanged",
+                ),
+            ])?,
+            Mutation::LineWrapTwice {
+                paragraph_id: "analysis".to_owned(),
+                after_words: [6, 12],
+            },
+            30,
+        )?,
+        BenchmarkCase::new(
+            "numbered-requirement-text-insertion",
+            document(&[
+                (
+                    "requirement-1",
+                    "1. The operator shall record each access request",
+                ),
+                (
+                    "requirement-2",
+                    "2. The operator shall review each access request",
+                ),
+                (
+                    "requirement-3",
+                    "3. The operator shall archive each access request",
+                ),
+            ])?,
+            Mutation::TextInsert {
+                paragraph_id: "requirement-2".to_owned(),
+                at: "2. The operator shall ".chars().count(),
+                text: "independently ".to_owned(),
+            },
+            30,
+        )?,
+        BenchmarkCase::new(
+            "pagination-churn-mid-document",
+            document(&[
+                ("overview", "Overview of the annual compliance review"),
+                ("scope", "Scope and responsible teams remain unchanged"),
+                ("method", "Review methods and evidence remain unchanged"),
+                ("control-1", "Control one remains effective and unchanged"),
+                ("control-2", "Control two remains effective and unchanged"),
+                ("control-3", "Control three remains effective and unchanged"),
+                ("finding-1", "Finding one remains resolved and unchanged"),
+                ("finding-2", "Finding two remains resolved and unchanged"),
+                ("approval", "Final approval and signoff remain unchanged"),
+            ])?,
+            Mutation::PageBreak {
+                before_paragraph: 4,
+            },
+            24,
+        )?,
+        BenchmarkCase::new(
+            "footnote-like-paragraph-insertion",
+            document(&[
+                ("policy", "The policy applies to all production systems"),
+                ("exception", "Approved exceptions require annual review"),
+                (
+                    "footnote-1",
+                    "Footnote 1. Production excludes training systems",
+                ),
+            ])?,
+            Mutation::ParagraphInsert {
+                index: 3,
+                paragraph: Paragraph::new(
+                    "footnote-2",
+                    "Footnote 2. Annual review occurs each January",
+                )?,
+            },
+            30,
+        )?,
+        BenchmarkCase::new(
+            "footnote-like-paragraph-deletion",
+            document(&[
+                (
+                    "report",
+                    "The report covers the consolidated operating results",
+                ),
+                (
+                    "footnote-1",
+                    "Footnote 1. Amounts are rounded to whole dollars",
+                ),
+                (
+                    "footnote-2",
+                    "Footnote 2. Prior periods use constant currency",
+                ),
+                (
+                    "footnote-3",
+                    "Footnote 3. Totals may differ due to rounding",
+                ),
+            ])?,
+            Mutation::ParagraphDelete {
+                paragraph_id: "footnote-2".to_owned(),
+            },
+            30,
+        )?,
+        BenchmarkCase::new(
+            "section-labeled-paragraph-movement",
+            document(&[
+                ("introduction", "Section 1 Introduction and purpose"),
+                ("definitions", "Section 2 Definitions and interpretation"),
+                ("operations", "Section 3 Operating requirements"),
+                ("audit", "Section 4 Audit rights and records"),
+                ("termination", "Section 5 Termination and transition"),
+            ])?,
+            Mutation::ParagraphMove {
+                paragraph_id: "audit".to_owned(),
+                to_index: 1,
+            },
+            30,
+        )?,
     ])
 }
 

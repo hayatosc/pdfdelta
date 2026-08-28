@@ -116,9 +116,12 @@ fn built_in_fixture_counterpart_denominators_match_mutation_semantics() {
     for case in built_in_cases().expect("built-in cases are valid") {
         let record = evaluate_candidate_generation(&case, RendererKind::LopdfTj, &[5])
             .expect("candidate evaluation completes");
-        // Only the deleted paragraph loses its counterpart; every other
+        // Only paragraph-deletion cases lose one counterpart; every other
         // built-in mutation keeps all old paragraphs on the new side.
-        let expected_unmatched = usize::from(case.name() == "paragraph-deletion");
+        let expected_unmatched = usize::from(matches!(
+            case.name(),
+            "paragraph-deletion" | "footnote-like-paragraph-deletion"
+        ));
         assert_eq!(
             record.unmatched_old_blocks, expected_unmatched,
             "{} unmatched old blocks",
