@@ -4,10 +4,7 @@ use crate::{
     Error, Result,
     layout::{
         Line, LineId, LineTextDirection,
-        geometry::{
-            directions_are_compatible, interval_overlap_ratio, is_horizontal, length_squared,
-            normalize,
-        },
+        geometry::{interval_overlap_ratio, is_horizontal, length_squared, normalize},
     },
     model::{PageId, Rect, Vec2, VectorLine},
     validate::{validate_non_negative, validate_unit_interval},
@@ -132,6 +129,12 @@ pub fn partition_regions_with_vector_lines(
     let line_refs: Vec<_> = lines.iter().collect();
     let vector_line_refs = vector_lines.iter().collect::<Vec<_>>();
     partition_regions_from_refs(page, &line_refs, &vector_line_refs, options)
+        .map(|partition| partition.graph)
+}
+
+pub(super) struct RegionPartition {
+    pub graph: RegionGraph,
+    pub uncertain_line_ids: Vec<LineId>,
 }
 
 pub(super) fn partition_regions_from_refs(
@@ -139,14 +142,18 @@ pub(super) fn partition_regions_from_refs(
     lines: &[&Line],
     vector_lines: &[&VectorLine],
     options: RegionOptions,
-) -> Result<RegionGraph> {
+) -> Result<RegionPartition> {
     let mut edges = Vec::new();
     let regions = partition_regions_inner(page, lines, options, Some(&mut edges))?;
-    let reading_order = classify_reading_order(lines, vector_lines, &regions, &edges);
-    Ok(RegionGraph {
-        regions,
-        edges,
-        reading_order,
+    let (reading_order, uncertain_line_ids) =
+        classify_reading_order(lines, vector_lines, &regions, &edges);
+    Ok(RegionPartition {
+        graph: RegionGraph {
+            regions,
+            edges,
+            reading_order,
+        },
+        uncertain_line_ids,
     })
 }
 
@@ -155,39 +162,75 @@ fn classify_reading_order(
     vector_lines: &[&VectorLine],
     regions: &[Region],
     edges: &[(RegionId, RegionId, RegionRelation)],
-) -> ReadingOrder {
-    let mut reference_direction = None;
-    for line in lines {
-        if !line_geometry_is_finite(line) || length_squared(line.direction) <= f64::EPSILON {
-            return ReadingOrder::Unknown;
-        }
-        let direction = normalize(line.direction);
-        if !is_horizontal(direction)
-            || direction.x <= 0.0
-            || !matches!(
-                line.text_direction,
-                LineTextDirection::LeftToRight | LineTextDirection::Neutral
-            )
-        {
-            return ReadingOrder::Unknown;
-        }
-        if reference_direction
-            .is_some_and(|reference| !directions_are_compatible(reference, direction))
-        {
-            return ReadingOrder::Unknown;
-        }
-        reference_direction = Some(direction);
-    }
-
+) -> (ReadingOrder, Vec<LineId>) {
     let lines_by_id = lines
         .iter()
         .map(|line| (line.id, *line))
         .collect::<HashMap<_, _>>();
+    let supported_regions = regions
+        .iter()
+        .filter_map(|region| {
+            let line_ids = trusted_region_line_ids(region, &lines_by_id);
+            (!line_ids.is_empty()).then_some(Region {
+                id: region.id,
+                page: region.page,
+                bbox: region.bbox,
+                line_ids,
+            })
+        })
+        .collect::<Vec<_>>();
+    let trusted_line_ids = supported_regions
+        .iter()
+        .flat_map(|region| region.line_ids.iter().copied())
+        .collect::<HashSet<_>>();
+    let supported_ids = supported_regions
+        .iter()
+        .map(|region| region.id)
+        .collect::<HashSet<_>>();
+    let supported_edges = edges
+        .iter()
+        .copied()
+        .filter(|(source, target, _)| {
+            supported_ids.contains(source) && supported_ids.contains(target)
+        })
+        .collect::<Vec<_>>();
+    let supported_order = classify_supported_region_order(
+        &supported_regions,
+        &supported_edges,
+        &lines_by_id,
+        vector_lines,
+    );
+
+    if matches!(supported_order, ReadingOrder::Unknown) {
+        return (ReadingOrder::Unknown, sorted_line_ids(lines));
+    }
+    let uncertain_line_ids = lines
+        .iter()
+        .map(|line| line.id)
+        .filter(|line_id| !trusted_line_ids.contains(line_id))
+        .collect::<Vec<_>>();
+    if uncertain_line_ids.is_empty() {
+        (supported_order, Vec::new())
+    } else if matches!(supported_order, ReadingOrder::KnownLines(_)) {
+        // Block reconstruction cannot merge a proven row-major line order
+        // with unsupported lines without inventing their relative position.
+        (ReadingOrder::Unknown, sorted_line_ids(lines))
+    } else {
+        (ReadingOrder::Unknown, uncertain_line_ids)
+    }
+}
+
+fn classify_supported_region_order(
+    regions: &[Region],
+    edges: &[(RegionId, RegionId, RegionRelation)],
+    lines_by_id: &HashMap<LineId, &Line>,
+    vector_lines: &[&VectorLine],
+) -> ReadingOrder {
     if regions.is_empty() {
         return ReadingOrder::Known(Vec::new());
     }
     if let [region] = regions {
-        return if region_lines_are_monotone(region, &lines_by_id) {
+        return if region_lines_are_monotone(region, lines_by_id) {
             ReadingOrder::Known(vec![region.id])
         } else {
             ReadingOrder::Unknown
@@ -195,18 +238,92 @@ fn classify_reading_order(
     }
     if let [left, right] = regions {
         if is_supported_two_column_graph(left, right, edges)
-            && region_lines_are_monotone(left, &lines_by_id)
-            && region_lines_are_monotone(right, &lines_by_id)
-            && regions_are_rendered_in_order(left, right, &lines_by_id)
+            && region_lines_are_monotone(left, lines_by_id)
+            && region_lines_are_monotone(right, lines_by_id)
+            && regions_are_rendered_in_order(left, right, lines_by_id)
         {
             return ReadingOrder::Known(vec![left.id, right.id]);
         }
-        return parallel_row_order(left, right, edges, &lines_by_id, vector_lines)
+        return parallel_row_order(left, right, edges, lines_by_id, vector_lines)
             .map_or(ReadingOrder::Unknown, ReadingOrder::KnownLines);
     }
 
-    banded_two_column_order(regions, edges, &lines_by_id)
+    banded_two_column_order(regions, edges, lines_by_id)
+        .or_else(|| uniquely_rendered_spatial_order(regions, edges, lines_by_id))
         .map_or(ReadingOrder::Unknown, ReadingOrder::Known)
+}
+
+fn trusted_region_line_ids(region: &Region, lines: &HashMap<LineId, &Line>) -> Vec<LineId> {
+    let supported = region
+        .line_ids
+        .iter()
+        .copied()
+        .filter(|line_id| {
+            lines
+                .get(line_id)
+                .is_some_and(|line| line_is_supported(line))
+        })
+        .collect::<Vec<_>>();
+    longest_render_monotone_subsequence(&supported, lines)
+}
+
+fn longest_render_monotone_subsequence(
+    line_ids: &[LineId],
+    lines: &HashMap<LineId, &Line>,
+) -> Vec<LineId> {
+    if line_ids.is_empty() {
+        return Vec::new();
+    }
+    let mut predecessors = vec![None; line_ids.len()];
+    let mut tails = Vec::<(u32, usize)>::new();
+    for (current, line_id) in line_ids.iter().enumerate() {
+        let line = lines[line_id];
+        let start = *line.render_order.start();
+        let end = *line.render_order.end();
+        let tail_position = tails.partition_point(|(tail_end, _)| *tail_end < start);
+        if tail_position > 0 {
+            predecessors[current] = Some(tails[tail_position - 1].1);
+        }
+        if tail_position == tails.len() {
+            tails.push((end, current));
+        } else if end < tails[tail_position].0 {
+            tails[tail_position] = (end, current);
+        }
+    }
+    let mut cursor = tails
+        .last()
+        .map(|(_, index)| *index)
+        .expect("a non-empty line sequence has a longest subsequence");
+    let mut trusted = Vec::with_capacity(tails.len());
+    loop {
+        trusted.push(line_ids[cursor]);
+        let Some(previous) = predecessors[cursor] else {
+            break;
+        };
+        cursor = previous;
+    }
+    trusted.reverse();
+    trusted
+}
+
+fn line_is_supported(line: &Line) -> bool {
+    if !line_geometry_is_finite(line) || length_squared(line.direction) <= f64::EPSILON {
+        return false;
+    }
+    let direction = normalize(line.direction);
+    is_horizontal(direction)
+        && direction.x > 0.0
+        && matches!(
+            line.text_direction,
+            LineTextDirection::LeftToRight | LineTextDirection::Neutral
+        )
+}
+
+fn sorted_line_ids(lines: &[&Line]) -> Vec<LineId> {
+    let mut line_ids = lines.iter().map(|line| line.id).collect::<Vec<_>>();
+    line_ids.sort_unstable_by_key(|line_id| line_id.0);
+    line_ids.dedup();
+    line_ids
 }
 
 fn parallel_row_order(
@@ -404,6 +521,20 @@ fn banded_two_column_order(
         return None;
     }
 
+    uniquely_rendered_spatial_order(regions, edges, lines)
+}
+
+fn uniquely_rendered_spatial_order(
+    regions: &[Region],
+    edges: &[(RegionId, RegionId, RegionRelation)],
+    lines: &HashMap<LineId, &Line>,
+) -> Option<Vec<RegionId>> {
+    if regions
+        .iter()
+        .any(|region| !region_lines_are_monotone(region, lines))
+    {
+        return None;
+    }
     let order = unique_spatial_order(regions, edges)?;
     if order != regions.iter().map(|region| region.id).collect::<Vec<_>>() {
         return None;

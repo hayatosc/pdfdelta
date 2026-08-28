@@ -566,7 +566,7 @@ fn pipeline_options() -> PipelineOptions {
     options.alignment.max_candidate_visits = 16 * 1024;
     options.alignment.max_dp_cells = 16 * 1024;
     options.diff.max_tokens = 32 * 1024;
-    options.diff.max_edit_distance = 4 * 1024;
+    options.diff.max_edit_distance = 4_000;
     options
 }
 

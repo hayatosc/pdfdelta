@@ -1,4 +1,7 @@
+use super::MAX_MYERS_EDIT_DISTANCE;
 use crate::{Error, Result};
+
+const MAX_MYERS_TRACE_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Edit {
@@ -26,10 +29,12 @@ pub(super) fn diff<T: Eq>(
     // Only diagonals within the capped distance are ever visited, so the
     // frontier is sized on the effective bound instead of the full input
     // length.
-    let distance_bound = max_distance.min(max_edit_distance);
-    // The offset arithmetic below casts the bound to isize; reject a bound
-    // that cannot be represented instead of the configured cap itself, so
-    // callers may pass usize::MAX as an uncapped budget.
+    let distance_bound = max_distance
+        .min(max_edit_distance)
+        .min(MAX_MYERS_EDIT_DISTANCE);
+    // The offset arithmetic below casts the effective internal bound to
+    // isize. Keep the representation check local even though the current
+    // trace-allocation cap is much smaller.
     if distance_bound > isize::MAX as usize {
         return Err(Error::LimitExceeded {
             resource: "Myers diagonal offset",
@@ -43,6 +48,16 @@ pub(super) fn diff<T: Eq>(
             resource: "Myers frontier entries",
             limit: usize::MAX,
         })?;
+    let trace_bytes = maximum_trace_bytes(distance_bound).ok_or(Error::LimitExceeded {
+        resource: "Myers trace bytes",
+        limit: MAX_MYERS_TRACE_BYTES,
+    })?;
+    if trace_bytes > MAX_MYERS_TRACE_BYTES {
+        return Err(Error::LimitExceeded {
+            resource: "Myers trace bytes",
+            limit: MAX_MYERS_TRACE_BYTES,
+        });
+    }
     let offset = distance_bound as isize + 1;
     let mut frontier = vec![0; frontier_len];
     frontier[index(1, offset)] = 0;
@@ -81,6 +96,18 @@ pub(super) fn diff<T: Eq>(
     // The edit script exceeds the configured distance budget. Callers degrade
     // this matched span instead of failing the whole comparison.
     Ok(None)
+}
+
+fn maximum_trace_bytes(distance_bound: usize) -> Option<usize> {
+    let layer_count = distance_bound.checked_add(1)?;
+    let layer_entries = layer_count
+        .checked_mul(distance_bound.checked_add(2)?)?
+        .checked_div(2)?;
+    let frontier_entries = distance_bound.checked_mul(2)?.checked_add(3)?;
+    layer_entries
+        .checked_add(frontier_entries)?
+        .checked_mul(std::mem::size_of::<usize>())?
+        .checked_add(layer_count.checked_mul(std::mem::size_of::<Vec<usize>>())?)
 }
 
 fn backtrack<T: Eq>(
@@ -149,7 +176,8 @@ fn layer_value(layer: &[usize], distance: usize, diagonal: isize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{Edit, diff};
+    use super::{Edit, MAX_MYERS_TRACE_BYTES, diff, maximum_trace_bytes};
+    use crate::diff::MAX_MYERS_EDIT_DISTANCE;
 
     #[test]
     fn returns_only_equal_edits_for_identical_input() {
@@ -201,13 +229,21 @@ mod tests {
     }
 
     #[test]
-    fn treats_usize_max_as_uncapped_when_the_inputs_fit() {
+    fn accepts_usize_max_for_inputs_within_the_internal_cap() {
         assert_eq!(
             diff(b"abc", b"abc", usize::MAX)
                 .expect("identical input should diff")
                 .expect("identical input fits an uncapped budget"),
             vec![Edit::Equal; 3]
         );
+    }
+
+    #[test]
+    fn configured_cap_fits_the_trace_allocation_budget() {
+        let bytes = maximum_trace_bytes(MAX_MYERS_EDIT_DISTANCE)
+            .expect("the configured edit-distance cap should have a finite trace size");
+
+        assert!(bytes <= MAX_MYERS_TRACE_BYTES);
     }
 
     fn assert_script(old: &[u8], new: &[u8], edits: &[Edit]) {

@@ -240,7 +240,7 @@ fn incomplete_grid_keeps_tightly_spaced_rows_unknown() -> Result<()> {
 }
 
 #[test]
-fn three_column_topology_is_unknown() -> Result<()> {
+fn column_major_three_column_order_is_known() -> Result<()> {
     let lines = vec![
         make_line(1, 50.0, 700.0, 200.0, 712.0),
         make_line(2, 50.0, 680.0, 200.0, 692.0),
@@ -249,6 +249,31 @@ fn three_column_topology_is_unknown() -> Result<()> {
         make_line(5, 550.0, 700.0, 700.0, 712.0),
         make_line(6, 550.0, 680.0, 700.0, 692.0),
     ];
+
+    let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
+
+    assert_eq!(graph.regions.len(), 3);
+    assert_eq!(
+        graph.reading_order,
+        ReadingOrder::Known(graph.regions.iter().map(|region| region.id).collect())
+    );
+    Ok(())
+}
+
+#[test]
+fn row_interleaved_three_column_order_is_unknown() -> Result<()> {
+    let render_orders = [1, 4, 2, 5, 3, 6];
+    let mut lines = vec![
+        make_line(1, 50.0, 700.0, 200.0, 712.0),
+        make_line(2, 50.0, 680.0, 200.0, 692.0),
+        make_line(3, 300.0, 700.0, 450.0, 712.0),
+        make_line(4, 300.0, 680.0, 450.0, 692.0),
+        make_line(5, 550.0, 700.0, 700.0, 712.0),
+        make_line(6, 550.0, 680.0, 700.0, 692.0),
+    ];
+    for (line, render_order) in lines.iter_mut().zip(render_orders) {
+        line.render_order = render_order..=render_order;
+    }
 
     let graph = partition_regions(PageId(0), &lines, RegionOptions::default())?;
 

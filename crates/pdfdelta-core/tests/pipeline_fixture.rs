@@ -276,6 +276,101 @@ fn reports_replacement_inside_known_two_column_order() -> Result<()> {
 }
 
 #[test]
+fn rotated_margin_region_does_not_hide_a_same_page_replacement() -> Result<()> {
+    let old = document(&[
+        line_at("Opening anchor remains stable", 0, 0.0, 300.0),
+        line_at("Release 10 remains available", 0, 0.0, 280.0),
+        line_at("Closing anchor remains stable", 0, 0.0, 260.0),
+        vertical_line("Side A", 0, 400.0, 260.0),
+        vertical_line("Side B", 0, 420.0, 260.0),
+    ]);
+    let new = document(&[
+        line_at("Opening anchor remains stable", 0, 0.0, 300.0),
+        line_at("Release 20 remains available", 0, 0.0, 280.0),
+        line_at("Closing anchor remains stable", 0, 0.0, 260.0),
+        vertical_line("Side A", 0, 400.0, 260.0),
+        vertical_line("Side B", 0, 420.0, 260.0),
+    ]);
+
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+    let comparison = &outcome.comparison;
+
+    assert_single_change_with_unresolved(comparison, ChangeKind::Replacement);
+    assert_eq!(comparison.unresolved_regions.len(), 1);
+    assert_eq!(
+        comparison.unresolved_regions[0].evidence,
+        [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
+    );
+    let unresolved_blocks = &comparison.unresolved_regions[0]
+        .old_span
+        .as_ref()
+        .expect("old-side label evidence should be retained")
+        .blocks;
+    let unresolved_text = outcome
+        .old_blocks
+        .iter()
+        .filter(|block| unresolved_blocks.contains(&block.block))
+        .map(|block| block.canonical.text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(unresolved_text.contains("Side A"));
+    assert!(!unresolved_text.contains("Release 10"));
+    Ok(())
+}
+
+#[test]
+fn unsupported_line_keeps_partial_row_major_order_uncertain() -> Result<()> {
+    let old = document(&[
+        line_at("Left row one remains stable", 0, 0.0, 300.0),
+        line_at("Right row one remains stable", 0, 300.0, 300.0),
+        line_at("Left row two remains stable", 0, 0.0, 260.0),
+        line_at("Release 10 remains available", 0, 300.0, 260.0),
+        line_at("Left row three remains stable", 0, 0.0, 220.0),
+        line_at("Right row three remains stable", 0, 300.0, 220.0),
+        vertical_line("Side A", 0, 500.0, 220.0),
+        vertical_line("Side B", 0, 520.0, 220.0),
+    ]);
+    let new = document(&[
+        line_at("Left row one remains stable", 0, 0.0, 300.0),
+        line_at("Right row one remains stable", 0, 300.0, 300.0),
+        line_at("Left row two remains stable", 0, 0.0, 260.0),
+        line_at("Release 20 remains available", 0, 300.0, 260.0),
+        line_at("Left row three remains stable", 0, 0.0, 220.0),
+        line_at("Right row three remains stable", 0, 300.0, 220.0),
+        vertical_line("Side A", 0, 500.0, 220.0),
+        vertical_line("Side B", 0, 520.0, 220.0),
+    ]);
+
+    let outcome = compare_extraction_outcomes(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        PipelineOptions::default(),
+    )?;
+
+    assert!(outcome.comparison.changes.is_empty());
+    assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
+    let unresolved_blocks = &outcome.comparison.unresolved_regions[0]
+        .old_span
+        .as_ref()
+        .expect("old-side unresolved evidence should be retained")
+        .blocks;
+    let unresolved_text = outcome
+        .old_blocks
+        .iter()
+        .filter(|block| unresolved_blocks.contains(&block.block))
+        .map(|block| block.canonical.text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(unresolved_text.contains("Release 10"));
+    assert!(unresolved_text.contains("Side A"));
+    Ok(())
+}
+
+#[test]
 fn unknown_reading_order_is_page_scoped_while_safe_changes_continue() -> Result<()> {
     let old = document(&[
         line_at("Opening anchor remains stable", 0, 0.0, 300.0),
@@ -318,7 +413,7 @@ fn unknown_reading_order_is_page_scoped_while_safe_changes_continue() -> Result<
 }
 
 #[test]
-fn unknown_page_marks_a_cross_page_block_without_hiding_later_changes() -> Result<()> {
+fn unknown_line_does_not_mark_an_independent_cross_page_block() -> Result<()> {
     let old = document(&[
         line("Page zero first continuation line", 0, 100.0),
         line("Page zero second continuation line", 0, 88.0),
@@ -362,7 +457,7 @@ fn unknown_page_marks_a_cross_page_block_without_hiding_later_changes() -> Resul
         outcome.comparison.unresolved_regions[0]
             .old_span
             .as_ref()
-            .is_some_and(|span| span.blocks.contains(&cross_page_block.block))
+            .is_some_and(|span| !span.blocks.contains(&cross_page_block.block))
     );
     assert_eq!(
         outcome.comparison.unresolved_regions[0].evidence,
@@ -1497,7 +1592,7 @@ fn limit_scale_changes_only_comparison_resource_budgets() {
         },
         diff: DiffOptions {
             max_tokens: baseline.diff.max_tokens * 4,
-            max_edit_distance: baseline.diff.max_edit_distance * 4,
+            max_edit_distance: (baseline.diff.max_edit_distance * 4).min(4_000),
             ..baseline.diff
         },
         ..baseline
@@ -1505,6 +1600,14 @@ fn limit_scale_changes_only_comparison_resource_budgets() {
 
     assert_eq!(scaled, expected);
     assert_eq!(baseline.scaled_limits(1.0), Ok(baseline));
+    assert_eq!(
+        baseline
+            .scaled_limits(512.0)
+            .expect("large benchmark scales should remain valid")
+            .diff
+            .max_edit_distance,
+        4_000
+    );
     for invalid in [0.999, f64::NAN, f64::INFINITY] {
         assert!(matches!(
             baseline.scaled_limits(invalid),

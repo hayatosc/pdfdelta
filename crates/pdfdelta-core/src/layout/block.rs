@@ -39,9 +39,9 @@ pub(crate) struct BlockReconstruction {
     pub issues: Vec<LayoutIssue>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum LayoutIssue {
-    UnknownReadingOrder { page: PageId },
+    UnknownReadingOrder { page: PageId, line_ids: Vec<LineId> },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -214,12 +214,13 @@ pub(crate) fn reconstruct_blocks_with_issues(
             .iter()
             .filter(|line| line.page == page)
             .collect::<Vec<_>>();
-        let graph = super::region::partition_regions_from_refs(
+        let partition = super::region::partition_regions_from_refs(
             page,
             &page_lines,
             &page_vector_lines,
             super::region::RegionOptions::default(),
         )?;
+        let graph = partition.graph;
         match &graph.reading_order {
             super::region::ReadingOrder::KnownLines(line_ids) => {
                 append_region_order(
@@ -230,7 +231,10 @@ pub(crate) fn reconstruct_blocks_with_issues(
             }
             reading_order => {
                 if matches!(reading_order, super::region::ReadingOrder::Unknown) {
-                    issues.push(LayoutIssue::UnknownReadingOrder { page });
+                    issues.push(LayoutIssue::UnknownReadingOrder {
+                        page,
+                        line_ids: partition.uncertain_line_ids,
+                    });
                 }
                 for region in &graph.regions {
                     append_region_order(

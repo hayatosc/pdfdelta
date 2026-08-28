@@ -1,6 +1,8 @@
 mod myers;
 
-const MAX_MYERS_EDIT_DISTANCE: usize = 32_768;
+/// Keeps the retained Myers frontier and trace below the internal 64 MiB
+/// allocation budget while allowing benchmark runs to exceed the default.
+pub(crate) const MAX_MYERS_EDIT_DISTANCE: usize = 4_000;
 
 use std::collections::HashMap;
 
@@ -148,7 +150,7 @@ pub(crate) fn validate_diff_options(options: DiffOptions) -> Result<()> {
     }
     if options.max_edit_distance > MAX_MYERS_EDIT_DISTANCE {
         return Err(Error::InvalidConfiguration(format!(
-            "diff max_edit_distance must not exceed {MAX_MYERS_EDIT_DISTANCE} because Myers trace memory grows quadratically"
+            "diff max_edit_distance must not exceed {MAX_MYERS_EDIT_DISTANCE} because the bounded Myers trace has a 64 MiB allocation budget"
         )));
     }
     validate_unit_interval(
@@ -1205,7 +1207,7 @@ mod tests {
         assert!(matches!(
             error,
             Error::InvalidConfiguration(message)
-                if message.contains("max_edit_distance") && message.contains("quadratically")
+                if message.contains("max_edit_distance") && message.contains("64 MiB")
         ));
     }
 

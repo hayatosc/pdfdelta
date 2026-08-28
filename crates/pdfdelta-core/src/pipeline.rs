@@ -6,8 +6,8 @@ use crate::{
         validate_alignment_options, validate_ngram_size,
     },
     diff::{
-        Comparison, DiffOptions, compare_aligned, enforce_diff_raw_token_budget,
-        enforce_diff_token_budget, validate_diff_options,
+        Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, compare_aligned,
+        enforce_diff_raw_token_budget, enforce_diff_token_budget, validate_diff_options,
     },
     layout::{
         BlockOptions, LayoutIssue, LineOptions, reconstruct_blocks_with_issues, reconstruct_lines,
@@ -49,7 +49,8 @@ impl PipelineOptions {
     ///
     /// Layout parameters and matching behavior are unchanged. Only n-gram
     /// token elements, alignment candidate visits, alignment DP cells, diff
-    /// tokens, and diff edit distance are scaled.
+    /// tokens, and diff edit distance are scaled. The edit-distance budget
+    /// saturates at the bounded Myers implementation's 64 MiB trace cap.
     ///
     /// # Errors
     ///
@@ -62,7 +63,8 @@ impl PipelineOptions {
         self.alignment.max_candidate_visits = scale_limit(self.alignment.max_candidate_visits);
         self.alignment.max_dp_cells = scale_limit(self.alignment.max_dp_cells);
         self.diff.max_tokens = scale_limit(self.diff.max_tokens);
-        self.diff.max_edit_distance = scale_limit(self.diff.max_edit_distance);
+        self.diff.max_edit_distance =
+            scale_limit(self.diff.max_edit_distance).min(MAX_MYERS_EDIT_DISTANCE);
         Ok(self)
     }
 
@@ -951,23 +953,27 @@ fn prepare(
             ..PipelineMetrics::default()
         },
     );
-    let unknown_pages = reconstruction
+    let uncertain_line_ids = reconstruction
         .issues
         .into_iter()
-        .map(|issue| match issue {
-            LayoutIssue::UnknownReadingOrder { page } => page.0,
+        .flat_map(|issue| match issue {
+            LayoutIssue::UnknownReadingOrder { page: _, line_ids } => line_ids,
         })
+        .collect::<std::collections::HashSet<_>>();
+    let uncertain_blocks = blocks
+        .iter()
+        .filter(|block| {
+            block
+                .lines
+                .iter()
+                .any(|line_id| uncertain_line_ids.contains(line_id))
+        })
+        .map(|block| block.id)
         .collect::<std::collections::HashSet<_>>();
     let uncertain_block_indices = normalized
         .iter()
         .enumerate()
-        .filter_map(|(index, block)| {
-            block
-                .pages
-                .iter()
-                .any(|page| unknown_pages.contains(page))
-                .then_some(index)
-        })
+        .filter_map(|(index, block)| uncertain_blocks.contains(&block.block).then_some(index))
         .collect();
     Ok(PreparedDocument {
         blocks: normalized,
