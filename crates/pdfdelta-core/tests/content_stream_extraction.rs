@@ -582,6 +582,83 @@ fn retains_rectangular_clip_status_and_straight_path_evidence() -> Result<()> {
 }
 
 #[test]
+fn recognizes_single_line_built_rectangular_clips() -> Result<()> {
+    for path in [
+        "40 40 m 140 40 l 140 120 l 40 120 l h",
+        "40 40 m 140 40 l 140 120 l 40 120 l",
+        "40 40 m 140 40 l 140 120 l 40 120 l 5 5 m",
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let font = base_font(&mut pdf);
+        let content_bytes = format!(
+            "q {path} W n \
+             BT /F1 10 Tf 1 0 0 1 60 80 Tm (I) Tj \
+             1 0 0 1 138 80 Tm (P) Tj 1 0 0 1 150 80 Tm (O) Tj ET Q"
+        );
+        let content = pdf.add_object(Stream::new(dictionary! {}, content_bytes.into_bytes()));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {
+                "Font" => dictionary! { "F1" => font },
+            }),
+            None,
+            None,
+        );
+
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(outcome.is_complete(), "path: {path}");
+        assert_eq!(mapped_text(outcome.document().items()), "IPO");
+        assert_eq!(
+            outcome
+                .document()
+                .items()
+                .iter()
+                .map(|glyph| glyph.path_clip_status)
+                .collect::<Vec<_>>(),
+            [
+                GlyphPathClipStatus::Inside,
+                GlyphPathClipStatus::PartiallyOutside,
+                GlyphPathClipStatus::Outside,
+            ]
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn rejects_non_rectangular_and_multiple_line_built_clips() -> Result<()> {
+    for path in [
+        "40 40 m 140 40 l 90 120 l h",
+        "40 40 m 140 40 l 140 120 l 40 120 l h 50 50 m 60 50 l 60 60 l 50 60 l h",
+    ] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            format!("{path} W n").into_bytes(),
+        ));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {}),
+            None,
+            None,
+        );
+
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+        assert!(!outcome.is_complete(), "path: {path}");
+        assert_eq!(outcome.issues().len(), 1);
+        assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unsupported);
+        assert!(
+            outcome.issues()[0]
+                .description()
+                .contains("non-rectangular clipping path")
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn ruled_two_column_pdf_reports_one_exact_cell_replacement() -> Result<()> {
     let old = extract(
         ruled_two_column_document("VersionTwoStable"),

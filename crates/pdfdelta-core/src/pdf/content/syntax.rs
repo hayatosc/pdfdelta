@@ -183,7 +183,7 @@ struct Parser<'a> {
     operator_count: usize,
     operator_budget: OperatorBudget,
     operand_budget: OperandBudget,
-    incomplete_dictionary_value: bool,
+    incomplete_dictionary: bool,
 }
 
 impl<'a> Parser<'a> {
@@ -200,7 +200,7 @@ impl<'a> Parser<'a> {
             operator_count: 0,
             operator_budget,
             operand_budget,
-            incomplete_dictionary_value: false,
+            incomplete_dictionary: false,
         }
     }
 
@@ -221,7 +221,7 @@ impl<'a> Parser<'a> {
                 );
                 let operand = match self.parse_operand(0) {
                     Ok(operand) => operand,
-                    Err(Error::Unresolved(_)) if self.incomplete_dictionary_value => {
+                    Err(Error::Unresolved(_)) if self.incomplete_dictionary => {
                         let (start, remaining, operand_count) = checkpoint;
                         self.operand_budget.restore(remaining);
                         operands.truncate(operand_count);
@@ -332,6 +332,7 @@ impl<'a> Parser<'a> {
                 return Ok(Operand::Dictionary(entries));
             }
             if self.peek().is_none() {
+                self.incomplete_dictionary = true;
                 return self.unresolved("unterminated dictionary");
             }
             if self.peek() != Some(b'/') {
@@ -343,7 +344,7 @@ impl<'a> Parser<'a> {
                 return self.unresolved("dictionary key is missing a value");
             }
             if self.peek().is_none() {
-                self.incomplete_dictionary_value = true;
+                self.incomplete_dictionary = true;
             }
             let value = self.parse_operand(depth + 1)?;
             if entries.len() >= self.limits.max_operand_stack {
@@ -853,6 +854,25 @@ mod tests {
                     b"ActualText".to_vec(),
                     Operand::String(vec![0x00, 0x31]),
                 )]),
+            ]
+        );
+        assert_eq!(operations[0].operator, b"BDC");
+        Ok(())
+    }
+
+    #[test]
+    fn carries_a_dictionary_open_across_fragments() -> Result<()> {
+        let mut parser = ContentParser::new(limits());
+
+        assert!(parser.parse_fragment(b"/Artifact <<")?.is_empty());
+        let operations = parser.parse_fragment(b"/MCID 26 >> BDC")?;
+        parser.finish()?;
+
+        assert_eq!(
+            operations[0].operands,
+            vec![
+                Operand::Name(b"Artifact".to_vec()),
+                Operand::Dictionary(vec![(b"MCID".to_vec(), Operand::Number(26.0))]),
             ]
         );
         assert_eq!(operations[0].operator, b"BDC");

@@ -165,6 +165,8 @@ struct CurrentPath {
     segments: Vec<PathSegment>,
     current_point: Option<Vec2>,
     subpath_start: Option<Vec2>,
+    drawn_subpaths: usize,
+    current_subpath_has_segment: bool,
     clip_rectangle: Option<Rect>,
     has_unsupported_segments: bool,
     clip_pending: bool,
@@ -181,12 +183,14 @@ impl CurrentPath {
         }
         self.current_point = Some(point);
         self.subpath_start = Some(point);
+        self.current_subpath_has_segment = false;
     }
 
     fn line_to(&mut self, point: Vec2) -> Result<()> {
         let from = self.current_point.ok_or_else(|| {
             Error::Unresolved("path line segment has no current point".to_owned())
         })?;
+        self.mark_current_subpath_drawn();
         self.segments.push(PathSegment { from, to: point });
         self.current_point = Some(point);
         self.clip_rectangle = None;
@@ -201,6 +205,7 @@ impl CurrentPath {
             Error::Unresolved("path close operation has no current point".to_owned())
         })?;
         if current != start {
+            self.mark_current_subpath_drawn();
             self.segments.push(PathSegment {
                 from: current,
                 to: start,
@@ -216,6 +221,7 @@ impl CurrentPath {
                 "path curve has no current point".to_owned(),
             ));
         }
+        self.mark_current_subpath_drawn();
         self.current_point = Some(point);
         self.clip_rectangle = None;
         self.has_unsupported_segments = true;
@@ -223,9 +229,9 @@ impl CurrentPath {
     }
 
     fn append_rectangle(&mut self, corners: [Vec2; 4], clip_rectangle: Option<Rect>) {
-        let was_empty = self.current_point.is_none()
-            && self.segments.is_empty()
-            && !self.has_unsupported_segments;
+        let was_empty = self.drawn_subpaths == 0 && !self.has_unsupported_segments;
+        self.drawn_subpaths = self.drawn_subpaths.saturating_add(1);
+        self.current_subpath_has_segment = true;
         self.segments.extend([
             PathSegment {
                 from: corners[0],
@@ -247,6 +253,39 @@ impl CurrentPath {
         self.current_point = Some(corners[0]);
         self.subpath_start = Some(corners[0]);
         self.clip_rectangle = was_empty.then_some(clip_rectangle).flatten();
+    }
+
+    fn clipping_rectangle(&self) -> Option<Rect> {
+        self.clip_rectangle
+            .or_else(|| self.line_built_clipping_rectangle())
+    }
+
+    fn line_built_clipping_rectangle(&self) -> Option<Rect> {
+        if self.has_unsupported_segments || self.drawn_subpaths != 1 {
+            return None;
+        }
+
+        let segments = match self.segments.as_slice() {
+            [first, second, third] if !points_approximately_equal(third.to, first.from) => [
+                *first,
+                *second,
+                *third,
+                PathSegment {
+                    from: third.to,
+                    to: first.from,
+                },
+            ],
+            [first, second, third, fourth] => [*first, *second, *third, *fourth],
+            _ => return None,
+        };
+        rectangle_from_segments(segments)
+    }
+
+    fn mark_current_subpath_drawn(&mut self) {
+        if !self.current_subpath_has_segment {
+            self.drawn_subpaths = self.drawn_subpaths.saturating_add(1);
+            self.current_subpath_has_segment = true;
+        }
     }
 }
 
@@ -723,7 +762,7 @@ impl Extraction<'_> {
                     operation.index
                 )));
             }
-            let rectangle = state.current_path.clip_rectangle.ok_or_else(|| {
+            let rectangle = state.current_path.clipping_rectangle().ok_or_else(|| {
                 Error::Unsupported(format!(
                     "non-rectangular clipping path at content operator index {}",
                     operation.index
@@ -2431,6 +2470,57 @@ fn bounding_rect(points: [Vec2; 4]) -> Rect {
         min: Vec2 { x: min_x, y: min_y },
         max: Vec2 { x: max_x, y: max_y },
     }
+}
+
+fn rectangle_from_segments(segments: [PathSegment; 4]) -> Option<Rect> {
+    if !segments
+        .windows(2)
+        .all(|pair| points_approximately_equal(pair[0].to, pair[1].from))
+        || !points_approximately_equal(segments[3].to, segments[0].from)
+    {
+        return None;
+    }
+
+    let corners = segments.map(|segment| segment.from);
+    let rectangle = bounding_rect(corners);
+    if approximately_equal(rectangle.min.x, rectangle.max.x)
+        || approximately_equal(rectangle.min.y, rectangle.max.y)
+    {
+        return None;
+    }
+
+    let mut corner_mask = 0_u8;
+    for segment in segments {
+        let same_x = approximately_equal(segment.from.x, segment.to.x);
+        let same_y = approximately_equal(segment.from.y, segment.to.y);
+        if same_x == same_y {
+            return None;
+        }
+        corner_mask |= rectangle_corner_bit(segment.from, rectangle)?;
+    }
+    (corner_mask == 0b1111).then_some(rectangle)
+}
+
+fn rectangle_corner_bit(point: Vec2, rectangle: Rect) -> Option<u8> {
+    let x = if approximately_equal(point.x, rectangle.min.x) {
+        0
+    } else if approximately_equal(point.x, rectangle.max.x) {
+        1
+    } else {
+        return None;
+    };
+    let y = if approximately_equal(point.y, rectangle.min.y) {
+        0
+    } else if approximately_equal(point.y, rectangle.max.y) {
+        1
+    } else {
+        return None;
+    };
+    Some(1 << (x + 2 * y))
+}
+
+fn points_approximately_equal(left: Vec2, right: Vec2) -> bool {
+    approximately_equal(left.x, right.x) && approximately_equal(left.y, right.y)
 }
 
 fn approximately_equal(left: f64, right: f64) -> bool {

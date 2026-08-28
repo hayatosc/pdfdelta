@@ -1252,23 +1252,27 @@ fn alignment_visit_metrics(
 }
 
 /// Resolves the supplementary pressure from the alignment charge and the
-/// pressure attempt. Alignment reached requires a successful attempt; an
-/// absent attempt is an internal contract violation and fails the pair.
+/// pressure attempt. Complete extraction requires a successful attempt once
+/// alignment is reached; incomplete extraction intentionally has no attempt.
 fn resolve_pressure(
     candidate_visits: Option<usize>,
+    pressure_required: bool,
     pressure_result: Option<Result<CandidateVisitPressure>>,
 ) -> std::result::Result<Option<CandidateVisitPressure>, RevisionRunError> {
+    if candidate_visits.is_none() || !pressure_required {
+        return Ok(None);
+    }
     match (candidate_visits, pressure_result) {
         (Some(_), Some(Ok(pressure))) => Ok(Some(pressure)),
         (Some(_), Some(Err(error))) => Err(RevisionRunError::Other(
             "candidate visit pressure",
             error.to_string(),
         )),
-        (None, _) => Ok(None),
         (Some(_), None) => Err(RevisionRunError::Other(
             "candidate visit pressure contract violation",
             "alignment reached without a pressure attempt".to_owned(),
         )),
+        (None, _) => Ok(None),
     }
 }
 
@@ -1297,7 +1301,8 @@ fn compare_outcomes_with_metrics(
     // Measure the supplementary pressure from the borrowed documents before
     // the outcomes are consumed; whether it is required depends on whether
     // alignment is reached below.
-    let pressure_result = if old.is_complete() && new.is_complete() {
+    let pressure_required = old.is_complete() && new.is_complete();
+    let pressure_result = if pressure_required {
         Some(evaluate_candidate_visit_pressure(
             old.document(),
             new.document(),
@@ -1311,7 +1316,7 @@ fn compare_outcomes_with_metrics(
     let metrics = alignment_visit_metrics(&diagnostics).map_err(|message| {
         RevisionRunError::Other("alignment metrics contract violation", message)
     })?;
-    let pressure = resolve_pressure(metrics.candidate_visits, pressure_result)?;
+    let pressure = resolve_pressure(metrics.candidate_visits, pressure_required, pressure_result)?;
     let outcome = result.map_err(|error| match error {
         pdfdelta_core::Error::LimitExceeded { .. } => RevisionRunError::Limit {
             message: error.to_string(),
@@ -2498,7 +2503,7 @@ mod tests {
 
     #[test]
     fn resolve_pressure_rejects_alignment_without_a_pressure_attempt() {
-        let error = resolve_pressure(Some(42), None)
+        let error = resolve_pressure(Some(42), true, None)
             .expect_err("alignment reached without a pressure attempt must fail");
         match error {
             RevisionRunError::Other(stage, message) => {
@@ -2507,6 +2512,15 @@ mod tests {
             }
             other => panic!("expected Other, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn resolve_pressure_allows_incomplete_extraction_without_an_attempt() {
+        assert!(
+            resolve_pressure(Some(42), false, None)
+                .expect("incomplete extraction does not require pressure")
+                .is_none()
+        );
     }
 
     #[test]
