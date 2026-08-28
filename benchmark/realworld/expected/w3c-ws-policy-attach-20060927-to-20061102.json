@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+  "reviewed_on": "2026-08-28",
+  "annotation": "partial",
+  "notes": "Representative review of two official W3C Working Draft snapshots of Web Services Policy 1.5 - Attachment. The subset covers publication metadata and a newly added normative reference; it is not an exhaustive review of the substantial section and example changes.",
+  "changes": [
+    {
+      "id": "publication-date",
+      "kind": "replacement",
+      "old_quote": "27 September 2006",
+      "new_quote": "02 November 2006",
+      "note": "The cover-page Working Draft publication date changed."
+    },
+    {
+      "id": "current-version-url",
+      "kind": "insertion",
+      "new_quote": "http://www.w3.org/TR/2006/WD-ws-policy-attach-20061102",
+      "note": "The new snapshot adds its current-version URL."
+    },
+    {
+      "id": "previous-version-url",
+      "kind": "deletion",
+      "old_quote": "http://www.w3.org/TR/2006/WD-ws-policy-attach-20060731",
+      "note": "The prior snapshot's previous-version URL is no longer listed."
+    },
+    {
+      "id": "mtom-reference",
+      "kind": "insertion",
+      "new_quote": "SOAP Message Transmission Optimization Mechanism, M. Gudgin, N. Mendelsohn, M. Nottingham",
+      "note": "The later draft adds the MTOM recommendation to its references."
+    }
+  ]
+}

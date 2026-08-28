@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "pair": "ecma-109-ed10-to-ed11",
+  "reviewed_on": "2026-08-28",
+  "annotation": "partial",
+  "notes": "Representative cover- and front-matter review of the official 10th and 11th edition PDFs. Dense equations and tables make this a stress case. The selected changes are intentionally independent of pagination-only movement and bullet-glyph encoding differences.",
+  "changes": [
+    {
+      "id": "edition-date",
+      "kind": "replacement",
+      "old_quote": "10th Edition / December 2020",
+      "new_quote": "11th Edition / June 2025",
+      "note": "The cover identifies the new edition and publication month."
+    },
+    {
+      "id": "copyright-year",
+      "kind": "replacement",
+      "old_quote": "© Ecma International 2020",
+      "new_quote": "© Ecma International 2025",
+      "note": "The front matter carries the new publication copyright year."
+    },
+    {
+      "id": "copyright-notice-added",
+      "kind": "insertion",
+      "new_quote": "COPYRIGHT NOTICE © 2025 Ecma International",
+      "note": "The 11th edition contains an expanded copyright notice."
+    }
+  ]
+}
