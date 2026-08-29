@@ -13,8 +13,8 @@ use crate::{
         Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentSpan,
         BlockSeparator,
     },
-    layout::{BlockId, TrustedRegionEdge, TrustedRunDescriptor, TrustedRunInterval},
-    model::Vec2,
+    layout::{BlockId, BlockRole, TrustedRegionEdge, TrustedRunDescriptor, TrustedRunInterval},
+    model::{Rect, Vec2},
     normalize::{
         BlockText, ComparableToken, FontSizeSignature, PositionSignature, ScalarRange,
         character_width_fold,
@@ -153,6 +153,91 @@ pub struct Comparison {
     pub new_coverage: Coverage,
 }
 
+/// One reviewed replacement or move to observe inside uncertain-region recovery.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RecoveryWatchQuery<'a> {
+    /// Opaque caller-provided identifier copied into the diagnostic record.
+    pub id: &'a str,
+    pub old_quote: &'a str,
+    pub new_quote: &'a str,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RecoveryWatchUnitKind {
+    Sentence,
+    Line,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecoveryWatchOccurrence {
+    pub span_index: Option<usize>,
+    /// Index in the originating document side's trusted-run descriptor list.
+    pub trusted_run_descriptor_index: Option<usize>,
+    pub ordinal: Option<usize>,
+    /// Whether recovery built a safe source location and the unit meets the
+    /// configured minimum length. Candidate uniqueness and near relations are
+    /// separate later-stage conditions.
+    pub recovery_location_available: bool,
+    pub fully_contained: bool,
+    pub page: Option<u32>,
+    pub bbox: Option<Rect>,
+    pub role: Option<BlockRole>,
+    pub kind: RecoveryWatchUnitKind,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum RecoveryWatchOccurrenceEvidence {
+    Unfound,
+    Ambiguous,
+    Unavailable,
+    Found(RecoveryWatchOccurrence),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RecoveryWatchNearScope {
+    SameSpan,
+    CrossSpan,
+    PairedStream,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RecoveryWatchRelation {
+    pub available: bool,
+    pub best_score: u16,
+    pub second_score: u16,
+    pub watched_partner_is_best: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecoveryWatchPairEvidence {
+    pub same_span: bool,
+    pub exact_shared_units: usize,
+    pub near_candidate_examined: bool,
+    pub near_score: Option<u16>,
+    pub near_scope: Option<RecoveryWatchNearScope>,
+    pub old_relation: RecoveryWatchRelation,
+    pub new_relation: RecoveryWatchRelation,
+    pub reciprocal: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecoveryWatchRecord {
+    pub id: String,
+    pub old: RecoveryWatchOccurrenceEvidence,
+    pub new: RecoveryWatchOccurrenceEvidence,
+    pub pair: Option<RecoveryWatchPairEvidence>,
+}
+
+/// Bounded sidecar diagnostics that never alter the recovery plan.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RecoveryWatchDiagnostics {
+    pub complete: bool,
+    pub candidate_generation_complete: bool,
+    pub near_relation_complete: bool,
+    pub near_relation_stop_reason: Option<NearRelationStopReason>,
+    pub records: Vec<RecoveryWatchRecord>,
+}
+
 /// Resource limit that stopped near-relation discovery.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NearRelationStopReason {
@@ -240,6 +325,7 @@ pub struct SentenceRecoveryMetrics {
 pub(crate) struct ComparisonWithSentenceRecoveryMetrics {
     pub(crate) comparison: Comparison,
     pub(crate) sentence_recovery_metrics: Option<SentenceRecoveryMetrics>,
+    pub(crate) recovery_watch_diagnostics: Option<RecoveryWatchDiagnostics>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -341,6 +427,7 @@ pub fn compare_aligned(
         alignment,
         options,
         None,
+        None,
         RecoveryOutputLimits::default(),
     )
     .map(|outcome| outcome.comparison)
@@ -360,6 +447,7 @@ pub(crate) fn compare_aligned_with_sentence_recovery(
         alignment,
         options,
         Some(recovery),
+        None,
         RecoveryOutputLimits::default(),
     )
     .map(|outcome| outcome.comparison)
@@ -378,6 +466,26 @@ pub(crate) fn compare_aligned_with_sentence_recovery_metrics(
         alignment,
         options,
         Some(recovery),
+        None,
+        RecoveryOutputLimits::default(),
+    )
+}
+
+pub(crate) fn compare_aligned_with_recovery_watch_diagnostics(
+    old: &[BlockText],
+    new: &[BlockText],
+    alignment: &Alignment,
+    options: DiffOptions,
+    recovery: SentenceRecoveryInput<'_>,
+    watch_queries: &[RecoveryWatchQuery<'_>],
+) -> Result<ComparisonWithSentenceRecoveryMetrics> {
+    compare_aligned_inner(
+        old,
+        new,
+        alignment,
+        options,
+        Some(recovery),
+        Some(watch_queries),
         RecoveryOutputLimits::default(),
     )
 }
@@ -388,6 +496,7 @@ fn compare_aligned_inner(
     alignment: &Alignment,
     options: DiffOptions,
     recovery: Option<SentenceRecoveryInput<'_>>,
+    watch_queries: Option<&[RecoveryWatchQuery<'_>]>,
     recovery_output_limits: RecoveryOutputLimits,
 ) -> Result<ComparisonWithSentenceRecoveryMetrics> {
     if let Some(recovery) = recovery {
@@ -404,6 +513,7 @@ fn compare_aligned_inner(
             alignment,
             recovery,
             options.max_tokens,
+            watch_queries.unwrap_or_default(),
         )?,
         None => sentence::SentenceRecoveryBuildOutcome::default(),
     };
@@ -569,6 +679,8 @@ fn compare_aligned_inner(
         sentence_recovery.record_committed(committed);
     }
 
+    let (sentence_recovery_metrics, recovery_watch_diagnostics) =
+        sentence_recovery.finish_diagnostics();
     Ok(ComparisonWithSentenceRecoveryMetrics {
         comparison: Comparison {
             changes,
@@ -577,7 +689,8 @@ fn compare_aligned_inner(
             old_coverage: coverage(resolved_old, old.total_tokens),
             new_coverage: coverage(resolved_new, new.total_tokens),
         },
-        sentence_recovery_metrics: sentence_recovery.finish_metrics(),
+        sentence_recovery_metrics,
+        recovery_watch_diagnostics,
     })
 }
 
@@ -4854,6 +4967,7 @@ mod tests {
                 new_trusted_run_evidence: None,
                 min_tokens: 1,
             }),
+            None,
             RecoveryOutputLimits {
                 max_items: 1,
                 max_bytes: usize::MAX,
@@ -4901,6 +5015,7 @@ mod tests {
                 new_trusted_run_evidence: None,
                 min_tokens: 5,
             }),
+            None,
             RecoveryOutputLimits {
                 max_items: 1,
                 max_bytes: usize::MAX,
@@ -4964,6 +5079,7 @@ mod tests {
                 new_trusted_run_evidence: None,
                 min_tokens: 5,
             }),
+            None,
             RecoveryOutputLimits {
                 max_items: 8,
                 max_bytes: usize::MAX,
@@ -5024,6 +5140,7 @@ mod tests {
                 new_trusted_run_evidence: None,
                 min_tokens: 5,
             }),
+            None,
             RecoveryOutputLimits {
                 max_items: 1,
                 max_bytes: usize::MAX,
@@ -6379,6 +6496,334 @@ mod tests {
         )
         .expect("instrumented sentence recovery succeeds");
         (baseline, measured)
+    }
+
+    fn compare_recovery_watch(
+        old: &[BlockText],
+        new: &[BlockText],
+        alignment: &Alignment,
+        min_tokens: usize,
+        queries: &[RecoveryWatchQuery<'_>],
+    ) -> ComparisonWithSentenceRecoveryMetrics {
+        let old_run_ids = (0..old.len())
+            .map(|index| Some(TrustedRunId(index as u64)))
+            .collect::<Vec<_>>();
+        let new_run_ids = (0..new.len())
+            .map(|index| Some(TrustedRunId(index as u64)))
+            .collect::<Vec<_>>();
+        let old_intervals = trusted_run_intervals(&old_run_ids);
+        let new_intervals = trusted_run_intervals(&new_run_ids);
+        let old_descriptors = trusted_run_descriptors(old);
+        let new_descriptors = trusted_run_descriptors(new);
+        compare_aligned_with_recovery_watch_diagnostics(
+            old,
+            new,
+            alignment,
+            DiffOptions::default(),
+            SentenceRecoveryInput {
+                old_trusted_run_intervals: &old_intervals,
+                new_trusted_run_intervals: &new_intervals,
+                old_trusted_run_evidence: Some(TrustedRunRecoveryInput {
+                    descriptors: &old_descriptors,
+                    raw_region_edges: &[],
+                }),
+                new_trusted_run_evidence: Some(TrustedRunRecoveryInput {
+                    descriptors: &new_descriptors,
+                    raw_region_edges: &[],
+                }),
+                min_tokens,
+            },
+            queries,
+        )
+        .expect("recovery watch comparison succeeds")
+    }
+
+    #[test]
+    fn recovery_watch_locates_unique_ambiguous_and_unfound_quotes_without_changing_output() {
+        let old = vec![
+            sentence_block(20_000, "The reviewed value is alpha."),
+            sentence_block(20_001, "Duplicate marker remains."),
+            sentence_block(20_002, "Duplicate marker remains."),
+        ];
+        let new = vec![
+            sentence_block(21_000, "The reviewed value is beta."),
+            sentence_block(21_001, "Duplicate marker remains."),
+            sentence_block(21_002, "Duplicate marker remains."),
+        ];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let queries = [
+            RecoveryWatchQuery {
+                id: "unique",
+                old_quote: "reviewed   value is alpha",
+                new_quote: "reviewed value is beta",
+            },
+            RecoveryWatchQuery {
+                id: "ambiguous",
+                old_quote: "Duplicate marker",
+                new_quote: "Duplicate marker",
+            },
+            RecoveryWatchQuery {
+                id: "unfound",
+                old_quote: "missing old",
+                new_quote: "missing new",
+            },
+        ];
+        let watched = compare_recovery_watch(&old, &new, &alignment, 1, &queries);
+        let baseline = compare_recovery_watch(&old, &new, &alignment, 1, &[]);
+        assert_eq!(watched.comparison, baseline.comparison);
+        assert_eq!(
+            watched.sentence_recovery_metrics,
+            baseline.sentence_recovery_metrics
+        );
+        let diagnostics = watched
+            .recovery_watch_diagnostics
+            .expect("watch diagnostics are available");
+        assert!(diagnostics.complete);
+        assert!(matches!(
+            diagnostics.records[0].old,
+            RecoveryWatchOccurrenceEvidence::Found(RecoveryWatchOccurrence {
+                recovery_location_available: true,
+                fully_contained: true,
+                page: Some(0),
+                role: Some(BlockRole::Body),
+                kind: RecoveryWatchUnitKind::Sentence,
+                ..
+            })
+        ));
+        assert!(matches!(
+            diagnostics.records[1].old,
+            RecoveryWatchOccurrenceEvidence::Ambiguous
+        ));
+        assert!(matches!(
+            diagnostics.records[2].old,
+            RecoveryWatchOccurrenceEvidence::Unfound
+        ));
+    }
+
+    #[test]
+    fn recovery_watch_records_existing_near_visits_in_same_and_cross_spans() {
+        let old = vec![sentence_block(
+            22_000,
+            "The reviewed requirement keeps alpha value.",
+        )];
+        let new = vec![sentence_block(
+            23_000,
+            "The reviewed requirement keeps beta value.",
+        )];
+        let same_alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let cross_alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(22_000)], Vec::new()),
+                reading_order_unknown_span(Vec::new(), vec![BlockId(23_000)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let queries = [RecoveryWatchQuery {
+            id: "replacement",
+            old_quote: "requirement keeps alpha",
+            new_quote: "requirement keeps beta",
+        }];
+        for (alignment, scope) in [
+            (&same_alignment, RecoveryWatchNearScope::SameSpan),
+            (&cross_alignment, RecoveryWatchNearScope::CrossSpan),
+        ] {
+            let diagnostics = compare_recovery_watch(&old, &new, alignment, 1, &queries)
+                .recovery_watch_diagnostics
+                .expect("watch diagnostics are available");
+            let pair = diagnostics.records[0]
+                .pair
+                .as_ref()
+                .expect("both quotes locate uniquely");
+            assert!(pair.near_candidate_examined, "{pair:?}");
+            assert_eq!(pair.near_scope, Some(scope));
+            assert!(pair.near_score.is_some());
+            assert!(pair.old_relation.watched_partner_is_best);
+            assert!(pair.new_relation.watched_partner_is_best);
+            assert!(pair.reciprocal);
+        }
+    }
+
+    #[test]
+    fn recovery_watch_reports_unvisited_pair_and_query_cap() {
+        let old = vec![sentence_block(24_000, "Alpha!")];
+        let new = vec![sentence_block(25_000, "Beta?")];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let query = RecoveryWatchQuery {
+            id: "unvisited",
+            old_quote: "Alpha!",
+            new_quote: "Beta?",
+        };
+        let diagnostics = compare_recovery_watch(&old, &new, &alignment, 1, &[query])
+            .recovery_watch_diagnostics
+            .expect("watch diagnostics are available");
+        assert!(
+            !diagnostics.records[0]
+                .pair
+                .as_ref()
+                .expect("both quotes locate uniquely")
+                .near_candidate_examined
+        );
+
+        let capped = vec![query; sentence::MAX_RECOVERY_WATCH_QUERIES + 1];
+        let diagnostics = compare_recovery_watch(&old, &new, &alignment, 1, &capped)
+            .recovery_watch_diagnostics
+            .expect("bounded watch diagnostics are available");
+        assert!(!diagnostics.complete);
+        assert_eq!(
+            diagnostics.records.len(),
+            sentence::MAX_RECOVERY_WATCH_QUERIES
+        );
+    }
+
+    #[test]
+    fn recovery_watch_records_paired_stream_near_visit() {
+        let old = vec![sentence_block(
+            26_000,
+            "First anchor stays. The paired value is alpha. Last anchor stays.",
+        )];
+        let new = vec![sentence_block(
+            27_000,
+            "First anchor stays. The paired value is beta. Last anchor stays.",
+        )];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let queries = [RecoveryWatchQuery {
+            id: "paired",
+            old_quote: "paired value is alpha",
+            new_quote: "paired value is beta",
+        }];
+        let diagnostics = compare_recovery_watch(&old, &new, &alignment, 1, &queries)
+            .recovery_watch_diagnostics
+            .expect("watch diagnostics are available");
+        let pair = diagnostics.records[0]
+            .pair
+            .as_ref()
+            .expect("both quotes locate uniquely");
+        assert!(pair.near_candidate_examined, "{pair:?}");
+        assert_eq!(pair.near_scope, Some(RecoveryWatchNearScope::PairedStream));
+        assert!(pair.reciprocal, "{pair:?}");
+        assert_eq!(pair.exact_shared_units, 2);
+    }
+
+    #[test]
+    fn recovery_watch_records_duplicate_queries_independently() {
+        let old = vec![sentence_block(
+            28_000,
+            "The duplicate watch keeps alpha value.",
+        )];
+        let new = vec![sentence_block(
+            29_000,
+            "The duplicate watch keeps beta value.",
+        )];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let queries = [
+            RecoveryWatchQuery {
+                id: "first",
+                old_quote: "keeps alpha",
+                new_quote: "keeps beta",
+            },
+            RecoveryWatchQuery {
+                id: "second",
+                old_quote: "keeps alpha",
+                new_quote: "keeps beta",
+            },
+        ];
+        let diagnostics = compare_recovery_watch(&old, &new, &alignment, 1, &queries)
+            .recovery_watch_diagnostics
+            .expect("watch diagnostics are available");
+        assert!(diagnostics.complete, "{diagnostics:?}");
+        assert_eq!(diagnostics.records.len(), 2);
+        assert_eq!(diagnostics.records[0].id, "first");
+        assert_eq!(diagnostics.records[1].id, "second");
+        assert_eq!(diagnostics.records[0].pair, diagnostics.records[1].pair);
+        assert!(diagnostics.records.iter().all(|record| {
+            record
+                .pair
+                .as_ref()
+                .is_some_and(|pair| pair.near_candidate_examined && pair.reciprocal)
+        }));
+    }
+
+    #[test]
+    fn recovery_watch_fails_closed_for_unmapped_occurrences() {
+        let old = vec![sentence_block_with_unmapped(
+            30_000,
+            "The unmapped watch keeps alpha value.",
+        )];
+        let new = vec![sentence_block(
+            31_000,
+            "The unmapped watch keeps beta value.",
+        )];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let diagnostics = compare_recovery_watch(
+            &old,
+            &new,
+            &alignment,
+            1,
+            &[RecoveryWatchQuery {
+                id: "unmapped",
+                old_quote: "keeps alpha",
+                new_quote: "keeps beta",
+            }],
+        )
+        .recovery_watch_diagnostics
+        .expect("watch diagnostics are available");
+        assert!(matches!(
+            diagnostics.records[0].old,
+            RecoveryWatchOccurrenceEvidence::Unavailable
+        ));
+        assert!(diagnostics.records[0].pair.is_none());
+    }
+
+    #[test]
+    fn recovery_watch_exposes_incomplete_near_search() {
+        let old = (0..96)
+            .map(|index| {
+                sentence_block(
+                    32_000 + index,
+                    &format!("The old candidate number {index} keeps alpha value."),
+                )
+            })
+            .collect::<Vec<_>>();
+        let new = (0..96)
+            .map(|index| {
+                sentence_block(
+                    33_000 + index,
+                    &format!("The new candidate number {index} keeps beta value."),
+                )
+            })
+            .collect::<Vec<_>>();
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let diagnostics = compare_recovery_watch(
+            &old,
+            &new,
+            &alignment,
+            1,
+            &[RecoveryWatchQuery {
+                id: "limited",
+                old_quote: "old candidate number 0 keeps alpha",
+                new_quote: "new candidate number 0 keeps beta",
+            }],
+        )
+        .recovery_watch_diagnostics
+        .expect("watch diagnostics survive a bounded near-search stop");
+        assert!(!diagnostics.complete, "{diagnostics:?}");
+        assert!(diagnostics.candidate_generation_complete);
+        assert!(!diagnostics.near_relation_complete);
+        assert!(matches!(
+            diagnostics.near_relation_stop_reason,
+            Some(
+                NearRelationStopReason::PairVisitLimit
+                    | NearRelationStopReason::SimilarityComparisonLimit
+            )
+        ));
     }
 
     fn trusted_run_descriptors(blocks: &[BlockText]) -> Vec<TrustedRunDescriptor> {

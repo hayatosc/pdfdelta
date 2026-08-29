@@ -18,8 +18,11 @@ use crate::{
 
 use super::{
     MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
-    RunSignatureStopReason, SentenceRecoveryCommittedTokens, SentenceRecoveryInput,
-    SentenceRecoveryMetrics, Side, TokenRange, TrustedRunRecoveryInput,
+    RecoveryWatchDiagnostics, RecoveryWatchNearScope, RecoveryWatchOccurrence,
+    RecoveryWatchOccurrenceEvidence, RecoveryWatchPairEvidence, RecoveryWatchQuery,
+    RecoveryWatchRecord, RecoveryWatchRelation, RecoveryWatchUnitKind, RunSignatureStopReason,
+    SentenceRecoveryCommittedTokens, SentenceRecoveryInput, SentenceRecoveryMetrics, Side,
+    TokenRange, TrustedRunRecoveryInput,
 };
 
 pub(super) const MAX_SENTENCE_RECOVERY_RANGES: usize = 8_192;
@@ -31,6 +34,7 @@ const MIN_PAIRED_STREAM_NEAR_TOKENS: usize = 4;
 const LINE_NGRAM_SIZE: usize = 3;
 const MAX_LINE_NEAR_LENGTH_RATIO: usize = 3;
 const MAX_UNTRUSTED_LINE_NEAR_CANDIDATES: usize = 256;
+pub(super) const MAX_RECOVERY_WATCH_QUERIES: usize = 4_096;
 /// Larger single-line blocks are likely collapsed page or form regions rather
 /// than independently comparable lines and remain unresolved.
 pub(super) const MAX_UNTRUSTED_LINE_TOKENS: usize = 512;
@@ -108,6 +112,7 @@ impl SentenceRecoveryPlan {
 pub(super) struct SentenceRecoveryBuildOutcome {
     pub plan: Option<SentenceRecoveryPlan>,
     diagnostics: Option<SentenceRecoveryDiagnostics>,
+    watch_diagnostics: Option<RecoveryWatchDiagnostics>,
 }
 
 #[derive(Clone, Copy)]
@@ -129,24 +134,31 @@ impl SentenceRecoveryBuildOutcome {
         diagnostics.metrics = metrics;
     }
 
-    pub(super) fn finish_metrics(self) -> Option<SentenceRecoveryMetrics> {
-        let diagnostics = self.diagnostics?;
-        let mut metrics = diagnostics.metrics;
-        let recovered_old = metrics
-            .recovered_exact_match_old_tokens
-            .checked_add(metrics.recovered_replacement_old_tokens)?
-            .checked_add(metrics.recovered_deletion_tokens)?;
-        let recovered_new = metrics
-            .recovered_exact_match_new_tokens
-            .checked_add(metrics.recovered_replacement_new_tokens)?
-            .checked_add(metrics.recovered_insertion_tokens)?;
-        metrics.unresolved_remainder_old_source_tokens = diagnostics
-            .eligible_old_source_tokens
-            .checked_sub(recovered_old)?;
-        metrics.unresolved_remainder_new_source_tokens = diagnostics
-            .eligible_new_source_tokens
-            .checked_sub(recovered_new)?;
-        Some(metrics)
+    pub(super) fn finish_diagnostics(
+        self,
+    ) -> (
+        Option<SentenceRecoveryMetrics>,
+        Option<RecoveryWatchDiagnostics>,
+    ) {
+        let metrics = self.diagnostics.and_then(|diagnostics| {
+            let mut metrics = diagnostics.metrics;
+            let recovered_old = metrics
+                .recovered_exact_match_old_tokens
+                .checked_add(metrics.recovered_replacement_old_tokens)?
+                .checked_add(metrics.recovered_deletion_tokens)?;
+            let recovered_new = metrics
+                .recovered_exact_match_new_tokens
+                .checked_add(metrics.recovered_replacement_new_tokens)?
+                .checked_add(metrics.recovered_insertion_tokens)?;
+            metrics.unresolved_remainder_old_source_tokens = diagnostics
+                .eligible_old_source_tokens
+                .checked_sub(recovered_old)?;
+            metrics.unresolved_remainder_new_source_tokens = diagnostics
+                .eligible_new_source_tokens
+                .checked_sub(recovered_new)?;
+            Some(metrics)
+        });
+        (metrics, self.watch_diagnostics)
     }
 }
 
@@ -466,6 +478,352 @@ struct CandidateNearRelation {
     best_score: u16,
     second_score: u16,
     best_partner: Option<usize>,
+}
+
+struct RecoveryWatchState {
+    complete: bool,
+    candidate_generation_complete: bool,
+    near_relation_complete: bool,
+    near_relation_stop_reason: Option<NearRelationStopReason>,
+    records: Vec<RecoveryWatchStateRecord>,
+    pair_by_occurrences: HashMap<(usize, usize), Vec<usize>>,
+    scan_work: usize,
+    scan_limit: usize,
+}
+
+struct RecoveryWatchStateRecord {
+    output: RecoveryWatchRecord,
+    old_occurrence: Option<usize>,
+    new_occurrence: Option<usize>,
+}
+
+struct RecoveryWatchBuildContext<'a> {
+    old_evidence: Option<&'a RunRecoveryEvidence<'a>>,
+    new_evidence: Option<&'a RunRecoveryEvidence<'a>>,
+    old_fully_contained: Option<&'a [bool]>,
+    new_fully_contained: Option<&'a [bool]>,
+    min_tokens: usize,
+    max_tokens: usize,
+}
+
+impl RecoveryWatchState {
+    fn new(
+        queries: &[RecoveryWatchQuery<'_>],
+        old_occurrences: &[SentenceOccurrence],
+        new_occurrences: &[SentenceOccurrence],
+        context: RecoveryWatchBuildContext<'_>,
+    ) -> Option<Self> {
+        if queries.is_empty() {
+            return None;
+        }
+        let processed = queries.len().min(MAX_RECOVERY_WATCH_QUERIES);
+        let mut state = Self {
+            complete: queries.len() <= MAX_RECOVERY_WATCH_QUERIES,
+            candidate_generation_complete: false,
+            near_relation_complete: false,
+            near_relation_stop_reason: None,
+            records: Vec::new(),
+            pair_by_occurrences: HashMap::new(),
+            scan_work: 0,
+            scan_limit: context.max_tokens.checked_mul(16)?,
+        };
+        state.records.try_reserve_exact(processed).ok()?;
+        state.pair_by_occurrences.try_reserve(processed).ok()?;
+        for query in queries.iter().take(processed) {
+            let old = state.locate(
+                query.old_quote,
+                old_occurrences,
+                context.old_evidence,
+                context.old_fully_contained,
+                context.min_tokens,
+            );
+            let new = state.locate(
+                query.new_quote,
+                new_occurrences,
+                context.new_evidence,
+                context.new_fully_contained,
+                context.min_tokens,
+            );
+            let (old_evidence_output, old_occurrence) = old.unwrap_or_else(|| {
+                state.complete = false;
+                (RecoveryWatchOccurrenceEvidence::Unfound, None)
+            });
+            let (new_evidence_output, new_occurrence) = new.unwrap_or_else(|| {
+                state.complete = false;
+                (RecoveryWatchOccurrenceEvidence::Unfound, None)
+            });
+            let pair = match (old_occurrence, new_occurrence) {
+                (Some(old), Some(new)) => {
+                    let old_span = old_occurrences.get(old)?.span_index;
+                    let new_span = new_occurrences.get(new)?.span_index;
+                    Some(RecoveryWatchPairEvidence {
+                        same_span: old_span.is_some() && old_span == new_span,
+                        exact_shared_units: 0,
+                        near_candidate_examined: false,
+                        near_score: None,
+                        near_scope: None,
+                        old_relation: RecoveryWatchRelation::default(),
+                        new_relation: RecoveryWatchRelation::default(),
+                        reciprocal: false,
+                    })
+                }
+                _ => None,
+            };
+            let index = state.records.len();
+            let mut id = String::new();
+            id.try_reserve_exact(query.id.len()).ok()?;
+            id.push_str(query.id);
+            state.records.push(RecoveryWatchStateRecord {
+                output: RecoveryWatchRecord {
+                    id,
+                    old: old_evidence_output,
+                    new: new_evidence_output,
+                    pair,
+                },
+                old_occurrence,
+                new_occurrence,
+            });
+            if let (Some(old), Some(new)) = (old_occurrence, new_occurrence) {
+                let indices = state.pair_by_occurrences.entry((old, new)).or_default();
+                indices.try_reserve(1).ok()?;
+                indices.push(index);
+            }
+        }
+        Some(state)
+    }
+
+    fn locate(
+        &mut self,
+        quote: &str,
+        occurrences: &[SentenceOccurrence],
+        evidence: Option<&RunRecoveryEvidence<'_>>,
+        fully_contained: Option<&[bool]>,
+        min_tokens: usize,
+    ) -> Option<(RecoveryWatchOccurrenceEvidence, Option<usize>)> {
+        let needle = collapse_watch_whitespace(quote)?;
+        if needle.is_empty() {
+            return Some((RecoveryWatchOccurrenceEvidence::Unfound, None));
+        }
+        let mut found = None;
+        let mut ambiguous = false;
+        for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
+            let haystack = collapse_watch_whitespace(&occurrence.key)?;
+            self.scan_work = self.scan_work.checked_add(haystack.chars().count())?;
+            if self.scan_work > self.scan_limit {
+                return None;
+            }
+            let mut matches = haystack.match_indices(&needle);
+            if matches.next().is_none() {
+                continue;
+            }
+            if matches.next().is_some() || found.replace(occurrence_index).is_some() {
+                ambiguous = true;
+            }
+        }
+        if ambiguous {
+            return Some((RecoveryWatchOccurrenceEvidence::Ambiguous, None));
+        }
+        let Some(occurrence_index) = found else {
+            return Some((RecoveryWatchOccurrenceEvidence::Unfound, None));
+        };
+        let occurrence = occurrences.get(occurrence_index)?;
+        if occurrence.tokens.iter().any(|token| !token.is_scalar()) {
+            return Some((RecoveryWatchOccurrenceEvidence::Unavailable, None));
+        }
+        let descriptor = occurrence
+            .run_descriptor_index
+            .and_then(|index| evidence?.descriptors.get(index));
+        let contained = occurrence
+            .run_descriptor_index
+            .and_then(|index| fully_contained?.get(index))
+            .copied()
+            .unwrap_or(false);
+        let output = RecoveryWatchOccurrence {
+            span_index: occurrence.span_index,
+            trusted_run_descriptor_index: occurrence.run_descriptor_index,
+            ordinal: occurrence.trusted_position.map(|position| position.ordinal),
+            recovery_location_available: occurrence.location.is_some()
+                && occurrence.tokens.len() >= min_tokens,
+            fully_contained: contained,
+            page: descriptor.map(|descriptor| descriptor.page.0),
+            bbox: descriptor.map(|descriptor| descriptor.bbox),
+            role: occurrence.role,
+            kind: match occurrence.kind {
+                RecoveryUnitKind::Sentence => RecoveryWatchUnitKind::Sentence,
+                RecoveryUnitKind::Line => RecoveryWatchUnitKind::Line,
+            },
+        };
+        Some((
+            RecoveryWatchOccurrenceEvidence::Found(output),
+            Some(occurrence_index),
+        ))
+    }
+
+    fn record_exact_candidates(
+        &mut self,
+        candidates: &[ExactMatchCandidate],
+        old_occurrences: &[SentenceOccurrence],
+        new_occurrences: &[SentenceOccurrence],
+    ) -> Option<()> {
+        for record in &mut self.records {
+            let (Some(old), Some(new), Some(pair)) = (
+                record.old_occurrence,
+                record.new_occurrence,
+                record.output.pair.as_mut(),
+            ) else {
+                continue;
+            };
+            let old_descriptor = old_occurrences.get(old)?.run_descriptor_index;
+            let new_descriptor = new_occurrences.get(new)?.run_descriptor_index;
+            pair.exact_shared_units = candidates.iter().try_fold(0usize, |count, candidate| {
+                let candidate_old = old_occurrences
+                    .get(candidate.old_occurrence_index)?
+                    .run_descriptor_index;
+                let candidate_new = new_occurrences
+                    .get(candidate.new_occurrence_index)?
+                    .run_descriptor_index;
+                if old_descriptor.is_some()
+                    && old_descriptor == candidate_old
+                    && new_descriptor.is_some()
+                    && new_descriptor == candidate_new
+                {
+                    count.checked_add(1)
+                } else {
+                    Some(count)
+                }
+            })?;
+        }
+        Some(())
+    }
+
+    fn record_near(
+        &mut self,
+        old_occurrence: usize,
+        new_occurrence: usize,
+        score: u16,
+        scope: RecoveryWatchNearScope,
+    ) {
+        let Some(record_indices) = self
+            .pair_by_occurrences
+            .get(&(old_occurrence, new_occurrence))
+        else {
+            return;
+        };
+        for record_index in record_indices {
+            let Some(pair) = self
+                .records
+                .get_mut(*record_index)
+                .and_then(|record| record.output.pair.as_mut())
+            else {
+                self.complete = false;
+                return;
+            };
+            pair.near_candidate_examined = true;
+            pair.near_score = Some(score);
+            pair.near_scope = Some(scope);
+        }
+    }
+
+    fn record_relations(
+        &mut self,
+        old_candidates: &[RecoveryCandidate],
+        new_candidates: &[RecoveryCandidate],
+        relations: &ModifiedSentenceRelations,
+    ) -> Option<()> {
+        let mut old_by_occurrence = HashMap::new();
+        let mut new_by_occurrence = HashMap::new();
+        old_by_occurrence.try_reserve(old_candidates.len()).ok()?;
+        new_by_occurrence.try_reserve(new_candidates.len()).ok()?;
+        for (index, candidate) in old_candidates.iter().enumerate() {
+            old_by_occurrence.insert(candidate.occurrence_index, index);
+        }
+        for (index, candidate) in new_candidates.iter().enumerate() {
+            new_by_occurrence.insert(candidate.occurrence_index, index);
+        }
+        for record in &mut self.records {
+            let (Some(old_occurrence), Some(new_occurrence), Some(pair)) = (
+                record.old_occurrence,
+                record.new_occurrence,
+                record.output.pair.as_mut(),
+            ) else {
+                continue;
+            };
+            let old_index = old_by_occurrence.get(&old_occurrence).copied();
+            let new_index = new_by_occurrence.get(&new_occurrence).copied();
+            if let Some(old_index) = old_index {
+                let old = *relations.old.get(old_index)?;
+                pair.old_relation = RecoveryWatchRelation {
+                    available: true,
+                    best_score: old.best_score,
+                    second_score: old.second_score,
+                    watched_partner_is_best: new_index
+                        .is_some_and(|new_index| old.best_partner == Some(new_index)),
+                };
+            }
+            if let Some(new_index) = new_index {
+                let new = *relations.new.get(new_index)?;
+                pair.new_relation = RecoveryWatchRelation {
+                    available: true,
+                    best_score: new.best_score,
+                    second_score: new.second_score,
+                    watched_partner_is_best: old_index
+                        .is_some_and(|old_index| new.best_partner == Some(old_index)),
+                };
+            }
+            if old_index.is_some() || new_index.is_some() {
+                pair.reciprocal = match (old_index, new_index) {
+                    (Some(old_index), Some(new_index)) => {
+                        let old = *relations.old.get(old_index)?;
+                        let new = *relations.new.get(new_index)?;
+                        old.unique_partner() == Some(new_index)
+                            && new.unique_partner() == Some(old_index)
+                    }
+                    _ => false,
+                };
+            }
+        }
+        Some(())
+    }
+
+    fn record_near_search_state(
+        &mut self,
+        candidate_generation_complete: bool,
+        near_relation_complete: bool,
+        stop_reason: Option<NearRelationStopReason>,
+    ) {
+        self.candidate_generation_complete = candidate_generation_complete;
+        self.near_relation_complete = near_relation_complete;
+        self.near_relation_stop_reason = stop_reason;
+    }
+
+    fn finish(self) -> RecoveryWatchDiagnostics {
+        RecoveryWatchDiagnostics {
+            complete: self.complete
+                && self.candidate_generation_complete
+                && self.near_relation_complete
+                && self.near_relation_stop_reason.is_none(),
+            candidate_generation_complete: self.candidate_generation_complete,
+            near_relation_complete: self.near_relation_complete,
+            near_relation_stop_reason: self.near_relation_stop_reason,
+            records: self
+                .records
+                .into_iter()
+                .map(|record| record.output)
+                .collect(),
+        }
+    }
+}
+
+fn collapse_watch_whitespace(value: &str) -> Option<String> {
+    let mut output = String::new();
+    output.try_reserve(value.len()).ok()?;
+    for part in value.split_whitespace() {
+        if !output.is_empty() {
+            output.push(' ');
+        }
+        output.push_str(part);
+    }
+    Some(output)
 }
 
 impl CandidateNearRelation {
@@ -1794,6 +2152,7 @@ pub(super) fn build_sentence_recovery_plan(
     alignment: &Alignment,
     input: SentenceRecoveryInput<'_>,
     max_tokens: usize,
+    watch_queries: &[RecoveryWatchQuery<'_>],
 ) -> Result<SentenceRecoveryBuildOutcome> {
     let Some(structural_evidence) = RecoveryStructuralEvidence::new(input) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
@@ -1850,6 +2209,7 @@ pub(super) fn build_sentence_recovery_plan(
         return Ok(SentenceRecoveryBuildOutcome {
             plan: None,
             diagnostics,
+            watch_diagnostics: None,
         });
     }
 
@@ -1926,6 +2286,30 @@ pub(super) fn build_sentence_recovery_plan(
         &new_occurrences,
         &exact_match_candidates,
     );
+    let mut watch = RecoveryWatchState::new(
+        watch_queries,
+        &old_occurrences,
+        &new_occurrences,
+        RecoveryWatchBuildContext {
+            old_evidence: structural_evidence.old.as_ref(),
+            new_evidence: structural_evidence.new.as_ref(),
+            old_fully_contained: run_signature_eligibility
+                .as_ref()
+                .map(|(old, _)| old.as_slice()),
+            new_fully_contained: run_signature_eligibility
+                .as_ref()
+                .map(|(_, new)| new.as_slice()),
+            min_tokens: input.min_tokens,
+            max_tokens,
+        },
+    );
+    if watch.as_mut().is_some_and(|watch| {
+        watch
+            .record_exact_candidates(&exact_match_candidates, &old_occurrences, &new_occurrences)
+            .is_none()
+    }) {
+        watch = None;
+    }
     let run_metrics =
         run_signature_eligibility
             .as_ref()
@@ -2005,9 +2389,17 @@ pub(super) fn build_sentence_recovery_plan(
         &mut budget,
         &mut diagnostics,
         &mut paired_vetoes,
+        watch.as_mut(),
     )
     .is_none()
     {
+        if let Some(watch) = watch.as_mut() {
+            watch.record_near_search_state(
+                candidate_generation_complete,
+                false,
+                budget.near_relation_stop_reason,
+            );
+        }
         if plan.has_exact_matches()
             && normalize_ranges(&mut plan.deletion_consumed)
             && normalize_ranges(&mut plan.insertion_consumed)
@@ -2016,6 +2408,14 @@ pub(super) fn build_sentence_recovery_plan(
             return Ok(SentenceRecoveryBuildOutcome {
                 plan: Some(plan),
                 diagnostics,
+                watch_diagnostics: watch.map(RecoveryWatchState::finish),
+            });
+        }
+        if watch.is_some() {
+            return Ok(SentenceRecoveryBuildOutcome {
+                plan: None,
+                diagnostics: None,
+                watch_diagnostics: watch.map(RecoveryWatchState::finish),
             });
         }
         return Ok(SentenceRecoveryBuildOutcome::default());
@@ -2048,7 +2448,15 @@ pub(super) fn build_sentence_recovery_plan(
         &new_candidates,
         &mut budget,
         &mut diagnostics,
+        watch.as_mut(),
     ) else {
+        if let Some(watch) = watch.as_mut() {
+            watch.record_near_search_state(
+                candidate_generation_complete,
+                false,
+                budget.near_relation_stop_reason,
+            );
+        }
         if plan.has_exact_matches()
             && normalize_ranges(&mut plan.deletion_consumed)
             && normalize_ranges(&mut plan.insertion_consumed)
@@ -2057,6 +2465,14 @@ pub(super) fn build_sentence_recovery_plan(
             return Ok(SentenceRecoveryBuildOutcome {
                 plan: Some(plan),
                 diagnostics,
+                watch_diagnostics: watch.map(RecoveryWatchState::finish),
+            });
+        }
+        if watch.is_some() {
+            return Ok(SentenceRecoveryBuildOutcome {
+                plan: None,
+                diagnostics: None,
+                watch_diagnostics: watch.map(RecoveryWatchState::finish),
             });
         }
         return Ok(SentenceRecoveryBuildOutcome::default());
@@ -2072,11 +2488,25 @@ pub(super) fn build_sentence_recovery_plan(
         &mut fragment_veto_budget,
     );
     record_vetoed_near_pairs(&mut diagnostics, &relations, near_pair_start);
+    if watch.as_mut().is_some_and(|watch| {
+        watch
+            .record_relations(&old_candidates, &new_candidates, &relations)
+            .is_none()
+    }) {
+        watch = None;
+    }
     if let Some(diagnostics) = diagnostics.as_mut() {
         diagnostics.metrics.near_relation_complete =
             relations.complete && candidate_generation_complete;
     }
     record_near_search_metrics(&mut diagnostics, &budget);
+    if let Some(watch) = watch.as_mut() {
+        watch.record_near_search_state(
+            candidate_generation_complete,
+            relations.complete && candidate_generation_complete,
+            budget.near_relation_stop_reason,
+        );
+    }
 
     if append_replacements(
         &mut plan,
@@ -2109,11 +2539,19 @@ pub(super) fn build_sentence_recovery_plan(
         || !normalize_ranges(&mut plan.deletion_consumed)
         || !normalize_ranges(&mut plan.insertion_consumed)
     {
+        if watch.is_some() {
+            return Ok(SentenceRecoveryBuildOutcome {
+                plan: None,
+                diagnostics: None,
+                watch_diagnostics: watch.map(RecoveryWatchState::finish),
+            });
+        }
         return Ok(SentenceRecoveryBuildOutcome::default());
     }
     Ok(SentenceRecoveryBuildOutcome {
         plan: Some(plan),
         diagnostics,
+        watch_diagnostics: watch.map(RecoveryWatchState::finish),
     })
 }
 
@@ -3310,6 +3748,7 @@ fn append_paired_stream_replacements<'a>(
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     vetoes: &mut PairedNearVetoes,
+    mut watch: Option<&mut RecoveryWatchState>,
 ) -> Option<()> {
     if pairs.is_empty() {
         return Some(());
@@ -3373,9 +3812,21 @@ fn append_paired_stream_replacements<'a>(
         &new_pair_by_stream,
         budget,
         diagnostics,
+        watch.as_deref_mut(),
     )?;
     reject_crossing_paired_replacements(&old_candidates, &new_candidates, &mut relations)?;
     record_vetoed_near_pairs(diagnostics, &relations, near_pair_start);
+    if let Some(watch) = watch.as_mut()
+        && watch
+            .record_relations(
+                &old_candidates.recoveries,
+                &new_candidates.recoveries,
+                &relations,
+            )
+            .is_none()
+    {
+        watch.complete = false;
+    }
     collect_paired_near_vetoes(&old_candidates, &new_candidates, &relations, vetoes)?;
     append_replacements(
         plan,
@@ -3831,6 +4282,7 @@ fn paired_modified_sentence_relations(
     new_pair_by_stream: &HashMap<usize, usize>,
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    mut watch: Option<&mut RecoveryWatchState>,
 ) -> Option<ModifiedSentenceRelations> {
     let mut relations =
         empty_modified_sentence_relations(&old_candidates.recoveries, &new_candidates.recoveries)?;
@@ -3877,6 +4329,14 @@ fn paired_modified_sentence_relations(
         for &new_occurrence_index in &plausible {
             let new_occurrence = new_occurrences.get(new_occurrence_index)?;
             let score = sentence_similarity(old_occurrence, new_occurrence, budget)?;
+            if let Some(watch) = watch.as_mut() {
+                watch.record_near(
+                    old_candidate.occurrence_index,
+                    new_occurrence_index,
+                    score,
+                    RecoveryWatchNearScope::PairedStream,
+                );
+            }
             if let Some(new_candidate_index) = new_candidate_by_occurrence[new_occurrence_index]
                 && new_candidates.intervals.get(new_candidate_index).copied() == Some(interval)
             {
@@ -3934,6 +4394,14 @@ fn paired_modified_sentence_relations(
             }
             let old_occurrence = old_occurrences.get(old_occurrence_index)?;
             let score = sentence_similarity(old_occurrence, new_occurrence, budget)?;
+            if let Some(watch) = watch.as_mut() {
+                watch.record_near(
+                    old_occurrence_index,
+                    new_candidate.occurrence_index,
+                    score,
+                    RecoveryWatchNearScope::PairedStream,
+                );
+            }
             relations.new[new_candidate_index].record_disqualifying(score);
             if score >= MIN_NEAR_SCORE {
                 record_near_pair(diagnostics);
@@ -4025,6 +4493,7 @@ fn modified_sentence_relations(
     new_candidates: &[RecoveryCandidate],
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    mut watch: Option<&mut RecoveryWatchState>,
 ) -> Option<ModifiedSentenceRelations> {
     let mut relations = empty_modified_sentence_relations(old_candidates, new_candidates)?;
     extend_modified_sentence_relations(
@@ -4036,6 +4505,7 @@ fn modified_sentence_relations(
         &mut relations,
         budget,
         diagnostics,
+        watch.as_deref_mut(),
     )?;
 
     let Some(mut cross_relations) = try_clone_modified_sentence_relations(&relations) else {
@@ -4052,6 +4522,7 @@ fn modified_sentence_relations(
         &mut cross_relations,
         &mut cross_budget,
         &mut cross_diagnostics,
+        watch,
     )
     .is_some()
     {
@@ -4127,6 +4598,7 @@ fn extend_modified_sentence_relations(
     relations: &mut ModifiedSentenceRelations,
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    mut watch: Option<&mut RecoveryWatchState>,
 ) -> Option<()> {
     if relations.old.len() != old_candidates.len() || relations.new.len() != new_candidates.len() {
         return None;
@@ -4160,6 +4632,17 @@ fn extend_modified_sentence_relations(
         for &new_occurrence_index in &plausible {
             let new_occurrence = new_occurrences.get(new_occurrence_index)?;
             let score = sentence_similarity(old_occurrence, new_occurrence, budget)?;
+            if let Some(watch) = watch.as_deref_mut() {
+                watch.record_near(
+                    old_candidate.occurrence_index,
+                    new_occurrence_index,
+                    score,
+                    match scope {
+                        NearRelationScope::SameOrAmbiguous => RecoveryWatchNearScope::SameSpan,
+                        NearRelationScope::CrossSpan => RecoveryWatchNearScope::CrossSpan,
+                    },
+                );
+            }
             if let Some(new_candidate_index) = new_candidate_by_occurrence[new_occurrence_index] {
                 relations.old[old_candidate_index].record_eligible(new_candidate_index, score);
                 relations.new[new_candidate_index].record_eligible(old_candidate_index, score);
@@ -4209,6 +4692,17 @@ fn extend_modified_sentence_relations(
             }
             let old_occurrence = old_occurrences.get(old_occurrence_index)?;
             let score = sentence_similarity(old_occurrence, new_occurrence, budget)?;
+            if let Some(watch) = watch.as_deref_mut() {
+                watch.record_near(
+                    old_occurrence_index,
+                    new_candidate.occurrence_index,
+                    score,
+                    match scope {
+                        NearRelationScope::SameOrAmbiguous => RecoveryWatchNearScope::SameSpan,
+                        NearRelationScope::CrossSpan => RecoveryWatchNearScope::CrossSpan,
+                    },
+                );
+            }
             relations.new[new_candidate_index].record_disqualifying(score);
             if score >= MIN_NEAR_SCORE {
                 record_near_pair(diagnostics);
@@ -5016,6 +5510,90 @@ mod tests {
         layout::{RegionId, RegionRelation},
         model::{FontProgramHash, PageId, Rect, Vec2},
     };
+
+    #[test]
+    fn recovery_watch_distinguishes_candidate_generation_incomplete() {
+        let mut watch = RecoveryWatchState {
+            complete: true,
+            candidate_generation_complete: false,
+            near_relation_complete: false,
+            near_relation_stop_reason: None,
+            records: Vec::new(),
+            pair_by_occurrences: HashMap::new(),
+            scan_work: 0,
+            scan_limit: 0,
+        };
+        watch.record_near_search_state(
+            false,
+            false,
+            Some(NearRelationStopReason::CandidateCountLimit),
+        );
+        let diagnostics = watch.finish();
+        assert!(!diagnostics.complete);
+        assert!(!diagnostics.candidate_generation_complete);
+        assert!(!diagnostics.near_relation_complete);
+        assert_eq!(
+            diagnostics.near_relation_stop_reason,
+            Some(NearRelationStopReason::CandidateCountLimit)
+        );
+    }
+
+    #[test]
+    fn recovery_watch_preserves_one_sided_candidate_relation() {
+        let mut relation = CandidateNearRelation::default();
+        relation.record_disqualifying(7_500);
+        let mut watch = RecoveryWatchState {
+            complete: true,
+            candidate_generation_complete: true,
+            near_relation_complete: true,
+            near_relation_stop_reason: None,
+            records: vec![RecoveryWatchStateRecord {
+                output: RecoveryWatchRecord {
+                    id: "one-sided".to_owned(),
+                    old: RecoveryWatchOccurrenceEvidence::Unfound,
+                    new: RecoveryWatchOccurrenceEvidence::Unfound,
+                    pair: Some(RecoveryWatchPairEvidence {
+                        same_span: true,
+                        exact_shared_units: 0,
+                        near_candidate_examined: true,
+                        near_score: Some(7_500),
+                        near_scope: Some(RecoveryWatchNearScope::SameSpan),
+                        old_relation: RecoveryWatchRelation::default(),
+                        new_relation: RecoveryWatchRelation::default(),
+                        reciprocal: false,
+                    }),
+                },
+                old_occurrence: Some(0),
+                new_occurrence: Some(1),
+            }],
+            pair_by_occurrences: HashMap::new(),
+            scan_work: 0,
+            scan_limit: 0,
+        };
+        watch
+            .record_relations(
+                &[RecoveryCandidate {
+                    occurrence_index: 0,
+                    span_index: 0,
+                }],
+                &[],
+                &ModifiedSentenceRelations {
+                    old: vec![relation],
+                    new: Vec::new(),
+                    complete: true,
+                },
+            )
+            .expect("one-sided relation records");
+        let pair = watch.records[0]
+            .output
+            .pair
+            .as_ref()
+            .expect("pair evidence remains available");
+        assert!(pair.old_relation.available);
+        assert_eq!(pair.old_relation.best_score, 7_500);
+        assert!(!pair.new_relation.available);
+        assert!(!pair.reciprocal);
+    }
 
     fn interval(run_id: u64, start: usize, end: usize) -> Option<TrustedRunInterval> {
         Some(TrustedRunInterval {
@@ -6030,6 +6608,7 @@ mod tests {
             &[],
             &mut budget,
             &mut diagnostics,
+            None,
         )
         .expect("near-match veto stays within budget");
         assert!(relations.old[0].vetoed());
@@ -6732,6 +7311,7 @@ mod tests {
             &candidates,
             &mut budget,
             &mut diagnostics,
+            None,
         )
         .expect("relation collection fits");
         assert!(!cross_role.old[0].vetoed());
@@ -6746,6 +7326,7 @@ mod tests {
             &candidates,
             &mut budget,
             &mut diagnostics,
+            None,
         )
         .expect("relation collection fits");
         assert_eq!(same_role.old[0].unique_partner(), Some(0));
@@ -7078,6 +7659,7 @@ mod tests {
             &[],
             &mut budget,
             &mut diagnostics,
+            None,
         )
         .expect("only the edge-compatible pair is visited");
 
@@ -7285,6 +7867,7 @@ mod tests {
             &new_candidates,
             &mut budget,
             &mut diagnostics,
+            None,
         )
         .expect("relations fit within budget");
 
@@ -7425,6 +8008,7 @@ mod tests {
             &new_candidates,
             &mut budget,
             &mut diagnostics,
+            None,
         )
         .expect("same-span relations survive optional cross-span exhaustion");
 
@@ -7479,6 +8063,7 @@ mod tests {
             &candidates,
             &mut budget,
             &mut diagnostics,
+            None,
         )
         .expect("cross-span relations complete within budget");
 

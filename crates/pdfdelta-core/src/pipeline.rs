@@ -7,8 +7,9 @@ use crate::{
         validate_ngram_size,
     },
     diff::{
-        Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, SentenceRecoveryInput,
-        SentenceRecoveryMetrics, TrustedRunRecoveryInput, compare_aligned,
+        Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, RecoveryWatchDiagnostics,
+        RecoveryWatchQuery, SentenceRecoveryInput, SentenceRecoveryMetrics,
+        TrustedRunRecoveryInput, compare_aligned, compare_aligned_with_recovery_watch_diagnostics,
         compare_aligned_with_sentence_recovery_metrics, enforce_diff_raw_token_budget,
         enforce_diff_token_budget, validate_diff_options,
     },
@@ -112,6 +113,29 @@ pub struct ComparisonOutcome {
     pub old_glyph_evidence: Vec<GlyphEvidence>,
     /// Retained new-side glyph evidence used for report provenance projection.
     pub new_glyph_evidence: Vec<GlyphEvidence>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ComparisonOutcomeWithRecoveryWatch {
+    pub outcome: ComparisonOutcome,
+    pub alignment: Option<Alignment>,
+    pub diagnostics: Option<RecoveryWatchDiagnostics>,
+}
+
+struct ValidatedComparisonOutcome {
+    comparison: Comparison,
+    old_blocks: Vec<BlockText>,
+    new_blocks: Vec<BlockText>,
+    alignment: Alignment,
+    recovery_watch_diagnostics: Option<RecoveryWatchDiagnostics>,
+}
+
+#[derive(Clone, Copy)]
+struct ComparisonInstrumentation<'a> {
+    old_issue_boundaries: &'a [LocalizedIssueBoundary],
+    new_issue_boundaries: &'a [LocalizedIssueBoundary],
+    enable_sentence_recovery: bool,
+    watch_queries: &'a [RecoveryWatchQuery<'a>],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -331,6 +355,38 @@ pub fn compare_extraction_outcomes_with_alignment_diagnostics(
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
 ) -> Result<(ComparisonOutcome, Option<Alignment>)> {
+    compare_extraction_outcomes_with_recovery_watch_inner(old, new, options, diagnostics, &[])
+        .map(|outcome| (outcome.outcome, outcome.alignment))
+}
+
+/// Compares extracted documents and observes selected uncertain-region recovery evidence.
+///
+/// Empty queries are equivalent to
+/// [`compare_extraction_outcomes_with_alignment_diagnostics`] and do not add
+/// recovery scanning or similarity work.
+pub fn compare_extraction_outcomes_with_recovery_watch_diagnostics(
+    old: ExtractionOutcome,
+    new: ExtractionOutcome,
+    options: PipelineOptions,
+    diagnostics: &mut PipelineDiagnostics,
+    watch_queries: &[RecoveryWatchQuery<'_>],
+) -> Result<ComparisonOutcomeWithRecoveryWatch> {
+    compare_extraction_outcomes_with_recovery_watch_inner(
+        old,
+        new,
+        options,
+        diagnostics,
+        watch_queries,
+    )
+}
+
+fn compare_extraction_outcomes_with_recovery_watch_inner(
+    old: ExtractionOutcome,
+    new: ExtractionOutcome,
+    options: PipelineOptions,
+    diagnostics: &mut PipelineDiagnostics,
+    watch_queries: &[RecoveryWatchQuery<'_>],
+) -> Result<ComparisonOutcomeWithRecoveryWatch> {
     diagnostics.begin();
     let options = match options.validate() {
         Ok(options) => options,
@@ -356,19 +412,30 @@ pub fn compare_extraction_outcomes_with_alignment_diagnostics(
             None,
             PipelineMetrics::default(),
         );
-        let (comparison, old_blocks, new_blocks, alignment) =
-            compare_validated_glyph_documents(&old_document, &new_document, options, diagnostics)?;
-        return Ok((
-            ComparisonOutcome {
-                comparison,
+        let compared = compare_validated_glyph_documents_inner(
+            &old_document,
+            &new_document,
+            options,
+            diagnostics,
+            ComparisonInstrumentation {
+                old_issue_boundaries: &[],
+                new_issue_boundaries: &[],
+                enable_sentence_recovery: true,
+                watch_queries,
+            },
+        )?;
+        return Ok(ComparisonOutcomeWithRecoveryWatch {
+            outcome: ComparisonOutcome {
+                comparison: compared.comparison,
                 extraction: ExtractionStatus::complete(),
-                old_blocks,
-                new_blocks,
+                old_blocks: compared.old_blocks,
+                new_blocks: compared.new_blocks,
                 old_glyph_evidence,
                 new_glyph_evidence,
             },
-            Some(alignment),
-        ));
+            alignment: Some(compared.alignment),
+            diagnostics: compared.recovery_watch_diagnostics,
+        });
     }
 
     diagnostics.incomplete(PipelinePhase::CompletenessGate);
@@ -381,37 +448,41 @@ pub fn compare_extraction_outcomes_with_alignment_diagnostics(
     if !has_document_issue {
         let old_gap_boundaries = issue_boundaries(&old_issues);
         let new_gap_boundaries = issue_boundaries(&new_issues);
-        let (mut comparison, old_blocks, new_blocks, alignment) =
-            compare_validated_glyph_documents_with_gaps(
-                &old_document,
-                &new_document,
-                options,
-                diagnostics,
-                &old_gap_boundaries,
-                &new_gap_boundaries,
-            )?;
+        let mut compared = compare_validated_glyph_documents_inner(
+            &old_document,
+            &new_document,
+            options,
+            diagnostics,
+            ComparisonInstrumentation {
+                old_issue_boundaries: &old_gap_boundaries,
+                new_issue_boundaries: &new_gap_boundaries,
+                enable_sentence_recovery: false,
+                watch_queries,
+            },
+        )?;
         if !old_complete {
-            comparison.old_coverage.ratio = None;
+            compared.comparison.old_coverage.ratio = None;
         }
         if !new_complete {
-            comparison.new_coverage.ratio = None;
+            compared.comparison.new_coverage.ratio = None;
         }
         let issues = extraction_issue_records(old_issues, new_issues);
-        return Ok((
-            ComparisonOutcome {
-                comparison,
+        return Ok(ComparisonOutcomeWithRecoveryWatch {
+            outcome: ComparisonOutcome {
+                comparison: compared.comparison,
                 extraction: ExtractionStatus {
                     old_complete,
                     new_complete,
                     issues,
                 },
-                old_blocks,
-                new_blocks,
+                old_blocks: compared.old_blocks,
+                new_blocks: compared.new_blocks,
                 old_glyph_evidence,
                 new_glyph_evidence,
             },
-            Some(alignment),
-        ));
+            alignment: Some(compared.alignment),
+            diagnostics: compared.recovery_watch_diagnostics,
+        });
     }
 
     let (old_tokens, new_tokens) =
@@ -419,8 +490,8 @@ pub fn compare_extraction_outcomes_with_alignment_diagnostics(
     let issues = extraction_issue_records(old_issues, new_issues);
 
     // Incomplete extraction suppresses the diff to prevent false comparison output.
-    Ok((
-        ComparisonOutcome {
+    Ok(ComparisonOutcomeWithRecoveryWatch {
+        outcome: ComparisonOutcome {
             comparison: Comparison {
                 changes: Vec::new(),
                 formatting_changes: Vec::new(),
@@ -438,8 +509,9 @@ pub fn compare_extraction_outcomes_with_alignment_diagnostics(
             old_glyph_evidence,
             new_glyph_evidence,
         },
-        None,
-    ))
+        alignment: None,
+        diagnostics: None,
+    })
 }
 
 fn glyph_evidence(document: &Document<Glyph>) -> Vec<GlyphEvidence> {
@@ -462,26 +534,26 @@ fn compare_validated_glyph_documents(
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
 ) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>, Alignment)> {
-    compare_validated_glyph_documents_inner(old, new, options, diagnostics, &[], &[], true)
-}
-
-fn compare_validated_glyph_documents_with_gaps(
-    old: &Document<Glyph>,
-    new: &Document<Glyph>,
-    options: PipelineOptions,
-    diagnostics: &mut PipelineDiagnostics,
-    old_issue_boundaries: &[LocalizedIssueBoundary],
-    new_issue_boundaries: &[LocalizedIssueBoundary],
-) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>, Alignment)> {
     compare_validated_glyph_documents_inner(
         old,
         new,
         options,
         diagnostics,
-        old_issue_boundaries,
-        new_issue_boundaries,
-        false,
+        ComparisonInstrumentation {
+            old_issue_boundaries: &[],
+            new_issue_boundaries: &[],
+            enable_sentence_recovery: true,
+            watch_queries: &[],
+        },
     )
+    .map(|outcome| {
+        (
+            outcome.comparison,
+            outcome.old_blocks,
+            outcome.new_blocks,
+            outcome.alignment,
+        )
+    })
 }
 
 fn compare_validated_glyph_documents_inner(
@@ -489,10 +561,8 @@ fn compare_validated_glyph_documents_inner(
     new: &Document<Glyph>,
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
-    old_issue_boundaries: &[LocalizedIssueBoundary],
-    new_issue_boundaries: &[LocalizedIssueBoundary],
-    enable_sentence_recovery: bool,
-) -> Result<(Comparison, Vec<BlockText>, Vec<BlockText>, Alignment)> {
+    instrumentation: ComparisonInstrumentation<'_>,
+) -> Result<ValidatedComparisonOutcome> {
     let old_document = old;
     let new_document = new;
     record_pre_layout_token_counts(old, new, options.diff, diagnostics)?;
@@ -513,9 +583,9 @@ fn compare_validated_glyph_documents_inner(
         trusted_region_edges: new_trusted_region_edges,
     } = new_prepared;
     let (old_gap_boundaries, old_extraction_uncertain_block_indices) =
-        gap_boundaries(old_document, &old, old_issue_boundaries);
+        gap_boundaries(old_document, &old, instrumentation.old_issue_boundaries);
     let (new_gap_boundaries, new_extraction_uncertain_block_indices) =
-        gap_boundaries(new_document, &new, new_issue_boundaries);
+        gap_boundaries(new_document, &new, instrumentation.new_issue_boundaries);
     phase_result(
         diagnostics,
         PipelinePhase::DiffTokenBudget,
@@ -651,31 +721,61 @@ fn compare_validated_glyph_documents_inner(
             return Err(error);
         }
     };
-    let comparison_result = if enable_sentence_recovery {
-        compare_aligned_with_sentence_recovery_metrics(
-            &old,
-            &new,
-            &alignment,
-            options.diff,
-            SentenceRecoveryInput {
-                old_trusted_run_intervals: &old_trusted_run_intervals,
-                new_trusted_run_intervals: &new_trusted_run_intervals,
-                old_trusted_run_evidence: Some(TrustedRunRecoveryInput {
-                    descriptors: &old_trusted_run_descriptors,
-                    raw_region_edges: &old_trusted_region_edges,
-                }),
-                new_trusted_run_evidence: Some(TrustedRunRecoveryInput {
-                    descriptors: &new_trusted_run_descriptors,
-                    raw_region_edges: &new_trusted_region_edges,
-                }),
-                min_tokens: options.alignment.anchor_min_tokens,
-            },
-        )
-        .map(|outcome| (outcome.comparison, outcome.sentence_recovery_metrics))
-    } else {
-        compare_aligned(&old, &new, &alignment, options.diff).map(|comparison| (comparison, None))
-    };
-    let (comparison, sentence_recovery_metrics) = phase_result(
+    let comparison_result =
+        if instrumentation.enable_sentence_recovery && !instrumentation.watch_queries.is_empty() {
+            compare_aligned_with_recovery_watch_diagnostics(
+                &old,
+                &new,
+                &alignment,
+                options.diff,
+                SentenceRecoveryInput {
+                    old_trusted_run_intervals: &old_trusted_run_intervals,
+                    new_trusted_run_intervals: &new_trusted_run_intervals,
+                    old_trusted_run_evidence: Some(TrustedRunRecoveryInput {
+                        descriptors: &old_trusted_run_descriptors,
+                        raw_region_edges: &old_trusted_region_edges,
+                    }),
+                    new_trusted_run_evidence: Some(TrustedRunRecoveryInput {
+                        descriptors: &new_trusted_run_descriptors,
+                        raw_region_edges: &new_trusted_region_edges,
+                    }),
+                    min_tokens: options.alignment.anchor_min_tokens,
+                },
+                instrumentation.watch_queries,
+            )
+            .map(|outcome| {
+                (
+                    outcome.comparison,
+                    outcome.sentence_recovery_metrics,
+                    outcome.recovery_watch_diagnostics,
+                )
+            })
+        } else if instrumentation.enable_sentence_recovery {
+            compare_aligned_with_sentence_recovery_metrics(
+                &old,
+                &new,
+                &alignment,
+                options.diff,
+                SentenceRecoveryInput {
+                    old_trusted_run_intervals: &old_trusted_run_intervals,
+                    new_trusted_run_intervals: &new_trusted_run_intervals,
+                    old_trusted_run_evidence: Some(TrustedRunRecoveryInput {
+                        descriptors: &old_trusted_run_descriptors,
+                        raw_region_edges: &old_trusted_region_edges,
+                    }),
+                    new_trusted_run_evidence: Some(TrustedRunRecoveryInput {
+                        descriptors: &new_trusted_run_descriptors,
+                        raw_region_edges: &new_trusted_region_edges,
+                    }),
+                    min_tokens: options.alignment.anchor_min_tokens,
+                },
+            )
+            .map(|outcome| (outcome.comparison, outcome.sentence_recovery_metrics, None))
+        } else {
+            compare_aligned(&old, &new, &alignment, options.diff)
+                .map(|comparison| (comparison, None, None))
+        };
+    let (comparison, sentence_recovery_metrics, recovery_watch_diagnostics) = phase_result(
         diagnostics,
         PipelinePhase::ExactDiff,
         None,
@@ -692,7 +792,13 @@ fn compare_validated_glyph_documents_inner(
             ..PipelineMetrics::default()
         },
     );
-    Ok((comparison, old, new, alignment))
+    Ok(ValidatedComparisonOutcome {
+        comparison,
+        old_blocks: old,
+        new_blocks: new,
+        alignment,
+        recovery_watch_diagnostics,
+    })
 }
 
 #[derive(Clone, Copy)]
