@@ -22,7 +22,6 @@ pub(super) const MAX_SENTENCE_RECOVERY_RANGES: usize = 8_192;
 const MIN_NEAR_SCORE: u16 = 7_000;
 const MIN_NEAR_SCORE_MARGIN: u16 = 500;
 const MIN_WORD_SCORE_EDGE_EVIDENCE: u16 = 3_000;
-const MIN_DOUBLE_EDGE_TOKENS: usize = 7;
 const MIN_PAIRED_STREAM_EXACT_TOKENS: usize = 4;
 const MIN_PAIRED_STREAM_NEAR_TOKENS: usize = 4;
 const LINE_NGRAM_SIZE: usize = 3;
@@ -345,32 +344,8 @@ struct RecoveryCandidates {
     complete: bool,
 }
 
-type UnitEdge = (RecoveryUnitKind, OccurrenceRole, SentenceEvidenceToken);
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-enum UnitEdgePosition {
-    Prefix,
-    Suffix,
-}
-type UnitEdgePair = (
-    RecoveryUnitKind,
-    OccurrenceRole,
-    UnitEdgePosition,
-    (SentenceEvidenceToken, SentenceEvidenceToken),
-);
-type LineTrigram = (
-    OccurrenceRole,
-    (
-        SentenceEvidenceToken,
-        SentenceEvidenceToken,
-        SentenceEvidenceToken,
-    ),
-);
-
 struct UnitCandidateIndex {
-    edge_postings: HashMap<UnitEdge, Vec<usize>>,
-    short_edge_postings: HashMap<UnitEdge, Vec<usize>>,
-    edge_pair_postings: HashMap<UnitEdgePair, Vec<usize>>,
-    line_trigram_postings: HashMap<LineTrigram, Vec<usize>>,
+    edge_postings: HashMap<(RecoveryUnitKind, OccurrenceRole, SentenceEvidenceToken), Vec<usize>>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -383,9 +358,6 @@ impl UnitCandidateIndex {
     fn new(occurrences: &[SentenceOccurrence]) -> Option<Self> {
         let mut index = Self {
             edge_postings: HashMap::new(),
-            short_edge_postings: HashMap::new(),
-            edge_pair_postings: HashMap::new(),
-            line_trigram_postings: HashMap::new(),
         };
         for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
             let Some(role) = occurrence.role.map(OccurrenceRole::from) else {
@@ -393,66 +365,27 @@ impl UnitCandidateIndex {
             };
             let first = *occurrence.tokens.first()?;
             let last = *occurrence.tokens.last()?;
-            push_unit_posting(
-                &mut index.edge_postings,
-                (occurrence.kind, role, first),
-                occurrence_index,
-            )?;
+            index.push_edge_posting((occurrence.kind, role, first), occurrence_index)?;
             if last != first {
-                push_unit_posting(
-                    &mut index.edge_postings,
-                    (occurrence.kind, role, last),
-                    occurrence_index,
-                )?;
-            }
-            if occurrence.tokens.len() < MIN_DOUBLE_EDGE_TOKENS {
-                push_unit_posting(
-                    &mut index.short_edge_postings,
-                    (occurrence.kind, role, first),
-                    occurrence_index,
-                )?;
-                if last != first {
-                    push_unit_posting(
-                        &mut index.short_edge_postings,
-                        (occurrence.kind, role, last),
-                        occurrence_index,
-                    )?;
-                }
-            } else {
-                let prefix = (occurrence.tokens[0], occurrence.tokens[1]);
-                let suffix = (
-                    occurrence.tokens[occurrence.tokens.len() - 2],
-                    occurrence.tokens[occurrence.tokens.len() - 1],
-                );
-                push_unit_posting(
-                    &mut index.edge_pair_postings,
-                    (occurrence.kind, role, UnitEdgePosition::Prefix, prefix),
-                    occurrence_index,
-                )?;
-                push_unit_posting(
-                    &mut index.edge_pair_postings,
-                    (occurrence.kind, role, UnitEdgePosition::Suffix, suffix),
-                    occurrence_index,
-                )?;
-            }
-            if occurrence.kind == RecoveryUnitKind::Line {
-                let mut trigrams = HashSet::new();
-                trigrams
-                    .try_reserve(ngram_count(occurrence.tokens.len(), LINE_NGRAM_SIZE)?)
-                    .ok()?;
-                for tokens in occurrence.tokens.windows(LINE_NGRAM_SIZE) {
-                    trigrams.insert((tokens[0], tokens[1], tokens[2]));
-                }
-                for trigram in trigrams {
-                    push_unit_posting(
-                        &mut index.line_trigram_postings,
-                        (role, trigram),
-                        occurrence_index,
-                    )?;
-                }
+                index.push_edge_posting((occurrence.kind, role, last), occurrence_index)?;
             }
         }
         Some(index)
+    }
+
+    fn push_edge_posting(
+        &mut self,
+        key: (RecoveryUnitKind, OccurrenceRole, SentenceEvidenceToken),
+        occurrence_index: usize,
+    ) -> Option<()> {
+        if !self.edge_postings.contains_key(&key) {
+            self.edge_postings.try_reserve(1).ok()?;
+            self.edge_postings.insert(key, Vec::new());
+        }
+        let postings = self.edge_postings.get_mut(&key)?;
+        postings.try_reserve(1).ok()?;
+        postings.push(occurrence_index);
+        Some(())
     }
 
     fn collect_plausible_occurrences(
@@ -466,134 +399,34 @@ impl UnitCandidateIndex {
         };
         let first = *occurrence.tokens.first()?;
         let last = *occurrence.tokens.last()?;
-        let mut largest_posting = 0;
-        if occurrence.tokens.len() < MIN_DOUBLE_EDGE_TOKENS {
-            append_unit_posting(
-                &self.edge_postings,
-                &(occurrence.kind, role, first),
-                plausible,
-                &mut largest_posting,
-            )?;
-            if last != first {
-                append_unit_posting(
-                    &self.edge_postings,
-                    &(occurrence.kind, role, last),
-                    plausible,
-                    &mut largest_posting,
-                )?;
-            }
-        } else {
-            // A score below 6,501 cannot change a 7,000-point decision with a
-            // 500-point margin. For longer units, reaching the 3,000-point
-            // word-score gate requires at least three shared edge tokens, so
-            // either the prefix or suffix contains a shared two-token run.
-            let prefix = (occurrence.tokens[0], occurrence.tokens[1]);
-            let suffix = (
-                occurrence.tokens[occurrence.tokens.len() - 2],
-                occurrence.tokens[occurrence.tokens.len() - 1],
-            );
-            append_unit_posting(
-                &self.edge_pair_postings,
-                &(occurrence.kind, role, UnitEdgePosition::Prefix, prefix),
-                plausible,
-                &mut largest_posting,
-            )?;
-            append_unit_posting(
-                &self.edge_pair_postings,
-                &(occurrence.kind, role, UnitEdgePosition::Suffix, suffix),
-                plausible,
-                &mut largest_posting,
-            )?;
-            append_unit_posting(
-                &self.short_edge_postings,
-                &(occurrence.kind, role, first),
-                plausible,
-                &mut largest_posting,
-            )?;
-            if last != first {
-                append_unit_posting(
-                    &self.short_edge_postings,
-                    &(occurrence.kind, role, last),
-                    plausible,
-                    &mut largest_posting,
-                )?;
-            }
-            if occurrence.kind == RecoveryUnitKind::Line {
-                let mut trigrams = HashSet::new();
-                trigrams
-                    .try_reserve(ngram_count(occurrence.tokens.len(), LINE_NGRAM_SIZE)?)
-                    .ok()?;
-                for tokens in occurrence.tokens.windows(LINE_NGRAM_SIZE) {
-                    trigrams.insert((tokens[0], tokens[1], tokens[2]));
-                }
-                for trigram in trigrams {
-                    append_unit_posting(
-                        &self.line_trigram_postings,
-                        &(role, trigram),
-                        plausible,
-                        &mut largest_posting,
-                    )?;
-                }
-                plausible.sort_unstable();
-                plausible.dedup();
-
-                let mut legacy_edge_candidates = Vec::new();
-                append_unit_posting(
-                    &self.edge_postings,
-                    &(occurrence.kind, role, first),
-                    &mut legacy_edge_candidates,
-                    &mut largest_posting,
-                )?;
-                if last != first {
-                    append_unit_posting(
-                        &self.edge_postings,
-                        &(occurrence.kind, role, last),
-                        &mut legacy_edge_candidates,
-                        &mut largest_posting,
-                    )?;
-                }
-                legacy_edge_candidates.sort_unstable();
-                legacy_edge_candidates.dedup();
-                plausible
-                    .retain(|candidate| legacy_edge_candidates.binary_search(candidate).is_ok());
-            }
+        // A pair satisfying the prefix/suffix threshold must share at least one
+        // edge token, so this index prunes work without reducing candidate recall.
+        let first_occurrences = self
+            .edge_postings
+            .get(&(occurrence.kind, role, first))
+            .map_or(&[][..], Vec::as_slice);
+        let last_occurrences = self
+            .edge_postings
+            .get(&(occurrence.kind, role, last))
+            .map_or(&[][..], Vec::as_slice);
+        plausible
+            .try_reserve(
+                first_occurrences
+                    .len()
+                    .checked_add(last_occurrences.len())?,
+            )
+            .ok()?;
+        plausible.extend_from_slice(first_occurrences);
+        if first != last {
+            plausible.extend_from_slice(last_occurrences);
         }
         plausible.sort_unstable();
         plausible.dedup();
         Some(UnitCandidateQueryMetrics {
-            // Legacy metric names cover every posting consulted by the unit index.
-            largest_edge_posting: largest_posting,
+            largest_edge_posting: first_occurrences.len().max(last_occurrences.len()),
             edge_query_union: plausible.len(),
         })
     }
-}
-
-fn push_unit_posting<K: std::hash::Hash + Eq + Copy>(
-    postings: &mut HashMap<K, Vec<usize>>,
-    key: K,
-    occurrence_index: usize,
-) -> Option<()> {
-    if !postings.contains_key(&key) {
-        postings.try_reserve(1).ok()?;
-        postings.insert(key, Vec::new());
-    }
-    let values = postings.get_mut(&key)?;
-    values.try_reserve(1).ok()?;
-    values.push(occurrence_index);
-    Some(())
-}
-
-fn append_unit_posting<K: std::hash::Hash + Eq>(
-    postings: &HashMap<K, Vec<usize>>,
-    key: &K,
-    plausible: &mut Vec<usize>,
-    largest_posting: &mut usize,
-) -> Option<()> {
-    let values = postings.get(key).map_or(&[][..], Vec::as_slice);
-    plausible.try_reserve(values.len()).ok()?;
-    plausible.extend_from_slice(values);
-    *largest_posting = (*largest_posting).max(values.len());
-    Some(())
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -5549,311 +5382,6 @@ mod tests {
             .expect("query succeeds");
 
         assert_eq!(plausible, vec![0, 1]);
-    }
-
-    #[test]
-    fn unit_candidate_index_uses_two_token_edges_for_long_sentence_units() {
-        let occurrences = [
-            indexed_occurrence(
-                &['a', 'x', 'c', 'd', 'e', 'f', 'y', 'h'],
-                RecoveryUnitKind::Sentence,
-                Some(BlockRole::Body),
-            ),
-            indexed_occurrence(
-                &['q', 'b', 'c', 'd', 'e', 'f', 'g', 'z'],
-                RecoveryUnitKind::Sentence,
-                Some(BlockRole::Body),
-            ),
-        ];
-        let query = indexed_occurrence(
-            &['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'],
-            RecoveryUnitKind::Sentence,
-            Some(BlockRole::Body),
-        );
-        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
-        let mut plausible = Vec::new();
-
-        index
-            .collect_plausible_occurrences(&mut plausible, &query)
-            .expect("query succeeds");
-
-        assert!(plausible.is_empty());
-    }
-
-    #[test]
-    fn unit_candidate_index_preserves_short_edge_fallback_in_both_directions() {
-        let short = indexed_occurrence(
-            &['a', 'b', 'c', 'd', 'x', 'y'],
-            RecoveryUnitKind::Sentence,
-            Some(BlockRole::Body),
-        );
-        let long = indexed_occurrence(
-            &['a', 'b', 'c', 'd', 'q', 'r', 's', 't'],
-            RecoveryUnitKind::Sentence,
-            Some(BlockRole::Body),
-        );
-        let occurrences = [short, long];
-        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
-        let mut plausible = Vec::new();
-
-        index
-            .collect_plausible_occurrences(&mut plausible, &occurrences[0])
-            .expect("short query succeeds");
-        assert_eq!(plausible, vec![0, 1]);
-
-        index
-            .collect_plausible_occurrences(&mut plausible, &occurrences[1])
-            .expect("long query succeeds");
-        assert_eq!(plausible, vec![0, 1]);
-    }
-
-    #[test]
-    fn unit_candidate_index_does_not_expand_lines_beyond_legacy_edges() {
-        let occurrences = [indexed_occurrence(
-            &['x', 'b', 'c', 'd', 'e', 'f', 'g', 'y'],
-            RecoveryUnitKind::Line,
-            Some(BlockRole::Body),
-        )];
-        let query = indexed_occurrence(
-            &['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'],
-            RecoveryUnitKind::Line,
-            Some(BlockRole::Body),
-        );
-        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
-        let mut plausible = Vec::new();
-        let mut budget = RecoveryBudget::new(8, 8, 16, 1).expect("budget is valid");
-
-        index
-            .collect_plausible_occurrences(&mut plausible, &query)
-            .expect("query succeeds");
-
-        assert!(plausible.is_empty());
-        assert_eq!(
-            sentence_similarity(&query, &occurrences[0], &mut budget),
-            Some(6_666)
-        );
-    }
-
-    #[test]
-    fn unit_candidate_index_keeps_line_trigram_candidates_with_a_legacy_edge() {
-        let occurrences = [indexed_occurrence(
-            &['a', 'x', 'b', 'c', 'd', 'e', 'f', 'g'],
-            RecoveryUnitKind::Line,
-            Some(BlockRole::Body),
-        )];
-        let query = indexed_occurrence(
-            &['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'],
-            RecoveryUnitKind::Line,
-            Some(BlockRole::Body),
-        );
-        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
-        let mut plausible = Vec::new();
-        let mut budget = RecoveryBudget::new(8, 8, 16, 1).expect("budget is valid");
-
-        index
-            .collect_plausible_occurrences(&mut plausible, &query)
-            .expect("query succeeds");
-
-        assert_eq!(plausible, vec![0]);
-        assert_eq!(
-            sentence_similarity(&query, &occurrences[0], &mut budget),
-            Some(6_666)
-        );
-    }
-
-    #[test]
-    fn unit_candidate_index_contains_every_relation_affecting_binary_unit() {
-        fn binary_occurrences(kind: RecoveryUnitKind) -> Vec<SentenceOccurrence> {
-            let mut occurrences = Vec::new();
-            for len in 1..=7 {
-                for bits in 0..(1usize << len) {
-                    let tokens = (0..len)
-                        .map(|offset| if bits & (1 << offset) == 0 { 'a' } else { 'b' })
-                        .collect::<Vec<_>>();
-                    occurrences.push(indexed_occurrence(&tokens, kind, Some(BlockRole::Body)));
-                }
-            }
-            occurrences
-        }
-
-        for kind in [RecoveryUnitKind::Sentence, RecoveryUnitKind::Line] {
-            let occurrences = binary_occurrences(kind);
-            let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
-            let mut plausible = Vec::new();
-            for query in &occurrences {
-                index
-                    .collect_plausible_occurrences(&mut plausible, query)
-                    .expect("query succeeds");
-                for (candidate_index, candidate) in occurrences.iter().enumerate() {
-                    let mut budget = RecoveryBudget::new(
-                        query.tokens.len(),
-                        candidate.tokens.len(),
-                        query.tokens.len() + candidate.tokens.len(),
-                        1,
-                    )
-                    .expect("budget is valid");
-                    budget.comparison_limit = usize::MAX;
-                    let score = sentence_similarity(query, candidate, &mut budget)
-                        .expect("similarity fits the test budget");
-                    let legacy_edge_candidate = [query.tokens.first(), query.tokens.last()]
-                        .into_iter()
-                        .flatten()
-                        .any(|query_edge| {
-                            candidate.tokens.first() == Some(query_edge)
-                                || candidate.tokens.last() == Some(query_edge)
-                        });
-                    let included = plausible.binary_search(&candidate_index).is_ok();
-                    assert!(
-                        !included || legacy_edge_candidate,
-                        "optimized {kind:?} candidate {candidate_index} must remain within the legacy edge set: query={:?}, candidate={:?}",
-                        query.tokens,
-                        candidate.tokens,
-                    );
-                    if legacy_edge_candidate && score > MIN_NEAR_SCORE - MIN_NEAR_SCORE_MARGIN {
-                        assert!(
-                            included,
-                            "missing {kind:?} candidate {candidate_index} for score {score}"
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn unit_candidate_index_keeps_split_edge_word_score_candidates() {
-        let query = similarity_occurrence(
-            "alpha beta gamma",
-            "abcdefghij"
-                .chars()
-                .map(SentenceEvidenceToken::Scalar)
-                .collect(),
-            RecoveryUnitKind::Sentence,
-        );
-        let candidates = [
-            similarity_occurrence(
-                "alpha beta gamma",
-                "abcxxxxxxj"
-                    .chars()
-                    .map(SentenceEvidenceToken::Scalar)
-                    .collect(),
-                RecoveryUnitKind::Sentence,
-            ),
-            similarity_occurrence(
-                "alpha beta gamma",
-                "axxxxxxxij"
-                    .chars()
-                    .map(SentenceEvidenceToken::Scalar)
-                    .collect(),
-                RecoveryUnitKind::Sentence,
-            ),
-        ];
-        let index = UnitCandidateIndex::new(&candidates).expect("index construction succeeds");
-        let mut plausible = Vec::new();
-
-        index
-            .collect_plausible_occurrences(&mut plausible, &query)
-            .expect("query succeeds");
-
-        assert_eq!(plausible, vec![0, 1]);
-        for candidate in &candidates {
-            let mut budget = RecoveryBudget::new(10, 10, 20, 1).expect("budget is valid");
-            assert_eq!(
-                sentence_similarity(&query, candidate, &mut budget),
-                Some(10_000)
-            );
-        }
-    }
-
-    #[test]
-    fn indexed_second_best_candidate_preserves_margin_veto() {
-        let old_occurrences = [similarity_occurrence(
-            "alpha beta gamma",
-            "abcdefghij"
-                .chars()
-                .map(SentenceEvidenceToken::Scalar)
-                .collect(),
-            RecoveryUnitKind::Sentence,
-        )];
-        let new_occurrences = [
-            similarity_occurrence(
-                "unrelated",
-                "abcdefgxyz"
-                    .chars()
-                    .map(SentenceEvidenceToken::Scalar)
-                    .collect(),
-                RecoveryUnitKind::Sentence,
-            ),
-            similarity_occurrence(
-                "alpha beta delta",
-                "abcxxxxxxx"
-                    .chars()
-                    .map(SentenceEvidenceToken::Scalar)
-                    .collect(),
-                RecoveryUnitKind::Sentence,
-            ),
-        ];
-        let old_candidates = [RecoveryCandidate {
-            occurrence_index: 0,
-            span_index: 0,
-        }];
-        let new_candidates = [
-            RecoveryCandidate {
-                occurrence_index: 0,
-                span_index: 0,
-            },
-            RecoveryCandidate {
-                occurrence_index: 1,
-                span_index: 0,
-            },
-        ];
-        let mut budget = RecoveryBudget::new(10, 20, 30, 1).expect("budget is valid");
-        let mut diagnostics = None;
-
-        let relations = modified_sentence_relations(
-            &old_occurrences,
-            &new_occurrences,
-            &old_candidates,
-            &new_candidates,
-            &mut budget,
-            &mut diagnostics,
-        )
-        .expect("relation search succeeds");
-
-        assert_eq!(relations.old[0].best_score, 7_000);
-        assert_eq!(relations.old[0].second_score, 6_666);
-        assert_eq!(relations.old[0].unique_partner(), None);
-    }
-
-    #[test]
-    fn unit_candidate_index_deduplicates_overlapping_line_postings_deterministically() {
-        let occurrences = [
-            indexed_occurrence(
-                &['a', 'a', 'a', 'a', 'a', 'a', 'a'],
-                RecoveryUnitKind::Line,
-                Some(BlockRole::Body),
-            ),
-            indexed_occurrence(
-                &['a', 'a', 'a', 'b', 'a', 'a', 'a'],
-                RecoveryUnitKind::Line,
-                Some(BlockRole::Body),
-            ),
-        ];
-        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
-        let mut plausible = Vec::new();
-
-        let first = index
-            .collect_plausible_occurrences(&mut plausible, &occurrences[0])
-            .expect("first query succeeds");
-        assert_eq!(plausible, vec![0, 1]);
-        let first_values = plausible.clone();
-        let second = index
-            .collect_plausible_occurrences(&mut plausible, &occurrences[0])
-            .expect("second query succeeds");
-
-        assert_eq!(plausible, first_values);
-        assert_eq!(first.edge_query_union, 2);
-        assert_eq!(second.edge_query_union, 2);
     }
 
     #[test]
