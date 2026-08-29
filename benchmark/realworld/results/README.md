@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-29
-- **Generator / engine commit**: [`80def43`](https://github.com/hayatosc/pdfdelta/commit/80def43)
+- **Generator / engine commit**: [`3074d95`](https://github.com/hayatosc/pdfdelta/commit/3074d95)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-29-80def43.json`](2026-08-29-80def43.json)
+  - File: [`2026-08-29-3074d95.json`](2026-08-29-3074d95.json)
   - Schema: v5
-  - Size: 49,739 bytes
-  - SHA-256: `3529884f7fe2b7777d52e48f40aaa6d938b36555c7cdbe6958e8ac97c6036e30`
+  - Size: 49,553 bytes
+  - SHA-256: `a411fd2a41ea039b0fc8265137302482bf9ff48669e1ec5d6c96602e086f0b29`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 18 completed extraction, 11 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-29-80def43.json
+  benchmark/realworld/results/2026-08-29-3074d95.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -46,20 +46,21 @@ All 11 annotation files in this capture are partial review sets. Recall and kind
 | `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 1.000 | 0 |
 | `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.64% | 267 | 131 | 0.750 | 1.000 | 43.667 | 27 |
 | `ecma-109-ed10-to-ed11` | dev | stress | 74.02% | 372 | 80 | 0.333 | 0.000 | 80.000 | 5 |
-| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.20% | 513 | 480 | 0.667 | 1.000 | 240.000 | 92 |
+| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.20% | 513 | 484 | 1.000 | 1.000 | 161.333 | 71 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
 | `bis-operational-risk-2011-to-2021` | dev | standard | 68.12% | 648 | 350 | 1.000 | 1.000 | 87.500 | 0 |
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 53.52% | 788 | 648 | 0.333 | 1.000 | 648.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
 
-Compared with the earlier same-day `c2de839` capture, bounded semantic line
-grouping detects the reviewed OASIS publication-stage and publication-date
-changes as two replacements, raising recall from 0.000 to 0.667 with no increase
-in reported content changes. FIPS reports 8 fewer content hunks and 12 fewer
-tiny unmatched hunks; SP 800-57 reports 4 fewer content hunks and 3 fewer tiny
-hunks. Recall for every other reviewed pair is unchanged. These fragmentation
-reductions are not precision claims because all current annotations are partial.
+Compared with the earlier same-day `80def43` capture, short structural-label
+anchors keep `Previous stage:` stable while promoting the adjacent exact URL to
+a move. OASIS recall rises from 0.667 to 1.000, kind accuracy remains 1.000,
+hunks per matched change fall from 240.000 to 161.333, and tiny unmatched
+changes fall from 92 to 71. The OASIS record reports four additional content
+changes and 23 fewer uncertain changes. Every other record is byte-for-byte
+unchanged. These fragmentation reductions are not precision claims because all
+current annotations are partial.
 
 ## Current Writer Schema (v5)
 
@@ -84,6 +85,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-29-80def43.json`](2026-08-29-80def43.json): bounded semantic line grouping for short matched regions.
 - [`2026-08-29-c2de839.json`](2026-08-29-c2de839.json): exact and reciprocal near-match recovery for punctuation-free uncertain lines.
 - [`2026-08-29-adc74e0.json`](2026-08-29-adc74e0.json): refined semantic hunk grouping, candidate diagnostics, and forced-reading-order miss classification.
 - [`2026-08-29-0cef530.json`](2026-08-29-0cef530.json): weighted multiset scoring and page-local short-candidate indexing.
