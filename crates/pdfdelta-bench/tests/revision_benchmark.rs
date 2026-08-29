@@ -7,8 +7,9 @@ use pdfdelta_bench::{
     cases::built_in_cases,
     renderers::{RenderLimits, RendererKind},
     revisions::{
-        Annotation, MANIFEST_HEADER, PairRunStatus, PairSet, normalize_output_destination,
-        run_revision_benchmark, write_reports_json, write_summary_json,
+        Annotation, MANIFEST_HEADER, PairRunStatus, PairSet, QUALITY_SKIP_SCOPED_COMPLETE,
+        load_expected_document, normalize_output_destination, run_revision_benchmark,
+        write_reports_json, write_summary_json,
     },
 };
 use sha2::{Digest, Sha256};
@@ -57,6 +58,25 @@ fn provenance(bytes: &[u8]) -> (u64, String) {
     let digest = Sha256::digest(bytes);
     let sha256 = digest.iter().map(|byte| format!("{byte:02x}")).collect();
     (bytes.len() as u64, sha256)
+}
+
+#[test]
+fn existing_expected_revision_files_remain_valid() {
+    let expected_dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../benchmark/realworld/expected");
+    let entries = fs::read_dir(expected_dir).expect("expected-revision directory");
+    let mut loaded = 0;
+    for entry in entries {
+        let path = entry.expect("expected-revision entry").path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("json") {
+            continue;
+        }
+        let contents = fs::read_to_string(&path).expect("expected-revision file");
+        load_expected_document(&contents)
+            .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        loaded += 1;
+    }
+    assert!(loaded > 0, "expected at least one expected-revision file");
 }
 
 fn store(cache_dir: &Path, pair_id: &str, side: &str, bytes: &[u8]) -> String {
@@ -179,6 +199,106 @@ fn reviewed_synthetic_pair_achieves_perfect_recall_precision_and_fragmentation()
     assert_eq!(quality.review_hunks_per_expected_change, Some(1.0));
     assert_eq!(quality.unmatched_tiny_changes, 0);
     assert_eq!(report.reported_changes_preview.len(), 1);
+}
+
+#[test]
+fn scoped_complete_emits_no_global_quality_claims_before_scope_resolution() {
+    let corpus = temp_corpus("scoped-complete");
+    let pair_id = "synthetic-scoped-replacement";
+    let (old_bytes, new_bytes) = replacement_case_pdf_bytes();
+    let old_sha = store(&corpus.root, pair_id, "old", &old_bytes);
+    let (new_count, new_sha) = provenance(&new_bytes);
+    store(&corpus.root, pair_id, "new", &new_bytes);
+    fs::write(
+        corpus.root.join("manifest.tsv"),
+        format!(
+            "{}\n{}\n",
+            MANIFEST_HEADER.join("\t"),
+            manifest_row(
+                pair_id,
+                "-",
+                old_bytes.len() as u64,
+                &old_sha,
+                new_count,
+                &new_sha
+            ),
+        ),
+    )
+    .expect("manifest written");
+
+    let initial = run_revision_benchmark(
+        &corpus.root.join("manifest.tsv"),
+        &corpus.root,
+        None,
+        Some(pair_id),
+        None,
+        true,
+    )
+    .expect("benchmark runs");
+    let preview = &initial[0].reported_changes_preview[0];
+    let old_quote = preview.old_text.as_deref().expect("old-side span text");
+    let new_quote = preview.new_text.as_deref().expect("new-side span text");
+
+    fs::write(
+        corpus.root.join("expected").join(format!("{pair_id}.json")),
+        format!(
+            r#"{{
+                "version":1,
+                "pair":"{pair_id}",
+                "reviewed_on":"2026-08-29",
+                "annotation":"scoped_complete",
+                "scopes":[{{
+                    "id":"body",
+                    "old":{{"start_quote":"outside old start","end_quote":"outside old end"}},
+                    "new":{{"start_quote":"outside new start","end_quote":"outside new end"}}
+                }}],
+                "changes":[{{
+                    "id":"reviewed",
+                    "kind":"replacement",
+                    "scope":"body",
+                    "old_quote":{old_quote:?},
+                    "new_quote":{new_quote:?}
+                }}]
+            }}"#
+        ),
+    )
+    .expect("expected file written");
+    fs::write(
+        corpus.root.join("manifest.tsv"),
+        format!(
+            "{}\n{}\n",
+            MANIFEST_HEADER.join("\t"),
+            manifest_row(
+                pair_id,
+                &format!("expected/{pair_id}.json"),
+                old_bytes.len() as u64,
+                &old_sha,
+                new_count,
+                &new_sha
+            ),
+        ),
+    )
+    .expect("manifest rewritten");
+
+    let reports = run_revision_benchmark(
+        &corpus.root.join("manifest.tsv"),
+        &corpus.root,
+        None,
+        Some(pair_id),
+        None,
+        true,
+    )
+    .expect("benchmark runs");
+    let report = &reports[0];
+
+    assert!(report.healthy(), "unexpected failure: {:?}", report.failure);
+    assert_eq!(
+        report.quality_skipped_reason.as_deref(),
+        Some(QUALITY_SKIP_SCOPED_COMPLETE)
+    );
+    assert!(report.quality.is_none());
+    assert!(report.candidate_recall.is_none());
+    assert!(report.expected_change_diagnostics.is_none());
 }
 
 #[test]

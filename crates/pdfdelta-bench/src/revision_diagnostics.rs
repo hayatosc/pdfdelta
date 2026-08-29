@@ -1463,6 +1463,7 @@ mod tests {
         ExpectedChange {
             id: id.to_owned(),
             kind,
+            scope: None,
             old_quote: old.map(str::to_owned),
             new_quote: new.map(str::to_owned),
             note: String::new(),

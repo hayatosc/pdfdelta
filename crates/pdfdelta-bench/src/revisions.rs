@@ -52,6 +52,7 @@ pub const QUALITY_SKIP_RESOURCE_LIMIT: &str = "comparison stopped at a resource 
 pub const QUALITY_SKIP_INCOMPLETE_EXTRACTION: &str =
     "extraction was incomplete so reported diffs are suppressed";
 pub const QUALITY_SKIP_NO_ANNOTATIONS: &str = "no expected annotations are recorded for this pair";
+pub const QUALITY_SKIP_SCOPED_COMPLETE: &str = "scoped-complete evaluation is not implemented";
 
 /// Column order of `benchmark/realworld/manifest.tsv`.
 pub const MANIFEST_HEADER: [&str; 17] = [
@@ -442,6 +443,9 @@ pub enum Annotation {
     /// Only representative changes were annotated; recall and kind accuracy
     /// remain meaningful while precision does not.
     Partial,
+    /// Every semantic change within each declared scope was annotated.
+    #[serde(rename = "scoped_complete")]
+    ScopedComplete,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -480,11 +484,33 @@ pub struct ExpectedChange {
     pub id: String,
     pub kind: ExpectedKind,
     #[serde(default)]
+    pub scope: Option<String>,
+    #[serde(default)]
     pub old_quote: Option<String>,
     #[serde(default)]
     pub new_quote: Option<String>,
     #[serde(default)]
     pub note: String,
+}
+
+/// Inclusive quote anchors delimiting one reviewed region on a document side.
+///
+/// Both the start and end quotes are part of the scoped region. Loading an
+/// annotation validates only this syntax; anchor resolution is performed by a
+/// later benchmark stage.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct QuoteScope {
+    pub start_quote: String,
+    pub end_quote: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExpectedScope {
+    pub id: String,
+    pub old: QuoteScope,
+    pub new: QuoteScope,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -496,6 +522,8 @@ pub struct ExpectedDocument {
     pub annotation: Annotation,
     #[serde(default)]
     pub notes: String,
+    #[serde(default)]
+    pub scopes: Vec<ExpectedScope>,
     #[serde(default)]
     pub changes: Vec<ExpectedChange>,
 }
@@ -686,6 +714,39 @@ pub fn load_expected_document(expected_json: &str) -> Result<ExpectedDocument> {
             "expected-revision JSON requires nonblank pair and reviewed_on values".to_owned(),
         ));
     }
+    let mut scope_ids = HashSet::new();
+    for scope in &document.scopes {
+        if scope.id.trim().is_empty() || !scope_ids.insert(scope.id.as_str()) {
+            return Err(BenchError::InvalidInput(format!(
+                "expected-revision JSON scope id {:?} is blank or duplicated",
+                scope.id
+            )));
+        }
+        for (side, anchors) in [("old", &scope.old), ("new", &scope.new)] {
+            if collapse_whitespace(&anchors.start_quote).is_empty()
+                || collapse_whitespace(&anchors.end_quote).is_empty()
+            {
+                return Err(BenchError::InvalidInput(format!(
+                    "expected-revision JSON scope {} has blank {side} anchor quotes",
+                    scope.id
+                )));
+            }
+        }
+    }
+    match document.annotation {
+        Annotation::ScopedComplete if document.scopes.is_empty() => {
+            return Err(BenchError::InvalidInput(
+                "expected-revision JSON scoped_complete annotation requires at least one scope"
+                    .to_owned(),
+            ));
+        }
+        Annotation::Complete | Annotation::Partial if !document.scopes.is_empty() => {
+            return Err(BenchError::InvalidInput(
+                "expected-revision JSON complete and partial annotations forbid scopes".to_owned(),
+            ));
+        }
+        _ => {}
+    }
     let mut seen_ids = HashSet::new();
     for change in &document.changes {
         if change.id.trim().is_empty() || !seen_ids.insert(change.id.clone()) {
@@ -693,6 +754,30 @@ pub fn load_expected_document(expected_json: &str) -> Result<ExpectedDocument> {
                 "expected-revision JSON change id {:?} is blank or duplicated",
                 change.id
             )));
+        }
+        match document.annotation {
+            Annotation::ScopedComplete => match change.scope.as_deref() {
+                Some(scope) if scope_ids.contains(scope) => {}
+                Some(scope) => {
+                    return Err(BenchError::InvalidInput(format!(
+                        "expected-revision JSON change {} references unknown scope {scope:?}",
+                        change.id
+                    )));
+                }
+                None => {
+                    return Err(BenchError::InvalidInput(format!(
+                        "expected-revision JSON change {} requires a scope for scoped_complete annotation",
+                        change.id
+                    )));
+                }
+            },
+            Annotation::Complete | Annotation::Partial if change.scope.is_some() => {
+                return Err(BenchError::InvalidInput(format!(
+                    "expected-revision JSON change {} cannot reference a scope for complete or partial annotation",
+                    change.id
+                )));
+            }
+            Annotation::Complete | Annotation::Partial => {}
         }
         let old_present = change
             .old_quote
@@ -1257,6 +1342,9 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     }
 
     match (expected, extraction_complete) {
+        (Some(document), _) if document.annotation == Annotation::ScopedComplete => {
+            record.quality_skipped_reason = Some(QUALITY_SKIP_SCOPED_COMPLETE.to_owned());
+        }
         (Some(document), true) => {
             let actuals = actuals.unwrap_or_default();
             let match_outcome = match_changes(&document.changes, &actuals);
@@ -2095,6 +2183,111 @@ mod tests {
         assert!(load_expected_document(unknown_field).is_err());
     }
 
+    #[test]
+    fn scoped_complete_uses_exact_tag_and_loads_valid_model() {
+        assert_eq!(
+            serde_json::to_string(&Annotation::ScopedComplete).expect("annotation serializes"),
+            r#""scoped_complete""#
+        );
+        let document = load_expected_document(
+            r#"{
+                "version": 1,
+                "pair": "p",
+                "reviewed_on": "2026-08-29",
+                "annotation": "scoped_complete",
+                "scopes": [{
+                    "id": "body",
+                    "old": {"start_quote": "Old start", "end_quote": "Old end"},
+                    "new": {"start_quote": "New start", "end_quote": "New end"}
+                }],
+                "changes": [{
+                    "id": "c1",
+                    "kind": "replacement",
+                    "scope": "body",
+                    "old_quote": "before",
+                    "new_quote": "after"
+                }]
+            }"#,
+        )
+        .expect("valid scoped-complete annotation");
+
+        assert_eq!(document.annotation, Annotation::ScopedComplete);
+        assert_eq!(document.scopes.len(), 1);
+        assert_eq!(document.scopes[0].id, "body");
+        assert_eq!(document.scopes[0].old.start_quote, "Old start");
+        assert_eq!(document.changes[0].scope.as_deref(), Some("body"));
+    }
+
+    #[test]
+    fn scoped_complete_rejects_invalid_scope_syntax() {
+        let valid = r#"{
+            "version": 1,
+            "pair": "p",
+            "reviewed_on": "2026-08-29",
+            "annotation": "scoped_complete",
+            "scopes": [{
+                "id": "body",
+                "old": {"start_quote": "Old start", "end_quote": "Old end"},
+                "new": {"start_quote": "New start", "end_quote": "New end"}
+            }],
+            "changes": [{
+                "id": "c1",
+                "kind": "deletion",
+                "scope": "body",
+                "old_quote": "removed"
+            }]
+        }"#;
+
+        assert!(load_expected_document(&valid.replace(r#""id": "body","#, "")).is_err());
+        assert!(
+            load_expected_document(&valid.replace(r#""id": "body""#, r#""id": "   ""#)).is_err()
+        );
+        let duplicate = valid.replace(
+            r#"}],
+            "changes""#,
+            r#"}, {
+                "id": "body",
+                "old": {"start_quote": "Other old start", "end_quote": "Other old end"},
+                "new": {"start_quote": "Other new start", "end_quote": "Other new end"}
+            }],
+            "changes""#,
+        );
+        assert!(load_expected_document(&duplicate).is_err());
+        assert!(load_expected_document(&valid.replace("Old start", r" \n\t ")).is_err());
+        assert!(load_expected_document(&valid.replace("New end", r" \n\t ")).is_err());
+        assert!(
+            load_expected_document(&valid.replace(r#""scope": "body""#, r#""scope": "other""#))
+                .is_err()
+        );
+        assert!(load_expected_document(&valid.replace("scoped_complete", "complete")).is_err());
+    }
+
+    #[test]
+    fn annotation_modes_reject_missing_or_mixed_scope_references() {
+        let scoped_without_scopes = r#"{
+            "version":1,"pair":"p","reviewed_on":"x","annotation":"scoped_complete",
+            "changes":[]
+        }"#;
+        assert!(load_expected_document(scoped_without_scopes).is_err());
+
+        let scoped_without_reference = r#"{
+            "version":1,"pair":"p","reviewed_on":"x","annotation":"scoped_complete",
+            "scopes":[{
+                "id":"s",
+                "old":{"start_quote":"a","end_quote":"b"},
+                "new":{"start_quote":"c","end_quote":"d"}
+            }],
+            "changes":[{"id":"c","kind":"deletion","old_quote":"removed"}]
+        }"#;
+        assert!(load_expected_document(scoped_without_reference).is_err());
+
+        let legacy_with_reference = r#"{
+            "version":1,"pair":"p","reviewed_on":"x","annotation":"partial",
+            "changes":[{"id":"c","kind":"deletion","scope":"s","old_quote":"removed"}]
+        }"#;
+        assert!(load_expected_document(legacy_with_reference).is_err());
+    }
+
     fn expected_change(
         id: &str,
         kind: ExpectedKind,
@@ -2104,6 +2297,7 @@ mod tests {
         ExpectedChange {
             id: id.to_owned(),
             kind,
+            scope: None,
             old_quote: old.map(str::to_owned),
             new_quote: new.map(str::to_owned),
             note: String::new(),
