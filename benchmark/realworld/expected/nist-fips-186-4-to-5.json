@@ -4,6 +4,20 @@
   "reviewed_on": "2026-08-24",
   "annotation": "partial",
   "notes": "Representative human-reviewed subset of the FIPS 186-4 -> FIPS 186-5 revision. Anchored on changes documented by NIST when superseding 186-4: DSA is removed as a generation algorithm (retained only for verification), EdDSA (Ed25519/Ed448) is added, deterministic ECDSA per RFC 6979 is referenced, and domain-parameter requirement wording was restructured. Quotes are substrings of extracted glyph text, so they survive line wrapping but must match verbatim after whitespace collapsing.",
+  "scopes": [
+    {
+      "id": "domain-parameter-requirement",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "2. Each key pair shall be associated with the domain parameters under which the key pair was generated.",
+        "end_quote": "2. Each key pair shall be associated with the domain parameters under which the key pair was generated."
+      },
+      "new": {
+        "start_quote": "2. Each key pair shall be associated with the domain parameters under which the key pair was generated.",
+        "end_quote": "2. Each key pair shall be associated with the domain parameters under which the key pair was generated."
+      }
+    }
+  ],
   "changes": [
     {
       "id": "dsa-specification-removed",
@@ -38,8 +52,9 @@
     {
       "id": "domain-parameter-requirement-moved",
       "kind": "move",
-      "old_quote": "2. Each key pair shall be associated with the domain parameters under which the key pair",
-      "new_quote": "2. Each key pair shall be associated with the domain parameters under which the key pair",
+      "scope": "domain-parameter-requirement",
+      "old_quote": "2. Each key pair shall be associated with the domain parameters under which the key pair was generated.",
+      "new_quote": "2. Each key pair shall be associated with the domain parameters under which the key pair was generated.",
       "note": "Requirement block reported as a move; identical canonical text on both sides."
     },
     {

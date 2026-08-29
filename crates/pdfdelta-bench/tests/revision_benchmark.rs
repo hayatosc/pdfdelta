@@ -300,8 +300,42 @@ fn scoped_complete_requires_resolved_scopes_before_evaluation() {
     assert!(report.candidate_recall.is_none());
     assert!(report.expected_change_diagnostics.is_none());
 
+    let expected_path = corpus.root.join("expected").join(format!("{pair_id}.json"));
+    let mixed_unresolved = fs::read_to_string(&expected_path)
+        .expect("scoped expected file reads")
+        .replace(
+            r#""annotation":"scoped_complete""#,
+            r#""annotation":"partial""#,
+        )
+        .replace(
+            r#""id":"body","#,
+            r#""id":"body","completeness":"complete","#,
+        );
+    fs::write(&expected_path, mixed_unresolved).expect("mixed expected file written");
+    let mixed_unresolved_reports = run_revision_benchmark(
+        &corpus.root.join("manifest.tsv"),
+        &corpus.root,
+        None,
+        Some(pair_id),
+        None,
+        true,
+    )
+    .expect("benchmark runs with unresolved mixed scope");
+    let mixed_unresolved_report = &mixed_unresolved_reports[0];
+    assert_eq!(
+        mixed_unresolved_report.quality_skipped_reason.as_deref(),
+        Some("scoped-complete scope \"body\" old start anchor is missing")
+    );
+    assert!(mixed_unresolved_report.quality.is_none());
+    assert!(mixed_unresolved_report.candidate_recall.is_none());
+    assert!(
+        mixed_unresolved_report
+            .expected_change_diagnostics
+            .is_none()
+    );
+
     fs::write(
-        corpus.root.join("expected").join(format!("{pair_id}.json")),
+        &expected_path,
         format!(
             r#"{{
                 "version":1,
@@ -363,6 +397,76 @@ fn scoped_complete_requires_resolved_scopes_before_evaluation() {
     assert_eq!(token_metrics.false_positive_tokens_per_10k_unchanged, None);
     assert!(resolved_report.candidate_recall.is_none());
     assert!(resolved_report.expected_change_diagnostics.is_none());
+
+    fs::write(
+        corpus.root.join("expected").join(format!("{pair_id}.json")),
+        format!(
+            r#"{{
+                "version":1,
+                "pair":"{pair_id}",
+                "reviewed_on":"2026-08-29",
+                "annotation":"partial",
+                "scopes":[{{
+                    "id":"body",
+                    "completeness":"complete",
+                    "old":{{"start_quote":{old_quote:?},"end_quote":{old_quote:?}}},
+                    "new":{{"start_quote":{new_quote:?},"end_quote":{new_quote:?}}}
+                }}],
+                "changes":[{{
+                    "id":"reviewed",
+                    "kind":"replacement",
+                    "scope":"body",
+                    "old_quote":{old_quote:?},
+                    "new_quote":{new_quote:?}
+                }}, {{
+                    "id":"global-review-only",
+                    "kind":"replacement",
+                    "old_quote":{old_quote:?},
+                    "new_quote":{new_quote:?}
+                }}]
+            }}"#
+        ),
+    )
+    .expect("mixed expected file written");
+
+    let mixed_reports = run_revision_benchmark(
+        &corpus.root.join("manifest.tsv"),
+        &corpus.root,
+        None,
+        Some(pair_id),
+        None,
+        true,
+    )
+    .expect("benchmark runs with mixed annotation");
+    let mixed_report = &mixed_reports[0];
+    assert!(
+        mixed_report.healthy(),
+        "unexpected failure: {:?}",
+        mixed_report.failure
+    );
+    assert!(mixed_report.quality_skipped_reason.is_none());
+    let quality = mixed_report.quality.expect("partial quality is available");
+    assert_eq!(quality.annotation, Annotation::Partial);
+    assert_eq!(quality.expected_changes, 2);
+    assert_eq!(quality.reported_changes, 1);
+    assert_eq!(quality.recall, Some(0.5));
+    assert_eq!(quality.precision, None);
+    assert_eq!(
+        mixed_report.scoped_event_metrics,
+        Some(ScopedEventMetrics {
+            reviewed_scope_count: 1,
+            precision: 1.0,
+            recall: 1.0,
+            f1: 1.0,
+        })
+    );
+    let token_metrics = mixed_report
+        .scoped_token_metrics
+        .expect("mixed scoped token quality is available");
+    assert_eq!(token_metrics.precision, 1.0);
+    assert_eq!(token_metrics.recall, 1.0);
+    assert_eq!(token_metrics.f1, 1.0);
+    assert_eq!(token_metrics.span_iou, 1.0);
 
     let invalid_old = b"not a PDF";
     let invalid_old_sha = store(&corpus.root, pair_id, "old", invalid_old);

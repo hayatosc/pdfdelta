@@ -10,9 +10,8 @@ use pdfdelta_core::{
 use super::{
     ExpectedChange, ExpectedScope, ScopedTokenMetrics,
     revision_diagnostics::{
-        DiagnosticBudget, DiagnosticLimits, QuoteLocateOutcome, QuoteLocation,
-        ScopedQuoteLocateOutcome, ScopedQuoteLocation, ScopedQuoteRange, locate_scope_anchor_quote,
-        locate_scoped_quote,
+        DiagnosticBudget, DiagnosticLimits, ScopedQuoteLocateOutcome, ScopedQuoteLocation,
+        ScopedQuoteRange, locate_scope_anchor_quote, locate_scoped_quote,
     },
 };
 
@@ -208,31 +207,34 @@ impl SideResolver<'_> {
         scope: &str,
         anchor: &str,
         quote: &str,
-    ) -> Result<QuoteLocation, String> {
+    ) -> Result<ScopedQuoteLocation, String> {
         match locate_scope_anchor_quote(self.blocks, quote, self.budget, self.limits) {
-            Ok(QuoteLocateOutcome::Unique(location))
-                if self.order.contains_key(&location.block) =>
+            Ok(ScopedQuoteLocateOutcome::Unique(location))
+                if [location.start_block, location.end_block]
+                    .into_iter()
+                    .all(|index| {
+                        self.blocks.get(index).is_some_and(|block| {
+                            self.order.get(&block.block).copied() == Some(index)
+                        })
+                    }) =>
             {
                 Ok(location)
             }
-            Ok(QuoteLocateOutcome::Unique(_)) | Ok(QuoteLocateOutcome::Indeterminate) | Err(_) => {
-                Err(anchor_unavailable(
-                    scope,
-                    self.side,
-                    anchor,
-                    "indeterminate",
-                ))
-            }
-            Ok(QuoteLocateOutcome::Missing) => {
+            Ok(ScopedQuoteLocateOutcome::Unique(_))
+            | Ok(ScopedQuoteLocateOutcome::Indeterminate)
+            | Err(_) => Err(anchor_unavailable(
+                scope,
+                self.side,
+                anchor,
+                "indeterminate",
+            )),
+            Ok(ScopedQuoteLocateOutcome::Missing) => {
                 Err(anchor_unavailable(scope, self.side, anchor, "missing"))
             }
-            Ok(QuoteLocateOutcome::Segmented) => {
-                Err(anchor_unavailable(scope, self.side, anchor, "segmented"))
-            }
-            Ok(QuoteLocateOutcome::Ambiguous) => {
+            Ok(ScopedQuoteLocateOutcome::Ambiguous) => {
                 Err(anchor_unavailable(scope, self.side, anchor, "ambiguous"))
             }
-            Ok(QuoteLocateOutcome::Limited) => Err(SCOPE_RESOLUTION_LIMITED.to_owned()),
+            Ok(ScopedQuoteLocateOutcome::Limited) => Err(SCOPE_RESOLUTION_LIMITED.to_owned()),
         }
     }
 
@@ -245,26 +247,26 @@ impl SideResolver<'_> {
         let start = self.resolve_anchor(&scope.id, "start", &anchors.start_quote)?;
         let end = self.resolve_anchor(&scope.id, "end", &anchors.end_quote)?;
         let start_begin = ScopeCoordinate {
-            block_order: self.order[&start.block],
-            scalar: start.scalar_range.start,
+            block_order: start.start_block,
+            scalar: start.start_scalar,
         };
         let start_end = ScopeCoordinate {
-            block_order: self.order[&start.block],
-            scalar: start.scalar_range.end.checked_sub(1).ok_or_else(|| {
+            block_order: start.end_block,
+            scalar: start.end_scalar.checked_sub(1).ok_or_else(|| {
                 anchor_unavailable(&scope.id, self.side, "start", "indeterminate")
             })?,
         };
         let end_begin = ScopeCoordinate {
-            block_order: self.order[&end.block],
-            scalar: end.scalar_range.start,
+            block_order: end.start_block,
+            scalar: end.start_scalar,
         };
-        let end_end =
-            ScopeCoordinate {
-                block_order: self.order[&end.block],
-                scalar: end.scalar_range.end.checked_sub(1).ok_or_else(|| {
-                    anchor_unavailable(&scope.id, self.side, "end", "indeterminate")
-                })?,
-            };
+        let end_end = ScopeCoordinate {
+            block_order: end.end_block,
+            scalar: end
+                .end_scalar
+                .checked_sub(1)
+                .ok_or_else(|| anchor_unavailable(&scope.id, self.side, "end", "indeterminate"))?,
+        };
         if start_begin > end_begin || start_end > end_end {
             return Err(format!(
                 "scoped-complete scope {:?} has reversed {} anchors",
@@ -1177,6 +1179,7 @@ mod tests {
     ) -> ExpectedScope {
         ExpectedScope {
             id: id.to_owned(),
+            completeness: None,
             old: QuoteScope {
                 start_quote: old_start.to_owned(),
                 end_quote: old_end.to_owned(),
@@ -1687,10 +1690,35 @@ mod tests {
             &old,
             &new,
         )
-        .expect_err("segmented anchor fails");
+        .expect("unique segmented anchor resolves");
         assert_eq!(
-            segmented,
-            "scoped-complete scope \"s\" old start anchor is segmented"
+            segmented[0].old,
+            ResolvedScopeRange {
+                start: ScopeCoordinate {
+                    block_order: 1,
+                    scalar: 0,
+                },
+                end: ScopeCoordinate {
+                    block_order: 2,
+                    scalar: 5,
+                },
+            }
+        );
+
+        let ambiguous_segmented = resolve_revision_scopes(
+            &[scope("s", "split anchor", "anchor", "new start", "new end")],
+            &[
+                block(10, "split"),
+                block(11, "anchor"),
+                block(12, "split"),
+                block(13, "anchor"),
+            ],
+            &new,
+        )
+        .expect_err("duplicate segmented anchors fail");
+        assert_eq!(
+            ambiguous_segmented,
+            "scoped-complete scope \"s\" old start anchor is ambiguous"
         );
 
         let mut uncertain = block(5, "opaque evidence");
@@ -1714,11 +1742,11 @@ mod tests {
         });
         assert_eq!(
             resolve_revision_scopes(
-                &[scope("s", "known", "text", "new start", "new end")],
+                &[scope("s", "known text", "text", "new start", "new end")],
                 &[uncertain_anchor, block(9, "text")],
                 &new,
             )
-            .expect_err("an uncertain matched anchor fails"),
+            .expect_err("uncertainty in any matched anchor block fails"),
             "scoped-complete scope \"s\" old start anchor is indeterminate"
         );
     }

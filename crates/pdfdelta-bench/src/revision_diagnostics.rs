@@ -721,34 +721,66 @@ pub(super) fn locate_scope_anchor_quote(
     quote: &str,
     budget: &mut DiagnosticBudget,
     limits: DiagnosticLimits,
-) -> std::result::Result<QuoteLocateOutcome, String> {
-    let outcome = locate_quote(blocks, quote, budget, limits)?;
-    let QuoteLocateOutcome::Unique(location) = &outcome else {
-        return Ok(outcome);
+) -> std::result::Result<ScopedQuoteLocateOutcome, String> {
+    let needle = match normalize_quote(quote, budget, limits) {
+        Ok(needle) => needle,
+        Err(DiagnosticScanError::Limited) => return Ok(ScopedQuoteLocateOutcome::Limited),
+        Err(DiagnosticScanError::Invalid(error)) => return Err(error),
     };
-    let mut matched_block = None;
-    for block in blocks {
-        if budget.charge_scan(1, limits).is_err() {
-            return Ok(QuoteLocateOutcome::Limited);
-        }
-        if block.block == location.block {
-            matched_block = Some(block);
-            break;
-        }
+    if needle.is_empty() {
+        return Ok(ScopedQuoteLocateOutcome::Missing);
     }
-    let Some(block) = matched_block else {
-        return Ok(QuoteLocateOutcome::Indeterminate);
+    let prefix = match kmp_prefix(&needle, budget, limits) {
+        Ok(prefix) => prefix,
+        Err(DiagnosticScanError::Limited) => return Ok(ScopedQuoteLocateOutcome::Limited),
+        Err(DiagnosticScanError::Invalid(error)) => return Err(error),
     };
-    // Exact uniqueness was already checked across every canonical comparable token,
-    // where preserved unmapped evidence is a barrier. Unrelated evidence therefore
-    // cannot invalidate the unique match, but the matched block itself must be trusted.
-    if !block.issues.is_empty()
-        || !block.raw.unmapped.is_empty()
-        || !block.canonical.unmapped.is_empty()
+    let normalized_blocks = match blocks
+        .iter()
+        .map(|block| normalize_block_items(block, budget, limits))
+        .collect::<DiagnosticScanResult<Vec<_>>>()
     {
-        return Ok(QuoteLocateOutcome::Indeterminate);
+        Ok(blocks) => blocks,
+        Err(DiagnosticScanError::Limited) => return Ok(ScopedQuoteLocateOutcome::Limited),
+        Err(DiagnosticScanError::Invalid(error)) => return Err(error),
+    };
+    let occurrence = match scan_quote_raw(&normalized_blocks, &needle, &prefix, budget, limits) {
+        Ok(Some(RawQuoteOutcome::Unique(occurrence))) => occurrence,
+        Ok(Some(RawQuoteOutcome::Ambiguous)) => return Ok(ScopedQuoteLocateOutcome::Ambiguous),
+        Ok(None)
+            if blocks.iter().any(|block| {
+                !block.issues.is_empty()
+                    || !block.raw.unmapped.is_empty()
+                    || !block.canonical.unmapped.is_empty()
+            }) =>
+        {
+            return Ok(ScopedQuoteLocateOutcome::Indeterminate);
+        }
+        Ok(None) => return Ok(ScopedQuoteLocateOutcome::Missing),
+        Err(DiagnosticScanError::Limited) => return Ok(ScopedQuoteLocateOutcome::Limited),
+        Err(DiagnosticScanError::Invalid(error)) => return Err(error),
+    };
+    let location = scoped_occurrence_location(occurrence, &normalized_blocks, 0).map_err(
+        |error| match error {
+            DiagnosticScanError::Limited => "scope anchor coordinates overflow".to_owned(),
+            DiagnosticScanError::Invalid(error) => error,
+        },
+    )?;
+    let Some(matched_blocks) = blocks.get(location.start_block..=location.end_block) else {
+        return Ok(ScopedQuoteLocateOutcome::Indeterminate);
+    };
+    for block in matched_blocks {
+        if budget.charge_scan(1, limits).is_err() {
+            return Ok(ScopedQuoteLocateOutcome::Limited);
+        }
+        if !block.issues.is_empty()
+            || !block.raw.unmapped.is_empty()
+            || !block.canonical.unmapped.is_empty()
+        {
+            return Ok(ScopedQuoteLocateOutcome::Indeterminate);
+        }
     }
-    Ok(outcome)
+    Ok(ScopedQuoteLocateOutcome::Unique(location))
 }
 
 pub(super) fn locate_scoped_quote(
@@ -2126,16 +2158,25 @@ mod tests {
         unrelated.canonical.unmapped.push(unmapped);
 
         let mut budget = DiagnosticBudget::default();
-        assert!(matches!(
+        assert_eq!(
             locate_scope_anchor_quote(
-                &[diagnostic_block(1, "unique anchor"), unrelated],
+                &[
+                    diagnostic_block(1, "unique"),
+                    diagnostic_block(4, "anchor"),
+                    unrelated,
+                ],
                 "unique anchor",
                 &mut budget,
                 DiagnosticLimits::default(),
             )
             .expect("scope anchor scan"),
-            QuoteLocateOutcome::Unique(_)
-        ));
+            ScopedQuoteLocateOutcome::Unique(ScopedQuoteLocation {
+                start_block: 0,
+                start_scalar: 0,
+                end_block: 1,
+                end_scalar: 6,
+            })
+        );
 
         let mut uncertain_anchor = diagnostic_block(3, "unique anchor");
         uncertain_anchor.issues.push(NormalizationIssue {
@@ -2152,7 +2193,7 @@ mod tests {
                 DiagnosticLimits::default(),
             )
             .expect("scope anchor scan"),
-            QuoteLocateOutcome::Indeterminate
+            ScopedQuoteLocateOutcome::Indeterminate
         );
     }
 
@@ -2178,7 +2219,7 @@ mod tests {
                     DiagnosticLimits::default(),
                 )
                 .expect("scope anchor scan"),
-                QuoteLocateOutcome::Ambiguous
+                ScopedQuoteLocateOutcome::Ambiguous
             );
         }
     }

@@ -58,8 +58,8 @@ mod revision_scopes;
 
 use revision_diagnostics::evaluate_reviewed_diagnostics;
 use revision_scopes::{
-    classify_scoped_changes, evaluate_scoped_token_metrics, resolve_revision_scopes,
-    validate_scoped_expected_changes,
+    SCOPED_CHANGE_INDETERMINATE, classify_scoped_changes, evaluate_scoped_token_metrics,
+    resolve_revision_scopes, validate_scoped_expected_changes,
 };
 
 pub const QUALITY_SKIP_RESOURCE_LIMIT: &str = "comparison stopped at a resource limit";
@@ -894,6 +894,12 @@ pub enum Annotation {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
+pub enum ScopeCompleteness {
+    Complete,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ExpectedKind {
     Replacement,
     Insertion,
@@ -933,12 +939,12 @@ pub struct ExpectedChange {
     pub kind: ExpectedKind,
     #[serde(default)]
     pub scope: Option<String>,
-    /// Under `ScopedComplete`, this is the exact expected changed span on the
-    /// old side, not surrounding context used only for identification.
+    /// Within a complete scope, this is the exact expected changed span on
+    /// the old side, not surrounding context used only for identification.
     #[serde(default)]
     pub old_quote: Option<String>,
-    /// Under `ScopedComplete`, this is the exact expected changed span on the
-    /// new side, not surrounding context used only for identification.
+    /// Within a complete scope, this is the exact expected changed span on
+    /// the new side, not surrounding context used only for identification.
     #[serde(default)]
     pub new_quote: Option<String>,
     #[serde(default)]
@@ -961,6 +967,8 @@ pub struct QuoteScope {
 #[serde(deny_unknown_fields)]
 pub struct ExpectedScope {
     pub id: String,
+    #[serde(default)]
+    pub completeness: Option<ScopeCompleteness>,
     pub old: QuoteScope,
     pub new: QuoteScope,
 }
@@ -1252,9 +1260,20 @@ pub fn load_expected_document(expected_json: &str) -> Result<ExpectedDocument> {
                     .to_owned(),
             ));
         }
-        Annotation::Complete | Annotation::Partial if !document.scopes.is_empty() => {
+        Annotation::Complete if !document.scopes.is_empty() => {
             return Err(BenchError::InvalidInput(
-                "expected-revision JSON complete and partial annotations forbid scopes".to_owned(),
+                "expected-revision JSON complete annotations forbid scopes".to_owned(),
+            ));
+        }
+        Annotation::Partial
+            if document
+                .scopes
+                .iter()
+                .any(|scope| scope.completeness != Some(ScopeCompleteness::Complete)) =>
+        {
+            return Err(BenchError::InvalidInput(
+                "expected-revision JSON partial annotation scopes require explicit \"completeness\": \"complete\""
+                    .to_owned(),
             ));
         }
         _ => {}
@@ -1283,13 +1302,23 @@ pub fn load_expected_document(expected_json: &str) -> Result<ExpectedDocument> {
                     )));
                 }
             },
-            Annotation::Complete | Annotation::Partial if change.scope.is_some() => {
+            Annotation::Partial => match change.scope.as_deref() {
+                Some(scope) if scope_ids.contains(scope) => {}
+                Some(scope) => {
+                    return Err(BenchError::InvalidInput(format!(
+                        "expected-revision JSON change {} references unknown scope {scope:?}",
+                        change.id
+                    )));
+                }
+                None => {}
+            },
+            Annotation::Complete if change.scope.is_some() => {
                 return Err(BenchError::InvalidInput(format!(
-                    "expected-revision JSON change {} cannot reference a scope for complete or partial annotation",
+                    "expected-revision JSON change {} cannot reference a scope for complete annotation",
                     change.id
                 )));
             }
-            Annotation::Complete | Annotation::Partial => {}
+            Annotation::Complete => {}
         }
         let old_present = change
             .old_quote
@@ -1509,20 +1538,30 @@ fn match_changes(expected: &[ExpectedChange], actuals: &[ActualChange]) -> Match
 fn match_changes_with_scopes(
     expected: &[ExpectedChange],
     actuals: &[ActualChange],
-    actual_scopes: Option<&[String]>,
+    actual_scopes: Option<&[Option<String>]>,
 ) -> MatchOutcome {
     let mut claimed_actuals = HashSet::new();
     let mut claimed_actual_by_expected = vec![None; expected.len()];
     let mut kind_agreements = 0_usize;
-    for (expected_index, change) in expected.iter().enumerate() {
+    let mut expected_order = (0..expected.len()).collect::<Vec<_>>();
+    if actual_scopes.is_some()
+        && expected.iter().any(|change| change.scope.is_some())
+        && expected.iter().any(|change| change.scope.is_none())
+    {
+        expected_order.sort_by_key(|index| expected[*index].scope.is_none());
+    }
+    for expected_index in expected_order {
+        let change = &expected[expected_index];
         let needle_old = change.old_quote.as_deref().map(collapse_whitespace);
         let needle_new = change.new_quote.as_deref().map(collapse_whitespace);
         for (index, actual) in actuals.iter().enumerate() {
             if claimed_actuals.contains(&index) {
                 continue;
             }
-            if actual_scopes.is_some_and(|scopes| {
-                scopes.get(index).map(String::as_str) != change.scope.as_deref()
+            if change.scope.as_deref().is_some_and(|expected_scope| {
+                actual_scopes.is_some_and(|scopes| {
+                    scopes.get(index).and_then(Option::as_deref) != Some(expected_scope)
+                })
             }) {
                 continue;
             }
@@ -1555,7 +1594,7 @@ fn scoped_quality(
     reviewed_scope_count: usize,
     expected: &[ExpectedChange],
     actuals: &[ActualChange],
-    actual_scopes: &[String],
+    actual_scopes: &[Option<String>],
 ) -> (QualityMetrics, ScopedEventMetrics) {
     let outcome = match_changes_with_scopes(expected, actuals, Some(actual_scopes));
     let mut quality =
@@ -1586,6 +1625,63 @@ fn scoped_quality(
             f1,
         },
     )
+}
+
+struct CompleteScopeEvaluation {
+    quality: QualityMetrics,
+    event_metrics: ScopedEventMetrics,
+    token_metrics: ScopedTokenMetrics,
+    actual_scopes: Vec<Option<String>>,
+}
+
+fn evaluate_complete_scopes(
+    document: &ExpectedDocument,
+    comparison: &Comparison,
+    old_blocks: &[BlockText],
+    new_blocks: &[BlockText],
+    actuals: &[ActualChange],
+) -> std::result::Result<CompleteScopeEvaluation, String> {
+    let scopes = resolve_revision_scopes(&document.scopes, old_blocks, new_blocks)?;
+    let expected = document
+        .changes
+        .iter()
+        .filter(|change| change.scope.is_some())
+        .cloned()
+        .collect::<Vec<_>>();
+    let expected_tokens =
+        validate_scoped_expected_changes(&expected, &scopes, old_blocks, new_blocks)?;
+    let changes = classify_scoped_changes(&comparison.changes, &scopes, old_blocks, new_blocks)?;
+    let token_metrics = evaluate_scoped_token_metrics(
+        &comparison.changes,
+        &changes,
+        expected_tokens,
+        &scopes,
+        old_blocks,
+        new_blocks,
+    )?;
+    let mut all_actual_scopes = vec![None; actuals.len()];
+    let mut scoped_actuals = Vec::with_capacity(changes.len());
+    let mut scoped_actual_scopes = Vec::with_capacity(changes.len());
+    for change in &changes {
+        let Some(actual) = actuals.get(change.change_index) else {
+            return Err(SCOPED_CHANGE_INDETERMINATE.to_owned());
+        };
+        all_actual_scopes[change.change_index] = Some(change.scope_id.clone());
+        scoped_actuals.push(actual.clone());
+        scoped_actual_scopes.push(Some(change.scope_id.clone()));
+    }
+    let (quality, event_metrics) = scoped_quality(
+        scopes.len(),
+        &expected,
+        &scoped_actuals,
+        &scoped_actual_scopes,
+    );
+    Ok(CompleteScopeEvaluation {
+        quality,
+        event_metrics,
+        token_metrics,
+        actual_scopes: all_actual_scopes,
+    })
 }
 
 fn ratio(numerator: usize, denominator: usize) -> Option<f64> {
@@ -1917,95 +2013,89 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
 
     match (expected, extraction_complete) {
         (Some(document), true) if document.annotation == Annotation::ScopedComplete => {
-            let scoped =
-                resolve_revision_scopes(&document.scopes, &outcome.old_blocks, &outcome.new_blocks)
-                    .and_then(|scopes| {
-                        let expected_tokens = validate_scoped_expected_changes(
-                            &document.changes,
-                            &scopes,
-                            &outcome.old_blocks,
-                            &outcome.new_blocks,
-                        )?;
-                        let changes = classify_scoped_changes(
-                            &outcome.comparison.changes,
-                            &scopes,
-                            &outcome.old_blocks,
-                            &outcome.new_blocks,
-                        )?;
-                        let token_metrics = evaluate_scoped_token_metrics(
-                            &outcome.comparison.changes,
-                            &changes,
-                            expected_tokens,
-                            &scopes,
-                            &outcome.old_blocks,
-                            &outcome.new_blocks,
-                        )?;
-                        Ok((scopes, changes, token_metrics))
-                    });
-            match scoped {
-                Ok((scopes, changes, token_metrics)) => {
-                    let all_actuals = actuals.unwrap_or_default();
-                    let scoped_actuals = changes
-                        .iter()
-                        .map(|change| all_actuals[change.change_index].clone())
-                        .collect::<Vec<_>>();
-                    let actual_scopes = changes
-                        .iter()
-                        .map(|change| change.scope_id.clone())
-                        .collect::<Vec<_>>();
-                    let (quality, scoped_event_metrics) = scoped_quality(
-                        scopes.len(),
-                        &document.changes,
-                        &scoped_actuals,
-                        &actual_scopes,
-                    );
-                    record.quality = Some(quality);
-                    record.scoped_event_metrics = Some(scoped_event_metrics);
-                    record.scoped_token_metrics = Some(token_metrics);
+            match evaluate_complete_scopes(
+                &document,
+                &outcome.comparison,
+                &outcome.old_blocks,
+                &outcome.new_blocks,
+                actuals.as_deref().unwrap_or_default(),
+            ) {
+                Ok(scoped) => {
+                    record.quality = Some(scoped.quality);
+                    record.scoped_event_metrics = Some(scoped.event_metrics);
+                    record.scoped_token_metrics = Some(scoped.token_metrics);
                 }
                 Err(reason) => record.quality_skipped_reason = Some(reason),
             }
         }
         (Some(document), true) => {
             let actuals = actuals.unwrap_or_default();
-            let match_outcome = match_changes(&document.changes, &actuals);
-            record.quality = Some(quality_from_match_outcome(
-                document.annotation,
-                &document.changes,
-                &actuals,
-                &match_outcome,
-            ));
-            match evaluate_reviewed_diagnostics(
-                &document.changes,
-                &outcome.old_blocks,
-                &outcome.new_blocks,
-                alignment.as_ref(),
-                &outcome.comparison,
-                &actuals,
-                &match_outcome,
-            ) {
-                Ok(diagnostics) => {
-                    record.candidate_recall = diagnostics.candidate_recall;
-                    let mut expected_diagnostics = diagnostics.expected_change_diagnostics;
-                    expected_diagnostics.recovery_watch = match recovery_watch_diagnostics {
-                        Some(watch) => Some(recovery_watch_report(
-                            &document.changes,
-                            &recovery_watch_queries,
-                            watch,
-                        )),
-                        None if recovery_watch_queries.ids.is_empty()
-                            && expected_diagnostics.complete =>
-                        {
-                            Some(completed_empty_recovery_watch_report())
+            let needs_scopes =
+                document.annotation == Annotation::Partial && !document.scopes.is_empty();
+            let scoped = needs_scopes
+                .then(|| {
+                    evaluate_complete_scopes(
+                        &document,
+                        &outcome.comparison,
+                        &outcome.old_blocks,
+                        &outcome.new_blocks,
+                        &actuals,
+                    )
+                })
+                .transpose();
+            match scoped {
+                Ok(scoped) => {
+                    let match_outcome = match_changes_with_scopes(
+                        &document.changes,
+                        &actuals,
+                        scoped
+                            .as_ref()
+                            .map(|evaluation| evaluation.actual_scopes.as_slice()),
+                    );
+                    record.quality = Some(quality_from_match_outcome(
+                        document.annotation,
+                        &document.changes,
+                        &actuals,
+                        &match_outcome,
+                    ));
+                    match evaluate_reviewed_diagnostics(
+                        &document.changes,
+                        &outcome.old_blocks,
+                        &outcome.new_blocks,
+                        alignment.as_ref(),
+                        &outcome.comparison,
+                        &actuals,
+                        &match_outcome,
+                    ) {
+                        Ok(diagnostics) => {
+                            record.candidate_recall = diagnostics.candidate_recall;
+                            let mut expected_diagnostics = diagnostics.expected_change_diagnostics;
+                            expected_diagnostics.recovery_watch = match recovery_watch_diagnostics {
+                                Some(watch) => Some(recovery_watch_report(
+                                    &document.changes,
+                                    &recovery_watch_queries,
+                                    watch,
+                                )),
+                                None if recovery_watch_queries.ids.is_empty()
+                                    && expected_diagnostics.complete =>
+                                {
+                                    Some(completed_empty_recovery_watch_report())
+                                }
+                                None => None,
+                            };
+                            record.expected_change_diagnostics = Some(expected_diagnostics);
                         }
-                        None => None,
-                    };
-                    record.expected_change_diagnostics = Some(expected_diagnostics);
+                        Err(reason) if record.failure.is_none() => {
+                            record.failure = Some(format!("reviewed diagnostics failed: {reason}"));
+                        }
+                        Err(_) => {}
+                    }
+                    if let Some(scoped) = scoped {
+                        record.scoped_event_metrics = Some(scoped.event_metrics);
+                        record.scoped_token_metrics = Some(scoped.token_metrics);
+                    }
                 }
-                Err(reason) if record.failure.is_none() => {
-                    record.failure = Some(format!("reviewed diagnostics failed: {reason}"));
-                }
-                Err(_) => {}
+                Err(reason) => record.quality_skipped_reason = Some(reason),
             }
         }
         (Some(_), false) => {
@@ -3316,6 +3406,7 @@ mod tests {
         assert_eq!(document.annotation, Annotation::ScopedComplete);
         assert_eq!(document.scopes.len(), 1);
         assert_eq!(document.scopes[0].id, "body");
+        assert_eq!(document.scopes[0].completeness, None);
         assert_eq!(document.scopes[0].old.start_quote, "Old start");
         assert_eq!(document.changes[0].scope.as_deref(), Some("body"));
     }
@@ -3365,7 +3456,7 @@ mod tests {
     }
 
     #[test]
-    fn annotation_modes_reject_missing_or_mixed_scope_references() {
+    fn annotation_modes_validate_scope_references() {
         let scoped_without_scopes = r#"{
             "version":1,"pair":"p","reviewed_on":"x","annotation":"scoped_complete",
             "changes":[]
@@ -3388,6 +3479,44 @@ mod tests {
             "changes":[{"id":"c","kind":"deletion","scope":"s","old_quote":"removed"}]
         }"#;
         assert!(load_expected_document(legacy_with_reference).is_err());
+
+        let mixed_partial = r#"{
+            "version":1,"pair":"p","reviewed_on":"x","annotation":"partial",
+            "scopes":[{
+                "id":"s","completeness":"complete",
+                "old":{"start_quote":"a","end_quote":"b"},
+                "new":{"start_quote":"c","end_quote":"d"}
+            }],
+            "changes":[
+                {"id":"scoped","kind":"deletion","scope":"s","old_quote":"removed"},
+                {"id":"global","kind":"insertion","new_quote":"added"}
+            ]
+        }"#;
+        let document = load_expected_document(mixed_partial).expect("valid mixed annotation");
+        assert_eq!(document.annotation, Annotation::Partial);
+        assert_eq!(
+            document.scopes[0].completeness,
+            Some(ScopeCompleteness::Complete)
+        );
+        assert_eq!(document.changes[0].scope.as_deref(), Some("s"));
+        assert_eq!(document.changes[1].scope, None);
+
+        assert!(
+            load_expected_document(&mixed_partial.replace(r#","completeness":"complete""#, ""))
+                .is_err()
+        );
+        assert!(
+            load_expected_document(
+                &mixed_partial.replace(r#""scope":"s""#, r#""scope":"missing""#)
+            )
+            .is_err()
+        );
+        assert!(
+            load_expected_document(
+                &mixed_partial.replace(r#""annotation":"partial""#, r#""annotation":"complete""#)
+            )
+            .is_err()
+        );
     }
 
     fn expected_change(
@@ -3686,7 +3815,7 @@ mod tests {
                 Some(2),
             ),
         ];
-        let scopes = ["outside".to_owned(), "reviewed".to_owned()];
+        let scopes = [Some("outside".to_owned()), Some("reviewed".to_owned())];
         let (quality, metrics) = scoped_quality(1, &expected, &actuals, &scopes);
 
         assert_eq!(quality.expected_changes, 1);
@@ -3696,11 +3825,109 @@ mod tests {
         assert_eq!(metrics.f1, 0.0);
 
         let scoped_actuals = [actuals[0].clone(), actuals[1].clone()];
-        let scoped_ids = ["reviewed".to_owned(), "reviewed".to_owned()];
+        let scoped_ids = [Some("reviewed".to_owned()), Some("reviewed".to_owned())];
         let (quality, metrics) = scoped_quality(1, &expected, &scoped_actuals, &scoped_ids);
         assert_eq!(quality.recall, Some(1.0));
         assert_eq!(quality.precision, Some(0.5));
         assert!((metrics.f1 - 2.0 / 3.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn mixed_scope_matching_constrains_only_scoped_expected_changes() {
+        let actuals = [
+            actual_change(
+                ChangeKind::Replacement,
+                Some("old quote"),
+                Some("new quote"),
+                Some(2),
+                Some(2),
+            ),
+            actual_change(
+                ChangeKind::Replacement,
+                Some("old quote"),
+                Some("new quote"),
+                Some(2),
+                Some(2),
+            ),
+        ];
+        let scopes = [None, Some("reviewed".to_owned())];
+        let scoped = [scoped_expected_change(
+            "scoped",
+            "reviewed",
+            ExpectedKind::Replacement,
+            Some("old quote"),
+            Some("new quote"),
+        )];
+        let scoped_outcome = match_changes_with_scopes(&scoped, &actuals, Some(&scopes));
+        assert_eq!(scoped_outcome.claimed_actual_by_expected, [Some(1)]);
+
+        let unscoped = [expected_change(
+            "unscoped",
+            ExpectedKind::Replacement,
+            Some("old quote"),
+            Some("new quote"),
+        )];
+        let unscoped_outcome = match_changes_with_scopes(&unscoped, &actuals, Some(&scopes));
+        assert_eq!(unscoped_outcome.claimed_actual_by_expected, [Some(0)]);
+    }
+
+    #[test]
+    fn mixed_scope_matching_prioritizes_scoped_expected_changes_deterministically() {
+        let actuals = [
+            actual_change(
+                ChangeKind::Replacement,
+                Some("old quote"),
+                Some("new quote"),
+                Some(2),
+                Some(2),
+            ),
+            actual_change(
+                ChangeKind::Replacement,
+                Some("old quote"),
+                Some("new quote"),
+                Some(2),
+                Some(2),
+            ),
+        ];
+        let scopes = [Some("reviewed".to_owned()), None];
+        let unscoped = expected_change(
+            "unscoped",
+            ExpectedKind::Replacement,
+            Some("old quote"),
+            Some("new quote"),
+        );
+        let scoped = scoped_expected_change(
+            "scoped",
+            "reviewed",
+            ExpectedKind::Replacement,
+            Some("old quote"),
+            Some("new quote"),
+        );
+
+        let unscoped_first = [unscoped.clone(), scoped.clone()];
+        let first_outcome = match_changes_with_scopes(&unscoped_first, &actuals, Some(&scopes));
+        assert_eq!(first_outcome.claimed_actual_by_expected, [Some(1), Some(0)]);
+
+        let scoped_first = [scoped, unscoped];
+        let second_outcome = match_changes_with_scopes(&scoped_first, &actuals, Some(&scopes));
+        assert_eq!(
+            second_outcome.claimed_actual_by_expected,
+            [Some(0), Some(1)]
+        );
+        assert_eq!(
+            quality_from_match_outcome(
+                Annotation::Partial,
+                &unscoped_first,
+                &actuals,
+                &first_outcome,
+            ),
+            quality_from_match_outcome(
+                Annotation::Partial,
+                &scoped_first,
+                &actuals,
+                &second_outcome,
+            )
+        );
     }
 
     #[test]
