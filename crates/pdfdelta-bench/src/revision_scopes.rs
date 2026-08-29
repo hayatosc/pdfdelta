@@ -275,6 +275,23 @@ impl SideResolver<'_> {
             start: start_begin,
             end: end_end,
         };
+        // Metrics claim complete review coverage, so every included block must be
+        // trusted even when no expected quote selects evidence from that block.
+        for block_order in range.start.block_order..=range.end.block_order {
+            if !self.budget.charge_scope_scan(self.limits) {
+                return Err(SCOPE_RESOLUTION_LIMITED.to_owned());
+            }
+            let block = self
+                .blocks
+                .get(block_order)
+                .ok_or_else(|| SCOPE_RESOLUTION_INDETERMINATE.to_owned())?;
+            if !block.issues.is_empty()
+                || !block.raw.unmapped.is_empty()
+                || !block.canonical.unmapped.is_empty()
+            {
+                return Err(SCOPE_RESOLUTION_INDETERMINATE.to_owned());
+            }
+        }
         Ok(range)
     }
 }
@@ -1674,22 +1691,116 @@ mod tests {
             "scoped-complete scope \"s\" old start anchor is segmented"
         );
 
-        let mut uncertain = block(5, "other text");
+        let mut uncertain = block(5, "opaque evidence");
         uncertain.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
             source: TextSource { atoms: Vec::new() },
         });
-        let indeterminate = resolve_revision_scopes(
+        resolve_revision_scopes(
             &[scope("s", "known", "text", "new start", "new end")],
-            &[block(6, "known"), uncertain],
+            &[block(6, "known"), block(7, "text"), uncertain],
             &new,
         )
-        .expect_err("known anchor with uncertain peer evidence fails");
+        .expect("unrelated uncertain evidence does not invalidate exact anchors");
+
+        let mut uncertain_anchor = block(8, "known");
+        uncertain_anchor.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource { atoms: Vec::new() },
+        });
         assert_eq!(
-            indeterminate,
+            resolve_revision_scopes(
+                &[scope("s", "known", "text", "new start", "new end")],
+                &[uncertain_anchor, block(9, "text")],
+                &new,
+            )
+            .expect_err("an uncertain matched anchor fails"),
             "scoped-complete scope \"s\" old start anchor is indeterminate"
         );
+    }
+
+    #[test]
+    fn rejects_uncertain_scope_evidence_before_empty_change_metrics() {
+        let mut uncertain = block(2, "uncertain evidence");
+        uncertain.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource { atoms: Vec::new() },
+        });
+        let old = [block(1, "old start"), uncertain, block(3, "old end")];
+        let new = [block(4, "new start"), block(5, "new end")];
+
+        let result = resolve_revision_scopes(
+            &[scope(
+                "body",
+                "old start",
+                "old end",
+                "new start",
+                "new end",
+            )],
+            &old,
+            &new,
+        )
+        .and_then(|scopes| {
+            let evidence = validate_scoped_expected_changes(&[], &scopes, &old, &new)?;
+            evaluate_scoped_token_metrics(&[], &[], evidence, &scopes, &old, &new)
+        });
+
+        assert_eq!(
+            result.expect_err("uncertain evidence prevents vacuous perfect metrics"),
+            SCOPE_RESOLUTION_INDETERMINATE
+        );
+    }
+
+    #[test]
+    fn rejects_uncertain_scope_evidence_on_absent_quote_sides() {
+        let scope_definition = scope("body", "old start", "old end", "new start", "new end");
+        for (kind, uncertain_old, old_quote, new_quote) in [
+            (ExpectedKind::Insertion, true, None, Some("added")),
+            (ExpectedKind::Deletion, false, Some("removed"), None),
+        ] {
+            let mut old = vec![
+                block(1, "old start"),
+                block(2, "old evidence"),
+                block(3, "old end"),
+            ];
+            let mut new = vec![
+                block(4, "new start"),
+                block(5, "new evidence"),
+                block(6, "new end"),
+            ];
+            let uncertain = if uncertain_old {
+                &mut old[1]
+            } else {
+                &mut new[1]
+            };
+            uncertain.issues.push(NormalizationIssue {
+                kind: NormalizationIssueKind::AmbiguousLineBreak,
+                raw_range: ScalarRange { start: 0, end: 1 },
+                source: TextSource { atoms: Vec::new() },
+            });
+            let expected = [ExpectedChange {
+                id: "reviewed".to_owned(),
+                kind,
+                scope: Some("body".to_owned()),
+                old_quote: old_quote.map(str::to_owned),
+                new_quote: new_quote.map(str::to_owned),
+                note: String::new(),
+            }];
+
+            let result =
+                resolve_revision_scopes(std::slice::from_ref(&scope_definition), &old, &new)
+                    .and_then(|scopes| {
+                        validate_scoped_expected_changes(&expected, &scopes, &old, &new)
+                    });
+            assert_eq!(
+                result,
+                Err(SCOPE_RESOLUTION_INDETERMINATE.to_owned()),
+                "{kind:?} absent quote must not bypass scope evidence validation"
+            );
+        }
     }
 
     #[test]
@@ -2274,7 +2385,7 @@ mod tests {
             )
         );
 
-        let mut uncertain_old = block(5, "target");
+        let mut uncertain_old = block(6, "uncertain peer");
         uncertain_old.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
@@ -2288,8 +2399,8 @@ mod tests {
                     scalar: 0,
                 },
                 end: ScopeCoordinate {
-                    block_order: 0,
-                    scalar: 5,
+                    block_order: 1,
+                    scalar: 13,
                 },
             },
             new: ResolvedScopeRange {
@@ -2307,8 +2418,8 @@ mod tests {
             validate_scoped_expected_changes(
                 &[expected("body", "target", "target")],
                 &uncertain_scopes,
-                &[uncertain_old],
-                &[block(6, "target")],
+                &[block(5, "target"), uncertain_old],
+                &[block(7, "target"), block(8, "trusted peer")],
             ),
             Err(
                 "scoped-complete expected change \"reviewed\" old quote is indeterminate within scope \"body\""

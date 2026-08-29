@@ -722,19 +722,30 @@ pub(super) fn locate_scope_anchor_quote(
     limits: DiagnosticLimits,
 ) -> std::result::Result<QuoteLocateOutcome, String> {
     let outcome = locate_quote(blocks, quote, budget, limits)?;
-    if !matches!(outcome, QuoteLocateOutcome::Unique(_)) {
+    let QuoteLocateOutcome::Unique(location) = &outcome else {
         return Ok(outcome);
-    }
+    };
+    let mut matched_block = None;
     for block in blocks {
         if budget.charge_scan(1, limits).is_err() {
             return Ok(QuoteLocateOutcome::Limited);
         }
-        if !block.issues.is_empty()
-            || !block.raw.unmapped.is_empty()
-            || !block.canonical.unmapped.is_empty()
-        {
-            return Ok(QuoteLocateOutcome::Indeterminate);
+        if block.block == location.block {
+            matched_block = Some(block);
+            break;
         }
+    }
+    let Some(block) = matched_block else {
+        return Ok(QuoteLocateOutcome::Indeterminate);
+    };
+    // Exact uniqueness was already checked across every canonical comparable token,
+    // where preserved unmapped evidence is a barrier. Unrelated evidence therefore
+    // cannot invalidate the unique match, but the matched block itself must be trusted.
+    if !block.issues.is_empty()
+        || !block.raw.unmapped.is_empty()
+        || !block.canonical.unmapped.is_empty()
+    {
+        return Ok(QuoteLocateOutcome::Indeterminate);
     }
     Ok(outcome)
 }
@@ -2091,6 +2102,81 @@ mod tests {
             .expect("quote scan"),
             QuoteLocateOutcome::Indeterminate
         );
+    }
+
+    #[test]
+    fn scope_anchor_ignores_unrelated_uncertain_evidence_but_requires_a_trusted_match() {
+        let mut unrelated = diagnostic_block(2, "unrelated");
+        unrelated.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource { atoms: Vec::new() },
+        });
+        let unmapped = UnmappedToken {
+            scalar_index: 0,
+            font_hash: FontProgramHash(vec![1]),
+            glyph_id: 7,
+            source: TextSource { atoms: Vec::new() },
+        };
+        unrelated.raw.unmapped.push(unmapped.clone());
+        unrelated.canonical.unmapped.push(unmapped);
+
+        let mut budget = DiagnosticBudget::default();
+        assert!(matches!(
+            locate_scope_anchor_quote(
+                &[diagnostic_block(1, "unique anchor"), unrelated],
+                "unique anchor",
+                &mut budget,
+                DiagnosticLimits::default(),
+            )
+            .expect("scope anchor scan"),
+            QuoteLocateOutcome::Unique(_)
+        ));
+
+        let mut uncertain_anchor = diagnostic_block(3, "unique anchor");
+        uncertain_anchor.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource { atoms: Vec::new() },
+        });
+        let mut budget = DiagnosticBudget::default();
+        assert_eq!(
+            locate_scope_anchor_quote(
+                &[uncertain_anchor],
+                "unique anchor",
+                &mut budget,
+                DiagnosticLimits::default(),
+            )
+            .expect("scope anchor scan"),
+            QuoteLocateOutcome::Indeterminate
+        );
+    }
+
+    #[test]
+    fn scope_anchor_keeps_exact_duplicates_ambiguous_despite_uncertainty() {
+        for mut duplicate in [
+            diagnostic_block(2, "exact anchor"),
+            diagnostic_block(3, "exact anchor"),
+        ] {
+            if duplicate.block == BlockId(3) {
+                duplicate.issues.push(NormalizationIssue {
+                    kind: NormalizationIssueKind::AmbiguousLineBreak,
+                    raw_range: ScalarRange { start: 0, end: 1 },
+                    source: TextSource { atoms: Vec::new() },
+                });
+            }
+            let mut budget = DiagnosticBudget::default();
+            assert_eq!(
+                locate_scope_anchor_quote(
+                    &[diagnostic_block(1, "exact anchor"), duplicate],
+                    "exact anchor",
+                    &mut budget,
+                    DiagnosticLimits::default(),
+                )
+                .expect("scope anchor scan"),
+                QuoteLocateOutcome::Ambiguous
+            );
+        }
     }
 
     #[test]
