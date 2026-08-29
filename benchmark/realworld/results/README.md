@@ -5,13 +5,13 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-29
-- **Generator / engine commit**: [`1ed7340`](https://github.com/hayatosc/pdfdelta/commit/1ed7340)
+- **Generator / engine commit**: [`556686c`](https://github.com/hayatosc/pdfdelta/commit/556686c)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-29-1ed7340.json`](2026-08-29-1ed7340.json)
+  - File: [`2026-08-29-556686c.json`](2026-08-29-556686c.json)
   - Schema: v5
   - Size: 49,035 bytes
   - SHA-256: `5e3d50e9eb9089fa7ccb04bfe983deab29eb1cc0188a52197db3758487da9303`
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-29-1ed7340.json
+  benchmark/realworld/results/2026-08-29-556686c.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -53,16 +53,12 @@ All 11 annotation files in this capture are partial review sets. Recall and kind
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
 
-Compared with the preceding `de4ed4c` capture, uncertain trailing fragments now
-prevent a general near match from claiming a replacement when those fragments
-could complete an exact counterpart. Seven records change; total reported
-content changes fall from 10,088 to 10,059 while uncertain changes remain 735.
-The EDPB review set was also corrected by removing two unchanged substrings and
-recording the genuine modal replacement. Its reviewed recall rises from 0.400 to
-0.500, kind accuracy rises from 0.500 to 1.000, and hunks per matched change fall
-from 351.500 to 348.500. Comparison coverage falls from 87.12% to 86.60% because
-the previously claimed false replacement is now retained as unresolved evidence.
-These values are not precision claims because all current annotations are partial.
+The compact capture is byte-identical to the preceding `1ed7340` artifact. The
+multi-occurrence content-change model and report JSON schema v8 migration do not
+change any existing pair's comparison, quality, or diagnostic metrics. This also
+confirms the corrected EDPB review baseline at 0.500 recall and 1.000 kind
+accuracy. These values are not precision claims because all current annotations
+are partial.
 
 ## Current Writer Schema (v5)
 
@@ -87,6 +83,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-29-1ed7340.json`](2026-08-29-1ed7340.json): fail-closed fragment-completion vetoes and the corrected EDPB review baseline.
 - [`2026-08-29-de4ed4c.json`](2026-08-29-de4ed4c.json): grouped mixed character edit runs into word-level replacements.
 - [`2026-08-29-3074d95.json`](2026-08-29-3074d95.json): short structural-label anchors for adjacent value moves.
 - [`2026-08-29-80def43.json`](2026-08-29-80def43.json): bounded semantic line grouping for short matched regions.
