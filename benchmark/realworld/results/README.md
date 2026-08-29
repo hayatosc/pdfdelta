@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-29
-- **Generator / engine commit**: [`f5406f3`](https://github.com/hayatosc/pdfdelta/commit/f5406f3)
+- **Generator / engine commit**: [`dfc77f1`](https://github.com/hayatosc/pdfdelta/commit/dfc77f1)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-29-f5406f3.json`](2026-08-29-f5406f3.json)
-  - Schema: v7
-  - Size: 49,479 bytes
-  - SHA-256: `b3455940a41f8be80517e942cedb3d77564d91a2fa758d8d20a97592969b8b62`
+  - File: [`2026-08-29-dfc77f1.json`](2026-08-29-dfc77f1.json)
+  - Schema: v8
+  - Size: 56,988 bytes
+  - SHA-256: `91bcb5370a62e34bd8b87e65b5bd2a7a4a722af6e9363875834f17c8c78ac56b`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 18 completed extraction, 11 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-29-f5406f3.json
+  benchmark/realworld/results/2026-08-29-dfc77f1.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -43,7 +43,6 @@ kind accuracy for partial sets still apply only to their recorded review items.
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
 | `nist-fips-186-4-to-5` | dev | standard | 65.03% | 2,395 | 1,346 | 0.857 | 1.000 | 224.333 | 107 |
 | `nist-sp800-57-part1-r4-to-r5` | dev | standard | 71.90% | 6,038 | 2,763 | 1.000 | 1.000 | 690.750 | 103 |
-| `irs-form-1040-2024-to-2025` | holdout | stress | 36.80% | 75 | 19 | 0.000 | N/A | N/A | 1 |
 | `edpb-right-of-access-v1-to-final` | holdout | standard | 86.60% | 2,252 | 697 | 0.500 | 1.000 | 348.500 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 1.000 | 0 |
 | `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.62% | 261 | 128 | 1.000 | 1.000 | 1.000 | 0 |
@@ -68,6 +67,11 @@ decreases from 53.52% to 53.22% without changing reviewed recall or kind accurac
 Running-matter boundaries split unresolved evidence more locally, so raw unresolved
 region counts are not directly comparable with the preceding capture; token shares
 remain the coverage measure.
+The schema-v8 diagnostics identify five near-relation searches stopped by the
+pair-visit budget and two stopped by the similarity-comparison budget. Ten
+complete-extraction pairs finish near-relation analysis, and no pair reaches
+the recovery-unit candidate-count cap. Removing the schema-v8 diagnostic fields
+produces the same compact summary values as the `f5406f3` capture.
 
 ## Current Writer Schema (v8)
 
@@ -100,6 +104,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-29-f5406f3.json`](2026-08-29-f5406f3.json): role-local running-matter alignment and the schema-v7 scoped-precision baseline.
 - [`2026-08-29-27f096e.json`](2026-08-29-27f096e.json): scoped-complete event and changed-token precision for three fully reviewed regions.
 - [`2026-08-29-556686c.json`](2026-08-29-556686c.json): behavior-preserving multi-occurrence change-model migration.
 - [`2026-08-29-1ed7340.json`](2026-08-29-1ed7340.json): fail-closed fragment-completion vetoes and the corrected EDPB review baseline.
