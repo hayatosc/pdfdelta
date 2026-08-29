@@ -13,8 +13,9 @@ use pdfdelta_core::{
 
 use super::{
     ActualChange, CandidateRecallMetrics, ExpectedChange, ExpectedChangeDiagnostics,
-    ExpectedChangeFailure, ExpectedChangeFailureReason, ExpectedKind, MatchOutcome, MissSide,
-    build_block_map, change_kind_name, is_space_token, ratio,
+    ExpectedChangeFailure, ExpectedChangeFailureReason, ExpectedKind,
+    MAX_EXPECTED_CHANGE_DIAGNOSTICS, MatchOutcome, MissSide, build_block_map, change_kind_name,
+    is_space_token, ratio,
 };
 
 #[derive(Clone, Copy)]
@@ -40,7 +41,7 @@ impl Default for DiagnosticLimits {
             max_candidate_visits: PipelineOptions::default().alignment.max_candidate_visits,
             max_regions: 65_536,
             max_hunks: 65_536,
-            max_expected_changes: 4_096,
+            max_expected_changes: MAX_EXPECTED_CHANGE_DIAGNOSTICS,
             max_output_records: 4_096,
         }
     }
@@ -1636,6 +1637,7 @@ fn evaluate_reviewed_diagnostics_with_limits(
         expected_change_diagnostics: ExpectedChangeDiagnostics {
             complete: !context.budget.limited,
             failures,
+            recovery_watch: None,
         },
     })
 }

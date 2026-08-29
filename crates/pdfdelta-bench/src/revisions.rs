@@ -7,7 +7,7 @@
 //! directory with `benchmark/realworld/fetch.sh`.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::Entry},
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
@@ -21,15 +21,20 @@ use std::{
 use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
-        ChangeKind, Comparison, NearRelationStopReason, RunSignatureStopReason,
-        SentenceRecoveryMetrics, TextSpan,
+        ChangeKind, Comparison, NearRelationStopReason, RecoveryWatchDiagnostics,
+        RecoveryWatchNearScope, RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
+        RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchRelation,
+        RecoveryWatchUnitKind, RunSignatureStopReason, SentenceRecoveryMetrics, TextSpan,
     },
+    layout::BlockRole,
     model::Document,
+    model::Rect,
     normalize::{BlockText, ComparableToken},
     pdf::{LopdfParser, ParseLimits},
     pipeline::{
         PipelineDiagnostics, PipelineOptions, PipelinePhase, PipelinePhaseStatus,
         compare_extraction_outcomes_with_alignment_diagnostics,
+        compare_extraction_outcomes_with_recovery_watch_diagnostics,
         validate_limit_scale as validate_pipeline_limit_scale,
     },
     report::{self, DocumentSide, summarize},
@@ -84,6 +89,7 @@ pub const MANIFEST_HEADER: [&str; 17] = [
 ];
 
 const SHA256_HEX_LEN: usize = 64;
+pub(super) const MAX_EXPECTED_CHANGE_DIAGNOSTICS: usize = 4_096;
 
 /// One reported semantic change and every location where it occurs.
 #[derive(Clone, Debug)]
@@ -192,10 +198,108 @@ pub struct ExpectedChangeFailure {
 }
 
 /// Bounded failure diagnostics for reviewed expected changes.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ExpectedChangeDiagnostics {
     pub complete: bool,
     pub failures: Vec<ExpectedChangeFailure>,
+    pub recovery_watch: Option<RecoveryWatchDiagnosticsReport>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct RecoveryWatchDiagnosticsReport {
+    pub complete: bool,
+    pub candidate_generation_complete: bool,
+    pub near_relation_complete: bool,
+    pub near_relation_stop_reason: Option<NearRelationStopReasonReport>,
+    pub records: Vec<ExpectedChangeRecoveryWatchRecord>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ExpectedChangeRecoveryWatchRecord {
+    pub expected_id: String,
+    pub old: RecoveryWatchOccurrenceReport,
+    pub new: RecoveryWatchOccurrenceReport,
+    pub pair: Option<RecoveryWatchPairEvidenceReport>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum RecoveryWatchOccurrenceReport {
+    Unfound,
+    Ambiguous,
+    Unavailable,
+    Found {
+        #[serde(flatten)]
+        occurrence: RecoveryWatchFoundOccurrenceReport,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct RecoveryWatchFoundOccurrenceReport {
+    pub span_index: Option<usize>,
+    pub trusted_run_descriptor_index: Option<usize>,
+    pub ordinal: Option<usize>,
+    pub recovery_location_available: bool,
+    pub fully_contained: bool,
+    pub page: Option<u32>,
+    pub bbox: Option<RecoveryWatchRectReport>,
+    pub role: Option<RecoveryWatchBlockRoleReport>,
+    pub kind: RecoveryWatchUnitKindReport,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct RecoveryWatchRectReport {
+    pub min: RecoveryWatchPointReport,
+    pub max: RecoveryWatchPointReport,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct RecoveryWatchPointReport {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryWatchBlockRoleReport {
+    Body,
+    RepeatedHeader,
+    RepeatedFooter,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryWatchUnitKindReport {
+    Sentence,
+    Line,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RecoveryWatchPairEvidenceReport {
+    pub same_span: bool,
+    pub exact_shared_units: usize,
+    pub near_candidate_examined: bool,
+    pub near_score: Option<u16>,
+    pub near_scope: Option<RecoveryWatchNearScopeReport>,
+    pub old_relation: RecoveryWatchRelationReport,
+    pub new_relation: RecoveryWatchRelationReport,
+    pub reciprocal: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryWatchNearScopeReport {
+    SameSpan,
+    CrossSpan,
+    PairedStream,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub struct RecoveryWatchRelationReport {
+    pub available: bool,
+    pub best_score: u16,
+    pub second_score: u16,
+    pub watched_partner_is_best: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -334,6 +438,171 @@ impl From<NearRelationStopReason> for NearRelationStopReasonReport {
             NearRelationStopReason::SimilarityComparisonLimit => Self::SimilarityComparisonLimit,
             NearRelationStopReason::CandidateCountLimit => Self::CandidateCountLimit,
         }
+    }
+}
+
+impl From<RecoveryWatchOccurrenceEvidence> for RecoveryWatchOccurrenceReport {
+    fn from(evidence: RecoveryWatchOccurrenceEvidence) -> Self {
+        match evidence {
+            RecoveryWatchOccurrenceEvidence::Unfound => Self::Unfound,
+            RecoveryWatchOccurrenceEvidence::Ambiguous => Self::Ambiguous,
+            RecoveryWatchOccurrenceEvidence::Unavailable => Self::Unavailable,
+            RecoveryWatchOccurrenceEvidence::Found(occurrence) => Self::Found {
+                occurrence: occurrence.into(),
+            },
+        }
+    }
+}
+
+impl From<RecoveryWatchOccurrence> for RecoveryWatchFoundOccurrenceReport {
+    fn from(occurrence: RecoveryWatchOccurrence) -> Self {
+        Self {
+            span_index: occurrence.span_index,
+            trusted_run_descriptor_index: occurrence.trusted_run_descriptor_index,
+            ordinal: occurrence.ordinal,
+            recovery_location_available: occurrence.recovery_location_available,
+            fully_contained: occurrence.fully_contained,
+            page: occurrence.page,
+            bbox: occurrence.bbox.map(Into::into),
+            role: occurrence.role.map(Into::into),
+            kind: occurrence.kind.into(),
+        }
+    }
+}
+
+impl From<Rect> for RecoveryWatchRectReport {
+    fn from(rect: Rect) -> Self {
+        Self {
+            min: RecoveryWatchPointReport {
+                x: rect.min.x,
+                y: rect.min.y,
+            },
+            max: RecoveryWatchPointReport {
+                x: rect.max.x,
+                y: rect.max.y,
+            },
+        }
+    }
+}
+
+impl From<BlockRole> for RecoveryWatchBlockRoleReport {
+    fn from(role: BlockRole) -> Self {
+        match role {
+            BlockRole::Body => Self::Body,
+            BlockRole::RepeatedHeader => Self::RepeatedHeader,
+            BlockRole::RepeatedFooter => Self::RepeatedFooter,
+        }
+    }
+}
+
+impl From<RecoveryWatchUnitKind> for RecoveryWatchUnitKindReport {
+    fn from(kind: RecoveryWatchUnitKind) -> Self {
+        match kind {
+            RecoveryWatchUnitKind::Sentence => Self::Sentence,
+            RecoveryWatchUnitKind::Line => Self::Line,
+        }
+    }
+}
+
+impl From<RecoveryWatchPairEvidence> for RecoveryWatchPairEvidenceReport {
+    fn from(pair: RecoveryWatchPairEvidence) -> Self {
+        Self {
+            same_span: pair.same_span,
+            exact_shared_units: pair.exact_shared_units,
+            near_candidate_examined: pair.near_candidate_examined,
+            near_score: pair.near_score,
+            near_scope: pair.near_scope.map(Into::into),
+            old_relation: pair.old_relation.into(),
+            new_relation: pair.new_relation.into(),
+            reciprocal: pair.reciprocal,
+        }
+    }
+}
+
+impl From<RecoveryWatchNearScope> for RecoveryWatchNearScopeReport {
+    fn from(scope: RecoveryWatchNearScope) -> Self {
+        match scope {
+            RecoveryWatchNearScope::SameSpan => Self::SameSpan,
+            RecoveryWatchNearScope::CrossSpan => Self::CrossSpan,
+            RecoveryWatchNearScope::PairedStream => Self::PairedStream,
+        }
+    }
+}
+
+impl From<RecoveryWatchRelation> for RecoveryWatchRelationReport {
+    fn from(relation: RecoveryWatchRelation) -> Self {
+        Self {
+            available: relation.available,
+            best_score: relation.best_score,
+            second_score: relation.second_score,
+            watched_partner_is_best: relation.watched_partner_is_best,
+        }
+    }
+}
+
+fn completed_empty_recovery_watch_report() -> RecoveryWatchDiagnosticsReport {
+    RecoveryWatchDiagnosticsReport {
+        complete: true,
+        candidate_generation_complete: true,
+        near_relation_complete: true,
+        near_relation_stop_reason: None,
+        records: Vec::new(),
+    }
+}
+
+fn recovery_watch_report(
+    expected: &[ExpectedChange],
+    queries: &RecoveryWatchQuerySet,
+    diagnostics: RecoveryWatchDiagnostics,
+) -> RecoveryWatchDiagnosticsReport {
+    let mut records_by_id = HashMap::new();
+    let mut join_complete = true;
+    for record in diagnostics.records {
+        match records_by_id.entry(record.id.clone()) {
+            Entry::Vacant(entry) => {
+                entry.insert(record);
+            }
+            Entry::Occupied(_) => join_complete = false,
+        }
+    }
+    let records = queries
+        .ids
+        .iter()
+        .zip(&queries.expected_indices)
+        .map(|(id, &expected_index)| {
+            let expected_id = expected
+                .get(expected_index)
+                .map(|change| change.id.clone())
+                .unwrap_or_else(|| {
+                    join_complete = false;
+                    id.clone()
+                });
+            match records_by_id.remove(id) {
+                Some(record) => ExpectedChangeRecoveryWatchRecord {
+                    expected_id,
+                    old: record.old.into(),
+                    new: record.new.into(),
+                    pair: record.pair.map(Into::into),
+                },
+                None => {
+                    join_complete = false;
+                    ExpectedChangeRecoveryWatchRecord {
+                        expected_id,
+                        old: RecoveryWatchOccurrenceReport::Unavailable,
+                        new: RecoveryWatchOccurrenceReport::Unavailable,
+                        pair: None,
+                    }
+                }
+            }
+        })
+        .collect();
+    join_complete &= records_by_id.is_empty();
+    RecoveryWatchDiagnosticsReport {
+        complete: diagnostics.complete && join_complete,
+        candidate_generation_complete: diagnostics.candidate_generation_complete,
+        near_relation_complete: diagnostics.near_relation_complete,
+        near_relation_stop_reason: diagnostics.near_relation_stop_reason.map(Into::into),
+        records,
     }
 }
 
@@ -647,6 +916,10 @@ impl ExpectedKind {
             Self::Move => "move",
         }
     }
+
+    fn supports_recovery_watch(self) -> bool {
+        matches!(self, Self::Replacement | Self::Move)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -701,6 +974,66 @@ pub struct ExpectedDocument {
     pub scopes: Vec<ExpectedScope>,
     #[serde(default)]
     pub changes: Vec<ExpectedChange>,
+}
+
+#[derive(Debug, Default)]
+struct RecoveryWatchQuerySet {
+    ids: Vec<String>,
+    expected_indices: Vec<usize>,
+}
+
+impl RecoveryWatchQuerySet {
+    fn new(document: Option<&ExpectedDocument>) -> Self {
+        let Some(document) = document.filter(|document| {
+            matches!(
+                document.annotation,
+                Annotation::Complete | Annotation::Partial
+            )
+        }) else {
+            return Self::default();
+        };
+        let expected_indices = document
+            .changes
+            .iter()
+            .take(MAX_EXPECTED_CHANGE_DIAGNOSTICS)
+            .enumerate()
+            .filter_map(|(index, change)| {
+                (change.kind.supports_recovery_watch()
+                    && change.old_quote.is_some()
+                    && change.new_quote.is_some())
+                .then_some(index)
+            })
+            .collect::<Vec<_>>();
+        let ids = expected_indices
+            .iter()
+            .map(|index| format!("expected-change-{index}"))
+            .collect();
+        Self {
+            ids,
+            expected_indices,
+        }
+    }
+
+    fn queries<'a>(&'a self, changes: &'a [ExpectedChange]) -> Vec<RecoveryWatchQuery<'a>> {
+        self.ids
+            .iter()
+            .zip(&self.expected_indices)
+            .map(|(id, &index)| {
+                let change = &changes[index];
+                RecoveryWatchQuery {
+                    id,
+                    old_quote: change
+                        .old_quote
+                        .as_deref()
+                        .expect("recovery-watch changes have old quotes"),
+                    new_quote: change
+                        .new_quote
+                        .as_deref()
+                        .expect("recovery-watch changes have new quotes"),
+                }
+            })
+            .collect()
+    }
 }
 
 struct MatchOutcome {
@@ -990,6 +1323,32 @@ pub fn validate_limit_scale(scale: f64) -> Result<f64> {
 
 fn side_cache_path(cache_dir: &Path, pair_id: &str, side: &str) -> PathBuf {
     cache_dir.join(format!("{pair_id}-{side}.pdf"))
+}
+
+fn load_pair_expected_document(
+    pair: &RevisionPair,
+    manifest_dir: &Path,
+) -> std::result::Result<Option<ExpectedDocument>, String> {
+    let Some(file) = pair.expected_file.as_ref() else {
+        return Ok(None);
+    };
+    let path = manifest_dir.join(file);
+    let text = fs::read_to_string(&path).map_err(|error| {
+        format!(
+            "cannot read expected annotations {}: {error}",
+            path.display()
+        )
+    })?;
+    let document = load_expected_document(&text).map_err(|error| error.to_string())?;
+    if document.pair != pair.pair_id {
+        return Err(format!(
+            "expected annotations {} describe pair {:?} but this manifest row is {:?}",
+            path.display(),
+            document.pair,
+            pair.pair_id
+        ));
+    }
+    Ok(Some(document))
 }
 
 fn verify_provenance(
@@ -1439,41 +1798,60 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         return finish(record, started);
     }
 
+    let expected = match load_pair_expected_document(pair, context.manifest_dir) {
+        Ok(document) => document,
+        Err(reason) => {
+            record.failure = Some(reason);
+            None
+        }
+    };
+    let recovery_watch_queries = RecoveryWatchQuerySet::new(expected.as_ref());
+    let queries = expected
+        .as_ref()
+        .map(|document| recovery_watch_queries.queries(&document.changes))
+        .unwrap_or_default();
+
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
-    let (outcome, alignment) =
-        match run_extraction_and_comparison(&source, &old_path, &new_path, effective_scale) {
-            Ok(ComparisonWithMetrics {
-                outcome,
-                alignment,
-                metrics,
-                sentence_recovery_metrics,
-                pressure,
-            }) => {
-                metrics.apply_to(&mut record);
-                record.sentence_recovery_metrics = sentence_recovery_metrics;
-                record.candidate_visit_pressure = pressure;
-                (outcome, alignment)
-            }
-            Err(RevisionRunError::Read(reason)) => {
-                record.failure = Some(reason);
-                return finish(record, started);
-            }
-            Err(RevisionRunError::Limit {
-                message,
-                metrics,
-                pressure,
-            }) => {
-                record.resource_limit_failure = Some(message);
-                metrics.apply_to(&mut record);
-                record.candidate_visit_pressure = pressure.map(|pressure| *pressure);
-                record.quality_skipped_reason = Some(QUALITY_SKIP_RESOURCE_LIMIT.to_owned());
-                return finish(record, started);
-            }
-            Err(RevisionRunError::Other(stage, message)) => {
-                record.failure = Some(format!("{stage}: {message}"));
-                return finish(record, started);
-            }
-        };
+    let (outcome, alignment, recovery_watch_diagnostics) = match run_extraction_and_comparison(
+        &source,
+        &old_path,
+        &new_path,
+        effective_scale,
+        &queries,
+    ) {
+        Ok(ComparisonWithMetrics {
+            outcome,
+            alignment,
+            metrics,
+            sentence_recovery_metrics,
+            pressure,
+            recovery_watch_diagnostics,
+        }) => {
+            metrics.apply_to(&mut record);
+            record.sentence_recovery_metrics = sentence_recovery_metrics;
+            record.candidate_visit_pressure = pressure;
+            (outcome, alignment, recovery_watch_diagnostics)
+        }
+        Err(RevisionRunError::Read(reason)) => {
+            record.failure = Some(reason);
+            return finish(record, started);
+        }
+        Err(RevisionRunError::Limit {
+            message,
+            metrics,
+            pressure,
+        }) => {
+            record.resource_limit_failure = Some(message);
+            metrics.apply_to(&mut record);
+            record.candidate_visit_pressure = pressure.map(|pressure| *pressure);
+            record.quality_skipped_reason = Some(QUALITY_SKIP_RESOURCE_LIMIT.to_owned());
+            return finish(record, started);
+        }
+        Err(RevisionRunError::Other(stage, message)) => {
+            record.failure = Some(format!("{stage}: {message}"));
+            return finish(record, started);
+        }
+    };
     record.compared = true;
 
     let summary = match summarize(&outcome.comparison, &outcome.extraction) {
@@ -1510,41 +1888,6 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                 Some("manifest expected incomplete extraction but extraction completed".to_owned());
         }
     }
-
-    let expected_document = pair.expected_file.as_ref().map(|file| {
-        let path = context.manifest_dir.join(file);
-        fs::read_to_string(&path)
-            .map_err(|error| {
-                format!(
-                    "cannot read expected annotations {}: {error}",
-                    path.display()
-                )
-            })
-            .and_then(|text| load_expected_document(&text).map_err(|error| error.to_string()))
-            .and_then(|document| {
-                if document.pair == pair.pair_id {
-                    Ok(document)
-                } else {
-                    Err(format!(
-                        "expected annotations {} describe pair {:?} but this manifest row is {:?}",
-                        path.display(),
-                        document.pair,
-                        pair.pair_id
-                    ))
-                }
-            })
-    });
-
-    let expected = match expected_document {
-        None => None,
-        Some(Ok(document)) => Some(document),
-        Some(Err(reason)) => {
-            if record.failure.is_none() {
-                record.failure = Some(reason);
-            }
-            None
-        }
-    };
 
     let actuals = if extraction_complete {
         let old_map = build_block_map(&outcome.old_blocks);
@@ -1639,8 +1982,21 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
             ) {
                 Ok(diagnostics) => {
                     record.candidate_recall = diagnostics.candidate_recall;
-                    record.expected_change_diagnostics =
-                        Some(diagnostics.expected_change_diagnostics);
+                    let mut expected_diagnostics = diagnostics.expected_change_diagnostics;
+                    expected_diagnostics.recovery_watch = match recovery_watch_diagnostics {
+                        Some(watch) => Some(recovery_watch_report(
+                            &document.changes,
+                            &recovery_watch_queries,
+                            watch,
+                        )),
+                        None if recovery_watch_queries.ids.is_empty()
+                            && expected_diagnostics.complete =>
+                        {
+                            Some(completed_empty_recovery_watch_report())
+                        }
+                        None => None,
+                    };
+                    record.expected_change_diagnostics = Some(expected_diagnostics);
                 }
                 Err(reason) if record.failure.is_none() => {
                     record.failure = Some(format!("reviewed diagnostics failed: {reason}"));
@@ -2126,6 +2482,7 @@ struct ComparisonWithMetrics {
     metrics: VisitMetrics,
     sentence_recovery_metrics: Option<SentenceRecoveryMetricsReport>,
     pressure: Option<CandidateVisitPressure>,
+    recovery_watch_diagnostics: Option<RecoveryWatchDiagnostics>,
 }
 
 /// Compares two extracted outcomes and returns the alignment candidate
@@ -2140,6 +2497,7 @@ fn compare_outcomes_with_metrics(
     old: ExtractionOutcome,
     new: ExtractionOutcome,
     options: PipelineOptions,
+    recovery_watch_queries: &[RecoveryWatchQuery<'_>],
 ) -> std::result::Result<ComparisonWithMetrics, RevisionRunError> {
     // Measure the supplementary pressure from the borrowed documents before
     // the outcomes are consumed; whether it is required depends on whether
@@ -2155,8 +2513,19 @@ fn compare_outcomes_with_metrics(
         None
     };
     let mut diagnostics = PipelineDiagnostics::new();
-    let result =
-        compare_extraction_outcomes_with_alignment_diagnostics(old, new, options, &mut diagnostics);
+    let result = if recovery_watch_queries.is_empty() {
+        compare_extraction_outcomes_with_alignment_diagnostics(old, new, options, &mut diagnostics)
+            .map(|(outcome, alignment)| (outcome, alignment, None))
+    } else {
+        compare_extraction_outcomes_with_recovery_watch_diagnostics(
+            old,
+            new,
+            options,
+            &mut diagnostics,
+            recovery_watch_queries,
+        )
+        .map(|watched| (watched.outcome, watched.alignment, watched.diagnostics))
+    };
     let metrics = alignment_visit_metrics(&diagnostics).map_err(|message| {
         RevisionRunError::Other("alignment metrics contract violation", message)
     })?;
@@ -2164,7 +2533,7 @@ fn compare_outcomes_with_metrics(
         RevisionRunError::Other("sentence recovery metrics contract violation", message)
     })?;
     let pressure = resolve_pressure(metrics.candidate_visits, pressure_required, pressure_result)?;
-    let (outcome, alignment) = result.map_err(|error| match error {
+    let (outcome, alignment, recovery_watch_diagnostics) = result.map_err(|error| match error {
         pdfdelta_core::Error::LimitExceeded { .. } => RevisionRunError::Limit {
             message: error.to_string(),
             metrics: Box::new(metrics),
@@ -2178,6 +2547,7 @@ fn compare_outcomes_with_metrics(
         metrics,
         sentence_recovery_metrics,
         pressure,
+        recovery_watch_diagnostics,
     })
 }
 
@@ -2186,6 +2556,7 @@ fn run_extraction_and_comparison(
     old_path: &Path,
     new_path: &Path,
     limit_scale: f64,
+    recovery_watch_queries: &[RecoveryWatchQuery<'_>],
 ) -> std::result::Result<ComparisonWithMetrics, RevisionRunError> {
     let read = |path: &Path| {
         fs::read(path).map_err(|error| {
@@ -2221,7 +2592,7 @@ fn run_extraction_and_comparison(
     let options = PipelineOptions::default()
         .scaled_limits(limit_scale)
         .map_err(|error| RevisionRunError::Other("limit scaling failed", error.to_string()))?;
-    compare_outcomes_with_metrics(old_outcome, new_outcome, options)
+    compare_outcomes_with_metrics(old_outcome, new_outcome, options, recovery_watch_queries)
 }
 
 pub fn run_revision_benchmark(
@@ -2431,7 +2802,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 10;
+    pub const SCHEMA_VERSION: u32 = 11;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -2565,6 +2936,212 @@ mod tests {
             manifest_row("beta", "holdout", "stress", "false", "incomplete"),
             manifest_row("gamma", "holdout", "standard", "true", "complete")
         )
+    }
+
+    fn expected_document(changes: Vec<ExpectedChange>) -> ExpectedDocument {
+        ExpectedDocument {
+            version: 1,
+            pair: "pair".to_owned(),
+            reviewed_on: "2026-08-30".to_owned(),
+            annotation: Annotation::Complete,
+            notes: String::new(),
+            scopes: Vec::new(),
+            changes,
+        }
+    }
+
+    fn recovery_watch_expected_change(id: &str, kind: ExpectedKind) -> ExpectedChange {
+        ExpectedChange {
+            id: id.to_owned(),
+            kind,
+            scope: None,
+            old_quote: Some(format!("old {id}")),
+            new_quote: Some(format!("new {id}")),
+            note: String::new(),
+        }
+    }
+
+    #[test]
+    fn recovery_watch_queries_are_capped_filtered_and_ordered() {
+        let mut changes = (0..MAX_EXPECTED_CHANGE_DIAGNOSTICS + 2)
+            .map(|index| {
+                recovery_watch_expected_change(&index.to_string(), ExpectedKind::Replacement)
+            })
+            .collect::<Vec<_>>();
+        changes[1].kind = ExpectedKind::Insertion;
+        changes[3].new_quote = None;
+        let document = expected_document(changes);
+
+        let query_set = RecoveryWatchQuerySet::new(Some(&document));
+        let queries = query_set.queries(&document.changes);
+
+        assert_eq!(queries.len(), MAX_EXPECTED_CHANGE_DIAGNOSTICS - 2);
+        assert_eq!(query_set.expected_indices[..3], [0, 2, 4]);
+        assert_eq!(
+            query_set.expected_indices.last(),
+            Some(&(MAX_EXPECTED_CHANGE_DIAGNOSTICS - 1))
+        );
+        assert_eq!(queries[0].old_quote, "old 0");
+        assert_eq!(queries[1].old_quote, "old 2");
+    }
+
+    #[test]
+    fn recovery_watch_join_is_ordinal_safe_with_duplicate_and_missing_expected_ids() {
+        let document = expected_document(vec![
+            recovery_watch_expected_change("duplicate", ExpectedKind::Replacement),
+            recovery_watch_expected_change("duplicate", ExpectedKind::Move),
+        ]);
+        let query_set = RecoveryWatchQuerySet::new(Some(&document));
+        let diagnostics = RecoveryWatchDiagnostics {
+            complete: true,
+            candidate_generation_complete: true,
+            near_relation_complete: true,
+            near_relation_stop_reason: None,
+            records: vec![
+                pdfdelta_core::diff::RecoveryWatchRecord {
+                    id: query_set.ids[0].clone(),
+                    old: RecoveryWatchOccurrenceEvidence::Unfound,
+                    new: RecoveryWatchOccurrenceEvidence::Ambiguous,
+                    pair: None,
+                },
+                pdfdelta_core::diff::RecoveryWatchRecord {
+                    id: query_set.ids[0].clone(),
+                    old: RecoveryWatchOccurrenceEvidence::Unavailable,
+                    new: RecoveryWatchOccurrenceEvidence::Unavailable,
+                    pair: None,
+                },
+                pdfdelta_core::diff::RecoveryWatchRecord {
+                    id: "unknown".to_owned(),
+                    old: RecoveryWatchOccurrenceEvidence::Unfound,
+                    new: RecoveryWatchOccurrenceEvidence::Unfound,
+                    pair: None,
+                },
+            ],
+        };
+
+        let report = recovery_watch_report(&document.changes, &query_set, diagnostics);
+
+        assert!(!report.complete);
+        assert_eq!(report.records.len(), 2);
+        assert_eq!(report.records[0].expected_id, "duplicate");
+        assert_eq!(
+            report.records[0].old,
+            RecoveryWatchOccurrenceReport::Unfound
+        );
+        assert_eq!(
+            report.records[0].new,
+            RecoveryWatchOccurrenceReport::Ambiguous
+        );
+        assert_eq!(report.records[1].expected_id, "duplicate");
+        assert_eq!(
+            report.records[1].old,
+            RecoveryWatchOccurrenceReport::Unavailable
+        );
+    }
+
+    #[test]
+    fn recovery_watch_report_serializes_occurrences_pair_evidence_and_stop_state() {
+        let document = expected_document(
+            ["unfound", "ambiguous", "unavailable", "found"]
+                .map(|id| recovery_watch_expected_change(id, ExpectedKind::Replacement))
+                .to_vec(),
+        );
+        let query_set = RecoveryWatchQuerySet::new(Some(&document));
+        let mut records = [
+            RecoveryWatchOccurrenceEvidence::Unfound,
+            RecoveryWatchOccurrenceEvidence::Ambiguous,
+            RecoveryWatchOccurrenceEvidence::Unavailable,
+        ]
+        .into_iter()
+        .enumerate()
+        .map(
+            |(index, occurrence)| pdfdelta_core::diff::RecoveryWatchRecord {
+                id: query_set.ids[index].clone(),
+                old: occurrence,
+                new: RecoveryWatchOccurrenceEvidence::Unfound,
+                pair: None,
+            },
+        )
+        .collect::<Vec<_>>();
+        records.push(pdfdelta_core::diff::RecoveryWatchRecord {
+            id: query_set.ids[3].clone(),
+            old: RecoveryWatchOccurrenceEvidence::Found(RecoveryWatchOccurrence {
+                span_index: Some(2),
+                trusted_run_descriptor_index: Some(3),
+                ordinal: Some(4),
+                recovery_location_available: true,
+                fully_contained: false,
+                page: Some(5),
+                bbox: Some(Rect {
+                    min: Vec2 { x: 1.0, y: 2.0 },
+                    max: Vec2 { x: 3.0, y: 4.0 },
+                }),
+                role: Some(BlockRole::Body),
+                kind: RecoveryWatchUnitKind::Sentence,
+            }),
+            new: RecoveryWatchOccurrenceEvidence::Unavailable,
+            pair: Some(RecoveryWatchPairEvidence {
+                same_span: false,
+                exact_shared_units: 1,
+                near_candidate_examined: true,
+                near_score: Some(700),
+                near_scope: Some(RecoveryWatchNearScope::CrossSpan),
+                old_relation: RecoveryWatchRelation {
+                    available: true,
+                    best_score: 700,
+                    second_score: 600,
+                    watched_partner_is_best: true,
+                },
+                new_relation: RecoveryWatchRelation {
+                    available: false,
+                    best_score: 0,
+                    second_score: 0,
+                    watched_partner_is_best: false,
+                },
+                reciprocal: false,
+            }),
+        });
+        let report = recovery_watch_report(
+            &document.changes,
+            &query_set,
+            RecoveryWatchDiagnostics {
+                complete: false,
+                candidate_generation_complete: true,
+                near_relation_complete: false,
+                near_relation_stop_reason: Some(NearRelationStopReason::PairVisitLimit),
+                records,
+            },
+        );
+
+        let value = serde_json::to_value(report).expect("report serializes");
+        assert_eq!(
+            value
+                .as_object()
+                .expect("watch report object")
+                .keys()
+                .map(String::as_str)
+                .collect::<HashSet<_>>(),
+            HashSet::from([
+                "complete",
+                "candidate_generation_complete",
+                "near_relation_complete",
+                "near_relation_stop_reason",
+                "records",
+            ])
+        );
+        assert_eq!(value["complete"], false);
+        assert_eq!(value["near_relation_stop_reason"], "pair_visit_limit");
+        assert_eq!(value["records"][0]["old"]["status"], "unfound");
+        assert_eq!(value["records"][1]["old"]["status"], "ambiguous");
+        assert_eq!(value["records"][2]["old"]["status"], "unavailable");
+        assert_eq!(value["records"][3]["old"]["status"], "found");
+        assert_eq!(value["records"][3]["old"]["bbox"]["max"]["x"], 3.0);
+        assert_eq!(value["records"][3]["pair"]["near_scope"], "cross_span");
+        assert_eq!(
+            value["records"][3]["pair"]["old_relation"]["best_score"],
+            700
+        );
+        assert_eq!(value["records"][3]["pair"]["reciprocal"], false);
     }
 
     #[test]
@@ -2951,10 +3528,17 @@ mod tests {
         report.expected_change_diagnostics = Some(ExpectedChangeDiagnostics {
             complete: true,
             failures: Vec::new(),
+            recovery_watch: Some(RecoveryWatchDiagnosticsReport {
+                complete: true,
+                candidate_generation_complete: true,
+                near_relation_complete: true,
+                near_relation_stop_reason: None,
+                records: Vec::new(),
+            }),
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 10);
+        assert_eq!(completed["schema_version"], 11);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -2962,7 +3546,17 @@ mod tests {
         );
         assert_eq!(
             completed["records"][0]["expected_change_diagnostics"],
-            serde_json::json!({"complete":true,"failures":[]})
+            serde_json::json!({
+                "complete": true,
+                "failures": [],
+                "recovery_watch": {
+                    "complete": true,
+                    "candidate_generation_complete": true,
+                    "near_relation_complete": true,
+                    "near_relation_stop_reason": null,
+                    "records": []
+                }
+            })
         );
     }
 
@@ -2973,7 +3567,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 10);
+        assert_eq!(legacy_summary["schema_version"], 11);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -3477,7 +4071,8 @@ mod tests {
             metrics,
             sentence_recovery_metrics,
             pressure,
-        } = compare_outcomes_with_metrics(old, new, PipelineOptions::default())
+            recovery_watch_diagnostics: _,
+        } = compare_outcomes_with_metrics(old, new, PipelineOptions::default(), &[])
             .expect("comparison succeeds");
 
         assert!(!outcome.comparison.changes.is_empty());
@@ -3528,7 +4123,7 @@ mod tests {
         let ComparisonWithMetrics {
             sentence_recovery_metrics,
             ..
-        } = compare_outcomes_with_metrics(old, new, PipelineOptions::default())
+        } = compare_outcomes_with_metrics(old, new, PipelineOptions::default(), &[])
             .expect("empty comparison succeeds");
 
         assert_eq!(
@@ -3554,8 +4149,14 @@ mod tests {
             metrics,
             sentence_recovery_metrics: _,
             pressure: _,
-        } = compare_outcomes_with_metrics(old.clone(), new.clone(), PipelineOptions::default())
-            .expect("baseline comparison succeeds");
+            recovery_watch_diagnostics: _,
+        } = compare_outcomes_with_metrics(
+            old.clone(),
+            new.clone(),
+            PipelineOptions::default(),
+            &[],
+        )
+        .expect("baseline comparison succeeds");
         let charge = metrics.candidate_visits.expect("baseline charge recorded");
         assert!(charge > 1, "fixture must charge at least two visits");
 
@@ -3566,7 +4167,7 @@ mod tests {
             },
             ..PipelineOptions::default()
         };
-        let error = compare_outcomes_with_metrics(old, new, options)
+        let error = compare_outcomes_with_metrics(old, new, options, &[])
             .expect_err("candidate limit must fail");
         match error {
             RevisionRunError::Limit {
@@ -3616,7 +4217,7 @@ mod tests {
             ..PipelineOptions::default()
         };
 
-        let error = compare_outcomes_with_metrics(old, new, options)
+        let error = compare_outcomes_with_metrics(old, new, options, &[])
             .expect_err("ngram budget must fail before alignment");
         match error {
             RevisionRunError::Limit {
@@ -3657,7 +4258,8 @@ mod tests {
             metrics,
             sentence_recovery_metrics,
             pressure,
-        } = compare_outcomes_with_metrics(incomplete, complete, PipelineOptions::default())
+            recovery_watch_diagnostics: _,
+        } = compare_outcomes_with_metrics(incomplete, complete, PipelineOptions::default(), &[])
             .expect("incomplete comparison is not an error");
 
         assert_eq!(metrics.candidate_visits, None);
@@ -3731,7 +4333,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 10);
+        assert_eq!(json["schema_version"], 11);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -4568,7 +5170,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 10);
+        assert_eq!(value["schema_version"], 11);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -4784,6 +5386,7 @@ mod tests {
                     expected_id: "change-1".to_owned(),
                     reason: ExpectedChangeFailureReason::CandidateNotGenerated,
                 }],
+                recovery_watch: None,
             }),
             resource_limit_failure: None,
             candidate_visits: None,

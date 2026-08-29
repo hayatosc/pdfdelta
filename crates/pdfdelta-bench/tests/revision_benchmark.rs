@@ -669,7 +669,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 10);
+    assert_eq!(val["schema_version"], 11);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 
@@ -730,6 +730,10 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
         rec["expected_change_diagnostics"]["failures"],
         serde_json::json!([])
     );
+    assert_eq!(
+        rec["expected_change_diagnostics"]["recovery_watch"],
+        serde_json::Value::Null
+    );
 
     // Verify raw content contains no forbidden fields
     assert!(!content.contains("runtime_ms"));
@@ -737,6 +741,37 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(!content.contains("reported_changes_preview"));
     assert!(!content.contains("candidate_visits"));
     assert!(!content.contains("candidate_visit_pressure"));
+
+    fs::write(
+        corpus.root.join("expected").join(format!("{pair_id}.json")),
+        format!(
+            r#"{{"version":1,"pair":"{pair_id}","reviewed_on":"2026-08-24","annotation":"complete","changes":[]}}"#
+        ),
+    )
+    .expect("empty expected file written");
+    let empty_reports = run_revision_benchmark(
+        &corpus.root.join("manifest.tsv"),
+        &corpus.root,
+        None,
+        Some(pair_id),
+        None,
+        true,
+    )
+    .expect("empty-query benchmark runs");
+    let empty_summary = serde_json::to_value(
+        pdfdelta_bench::revisions::RevisionSummaryReport::from_reports(&empty_reports),
+    )
+    .expect("empty-query summary serializes");
+    assert_eq!(
+        empty_summary["records"][0]["expected_change_diagnostics"]["recovery_watch"],
+        serde_json::json!({
+            "complete": true,
+            "candidate_generation_complete": true,
+            "near_relation_complete": true,
+            "near_relation_stop_reason": null,
+            "records": []
+        })
+    );
 }
 
 #[test]
