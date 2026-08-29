@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-29
-- **Generator / engine commit**: [`27f096e`](https://github.com/hayatosc/pdfdelta/commit/27f096e)
+- **Generator / engine commit**: [`f5406f3`](https://github.com/hayatosc/pdfdelta/commit/f5406f3)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-29-27f096e.json`](2026-08-29-27f096e.json)
+  - File: [`2026-08-29-f5406f3.json`](2026-08-29-f5406f3.json)
   - Schema: v7
-  - Size: 49,682 bytes
-  - SHA-256: `cc6499b04f238f56add8b7873f02cb0e8d848fc91a46fe9031f132b9a8b978f7`
+  - Size: 49,479 bytes
+  - SHA-256: `b3455940a41f8be80517e942cedb3d77564d91a2fa758d8d20a97592969b8b62`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 18 completed extraction, 11 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-29-27f096e.json
+  benchmark/realworld/results/2026-08-29-f5406f3.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -41,17 +41,17 @@ kind accuracy for partial sets still apply only to their recorded review items.
 
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `nist-fips-186-4-to-5` | dev | standard | 65.03% | 2,396 | 1,349 | 0.857 | 1.000 | 224.833 | 107 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 70.95% | 5,387 | 2,441 | 1.000 | 0.750 | 610.250 | 103 |
+| `nist-fips-186-4-to-5` | dev | standard | 65.03% | 2,395 | 1,346 | 0.857 | 1.000 | 224.333 | 107 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 71.90% | 6,038 | 2,763 | 1.000 | 1.000 | 690.750 | 103 |
 | `irs-form-1040-2024-to-2025` | holdout | stress | 36.80% | 75 | 19 | 0.000 | N/A | N/A | 1 |
 | `edpb-right-of-access-v1-to-final` | holdout | standard | 86.60% | 2,252 | 697 | 0.500 | 1.000 | 348.500 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 1.000 | 0 |
-| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.55% | 265 | 127 | 1.000 | 1.000 | 1.000 | 0 |
+| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.62% | 261 | 128 | 1.000 | 1.000 | 1.000 | 0 |
 | `ecma-109-ed10-to-ed11` | dev | stress | 73.27% | 369 | 78 | 0.333 | 0.000 | 78.000 | 5 |
-| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.20% | 513 | 474 | 1.000 | 1.000 | 158.000 | 65 |
+| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.21% | 515 | 474 | 1.000 | 1.000 | 158.000 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
 | `bis-operational-risk-2011-to-2021` | dev | standard | 68.12% | 648 | 350 | 1.000 | 1.000 | 1.000 | 0 |
-| `nist-csf-v1-1-to-v2-0` | holdout | standard | 53.52% | 788 | 648 | 0.333 | 1.000 | 648.000 | 0 |
+| `nist-csf-v1-1-to-v2-0` | holdout | standard | 53.22% | 788 | 648 | 0.333 | 1.000 | 648.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
 
@@ -61,11 +61,13 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | `w3c-ws-policy-attach-20060927-to-20061102` | 1.000 / 1.000 / 1.000 | 0.984 / 1.000 / 0.992 | 0.984 | 68.027 |
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 
-Comparison coverage, reported change counts, unresolved regions, and recovery
-diagnostics are unchanged from the preceding `556686c` capture. The new values
-come from the scoped-complete evaluation schema and three fully reviewed regions.
-The W3C scope exposes four extra reported changed tokens at otherwise complete
-event recall, demonstrating why event and token precision are tracked separately.
+The scoped-complete event and token metrics are unchanged from `27f096e`.
+Role-local alignment raises SP 800-57 comparison coverage from 70.95% to 71.90%
+and corrects its reviewed kind accuracy from 0.750 to 1.000. NIST CSF coverage
+decreases from 53.52% to 53.22% without changing reviewed recall or kind accuracy.
+Running-matter boundaries split unresolved evidence more locally, so raw unresolved
+region counts are not directly comparable with the preceding capture; token shares
+remain the coverage measure.
 
 ## Current Writer Schema (v7)
 
@@ -95,6 +97,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-29-27f096e.json`](2026-08-29-27f096e.json): scoped-complete event and changed-token precision for three fully reviewed regions.
 - [`2026-08-29-556686c.json`](2026-08-29-556686c.json): behavior-preserving multi-occurrence change-model migration.
 - [`2026-08-29-1ed7340.json`](2026-08-29-1ed7340.json): fail-closed fragment-completion vetoes and the corrected EDPB review baseline.
 - [`2026-08-29-de4ed4c.json`](2026-08-29-de4ed4c.json): grouped mixed character edit runs into word-level replacements.
