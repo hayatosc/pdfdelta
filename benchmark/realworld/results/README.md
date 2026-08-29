@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-29
-- **Generator / engine commit**: [`adc74e0`](https://github.com/hayatosc/pdfdelta/commit/adc74e0)
+- **Generator / engine commit**: [`c2de839`](https://github.com/hayatosc/pdfdelta/commit/c2de839)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-29-adc74e0.json`](2026-08-29-adc74e0.json)
+  - File: [`2026-08-29-c2de839.json`](2026-08-29-c2de839.json)
   - Schema: v5
-  - Size: 50,200 bytes
-  - SHA-256: `05f50643d3ce1acd73e447aeaec593fc57fad62919c9297ffe2a2047ce2ca807`
+  - Size: 50,062 bytes
+  - SHA-256: `b0f2b8827451bd418680e2a082ff02d5d99c751c01472684123cdfdcfd028a2d`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 18 completed extraction, 11 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-29-adc74e0.json
+  benchmark/realworld/results/2026-08-29-c2de839.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -39,30 +39,27 @@ All 11 annotation files in this capture are partial review sets. Recall and kind
 
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `nist-fips-186-4-to-5` | dev | standard | 64.91% | 2,391 | 1,384 | 0.857 | 1.000 | 230.667 | 134 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 71.00% | 5,343 | 2,536 | 1.000 | 0.750 | 634.000 | 167 |
-| `irs-form-1040-2024-to-2025` | holdout | stress | 29.33% | 49 | 13 | 0.000 | N/A | N/A | 1 |
-| `edpb-right-of-access-v1-to-final` | holdout | standard | 86.38% | 2,077 | 750 | 0.400 | 0.500 | 375.000 | 80 |
-| `arxiv-attention-v6-to-v7` | dev | stress | 87.73% | 42 | 0 | 0.000 | N/A | N/A | 0 |
-| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 55.86% | 249 | 129 | 0.750 | 1.000 | 43.000 | 27 |
-| `ecma-109-ed10-to-ed11` | dev | stress | 73.72% | 348 | 77 | 0.333 | 0.000 | 77.000 | 5 |
-| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.15% | 511 | 480 | 0.000 | N/A | N/A | 94 |
-| `irs-w4-korean-2024-to-2025` | holdout | stress | 22.39% | 7 | 87 | 0.000 | N/A | N/A | 29 |
+| `nist-fips-186-4-to-5` | dev | standard | 65.07% | 2,398 | 1,385 | 0.857 | 1.000 | 230.833 | 134 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 71.22% | 5,401 | 2,544 | 1.000 | 0.750 | 636.000 | 167 |
+| `irs-form-1040-2024-to-2025` | holdout | stress | 36.80% | 75 | 19 | 0.000 | N/A | N/A | 1 |
+| `edpb-right-of-access-v1-to-final` | holdout | standard | 87.12% | 2,262 | 751 | 0.400 | 0.500 | 375.500 | 80 |
+| `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 1.000 | 0 |
+| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.64% | 267 | 131 | 0.750 | 1.000 | 43.667 | 27 |
+| `ecma-109-ed10-to-ed11` | dev | stress | 74.02% | 372 | 80 | 0.333 | 0.000 | 80.000 | 5 |
+| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.19% | 514 | 480 | 0.000 | N/A | N/A | 94 |
+| `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
 | `bis-operational-risk-2011-to-2021` | dev | standard | 68.12% | 648 | 350 | 1.000 | 1.000 | 87.500 | 0 |
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 53.52% | 788 | 648 | 0.333 | 1.000 | 648.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
 
-Compared with the earlier same-day `0cef530` capture, reviewed recall, kind
-accuracy, and coverage are unchanged. Semantic hunk grouping reduces reported
-content changes by 15 for FIPS 186, 20 for SP 800-57, 12 for EDPB Right of
-Access, and 8 for CSAF. Across those four reviewed pairs, unmatched one- or
-two-token edits fall by 56. NIST CSF reviewed candidate recall rises from 1/2
-to 2/2 after adding a bounded document-local candidate union; both remaining
-misses are now classified as reading-order unresolved rather than being
-attributed to candidate generation. These reductions improve fragmentation
-signals but are not precision claims because all current annotations are
-partial.
+Compared with the earlier same-day `adc74e0` capture, comparison coverage rises
+for 13 pairs and does not fall for any pair. Atomic recovery of unique exact and
+reciprocal near-matched lines detects the reviewed arXiv version/date change as
+one replacement, raising its recall from 0.000 to 1.000. Recall for every other
+reviewed pair is unchanged. Reported content changes rise modestly where newly
+resolved line regions expose exact differences; these additions are not
+precision claims because all current annotations are partial.
 
 ## Current Writer Schema (v5)
 
@@ -87,6 +84,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-29-adc74e0.json`](2026-08-29-adc74e0.json): refined semantic hunk grouping, candidate diagnostics, and forced-reading-order miss classification.
 - [`2026-08-29-0cef530.json`](2026-08-29-0cef530.json): weighted multiset scoring and page-local short-candidate indexing.
 - [`2026-08-29-ca6447c.json`](2026-08-29-ca6447c.json): monotonic exact-unit recovery inside anchored trusted runs.
 - [`2026-08-29-987020f.json`](2026-08-29-987020f.json): schema-v5 uncertain-span exact and reciprocal replacement recovery capture.
