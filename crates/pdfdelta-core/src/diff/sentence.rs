@@ -23,6 +23,7 @@ const MIN_NEAR_SCORE: u16 = 7_000;
 const MIN_NEAR_SCORE_MARGIN: u16 = 500;
 const MIN_WORD_SCORE_EDGE_EVIDENCE: u16 = 3_000;
 const MIN_PAIRED_STREAM_EXACT_TOKENS: usize = 4;
+const MIN_PAIRED_STREAM_NEAR_TOKENS: usize = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct LocalSentenceRange {
@@ -688,7 +689,7 @@ pub(super) fn build_sentence_recovery_plan(
         &mut new_occurrences,
         &paired_streams,
         &membership.recovery_spans,
-        input.min_tokens,
+        input.min_tokens.min(MIN_PAIRED_STREAM_NEAR_TOKENS),
         &mut budget,
         &mut diagnostics,
         &mut paired_vetoes,

@@ -2774,6 +2774,55 @@ mod tests {
     }
 
     #[test]
+    fn exact_anchor_scopes_a_short_near_replacement_to_its_trusted_run() {
+        let anchor = "A sufficiently long unique sentence identifies this trusted run.";
+        let old_date = "2021.";
+        let new_date = "2022.";
+        let old = vec![sentence_block(1, anchor), sentence_block(2, old_date)];
+        let new = vec![sentence_block(101, anchor), sentence_block(102, new_date)];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2)), Some(TrustedRunId(2))],
+            16,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(
+            result.changes[0].old_span,
+            Some(test_span(2, 0, old_date.chars().count()))
+        );
+        assert_eq!(
+            result.changes[0].new_span,
+            Some(test_span(102, 0, new_date.chars().count()))
+        );
+    }
+
+    #[test]
+    fn short_near_replacement_without_a_run_anchor_remains_unresolved() {
+        let old = vec![sentence_block(1, "2021.")];
+        let new = vec![sentence_block(101, "2022.")];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2))],
+            16,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert!(result.changes.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
+        assert_eq!(result.unresolved_regions.len(), 1);
+    }
+
+    #[test]
     fn crossing_near_replacements_inside_a_trusted_run_remain_unresolved() {
         let anchor = "A unique anchor identifies this trusted run.";
         let old_alpha = "The alpha requirement preserves all values except old.";
