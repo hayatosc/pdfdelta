@@ -37,6 +37,21 @@ fn base_font(document: &mut LopdfDocument) -> lopdf::ObjectId {
     })
 }
 
+fn symbol_set_font(document: &mut LopdfDocument, to_unicode: Option<ObjectId>) -> lopdf::ObjectId {
+    let font = base_font(document);
+    let dictionary = document
+        .objects
+        .get_mut(&font)
+        .expect("fixture font should exist")
+        .as_dict_mut()
+        .expect("fixture font should be a dictionary");
+    dictionary.set("Encoding", "SymbolSetEncoding");
+    if let Some(to_unicode) = to_unicode {
+        dictionary.set("ToUnicode", to_unicode);
+    }
+    font
+}
+
 fn embedded_simple_font(
     document: &mut LopdfDocument,
     program_bytes: &[u8],
@@ -1623,6 +1638,81 @@ fn falls_back_to_standard_encoding_for_partial_to_unicode() -> Result<()> {
 
     let document = extract(pdf, ExtractionLimits::default())?;
     assert_eq!(mapped_text(document.items()), "B");
+    Ok(())
+}
+
+#[test]
+fn symbol_set_encoding_extracts_fully_mapped_to_unicode_text() -> Result<()> {
+    let mut pdf = LopdfDocument::with_version("1.7");
+    let cmap = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"1 begincodespacerange <00> <FF> endcodespacerange \
+          2 beginbfchar <41> <0041> <42> <20AC> endbfchar"
+            .to_vec(),
+    ));
+    let font = symbol_set_font(&mut pdf, Some(cmap));
+    let content = pdf.add_object(Stream::new(
+        dictionary! {},
+        b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (AB) Tj ET".to_vec(),
+    ));
+    install_page(
+        &mut pdf,
+        content.into(),
+        Object::Dictionary(dictionary! {
+            "Font" => dictionary! { "F1" => font },
+        }),
+        None,
+        None,
+    );
+
+    let document = extract(pdf, ExtractionLimits::default())?;
+
+    assert_eq!(mapped_text(document.items()), "A€");
+    Ok(())
+}
+
+#[test]
+fn symbol_set_encoding_gaps_remain_page_scoped_unresolved() -> Result<()> {
+    for partial in [true, false] {
+        let mut pdf = LopdfDocument::with_version("1.7");
+        let cmap = partial.then(|| {
+            pdf.add_object(Stream::new(
+                dictionary! {},
+                b"1 begincodespacerange <00> <FF> endcodespacerange \
+                  1 beginbfchar <41> <0041> endbfchar"
+                    .to_vec(),
+            ))
+        });
+        let font = symbol_set_font(&mut pdf, cmap);
+        let content = pdf.add_object(Stream::new(
+            dictionary! {},
+            b"BT /F1 10 Tf 1 0 0 1 20 30 Tm (AB) Tj ET".to_vec(),
+        ));
+        install_page(
+            &mut pdf,
+            content.into(),
+            Object::Dictionary(dictionary! {
+                "Font" => dictionary! { "F1" => font },
+            }),
+            None,
+            None,
+        );
+
+        let outcome = extract_outcome(pdf, ExtractionLimits::default())?;
+
+        assert!(outcome.document().items().is_empty());
+        assert_eq!(outcome.issues().len(), 1);
+        assert_eq!(outcome.issues()[0].kind(), ExtractionIssueKind::Unresolved);
+        assert_eq!(
+            outcome.issues()[0].scope(),
+            ExtractionScope::Page(PageId(0))
+        );
+        assert!(
+            outcome.issues()[0]
+                .description()
+                .contains("no Unicode mapping or stable font identity")
+        );
+    }
     Ok(())
 }
 

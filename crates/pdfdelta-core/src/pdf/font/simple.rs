@@ -183,6 +183,14 @@ impl SimpleFontDecoder {
             base14,
             type3.as_ref().map(|type3| &type3.char_procs),
         )?;
+        if widths.is_none()
+            && base14.is_some()
+            && matches!(encoding.base, FallbackEncoding::Unknown)
+        {
+            return Err(Error::Unsupported(
+                "simple font /SymbolSetEncoding requires explicit Widths".into(),
+            ));
+        }
         validate_difference_metrics(base14, widths.as_deref(), &encoding.differences)?;
         let (identity_source, type3_identity_glyph_ids) = if let Some(type3) = &type3 {
             if encoding.identity_ambiguous
@@ -873,12 +881,22 @@ fn load_encoding(
     };
     match encoding {
         PdfObject::Name(name) => {
-            let base = encoding_name(&name)?;
+            let base = if name.as_slice() == b"SymbolSetEncoding" {
+                // This producer-specific encoding has no public code-to-Unicode
+                // table. Only exact ToUnicode entries are usable; every gap
+                // remains unmapped and the explicit encoding disables program
+                // selector identity.
+                FallbackEncoding::Unknown
+            } else {
+                encoding_name(&name)?
+            };
             Ok(LoadedEncoding {
                 base,
                 differences: BTreeMap::new(),
                 identity_ambiguous: false,
-                standard14_identity_encoding: if base14.is_some() {
+                standard14_identity_encoding: if base14.is_some()
+                    && !matches!(base, FallbackEncoding::Unknown)
+                {
                     Some(base.identity_name())
                 } else {
                     None
@@ -1719,6 +1737,81 @@ mod tests {
             })
         ));
         Ok(())
+    }
+
+    #[test]
+    fn symbol_set_encoding_uses_only_exact_to_unicode_entries() -> Result<()> {
+        let cmap = b"1 begincodespacerange <00> <FF> endcodespacerange \
+                     2 beginbfchar <41> <0041> <42> <20AC> endbfchar"
+            .to_vec();
+        let mut pdf = MockPdf::default();
+        pdf.objects
+            .insert(object_ref(1), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(object_ref(1), cmap);
+        let mut font = symbol_set_font_with_widths();
+        let PdfObject::Dictionary(dictionary) = &mut font else {
+            unreachable!();
+        };
+        dictionary.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(1)));
+
+        let loaded = SimpleFontDecoder::load(&pdf, &font, LIMITS)?;
+
+        assert!(loaded.identity_source.is_none());
+        assert_eq!(
+            loaded.decoder.decode(b"AB", 2, usize::MAX)?,
+            [glyph(b'A', "A", 600.0), glyph(b'B', "€", 610.0)]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn symbol_set_encoding_gaps_remain_unmapped_without_identity() -> Result<()> {
+        let cmap = b"1 begincodespacerange <00> <FF> endcodespacerange \
+                     1 beginbfchar <41> <005A> endbfchar"
+            .to_vec();
+        let mut pdf = MockPdf::default();
+        pdf.objects
+            .insert(object_ref(1), PdfObject::Stream(PdfDict::new()));
+        pdf.streams.insert(object_ref(1), cmap);
+        let mut partial = symbol_set_font_with_widths();
+        let PdfObject::Dictionary(dictionary) = &mut partial else {
+            unreachable!();
+        };
+        dictionary.insert(b"ToUnicode".to_vec(), PdfObject::Reference(object_ref(1)));
+
+        let partial = SimpleFontDecoder::load(&pdf, &partial, LIMITS)?;
+        let absent =
+            SimpleFontDecoder::load(&MockPdf::default(), &symbol_set_font_with_widths(), LIMITS)?;
+
+        assert!(partial.identity_source.is_none());
+        assert_eq!(
+            partial.decoder.decode(b"AB", 2, usize::MAX)?[0].mapping,
+            mapped_text("Z")
+        );
+        assert_eq!(
+            partial.decoder.decode(b"AB", 2, usize::MAX)?[1].mapping,
+            UnicodeMapping::Unmapped
+        );
+        assert!(absent.identity_source.is_none());
+        assert!(
+            absent
+                .decoder
+                .decode(b"A", 1, usize::MAX)?
+                .iter()
+                .all(|glyph| glyph.mapping == UnicodeMapping::Unmapped)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn symbol_set_encoding_does_not_use_standard_14_fallback_widths() {
+        let font = font_with_encoding(PdfObject::Name(b"SymbolSetEncoding".to_vec()));
+
+        assert!(matches!(
+            SimpleFontDecoder::load(&MockPdf::default(), &font, LIMITS),
+            Err(Error::Unsupported(message))
+                if message.contains("SymbolSetEncoding requires explicit Widths")
+        ));
     }
 
     #[test]
@@ -2751,6 +2844,19 @@ mod tests {
             (b"BaseFont".to_vec(), PdfObject::Name(b"Helvetica".to_vec())),
             (b"Encoding".to_vec(), encoding),
         ]))
+    }
+
+    fn symbol_set_font_with_widths() -> PdfObject {
+        let mut font = font_with_encoding(PdfObject::Name(b"SymbolSetEncoding".to_vec()));
+        let PdfObject::Dictionary(dictionary) = &mut font else {
+            unreachable!();
+        };
+        dictionary.insert(b"FirstChar".to_vec(), PdfObject::Integer(65));
+        dictionary.insert(
+            b"Widths".to_vec(),
+            PdfObject::Array(vec![PdfObject::Integer(600), PdfObject::Integer(610)]),
+        );
+        font
     }
 
     fn standard_font(name: &[u8]) -> PdfObject {
