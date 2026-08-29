@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-29
-- **Generator / engine commit**: [`1a0675f`](https://github.com/hayatosc/pdfdelta/commit/1a0675f)
+- **Generator / engine commit**: [`24a2300`](https://github.com/hayatosc/pdfdelta/commit/24a2300)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-29-1a0675f.json`](2026-08-29-1a0675f.json)
-  - Schema: v11
-  - Size: 106,543 bytes
-  - SHA-256: `7d66a8179ad3dd2385d29bc7ff8458698c683e4e3ad1647185195ab7dc6aad5d`
+  - File: [`2026-08-29-24a2300.json`](2026-08-29-24a2300.json)
+  - Schema: v12
+  - Size: 107,394 bytes
+  - SHA-256: `65d99a96190c7d33d1dd7d003e7ff68d53243ff511cddad655b41e6afb814ad3`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 18 completed extraction, 11 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-29-1a0675f.json
+  benchmark/realworld/results/2026-08-29-24a2300.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -99,6 +99,16 @@ signatures, this rules out simply enabling trusted-run pairing for those
 misses. The evidence instead points to recovery-unit granularity and competing
 relations. The remaining FIPS move is unfound on both sides, which supports
 segment-level move detection rather than a looser run-pairing rule.
+The schema-v12 capture preserves every comparison, extraction, quality,
+candidate, and sentence-recovery metric from schema v11. Its adjacent-unit
+watch locates the remaining FIPS move on both sides as one segment: old page
+27 in span 63 and new page 30 in span 75. Unit-level exact counts and near
+relations are explicitly unavailable for this diagnostic segment, so it does
+not claim a move relation yet. Across the 12 watched changes, the side-local
+totals are now 17 found, five ambiguous, and two unfound occurrences; five
+records reach an existing near comparison and two are reciprocal. Pair evidence
+is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
+occurrences have no alignment-span location.
 
 ## Current Writer Schema (v12)
 
@@ -144,6 +154,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-29-1a0675f.json`](2026-08-29-1a0675f.json): schema-v11 bounded expected-change recovery watches.
 - [`2026-08-29-1463932.json`](2026-08-29-1463932.json): schema-v10 exact-unit signature diagnostics for trusted runs.
 - [`2026-08-29-5145723.json`](2026-08-29-5145723.json): schema-v9 structural trusted-run profile diagnostics.
 - [`2026-08-29-4e6ae73.json`](2026-08-29-4e6ae73.json): safe schema-v8 near-search baseline before structural trusted-run diagnostics.
