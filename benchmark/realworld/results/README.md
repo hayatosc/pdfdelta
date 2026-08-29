@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-29
-- **Generator / engine commit**: [`1463932`](https://github.com/hayatosc/pdfdelta/commit/1463932)
+- **Generator / engine commit**: [`1a0675f`](https://github.com/hayatosc/pdfdelta/commit/1a0675f)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-29-1463932.json`](2026-08-29-1463932.json)
-  - Schema: v10
-  - Size: 87,777 bytes
-  - SHA-256: `190cb5723ad460dec5e46275eb8f1c62daf0d14b1ef459cc252cd6b9260fb3a3`
+  - File: [`2026-08-29-1a0675f.json`](2026-08-29-1a0675f.json)
+  - Schema: v11
+  - Size: 106,543 bytes
+  - SHA-256: `7d66a8179ad3dd2385d29bc7ff8458698c683e4e3ad1647185195ab7dc6aad5d`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 18 completed extraction, 11 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-29-1463932.json
+  benchmark/realworld/results/2026-08-29-1a0675f.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -86,10 +86,27 @@ margin-qualified monotone pairs. Those 22 pairs occur in arXiv Attention,
 QGIS PyQGIS English, and LibreOffice Getting Started. NIST CSF has 60 old and
 62 new eligible unique units but no shared key, so exact run signatures cannot
 recover its two reading-order misses.
+The schema-v11 recovery-watch diagnostics preserve every schema-v10 report
+field. Eight reviewed pairs expose watch results: six searches are complete,
+including two completed-empty query sets, while FIPS and EDPB stop at the
+existing pair-visit limit. The 12 watched changes contain 15 found, five
+ambiguous, and four unfound side occurrences. Five watched records reach an
+existing near comparison, and two are reciprocal. Both NIST CSF misses are
+found inside the same unresolved span and examined, but their watched scores
+are only 57 and 86; neither counterpart is the best relation, and each old-side
+best score is tied at 5,000. Together with the absence of shared exact run
+signatures, this rules out simply enabling trusted-run pairing for those
+misses. The evidence instead points to recovery-unit granularity and competing
+relations. The remaining FIPS move is unfound on both sides, which supports
+segment-level move detection rather than a looser run-pairing rule.
 
-## Current Writer Schema (v10)
+## Current Writer Schema (v11)
 
-The benchmark writer uses schema v10; older immutable captures retain their recorded schema.
+The benchmark writer uses schema v11; older immutable captures retain their recorded schema.
+Schema v11 adds bounded expected-change recovery watches with side-local unit
+locations, existing near-candidate scores and relations, reciprocal status,
+and typed search completion evidence. It does not run additional candidate or
+similarity work.
 Schema v10 adds behavior-neutral, budgeted exact-unit signature diagnostics for
 trusted runs, including typed stop reasons and conservative reciprocal,
 evidence-margin, and monotonicity classifications.
@@ -114,7 +131,8 @@ Each record includes:
 - reviewed quality metrics when annotations are available;
 - `expected_change_diagnostics`, including classified miss reasons and a
   distinct `alignment_span_mismatch` reason when a recalled counterpart was
-  assigned to separate old/new alignment spans;
+  assigned to separate old/new alignment spans, plus optional recovery-watch
+  occurrence, candidate, score, relation, and stop evidence;
 - `candidate_recall` for reviewed replacement counterparts;
 - `sentence_recovery_metrics`, including exact matches, near replacements, recovered insertions/deletions, vetoes, remainders, structural and exact-signature trusted-run evidence, and whether bounded searches completed within their budgets.
 
@@ -122,6 +140,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-29-1463932.json`](2026-08-29-1463932.json): schema-v10 exact-unit signature diagnostics for trusted runs.
 - [`2026-08-29-5145723.json`](2026-08-29-5145723.json): schema-v9 structural trusted-run profile diagnostics.
 - [`2026-08-29-4e6ae73.json`](2026-08-29-4e6ae73.json): safe schema-v8 near-search baseline before structural trusted-run diagnostics.
 - [`2026-08-29-dfc77f1.json`](2026-08-29-dfc77f1.json): schema-v8 near-search work counters, candidate-set maxima, and typed stop reasons.
