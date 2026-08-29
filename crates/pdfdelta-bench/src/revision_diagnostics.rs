@@ -167,6 +167,13 @@ pub(super) struct QuoteLocation {
     pub(super) scalar_range: ScalarRange,
 }
 
+pub(super) struct ScopedQuoteRange {
+    pub(super) start_block: usize,
+    pub(super) start_scalar: usize,
+    pub(super) end_block: usize,
+    pub(super) end_scalar: usize,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum QuoteLocateOutcome {
     Unique(QuoteLocation),
@@ -239,6 +246,15 @@ fn normalize_block_items(
     budget: &mut DiagnosticBudget,
     limits: DiagnosticLimits,
 ) -> DiagnosticScanResult<Vec<LocatedItem>> {
+    normalize_block_items_in_range(block, None, budget, limits)
+}
+
+fn normalize_block_items_in_range(
+    block: &BlockText,
+    allowed: Option<ScalarRange>,
+    budget: &mut DiagnosticBudget,
+    limits: DiagnosticLimits,
+) -> DiagnosticScanResult<Vec<LocatedItem>> {
     let tokens = block
         .canonical
         .comparable_tokens()
@@ -260,6 +276,11 @@ fn normalize_block_items(
                     end,
                 };
                 scalar_index = end;
+                if allowed
+                    .is_some_and(|allowed| range.start < allowed.start || range.end > allowed.end)
+                {
+                    continue;
+                }
                 if value.is_whitespace() {
                     if segment_has_text {
                         pending_space = Some(match pending_space {
@@ -279,6 +300,11 @@ fn normalize_block_items(
                 segment_has_text = true;
             }
             ComparableToken::Unmapped { .. } => {
+                if allowed.is_some_and(|allowed| {
+                    scalar_index < allowed.start || scalar_index > allowed.end
+                }) {
+                    continue;
+                }
                 pending_space = None;
                 segment_has_text = false;
                 if !matches!(items.last(), Some(LocatedItem::Barrier)) {
@@ -286,6 +312,11 @@ fn normalize_block_items(
                 }
             }
         }
+    }
+    if allowed.is_some_and(|allowed| allowed.start > allowed.end || allowed.end > scalar_index) {
+        return Err(DiagnosticScanError::Invalid(
+            "scoped quote range exceeds canonical block text".to_owned(),
+        ));
     }
     Ok(items)
 }
@@ -641,6 +672,90 @@ pub(super) fn locate_scope_anchor_quote(
         return Ok(outcome);
     }
     for block in blocks {
+        if budget.charge_scan(1, limits).is_err() {
+            return Ok(QuoteLocateOutcome::Limited);
+        }
+        if !block.issues.is_empty()
+            || !block.raw.unmapped.is_empty()
+            || !block.canonical.unmapped.is_empty()
+        {
+            return Ok(QuoteLocateOutcome::Indeterminate);
+        }
+    }
+    Ok(outcome)
+}
+
+pub(super) fn locate_scoped_quote(
+    blocks: &[BlockText],
+    quote: &str,
+    range: ScopedQuoteRange,
+    budget: &mut DiagnosticBudget,
+    limits: DiagnosticLimits,
+) -> std::result::Result<QuoteLocateOutcome, String> {
+    let ScopedQuoteRange {
+        start_block,
+        start_scalar,
+        end_block,
+        end_scalar,
+    } = range;
+    if start_block > end_block || end_block >= blocks.len() {
+        return Ok(QuoteLocateOutcome::Indeterminate);
+    }
+    let needle = match normalize_quote(quote, budget, limits) {
+        Ok(needle) => needle,
+        Err(DiagnosticScanError::Limited) => return Ok(QuoteLocateOutcome::Limited),
+        Err(DiagnosticScanError::Invalid(error)) => return Err(error),
+    };
+    if needle.is_empty() {
+        return Ok(QuoteLocateOutcome::Missing);
+    }
+    let prefix = match kmp_prefix(&needle, budget, limits) {
+        Ok(prefix) => prefix,
+        Err(DiagnosticScanError::Limited) => return Ok(QuoteLocateOutcome::Limited),
+        Err(DiagnosticScanError::Invalid(error)) => return Err(error),
+    };
+    let scope_blocks = &blocks[start_block..=end_block];
+    let normalized_blocks = match scope_blocks
+        .iter()
+        .enumerate()
+        .map(|(offset, block)| {
+            let block_index = start_block + offset;
+            let start = if block_index == start_block {
+                start_scalar
+            } else {
+                0
+            };
+            let end = if block_index == end_block {
+                end_scalar.checked_add(1).ok_or_else(|| {
+                    DiagnosticScanError::Invalid("scoped quote end coordinate overflow".to_owned())
+                })?
+            } else {
+                let scalar_count = block.canonical.text.chars().count();
+                budget.charge_scan(scalar_count, limits)?;
+                scalar_count
+            };
+            normalize_block_items_in_range(block, Some(ScalarRange { start, end }), budget, limits)
+        })
+        .collect::<DiagnosticScanResult<Vec<_>>>()
+    {
+        Ok(blocks) => blocks,
+        Err(DiagnosticScanError::Limited) => return Ok(QuoteLocateOutcome::Limited),
+        Err(DiagnosticScanError::Invalid(error)) => return Err(error),
+    };
+    let outcome = match scan_quote_matches(
+        scope_blocks,
+        &normalized_blocks,
+        &needle,
+        &prefix,
+        budget,
+        limits,
+    ) {
+        Ok(Some(outcome)) => outcome,
+        Ok(None) => QuoteLocateOutcome::Missing,
+        Err(DiagnosticScanError::Limited) => return Ok(QuoteLocateOutcome::Limited),
+        Err(DiagnosticScanError::Invalid(error)) => return Err(error),
+    };
+    for block in scope_blocks {
         if budget.charge_scan(1, limits).is_err() {
             return Ok(QuoteLocateOutcome::Limited);
         }

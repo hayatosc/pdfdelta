@@ -8,7 +8,7 @@ use pdfdelta_bench::{
     renderers::{RenderLimits, RendererKind},
     revisions::{
         Annotation, MANIFEST_HEADER, PairRunStatus, PairSet, QUALITY_SKIP_INCOMPLETE_EXTRACTION,
-        QUALITY_SKIP_SCOPED_COMPLETE, load_expected_document, normalize_output_destination,
+        ScopedEventMetrics, load_expected_document, normalize_output_destination,
         run_revision_benchmark, write_reports_json, write_summary_json,
     },
 };
@@ -335,11 +335,24 @@ fn scoped_complete_requires_resolved_scopes_before_evaluation() {
     )
     .expect("benchmark runs with resolved scope");
     let resolved_report = &resolved_reports[0];
+    assert!(resolved_report.quality_skipped_reason.is_none());
+    let quality = resolved_report
+        .quality
+        .expect("scoped quality is available");
+    assert_eq!(quality.annotation, Annotation::ScopedComplete);
+    assert_eq!(quality.expected_changes, 1);
+    assert_eq!(quality.reported_changes, 1);
+    assert_eq!(quality.recall, Some(1.0));
+    assert_eq!(quality.precision, Some(1.0));
     assert_eq!(
-        resolved_report.quality_skipped_reason.as_deref(),
-        Some(QUALITY_SKIP_SCOPED_COMPLETE)
+        resolved_report.scoped_event_metrics,
+        Some(ScopedEventMetrics {
+            reviewed_scope_count: 1,
+            precision: 1.0,
+            recall: 1.0,
+            f1: 1.0,
+        })
     );
-    assert!(resolved_report.quality.is_none());
     assert!(resolved_report.candidate_recall.is_none());
     assert!(resolved_report.expected_change_diagnostics.is_none());
 
@@ -648,7 +661,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 5);
+    assert_eq!(val["schema_version"], 6);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 

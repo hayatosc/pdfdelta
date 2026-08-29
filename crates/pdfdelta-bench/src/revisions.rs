@@ -49,13 +49,14 @@ mod revision_diagnostics;
 mod revision_scopes;
 
 use revision_diagnostics::evaluate_reviewed_diagnostics;
-use revision_scopes::resolve_revision_scopes;
+use revision_scopes::{
+    classify_scoped_changes, resolve_revision_scopes, validate_scoped_expected_changes,
+};
 
 pub const QUALITY_SKIP_RESOURCE_LIMIT: &str = "comparison stopped at a resource limit";
 pub const QUALITY_SKIP_INCOMPLETE_EXTRACTION: &str =
     "extraction was incomplete so reported diffs are suppressed";
 pub const QUALITY_SKIP_NO_ANNOTATIONS: &str = "no expected annotations are recorded for this pair";
-pub const QUALITY_SKIP_SCOPED_COMPLETE: &str = "scoped-complete evaluation is not implemented";
 
 /// Column order of `benchmark/realworld/manifest.tsv`.
 pub const MANIFEST_HEADER: [&str; 17] = [
@@ -81,7 +82,7 @@ pub const MANIFEST_HEADER: [&str; 17] = [
 const SHA256_HEX_LEN: usize = 64;
 
 /// One reported semantic change and every location where it occurs.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ActualChange {
     pub kind: ChangeKind,
     pub occurrences: Vec<ActualChangeOccurrence>,
@@ -115,6 +116,15 @@ pub struct QualityMetrics {
     pub unmatched_tiny_changes: usize,
     /// Occurrences with at least one existing side that could not be resolved.
     pub unresolvable_reported_spans: usize,
+}
+
+/// Event-level quality over fully reviewed scopes only.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct ScopedEventMetrics {
+    pub reviewed_scope_count: usize,
+    pub precision: f64,
+    pub recall: f64,
+    pub f1: f64,
 }
 
 /// Recall of human-reviewed replacement and move counterparts in the
@@ -295,6 +305,10 @@ pub struct PairRunReport {
     pub reported_changes_preview: Vec<ReportedChangeText>,
     pub quality: Option<QualityMetrics>,
     pub quality_skipped_reason: Option<String>,
+    /// Scoped event quality is published only in compact summary schema v6;
+    /// the unversioned full-report v1 key set remains unchanged.
+    #[serde(skip)]
+    pub scoped_event_metrics: Option<ScopedEventMetrics>,
     /// Reviewed candidate recall is published only in compact summary schema
     /// v3 so the full report v1 key set remains unchanged.
     #[serde(skip)]
@@ -910,7 +924,7 @@ fn append_with_separator(
 }
 
 fn is_space_token(token: &ComparableToken) -> bool {
-    matches!(token, ComparableToken::Scalar(' '))
+    matches!(token, ComparableToken::Scalar(scalar) if scalar.is_whitespace())
 }
 
 fn flatten_actual_changes(
@@ -968,6 +982,14 @@ fn contains_needle(haystack: Option<&str>, needle: Option<&str>) -> bool {
 }
 
 fn match_changes(expected: &[ExpectedChange], actuals: &[ActualChange]) -> MatchOutcome {
+    match_changes_with_scopes(expected, actuals, None)
+}
+
+fn match_changes_with_scopes(
+    expected: &[ExpectedChange],
+    actuals: &[ActualChange],
+    actual_scopes: Option<&[String]>,
+) -> MatchOutcome {
     let mut claimed_actuals = HashSet::new();
     let mut claimed_actual_by_expected = vec![None; expected.len()];
     let mut kind_agreements = 0_usize;
@@ -976,6 +998,11 @@ fn match_changes(expected: &[ExpectedChange], actuals: &[ActualChange]) -> Match
         let needle_new = change.new_quote.as_deref().map(collapse_whitespace);
         for (index, actual) in actuals.iter().enumerate() {
             if claimed_actuals.contains(&index) {
+                continue;
+            }
+            if actual_scopes.is_some_and(|scopes| {
+                scopes.get(index).map(String::as_str) != change.scope.as_deref()
+            }) {
                 continue;
             }
             let matches_occurrence = actual.occurrences.iter().any(|occurrence| {
@@ -1001,6 +1028,43 @@ fn match_changes(expected: &[ExpectedChange], actuals: &[ActualChange]) -> Match
         claimed_actuals,
         claimed_actual_by_expected,
     }
+}
+
+fn scoped_quality(
+    reviewed_scope_count: usize,
+    expected: &[ExpectedChange],
+    actuals: &[ActualChange],
+    actual_scopes: &[String],
+) -> (QualityMetrics, ScopedEventMetrics) {
+    let outcome = match_changes_with_scopes(expected, actuals, Some(actual_scopes));
+    let mut quality =
+        quality_from_match_outcome(Annotation::ScopedComplete, expected, actuals, &outcome);
+    let precision = if actuals.is_empty() {
+        1.0
+    } else {
+        outcome.matched as f64 / actuals.len() as f64
+    };
+    let recall = if expected.is_empty() {
+        1.0
+    } else {
+        outcome.matched as f64 / expected.len() as f64
+    };
+    let f1 = if precision + recall == 0.0 {
+        0.0
+    } else {
+        2.0 * precision * recall / (precision + recall)
+    };
+    quality.precision = Some(precision);
+    quality.recall = Some(recall);
+    (
+        quality,
+        ScopedEventMetrics {
+            reviewed_scope_count,
+            precision,
+            recall,
+            f1,
+        },
+    )
 }
 
 fn ratio(numerator: usize, denominator: usize) -> Option<f64> {
@@ -1038,7 +1102,7 @@ fn quality_from_match_outcome(
         expected_changes: expected.len(),
         reported_changes: reported,
         recall: ratio(outcome.matched, expected.len()),
-        precision: (annotation == Annotation::Complete)
+        precision: (annotation != Annotation::Partial)
             .then(|| ratio(outcome.matched, reported))
             .flatten(),
         kind_accuracy: (outcome.matched > 0)
@@ -1046,7 +1110,7 @@ fn quality_from_match_outcome(
             .flatten(),
         reported_hunks_per_matched_change: (outcome.matched > 0)
             .then(|| reported_hunks as f64 / outcome.matched as f64),
-        review_hunks_per_expected_change: (annotation == Annotation::Complete)
+        review_hunks_per_expected_change: (annotation != Annotation::Partial)
             .then(|| ratio(reported_hunks, expected.len()))
             .flatten(),
         unmatched_tiny_changes: unmatched_tiny,
@@ -1187,6 +1251,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         reported_changes_preview: Vec::new(),
         quality: None,
         quality_skipped_reason: None,
+        scoped_event_metrics: None,
         candidate_recall: None,
         expected_change_diagnostics: None,
         resource_limit_failure: None,
@@ -1346,11 +1411,45 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
 
     match (expected, extraction_complete) {
         (Some(document), true) if document.annotation == Annotation::ScopedComplete => {
-            record.quality_skipped_reason = Some(
+            let scoped =
                 resolve_revision_scopes(&document.scopes, &outcome.old_blocks, &outcome.new_blocks)
-                    .map(|_| QUALITY_SKIP_SCOPED_COMPLETE.to_owned())
-                    .unwrap_or_else(|reason| reason),
-            );
+                    .and_then(|scopes| {
+                        validate_scoped_expected_changes(
+                            &document.changes,
+                            &scopes,
+                            &outcome.old_blocks,
+                            &outcome.new_blocks,
+                        )?;
+                        classify_scoped_changes(
+                            &outcome.comparison.changes,
+                            &scopes,
+                            &outcome.old_blocks,
+                            &outcome.new_blocks,
+                        )
+                        .map(|changes| (scopes, changes))
+                    });
+            match scoped {
+                Ok((scopes, changes)) => {
+                    let all_actuals = actuals.unwrap_or_default();
+                    let scoped_actuals = changes
+                        .iter()
+                        .map(|change| all_actuals[change.change_index].clone())
+                        .collect::<Vec<_>>();
+                    let actual_scopes = changes
+                        .iter()
+                        .map(|change| change.scope_id.clone())
+                        .collect::<Vec<_>>();
+                    let (quality, scoped_event_metrics) = scoped_quality(
+                        scopes.len(),
+                        &document.changes,
+                        &scoped_actuals,
+                        &actual_scopes,
+                    );
+                    record.quality = Some(quality);
+                    record.scoped_event_metrics = Some(scoped_event_metrics);
+                }
+                Err(reason) => record.quality_skipped_reason = Some(reason),
+            }
         }
         (Some(document), true) => {
             let actuals = actuals.unwrap_or_default();
@@ -1929,7 +2028,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 5;
+    pub const SCHEMA_VERSION: u32 = 6;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -1971,6 +2070,8 @@ pub struct RevisionSummaryRecord {
     pub sentence_recovery_metrics: Option<SentenceRecoveryMetricsReport>,
     pub quality: Option<QualityMetrics>,
     pub quality_skipped_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scoped_event_metrics: Option<ScopedEventMetrics>,
     pub candidate_recall: Option<CandidateRecallMetrics>,
     pub expected_change_diagnostics: Option<ExpectedChangeDiagnostics>,
 }
@@ -2001,6 +2102,7 @@ impl RevisionSummaryRecord {
             sentence_recovery_metrics: report.sentence_recovery_metrics,
             quality: report.quality,
             quality_skipped_reason: report.quality_skipped_reason.clone(),
+            scoped_event_metrics: report.scoped_event_metrics,
             candidate_recall: report.candidate_recall,
             expected_change_diagnostics: report.expected_change_diagnostics.clone(),
         }
@@ -2330,6 +2432,18 @@ mod tests {
         }
     }
 
+    fn scoped_expected_change(
+        id: &str,
+        scope: &str,
+        kind: ExpectedKind,
+        old: Option<&str>,
+        new: Option<&str>,
+    ) -> ExpectedChange {
+        let mut change = expected_change(id, kind, old, new);
+        change.scope = Some(scope.to_owned());
+        change
+    }
+
     #[test]
     fn diagnostic_json_uses_exact_stable_tags_without_internal_evidence() {
         let cases = [
@@ -2434,7 +2548,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 5);
+        assert_eq!(completed["schema_version"], 6);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -2443,6 +2557,37 @@ mod tests {
         assert_eq!(
             completed["records"][0]["expected_change_diagnostics"],
             serde_json::json!({"complete":true,"failures":[]})
+        );
+    }
+
+    #[test]
+    fn scoped_event_metrics_are_compact_v6_only_and_omitted_when_unavailable() {
+        let legacy = record(PairRunStatus::Ok);
+        let legacy_full = serde_json::to_value(&legacy).expect("full report serializes");
+        assert!(legacy_full.get("scoped_event_metrics").is_none());
+        let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
+            .expect("summary serializes");
+        assert_eq!(legacy_summary["schema_version"], 6);
+        assert!(
+            legacy_summary["records"][0]
+                .get("scoped_event_metrics")
+                .is_none()
+        );
+
+        let mut scoped = record(PairRunStatus::Ok);
+        scoped.scoped_event_metrics = Some(ScopedEventMetrics {
+            reviewed_scope_count: 2,
+            precision: 0.5,
+            recall: 1.0,
+            f1: 2.0 / 3.0,
+        });
+        let scoped_full = serde_json::to_value(&scoped).expect("full report serializes");
+        assert!(scoped_full.get("scoped_event_metrics").is_none());
+        let summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[scoped]))
+            .expect("summary serializes");
+        assert_eq!(
+            summary["records"][0]["scoped_event_metrics"]["reviewed_scope_count"],
+            2
         );
     }
 
@@ -2480,6 +2625,61 @@ mod tests {
         assert_eq!(partial.precision, None);
         assert_eq!(partial.kind_accuracy, Some(0.5));
         assert_eq!(partial.unmatched_tiny_changes, 0);
+    }
+
+    #[test]
+    fn scoped_event_quality_matches_only_the_same_scope_and_counts_false_positives() {
+        let expected = [scoped_expected_change(
+            "c1",
+            "reviewed",
+            ExpectedKind::Replacement,
+            Some("old quote"),
+            Some("new quote"),
+        )];
+        let actuals = [
+            actual_change(
+                ChangeKind::Replacement,
+                Some("old quote"),
+                Some("new quote"),
+                Some(2),
+                Some(2),
+            ),
+            actual_change(
+                ChangeKind::Insertion,
+                None,
+                Some("false positive"),
+                None,
+                Some(2),
+            ),
+        ];
+        let scopes = ["outside".to_owned(), "reviewed".to_owned()];
+        let (quality, metrics) = scoped_quality(1, &expected, &actuals, &scopes);
+
+        assert_eq!(quality.expected_changes, 1);
+        assert_eq!(quality.reported_changes, 2);
+        assert_eq!(quality.recall, Some(0.0));
+        assert_eq!(quality.precision, Some(0.0));
+        assert_eq!(metrics.f1, 0.0);
+
+        let scoped_actuals = [actuals[0].clone(), actuals[1].clone()];
+        let scoped_ids = ["reviewed".to_owned(), "reviewed".to_owned()];
+        let (quality, metrics) = scoped_quality(1, &expected, &scoped_actuals, &scoped_ids);
+        assert_eq!(quality.recall, Some(1.0));
+        assert_eq!(quality.precision, Some(0.5));
+        assert!((metrics.f1 - 2.0 / 3.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn change_free_reviewed_scope_has_vacuous_perfect_event_quality() {
+        let (quality, metrics) = scoped_quality(1, &[], &[], &[]);
+
+        assert_eq!(quality.expected_changes, 0);
+        assert_eq!(quality.reported_changes, 0);
+        assert_eq!(quality.precision, Some(1.0));
+        assert_eq!(quality.recall, Some(1.0));
+        assert_eq!(metrics.precision, 1.0);
+        assert_eq!(metrics.recall, 1.0);
+        assert_eq!(metrics.f1, 1.0);
     }
 
     #[test]
@@ -2665,6 +2865,7 @@ mod tests {
             reported_changes_preview: Vec::new(),
             quality: None,
             quality_skipped_reason: None,
+            scoped_event_metrics: None,
             candidate_recall: None,
             expected_change_diagnostics: None,
             resource_limit_failure: None,
@@ -3098,7 +3299,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 5);
+        assert_eq!(json["schema_version"], 6);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -3472,6 +3673,7 @@ mod tests {
                     unresolvable_reported_spans: 0,
                 }),
                 quality_skipped_reason: None,
+                scoped_event_metrics: None,
                 candidate_recall: None,
                 expected_change_diagnostics: None,
                 resource_limit_failure: None,
@@ -3519,6 +3721,7 @@ mod tests {
                 reported_changes_preview: Vec::new(),
                 quality: None,
                 quality_skipped_reason: Some(QUALITY_SKIP_RESOURCE_LIMIT.to_owned()),
+                scoped_event_metrics: None,
                 candidate_recall: None,
                 expected_change_diagnostics: None,
                 resource_limit_failure: Some(
@@ -3565,6 +3768,7 @@ mod tests {
                 reported_changes_preview: Vec::new(),
                 quality: None,
                 quality_skipped_reason: Some(QUALITY_SKIP_INCOMPLETE_EXTRACTION.to_owned()),
+                scoped_event_metrics: None,
                 candidate_recall: None,
                 expected_change_diagnostics: None,
                 resource_limit_failure: None,
@@ -3594,7 +3798,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 5);
+        assert_eq!(value["schema_version"], 6);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -3747,6 +3951,7 @@ mod tests {
             reported_changes_preview: Vec::new(),
             quality: None,
             quality_skipped_reason: None,
+            scoped_event_metrics: None,
             candidate_recall: Some(CandidateRecallMetrics {
                 top_k: 32,
                 annotated_counterparts: 1,
@@ -3870,6 +4075,7 @@ mod tests {
             }],
             quality: None,
             quality_skipped_reason: None,
+            scoped_event_metrics: None,
             candidate_recall: None,
             expected_change_diagnostics: None,
             resource_limit_failure: None,

@@ -60,9 +60,11 @@ confirms the corrected EDPB review baseline at 0.500 recall and 1.000 kind
 accuracy. These values are not precision claims because all current annotations
 are partial.
 
-## Current Writer Schema (v5)
+## Current Writer Schema (v6)
 
-The benchmark writer and latest immutable capture use schema v5. The earlier
+The benchmark writer uses schema v6; the latest immutable capture remains v5.
+Schema v6 adds optional scoped-complete event precision, recall, and F1 without
+changing legacy record key sets. The earlier
 [`2026-08-29.json`](2026-08-29.json) capture remains the schema-v4 baseline
 before alignment-span diagnostics and uncertain-span exact/replacement recovery.
 

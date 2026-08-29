@@ -1329,6 +1329,7 @@ mod tests {
             reported_changes_preview: Vec::new(),
             quality: None,
             quality_skipped_reason: None,
+            scoped_event_metrics: None,
             candidate_recall: None,
             expected_change_diagnostics: None,
             resource_limit_failure: None,
