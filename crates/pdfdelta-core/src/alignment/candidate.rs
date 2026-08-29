@@ -4,6 +4,10 @@ use crate::{Error, Result, layout::BlockId};
 
 use super::features::{BlockFeatures, ExactHash, NGram, NGramCounts, multiset_dice_similarity};
 
+/// Fraction of the bounded candidate set reserved for n-gram candidates near
+/// the strongest textual seed in new-document order.
+const LOCAL_CANDIDATE_DIVISOR: usize = 4;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CandidateSource {
     Exact,
@@ -61,6 +65,7 @@ pub struct InvertedIndexCandidateGenerator {
     exact_index: HashMap<ExactHash, Vec<BlockId>>,
     ngram_index: HashMap<NGram, Vec<BlockId>>,
     weighted_ngram_totals: HashMap<BlockId, f64>,
+    new_order: HashMap<BlockId, usize>,
     /// All new-side short blocks in `BlockId` order, retained for queries that
     /// have no page evidence and therefore cannot use structural locality.
     short_blocks: Vec<BlockId>,
@@ -75,10 +80,11 @@ impl InvertedIndexCandidateGenerator {
         let mut new_features = HashMap::with_capacity(new.len());
         let mut exact_index = HashMap::<ExactHash, Vec<BlockId>>::new();
         let mut ngram_index = HashMap::<NGram, Vec<BlockId>>::new();
+        let mut new_order = HashMap::with_capacity(new.len());
         let mut short_blocks = Vec::new();
         let mut positioned_short_blocks = Vec::new();
 
-        for features in new {
+        for (index, features) in new.iter().enumerate() {
             if new_features
                 .insert(features.block, features.clone())
                 .is_some()
@@ -88,6 +94,7 @@ impl InvertedIndexCandidateGenerator {
                     features.block.0
                 )));
             }
+            new_order.insert(features.block, index);
             exact_index
                 .entry(features.exact_hash)
                 .or_default()
@@ -138,6 +145,7 @@ impl InvertedIndexCandidateGenerator {
             exact_index,
             ngram_index,
             weighted_ngram_totals,
+            new_order,
             short_blocks,
             positioned_short_blocks,
             ngram_size,
@@ -148,25 +156,28 @@ impl InvertedIndexCandidateGenerator {
         idf(self.new_features.len(), &self.ngram_index, ngram)
     }
 
-    fn weighted_ngram_similarity(
+    fn weighted_ngram_scores(
         &self,
         block: BlockId,
         old_weight: f64,
         shared_weight: f64,
-    ) -> f64 {
+    ) -> (f64, f64) {
         let Some(new_weight) = self.weighted_ngram_totals.get(&block).copied() else {
-            return 0.0;
+            return (0.0, 0.0);
         };
         let total = old_weight + new_weight;
-        if total == 0.0 {
-            return 1.0;
-        }
-        let score = 2.0 * shared_weight / total;
-        if score.is_finite() {
-            score.clamp(0.0, 1.0)
+        let dice = if total == 0.0 {
+            1.0
         } else {
-            0.0
-        }
+            finite_unit_score(2.0 * shared_weight / total)
+        };
+        let shorter = old_weight.min(new_weight);
+        let containment = if shorter == 0.0 {
+            f64::from(old_weight == 0.0 && new_weight == 0.0)
+        } else {
+            finite_unit_score(shared_weight / shorter)
+        };
+        (dice, containment)
     }
 
     fn short_fallback_visit_count(&self, old: &BlockFeatures, limit: usize) -> usize {
@@ -334,27 +345,122 @@ impl CandidateGenerator for InvertedIndexCandidateGenerator {
             }
         }
 
-        let mut candidates = evidence
-            .into_iter()
-            .map(|(block, evidence)| {
-                let exact = evidence.sources.contains(&CandidateSource::Exact);
-                let coarse_score = if exact {
-                    1.0
-                } else {
-                    self.weighted_ngram_similarity(block, old_weight, evidence.shared_ngram_weight)
-                };
-                let mut sources = evidence.sources.into_iter().collect::<Vec<_>>();
-                sources.sort_by_key(candidate_source_rank);
-                Candidate {
+        let mut candidates = Vec::with_capacity(evidence.len());
+        for (block, evidence) in evidence {
+            let Some(document_index) = self.new_order.get(&block).copied() else {
+                return Err(Error::Unresolved(format!(
+                    "candidate block {} is missing from the new-document order",
+                    block.0
+                )));
+            };
+            let exact = evidence.sources.contains(&CandidateSource::Exact);
+            let (coarse_score, containment_score) = if exact {
+                (1.0, 1.0)
+            } else {
+                self.weighted_ngram_scores(block, old_weight, evidence.shared_ngram_weight)
+            };
+            let mut sources = evidence.sources.into_iter().collect::<Vec<_>>();
+            sources.sort_by_key(candidate_source_rank);
+            candidates.push(RankedCandidate {
+                candidate: Candidate {
                     block,
                     sources,
                     coarse_score,
+                },
+                containment_score,
+                document_index,
+            });
+        }
+        Ok(select_candidate_union(candidates, limit))
+    }
+}
+
+struct RankedCandidate {
+    candidate: Candidate,
+    containment_score: f64,
+    document_index: usize,
+}
+
+fn select_candidate_union(mut candidates: Vec<RankedCandidate>, limit: usize) -> Vec<Candidate> {
+    candidates.sort_by(|left, right| candidate_order(&left.candidate, &right.candidate));
+    if candidates.len() <= limit {
+        return candidates
+            .into_iter()
+            .map(|ranked| ranked.candidate)
+            .collect();
+    }
+    let local_limit = limit / LOCAL_CANDIDATE_DIVISOR;
+    if local_limit == 0 {
+        return candidates
+            .into_iter()
+            .take(limit)
+            .map(|ranked| ranked.candidate)
+            .collect();
+    }
+
+    let exact_count = candidates
+        .iter()
+        .take_while(|ranked| ranked.candidate.sources.contains(&CandidateSource::Exact))
+        .count();
+    let primary_limit = (limit - local_limit).max(exact_count.min(limit));
+    let mut selected = HashSet::with_capacity(limit);
+    let mut indices = Vec::with_capacity(limit);
+    for (index, ranked) in candidates.iter().enumerate().take(primary_limit) {
+        selected.insert(ranked.candidate.block);
+        indices.push(index);
+    }
+
+    let seed = candidates[0].document_index;
+    let mut local_order = (0..candidates.len()).collect::<Vec<_>>();
+    local_order.sort_unstable_by(|left, right| {
+        candidates[*left]
+            .document_index
+            .abs_diff(seed)
+            .cmp(&candidates[*right].document_index.abs_diff(seed))
+            .then(
+                candidates[*right]
+                    .containment_score
+                    .total_cmp(&candidates[*left].containment_score),
+            )
+            .then(candidate_order(
+                &candidates[*left].candidate,
+                &candidates[*right].candidate,
+            ))
+    });
+    for index in local_order {
+        if selected.insert(candidates[index].candidate.block) {
+            indices.push(index);
+            if indices.len() == limit {
+                break;
+            }
+        }
+    }
+    if indices.len() < limit {
+        for (index, ranked) in candidates.iter().enumerate().skip(primary_limit) {
+            if selected.insert(ranked.candidate.block) {
+                indices.push(index);
+                if indices.len() == limit {
+                    break;
                 }
-            })
-            .collect::<Vec<_>>();
-        candidates.sort_by(candidate_order);
-        candidates.truncate(limit);
-        Ok(candidates)
+            }
+        }
+    }
+    indices.sort_unstable();
+    let mut selected = indices.into_iter().peekable();
+    candidates
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, ranked)| {
+            (selected.next_if_eq(&index).is_some()).then_some(ranked.candidate)
+        })
+        .collect()
+}
+
+fn finite_unit_score(score: f64) -> f64 {
+    if score.is_finite() {
+        score.clamp(0.0, 1.0)
+    } else {
+        0.0
     }
 }
 
@@ -775,6 +881,68 @@ mod tests {
         assert_eq!(candidates[0].block, BlockId(2));
         assert_eq!(candidates[0].coarse_score, 1.0);
         assert!(candidates[0].coarse_score > candidates[1].coarse_score);
+    }
+
+    #[test]
+    fn candidate_union_reserves_bounded_local_split_merge_slots() {
+        let mut candidates = (0..36)
+            .map(|index| RankedCandidate {
+                candidate: Candidate {
+                    block: BlockId(index + 1),
+                    sources: vec![CandidateSource::NGramInvertedIndex],
+                    coarse_score: 1.0 - index as f64 / 100.0,
+                },
+                containment_score: 0.5,
+                document_index: 200 + index as usize,
+            })
+            .collect::<Vec<_>>();
+        candidates[0].document_index = 100;
+        candidates[35].containment_score = 1.0;
+        candidates[35].document_index = 103;
+
+        let selected = select_candidate_union(candidates, 32);
+
+        assert_eq!(selected.len(), 32);
+        assert!(
+            selected
+                .iter()
+                .any(|candidate| candidate.block == BlockId(36))
+        );
+        assert!(
+            selected
+                .iter()
+                .any(|candidate| candidate.block == BlockId(28))
+        );
+        assert!(
+            selected
+                .iter()
+                .all(|candidate| candidate.block != BlockId(32))
+        );
+    }
+
+    #[test]
+    fn small_candidate_limits_keep_the_primary_ranking() {
+        let candidates = (0..4)
+            .map(|index| RankedCandidate {
+                candidate: Candidate {
+                    block: BlockId(index + 1),
+                    sources: vec![CandidateSource::NGramInvertedIndex],
+                    coarse_score: 1.0 - index as f64 / 10.0,
+                },
+                containment_score: if index == 3 { 1.0 } else { 0.0 },
+                document_index: index as usize,
+            })
+            .collect::<Vec<_>>();
+
+        let selected = select_candidate_union(candidates, 2);
+
+        assert_eq!(
+            selected
+                .iter()
+                .map(|candidate| candidate.block)
+                .collect::<Vec<_>>(),
+            [BlockId(1), BlockId(2)]
+        );
     }
 
     #[test]
