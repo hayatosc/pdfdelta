@@ -213,6 +213,12 @@ pub struct RecoveryWatchOccurrence {
     /// Index in the originating document side's trusted-run descriptor list.
     pub trusted_run_descriptor_index: Option<usize>,
     pub ordinal: Option<usize>,
+    /// End-exclusive trusted-stream ordinal for a segment occurrence.
+    pub end_ordinal: Option<usize>,
+    /// Number of adjacent units in a segment occurrence.
+    pub unit_count: Option<usize>,
+    /// Number of canonical comparable tokens in a segment occurrence.
+    pub token_count: Option<usize>,
     /// Whether recovery built a safe source location and the unit meets the
     /// configured minimum length. Candidate uniqueness and near relations are
     /// separate later-stage conditions.
@@ -262,12 +268,49 @@ pub struct RecoveryWatchPairEvidence {
     pub reciprocal: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExactSegmentRelation {
+    NonExact,
+    Duplicate,
+    ExactUniqueTopologyUnknown,
+    ExactUniqueMonotone,
+    ExactUniqueCrossing,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SegmentStopReason {
+    CandidateCountLimit,
+    HashPairVisitLimit,
+    TokenVerificationLimit,
+    AllocationFailure,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecoveryWatchSegmentPairEvidence {
+    pub old_start_ordinal: usize,
+    pub old_end_ordinal: usize,
+    pub new_start_ordinal: usize,
+    pub new_end_ordinal: usize,
+    pub old_unit_count: usize,
+    pub new_unit_count: usize,
+    pub old_token_count: usize,
+    pub new_token_count: usize,
+    pub exact: bool,
+    pub old_occurrence_count: usize,
+    pub new_occurrence_count: usize,
+    pub role_compatible: bool,
+    pub overlaps_existing_recovery: bool,
+    pub crossing_anchor_count: usize,
+    pub relation: ExactSegmentRelation,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecoveryWatchRecord {
     pub id: String,
     pub old: RecoveryWatchOccurrenceEvidence,
     pub new: RecoveryWatchOccurrenceEvidence,
     pub pair: Option<RecoveryWatchPairEvidence>,
+    pub segment_pair: Option<RecoveryWatchSegmentPairEvidence>,
 }
 
 /// Bounded sidecar diagnostics that never alter the recovery plan.
@@ -277,6 +320,15 @@ pub struct RecoveryWatchDiagnostics {
     pub candidate_generation_complete: bool,
     pub near_relation_complete: bool,
     pub near_relation_stop_reason: Option<NearRelationStopReason>,
+    pub segment_candidates: usize,
+    pub segment_hash_matches: usize,
+    pub segment_token_verified_matches: usize,
+    pub segment_unique_pairs: usize,
+    pub segment_duplicate_pairs: usize,
+    pub segment_monotone_pairs: usize,
+    pub segment_crossing_pairs: usize,
+    pub segment_overlap_vetoes: usize,
+    pub segment_stop_reason: Option<SegmentStopReason>,
     pub records: Vec<RecoveryWatchRecord>,
 }
 

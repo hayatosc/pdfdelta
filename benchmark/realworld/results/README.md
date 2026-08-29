@@ -110,9 +110,16 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v12)
+## Current Writer Schema (v13)
 
-The benchmark writer uses schema v12; older immutable captures retain their recorded schema.
+The benchmark writer uses schema v13. The latest committed capture above remains
+an immutable historical schema-v12 artifact; older captures likewise retain
+their recorded schemas.
+Schema v13 adds bounded exact segment-pair diagnostics to recovery watches. It
+records candidate, hash-match, token-verification, uniqueness, monotonicity,
+crossing, overlap-veto, and typed stop evidence, plus the exact segment-pair
+classification associated with each watched change. These observations remain
+diagnostic-only and do not change comparison output.
 Schema v12 extends bounded recovery watches to locate exact quotes spanning two
 to eight adjacent units in one trusted stream. Segment observations remain
 diagnostic-only, mark unit-level exact counts unavailable, and do not change

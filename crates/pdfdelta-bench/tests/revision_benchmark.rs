@@ -773,7 +773,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 12);
+    assert_eq!(val["schema_version"], 13);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 
@@ -873,6 +873,15 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
             "candidate_generation_complete": true,
             "near_relation_complete": true,
             "near_relation_stop_reason": null,
+            "segment_candidates": 0,
+            "segment_hash_matches": 0,
+            "segment_token_verified_matches": 0,
+            "segment_unique_pairs": 0,
+            "segment_duplicate_pairs": 0,
+            "segment_monotone_pairs": 0,
+            "segment_crossing_pairs": 0,
+            "segment_overlap_vetoes": 0,
+            "segment_stop_reason": null,
             "records": []
         })
     );

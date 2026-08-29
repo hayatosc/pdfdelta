@@ -17,12 +17,13 @@ use crate::{
 };
 
 use super::{
-    MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
-    RecoveryWatchDiagnostics, RecoveryWatchNearScope, RecoveryWatchOccurrence,
-    RecoveryWatchOccurrenceEvidence, RecoveryWatchPairEvidence, RecoveryWatchQuery,
-    RecoveryWatchRecord, RecoveryWatchRelation, RecoveryWatchUnitKind, RunSignatureStopReason,
-    SentenceRecoveryCommittedTokens, SentenceRecoveryInput, SentenceRecoveryMetrics, Side,
-    TokenRange, TrustedRunRecoveryInput,
+    ExactSegmentRelation, MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS,
+    NearRelationStopReason, RecoveryWatchDiagnostics, RecoveryWatchNearScope,
+    RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence, RecoveryWatchPairEvidence,
+    RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
+    RecoveryWatchSegmentPairEvidence, RecoveryWatchUnitKind, RunSignatureStopReason,
+    SegmentStopReason, SentenceRecoveryCommittedTokens, SentenceRecoveryInput,
+    SentenceRecoveryMetrics, Side, TokenRange, TrustedRunRecoveryInput,
 };
 
 pub(super) const MAX_SENTENCE_RECOVERY_RANGES: usize = 8_192;
@@ -331,7 +332,7 @@ impl From<BlockRole> for OccurrenceRole {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct TrustedStreamPosition {
     stream_index: usize,
     ordinal: usize,
@@ -473,6 +474,200 @@ struct ExactMatchCandidate {
     new_occurrence_index: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct ExactHash(u64);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct RecoverySegmentKey {
+    stream_index: usize,
+    start_ordinal: usize,
+    end_ordinal: usize,
+}
+
+#[derive(Clone, Copy)]
+struct RecoverySegment {
+    key: RecoverySegmentKey,
+    _span_index: usize,
+    occurrence_indices: [usize; 8],
+    unit_count: usize,
+    role: BlockRole,
+    _source_token_count: usize,
+    token_count: usize,
+    exact_hash: ExactHash,
+}
+
+#[derive(Default)]
+struct SegmentDiagnosticAnalysis {
+    old: Vec<RecoverySegment>,
+    new: Vec<RecoverySegment>,
+    old_index: HashMap<ExactHash, Vec<usize>>,
+    new_index: HashMap<ExactHash, Vec<usize>>,
+    exact_pairs: Vec<(usize, usize)>,
+    old_cross_counts: Vec<usize>,
+    new_cross_counts: Vec<usize>,
+    old_consumed: HashMap<usize, Vec<LocalSentenceRange>>,
+    new_consumed: HashMap<usize, Vec<LocalSentenceRange>>,
+    unique_pairs: Vec<(usize, usize)>,
+    budget: SegmentDiagnosticBudget,
+    segment_candidates: usize,
+    segment_hash_matches: usize,
+    segment_token_verified_matches: usize,
+    segment_unique_pairs: usize,
+    segment_duplicate_pairs: usize,
+    segment_monotone_pairs: usize,
+    segment_crossing_pairs: usize,
+}
+
+#[derive(Clone, Copy, Default)]
+struct SegmentDiagnosticBudget {
+    descriptors: usize,
+    descriptor_bytes: usize,
+    hash_pair_visits: usize,
+    token_elements: usize,
+    topology_anchor_scans: usize,
+    output_evidence: usize,
+    retained_location_items: usize,
+    retained_location_bytes: usize,
+    auxiliary_items: usize,
+    auxiliary_bytes: usize,
+    overlap_comparisons: usize,
+}
+
+impl SegmentDiagnosticBudget {
+    const DESCRIPTOR_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS / 4;
+    const DESCRIPTOR_BYTE_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_BYTES / 4;
+    const HASH_PAIR_VISIT_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS * 2;
+    const TOKEN_ELEMENT_LIMIT: usize =
+        MAX_SENTENCE_RECOVERY_OUTPUT_BYTES / std::mem::size_of::<SentenceEvidenceToken>();
+    const TOPOLOGY_ANCHOR_SCAN_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS * 8;
+    const AUXILIARY_ITEM_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS / 2;
+    const AUXILIARY_BYTE_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_BYTES / 4;
+    const OVERLAP_COMPARISON_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS * 8;
+
+    fn charge_descriptor(&mut self) -> std::result::Result<(), SegmentStopReason> {
+        self.descriptors = self
+            .descriptors
+            .checked_add(1)
+            .ok_or(SegmentStopReason::CandidateCountLimit)?;
+        self.descriptor_bytes = self
+            .descriptor_bytes
+            .checked_add(std::mem::size_of::<RecoverySegment>())
+            .ok_or(SegmentStopReason::CandidateCountLimit)?;
+        if self.descriptors > Self::DESCRIPTOR_LIMIT
+            || self.descriptor_bytes > Self::DESCRIPTOR_BYTE_LIMIT
+        {
+            return Err(SegmentStopReason::CandidateCountLimit);
+        }
+        Ok(())
+    }
+
+    fn charge_hash_pairs(&mut self, amount: usize) -> std::result::Result<(), SegmentStopReason> {
+        self.hash_pair_visits = self
+            .hash_pair_visits
+            .checked_add(amount)
+            .ok_or(SegmentStopReason::HashPairVisitLimit)?;
+        if self.hash_pair_visits > Self::HASH_PAIR_VISIT_LIMIT {
+            return Err(SegmentStopReason::HashPairVisitLimit);
+        }
+        Ok(())
+    }
+
+    fn charge_token_elements(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), SegmentStopReason> {
+        self.token_elements = self
+            .token_elements
+            .checked_add(amount)
+            .ok_or(SegmentStopReason::TokenVerificationLimit)?;
+        if self.token_elements > Self::TOKEN_ELEMENT_LIMIT {
+            return Err(SegmentStopReason::TokenVerificationLimit);
+        }
+        Ok(())
+    }
+
+    fn charge_topology_anchor_scans(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), SegmentStopReason> {
+        self.topology_anchor_scans = self
+            .topology_anchor_scans
+            .checked_add(amount)
+            .ok_or(SegmentStopReason::HashPairVisitLimit)?;
+        if self.topology_anchor_scans > Self::TOPOLOGY_ANCHOR_SCAN_LIMIT {
+            return Err(SegmentStopReason::HashPairVisitLimit);
+        }
+        Ok(())
+    }
+
+    fn charge_output(&mut self) -> std::result::Result<(), SegmentStopReason> {
+        self.output_evidence = self
+            .output_evidence
+            .checked_add(1)
+            .ok_or(SegmentStopReason::CandidateCountLimit)?;
+        if self.output_evidence > MAX_RECOVERY_WATCH_QUERIES {
+            return Err(SegmentStopReason::CandidateCountLimit);
+        }
+        Ok(())
+    }
+
+    fn charge_retained_locations(
+        &mut self,
+        items: usize,
+    ) -> std::result::Result<(), SegmentStopReason> {
+        self.retained_location_items = self
+            .retained_location_items
+            .checked_add(items)
+            .ok_or(SegmentStopReason::CandidateCountLimit)?;
+        self.retained_location_bytes = self
+            .retained_location_bytes
+            .checked_add(
+                items
+                    .checked_mul(std::mem::size_of::<LocalSentenceRange>())
+                    .ok_or(SegmentStopReason::CandidateCountLimit)?,
+            )
+            .ok_or(SegmentStopReason::CandidateCountLimit)?;
+        if self.retained_location_items > MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS / 2
+            || self.retained_location_bytes > MAX_SENTENCE_RECOVERY_OUTPUT_BYTES / 4
+        {
+            return Err(SegmentStopReason::CandidateCountLimit);
+        }
+        Ok(())
+    }
+
+    fn charge_auxiliary<T>(&mut self, items: usize) -> std::result::Result<(), SegmentStopReason> {
+        self.auxiliary_items = self
+            .auxiliary_items
+            .checked_add(items)
+            .ok_or(SegmentStopReason::CandidateCountLimit)?;
+        self.auxiliary_bytes = self
+            .auxiliary_bytes
+            .checked_add(
+                items
+                    .checked_mul(std::mem::size_of::<T>())
+                    .ok_or(SegmentStopReason::CandidateCountLimit)?,
+            )
+            .ok_or(SegmentStopReason::CandidateCountLimit)?;
+        if self.auxiliary_items > Self::AUXILIARY_ITEM_LIMIT
+            || self.auxiliary_bytes > Self::AUXILIARY_BYTE_LIMIT
+        {
+            return Err(SegmentStopReason::CandidateCountLimit);
+        }
+        Ok(())
+    }
+
+    fn charge_overlap_comparison(&mut self) -> std::result::Result<(), SegmentStopReason> {
+        self.overlap_comparisons = self
+            .overlap_comparisons
+            .checked_add(1)
+            .ok_or(SegmentStopReason::HashPairVisitLimit)?;
+        if self.overlap_comparisons > Self::OVERLAP_COMPARISON_LIMIT {
+            return Err(SegmentStopReason::HashPairVisitLimit);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy, Default)]
 struct CandidateNearRelation {
     best_score: u16,
@@ -485,6 +680,9 @@ struct RecoveryWatchState {
     candidate_generation_complete: bool,
     near_relation_complete: bool,
     near_relation_stop_reason: Option<NearRelationStopReason>,
+    segment_analysis: SegmentDiagnosticAnalysis,
+    segment_stop_reason: Option<SegmentStopReason>,
+    segment_overlap_vetoes: usize,
     records: Vec<RecoveryWatchStateRecord>,
     pair_by_occurrences: HashMap<(usize, usize), Vec<usize>>,
     scan_work: usize,
@@ -495,16 +693,30 @@ struct RecoveryWatchStateRecord {
     output: RecoveryWatchRecord,
     old_occurrence: Option<usize>,
     new_occurrence: Option<usize>,
+    old_segment: Option<usize>,
+    new_segment: Option<usize>,
 }
 
 struct RecoveryWatchLookup {
     evidence: RecoveryWatchOccurrenceEvidence,
     occurrence_index: Option<usize>,
     span_index: Option<usize>,
+    segment_key: Option<RecoverySegmentKey>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct RecoveryWatchSegmentHit {
+    stream_index: usize,
+    start_ordinal: usize,
+    end_ordinal: usize,
+    unit_count: usize,
+    token_count: usize,
+    byte_start: usize,
+    byte_end: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct RecoveryWatchSegmentDedupeKey {
     stream_index: usize,
     start_ordinal: usize,
     byte_start: usize,
@@ -520,22 +732,668 @@ struct RecoveryWatchBuildContext<'a> {
     max_tokens: usize,
 }
 
+fn exact_segment_hash(tokens: &[SentenceEvidenceToken]) -> ExactHash {
+    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut hash = ExactHash(OFFSET);
+    for token in tokens {
+        extend_exact_segment_hash(&mut hash, *token);
+    }
+    hash
+}
+
+fn extend_exact_segment_hash(hash: &mut ExactHash, token: SentenceEvidenceToken) {
+    const PRIME: u64 = 0x0000_0100_0000_01b3;
+
+    match token {
+        SentenceEvidenceToken::Scalar(scalar) => {
+            hash.0 ^= 0;
+            hash.0 = hash.0.wrapping_mul(PRIME);
+            for byte in u32::from(scalar).to_le_bytes() {
+                hash.0 ^= u64::from(byte);
+                hash.0 = hash.0.wrapping_mul(PRIME);
+            }
+        }
+        SentenceEvidenceToken::Unmapped {
+            font_fingerprint,
+            glyph_id,
+        } => {
+            hash.0 ^= 1;
+            hash.0 = hash.0.wrapping_mul(PRIME);
+            for byte in font_fingerprint
+                .to_le_bytes()
+                .into_iter()
+                .chain(glyph_id.to_le_bytes())
+            {
+                hash.0 ^= u64::from(byte);
+                hash.0 = hash.0.wrapping_mul(PRIME);
+            }
+        }
+    }
+}
+
+fn segment_tokens<'a>(
+    segment: &'a RecoverySegment,
+    occurrences: &'a [SentenceOccurrence],
+) -> impl Iterator<Item = &'a SentenceEvidenceToken> + 'a {
+    segment.occurrence_indices[..segment.unit_count]
+        .iter()
+        .filter_map(|index| occurrences.get(*index))
+        .flat_map(|occurrence| occurrence.tokens.iter())
+}
+
+fn exact_segment_tokens_match(
+    old: &RecoverySegment,
+    new: &RecoverySegment,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+) -> bool {
+    old.exact_hash == new.exact_hash
+        && old.token_count == new.token_count
+        && segment_tokens(old, old_occurrences).eq(segment_tokens(new, new_occurrences))
+}
+
+fn collect_recovery_segments_with_budget(
+    occurrences: &[SentenceOccurrence],
+    min_tokens: usize,
+    budget: &mut SegmentDiagnosticBudget,
+) -> std::result::Result<Vec<RecoverySegment>, SegmentStopReason> {
+    const MAX_SEGMENT_UNITS: usize = 8;
+
+    let mut by_position = Vec::<(TrustedStreamPosition, Option<usize>)>::new();
+    by_position
+        .try_reserve(
+            occurrences
+                .len()
+                .min(SegmentDiagnosticBudget::AUXILIARY_ITEM_LIMIT),
+        )
+        .map_err(|_| SegmentStopReason::AllocationFailure)?;
+    for (index, occurrence) in occurrences.iter().enumerate() {
+        let Some(position) = occurrence.trusted_position else {
+            continue;
+        };
+        budget.charge_auxiliary::<(TrustedStreamPosition, Option<usize>)>(1)?;
+        by_position.push((position, Some(index)));
+    }
+    by_position.sort_unstable_by_key(|entry| entry.0);
+    let mut read = 0usize;
+    let mut write = 0usize;
+    while read < by_position.len() {
+        let position = by_position[read].0;
+        let end = read + by_position[read..].partition_point(|entry| entry.0 == position);
+        by_position[write] = (
+            position,
+            if end - read == 1 {
+                by_position[read].1
+            } else {
+                None
+            },
+        );
+        write += 1;
+        read = end;
+    }
+    by_position.truncate(write);
+
+    let position_index = |position: TrustedStreamPosition| {
+        by_position
+            .binary_search_by_key(&position, |entry| entry.0)
+            .ok()
+            .and_then(|index| by_position.get(index)?.1)
+    };
+
+    let mut segments = Vec::new();
+    segments
+        .try_reserve(
+            occurrences
+                .len()
+                .min(SegmentDiagnosticBudget::DESCRIPTOR_LIMIT),
+        )
+        .map_err(|_| SegmentStopReason::AllocationFailure)?;
+    for (first_index, first) in occurrences.iter().enumerate() {
+        let (Some(position), Some(span_index), Some(role), Some(first_location)) = (
+            first.trusted_position,
+            first.span_index,
+            first.role,
+            first.location.as_ref(),
+        ) else {
+            continue;
+        };
+        if first.tokens.iter().any(|token| !token.is_scalar()) {
+            continue;
+        }
+        let mut occurrence_indices = [usize::MAX; MAX_SEGMENT_UNITS];
+        let mut token_count = first.tokens.len();
+        let mut source_token_count = first_location.recovery.source_tokens;
+        occurrence_indices[0] = first_index;
+        budget.charge_token_elements(first.tokens.len())?;
+        let mut exact_hash = exact_segment_hash(&first.tokens);
+
+        for offset in 1..MAX_SEGMENT_UNITS {
+            let ordinal = position
+                .ordinal
+                .checked_add(offset)
+                .ok_or(SegmentStopReason::CandidateCountLimit)?;
+            let Some(next_index) = position_index(TrustedStreamPosition {
+                stream_index: position.stream_index,
+                ordinal,
+            }) else {
+                break;
+            };
+            let next = occurrences
+                .get(next_index)
+                .ok_or(SegmentStopReason::CandidateCountLimit)?;
+            let Some(next_location) = next.location.as_ref() else {
+                break;
+            };
+            if next.span_index != Some(span_index)
+                || next.role != Some(role)
+                || next.tokens.iter().any(|token| !token.is_scalar())
+            {
+                break;
+            }
+            occurrence_indices[offset] = next_index;
+            token_count = token_count
+                .checked_add(next.tokens.len())
+                .ok_or(SegmentStopReason::TokenVerificationLimit)?;
+            budget.charge_token_elements(next.tokens.len())?;
+            for token in &next.tokens {
+                extend_exact_segment_hash(&mut exact_hash, *token);
+            }
+            source_token_count = source_token_count
+                .checked_add(next_location.recovery.source_tokens)
+                .ok_or(SegmentStopReason::CandidateCountLimit)?;
+            if token_count < min_tokens {
+                continue;
+            }
+            budget.charge_descriptor()?;
+            let end_ordinal = ordinal
+                .checked_add(1)
+                .ok_or(SegmentStopReason::CandidateCountLimit)?;
+            segments.push(RecoverySegment {
+                key: RecoverySegmentKey {
+                    stream_index: position.stream_index,
+                    start_ordinal: position.ordinal,
+                    end_ordinal,
+                },
+                _span_index: span_index,
+                occurrence_indices,
+                unit_count: offset + 1,
+                role,
+                _source_token_count: source_token_count,
+                token_count,
+                exact_hash,
+            });
+        }
+    }
+    Ok(segments)
+}
+
+#[cfg(test)]
+fn collect_recovery_segments(
+    occurrences: &[SentenceOccurrence],
+    min_tokens: usize,
+    _candidate_limit: usize,
+) -> std::result::Result<Vec<RecoverySegment>, SegmentStopReason> {
+    collect_recovery_segments_with_budget(
+        occurrences,
+        min_tokens,
+        &mut SegmentDiagnosticBudget::default(),
+    )
+}
+
+fn snapshot_segment_consumed_ranges(
+    occurrences: &[SentenceOccurrence],
+    segments: &[RecoverySegment],
+    budget: &mut SegmentDiagnosticBudget,
+) -> std::result::Result<HashMap<usize, Vec<LocalSentenceRange>>, SegmentStopReason> {
+    let referenced_limit = segments
+        .len()
+        .checked_mul(8)
+        .ok_or(SegmentStopReason::CandidateCountLimit)?
+        .min(SegmentDiagnosticBudget::AUXILIARY_ITEM_LIMIT);
+    let mut snapshots = HashMap::new();
+    snapshots
+        .try_reserve(referenced_limit)
+        .map_err(|_| SegmentStopReason::AllocationFailure)?;
+    for segment in segments {
+        for index in &segment.occurrence_indices[..segment.unit_count] {
+            if snapshots.contains_key(index) {
+                continue;
+            }
+            budget.charge_auxiliary::<(usize, Vec<LocalSentenceRange>)>(1)?;
+            let consumed = &occurrences
+                .get(*index)
+                .and_then(|occurrence| occurrence.location.as_ref())
+                .ok_or(SegmentStopReason::CandidateCountLimit)?
+                .consumed;
+            budget.charge_retained_locations(consumed.len())?;
+            let mut snapshot = Vec::new();
+            snapshot
+                .try_reserve_exact(consumed.len())
+                .map_err(|_| SegmentStopReason::AllocationFailure)?;
+            snapshot.extend_from_slice(consumed);
+            snapshots.insert(*index, snapshot);
+        }
+    }
+    Ok(snapshots)
+}
+
+fn segment_topology_with_budget(
+    old: &RecoverySegment,
+    new: &RecoverySegment,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    exact_candidates: &[ExactMatchCandidate],
+    budget: &mut SegmentDiagnosticBudget,
+) -> std::result::Result<(ExactSegmentRelation, usize), SegmentStopReason> {
+    let mut old_partners = HashSet::new();
+    let mut new_partners = HashSet::new();
+    let mut anchors = Vec::new();
+    old_partners
+        .try_reserve(2)
+        .map_err(|_| SegmentStopReason::AllocationFailure)?;
+    new_partners
+        .try_reserve(2)
+        .map_err(|_| SegmentStopReason::AllocationFailure)?;
+    anchors
+        .try_reserve(exact_candidates.len())
+        .map_err(|_| SegmentStopReason::AllocationFailure)?;
+    for candidate in exact_candidates {
+        budget.charge_topology_anchor_scans(1)?;
+        let (Some(old_position), Some(new_position)) = (
+            old_occurrences
+                .get(candidate.old_occurrence_index)
+                .and_then(|occurrence| occurrence.trusted_position),
+            new_occurrences
+                .get(candidate.new_occurrence_index)
+                .and_then(|occurrence| occurrence.trusted_position),
+        ) else {
+            continue;
+        };
+        if old_position.stream_index == old.key.stream_index {
+            old_partners.insert(new_position.stream_index);
+        }
+        if new_position.stream_index == new.key.stream_index {
+            new_partners.insert(old_position.stream_index);
+        }
+        if old_position.stream_index == old.key.stream_index
+            && new_position.stream_index == new.key.stream_index
+        {
+            anchors.push((old_position.ordinal, new_position.ordinal));
+        }
+    }
+    if old_partners.len() != 1
+        || new_partners.len() != 1
+        || !old_partners.contains(&new.key.stream_index)
+        || !new_partners.contains(&old.key.stream_index)
+        || anchors.is_empty()
+    {
+        return Ok((ExactSegmentRelation::ExactUniqueTopologyUnknown, 0));
+    }
+    anchors.sort_unstable();
+    if !anchors
+        .windows(2)
+        .all(|pair| pair[0].0 < pair[1].0 && pair[0].1 < pair[1].1)
+    {
+        return Ok((ExactSegmentRelation::ExactUniqueTopologyUnknown, 0));
+    }
+    let mut crossings = 0usize;
+    let mut usable_anchors = 0usize;
+    for (old_anchor, new_anchor) in anchors {
+        let old_inside = old_anchor >= old.key.start_ordinal && old_anchor < old.key.end_ordinal;
+        let new_inside = new_anchor >= new.key.start_ordinal && new_anchor < new.key.end_ordinal;
+        if old_inside || new_inside {
+            if old_inside == new_inside {
+                continue;
+            }
+            return Ok((ExactSegmentRelation::ExactUniqueTopologyUnknown, 0));
+        }
+        usable_anchors += 1;
+        let old_side = if old_anchor < old.key.start_ordinal {
+            -1i8
+        } else {
+            1
+        };
+        let new_side = if new_anchor < new.key.start_ordinal {
+            -1i8
+        } else {
+            1
+        };
+        if old_side != new_side {
+            crossings += 1;
+        }
+    }
+    if usable_anchors == 0 {
+        return Ok((ExactSegmentRelation::ExactUniqueTopologyUnknown, 0));
+    }
+    Ok(if crossings == 0 {
+        (ExactSegmentRelation::ExactUniqueMonotone, 0)
+    } else {
+        (ExactSegmentRelation::ExactUniqueCrossing, crossings)
+    })
+}
+
+#[cfg(test)]
+fn segment_topology(
+    old: &RecoverySegment,
+    new: &RecoverySegment,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    exact_candidates: &[ExactMatchCandidate],
+) -> std::result::Result<(ExactSegmentRelation, usize), SegmentStopReason> {
+    segment_topology_with_budget(
+        old,
+        new,
+        old_occurrences,
+        new_occurrences,
+        exact_candidates,
+        &mut SegmentDiagnosticBudget::default(),
+    )
+}
+
+fn analyze_recovery_segments(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    exact_candidates: &[ExactMatchCandidate],
+    min_tokens: usize,
+    _max_tokens: usize,
+) -> std::result::Result<SegmentDiagnosticAnalysis, SegmentStopReason> {
+    let mut budget = SegmentDiagnosticBudget::default();
+    let old = collect_recovery_segments_with_budget(old_occurrences, min_tokens, &mut budget)?;
+    let new = collect_recovery_segments_with_budget(new_occurrences, min_tokens, &mut budget)?;
+    let old_consumed = snapshot_segment_consumed_ranges(old_occurrences, &old, &mut budget)?;
+    let new_consumed = snapshot_segment_consumed_ranges(new_occurrences, &new, &mut budget)?;
+    let segment_candidates = old
+        .len()
+        .checked_add(new.len())
+        .ok_or(SegmentStopReason::CandidateCountLimit)?;
+
+    let mut old_index = HashMap::<ExactHash, Vec<usize>>::new();
+    let mut new_index = HashMap::<ExactHash, Vec<usize>>::new();
+    old_index
+        .try_reserve(old.len())
+        .map_err(|_| SegmentStopReason::AllocationFailure)?;
+    new_index
+        .try_reserve(new.len())
+        .map_err(|_| SegmentStopReason::AllocationFailure)?;
+    for (index, segment) in old.iter().enumerate() {
+        let posting = old_index.entry(segment.exact_hash).or_default();
+        posting
+            .try_reserve(1)
+            .map_err(|_| SegmentStopReason::AllocationFailure)?;
+        posting.push(index);
+    }
+    for (index, segment) in new.iter().enumerate() {
+        let posting = new_index.entry(segment.exact_hash).or_default();
+        posting
+            .try_reserve(1)
+            .map_err(|_| SegmentStopReason::AllocationFailure)?;
+        posting.push(index);
+    }
+
+    let mut exact_pairs = Vec::new();
+    exact_pairs
+        .try_reserve(segment_candidates.min(SegmentDiagnosticBudget::HASH_PAIR_VISIT_LIMIT))
+        .map_err(|_| SegmentStopReason::AllocationFailure)?;
+    let mut old_cross_counts = Vec::new();
+    let mut new_cross_counts = Vec::new();
+    old_cross_counts
+        .try_reserve_exact(old.len())
+        .map_err(|_| SegmentStopReason::AllocationFailure)?;
+    new_cross_counts
+        .try_reserve_exact(new.len())
+        .map_err(|_| SegmentStopReason::AllocationFailure)?;
+    old_cross_counts.resize(old.len(), 0usize);
+    new_cross_counts.resize(new.len(), 0usize);
+    let mut segment_hash_matches = 0usize;
+    let mut segment_token_verified_matches = 0usize;
+    for (hash, old_posting) in &old_index {
+        let Some(new_posting) = new_index.get(hash) else {
+            continue;
+        };
+        let visits = old_posting
+            .len()
+            .checked_mul(new_posting.len())
+            .ok_or(SegmentStopReason::HashPairVisitLimit)?;
+        budget.charge_hash_pairs(visits)?;
+        for old_index in old_posting {
+            for new_index in new_posting {
+                segment_hash_matches = segment_hash_matches
+                    .checked_add(1)
+                    .ok_or(SegmentStopReason::HashPairVisitLimit)?;
+                let old_segment = old
+                    .get(*old_index)
+                    .ok_or(SegmentStopReason::CandidateCountLimit)?;
+                let new_segment = new
+                    .get(*new_index)
+                    .ok_or(SegmentStopReason::CandidateCountLimit)?;
+                budget.charge_token_elements(
+                    old_segment
+                        .token_count
+                        .checked_add(new_segment.token_count)
+                        .ok_or(SegmentStopReason::TokenVerificationLimit)?,
+                )?;
+                if !exact_segment_tokens_match(
+                    old_segment,
+                    new_segment,
+                    old_occurrences,
+                    new_occurrences,
+                ) {
+                    continue;
+                }
+                segment_token_verified_matches = segment_token_verified_matches
+                    .checked_add(1)
+                    .ok_or(SegmentStopReason::TokenVerificationLimit)?;
+                exact_pairs
+                    .try_reserve(1)
+                    .map_err(|_| SegmentStopReason::AllocationFailure)?;
+                exact_pairs.push((*old_index, *new_index));
+                old_cross_counts[*old_index] += 1;
+                new_cross_counts[*new_index] += 1;
+            }
+        }
+    }
+    exact_pairs.sort_unstable();
+    let mut unique_pairs = Vec::new();
+    unique_pairs
+        .try_reserve(exact_pairs.len().min(segment_candidates))
+        .map_err(|_| SegmentStopReason::AllocationFailure)?;
+    let mut segment_unique_pairs = 0usize;
+    let mut segment_duplicate_pairs = 0usize;
+    let mut segment_monotone_pairs = 0usize;
+    let mut segment_crossing_pairs = 0usize;
+    for (old_index, new_index) in &exact_pairs {
+        let old_segment = &old[*old_index];
+        let new_segment = &new[*new_index];
+        if !old_segment.role.is_alignment_compatible(new_segment.role) {
+            continue;
+        }
+        let old_occurrence_count = new_cross_counts[*new_index];
+        let new_occurrence_count = old_cross_counts[*old_index];
+        if old_occurrence_count != 1 || new_occurrence_count != 1 {
+            segment_duplicate_pairs += 1;
+            continue;
+        }
+        segment_unique_pairs += 1;
+        let topology = segment_topology_with_budget(
+            old_segment,
+            new_segment,
+            old_occurrences,
+            new_occurrences,
+            exact_candidates,
+            &mut budget,
+        )?;
+        match topology.0 {
+            ExactSegmentRelation::ExactUniqueMonotone => segment_monotone_pairs += 1,
+            ExactSegmentRelation::ExactUniqueCrossing => segment_crossing_pairs += 1,
+            _ => {}
+        }
+        unique_pairs.push((*old_index, *new_index));
+    }
+    Ok(SegmentDiagnosticAnalysis {
+        old,
+        new,
+        old_index,
+        new_index,
+        exact_pairs,
+        old_cross_counts,
+        new_cross_counts,
+        old_consumed,
+        new_consumed,
+        unique_pairs,
+        budget,
+        segment_candidates,
+        segment_hash_matches,
+        segment_token_verified_matches,
+        segment_unique_pairs,
+        segment_duplicate_pairs,
+        segment_monotone_pairs,
+        segment_crossing_pairs,
+    })
+}
+
+fn watched_side_occurrence_count(
+    segment: &RecoverySegment,
+    segments: &[RecoverySegment],
+    postings: &HashMap<ExactHash, Vec<usize>>,
+    occurrences: &[SentenceOccurrence],
+    budget: &mut SegmentDiagnosticBudget,
+) -> std::result::Result<usize, SegmentStopReason> {
+    let Some(posting) = postings.get(&segment.exact_hash) else {
+        return Ok(0);
+    };
+    budget.charge_hash_pairs(posting.len())?;
+    let mut count = 0usize;
+    for index in posting {
+        let candidate = segments
+            .get(*index)
+            .ok_or(SegmentStopReason::CandidateCountLimit)?;
+        budget.charge_token_elements(
+            segment
+                .token_count
+                .checked_add(candidate.token_count)
+                .ok_or(SegmentStopReason::TokenVerificationLimit)?,
+        )?;
+        if exact_segment_tokens_match(segment, candidate, occurrences, occurrences) {
+            count += 1;
+        }
+    }
+    Ok(count)
+}
+
+fn watched_segment_pair_evidence(
+    analysis: &mut SegmentDiagnosticAnalysis,
+    old_index: usize,
+    new_index: usize,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    exact_candidates: &[ExactMatchCandidate],
+) -> std::result::Result<RecoveryWatchSegmentPairEvidence, SegmentStopReason> {
+    analysis.budget.charge_output()?;
+    let old = *analysis
+        .old
+        .get(old_index)
+        .ok_or(SegmentStopReason::CandidateCountLimit)?;
+    let new = *analysis
+        .new
+        .get(new_index)
+        .ok_or(SegmentStopReason::CandidateCountLimit)?;
+    let exact = analysis
+        .exact_pairs
+        .binary_search(&(old_index, new_index))
+        .is_ok();
+    let (old_occurrence_count, new_occurrence_count) = if exact {
+        (
+            *analysis
+                .new_cross_counts
+                .get(new_index)
+                .ok_or(SegmentStopReason::CandidateCountLimit)?,
+            *analysis
+                .old_cross_counts
+                .get(old_index)
+                .ok_or(SegmentStopReason::CandidateCountLimit)?,
+        )
+    } else {
+        (
+            watched_side_occurrence_count(
+                &old,
+                &analysis.old,
+                &analysis.old_index,
+                old_occurrences,
+                &mut analysis.budget,
+            )?,
+            watched_side_occurrence_count(
+                &new,
+                &analysis.new,
+                &analysis.new_index,
+                new_occurrences,
+                &mut analysis.budget,
+            )?,
+        )
+    };
+    let role_compatible = old.role.is_alignment_compatible(new.role);
+    let (relation, crossing_anchor_count) = if !exact || !role_compatible {
+        (ExactSegmentRelation::NonExact, 0)
+    } else if old_occurrence_count != 1 || new_occurrence_count != 1 {
+        (ExactSegmentRelation::Duplicate, 0)
+    } else {
+        segment_topology_with_budget(
+            &old,
+            &new,
+            old_occurrences,
+            new_occurrences,
+            exact_candidates,
+            &mut analysis.budget,
+        )?
+    };
+    Ok(RecoveryWatchSegmentPairEvidence {
+        old_start_ordinal: old.key.start_ordinal,
+        old_end_ordinal: old.key.end_ordinal,
+        new_start_ordinal: new.key.start_ordinal,
+        new_end_ordinal: new.key.end_ordinal,
+        old_unit_count: old.unit_count,
+        new_unit_count: new.unit_count,
+        old_token_count: old.token_count,
+        new_token_count: new.token_count,
+        exact,
+        old_occurrence_count,
+        new_occurrence_count,
+        role_compatible,
+        overlaps_existing_recovery: false,
+        crossing_anchor_count,
+        relation,
+    })
+}
+
 impl RecoveryWatchState {
     fn new(
         queries: &[RecoveryWatchQuery<'_>],
         old_occurrences: &[SentenceOccurrence],
         new_occurrences: &[SentenceOccurrence],
+        exact_candidates: &[ExactMatchCandidate],
         context: RecoveryWatchBuildContext<'_>,
     ) -> Option<Self> {
         if queries.is_empty() {
             return None;
         }
         let processed = queries.len().min(MAX_RECOVERY_WATCH_QUERIES);
+        let (segment_analysis, segment_stop_reason) = match analyze_recovery_segments(
+            old_occurrences,
+            new_occurrences,
+            exact_candidates,
+            context.min_tokens,
+            context.max_tokens,
+        ) {
+            Ok(analysis) => (analysis, None),
+            Err(reason) => (SegmentDiagnosticAnalysis::default(), Some(reason)),
+        };
         let mut state = Self {
             complete: queries.len() <= MAX_RECOVERY_WATCH_QUERIES,
             candidate_generation_complete: false,
             near_relation_complete: false,
             near_relation_stop_reason: None,
+            segment_analysis,
+            segment_stop_reason,
+            segment_overlap_vetoes: 0,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
             scan_work: 0,
@@ -564,6 +1422,7 @@ impl RecoveryWatchState {
                     evidence: RecoveryWatchOccurrenceEvidence::Unfound,
                     occurrence_index: None,
                     span_index: None,
+                    segment_key: None,
                 }
             });
             let new = new.unwrap_or_else(|| {
@@ -572,6 +1431,7 @@ impl RecoveryWatchState {
                     evidence: RecoveryWatchOccurrenceEvidence::Unfound,
                     occurrence_index: None,
                     span_index: None,
+                    segment_key: None,
                 }
             });
             let pair = match (old.span_index, new.span_index) {
@@ -590,6 +1450,46 @@ impl RecoveryWatchState {
             };
             let old_occurrence = old.occurrence_index;
             let new_occurrence = new.occurrence_index;
+            let mut old_segment = old.segment_key.and_then(|key| {
+                state
+                    .segment_analysis
+                    .old
+                    .iter()
+                    .position(|segment| segment.key == key)
+            });
+            let mut new_segment = new.segment_key.and_then(|key| {
+                state
+                    .segment_analysis
+                    .new
+                    .iter()
+                    .position(|segment| segment.key == key)
+            });
+            let segment_pair = match (old_segment, new_segment, state.segment_stop_reason) {
+                (Some(old_index), Some(new_index), None) => match watched_segment_pair_evidence(
+                    &mut state.segment_analysis,
+                    old_index,
+                    new_index,
+                    old_occurrences,
+                    new_occurrences,
+                    exact_candidates,
+                ) {
+                    Ok(evidence) => Some(evidence),
+                    Err(reason) => {
+                        state.segment_analysis = SegmentDiagnosticAnalysis::default();
+                        state.segment_stop_reason = Some(reason);
+                        state.segment_overlap_vetoes = 0;
+                        for record in &mut state.records {
+                            record.output.segment_pair = None;
+                            record.old_segment = None;
+                            record.new_segment = None;
+                        }
+                        old_segment = None;
+                        new_segment = None;
+                        None
+                    }
+                },
+                _ => None,
+            };
             let index = state.records.len();
             let mut id = String::new();
             id.try_reserve_exact(query.id.len()).ok()?;
@@ -600,9 +1500,12 @@ impl RecoveryWatchState {
                     old: old.evidence,
                     new: new.evidence,
                     pair,
+                    segment_pair,
                 },
                 old_occurrence,
                 new_occurrence,
+                old_segment,
+                new_segment,
             });
             if let (Some(old), Some(new)) = (old_occurrence, new_occurrence) {
                 let indices = state.pair_by_occurrences.entry((old, new)).or_default();
@@ -627,6 +1530,7 @@ impl RecoveryWatchState {
                 evidence: RecoveryWatchOccurrenceEvidence::Unfound,
                 occurrence_index: None,
                 span_index: None,
+                segment_key: None,
             });
         }
         let mut found = None;
@@ -650,6 +1554,7 @@ impl RecoveryWatchState {
                 evidence: RecoveryWatchOccurrenceEvidence::Ambiguous,
                 occurrence_index: None,
                 span_index: None,
+                segment_key: None,
             });
         }
         let Some(occurrence_index) = found else {
@@ -673,6 +1578,7 @@ impl RecoveryWatchState {
                 evidence: RecoveryWatchOccurrenceEvidence::Ambiguous,
                 occurrence_index: None,
                 span_index: None,
+                segment_key: None,
             });
         }
         let occurrence = occurrences.get(occurrence_index)?;
@@ -681,6 +1587,7 @@ impl RecoveryWatchState {
                 evidence: RecoveryWatchOccurrenceEvidence::Unavailable,
                 occurrence_index: None,
                 span_index: None,
+                segment_key: None,
             });
         }
         let descriptor = occurrence
@@ -695,6 +1602,9 @@ impl RecoveryWatchState {
             span_index: occurrence.span_index,
             trusted_run_descriptor_index: occurrence.run_descriptor_index,
             ordinal: occurrence.trusted_position.map(|position| position.ordinal),
+            end_ordinal: None,
+            unit_count: None,
+            token_count: None,
             recovery_location_available: occurrence.location.is_some()
                 && occurrence.tokens.len() >= min_tokens,
             fully_contained: contained,
@@ -710,6 +1620,7 @@ impl RecoveryWatchState {
             evidence: RecoveryWatchOccurrenceEvidence::Found(output),
             occurrence_index: Some(occurrence_index),
             span_index: occurrence.span_index,
+            segment_key: None,
         })
     }
 
@@ -723,6 +1634,9 @@ impl RecoveryWatchState {
     ) -> Option<RecoveryWatchLookup> {
         const MAX_SEGMENT_UNITS: usize = 8;
 
+        if occurrences.len() > SegmentDiagnosticBudget::AUXILIARY_ITEM_LIMIT {
+            return None;
+        }
         let mut by_position = HashMap::new();
         by_position.try_reserve(occurrences.len()).ok()?;
         for (index, occurrence) in occurrences.iter().enumerate() {
@@ -790,16 +1704,26 @@ impl RecoveryWatchState {
                         let hit = RecoveryWatchSegmentHit {
                             stream_index: position.stream_index,
                             start_ordinal: position.ordinal,
+                            end_ordinal: ordinal.checked_add(1)?,
+                            unit_count: offset.checked_add(1)?,
+                            token_count,
                             byte_start,
                             byte_end,
                         };
-                        if hits.insert(hit)
+                        let dedupe = RecoveryWatchSegmentDedupeKey {
+                            stream_index: hit.stream_index,
+                            start_ordinal: hit.start_ordinal,
+                            byte_start: hit.byte_start,
+                            byte_end: hit.byte_end,
+                        };
+                        if hits.insert(dedupe)
                             && found
                                 .replace((
                                     span_index,
                                     role,
                                     position,
-                                    token_count,
+                                    hit,
+                                    byte_start == 0 && byte_end == joined.len(),
                                     descriptor_index,
                                     all_scalar,
                                     all_locations_available,
@@ -810,6 +1734,7 @@ impl RecoveryWatchState {
                                 evidence: RecoveryWatchOccurrenceEvidence::Ambiguous,
                                 occurrence_index: None,
                                 span_index: None,
+                                segment_key: None,
                             });
                         }
                     }
@@ -823,7 +1748,8 @@ impl RecoveryWatchState {
             span_index,
             role,
             position,
-            token_count,
+            hit,
+            full_candidate,
             descriptor_index,
             all_scalar,
             all_locations_available,
@@ -833,6 +1759,7 @@ impl RecoveryWatchState {
                 evidence: RecoveryWatchOccurrenceEvidence::Unfound,
                 occurrence_index: None,
                 span_index: None,
+                segment_key: None,
             });
         };
         if !all_scalar {
@@ -840,6 +1767,7 @@ impl RecoveryWatchState {
                 evidence: RecoveryWatchOccurrenceEvidence::Unavailable,
                 occurrence_index: None,
                 span_index: None,
+                segment_key: None,
             });
         }
         let descriptor = descriptor_index.and_then(|index| evidence?.descriptors.get(index));
@@ -852,7 +1780,11 @@ impl RecoveryWatchState {
                 span_index: Some(span_index),
                 trusted_run_descriptor_index: descriptor_index,
                 ordinal: Some(position.ordinal),
-                recovery_location_available: all_locations_available && token_count >= min_tokens,
+                end_ordinal: Some(hit.end_ordinal),
+                unit_count: Some(hit.unit_count),
+                token_count: Some(hit.token_count),
+                recovery_location_available: all_locations_available
+                    && hit.token_count >= min_tokens,
                 fully_contained: contained,
                 page: descriptor.map(|descriptor| descriptor.page.0),
                 bbox: descriptor.map(|descriptor| descriptor.bbox),
@@ -861,6 +1793,11 @@ impl RecoveryWatchState {
             }),
             occurrence_index: None,
             span_index: Some(span_index),
+            segment_key: full_candidate.then_some(RecoverySegmentKey {
+                stream_index: hit.stream_index,
+                start_ordinal: hit.start_ordinal,
+                end_ordinal: hit.end_ordinal,
+            }),
         })
     }
 
@@ -1006,15 +1943,37 @@ impl RecoveryWatchState {
         self.near_relation_stop_reason = stop_reason;
     }
 
-    fn finish(self) -> RecoveryWatchDiagnostics {
+    fn finish(mut self, plan: Option<&SentenceRecoveryPlan>) -> RecoveryWatchDiagnostics {
+        if self.segment_stop_reason.is_none()
+            && let Err(reason) = self.record_segment_overlaps(plan)
+        {
+            self.segment_analysis = SegmentDiagnosticAnalysis::default();
+            self.segment_overlap_vetoes = 0;
+            self.segment_stop_reason = Some(reason);
+            for record in &mut self.records {
+                record.output.segment_pair = None;
+                record.old_segment = None;
+                record.new_segment = None;
+            }
+        }
         RecoveryWatchDiagnostics {
             complete: self.complete
                 && self.candidate_generation_complete
                 && self.near_relation_complete
-                && self.near_relation_stop_reason.is_none(),
+                && self.near_relation_stop_reason.is_none()
+                && self.segment_stop_reason.is_none(),
             candidate_generation_complete: self.candidate_generation_complete,
             near_relation_complete: self.near_relation_complete,
             near_relation_stop_reason: self.near_relation_stop_reason,
+            segment_candidates: self.segment_analysis.segment_candidates,
+            segment_hash_matches: self.segment_analysis.segment_hash_matches,
+            segment_token_verified_matches: self.segment_analysis.segment_token_verified_matches,
+            segment_unique_pairs: self.segment_analysis.segment_unique_pairs,
+            segment_duplicate_pairs: self.segment_analysis.segment_duplicate_pairs,
+            segment_monotone_pairs: self.segment_analysis.segment_monotone_pairs,
+            segment_crossing_pairs: self.segment_analysis.segment_crossing_pairs,
+            segment_overlap_vetoes: self.segment_overlap_vetoes,
+            segment_stop_reason: self.segment_stop_reason,
             records: self
                 .records
                 .into_iter()
@@ -1022,6 +1981,90 @@ impl RecoveryWatchState {
                 .collect(),
         }
     }
+
+    fn record_segment_overlaps(
+        &mut self,
+        plan: Option<&SentenceRecoveryPlan>,
+    ) -> std::result::Result<(), SegmentStopReason> {
+        let Some(plan) = plan else { return Ok(()) };
+        for (old_index, new_index) in &self.segment_analysis.unique_pairs {
+            let (Some(old), Some(new)) = (
+                self.segment_analysis.old.get(*old_index),
+                self.segment_analysis.new.get(*new_index),
+            ) else {
+                continue;
+            };
+            let overlaps = segment_consumed_ranges_overlap(
+                old,
+                &self.segment_analysis.old_consumed,
+                &plan.deletion_consumed,
+                &mut self.segment_analysis.budget,
+            )? || segment_consumed_ranges_overlap(
+                new,
+                &self.segment_analysis.new_consumed,
+                &plan.insertion_consumed,
+                &mut self.segment_analysis.budget,
+            )?;
+            if !overlaps {
+                continue;
+            }
+            self.segment_overlap_vetoes += 1;
+        }
+        for record in &mut self.records {
+            let (Some(old), Some(new)) = (record.old_segment, record.new_segment) else {
+                continue;
+            };
+            let old_overlap = if let Some(segment) = self.segment_analysis.old.get(old) {
+                segment_consumed_ranges_overlap(
+                    segment,
+                    &self.segment_analysis.old_consumed,
+                    &plan.deletion_consumed,
+                    &mut self.segment_analysis.budget,
+                )?
+            } else {
+                false
+            };
+            let new_overlap = if let Some(segment) = self.segment_analysis.new.get(new) {
+                segment_consumed_ranges_overlap(
+                    segment,
+                    &self.segment_analysis.new_consumed,
+                    &plan.insertion_consumed,
+                    &mut self.segment_analysis.budget,
+                )?
+            } else {
+                false
+            };
+            if let Some(evidence) = record.output.segment_pair.as_mut() {
+                evidence.overlaps_existing_recovery = old_overlap || new_overlap;
+            }
+        }
+        Ok(())
+    }
+}
+
+fn segment_consumed_ranges_overlap(
+    segment: &RecoverySegment,
+    snapshots: &HashMap<usize, Vec<LocalSentenceRange>>,
+    committed: &[LocalSentenceRange],
+    budget: &mut SegmentDiagnosticBudget,
+) -> std::result::Result<bool, SegmentStopReason> {
+    for index in &segment.occurrence_indices[..segment.unit_count] {
+        let Some(candidates) = snapshots.get(index) else {
+            continue;
+        };
+        for candidate in candidates {
+            for committed in committed {
+                budget.charge_overlap_comparison()?;
+                if candidate.block == committed.block
+                    && candidate.canonical.start < committed.canonical.end
+                    && committed.canonical.start < candidate.canonical.end
+                {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
 }
 
 fn collapse_watch_whitespace(value: &str) -> Option<String> {
@@ -2500,6 +3543,7 @@ pub(super) fn build_sentence_recovery_plan(
         watch_queries,
         &old_occurrences,
         &new_occurrences,
+        &exact_match_candidates[..initial_exact_candidate_count],
         RecoveryWatchBuildContext {
             old_evidence: structural_evidence.old.as_ref(),
             new_evidence: structural_evidence.new.as_ref(),
@@ -2615,17 +3659,18 @@ pub(super) fn build_sentence_recovery_plan(
             && normalize_ranges(&mut plan.insertion_consumed)
         {
             record_near_search_metrics(&mut diagnostics, &budget);
+            let watch_diagnostics = watch.map(|watch| watch.finish(Some(&plan)));
             return Ok(SentenceRecoveryBuildOutcome {
                 plan: Some(plan),
                 diagnostics,
-                watch_diagnostics: watch.map(RecoveryWatchState::finish),
+                watch_diagnostics,
             });
         }
         if watch.is_some() {
             return Ok(SentenceRecoveryBuildOutcome {
                 plan: None,
                 diagnostics: None,
-                watch_diagnostics: watch.map(RecoveryWatchState::finish),
+                watch_diagnostics: watch.map(|watch| watch.finish(None)),
             });
         }
         return Ok(SentenceRecoveryBuildOutcome::default());
@@ -2672,17 +3717,18 @@ pub(super) fn build_sentence_recovery_plan(
             && normalize_ranges(&mut plan.insertion_consumed)
         {
             record_near_search_metrics(&mut diagnostics, &budget);
+            let watch_diagnostics = watch.map(|watch| watch.finish(Some(&plan)));
             return Ok(SentenceRecoveryBuildOutcome {
                 plan: Some(plan),
                 diagnostics,
-                watch_diagnostics: watch.map(RecoveryWatchState::finish),
+                watch_diagnostics,
             });
         }
         if watch.is_some() {
             return Ok(SentenceRecoveryBuildOutcome {
                 plan: None,
                 diagnostics: None,
-                watch_diagnostics: watch.map(RecoveryWatchState::finish),
+                watch_diagnostics: watch.map(|watch| watch.finish(None)),
             });
         }
         return Ok(SentenceRecoveryBuildOutcome::default());
@@ -2753,15 +3799,16 @@ pub(super) fn build_sentence_recovery_plan(
             return Ok(SentenceRecoveryBuildOutcome {
                 plan: None,
                 diagnostics: None,
-                watch_diagnostics: watch.map(RecoveryWatchState::finish),
+                watch_diagnostics: watch.map(|watch| watch.finish(None)),
             });
         }
         return Ok(SentenceRecoveryBuildOutcome::default());
     }
+    let watch_diagnostics = watch.map(|watch| watch.finish(Some(&plan)));
     Ok(SentenceRecoveryBuildOutcome {
         plan: Some(plan),
         diagnostics,
-        watch_diagnostics: watch.map(RecoveryWatchState::finish),
+        watch_diagnostics,
     })
 }
 
@@ -5728,6 +6775,9 @@ mod tests {
             candidate_generation_complete: false,
             near_relation_complete: false,
             near_relation_stop_reason: None,
+            segment_analysis: SegmentDiagnosticAnalysis::default(),
+            segment_stop_reason: None,
+            segment_overlap_vetoes: 0,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
             scan_work: 0,
@@ -5738,7 +6788,7 @@ mod tests {
             false,
             Some(NearRelationStopReason::CandidateCountLimit),
         );
-        let diagnostics = watch.finish();
+        let diagnostics = watch.finish(None);
         assert!(!diagnostics.complete);
         assert!(!diagnostics.candidate_generation_complete);
         assert!(!diagnostics.near_relation_complete);
@@ -5757,6 +6807,9 @@ mod tests {
             candidate_generation_complete: true,
             near_relation_complete: true,
             near_relation_stop_reason: None,
+            segment_analysis: SegmentDiagnosticAnalysis::default(),
+            segment_stop_reason: None,
+            segment_overlap_vetoes: 0,
             records: vec![RecoveryWatchStateRecord {
                 output: RecoveryWatchRecord {
                     id: "one-sided".to_owned(),
@@ -5773,9 +6826,12 @@ mod tests {
                         new_relation: RecoveryWatchRelation::default(),
                         reciprocal: false,
                     }),
+                    segment_pair: None,
                 },
                 old_occurrence: Some(0),
                 new_occurrence: Some(1),
+                old_segment: None,
+                new_segment: None,
             }],
             pair_by_occurrences: HashMap::new(),
             scan_work: 0,
@@ -5873,12 +6929,27 @@ mod tests {
         }
     }
 
+    fn positioned_scalar(
+        scalar: char,
+        block: u64,
+        stream_index: usize,
+        ordinal: usize,
+    ) -> SentenceOccurrence {
+        let mut occurrence =
+            positioned_occurrence(&scalar.to_string(), block, stream_index, ordinal);
+        occurrence.tokens = vec![SentenceEvidenceToken::Scalar(scalar)];
+        occurrence
+    }
+
     fn watch_state() -> RecoveryWatchState {
         RecoveryWatchState {
             complete: true,
             candidate_generation_complete: false,
             near_relation_complete: false,
             near_relation_stop_reason: None,
+            segment_analysis: SegmentDiagnosticAnalysis::default(),
+            segment_stop_reason: None,
+            segment_overlap_vetoes: 0,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
             scan_work: 0,
@@ -5907,6 +6978,9 @@ mod tests {
             RecoveryWatchOccurrenceEvidence::Found(RecoveryWatchOccurrence {
                 span_index: Some(0),
                 ordinal: Some(0),
+                end_ordinal: Some(2),
+                unit_count: Some(2),
+                token_count: Some(10),
                 recovery_location_available: true,
                 role: Some(BlockRole::Body),
                 kind: RecoveryWatchUnitKind::Segment,
@@ -5914,6 +6988,361 @@ mod tests {
             })
         ));
         assert_eq!(lookup.occurrence_index, None);
+    }
+
+    #[test]
+    fn recovery_segments_enumerate_two_through_eight_units_only() {
+        let occurrences = (0..9)
+            .map(|ordinal| positioned_scalar('a', ordinal as u64, 0, ordinal))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            collect_recovery_segments(&occurrences[..2], 1, 100)
+                .expect("two-unit enumeration fits")
+                .len(),
+            1
+        );
+        let eight = collect_recovery_segments(&occurrences[..8], 1, 100)
+            .expect("eight-unit enumeration fits");
+        assert_eq!(eight.len(), 28);
+        assert!(eight.iter().any(|segment| segment.unit_count == 8));
+        let nine = collect_recovery_segments(&occurrences, 1, 100)
+            .expect("nine-unit input remains bounded");
+        assert_eq!(nine.len(), 35);
+        assert!(nine.iter().all(|segment| segment.unit_count <= 8));
+    }
+
+    #[test]
+    fn recovery_segments_fail_closed_on_ineligible_constituents() {
+        let valid = [
+            positioned_scalar('a', 1, 0, 0),
+            positioned_scalar('b', 2, 0, 1),
+        ];
+        assert_eq!(
+            collect_recovery_segments(&valid, 1, 10)
+                .expect("valid pair builds")
+                .len(),
+            1
+        );
+        for mutation in 0..6 {
+            let mut occurrences = [
+                positioned_scalar('a', 1, 0, 0),
+                positioned_scalar('b', 2, 0, 1),
+            ];
+            match mutation {
+                0 => {
+                    occurrences[1]
+                        .trusted_position
+                        .as_mut()
+                        .expect("fixture is positioned")
+                        .ordinal = 2
+                }
+                1 => {
+                    occurrences[1]
+                        .trusted_position
+                        .as_mut()
+                        .expect("fixture is positioned")
+                        .stream_index = 1
+                }
+                2 => occurrences[1].span_index = Some(1),
+                3 => occurrences[1].role = Some(BlockRole::RepeatedHeader),
+                4 => occurrences[1].location = None,
+                5 => occurrences[1].tokens.push(SentenceEvidenceToken::Unmapped {
+                    font_fingerprint: 1,
+                    glyph_id: 2,
+                }),
+                _ => unreachable!(),
+            }
+            assert!(
+                collect_recovery_segments(&occurrences, 1, 10)
+                    .expect("ineligible evidence is skipped")
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn exact_segment_topology_distinguishes_unknown_monotone_and_crossing() {
+        let old = [
+            positioned_scalar('a', 1, 0, 0),
+            positioned_scalar('b', 2, 0, 1),
+            positioned_scalar('c', 3, 0, 2),
+            positioned_scalar('d', 4, 0, 3),
+        ];
+        let new = [
+            positioned_scalar('a', 11, 1, 0),
+            positioned_scalar('b', 12, 1, 1),
+            positioned_scalar('c', 13, 1, 2),
+            positioned_scalar('d', 14, 1, 3),
+        ];
+        let segments_old = collect_recovery_segments(&old, 1, 100).expect("old segments build");
+        let segments_new = collect_recovery_segments(&new, 1, 100).expect("new segments build");
+        let old_target = segments_old
+            .iter()
+            .find(|segment| segment.key.start_ordinal == 1 && segment.key.end_ordinal == 3)
+            .expect("target old segment exists");
+        let new_target = segments_new
+            .iter()
+            .find(|segment| segment.key.start_ordinal == 1 && segment.key.end_ordinal == 3)
+            .expect("target new segment exists");
+        assert_eq!(
+            segment_topology(old_target, new_target, &old, &new, &[]),
+            Ok((ExactSegmentRelation::ExactUniqueTopologyUnknown, 0))
+        );
+        let anchors = [
+            ExactMatchCandidate {
+                old_span_index: 0,
+                new_span_index: 0,
+                old_occurrence_index: 0,
+                new_occurrence_index: 0,
+            },
+            ExactMatchCandidate {
+                old_span_index: 0,
+                new_span_index: 0,
+                old_occurrence_index: 3,
+                new_occurrence_index: 3,
+            },
+        ];
+        assert_eq!(
+            segment_topology(old_target, new_target, &old, &new, &anchors),
+            Ok((ExactSegmentRelation::ExactUniqueMonotone, 0))
+        );
+
+        let moved_new = [
+            positioned_scalar('b', 12, 1, 0),
+            positioned_scalar('c', 13, 1, 1),
+            positioned_scalar('a', 11, 1, 2),
+        ];
+        let moved_segments =
+            collect_recovery_segments(&moved_new, 1, 100).expect("moved segments build");
+        let moved_target = moved_segments
+            .iter()
+            .find(|segment| segment.key.start_ordinal == 0 && segment.key.end_ordinal == 2)
+            .expect("moved target segment exists");
+        let crossing_anchor = [ExactMatchCandidate {
+            old_span_index: 0,
+            new_span_index: 0,
+            old_occurrence_index: 0,
+            new_occurrence_index: 2,
+        }];
+        assert_eq!(
+            segment_topology(old_target, moved_target, &old, &moved_new, &crossing_anchor),
+            Ok((ExactSegmentRelation::ExactUniqueCrossing, 1))
+        );
+    }
+
+    #[test]
+    fn segment_hash_collision_requires_full_token_equality() {
+        let old_occurrences = [
+            positioned_scalar('a', 1, 0, 0),
+            positioned_scalar('b', 2, 0, 1),
+        ];
+        let new_occurrences = [
+            positioned_scalar('x', 3, 1, 0),
+            positioned_scalar('y', 4, 1, 1),
+        ];
+        let old = collect_recovery_segments(&old_occurrences, 1, 10)
+            .expect("old collision fixture builds")
+            .remove(0);
+        let mut new = collect_recovery_segments(&new_occurrences, 1, 10)
+            .expect("new collision fixture builds")
+            .remove(0);
+        new.exact_hash = old.exact_hash;
+
+        assert!(!exact_segment_tokens_match(
+            &old,
+            &new,
+            &old_occurrences,
+            &new_occurrences
+        ));
+    }
+
+    #[test]
+    fn segment_diagnostics_count_duplicates_and_fail_atomically_at_budget() {
+        let old = (0..3)
+            .map(|ordinal| positioned_scalar('a', ordinal + 1, 0, ordinal as usize))
+            .collect::<Vec<_>>();
+        let new = (0..3)
+            .map(|ordinal| positioned_scalar('a', ordinal + 11, 1, ordinal as usize))
+            .collect::<Vec<_>>();
+        let analysis =
+            analyze_recovery_segments(&old, &new, &[], 1, 100).expect("duplicate diagnostics fit");
+        assert_eq!(analysis.segment_duplicate_pairs, 4);
+        assert_eq!(analysis.segment_unique_pairs, 1);
+    }
+
+    #[test]
+    fn segment_descriptor_and_token_budgets_stop_before_unbounded_growth() {
+        let mut occurrence_index_budget = SegmentDiagnosticBudget::default();
+        assert!(matches!(
+            occurrence_index_budget.charge_auxiliary::<(TrustedStreamPosition, Option<usize>)>(
+                SegmentDiagnosticBudget::AUXILIARY_ITEM_LIMIT + 1,
+            ),
+            Err(SegmentStopReason::CandidateCountLimit)
+        ));
+
+        let many = (0..2_400)
+            .map(|ordinal| positioned_scalar('a', ordinal + 1, 0, ordinal as usize))
+            .collect::<Vec<_>>();
+        assert!(matches!(
+            analyze_recovery_segments(&many, &[], &[], 1, usize::MAX),
+            Err(SegmentStopReason::CandidateCountLimit)
+        ));
+
+        let mut long = [
+            positioned_scalar('a', 1, 0, 0),
+            positioned_scalar('b', 2, 0, 1),
+        ];
+        long[0]
+            .tokens
+            .resize(1_024, SentenceEvidenceToken::Scalar('a'));
+        long[1]
+            .tokens
+            .resize(1_024, SentenceEvidenceToken::Scalar('b'));
+        let mut budget = SegmentDiagnosticBudget {
+            token_elements: SegmentDiagnosticBudget::TOKEN_ELEMENT_LIMIT - 1_000,
+            ..SegmentDiagnosticBudget::default()
+        };
+        assert!(matches!(
+            collect_recovery_segments_with_budget(&long, 1, &mut budget),
+            Err(SegmentStopReason::TokenVerificationLimit)
+        ));
+    }
+
+    #[test]
+    fn segment_topology_skips_exact_candidates_without_stream_positions() {
+        let mut old = vec![
+            positioned_scalar('a', 1, 0, 0),
+            positioned_scalar('b', 2, 0, 1),
+            positioned_scalar('x', 3, 2, 0),
+        ];
+        let mut new = vec![
+            positioned_scalar('a', 11, 1, 0),
+            positioned_scalar('b', 12, 1, 1),
+            positioned_scalar('x', 13, 3, 0),
+        ];
+        old[2].trusted_position = None;
+        new[2].trusted_position = None;
+        let exact = [ExactMatchCandidate {
+            old_span_index: 0,
+            new_span_index: 0,
+            old_occurrence_index: 2,
+            new_occurrence_index: 2,
+        }];
+
+        let mut analysis = analyze_recovery_segments(&old, &new, &exact, 1, 100)
+            .expect("non-positioned unit anchors are non-applicable");
+        assert_eq!(analysis.segment_candidates, 2);
+        assert_eq!(analysis.segment_unique_pairs, 1);
+        let evidence = watched_segment_pair_evidence(&mut analysis, 0, 0, &old, &new, &exact)
+            .expect("watched output fits");
+        assert_eq!(
+            evidence.relation,
+            ExactSegmentRelation::ExactUniqueTopologyUnknown
+        );
+    }
+
+    #[test]
+    fn segment_overlap_is_diagnostic_only_and_counted_once() {
+        let old = [
+            positioned_scalar('a', 1, 0, 0),
+            positioned_scalar('b', 2, 0, 1),
+        ];
+        let new = [
+            positioned_scalar('a', 11, 1, 0),
+            positioned_scalar('b', 12, 1, 1),
+        ];
+        let analysis = analyze_recovery_segments(&old, &new, &[], 1, 100)
+            .expect("unique segment diagnostics fit");
+        let plan = SentenceRecoveryPlan {
+            deletions: vec![RecoveredSentence {
+                span_index: 0,
+                blocks: vec![BlockId(1)],
+                separator: None,
+                canonical: ScalarRange { start: 0, end: 1 },
+                comparable: TokenRange { start: 0, end: 1 },
+                source_tokens: 1,
+            }],
+            deletion_consumed: old[0]
+                .location
+                .as_ref()
+                .expect("fixture has a location")
+                .consumed
+                .clone(),
+            ..SentenceRecoveryPlan::default()
+        };
+        let watch = RecoveryWatchState {
+            complete: true,
+            candidate_generation_complete: true,
+            near_relation_complete: true,
+            near_relation_stop_reason: None,
+            segment_analysis: analysis,
+            segment_stop_reason: None,
+            segment_overlap_vetoes: 0,
+            records: Vec::new(),
+            pair_by_occurrences: HashMap::new(),
+            scan_work: 0,
+            scan_limit: 0,
+        };
+
+        let diagnostics = watch.finish(Some(&plan));
+        assert_eq!(diagnostics.segment_overlap_vetoes, 1);
+        assert!(diagnostics.complete);
+        assert_eq!(plan.deletions.len(), 1);
+    }
+
+    #[test]
+    fn overlap_work_limit_atomically_discards_segment_claims() {
+        let old = [
+            positioned_scalar('a', 1, 0, 0),
+            positioned_scalar('b', 2, 0, 1),
+        ];
+        let new = [
+            positioned_scalar('a', 11, 1, 0),
+            positioned_scalar('b', 12, 1, 1),
+        ];
+        let mut watch = RecoveryWatchState::new(
+            &[RecoveryWatchQuery {
+                id: "bounded-overlap",
+                old_quote: "a b",
+                new_quote: "a b",
+            }],
+            &old,
+            &new,
+            &[],
+            RecoveryWatchBuildContext {
+                old_evidence: None,
+                new_evidence: None,
+                old_fully_contained: None,
+                new_fully_contained: None,
+                min_tokens: 1,
+                max_tokens: 100,
+            },
+        )
+        .expect("watch state builds");
+        assert!(watch.records[0].output.segment_pair.is_some());
+        watch.candidate_generation_complete = true;
+        watch.near_relation_complete = true;
+        watch.segment_analysis.budget.overlap_comparisons =
+            SegmentDiagnosticBudget::OVERLAP_COMPARISON_LIMIT;
+        let plan = SentenceRecoveryPlan {
+            deletion_consumed: vec![LocalSentenceRange {
+                block: BlockId(999),
+                canonical: ScalarRange { start: 0, end: 1 },
+                comparable: TokenRange { start: 0, end: 1 },
+            }],
+            ..SentenceRecoveryPlan::default()
+        };
+
+        let diagnostics = watch.finish(Some(&plan));
+        assert_eq!(
+            diagnostics.segment_stop_reason,
+            Some(SegmentStopReason::HashPairVisitLimit)
+        );
+        assert_eq!(diagnostics.segment_candidates, 0);
+        assert_eq!(diagnostics.segment_unique_pairs, 0);
+        assert_eq!(diagnostics.segment_overlap_vetoes, 0);
+        assert_eq!(diagnostics.records[0].segment_pair, None);
     }
 
     #[test]
@@ -5933,6 +7362,54 @@ mod tests {
                 ..
             })
         ));
+        assert_eq!(lookup.segment_key, None);
+    }
+
+    #[test]
+    fn partial_segment_quotes_do_not_inherit_enclosing_unit_exactness() {
+        let old = [
+            positioned_occurrence("2.", 1, 0, 0),
+            positioned_occurrence("Each key pair was generated.", 2, 0, 1),
+        ];
+        let new = [
+            positioned_occurrence("2.", 3, 1, 0),
+            positioned_occurrence("Each key pair was generated.", 4, 1, 1),
+        ];
+        let watch = RecoveryWatchState::new(
+            &[RecoveryWatchQuery {
+                id: "partial-segments",
+                old_quote: "2. Each key",
+                new_quote: "2. Each key pair",
+            }],
+            &old,
+            &new,
+            &[],
+            RecoveryWatchBuildContext {
+                old_evidence: None,
+                new_evidence: None,
+                old_fully_contained: None,
+                new_fully_contained: None,
+                min_tokens: 1,
+                max_tokens: 100,
+            },
+        )
+        .expect("partial segment watch builds");
+
+        assert!(matches!(
+            watch.records[0].output.old,
+            RecoveryWatchOccurrenceEvidence::Found(RecoveryWatchOccurrence {
+                kind: RecoveryWatchUnitKind::Segment,
+                ..
+            })
+        ));
+        assert!(matches!(
+            watch.records[0].output.new,
+            RecoveryWatchOccurrenceEvidence::Found(RecoveryWatchOccurrence {
+                kind: RecoveryWatchUnitKind::Segment,
+                ..
+            })
+        ));
+        assert_eq!(watch.records[0].output.segment_pair, None);
     }
 
     #[test]
@@ -6153,6 +7630,7 @@ mod tests {
             }],
             &old,
             &new,
+            &[],
             RecoveryWatchBuildContext {
                 old_evidence: None,
                 new_evidence: None,
@@ -6186,6 +7664,7 @@ mod tests {
             }],
             &old,
             &new,
+            &[],
             RecoveryWatchBuildContext {
                 old_evidence: None,
                 new_evidence: None,

@@ -21,10 +21,11 @@ use std::{
 use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
-        ChangeKind, Comparison, NearRelationStopReason, RecoveryWatchDiagnostics,
-        RecoveryWatchNearScope, RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
-        RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchRelation,
-        RecoveryWatchUnitKind, RunSignatureStopReason, SentenceRecoveryMetrics, TextSpan,
+        ChangeKind, Comparison, ExactSegmentRelation, NearRelationStopReason,
+        RecoveryWatchDiagnostics, RecoveryWatchNearScope, RecoveryWatchOccurrence,
+        RecoveryWatchOccurrenceEvidence, RecoveryWatchPairEvidence, RecoveryWatchQuery,
+        RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence, RecoveryWatchUnitKind,
+        RunSignatureStopReason, SegmentStopReason, SentenceRecoveryMetrics, TextSpan,
     },
     layout::BlockRole,
     model::Document,
@@ -211,6 +212,15 @@ pub struct RecoveryWatchDiagnosticsReport {
     pub candidate_generation_complete: bool,
     pub near_relation_complete: bool,
     pub near_relation_stop_reason: Option<NearRelationStopReasonReport>,
+    pub segment_candidates: usize,
+    pub segment_hash_matches: usize,
+    pub segment_token_verified_matches: usize,
+    pub segment_unique_pairs: usize,
+    pub segment_duplicate_pairs: usize,
+    pub segment_monotone_pairs: usize,
+    pub segment_crossing_pairs: usize,
+    pub segment_overlap_vetoes: usize,
+    pub segment_stop_reason: Option<SegmentStopReasonReport>,
     pub records: Vec<ExpectedChangeRecoveryWatchRecord>,
 }
 
@@ -220,6 +230,7 @@ pub struct ExpectedChangeRecoveryWatchRecord {
     pub old: RecoveryWatchOccurrenceReport,
     pub new: RecoveryWatchOccurrenceReport,
     pub pair: Option<RecoveryWatchPairEvidenceReport>,
+    pub segment_pair: Option<RecoveryWatchSegmentPairEvidenceReport>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -239,6 +250,9 @@ pub struct RecoveryWatchFoundOccurrenceReport {
     pub span_index: Option<usize>,
     pub trusted_run_descriptor_index: Option<usize>,
     pub ordinal: Option<usize>,
+    pub end_ordinal: Option<usize>,
+    pub unit_count: Option<usize>,
+    pub token_count: Option<usize>,
     pub recovery_location_available: bool,
     pub fully_contained: bool,
     pub page: Option<u32>,
@@ -286,6 +300,44 @@ pub struct RecoveryWatchPairEvidenceReport {
     pub old_relation: RecoveryWatchRelationReport,
     pub new_relation: RecoveryWatchRelationReport,
     pub reciprocal: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RecoveryWatchSegmentPairEvidenceReport {
+    pub old_start_ordinal: usize,
+    pub old_end_ordinal: usize,
+    pub new_start_ordinal: usize,
+    pub new_end_ordinal: usize,
+    pub old_unit_count: usize,
+    pub new_unit_count: usize,
+    pub old_token_count: usize,
+    pub new_token_count: usize,
+    pub exact: bool,
+    pub old_occurrence_count: usize,
+    pub new_occurrence_count: usize,
+    pub role_compatible: bool,
+    pub overlaps_existing_recovery: bool,
+    pub crossing_anchor_count: usize,
+    pub relation: ExactSegmentRelationReport,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExactSegmentRelationReport {
+    NonExact,
+    Duplicate,
+    ExactUniqueTopologyUnknown,
+    ExactUniqueMonotone,
+    ExactUniqueCrossing,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SegmentStopReasonReport {
+    CandidateCountLimit,
+    HashPairVisitLimit,
+    TokenVerificationLimit,
+    AllocationFailure,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -462,6 +514,9 @@ impl From<RecoveryWatchOccurrence> for RecoveryWatchFoundOccurrenceReport {
             span_index: occurrence.span_index,
             trusted_run_descriptor_index: occurrence.trusted_run_descriptor_index,
             ordinal: occurrence.ordinal,
+            end_ordinal: occurrence.end_ordinal,
+            unit_count: occurrence.unit_count,
+            token_count: occurrence.token_count,
             recovery_location_available: occurrence.recovery_location_available,
             fully_contained: occurrence.fully_contained,
             page: occurrence.page,
@@ -523,6 +578,51 @@ impl From<RecoveryWatchPairEvidence> for RecoveryWatchPairEvidenceReport {
     }
 }
 
+impl From<RecoveryWatchSegmentPairEvidence> for RecoveryWatchSegmentPairEvidenceReport {
+    fn from(pair: RecoveryWatchSegmentPairEvidence) -> Self {
+        Self {
+            old_start_ordinal: pair.old_start_ordinal,
+            old_end_ordinal: pair.old_end_ordinal,
+            new_start_ordinal: pair.new_start_ordinal,
+            new_end_ordinal: pair.new_end_ordinal,
+            old_unit_count: pair.old_unit_count,
+            new_unit_count: pair.new_unit_count,
+            old_token_count: pair.old_token_count,
+            new_token_count: pair.new_token_count,
+            exact: pair.exact,
+            old_occurrence_count: pair.old_occurrence_count,
+            new_occurrence_count: pair.new_occurrence_count,
+            role_compatible: pair.role_compatible,
+            overlaps_existing_recovery: pair.overlaps_existing_recovery,
+            crossing_anchor_count: pair.crossing_anchor_count,
+            relation: pair.relation.into(),
+        }
+    }
+}
+
+impl From<ExactSegmentRelation> for ExactSegmentRelationReport {
+    fn from(relation: ExactSegmentRelation) -> Self {
+        match relation {
+            ExactSegmentRelation::NonExact => Self::NonExact,
+            ExactSegmentRelation::Duplicate => Self::Duplicate,
+            ExactSegmentRelation::ExactUniqueTopologyUnknown => Self::ExactUniqueTopologyUnknown,
+            ExactSegmentRelation::ExactUniqueMonotone => Self::ExactUniqueMonotone,
+            ExactSegmentRelation::ExactUniqueCrossing => Self::ExactUniqueCrossing,
+        }
+    }
+}
+
+impl From<SegmentStopReason> for SegmentStopReasonReport {
+    fn from(reason: SegmentStopReason) -> Self {
+        match reason {
+            SegmentStopReason::CandidateCountLimit => Self::CandidateCountLimit,
+            SegmentStopReason::HashPairVisitLimit => Self::HashPairVisitLimit,
+            SegmentStopReason::TokenVerificationLimit => Self::TokenVerificationLimit,
+            SegmentStopReason::AllocationFailure => Self::AllocationFailure,
+        }
+    }
+}
+
 impl From<RecoveryWatchNearScope> for RecoveryWatchNearScopeReport {
     fn from(scope: RecoveryWatchNearScope) -> Self {
         match scope {
@@ -550,6 +650,15 @@ fn completed_empty_recovery_watch_report() -> RecoveryWatchDiagnosticsReport {
         candidate_generation_complete: true,
         near_relation_complete: true,
         near_relation_stop_reason: None,
+        segment_candidates: 0,
+        segment_hash_matches: 0,
+        segment_token_verified_matches: 0,
+        segment_unique_pairs: 0,
+        segment_duplicate_pairs: 0,
+        segment_monotone_pairs: 0,
+        segment_crossing_pairs: 0,
+        segment_overlap_vetoes: 0,
+        segment_stop_reason: None,
         records: Vec::new(),
     }
 }
@@ -587,6 +696,7 @@ fn recovery_watch_report(
                     old: record.old.into(),
                     new: record.new.into(),
                     pair: record.pair.map(Into::into),
+                    segment_pair: record.segment_pair.map(Into::into),
                 },
                 None => {
                     join_complete = false;
@@ -595,6 +705,7 @@ fn recovery_watch_report(
                         old: RecoveryWatchOccurrenceReport::Unavailable,
                         new: RecoveryWatchOccurrenceReport::Unavailable,
                         pair: None,
+                        segment_pair: None,
                     }
                 }
             }
@@ -606,6 +717,15 @@ fn recovery_watch_report(
         candidate_generation_complete: diagnostics.candidate_generation_complete,
         near_relation_complete: diagnostics.near_relation_complete,
         near_relation_stop_reason: diagnostics.near_relation_stop_reason.map(Into::into),
+        segment_candidates: diagnostics.segment_candidates,
+        segment_hash_matches: diagnostics.segment_hash_matches,
+        segment_token_verified_matches: diagnostics.segment_token_verified_matches,
+        segment_unique_pairs: diagnostics.segment_unique_pairs,
+        segment_duplicate_pairs: diagnostics.segment_duplicate_pairs,
+        segment_monotone_pairs: diagnostics.segment_monotone_pairs,
+        segment_crossing_pairs: diagnostics.segment_crossing_pairs,
+        segment_overlap_vetoes: diagnostics.segment_overlap_vetoes,
+        segment_stop_reason: diagnostics.segment_stop_reason.map(Into::into),
         records,
     }
 }
@@ -2896,7 +3016,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 12;
+    pub const SCHEMA_VERSION: u32 = 13;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -3097,20 +3217,24 @@ mod tests {
                     old: RecoveryWatchOccurrenceEvidence::Unfound,
                     new: RecoveryWatchOccurrenceEvidence::Ambiguous,
                     pair: None,
+                    segment_pair: None,
                 },
                 pdfdelta_core::diff::RecoveryWatchRecord {
                     id: query_set.ids[0].clone(),
                     old: RecoveryWatchOccurrenceEvidence::Unavailable,
                     new: RecoveryWatchOccurrenceEvidence::Unavailable,
                     pair: None,
+                    segment_pair: None,
                 },
                 pdfdelta_core::diff::RecoveryWatchRecord {
                     id: "unknown".to_owned(),
                     old: RecoveryWatchOccurrenceEvidence::Unfound,
                     new: RecoveryWatchOccurrenceEvidence::Unfound,
                     pair: None,
+                    segment_pair: None,
                 },
             ],
+            ..RecoveryWatchDiagnostics::default()
         };
 
         let report = recovery_watch_report(&document.changes, &query_set, diagnostics);
@@ -3154,6 +3278,7 @@ mod tests {
                 old: occurrence,
                 new: RecoveryWatchOccurrenceEvidence::Unfound,
                 pair: None,
+                segment_pair: None,
             },
         )
         .collect::<Vec<_>>();
@@ -3163,6 +3288,9 @@ mod tests {
                 span_index: Some(2),
                 trusted_run_descriptor_index: Some(3),
                 ordinal: Some(4),
+                end_ordinal: Some(6),
+                unit_count: Some(2),
+                token_count: Some(12),
                 recovery_location_available: true,
                 fully_contained: false,
                 page: Some(5),
@@ -3195,6 +3323,23 @@ mod tests {
                 },
                 reciprocal: false,
             }),
+            segment_pair: Some(RecoveryWatchSegmentPairEvidence {
+                old_start_ordinal: 4,
+                old_end_ordinal: 6,
+                new_start_ordinal: 7,
+                new_end_ordinal: 9,
+                old_unit_count: 2,
+                new_unit_count: 2,
+                old_token_count: 12,
+                new_token_count: 13,
+                exact: true,
+                old_occurrence_count: 1,
+                new_occurrence_count: 1,
+                role_compatible: true,
+                overlaps_existing_recovery: false,
+                crossing_anchor_count: 0,
+                relation: ExactSegmentRelation::ExactUniqueMonotone,
+            }),
         });
         let report = recovery_watch_report(
             &document.changes,
@@ -3204,6 +3349,15 @@ mod tests {
                 candidate_generation_complete: true,
                 near_relation_complete: false,
                 near_relation_stop_reason: Some(NearRelationStopReason::PairVisitLimit),
+                segment_candidates: 8,
+                segment_hash_matches: 6,
+                segment_token_verified_matches: 5,
+                segment_unique_pairs: 3,
+                segment_duplicate_pairs: 2,
+                segment_monotone_pairs: 2,
+                segment_crossing_pairs: 1,
+                segment_overlap_vetoes: 1,
+                segment_stop_reason: Some(SegmentStopReason::TokenVerificationLimit),
                 records,
             },
         );
@@ -3221,16 +3375,69 @@ mod tests {
                 "candidate_generation_complete",
                 "near_relation_complete",
                 "near_relation_stop_reason",
+                "segment_candidates",
+                "segment_hash_matches",
+                "segment_token_verified_matches",
+                "segment_unique_pairs",
+                "segment_duplicate_pairs",
+                "segment_monotone_pairs",
+                "segment_crossing_pairs",
+                "segment_overlap_vetoes",
+                "segment_stop_reason",
                 "records",
             ])
         );
         assert_eq!(value["complete"], false);
         assert_eq!(value["near_relation_stop_reason"], "pair_visit_limit");
+        assert_eq!(value["segment_candidates"], 8);
+        assert_eq!(value["segment_hash_matches"], 6);
+        assert_eq!(value["segment_token_verified_matches"], 5);
+        assert_eq!(value["segment_unique_pairs"], 3);
+        assert_eq!(value["segment_duplicate_pairs"], 2);
+        assert_eq!(value["segment_monotone_pairs"], 2);
+        assert_eq!(value["segment_crossing_pairs"], 1);
+        assert_eq!(value["segment_overlap_vetoes"], 1);
+        assert_eq!(value["segment_stop_reason"], "token_verification_limit");
         assert_eq!(value["records"][0]["old"]["status"], "unfound");
         assert_eq!(value["records"][1]["old"]["status"], "ambiguous");
         assert_eq!(value["records"][2]["old"]["status"], "unavailable");
         assert_eq!(value["records"][3]["old"]["status"], "found");
+        assert_eq!(
+            value["records"][3]
+                .as_object()
+                .expect("watch record object")
+                .keys()
+                .map(String::as_str)
+                .collect::<HashSet<_>>(),
+            HashSet::from(["expected_id", "old", "new", "pair", "segment_pair"])
+        );
+        assert_eq!(
+            value["records"][3]["old"]
+                .as_object()
+                .expect("found occurrence object")
+                .keys()
+                .map(String::as_str)
+                .collect::<HashSet<_>>(),
+            HashSet::from([
+                "status",
+                "span_index",
+                "trusted_run_descriptor_index",
+                "ordinal",
+                "end_ordinal",
+                "unit_count",
+                "token_count",
+                "recovery_location_available",
+                "fully_contained",
+                "page",
+                "bbox",
+                "role",
+                "kind",
+            ])
+        );
         assert_eq!(value["records"][3]["old"]["kind"], "segment");
+        assert_eq!(value["records"][3]["old"]["end_ordinal"], 6);
+        assert_eq!(value["records"][3]["old"]["unit_count"], 2);
+        assert_eq!(value["records"][3]["old"]["token_count"], 12);
         assert_eq!(value["records"][3]["old"]["bbox"]["max"]["x"], 3.0);
         assert_eq!(value["records"][3]["pair"]["near_scope"], "cross_span");
         assert_eq!(
@@ -3242,6 +3449,76 @@ mod tests {
             700
         );
         assert_eq!(value["records"][3]["pair"]["reciprocal"], false);
+        assert_eq!(
+            value["records"][3]["segment_pair"],
+            serde_json::json!({
+                "old_start_ordinal": 4,
+                "old_end_ordinal": 6,
+                "new_start_ordinal": 7,
+                "new_end_ordinal": 9,
+                "old_unit_count": 2,
+                "new_unit_count": 2,
+                "old_token_count": 12,
+                "new_token_count": 13,
+                "exact": true,
+                "old_occurrence_count": 1,
+                "new_occurrence_count": 1,
+                "role_compatible": true,
+                "overlaps_existing_recovery": false,
+                "crossing_anchor_count": 0,
+                "relation": "exact_unique_monotone"
+            })
+        );
+    }
+
+    #[test]
+    fn segment_diagnostic_enums_use_exact_snake_case_tags() {
+        let relations = [
+            (ExactSegmentRelation::NonExact, "non_exact"),
+            (ExactSegmentRelation::Duplicate, "duplicate"),
+            (
+                ExactSegmentRelation::ExactUniqueTopologyUnknown,
+                "exact_unique_topology_unknown",
+            ),
+            (
+                ExactSegmentRelation::ExactUniqueMonotone,
+                "exact_unique_monotone",
+            ),
+            (
+                ExactSegmentRelation::ExactUniqueCrossing,
+                "exact_unique_crossing",
+            ),
+        ];
+        for (relation, expected) in relations {
+            assert_eq!(
+                serde_json::to_value(ExactSegmentRelationReport::from(relation))
+                    .expect("segment relation serializes"),
+                expected
+            );
+        }
+
+        let stop_reasons = [
+            (
+                SegmentStopReason::CandidateCountLimit,
+                "candidate_count_limit",
+            ),
+            (
+                SegmentStopReason::HashPairVisitLimit,
+                "hash_pair_visit_limit",
+            ),
+            (
+                SegmentStopReason::TokenVerificationLimit,
+                "token_verification_limit",
+            ),
+            (SegmentStopReason::AllocationFailure, "allocation_failure"),
+        ];
+        for (reason, expected) in stop_reasons {
+            assert_eq!(
+                serde_json::to_value(SegmentStopReasonReport::from(reason))
+                    .expect("segment stop reason serializes"),
+                expected
+            );
+        }
     }
 
     #[test]
@@ -3672,12 +3949,21 @@ mod tests {
                 candidate_generation_complete: true,
                 near_relation_complete: true,
                 near_relation_stop_reason: None,
+                segment_candidates: 0,
+                segment_hash_matches: 0,
+                segment_token_verified_matches: 0,
+                segment_unique_pairs: 0,
+                segment_duplicate_pairs: 0,
+                segment_monotone_pairs: 0,
+                segment_crossing_pairs: 0,
+                segment_overlap_vetoes: 0,
+                segment_stop_reason: None,
                 records: Vec::new(),
             }),
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 12);
+        assert_eq!(completed["schema_version"], 13);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -3693,6 +3979,15 @@ mod tests {
                     "candidate_generation_complete": true,
                     "near_relation_complete": true,
                     "near_relation_stop_reason": null,
+                    "segment_candidates": 0,
+                    "segment_hash_matches": 0,
+                    "segment_token_verified_matches": 0,
+                    "segment_unique_pairs": 0,
+                    "segment_duplicate_pairs": 0,
+                    "segment_monotone_pairs": 0,
+                    "segment_crossing_pairs": 0,
+                    "segment_overlap_vetoes": 0,
+                    "segment_stop_reason": null,
                     "records": []
                 }
             })
@@ -3706,7 +4001,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 12);
+        assert_eq!(legacy_summary["schema_version"], 13);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -4570,7 +4865,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 12);
+        assert_eq!(json["schema_version"], 13);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -5407,7 +5702,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 12);
+        assert_eq!(value["schema_version"], 13);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
