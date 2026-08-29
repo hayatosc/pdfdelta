@@ -1,13 +1,27 @@
 {
   "version": 1,
   "pair": "arxiv-attention-v6-to-v7",
-  "reviewed_on": "2026-08-28",
-  "annotation": "partial",
-  "notes": "Representative review of arXiv:1706.03762 v6 -> v7. The PDF body is otherwise textually stable in the extracted evidence; the sampled change is the arXiv version/date stamp on the first page. The two-column mathematical layout is a stress case, and this stamp currently falls in a conservative unresolved region.",
+  "reviewed_on": "2026-08-29",
+  "annotation": "scoped_complete",
+  "notes": "Every semantic change within the declared first-page distribution-stamp scope was reviewed against the extracted text of both PDFs.",
+  "scopes": [
+    {
+      "id": "distribution-stamp",
+      "old": {
+        "start_quote": "arXiv:1706.03762v6 [cs.CL] 24 Jul 2023",
+        "end_quote": "arXiv:1706.03762v6 [cs.CL] 24 Jul 2023"
+      },
+      "new": {
+        "start_quote": "arXiv:1706.03762v7 [cs.CL] 2 Aug 2023",
+        "end_quote": "arXiv:1706.03762v7 [cs.CL] 2 Aug 2023"
+      }
+    }
+  ],
   "changes": [
     {
       "id": "arxiv-version-date-stamp",
       "kind": "replacement",
+      "scope": "distribution-stamp",
       "old_quote": "arXiv:1706.03762v6 [cs.CL] 24 Jul 2023",
       "new_quote": "arXiv:1706.03762v7 [cs.CL] 2 Aug 2023",
       "note": "The first-page distribution stamp records the later submitted revision and date."
