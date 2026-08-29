@@ -144,9 +144,15 @@ pub struct DiffOptions {
     /// Values above the implementation cap are rejected because retained
     /// backtracking trace memory grows quadratically with this value.
     pub max_edit_distance: usize,
-    /// Weak (low-confidence) matched spans whose bounded Myers diff changes
-    /// more than this fraction of tokens degrade to unresolved regions
-    /// instead of emitting fragmented character-level changes.
+    /// Base changed-token ratio for rejecting implausible non-exact matches.
+    /// Low-confidence matches use this value directly. Medium- and
+    /// high-confidence matches use progressively relaxed multiples, with
+    /// additional short-span headroom because a small replacement has a high
+    /// edit-operation ratio even when it forms one coherent change.
+    ///
+    /// The field name is retained for API compatibility; the guard applies to
+    /// every alignment confidence because confidence cannot prove a changed
+    /// counterpart is plausible after exact diff evidence contradicts it.
     pub max_weak_match_change_ratio: f64,
 }
 
@@ -1456,9 +1462,13 @@ fn compare_match(
         );
         return Ok(false);
     };
-    if span.confidence == AlignmentConfidence::Low
-        && is_implausible_match(&edits, old.tokens.len(), new.tokens.len(), options)
-    {
+    if is_implausible_match(
+        &edits,
+        old.tokens.len(),
+        new.tokens.len(),
+        span.confidence,
+        options,
+    ) {
         push_unresolved_match(
             &old,
             &new,
@@ -1489,17 +1499,18 @@ fn push_unresolved_match(
     });
 }
 
-/// Maximum allowable hunk-to-token ratio for weak matches before degrading to unresolved.
+/// Maximum allowable hunk-to-token ratio before degrading a non-exact match.
 const MAX_WEAK_MATCH_HUNK_RATIO: f64 = 0.2;
 
 /// Minimum span length in tokens required to evaluate hunk density.
 const MIN_HUNK_DENSITY_TOKENS: usize = 8;
 
-/// Returns true if a weak match has excessive changes or hunk fragmentation.
+/// Returns true if a non-exact match has excessive changes or hunk fragmentation.
 fn is_implausible_match(
     edits: &[Edit],
     old_tokens: usize,
     new_tokens: usize,
+    confidence: AlignmentConfidence,
     options: DiffOptions,
 ) -> bool {
     let total = old_tokens.max(new_tokens);
@@ -1507,7 +1518,15 @@ fn is_implausible_match(
         return false;
     }
     let changed = edits.iter().filter(|edit| **edit != Edit::Equal).count();
-    if changed as f64 / total as f64 > options.max_weak_match_change_ratio {
+    let confidence_factor = match (confidence, total < MIN_HUNK_DENSITY_TOKENS) {
+        (AlignmentConfidence::Low, _) => 1.0,
+        (AlignmentConfidence::Medium, true) => 3.0,
+        (AlignmentConfidence::Medium, false) => 1.5,
+        (AlignmentConfidence::High, true) => 4.0,
+        (AlignmentConfidence::High, false) => 2.0,
+    };
+    let change_ratio_limit = (options.max_weak_match_change_ratio * confidence_factor).min(2.0);
+    if changed as f64 / total as f64 > change_ratio_limit {
         return true;
     }
     if total < MIN_HUNK_DENSITY_TOKENS {
@@ -1523,7 +1542,12 @@ fn is_implausible_match(
             }
         })
         .0;
-    hunks as f64 / total as f64 > MAX_WEAK_MATCH_HUNK_RATIO
+    let hunk_ratio_limit = match confidence {
+        AlignmentConfidence::Low => MAX_WEAK_MATCH_HUNK_RATIO,
+        AlignmentConfidence::Medium => 0.25,
+        AlignmentConfidence::High => 0.3,
+    };
+    hunks as f64 / total as f64 > hunk_ratio_limit
 }
 
 fn append_changes(
@@ -2223,7 +2247,13 @@ mod tests {
 
     #[test]
     fn empty_edits_are_never_implausible() {
-        assert!(!is_implausible_match(&[], 0, 0, options(0.5)));
+        assert!(!is_implausible_match(
+            &[],
+            0,
+            0,
+            AlignmentConfidence::Low,
+            options(0.5)
+        ));
     }
 
     #[test]
@@ -2236,10 +2266,88 @@ mod tests {
             Edit::Equal,
             Edit::Equal,
         ];
-        assert!(!is_implausible_match(&edits, 4, 4, options(0.5)));
+        assert!(!is_implausible_match(
+            &edits,
+            4,
+            4,
+            AlignmentConfidence::Low,
+            options(0.5)
+        ));
         // Just above the limit the changed-token ratio still gates short spans.
         let edits = [Edit::Delete, Edit::Insert, Edit::Delete, Edit::Insert];
-        assert!(is_implausible_match(&edits, 4, 4, options(0.5)));
+        assert!(is_implausible_match(
+            &edits,
+            4,
+            4,
+            AlignmentConfidence::Low,
+            options(0.5)
+        ));
+    }
+
+    #[test]
+    fn short_nonexact_matches_apply_confidence_scaled_ratio_limits() {
+        let full_replacement = [
+            Edit::Delete,
+            Edit::Delete,
+            Edit::Delete,
+            Edit::Delete,
+            Edit::Insert,
+            Edit::Insert,
+            Edit::Insert,
+            Edit::Insert,
+        ];
+
+        assert!(is_implausible_match(
+            &full_replacement,
+            4,
+            4,
+            AlignmentConfidence::Low,
+            options(0.5)
+        ));
+        assert!(is_implausible_match(
+            &full_replacement,
+            4,
+            4,
+            AlignmentConfidence::Medium,
+            options(0.5)
+        ));
+        assert!(!is_implausible_match(
+            &full_replacement,
+            4,
+            4,
+            AlignmentConfidence::High,
+            options(0.5)
+        ));
+        let medium_boundary = [
+            Edit::Delete,
+            Edit::Delete,
+            Edit::Delete,
+            Edit::Insert,
+            Edit::Insert,
+            Edit::Insert,
+            Edit::Equal,
+        ];
+        assert!(!is_implausible_match(
+            &medium_boundary,
+            4,
+            4,
+            AlignmentConfidence::Medium,
+            options(0.5)
+        ));
+
+        for confidence in [
+            AlignmentConfidence::Low,
+            AlignmentConfidence::Medium,
+            AlignmentConfidence::High,
+        ] {
+            assert!(is_implausible_match(
+                &[Edit::Delete, Edit::Insert],
+                1,
+                1,
+                confidence,
+                options(0.0),
+            ));
+        }
     }
 
     #[test]
@@ -2257,7 +2365,13 @@ mod tests {
             ]);
         }
         edits.push(Edit::Equal);
-        assert!(is_implausible_match(&edits, 19, 19, options(0.5)));
+        assert!(is_implausible_match(
+            &edits,
+            19,
+            19,
+            AlignmentConfidence::Low,
+            options(0.5)
+        ));
     }
 
     #[test]
@@ -2265,7 +2379,13 @@ mod tests {
         // Two isolated deletions in a five-token span: under the ceiling on
         // changed tokens, so fragmentation must not degrade it.
         let edits = [Edit::Equal, Edit::Delete, Edit::Equal, Edit::Delete];
-        assert!(!is_implausible_match(&edits, 5, 3, options(0.5)));
+        assert!(!is_implausible_match(
+            &edits,
+            5,
+            3,
+            AlignmentConfidence::Low,
+            options(0.5)
+        ));
     }
 
     #[test]

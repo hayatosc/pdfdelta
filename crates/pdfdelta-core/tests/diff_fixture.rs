@@ -723,7 +723,7 @@ fn retains_a_weak_match_with_sparse_edits_as_uncertain_changes() -> Result<()> {
 }
 
 #[test]
-fn keeps_diffing_an_implausible_match_with_strong_alignment_evidence() -> Result<()> {
+fn degrades_an_implausible_match_despite_strong_alignment_evidence() -> Result<()> {
     let old = [block(1, "aaaabbbbccccdddd")];
     let new = [block(101, "aaaaXXXXXXXXYYYY")];
     let mut span = matched(&[1], &[101]);
@@ -732,10 +732,17 @@ fn keeps_diffing_an_implausible_match_with_strong_alignment_evidence() -> Result
 
     let result = compare_aligned(&old, &new, &aligned(vec![span]), DiffOptions::default())?;
 
-    // The plausibility gate is scoped to weak (low-confidence) matches;
-    // strongly evidenced matches still produce their token-level changes.
-    assert!(!result.changes.is_empty());
-    assert!(result.unresolved_regions.is_empty());
+    assert!(result.changes.is_empty());
+    assert_eq!(result.unresolved_regions.len(), 1);
+    assert_eq!(result.old_coverage.resolved_tokens, 0);
+    assert_eq!(result.new_coverage.resolved_tokens, 0);
+    assert_eq!(
+        result.unresolved_regions[0].evidence,
+        [
+            AlignmentEvidence::TextSimilarity,
+            AlignmentEvidence::DiffRejectedAsImplausible,
+        ]
+    );
     Ok(())
 }
 
