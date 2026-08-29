@@ -22,7 +22,7 @@ use crate::{
     validate::validate_unit_interval,
 };
 
-use self::myers::Edit;
+use self::myers::AtomicEdit;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChangeKind {
@@ -1771,7 +1771,7 @@ const MAX_LINE_GROUPING_TOKENS: usize = 128;
 /// Returns true if a non-exact match has excessive changes or hunk fragmentation.
 #[cfg(test)]
 fn is_implausible_match(
-    edits: &[Edit],
+    edits: &[AtomicEdit],
     old_tokens: &[ComparableToken],
     new_tokens: &[ComparableToken],
     confidence: AlignmentConfidence,
@@ -1783,7 +1783,7 @@ fn is_implausible_match(
 }
 
 fn is_implausible_match_with_short_headroom(
-    edits: &[Edit],
+    edits: &[AtomicEdit],
     old_tokens: &[ComparableToken],
     new_tokens: &[ComparableToken],
     confidence: AlignmentConfidence,
@@ -1794,7 +1794,10 @@ fn is_implausible_match_with_short_headroom(
     if total == 0 {
         return false;
     }
-    let changed = edits.iter().filter(|edit| **edit != Edit::Equal).count();
+    let changed = edits
+        .iter()
+        .map(AtomicEdit::changed_token_count)
+        .sum::<usize>();
     let confidence_factor = match (confidence, total < MIN_HUNK_DENSITY_TOKENS) {
         (AlignmentConfidence::Low, _)
             if allow_short_headroom && total < SHORT_MATCH_RATIO_HEADROOM_TOKENS =>
@@ -1824,7 +1827,7 @@ fn is_implausible_match_with_short_headroom(
 }
 
 fn count_grouped_hunks(
-    edits: &[Edit],
+    edits: &[AtomicEdit],
     old_tokens: &[ComparableToken],
     new_tokens: &[ComparableToken],
 ) -> usize {
@@ -1832,48 +1835,39 @@ fn count_grouped_hunks(
     let mut new_index = 0;
     let mut hunks = 0;
     let mut hunk_start = None;
-    let mut equal_start = None;
 
     for (edit_index, edit) in edits.iter().enumerate() {
-        match edit {
-            Edit::Equal => {
-                if hunk_start.is_some() {
-                    equal_start.get_or_insert((old_index, new_index));
-                }
-                old_index += 1;
-                new_index += 1;
-            }
-            Edit::Delete | Edit::Insert => {
-                if let Some((old_equal_start, new_equal_start)) = equal_start.take() {
-                    debug_assert_eq!(
-                        old_tokens[old_equal_start..old_index],
-                        new_tokens[new_equal_start..new_index]
-                    );
-                    let left_kind = hunk_start.and_then(|(old_start, new_start)| {
-                        change_kind(old_start, new_start, old_equal_start, new_equal_start)
-                    });
-                    let right_kind = contiguous_change_kind(&edits[edit_index..]);
-                    if !bridges_replacement_hunks(
-                        &old_tokens[old_equal_start..old_index],
-                        left_kind,
-                        right_kind,
-                    ) {
-                        hunks += 1;
-                        hunk_start = Some((old_index, new_index));
-                    }
-                } else if hunk_start.is_none() {
-                    hunk_start = Some((old_index, new_index));
-                }
-                match edit {
-                    Edit::Delete => old_index += 1,
-                    Edit::Insert => new_index += 1,
-                    Edit::Equal => unreachable!(),
-                }
+        debug_assert!(edit.old.is_empty() ^ edit.new.is_empty());
+        debug_assert!(edit.old.start >= old_index && edit.new.start >= new_index);
+        let old_equal_start = old_index;
+        let new_equal_start = new_index;
+        old_index = edit.old.start;
+        new_index = edit.new.start;
+        debug_assert_eq!(
+            old_tokens[old_equal_start..old_index],
+            new_tokens[new_equal_start..new_index]
+        );
+        if old_equal_start != old_index
+            && let Some((old_start, new_start)) = hunk_start
+        {
+            let left_kind = change_kind(old_start, new_start, old_equal_start, new_equal_start);
+            let right_kind = contiguous_change_kind(&edits[edit_index..]);
+            if !bridges_replacement_hunks(
+                &old_tokens[old_equal_start..old_index],
+                left_kind,
+                right_kind,
+            ) {
+                hunks += 1;
+                hunk_start = Some((old_index, new_index));
             }
         }
+        if hunk_start.is_none() {
+            hunk_start = Some((old_index, new_index));
+        }
+        old_index = edit.old.end;
+        new_index = edit.new.end;
     }
-    debug_assert_eq!(old_index, old_tokens.len());
-    debug_assert_eq!(new_index, new_tokens.len());
+    debug_assert_eq!(old_tokens[old_index..], new_tokens[new_index..]);
     hunks + usize::from(hunk_start.is_some())
 }
 
@@ -1909,7 +1903,7 @@ fn line_grouped_ranges(
 fn beneficial_line_grouped_ranges(
     old: &GroupText,
     new: &GroupText,
-    edits: &[Edit],
+    edits: &[AtomicEdit],
 ) -> Option<Vec<(Range<usize>, Range<usize>)>> {
     let grouped = line_grouped_ranges(old, new)?;
     (grouped.len() < count_grouped_hunks(edits, &old.tokens, &new.tokens)).then_some(grouped)
@@ -1973,84 +1967,81 @@ fn is_whitespace_token(token: &ComparableToken) -> bool {
 fn append_changes(
     old: &GroupText,
     new: &GroupText,
-    edits: &[Edit],
+    edits: &[AtomicEdit],
     confidence: Confidence,
     changes: &mut Vec<ChangeEvent>,
 ) {
     let mut old_index = 0;
     let mut new_index = 0;
     let mut hunk_start = None;
-    let mut equal_start = None;
     let mut complete_trailing_word = false;
 
     for (edit_index, edit) in edits.iter().enumerate() {
-        match edit {
-            Edit::Equal => {
-                if hunk_start.is_some() {
-                    equal_start.get_or_insert((old_index, new_index));
-                }
-                old_index += 1;
-                new_index += 1;
-            }
-            Edit::Delete | Edit::Insert => {
-                if let Some((old_equal_start, new_equal_start)) = equal_start.take() {
-                    let left_kind = hunk_start.and_then(|(old_start, new_start)| {
-                        change_kind(old_start, new_start, old_equal_start, new_equal_start)
-                    });
-                    let right_kind = contiguous_change_kind(&edits[edit_index..]);
-                    if bridges_replacement_hunks(
-                        &old.tokens[old_equal_start..old_index],
-                        left_kind,
-                        right_kind,
-                    ) {
-                        complete_trailing_word |= left_kind != Some(ChangeKind::Replacement)
-                            || right_kind != Some(ChangeKind::Replacement);
-                    } else {
-                        let (old_end, new_end) = complete_word_ends(
-                            &old.tokens,
-                            &new.tokens,
-                            old_equal_start,
-                            new_equal_start,
-                            old_index,
-                            new_index,
-                            complete_trailing_word,
-                        );
-                        flush_hunk(
-                            old,
-                            new,
-                            hunk_start.take(),
-                            old_end,
-                            new_end,
-                            confidence,
-                            changes,
-                        );
-                        hunk_start = Some((old_index, new_index));
-                        complete_trailing_word = false;
-                    }
-                } else if hunk_start.is_none() {
-                    hunk_start = Some((old_index, new_index));
-                }
-                match edit {
-                    Edit::Delete => old_index += 1,
-                    Edit::Insert => new_index += 1,
-                    Edit::Equal => unreachable!(),
-                }
+        debug_assert!(edit.old.is_empty() ^ edit.new.is_empty());
+        debug_assert!(edit.old.start >= old_index && edit.new.start >= new_index);
+        let old_equal_start = old_index;
+        let new_equal_start = new_index;
+        old_index = edit.old.start;
+        new_index = edit.new.start;
+        debug_assert_eq!(
+            old.tokens[old_equal_start..old_index],
+            new.tokens[new_equal_start..new_index]
+        );
+        if old_equal_start != old_index
+            && let Some((old_start, new_start)) = hunk_start
+        {
+            let left_kind = change_kind(old_start, new_start, old_equal_start, new_equal_start);
+            let right_kind = contiguous_change_kind(&edits[edit_index..]);
+            if bridges_replacement_hunks(
+                &old.tokens[old_equal_start..old_index],
+                left_kind,
+                right_kind,
+            ) {
+                complete_trailing_word |= left_kind != Some(ChangeKind::Replacement)
+                    || right_kind != Some(ChangeKind::Replacement);
+            } else {
+                let (old_end, new_end) = complete_word_ends(
+                    &old.tokens,
+                    &new.tokens,
+                    old_equal_start,
+                    new_equal_start,
+                    old_index,
+                    new_index,
+                    complete_trailing_word,
+                );
+                flush_hunk(
+                    old,
+                    new,
+                    hunk_start.take(),
+                    old_end,
+                    new_end,
+                    confidence,
+                    changes,
+                );
+                hunk_start = Some((old_index, new_index));
+                complete_trailing_word = false;
             }
         }
+        if hunk_start.is_none() {
+            hunk_start = Some((old_index, new_index));
+        }
+        old_index = edit.old.end;
+        new_index = edit.new.end;
     }
-    let (old_end, new_end) = equal_start
-        .map(|(old_equal_start, new_equal_start)| {
-            complete_word_ends(
-                &old.tokens,
-                &new.tokens,
-                old_equal_start,
-                new_equal_start,
-                old_index,
-                new_index,
-                complete_trailing_word,
-            )
-        })
-        .unwrap_or((old_index, new_index));
+    debug_assert_eq!(old.tokens[old_index..], new.tokens[new_index..]);
+    let (old_end, new_end) = if old_index != old.tokens.len() {
+        complete_word_ends(
+            &old.tokens,
+            &new.tokens,
+            old_index,
+            new_index,
+            old.tokens.len(),
+            new.tokens.len(),
+            complete_trailing_word,
+        )
+    } else {
+        (old_index, new_index)
+    };
     flush_hunk(old, new, hunk_start, old_end, new_end, confidence, changes);
 }
 
@@ -2083,17 +2074,20 @@ fn is_ascii_alphanumeric_token(token: &ComparableToken) -> bool {
     matches!(token, ComparableToken::Scalar(scalar) if scalar.is_ascii_alphanumeric())
 }
 
-fn contiguous_change_kind(edits: &[Edit]) -> Option<ChangeKind> {
-    let mut old_changed = false;
-    let mut new_changed = false;
-    for edit in edits.iter().take_while(|edit| **edit != Edit::Equal) {
-        match edit {
-            Edit::Delete => old_changed = true,
-            Edit::Insert => new_changed = true,
-            Edit::Equal => unreachable!(),
+fn contiguous_change_kind(edits: &[AtomicEdit]) -> Option<ChangeKind> {
+    let first = edits.first()?;
+    let old_start = first.old.start;
+    let new_start = first.new.start;
+    let mut old_end = old_start;
+    let mut new_end = new_start;
+    for edit in edits {
+        if edit.old.start != old_end || edit.new.start != new_end {
+            break;
         }
+        old_end = edit.old.end;
+        new_end = edit.new.end;
     }
-    change_kind(0, 0, usize::from(old_changed), usize::from(new_changed))
+    change_kind(old_start, new_start, old_end, new_end)
 }
 
 fn bridges_replacement_hunks(
@@ -2838,6 +2832,58 @@ mod tests {
         vec![ComparableToken::Scalar('a'); count]
     }
 
+    fn atomic_edits(script: &str) -> Vec<AtomicEdit> {
+        let mut old_index = 0usize;
+        let mut new_index = 0usize;
+        let mut edits: Vec<AtomicEdit> = Vec::new();
+        for operation in script.bytes() {
+            let edit = match operation {
+                b'=' => {
+                    old_index += 1;
+                    new_index += 1;
+                    continue;
+                }
+                b'-' => {
+                    let start = old_index;
+                    old_index += 1;
+                    AtomicEdit {
+                        old: start..old_index,
+                        new: new_index..new_index,
+                    }
+                }
+                b'+' => {
+                    let start = new_index;
+                    new_index += 1;
+                    AtomicEdit {
+                        old: old_index..old_index,
+                        new: start..new_index,
+                    }
+                }
+                _ => panic!("unsupported test edit operation"),
+            };
+            if let Some(previous) = edits.last_mut() {
+                if previous.is_deletion()
+                    && edit.is_deletion()
+                    && previous.old.end == edit.old.start
+                    && previous.new == edit.new
+                {
+                    previous.old.end = edit.old.end;
+                    continue;
+                }
+                if !previous.is_deletion()
+                    && !edit.is_deletion()
+                    && previous.old == edit.old
+                    && previous.new.end == edit.new.start
+                {
+                    previous.new.end = edit.new.end;
+                    continue;
+                }
+            }
+            edits.push(edit);
+        }
+        edits
+    }
+
     #[test]
     fn rejects_edit_distance_above_the_trace_memory_cap() {
         let at_cap = DiffOptions {
@@ -2872,13 +2918,7 @@ mod tests {
     #[test]
     fn a_short_clean_replacement_stays_plausible_at_the_exact_ratio_limit() {
         // "Xaaa" -> "Yaaa": one hunk, changed ratio exactly at the limit.
-        let edits = [
-            Edit::Delete,
-            Edit::Insert,
-            Edit::Equal,
-            Edit::Equal,
-            Edit::Equal,
-        ];
+        let edits = atomic_edits("-+===");
         let old = scalar_tokens(4);
         let new = scalar_tokens(4);
         assert!(!is_implausible_match(
@@ -2889,7 +2929,7 @@ mod tests {
             options(0.5)
         ));
         // Just above the limit the changed-token ratio still gates short spans.
-        let edits = [Edit::Delete, Edit::Insert, Edit::Delete, Edit::Insert];
+        let edits = atomic_edits("-+-+");
         assert!(is_implausible_match(
             &edits,
             &scalar_tokens(2),
@@ -2922,9 +2962,12 @@ mod tests {
             true,
         ));
 
-        let mut excessive = vec![Edit::Equal; 30];
-        excessive.extend(std::iter::repeat_n(Edit::Delete, 13));
-        excessive.extend(std::iter::repeat_n(Edit::Insert, 17));
+        let excessive = atomic_edits(&format!(
+            "{}{}{}",
+            "=".repeat(30),
+            "-".repeat(13),
+            "+".repeat(17)
+        ));
         assert!(is_implausible_match_with_short_headroom(
             &excessive,
             &scalar_tokens(43),
@@ -3000,16 +3043,7 @@ mod tests {
 
     #[test]
     fn short_nonexact_matches_apply_confidence_scaled_ratio_limits() {
-        let full_replacement = [
-            Edit::Delete,
-            Edit::Delete,
-            Edit::Delete,
-            Edit::Delete,
-            Edit::Insert,
-            Edit::Insert,
-            Edit::Insert,
-            Edit::Insert,
-        ];
+        let full_replacement = atomic_edits("----++++");
 
         assert!(is_implausible_match(
             &full_replacement,
@@ -3032,15 +3066,7 @@ mod tests {
             AlignmentConfidence::High,
             options(0.5)
         ));
-        let medium_boundary = [
-            Edit::Delete,
-            Edit::Delete,
-            Edit::Delete,
-            Edit::Insert,
-            Edit::Insert,
-            Edit::Insert,
-            Edit::Equal,
-        ];
+        let medium_boundary = atomic_edits("---+++=");
         assert!(!is_implausible_match(
             &medium_boundary,
             &scalar_tokens(4),
@@ -3055,7 +3081,7 @@ mod tests {
             AlignmentConfidence::High,
         ] {
             assert!(is_implausible_match(
-                &[Edit::Delete, Edit::Insert],
+                &atomic_edits("-+"),
                 &scalar_tokens(1),
                 &scalar_tokens(1),
                 confidence,
@@ -3068,17 +3094,7 @@ mod tests {
     fn a_large_enough_span_with_dense_low_ratio_hunks_is_soup() {
         // Four islands separated by three-token equal runs: changed ratio
         // 8/17 stays under the limit while the hunk density exceeds it.
-        let mut edits = Vec::new();
-        for _ in 0..4 {
-            edits.extend([
-                Edit::Equal,
-                Edit::Equal,
-                Edit::Equal,
-                Edit::Delete,
-                Edit::Insert,
-            ]);
-        }
-        edits.push(Edit::Equal);
+        let edits = atomic_edits(&format!("{}=", "===-+".repeat(4)));
         assert!(is_implausible_match(
             &edits,
             &scalar_tokens(17),
@@ -3090,10 +3106,7 @@ mod tests {
 
     #[test]
     fn short_equal_islands_do_not_inflate_hunk_density() {
-        let mut edits = Vec::new();
-        for _ in 0..4 {
-            edits.extend([Edit::Delete, Edit::Insert, Edit::Equal]);
-        }
+        let edits = atomic_edits(&"-+=".repeat(4));
         let old = scalar_tokens(8);
         let new = scalar_tokens(8);
 
@@ -3110,13 +3123,7 @@ mod tests {
     fn hunk_density_is_skipped_below_the_minimum_sample_size() {
         // Two isolated deletions in a five-token span: under the ceiling on
         // changed tokens, so fragmentation must not degrade it.
-        let edits = [
-            Edit::Equal,
-            Edit::Delete,
-            Edit::Equal,
-            Edit::Delete,
-            Edit::Equal,
-        ];
+        let edits = atomic_edits("=-=-=");
         assert!(!is_implausible_match(
             &edits,
             &scalar_tokens(5),
