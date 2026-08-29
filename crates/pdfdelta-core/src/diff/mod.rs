@@ -22,7 +22,7 @@ use crate::{
     validate::validate_unit_interval,
 };
 
-use self::myers::AtomicEdit;
+pub use self::myers::AtomicEdit;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChangeKind {
@@ -163,6 +163,30 @@ pub struct Comparison {
     pub unresolved_regions: Vec<UnresolvedRegion>,
     pub old_coverage: Coverage,
     pub new_coverage: Coverage,
+}
+
+/// Exact Myers edits retained for one accepted non-exact alignment match.
+///
+/// Edit coordinates start at zero within [`Self::old_context`] and
+/// [`Self::new_context`]. They are not document-global comparable-token
+/// offsets. Equal ranges are inferred from the gaps between [`AtomicEdit`]s.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MatchedAtomicDiff {
+    /// Index of the originating [`AlignmentSpan`] in [`Alignment::spans`].
+    pub alignment_span_index: usize,
+    /// Full old-side context whose comparable tokens were passed to Myers.
+    pub old_context: TextSpan,
+    /// Full new-side context whose comparable tokens were passed to Myers.
+    pub new_context: TextSpan,
+    /// Coalesced insertion and deletion ranges for this accepted match.
+    pub edits: Vec<AtomicEdit>,
+}
+
+/// A normal comparison plus opt-in exact edit traces for accepted matches.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ComparisonWithAtomicEdits {
+    pub comparison: Comparison,
+    pub matched_atomic_diffs: Vec<MatchedAtomicDiff>,
 }
 
 /// One reviewed replacement or move to observe inside uncertain-region recovery.
@@ -344,6 +368,7 @@ pub(crate) struct ComparisonWithSentenceRecoveryMetrics {
     pub(crate) comparison: Comparison,
     pub(crate) sentence_recovery_metrics: Option<SentenceRecoveryMetrics>,
     pub(crate) recovery_watch_diagnostics: Option<RecoveryWatchDiagnostics>,
+    matched_atomic_diffs: Option<Vec<MatchedAtomicDiff>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -433,6 +458,14 @@ pub(crate) struct SentenceRecoveryInput<'a> {
     pub(crate) min_tokens: usize,
 }
 
+struct CompareAlignedConfig<'a> {
+    options: DiffOptions,
+    recovery: Option<SentenceRecoveryInput<'a>>,
+    watch_queries: Option<&'a [RecoveryWatchQuery<'a>]>,
+    recovery_output_limits: RecoveryOutputLimits,
+    retain_atomic_edits: bool,
+}
+
 pub fn compare_aligned(
     old: &[BlockText],
     new: &[BlockText],
@@ -443,12 +476,53 @@ pub fn compare_aligned(
         old,
         new,
         alignment,
-        options,
-        None,
-        None,
-        RecoveryOutputLimits::default(),
+        CompareAlignedConfig {
+            options,
+            recovery: None,
+            watch_queries: None,
+            recovery_output_limits: RecoveryOutputLimits::default(),
+            retain_atomic_edits: false,
+        },
     )
     .map(|outcome| outcome.comparison)
+}
+
+/// Compares an existing alignment and retains exact edit traces for accepted
+/// non-exact match spans.
+///
+/// Exact matches, rejected matches, alignment-only changes, moves, and
+/// uncertain-region recovery do not produce atomic traces.
+///
+/// # Errors
+///
+/// Returns the same validation and resource-limit errors as [`compare_aligned`].
+/// It also returns [`Error::LimitExceeded`] if the bounded trace-record output
+/// cannot be allocated.
+pub fn compare_aligned_with_atomic_edits(
+    old: &[BlockText],
+    new: &[BlockText],
+    alignment: &Alignment,
+    options: DiffOptions,
+) -> Result<ComparisonWithAtomicEdits> {
+    let outcome = compare_aligned_inner(
+        old,
+        new,
+        alignment,
+        CompareAlignedConfig {
+            options,
+            recovery: None,
+            watch_queries: None,
+            recovery_output_limits: RecoveryOutputLimits::default(),
+            retain_atomic_edits: true,
+        },
+    )?;
+    let matched_atomic_diffs = outcome.matched_atomic_diffs.ok_or_else(|| {
+        Error::Unresolved("atomic diff retention did not initialize its output".to_owned())
+    })?;
+    Ok(ComparisonWithAtomicEdits {
+        comparison: outcome.comparison,
+        matched_atomic_diffs,
+    })
 }
 
 #[cfg(test)]
@@ -463,10 +537,13 @@ pub(crate) fn compare_aligned_with_sentence_recovery(
         old,
         new,
         alignment,
-        options,
-        Some(recovery),
-        None,
-        RecoveryOutputLimits::default(),
+        CompareAlignedConfig {
+            options,
+            recovery: Some(recovery),
+            watch_queries: None,
+            recovery_output_limits: RecoveryOutputLimits::default(),
+            retain_atomic_edits: false,
+        },
     )
     .map(|outcome| outcome.comparison)
 }
@@ -482,10 +559,13 @@ pub(crate) fn compare_aligned_with_sentence_recovery_metrics(
         old,
         new,
         alignment,
-        options,
-        Some(recovery),
-        None,
-        RecoveryOutputLimits::default(),
+        CompareAlignedConfig {
+            options,
+            recovery: Some(recovery),
+            watch_queries: None,
+            recovery_output_limits: RecoveryOutputLimits::default(),
+            retain_atomic_edits: false,
+        },
     )
 }
 
@@ -501,10 +581,13 @@ pub(crate) fn compare_aligned_with_recovery_watch_diagnostics(
         old,
         new,
         alignment,
-        options,
-        Some(recovery),
-        Some(watch_queries),
-        RecoveryOutputLimits::default(),
+        CompareAlignedConfig {
+            options,
+            recovery: Some(recovery),
+            watch_queries: Some(watch_queries),
+            recovery_output_limits: RecoveryOutputLimits::default(),
+            retain_atomic_edits: false,
+        },
     )
 }
 
@@ -512,11 +595,15 @@ fn compare_aligned_inner(
     old: &[BlockText],
     new: &[BlockText],
     alignment: &Alignment,
-    options: DiffOptions,
-    recovery: Option<SentenceRecoveryInput<'_>>,
-    watch_queries: Option<&[RecoveryWatchQuery<'_>]>,
-    recovery_output_limits: RecoveryOutputLimits,
+    config: CompareAlignedConfig<'_>,
 ) -> Result<ComparisonWithSentenceRecoveryMetrics> {
+    let CompareAlignedConfig {
+        options,
+        recovery,
+        watch_queries,
+        recovery_output_limits,
+        retain_atomic_edits,
+    } = config;
     if let Some(recovery) = recovery {
         validate_sentence_recovery_input(old, new, recovery)?;
     }
@@ -540,6 +627,7 @@ fn compare_aligned_inner(
     let mut changes = Vec::new();
     let mut formatting_changes = Vec::new();
     let mut unresolved_regions = Vec::new();
+    let mut matched_atomic_diffs = retain_atomic_edits.then(Vec::new);
     let mut resolved_old = 0;
     let mut resolved_new = 0;
     let mut sentence_recovery_output_budget = RecoveryOutputBudget {
@@ -573,17 +661,32 @@ fn compare_aligned_inner(
                 // A matched span only counts toward resolved coverage when
                 // compare_match actually resolved it; a span degraded to an
                 // unresolved region must not inflate the metric.
-                if compare_match(
+                let outcome = compare_match(
                     &old,
                     &new,
+                    span_index,
                     span,
                     options,
-                    &mut changes,
-                    &mut formatting_changes,
-                    &mut unresolved_regions,
-                )? {
-                    resolved_old += old.source_token_count(&span.old);
-                    resolved_new += new.source_token_count(&span.new);
+                    retain_atomic_edits,
+                    MatchOutputs {
+                        changes: &mut changes,
+                        formatting_changes: &mut formatting_changes,
+                        unresolved_regions: &mut unresolved_regions,
+                    },
+                )?;
+                match outcome {
+                    MatchOutcome::Resolved(atomic_diff) => {
+                        resolved_old += old.source_token_count(&span.old);
+                        resolved_new += new.source_token_count(&span.new);
+                        if let Some(atomic_diff) = atomic_diff {
+                            push_matched_atomic_diff(
+                                &mut matched_atomic_diffs,
+                                atomic_diff,
+                                alignment.spans.len(),
+                            )?;
+                        }
+                    }
+                    MatchOutcome::Unresolved => {}
                 }
             }
             AlignmentKind::Deletion => {
@@ -709,7 +812,24 @@ fn compare_aligned_inner(
         },
         sentence_recovery_metrics,
         recovery_watch_diagnostics,
+        matched_atomic_diffs,
     })
+}
+
+fn push_matched_atomic_diff(
+    output: &mut Option<Vec<MatchedAtomicDiff>>,
+    atomic_diff: MatchedAtomicDiff,
+    span_limit: usize,
+) -> Result<()> {
+    let output = output.as_mut().ok_or_else(|| {
+        Error::Unresolved("atomic diff produced without opt-in retention".to_owned())
+    })?;
+    output.try_reserve(1).map_err(|_| Error::LimitExceeded {
+        resource: "matched atomic diff records",
+        limit: span_limit,
+    })?;
+    output.push(atomic_diff);
+    Ok(())
 }
 
 fn validate_sentence_recovery_input(
@@ -1650,15 +1770,26 @@ fn inspect_sides_with_budget<'a>(
     Ok((old, new))
 }
 
+enum MatchOutcome {
+    Resolved(Option<MatchedAtomicDiff>),
+    Unresolved,
+}
+
+struct MatchOutputs<'a> {
+    changes: &'a mut Vec<ChangeEvent>,
+    formatting_changes: &'a mut Vec<FormattingChange>,
+    unresolved_regions: &'a mut Vec<UnresolvedRegion>,
+}
+
 fn compare_match(
     old_side: &Side<'_>,
     new_side: &Side<'_>,
+    alignment_span_index: usize,
     span: &AlignmentSpan,
     options: DiffOptions,
-    changes: &mut Vec<ChangeEvent>,
-    formatting_changes: &mut Vec<FormattingChange>,
-    unresolved_regions: &mut Vec<UnresolvedRegion>,
-) -> Result<bool> {
+    retain_atomic_edits: bool,
+    output: MatchOutputs<'_>,
+) -> Result<MatchOutcome> {
     let old = old_side.canonical_group(&span.old, span.old_separator);
     let new = new_side.canonical_group(&span.new, span.new_separator);
     if old.tokens == new.tokens {
@@ -1691,14 +1822,14 @@ fn compare_match(
             reasons.push(FormattingReason::PageBreak);
         }
         if !reasons.is_empty() {
-            formatting_changes.push(FormattingChange {
+            output.formatting_changes.push(FormattingChange {
                 old_span: old.full_span(),
                 new_span: new.full_span(),
                 confidence: span.confidence.into(),
                 reasons,
             });
         }
-        return Ok(true);
+        return Ok(MatchOutcome::Resolved(None));
     }
 
     let Some(edits) = myers::diff(&old.tokens, &new.tokens, options.max_edit_distance)? else {
@@ -1707,9 +1838,9 @@ fn compare_match(
             &new,
             span,
             AlignmentEvidence::DiffEditDistanceExceeded,
-            unresolved_regions,
+            output.unresolved_regions,
         );
-        return Ok(false);
+        return Ok(MatchOutcome::Unresolved);
     };
     let line_groups = beneficial_line_grouped_ranges(&old, &new, &edits);
     if is_implausible_match_with_short_headroom(
@@ -1725,17 +1856,25 @@ fn compare_match(
             &new,
             span,
             AlignmentEvidence::DiffRejectedAsImplausible,
-            unresolved_regions,
+            output.unresolved_regions,
         );
-        return Ok(false);
+        return Ok(MatchOutcome::Unresolved);
     }
 
     let confidence = span.confidence.into();
     match line_groups {
-        Some(grouped) => append_line_grouped_changes(&old, &new, grouped, confidence, changes),
-        None => append_changes(&old, &new, &edits, confidence, changes),
+        Some(grouped) => {
+            append_line_grouped_changes(&old, &new, grouped, confidence, output.changes)
+        }
+        None => append_changes(&old, &new, &edits, confidence, output.changes),
     }
-    Ok(true)
+    let atomic_diff = retain_atomic_edits.then(|| MatchedAtomicDiff {
+        alignment_span_index,
+        old_context: old.into_full_span(),
+        new_context: new.into_full_span(),
+        edits,
+    });
+    Ok(MatchOutcome::Resolved(atomic_diff))
 }
 
 fn push_unresolved_match(
@@ -2796,6 +2935,23 @@ impl GroupText {
         self.span(0, self.tokens.len())
     }
 
+    fn into_full_span(self) -> TextSpan {
+        let comparable_end = self.tokens.len();
+        let canonical_end = self.scalar_boundaries[comparable_end];
+        TextSpan {
+            blocks: self.blocks,
+            separator: self.separator,
+            canonical_range: ScalarRange {
+                start: 0,
+                end: canonical_end,
+            },
+            comparable_range: TokenRange {
+                start: 0,
+                end: comparable_end,
+            },
+        }
+    }
+
     fn span(&self, start: usize, end: usize) -> TextSpan {
         TextSpan {
             blocks: self.blocks.clone(),
@@ -3131,6 +3287,206 @@ mod tests {
             AlignmentConfidence::Low,
             options(0.5)
         ));
+    }
+
+    #[test]
+    fn atomic_diff_preserves_legacy_output_and_alignment_span_indices() {
+        let old = vec![sentence_block(1, "same"), sentence_block(2, "aXcYz")];
+        let new = vec![sentence_block(11, "same"), sentence_block(12, "aUcVz")];
+        let alignment = Alignment {
+            spans: vec![
+                matched_span(vec![BlockId(1)], vec![BlockId(11)]),
+                matched_span(vec![BlockId(2)], vec![BlockId(12)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+
+        let legacy = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+            .expect("legacy comparison succeeds");
+        let retained =
+            compare_aligned_with_atomic_edits(&old, &new, &alignment, DiffOptions::default())
+                .expect("atomic comparison succeeds");
+
+        assert_eq!(retained.comparison, legacy);
+        assert_eq!(retained.comparison.changes.len(), 1);
+        let event = &retained.comparison.changes[0];
+        assert_eq!(event.occurrences[0].old_span, Some(test_span(2, 1, 4)));
+        assert_eq!(event.occurrences[0].new_span, Some(test_span(12, 1, 4)));
+        let [atomic] = retained.matched_atomic_diffs.as_slice() else {
+            panic!("only the non-exact second match should retain a trace");
+        };
+        assert_eq!(atomic.alignment_span_index, 1);
+        assert_eq!(atomic.old_context, test_span(2, 0, 5));
+        assert_eq!(atomic.new_context, test_span(12, 0, 5));
+        assert_eq!(
+            atomic
+                .edits
+                .iter()
+                .filter(|edit| !edit.old.is_empty())
+                .map(|edit| edit.old.clone())
+                .collect::<Vec<_>>(),
+            vec![1..2, 3..4]
+        );
+        assert_eq!(
+            atomic
+                .edits
+                .iter()
+                .filter(|edit| !edit.new.is_empty())
+                .map(|edit| edit.new.clone())
+                .collect::<Vec<_>>(),
+            vec![1..2, 3..4]
+        );
+        assert_eq!(atomic.edits.len(), 4);
+    }
+
+    #[test]
+    fn atomic_diff_retains_myers_ranges_when_lines_group_semantic_events() {
+        let old_stage = "Committee Specification 01";
+        let new_stage = "Committee Specification Draft 02";
+        let mut old_block = sentence_block(20, &format!("{old_stage} 12 November 2021"));
+        let mut new_block = sentence_block(21, &format!("{new_stage} 30 March 2022 "));
+        old_block.line_breaks = Some(vec![old_stage.chars().count()]);
+        new_block.line_breaks = Some(vec![new_stage.chars().count()]);
+        let old = vec![old_block];
+        let new = vec![new_block];
+        let alignment = Alignment {
+            spans: vec![matched_span(vec![BlockId(20)], vec![BlockId(21)])],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+
+        let legacy = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+            .expect("legacy line-grouped comparison succeeds");
+        let retained =
+            compare_aligned_with_atomic_edits(&old, &new, &alignment, DiffOptions::default())
+                .expect("line-grouped comparison succeeds");
+
+        assert_eq!(retained.comparison, legacy);
+        assert_eq!(retained.comparison.changes.len(), 2);
+        assert_eq!(retained.matched_atomic_diffs.len(), 1);
+        assert!(retained.matched_atomic_diffs[0].edits.len() > 2);
+    }
+
+    #[test]
+    fn atomic_diff_omits_rejected_and_alignment_only_changes() {
+        let old = vec![sentence_block(30, "aaaa")];
+        let new = vec![sentence_block(31, "bbbb")];
+        let rejected_alignment = Alignment {
+            spans: vec![matched_span(vec![BlockId(30)], vec![BlockId(31)])],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let rejected =
+            compare_aligned_with_atomic_edits(&old, &new, &rejected_alignment, options(0.0))
+                .expect("rejected match degrades cleanly");
+        assert!(rejected.matched_atomic_diffs.is_empty());
+        assert_eq!(rejected.comparison.unresolved_regions.len(), 1);
+
+        let unresolved_alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let unresolved = compare_aligned_with_atomic_edits(
+            &old,
+            &new,
+            &unresolved_alignment,
+            DiffOptions::default(),
+        )
+        .expect("explicit unresolved span compares");
+        assert!(unresolved.matched_atomic_diffs.is_empty());
+        assert_eq!(unresolved.comparison.unresolved_regions.len(), 1);
+
+        let one_sided_alignment = Alignment {
+            spans: vec![
+                AlignmentSpan {
+                    kind: AlignmentKind::Deletion,
+                    old: vec![BlockId(30)],
+                    new: Vec::new(),
+                    score: 0.0,
+                    canonical_similarity: 0.0,
+                    score_margin: None,
+                    confidence: AlignmentConfidence::High,
+                    evidence: Vec::new(),
+                    old_separator: None,
+                    new_separator: None,
+                },
+                AlignmentSpan {
+                    kind: AlignmentKind::Insertion,
+                    old: Vec::new(),
+                    new: vec![BlockId(31)],
+                    score: 0.0,
+                    canonical_similarity: 0.0,
+                    score_margin: None,
+                    confidence: AlignmentConfidence::High,
+                    evidence: Vec::new(),
+                    old_separator: None,
+                    new_separator: None,
+                },
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let one_sided = compare_aligned_with_atomic_edits(
+            &old,
+            &new,
+            &one_sided_alignment,
+            DiffOptions::default(),
+        )
+        .expect("one-sided alignment changes compare");
+        assert!(one_sided.matched_atomic_diffs.is_empty());
+        assert_eq!(
+            one_sided
+                .comparison
+                .changes
+                .iter()
+                .map(|change| change.kind)
+                .collect::<Vec<_>>(),
+            vec![ChangeKind::Deletion, ChangeKind::Insertion]
+        );
+
+        let moved_old = vec![sentence_block(40, "moved")];
+        let moved_new = vec![sentence_block(41, "moved")];
+        let move_alignment = Alignment {
+            spans: vec![
+                AlignmentSpan {
+                    kind: AlignmentKind::Deletion,
+                    old: vec![BlockId(40)],
+                    new: Vec::new(),
+                    score: 0.0,
+                    canonical_similarity: 0.0,
+                    score_margin: None,
+                    confidence: AlignmentConfidence::High,
+                    evidence: vec![AlignmentEvidence::MoveCandidate],
+                    old_separator: None,
+                    new_separator: None,
+                },
+                AlignmentSpan {
+                    kind: AlignmentKind::Insertion,
+                    old: Vec::new(),
+                    new: vec![BlockId(41)],
+                    score: 0.0,
+                    canonical_similarity: 0.0,
+                    score_margin: None,
+                    confidence: AlignmentConfidence::High,
+                    evidence: vec![AlignmentEvidence::MoveCandidate],
+                    old_separator: None,
+                    new_separator: None,
+                },
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: vec![ExactAnchor {
+                old: BlockId(40),
+                new: BlockId(41),
+            }],
+        };
+        let moved = compare_aligned_with_atomic_edits(
+            &moved_old,
+            &moved_new,
+            &move_alignment,
+            DiffOptions::default(),
+        )
+        .expect("move comparison succeeds");
+        assert!(moved.matched_atomic_diffs.is_empty());
+        assert_eq!(moved.comparison.changes[0].kind, ChangeKind::Move);
     }
 
     #[test]
@@ -4984,18 +5340,21 @@ mod tests {
             &old,
             &new,
             &alignment,
-            DiffOptions::default(),
-            Some(SentenceRecoveryInput {
-                old_trusted_run_intervals: &old_intervals,
-                new_trusted_run_intervals: &new_intervals,
-                old_trusted_run_evidence: None,
-                new_trusted_run_evidence: None,
-                min_tokens: 1,
-            }),
-            None,
-            RecoveryOutputLimits {
-                max_items: 1,
-                max_bytes: usize::MAX,
+            CompareAlignedConfig {
+                options: DiffOptions::default(),
+                recovery: Some(SentenceRecoveryInput {
+                    old_trusted_run_intervals: &old_intervals,
+                    new_trusted_run_intervals: &new_intervals,
+                    old_trusted_run_evidence: None,
+                    new_trusted_run_evidence: None,
+                    min_tokens: 1,
+                }),
+                watch_queries: None,
+                recovery_output_limits: RecoveryOutputLimits {
+                    max_items: 1,
+                    max_bytes: usize::MAX,
+                },
+                retain_atomic_edits: false,
             },
         )
         .expect("fallback comparison succeeds");
@@ -5032,18 +5391,21 @@ mod tests {
             &old,
             &new,
             &alignment,
-            DiffOptions::default(),
-            Some(SentenceRecoveryInput {
-                old_trusted_run_intervals: &old_intervals,
-                new_trusted_run_intervals: &new_intervals,
-                old_trusted_run_evidence: None,
-                new_trusted_run_evidence: None,
-                min_tokens: 5,
-            }),
-            None,
-            RecoveryOutputLimits {
-                max_items: 1,
-                max_bytes: usize::MAX,
+            CompareAlignedConfig {
+                options: DiffOptions::default(),
+                recovery: Some(SentenceRecoveryInput {
+                    old_trusted_run_intervals: &old_intervals,
+                    new_trusted_run_intervals: &new_intervals,
+                    old_trusted_run_evidence: None,
+                    new_trusted_run_evidence: None,
+                    min_tokens: 5,
+                }),
+                watch_queries: None,
+                recovery_output_limits: RecoveryOutputLimits {
+                    max_items: 1,
+                    max_bytes: usize::MAX,
+                },
+                retain_atomic_edits: false,
             },
         )
         .expect("exact fallback comparison succeeds");
@@ -5096,18 +5458,21 @@ mod tests {
             &old,
             &new,
             &alignment,
-            DiffOptions::default(),
-            Some(SentenceRecoveryInput {
-                old_trusted_run_intervals: &old_intervals,
-                new_trusted_run_intervals: &new_intervals,
-                old_trusted_run_evidence: None,
-                new_trusted_run_evidence: None,
-                min_tokens: 5,
-            }),
-            None,
-            RecoveryOutputLimits {
-                max_items: 8,
-                max_bytes: usize::MAX,
+            CompareAlignedConfig {
+                options: DiffOptions::default(),
+                recovery: Some(SentenceRecoveryInput {
+                    old_trusted_run_intervals: &old_intervals,
+                    new_trusted_run_intervals: &new_intervals,
+                    old_trusted_run_evidence: None,
+                    new_trusted_run_evidence: None,
+                    min_tokens: 5,
+                }),
+                watch_queries: None,
+                recovery_output_limits: RecoveryOutputLimits {
+                    max_items: 8,
+                    max_bytes: usize::MAX,
+                },
+                retain_atomic_edits: false,
             },
         )
         .expect("cross-span fallback comparison succeeds");
@@ -5157,18 +5522,21 @@ mod tests {
             &old,
             &new,
             &alignment,
-            DiffOptions::default(),
-            Some(SentenceRecoveryInput {
-                old_trusted_run_intervals: &old_intervals,
-                new_trusted_run_intervals: &new_intervals,
-                old_trusted_run_evidence: None,
-                new_trusted_run_evidence: None,
-                min_tokens: 5,
-            }),
-            None,
-            RecoveryOutputLimits {
-                max_items: 1,
-                max_bytes: usize::MAX,
+            CompareAlignedConfig {
+                options: DiffOptions::default(),
+                recovery: Some(SentenceRecoveryInput {
+                    old_trusted_run_intervals: &old_intervals,
+                    new_trusted_run_intervals: &new_intervals,
+                    old_trusted_run_evidence: None,
+                    new_trusted_run_evidence: None,
+                    min_tokens: 5,
+                }),
+                watch_queries: None,
+                recovery_output_limits: RecoveryOutputLimits {
+                    max_items: 1,
+                    max_bytes: usize::MAX,
+                },
+                retain_atomic_edits: false,
             },
         )
         .expect("cross-span replacement fallback comparison succeeds");
@@ -6337,6 +6705,52 @@ mod tests {
     }
 
     #[test]
+    fn atomic_diff_omits_uncertain_region_recovery() {
+        let old = vec![sentence_block(1, "Same recovered sentence.")];
+        let new = vec![sentence_block(2, "Same recovered sentence.")];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let old_intervals = [Some(TrustedRunInterval {
+            run_id: TrustedRunId(1),
+            start: 0,
+            end: 1,
+        })];
+        let new_intervals = [Some(TrustedRunInterval {
+            run_id: TrustedRunId(2),
+            start: 0,
+            end: 1,
+        })];
+
+        let outcome = compare_aligned_inner(
+            &old,
+            &new,
+            &alignment,
+            CompareAlignedConfig {
+                options: DiffOptions::default(),
+                recovery: Some(SentenceRecoveryInput {
+                    old_trusted_run_intervals: &old_intervals,
+                    new_trusted_run_intervals: &new_intervals,
+                    old_trusted_run_evidence: None,
+                    new_trusted_run_evidence: None,
+                    min_tokens: 1,
+                }),
+                watch_queries: None,
+                recovery_output_limits: RecoveryOutputLimits::default(),
+                retain_atomic_edits: true,
+            },
+        )
+        .expect("recovery comparison succeeds");
+
+        assert!(outcome.comparison.unresolved_regions.is_empty());
+        assert!(
+            outcome
+                .matched_atomic_diffs
+                .expect("atomic retention was requested")
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn externally_constructed_cross_role_match_is_rejected() {
         let old = vec![sentence_block(1, "Same text.")];
         let mut new = vec![sentence_block(2, "Same text.")];
@@ -7193,6 +7607,21 @@ mod tests {
             score_margin: None,
             confidence: AlignmentConfidence::Low,
             evidence: vec![AlignmentEvidence::ReadingOrderUnknown],
+            old_separator: None,
+            new_separator: None,
+        }
+    }
+
+    fn matched_span(old: Vec<BlockId>, new: Vec<BlockId>) -> AlignmentSpan {
+        AlignmentSpan {
+            kind: AlignmentKind::Match,
+            old,
+            new,
+            score: 1.0,
+            canonical_similarity: 1.0,
+            score_margin: Some(1.0),
+            confidence: AlignmentConfidence::High,
+            evidence: Vec::new(),
             old_separator: None,
             new_separator: None,
         }

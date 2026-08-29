@@ -8,11 +8,15 @@ const MAX_MYERS_TRACE_BYTES: usize = 64 * 1024 * 1024;
 /// One coalesced insertion or deletion in a Myers edit script.
 ///
 /// Exactly one range is non-empty. Equal runs are the same-length gaps between
-/// adjacent edits, so the representation is bounded by the edit distance.
+/// adjacent edits, so the representation is bounded by the edit distance. The
+/// range coordinates are relative to the corresponding context in
+/// `MatchedAtomicDiff`, not document-global token offsets.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct AtomicEdit {
-    pub(super) old: Range<usize>,
-    pub(super) new: Range<usize>,
+pub struct AtomicEdit {
+    /// Changed old-token range, or an empty range for an insertion.
+    pub old: Range<usize>,
+    /// Changed new-token range, or an empty range for a deletion.
+    pub new: Range<usize>,
 }
 
 impl AtomicEdit {
