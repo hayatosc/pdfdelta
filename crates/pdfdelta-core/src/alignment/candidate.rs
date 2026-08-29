@@ -61,9 +61,11 @@ pub struct InvertedIndexCandidateGenerator {
     exact_index: HashMap<ExactHash, Vec<BlockId>>,
     ngram_index: HashMap<NGram, Vec<BlockId>>,
     weighted_ngram_totals: HashMap<BlockId, f64>,
-    /// New-side short blocks in `BlockId` order, backing the short-block
-    /// fallback so it visits only short blocks instead of every new block.
+    /// All new-side short blocks in `BlockId` order, retained for queries that
+    /// have no page evidence and therefore cannot use structural locality.
     short_blocks: Vec<BlockId>,
+    /// New-side short blocks with page evidence in relative page order.
+    positioned_short_blocks: Vec<(u16, BlockId)>,
     ngram_size: Option<usize>,
 }
 
@@ -74,6 +76,7 @@ impl InvertedIndexCandidateGenerator {
         let mut exact_index = HashMap::<ExactHash, Vec<BlockId>>::new();
         let mut ngram_index = HashMap::<NGram, Vec<BlockId>>::new();
         let mut short_blocks = Vec::new();
+        let mut positioned_short_blocks = Vec::new();
 
         for features in new {
             if new_features
@@ -97,6 +100,9 @@ impl InvertedIndexCandidateGenerator {
             }
             if is_short(features) {
                 short_blocks.push(features.block);
+                if let Some(position) = features.page_position {
+                    positioned_short_blocks.push((position, features.block));
+                }
             }
         }
 
@@ -107,6 +113,7 @@ impl InvertedIndexCandidateGenerator {
             blocks.sort_by_key(|block| block.0);
         }
         short_blocks.sort_by_key(|block| block.0);
+        positioned_short_blocks.sort_unstable();
         let mut weighted_ngram_totals = HashMap::new();
         weighted_ngram_totals.try_reserve(new.len()).map_err(|_| {
             Error::Unresolved("candidate weighted n-gram totals allocation failed".to_owned())
@@ -132,6 +139,7 @@ impl InvertedIndexCandidateGenerator {
             ngram_index,
             weighted_ngram_totals,
             short_blocks,
+            positioned_short_blocks,
             ngram_size,
         })
     }
@@ -159,6 +167,66 @@ impl InvertedIndexCandidateGenerator {
         } else {
             0.0
         }
+    }
+
+    fn short_fallback_visit_count(&self, old: &BlockFeatures, limit: usize) -> usize {
+        if old.page_position.is_some() {
+            self.positioned_short_blocks.len().min(limit)
+        } else {
+            self.short_blocks.len()
+        }
+    }
+
+    fn short_fallback_blocks(&self, old: &BlockFeatures, limit: usize) -> Result<Vec<BlockId>> {
+        let Some(position) = old.page_position else {
+            let mut selected = Vec::new();
+            selected
+                .try_reserve_exact(self.short_blocks.len())
+                .map_err(|_| {
+                    Error::Unresolved("short fallback candidates allocation failed".to_owned())
+                })?;
+            selected.extend_from_slice(&self.short_blocks);
+            return Ok(selected);
+        };
+        let count = self.positioned_short_blocks.len().min(limit);
+        let mut selected = Vec::new();
+        selected.try_reserve_exact(count).map_err(|_| {
+            Error::Unresolved("short structural candidates allocation failed".to_owned())
+        })?;
+        let mut right = self
+            .positioned_short_blocks
+            .partition_point(|(candidate, _)| *candidate < position);
+        let mut left = right.checked_sub(1);
+        while selected.len() < count {
+            let left_candidate = left.and_then(|index| self.positioned_short_blocks.get(index));
+            let right_candidate = self.positioned_short_blocks.get(right);
+            let take_left = match (left_candidate, right_candidate) {
+                (Some(left), Some(right)) => {
+                    (left.0.abs_diff(position), left.1) <= (right.0.abs_diff(position), right.1)
+                }
+                (Some(_), None) => true,
+                (None, Some(_)) => false,
+                (None, None) => {
+                    return Err(Error::Unresolved(
+                        "short candidate index exhausted".to_owned(),
+                    ));
+                }
+            };
+            if take_left {
+                let (_, block) = left_candidate
+                    .ok_or_else(|| Error::Unresolved("short left candidate missing".to_owned()))?;
+                selected.push(*block);
+                left = left.and_then(|index| index.checked_sub(1));
+            } else {
+                let (_, block) = right_candidate
+                    .ok_or_else(|| Error::Unresolved("short right candidate missing".to_owned()))?;
+                selected.push(*block);
+                right = right.checked_add(1).ok_or_else(|| {
+                    Error::Unresolved("short candidate index overflowed".to_owned())
+                })?;
+            }
+        }
+        Ok(selected)
     }
 }
 
@@ -188,7 +256,7 @@ impl CandidateGenerator for InvertedIndexCandidateGenerator {
             ngram = ngram.saturating_add(self.ngram_index.get(ngram_key).map_or(0, Vec::len));
         }
         let short_fallback = if is_short(old) {
-            self.short_blocks.len()
+            self.short_fallback_visit_count(old, limit)
         } else {
             0
         };
@@ -257,9 +325,9 @@ impl CandidateGenerator for InvertedIndexCandidateGenerator {
             }
         }
         if is_short(old) {
-            for block in &self.short_blocks {
+            for block in self.short_fallback_blocks(old, limit)? {
                 evidence
-                    .entry(*block)
+                    .entry(block)
                     .or_default()
                     .sources
                     .insert(CandidateSource::ShortBlockFallback);
@@ -686,6 +754,7 @@ mod tests {
             matching_tokens: Vec::new(),
             ngram_counts,
             ngram_size: 1,
+            page_position: None,
             numeric_mask_applied: false,
             has_normalization_issues: false,
         }
@@ -706,5 +775,95 @@ mod tests {
         assert_eq!(candidates[0].block, BlockId(2));
         assert_eq!(candidates[0].coarse_score, 1.0);
         assert!(candidates[0].coarse_score > candidates[1].coarse_score);
+    }
+
+    #[test]
+    fn short_fallback_unions_near_page_candidates_with_text_candidates() {
+        let mut old = feature(99, &[('q', 1)]);
+        old.page_position = Some(5_000);
+        let mut far_text = feature(1, &[('q', 1)]);
+        far_text.page_position = Some(0);
+        let mut near_left = feature(9, &[('a', 1)]);
+        near_left.page_position = Some(4_000);
+        let mut near_right = feature(10, &[('b', 1)]);
+        near_right.page_position = Some(6_000);
+        let mut far_other = feature(2, &[('c', 1)]);
+        far_other.page_position = Some(10_000);
+        let generator =
+            InvertedIndexCandidateGenerator::new(&[far_text, near_left, near_right, far_other])
+                .expect("positioned short features build an index");
+
+        let estimate = generator
+            .estimate_visits(&old, 2)
+            .expect("visit estimate succeeds");
+        let candidates = generator
+            .candidates(&old, 2)
+            .expect("candidate union succeeds");
+
+        assert_eq!(
+            estimate.breakdown,
+            Some(CandidateVisitBreakdown {
+                exact: 0,
+                ngram: 1,
+                short_fallback: 2,
+            })
+        );
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|candidate| candidate.block)
+                .collect::<Vec<_>>(),
+            [BlockId(1), BlockId(9)]
+        );
+        assert!(
+            candidates[0]
+                .sources
+                .contains(&CandidateSource::NGramInvertedIndex)
+        );
+        assert!(
+            candidates[1]
+                .sources
+                .contains(&CandidateSource::ShortBlockFallback)
+        );
+    }
+
+    #[test]
+    fn short_structural_fallback_excludes_candidates_without_page_evidence() {
+        let mut positioned_old = feature(99, &[('q', 1)]);
+        positioned_old.page_position = Some(5_000);
+        let unpositioned = feature(1, &[('a', 1)]);
+        let mut positioned = feature(2, &[('b', 1)]);
+        positioned.page_position = Some(6_000);
+        let generator = InvertedIndexCandidateGenerator::new(&[unpositioned, positioned])
+            .expect("short features build an index");
+
+        let positioned_estimate = generator
+            .estimate_visits(&positioned_old, 2)
+            .expect("positioned visit estimate succeeds");
+        let positioned_candidates = generator
+            .candidates(&positioned_old, 2)
+            .expect("positioned candidate search succeeds");
+        let unpositioned_old = feature(100, &[('q', 1)]);
+        let unpositioned_estimate = generator
+            .estimate_visits(&unpositioned_old, 2)
+            .expect("unpositioned visit estimate succeeds");
+
+        assert_eq!(
+            positioned_estimate.breakdown,
+            Some(CandidateVisitBreakdown {
+                exact: 0,
+                ngram: 0,
+                short_fallback: 1,
+            })
+        );
+        assert_eq!(positioned_candidates[0].block, BlockId(2));
+        assert_eq!(
+            unpositioned_estimate.breakdown,
+            Some(CandidateVisitBreakdown {
+                exact: 0,
+                ngram: 0,
+                short_fallback: 2,
+            })
+        );
     }
 }

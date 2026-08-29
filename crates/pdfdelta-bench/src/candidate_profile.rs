@@ -226,6 +226,7 @@ fn synthetic_features(blocks: usize) -> Result<Vec<BlockFeatures>> {
             matching_tokens,
             ngram_counts,
             ngram_size: SYNTHETIC_NGRAM_SIZE,
+            page_position: None,
             numeric_mask_applied: false,
             has_normalization_issues: false,
         });

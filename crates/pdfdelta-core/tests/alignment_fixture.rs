@@ -2151,6 +2151,7 @@ fn anchor_feature(block: u64, key: usize) -> BlockFeatures {
         matching_tokens: tokens,
         ngram_counts: Default::default(),
         ngram_size: 3,
+        page_position: None,
         numeric_mask_applied: false,
         has_normalization_issues: false,
     }

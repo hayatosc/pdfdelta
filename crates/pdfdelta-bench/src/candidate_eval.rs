@@ -1419,6 +1419,7 @@ mod tests {
             matching_tokens: vec![token.clone()],
             ngram_counts: HashMap::from([(ngram, 1)]),
             ngram_size: 1,
+            page_position: None,
             numeric_mask_applied: false,
             has_normalization_issues: false,
         }

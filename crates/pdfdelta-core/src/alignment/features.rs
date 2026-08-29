@@ -14,6 +14,7 @@ pub struct NGram(pub Vec<ComparableToken>);
 
 pub type NGramSet = HashSet<NGram>;
 pub type NGramCounts = HashMap<NGram, usize>;
+const PAGE_POSITION_SCALE: u64 = 10_000;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockFeatures {
@@ -23,6 +24,7 @@ pub struct BlockFeatures {
     pub matching_tokens: Vec<ComparableToken>,
     pub ngram_counts: NGramCounts,
     pub ngram_size: usize,
+    pub page_position: Option<u16>,
     pub numeric_mask_applied: bool,
     pub has_normalization_issues: bool,
 }
@@ -32,6 +34,13 @@ pub fn build_block_features(blocks: &[BlockText], ngram_size: usize) -> Result<V
 
     let mut block_ids = HashSet::with_capacity(blocks.len());
     let mut features = Vec::with_capacity(blocks.len());
+    let page_bounds = blocks
+        .iter()
+        .flat_map(|block| block.pages.iter().copied())
+        .fold(None::<(u32, u32)>, |bounds, page| match bounds {
+            Some((min, max)) => Some((min.min(page), max.max(page))),
+            None => Some((page, page)),
+        });
     for block in blocks {
         if !block_ids.insert(block.block) {
             return Err(Error::Unresolved(format!(
@@ -49,11 +58,24 @@ pub fn build_block_features(blocks: &[BlockText], ngram_size: usize) -> Result<V
             ngram_counts,
             matching_tokens,
             ngram_size,
+            page_position: relative_page_position(block.pages.first().copied(), page_bounds),
             numeric_mask_applied: block.numeric_mask_applied,
             has_normalization_issues: !block.issues.is_empty(),
         });
     }
     Ok(features)
+}
+
+fn relative_page_position(page: Option<u32>, bounds: Option<(u32, u32)>) -> Option<u16> {
+    let page = page?;
+    let (min, max) = bounds?;
+    let span = u64::from(max.checked_sub(min)?);
+    if span == 0 {
+        return Some(0);
+    }
+    let offset = u64::from(page.checked_sub(min)?);
+    let scaled = offset.checked_mul(PAGE_POSITION_SCALE)?.checked_div(span)?;
+    u16::try_from(scaled).ok()
 }
 
 pub fn dice_similarity(left: &NGramSet, right: &NGramSet) -> f64 {
@@ -196,5 +218,20 @@ mod tests {
 
         assert_eq!(repeated.values().copied().collect::<Vec<_>>(), [2]);
         assert_eq!(multiset_dice_similarity(&single, &repeated), 2.0 / 3.0);
+    }
+
+    #[test]
+    fn page_positions_are_relative_to_each_document() {
+        assert_eq!(relative_page_position(Some(10), Some((10, 20))), Some(0));
+        assert_eq!(
+            relative_page_position(Some(15), Some((10, 20))),
+            Some(5_000)
+        );
+        assert_eq!(
+            relative_page_position(Some(20), Some((10, 20))),
+            Some(10_000)
+        );
+        assert_eq!(relative_page_position(Some(7), Some((7, 7))), Some(0));
+        assert_eq!(relative_page_position(None, Some((7, 7))), None);
     }
 }
