@@ -1199,6 +1199,17 @@ fn verify_command_prints_a_passing_forty_six_cell_matrix() {
             .count(),
         46
     );
+    assert!(
+        stdout
+            .lines()
+            .filter(|line| line.starts_with("PASS "))
+            .all(|line| line.contains(" precision=events:"))
+    );
+    assert!(
+        stdout
+            .lines()
+            .any(|line| line == "generated precision evaluated=46/46 complete events=26/26 reported=26 p=1.000 r=1.000 f1=1.000 tokens=tp:858,fp:0,fn:0 p=1.000 r=1.000 f1=1.000 fp_tokens_per_10k_unchanged=0.000")
+    );
     assert_eq!(stdout.lines().last(), Some("46/46 passed"));
 }
 

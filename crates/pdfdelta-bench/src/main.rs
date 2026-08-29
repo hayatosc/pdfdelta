@@ -15,7 +15,9 @@ use pdfdelta_bench::{
     },
     canonical::{CanonicalRenderDocument, MAX_CANONICAL_YAML_BYTES},
     cases::built_in_cases,
-    evaluator::{EvaluationRecord, evaluate, evaluate_case, evaluate_rendered},
+    evaluator::{
+        EvaluationRecord, GeneratedPrecisionMetrics, evaluate, evaluate_case, evaluate_rendered,
+    },
     extraction_conformance::{
         MAX_EXTRACTION_ORACLE_BYTES, evaluate_extraction_conformance,
         evaluate_extraction_conformance_with_mismatch_svg,
@@ -733,6 +735,7 @@ fn verify<W: Write>(writer: &mut W) -> Result<u8, String> {
         .ok_or_else(|| "benchmark matrix size overflowed".to_owned())?;
     let mut passed = 0_usize;
     let mut execution_error = false;
+    let mut precision_records = Vec::with_capacity(total);
 
     for case in &cases {
         for renderer in RendererKind::all() {
@@ -741,6 +744,7 @@ fn verify<W: Write>(writer: &mut W) -> Result<u8, String> {
                     if record.passed {
                         passed += 1;
                     }
+                    precision_records.push(record.precision);
                     write_record(writer, &record)?;
                 }
                 Err(error) => {
@@ -758,6 +762,7 @@ fn verify<W: Write>(writer: &mut W) -> Result<u8, String> {
             }
         }
     }
+    write_generated_precision_summary(writer, &precision_records, total)?;
     writeln!(writer, "{passed}/{total} passed")
         .map_err(|error| format!("cannot write benchmark summary: {error}"))?;
     writer
@@ -771,6 +776,47 @@ fn verify<W: Write>(writer: &mut W) -> Result<u8, String> {
     } else {
         1
     })
+}
+
+fn write_generated_precision_summary<W: Write>(
+    writer: &mut W,
+    records: &[GeneratedPrecisionMetrics],
+    total: usize,
+) -> Result<(), String> {
+    let evaluated = records.len();
+    let precision = (evaluated == total)
+        .then(|| GeneratedPrecisionMetrics::aggregate(records.iter().copied()))
+        .flatten();
+    if let Some(precision) = precision {
+        let tokens = precision
+            .token_metrics
+            .expect("complete aggregates contain token metrics");
+        writeln!(
+            writer,
+            "generated precision evaluated={evaluated}/{total} complete events={}/{} reported={} p={:.3} r={:.3} f1={:.3} tokens=tp:{},fp:{},fn:{} p={:.3} r={:.3} f1={:.3} fp_tokens_per_10k_unchanged={:.3}",
+            precision.matched_events,
+            precision.expected_events,
+            precision.reported_events,
+            precision.event_precision,
+            precision.event_recall,
+            precision.event_f1,
+            tokens.changed_token_true_positives,
+            tokens.changed_token_false_positives,
+            tokens.changed_token_false_negatives,
+            tokens.changed_token_precision,
+            tokens.changed_token_recall,
+            tokens.changed_token_f1,
+            tokens.false_positive_changed_tokens_per_10k_unchanged_tokens,
+        )
+        .map_err(|error| format!("cannot write benchmark precision summary: {error}"))?;
+    } else {
+        writeln!(
+            writer,
+            "generated precision evaluated={evaluated}/{total} unavailable"
+        )
+        .map_err(|error| format!("cannot write benchmark precision summary: {error}"))?;
+    }
+    Ok(())
 }
 
 fn parse_top_k(raw: &str) -> Result<Vec<usize>, String> {
@@ -1266,15 +1312,37 @@ fn optional_ratio(ratio: Option<f64>) -> String {
 
 fn write_record<W: Write>(writer: &mut W, record: &EvaluationRecord) -> Result<(), String> {
     let status = if record.passed { "PASS" } else { "FAIL" };
+    let token_precision = record.precision.token_metrics.map_or_else(
+        || "unavailable".to_owned(),
+        |tokens| {
+            format!(
+                "{}/{}/{}:{:.3}/{:.3}/{:.3},fp10k:{:.3}",
+                tokens.changed_token_true_positives,
+                tokens.changed_token_false_positives,
+                tokens.changed_token_false_negatives,
+                tokens.changed_token_precision,
+                tokens.changed_token_recall,
+                tokens.changed_token_f1,
+                tokens.false_positive_changed_tokens_per_10k_unchanged_tokens,
+            )
+        },
+    );
     writeln!(
         writer,
-        "{status} case={} renderer={} expected={} actual={} coverage={}/{} detail={}",
+        "{status} case={} renderer={} expected={} actual={} coverage={}/{} precision=events:{}/{}/{}:{:.3}/{:.3}/{:.3},tokens:{} detail={}",
         record.case_name,
         record.renderer,
         record.expected.label(),
         actual_label(&record.actual_kinds),
         coverage_label(record.old_coverage),
         coverage_label(record.new_coverage),
+        record.precision.matched_events,
+        record.precision.reported_events,
+        record.precision.expected_events,
+        record.precision.event_precision,
+        record.precision.event_recall,
+        record.precision.event_f1,
+        token_precision,
         record.detail
     )
     .map_err(|error| format!("cannot write benchmark result: {error}"))
@@ -1299,10 +1367,66 @@ fn actual_label(kinds: &[ChangeKind]) -> String {
 mod tests {
     use pdfdelta_bench::{
         candidate_eval::{CandidateEvalRecord, CandidateVisitPressure},
+        evaluator::GeneratedTokenMetrics,
         revisions::{PairRole, PairRunReport, PairRunStatus, PairSet},
     };
 
     use super::*;
+
+    #[test]
+    fn generated_precision_summary_is_unavailable_when_evaluation_is_incomplete() {
+        let mut output = Vec::new();
+        write_generated_precision_summary(&mut output, &[], 1).expect("summary writes");
+        assert_eq!(
+            String::from_utf8(output).expect("UTF-8"),
+            "generated precision evaluated=0/1 unavailable\n"
+        );
+
+        let mut output = Vec::new();
+        let incomplete = GeneratedPrecisionMetrics {
+            reported_events: 1,
+            expected_events: 0,
+            matched_events: 0,
+            event_precision: 0.0,
+            event_recall: 1.0,
+            event_f1: 0.0,
+            token_metrics: None,
+        };
+        write_generated_precision_summary(&mut output, &[incomplete], 1).expect("summary writes");
+        assert_eq!(
+            String::from_utf8(output).expect("UTF-8"),
+            "generated precision evaluated=1/1 unavailable\n"
+        );
+    }
+
+    #[test]
+    fn generated_precision_summary_prints_complete_metrics() {
+        let mut output = Vec::new();
+        let complete = GeneratedPrecisionMetrics {
+            reported_events: 1,
+            expected_events: 1,
+            matched_events: 1,
+            event_precision: 1.0,
+            event_recall: 1.0,
+            event_f1: 1.0,
+            token_metrics: Some(GeneratedTokenMetrics {
+                changed_token_true_positives: 2,
+                changed_token_false_positives: 0,
+                changed_token_false_negatives: 0,
+                changed_token_precision: 1.0,
+                changed_token_recall: 1.0,
+                changed_token_f1: 1.0,
+                unchanged_tokens: 18,
+                false_positive_changed_tokens_per_10k_unchanged_tokens: 0.0,
+            }),
+        };
+        write_generated_precision_summary(&mut output, &[complete], 1).expect("summary writes");
+        assert!(
+            String::from_utf8(output)
+                .expect("UTF-8")
+                .contains("evaluated=1/1 complete events=1/1")
+        );
+    }
 
     fn sample_pair_report() -> PairRunReport {
         PairRunReport {

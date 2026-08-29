@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
 
 use pdfdelta_core::{
     alignment::BlockSeparator,
@@ -53,8 +56,118 @@ pub struct EvaluationRecord {
     pub comparison_complete: bool,
     pub old_coverage: Option<f64>,
     pub new_coverage: Option<f64>,
+    pub precision: GeneratedPrecisionMetrics,
     pub passed: bool,
     pub detail: String,
+}
+
+/// Precision and recall for one fully reviewed generated fixture.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GeneratedPrecisionMetrics {
+    pub reported_events: usize,
+    pub expected_events: usize,
+    pub matched_events: usize,
+    pub event_precision: f64,
+    pub event_recall: f64,
+    pub event_f1: f64,
+    pub token_metrics: Option<GeneratedTokenMetrics>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GeneratedTokenMetrics {
+    pub changed_token_true_positives: usize,
+    pub changed_token_false_positives: usize,
+    pub changed_token_false_negatives: usize,
+    pub changed_token_precision: f64,
+    pub changed_token_recall: f64,
+    pub changed_token_f1: f64,
+    pub unchanged_tokens: usize,
+    pub false_positive_changed_tokens_per_10k_unchanged_tokens: f64,
+}
+
+impl GeneratedPrecisionMetrics {
+    /// Aggregates fully reviewed renderer records without averaging ratios.
+    pub fn aggregate(records: impl IntoIterator<Item = Self>) -> Option<Self> {
+        let mut totals = PrecisionCounts::default();
+        let mut evaluated = 0_usize;
+        for metrics in records {
+            evaluated = evaluated.saturating_add(1);
+            totals.reported_events = totals
+                .reported_events
+                .saturating_add(metrics.reported_events);
+            totals.expected_events = totals
+                .expected_events
+                .saturating_add(metrics.expected_events);
+            totals.matched_events = totals.matched_events.saturating_add(metrics.matched_events);
+            let token_metrics = metrics.token_metrics?;
+            totals.changed_token_true_positives = totals
+                .changed_token_true_positives
+                .saturating_add(token_metrics.changed_token_true_positives);
+            totals.changed_token_false_positives = totals
+                .changed_token_false_positives
+                .saturating_add(token_metrics.changed_token_false_positives);
+            totals.changed_token_false_negatives = totals
+                .changed_token_false_negatives
+                .saturating_add(token_metrics.changed_token_false_negatives);
+            totals.unchanged_tokens = totals
+                .unchanged_tokens
+                .saturating_add(token_metrics.unchanged_tokens);
+        }
+        (evaluated > 0).then(|| totals.metrics(true))
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct PrecisionCounts {
+    reported_events: usize,
+    expected_events: usize,
+    matched_events: usize,
+    changed_token_true_positives: usize,
+    changed_token_false_positives: usize,
+    changed_token_false_negatives: usize,
+    unchanged_tokens: usize,
+}
+
+impl PrecisionCounts {
+    fn metrics(self, token_metrics_complete: bool) -> GeneratedPrecisionMetrics {
+        let event_precision = score(self.matched_events, self.reported_events);
+        let event_recall = score(self.matched_events, self.expected_events);
+        let changed_token_precision = score(
+            self.changed_token_true_positives,
+            self.changed_token_true_positives
+                .saturating_add(self.changed_token_false_positives),
+        );
+        let changed_token_recall = score(
+            self.changed_token_true_positives,
+            self.changed_token_true_positives
+                .saturating_add(self.changed_token_false_negatives),
+        );
+        GeneratedPrecisionMetrics {
+            reported_events: self.reported_events,
+            expected_events: self.expected_events,
+            matched_events: self.matched_events,
+            event_precision,
+            event_recall,
+            event_f1: harmonic_mean(event_precision, event_recall),
+            token_metrics: token_metrics_complete.then_some(GeneratedTokenMetrics {
+                changed_token_true_positives: self.changed_token_true_positives,
+                changed_token_false_positives: self.changed_token_false_positives,
+                changed_token_false_negatives: self.changed_token_false_negatives,
+                changed_token_precision,
+                changed_token_recall,
+                changed_token_f1: harmonic_mean(changed_token_precision, changed_token_recall),
+                unchanged_tokens: self.unchanged_tokens,
+                false_positive_changed_tokens_per_10k_unchanged_tokens: if self.unchanged_tokens
+                    == 0
+                {
+                    0.0
+                } else {
+                    self.changed_token_false_positives as f64 * 10_000.0
+                        / self.unchanged_tokens as f64
+                },
+            }),
+        }
+    }
 }
 
 pub fn evaluate_case(case: &BenchmarkCase, renderer: RendererKind) -> Result<EvaluationRecord> {
@@ -157,6 +270,14 @@ pub fn evaluate_rendered(
         &old_index,
         &new_index,
     );
+    let precision = generated_precision_metrics(
+        expected,
+        &outcome.comparison.changes,
+        &old_index,
+        &new_index,
+        canonical_scalar_len(old_plan),
+        canonical_scalar_len(new_plan),
+    );
     let passed = extraction_complete
         && summary.comparison_complete
         && full_old_coverage
@@ -198,6 +319,7 @@ pub fn evaluate_rendered(
         comparison_complete: summary.comparison_complete,
         old_coverage: outcome.comparison.old_coverage.ratio,
         new_coverage: outcome.comparison.new_coverage.ratio,
+        precision,
         passed,
         detail: if failures.is_empty() {
             "matched expectation with complete extraction and coverage".to_owned()
@@ -205,6 +327,164 @@ pub fn evaluate_rendered(
             failures.join("; ")
         },
     })
+}
+
+fn generated_precision_metrics(
+    expected: &ExpectedManifest,
+    actual: &[Change],
+    old_index: &CanonicalDocumentIndex,
+    new_index: &CanonicalDocumentIndex,
+    old_total_tokens: usize,
+    new_total_tokens: usize,
+) -> GeneratedPrecisionMetrics {
+    let actual_old =
+        projected_actual_spans(actual, old_index, |occurrence| occurrence.old_span.as_ref());
+    let actual_new =
+        projected_actual_spans(actual, new_index, |occurrence| occurrence.new_span.as_ref());
+    let token_metrics_complete = actual_old.is_some() && actual_new.is_some();
+    let actual_old = actual_old.unwrap_or_default();
+    let actual_new = actual_new.unwrap_or_default();
+    let expected_old = selected_expected_spans(expected, &actual_old, |change| change.old_spans());
+    let expected_new = selected_expected_spans(expected, &actual_new, |change| change.new_spans());
+    let actual_old = merge_spans(actual_old);
+    let actual_new = merge_spans(actual_new);
+    let expected_old = merge_spans(expected_old);
+    let expected_new = merge_spans(expected_new);
+    let changed_token_true_positives = intersection_len(&actual_old, &expected_old)
+        .saturating_add(intersection_len(&actual_new, &expected_new));
+    let actual_changed_tokens = spans_len(&actual_old).saturating_add(spans_len(&actual_new));
+    let expected_changed_tokens = spans_len(&expected_old).saturating_add(spans_len(&expected_new));
+    let expected_total_tokens = old_total_tokens.saturating_add(new_total_tokens);
+    PrecisionCounts {
+        reported_events: actual.len(),
+        expected_events: expected.changes().len(),
+        matched_events: matched_event_count(expected, actual, old_index, new_index),
+        changed_token_true_positives,
+        changed_token_false_positives: actual_changed_tokens
+            .saturating_sub(changed_token_true_positives),
+        changed_token_false_negatives: expected_changed_tokens
+            .saturating_sub(changed_token_true_positives),
+        unchanged_tokens: expected_total_tokens.saturating_sub(expected_changed_tokens),
+    }
+    .metrics(token_metrics_complete)
+}
+
+fn projected_actual_spans(
+    actual: &[Change],
+    index: &CanonicalDocumentIndex,
+    side: for<'a> fn(&'a pdfdelta_core::diff::ChangeOccurrence) -> Option<&'a TextSpan>,
+) -> Option<Vec<ProjectedSpan>> {
+    actual
+        .iter()
+        .flat_map(|change| &change.occurrences)
+        .filter_map(side)
+        .map(|span| global_span(span, index))
+        .collect()
+}
+
+fn selected_expected_spans(
+    expected: &ExpectedManifest,
+    actual: &[ProjectedSpan],
+    side: for<'a> fn(&'a ExpectedSemanticChange) -> &'a [ExpectedCanonicalSpan],
+) -> Vec<ProjectedSpan> {
+    expected
+        .changes()
+        .iter()
+        .filter_map(|change| select_expected_span(side(change), actual))
+        .collect()
+}
+
+fn select_expected_span(
+    variants: &[ExpectedCanonicalSpan],
+    actual: &[ProjectedSpan],
+) -> Option<ProjectedSpan> {
+    let mut best = None;
+    for variant in variants {
+        let iou = best_span_iou(*variant, actual);
+        if best.is_none_or(|(_, best_iou)| iou > best_iou) {
+            best = Some((*variant, iou));
+        }
+    }
+    best.map(|(span, _)| ProjectedSpan {
+        start: span.start(),
+        end: span.end(),
+    })
+}
+
+fn best_span_iou(expected: ExpectedCanonicalSpan, actual: &[ProjectedSpan]) -> f64 {
+    actual
+        .iter()
+        .map(|actual| canonical_span_iou(expected, *actual))
+        .fold(0.0, f64::max)
+}
+
+fn merge_spans(mut spans: Vec<ProjectedSpan>) -> Vec<ProjectedSpan> {
+    spans.sort_unstable_by_key(|span| (span.start, span.end));
+    let mut merged: Vec<ProjectedSpan> = Vec::with_capacity(spans.len());
+    for span in spans {
+        if let Some(last) = merged.last_mut()
+            && span.start <= last.end
+        {
+            last.end = last.end.max(span.end);
+        } else {
+            merged.push(span);
+        }
+    }
+    merged
+}
+
+fn spans_len(spans: &[ProjectedSpan]) -> usize {
+    spans.iter().fold(0_usize, |total, span| {
+        total.saturating_add(span.end.saturating_sub(span.start))
+    })
+}
+
+fn intersection_len(left: &[ProjectedSpan], right: &[ProjectedSpan]) -> usize {
+    let (mut left_index, mut right_index, mut total) = (0, 0, 0_usize);
+    while let (Some(left), Some(right)) = (left.get(left_index), right.get(right_index)) {
+        total = total.saturating_add(
+            left.end
+                .min(right.end)
+                .saturating_sub(left.start.max(right.start)),
+        );
+        if left.end <= right.end {
+            left_index += 1;
+        } else {
+            right_index += 1;
+        }
+    }
+    total
+}
+
+fn score(numerator: usize, denominator: usize) -> f64 {
+    if denominator == 0 {
+        1.0
+    } else {
+        numerator as f64 / denominator as f64
+    }
+}
+
+fn harmonic_mean(precision: f64, recall: f64) -> f64 {
+    if precision + recall == 0.0 {
+        0.0
+    } else {
+        2.0 * precision * recall / (precision + recall)
+    }
+}
+
+fn canonical_scalar_len(plan: &RenderPlan) -> usize {
+    plan.pages()
+        .iter()
+        .flatten()
+        .map(|line| line.chars().count())
+        .sum::<usize>()
+        .saturating_add(
+            plan.pages()
+                .iter()
+                .map(Vec::len)
+                .sum::<usize>()
+                .saturating_sub(1),
+        )
 }
 
 fn coverage_label(ratio: Option<f64>) -> String {
@@ -217,20 +497,84 @@ fn matches_expectation(
     old_index: &CanonicalDocumentIndex,
     new_index: &CanonicalDocumentIndex,
 ) -> bool {
-    if expected.changes().len() != actual.len() {
-        return false;
-    }
+    expected.changes().len() == actual.len()
+        && matched_event_count(expected, actual, old_index, new_index) == actual.len()
+}
 
-    let mut matched = vec![false; actual.len()];
-    expected.changes().iter().all(|expected_change| {
-        let Some((index, _)) = actual.iter().enumerate().find(|(index, actual_change)| {
-            !matched[*index] && change_matches(expected_change, actual_change, old_index, new_index)
-        }) else {
-            return false;
+fn matched_event_count(
+    expected: &ExpectedManifest,
+    actual: &[Change],
+    old_index: &CanonicalDocumentIndex,
+    new_index: &CanonicalDocumentIndex,
+) -> usize {
+    let edges = expected
+        .changes()
+        .iter()
+        .map(|expected_change| {
+            actual
+                .iter()
+                .enumerate()
+                .filter_map(|(index, actual_change)| {
+                    change_matches(expected_change, actual_change, old_index, new_index)
+                        .then_some(index)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    maximum_cardinality_matching(&edges, actual.len())
+}
+
+fn maximum_cardinality_matching(edges: &[Vec<usize>], right_count: usize) -> usize {
+    let mut left_match: Vec<Option<usize>> = vec![None; edges.len()];
+    let mut right_match: Vec<Option<usize>> = vec![None; right_count];
+    let mut matched = 0;
+
+    for root in 0..edges.len() {
+        let mut queue = VecDeque::from([root]);
+        let mut visited_left = vec![false; edges.len()];
+        let mut visited_right = vec![false; right_count];
+        let mut right_parent = vec![None; right_count];
+        visited_left[root] = true;
+        let mut free_right = None;
+
+        while let Some(left) = queue.pop_front() {
+            for &right in &edges[left] {
+                if right >= right_count || visited_right[right] {
+                    continue;
+                }
+                visited_right[right] = true;
+                right_parent[right] = Some(left);
+                if let Some(next_left) = right_match[right] {
+                    if !visited_left[next_left] {
+                        visited_left[next_left] = true;
+                        queue.push_back(next_left);
+                    }
+                } else {
+                    free_right = Some(right);
+                    break;
+                }
+            }
+            if free_right.is_some() {
+                break;
+            }
+        }
+
+        let Some(mut right) = free_right else {
+            continue;
         };
-        matched[index] = true;
-        true
-    })
+        loop {
+            let left = right_parent[right].expect("augmenting paths have a left parent");
+            let previous_right = left_match[left];
+            left_match[left] = Some(right);
+            right_match[right] = Some(left);
+            let Some(previous_right) = previous_right else {
+                break;
+            };
+            right = previous_right;
+        }
+        matched += 1;
+    }
+    matched
 }
 
 fn change_matches(
@@ -671,6 +1015,178 @@ mod tests {
         });
 
         assert!(!change_matches(&expected, &actual, &old_index, &new_index));
+    }
+
+    #[test]
+    fn precision_selects_one_maximum_iou_paragraph_span_variant() {
+        let old_index = map_canonical_blocks("abcdefghij", [(BlockId(1), "abcdefghij".to_owned())])
+            .expect("old index");
+        let expected = ExpectedManifest::one(
+            ExpectedSemanticChange::new(
+                ChangeKind::Deletion,
+                vec![
+                    ExpectedCanonicalSpan::new(1, 4).expect("separator variant"),
+                    ExpectedCanonicalSpan::new(2, 4).expect("exact variant"),
+                ],
+                Vec::new(),
+            )
+            .expect("valid expectation"),
+        );
+        let actual = Change::single_occurrence(
+            ChangeKind::Deletion,
+            Some(single_block_span(1, 2, 4)),
+            None,
+            Confidence::High,
+            Vec::new(),
+        );
+
+        let metrics = generated_precision_metrics(
+            &expected,
+            &[actual],
+            &old_index,
+            &CanonicalDocumentIndex::empty(),
+            10,
+            10,
+        );
+
+        assert_eq!(metrics.matched_events, 1);
+        let tokens = metrics.token_metrics.expect("token metrics");
+        assert_eq!(tokens.changed_token_true_positives, 2);
+        assert_eq!(tokens.changed_token_false_positives, 0);
+        assert_eq!(tokens.changed_token_false_negatives, 0);
+        assert_eq!(tokens.unchanged_tokens, 18);
+
+        assert_eq!(
+            select_expected_span(
+                &[
+                    ExpectedCanonicalSpan::new(2, 4).expect("exact variant"),
+                    ExpectedCanonicalSpan::new(2, 5).expect("separator variant"),
+                ],
+                &[],
+            ),
+            Some(ProjectedSpan { start: 2, end: 4 })
+        );
+    }
+
+    #[test]
+    fn precision_counts_unmatched_actual_and_expected_events() {
+        let old_index = map_canonical_blocks("abcdefghij", [(BlockId(1), "abcdefghij".to_owned())])
+            .expect("old index");
+        let expected = ExpectedManifest::one(
+            ExpectedSemanticChange::new(
+                ChangeKind::Deletion,
+                vec![ExpectedCanonicalSpan::new(2, 4).expect("expected span")],
+                Vec::new(),
+            )
+            .expect("valid expectation"),
+        );
+        let actual = Change::single_occurrence(
+            ChangeKind::Deletion,
+            Some(single_block_span(1, 6, 8)),
+            None,
+            Confidence::High,
+            Vec::new(),
+        );
+
+        let metrics = generated_precision_metrics(
+            &expected,
+            &[actual],
+            &old_index,
+            &CanonicalDocumentIndex::empty(),
+            10,
+            10,
+        );
+
+        assert_eq!(metrics.matched_events, 0);
+        assert_eq!(metrics.event_precision, 0.0);
+        assert_eq!(metrics.event_recall, 0.0);
+        let tokens = metrics.token_metrics.expect("token metrics");
+        assert_eq!(tokens.changed_token_true_positives, 0);
+        assert_eq!(tokens.changed_token_false_positives, 2);
+        assert_eq!(tokens.changed_token_false_negatives, 2);
+    }
+
+    #[test]
+    fn layout_only_precision_explicitly_requires_zero_content_changes() {
+        let clean = generated_precision_metrics(
+            &ExpectedManifest::none(),
+            &[],
+            &CanonicalDocumentIndex::empty(),
+            &CanonicalDocumentIndex::empty(),
+            10,
+            10,
+        );
+
+        assert_eq!(clean.reported_events, 0);
+        assert_eq!(clean.expected_events, 0);
+        assert_eq!(clean.event_precision, 1.0);
+        assert_eq!(clean.event_recall, 1.0);
+        let clean_tokens = clean.token_metrics.expect("clean token metrics");
+        assert_eq!(clean_tokens.changed_token_false_positives, 0);
+        assert_eq!(
+            clean_tokens.false_positive_changed_tokens_per_10k_unchanged_tokens,
+            0.0
+        );
+
+        let old_index = map_canonical_blocks("abcdefghij", [(BlockId(1), "abcdefghij".to_owned())])
+            .expect("old index");
+        let false_change = Change::single_occurrence(
+            ChangeKind::Deletion,
+            Some(single_block_span(1, 2, 4)),
+            None,
+            Confidence::Low,
+            Vec::new(),
+        );
+        let noisy = generated_precision_metrics(
+            &ExpectedManifest::none(),
+            &[false_change],
+            &old_index,
+            &CanonicalDocumentIndex::empty(),
+            10,
+            10,
+        );
+        assert_eq!(noisy.event_precision, 0.0);
+        let noisy_tokens = noisy.token_metrics.expect("noisy token metrics");
+        assert_eq!(noisy_tokens.changed_token_false_positives, 2);
+        assert_eq!(
+            noisy_tokens.false_positive_changed_tokens_per_10k_unchanged_tokens,
+            1_000.0
+        );
+    }
+
+    #[test]
+    fn token_metrics_are_unavailable_when_any_actual_span_cannot_be_projected() {
+        assert_eq!(GeneratedPrecisionMetrics::aggregate([]), None);
+
+        let actual = Change::single_occurrence(
+            ChangeKind::Deletion,
+            Some(single_block_span(99, 0, 1)),
+            None,
+            Confidence::Low,
+            Vec::new(),
+        );
+
+        let metrics = generated_precision_metrics(
+            &ExpectedManifest::none(),
+            &[actual],
+            &CanonicalDocumentIndex::empty(),
+            &CanonicalDocumentIndex::empty(),
+            10,
+            10,
+        );
+
+        assert_eq!(metrics.reported_events, 1);
+        assert_eq!(metrics.event_precision, 0.0);
+        assert_eq!(metrics.token_metrics, None);
+        assert_eq!(GeneratedPrecisionMetrics::aggregate([metrics]), None);
+    }
+
+    #[test]
+    fn event_matching_uses_a_maximum_cardinality_assignment() {
+        // A -> {1, 2}, B -> {1}; a first-fit assignment of A to 1 loses B.
+        let edges = vec![vec![0, 1], vec![0]];
+
+        assert_eq!(maximum_cardinality_matching(&edges, 2), 2);
     }
 
     fn text_span(separator: BlockSeparator, start: usize, end: usize) -> TextSpan {
