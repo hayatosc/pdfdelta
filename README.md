@@ -310,7 +310,7 @@ files without overwriting existing destinations). If the second publication fail
 exit code 2 is returned and the first published artifact remains in place without
 pairwise rollback across distinct paths. Dated compact evaluation summaries are
 recorded under [`benchmark/realworld/results/`](benchmark/realworld/results/README.md)
-(latest: [`2026-08-29-0cef530.json`](benchmark/realworld/results/2026-08-29-0cef530.json)).
+(latest: [`2026-08-29-adc74e0.json`](benchmark/realworld/results/2026-08-29-adc74e0.json)).
 
 ## License
 
