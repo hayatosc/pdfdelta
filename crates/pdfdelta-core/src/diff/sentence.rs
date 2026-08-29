@@ -339,6 +339,82 @@ struct RecoveryCandidate {
     span_index: usize,
 }
 
+struct UnitCandidateIndex {
+    edge_postings: HashMap<(RecoveryUnitKind, OccurrenceRole, SentenceEvidenceToken), Vec<usize>>,
+}
+
+impl UnitCandidateIndex {
+    fn new(occurrences: &[SentenceOccurrence]) -> Option<Self> {
+        let mut index = Self {
+            edge_postings: HashMap::new(),
+        };
+        for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
+            let Some(role) = occurrence.role.map(OccurrenceRole::from) else {
+                continue;
+            };
+            let first = *occurrence.tokens.first()?;
+            let last = *occurrence.tokens.last()?;
+            index.push_edge_posting((occurrence.kind, role, first), occurrence_index)?;
+            if last != first {
+                index.push_edge_posting((occurrence.kind, role, last), occurrence_index)?;
+            }
+        }
+        Some(index)
+    }
+
+    fn push_edge_posting(
+        &mut self,
+        key: (RecoveryUnitKind, OccurrenceRole, SentenceEvidenceToken),
+        occurrence_index: usize,
+    ) -> Option<()> {
+        if !self.edge_postings.contains_key(&key) {
+            self.edge_postings.try_reserve(1).ok()?;
+            self.edge_postings.insert(key, Vec::new());
+        }
+        let postings = self.edge_postings.get_mut(&key)?;
+        postings.try_reserve(1).ok()?;
+        postings.push(occurrence_index);
+        Some(())
+    }
+
+    fn collect_plausible_occurrences(
+        &self,
+        plausible: &mut Vec<usize>,
+        occurrence: &SentenceOccurrence,
+    ) -> Option<()> {
+        plausible.clear();
+        let Some(role) = occurrence.role.map(OccurrenceRole::from) else {
+            return Some(());
+        };
+        let first = *occurrence.tokens.first()?;
+        let last = *occurrence.tokens.last()?;
+        // A pair satisfying the prefix/suffix threshold must share at least one
+        // edge token, so this index prunes work without reducing candidate recall.
+        let first_occurrences = self
+            .edge_postings
+            .get(&(occurrence.kind, role, first))
+            .map_or(&[][..], Vec::as_slice);
+        let last_occurrences = self
+            .edge_postings
+            .get(&(occurrence.kind, role, last))
+            .map_or(&[][..], Vec::as_slice);
+        plausible
+            .try_reserve(
+                first_occurrences
+                    .len()
+                    .checked_add(last_occurrences.len())?,
+            )
+            .ok()?;
+        plausible.extend_from_slice(first_occurrences);
+        if first != last {
+            plausible.extend_from_slice(last_occurrences);
+        }
+        plausible.sort_unstable();
+        plausible.dedup();
+        Some(())
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct PairedInterval {
     pair_index: usize,
@@ -2563,14 +2639,14 @@ fn paired_modified_sentence_relations(
         new_pair_by_stream,
         OccurrenceSide::New,
     )?;
-    let old_edges = occurrence_edge_index(old_occurrences)?;
-    let new_edges = occurrence_edge_index(new_occurrences)?;
+    let old_index = UnitCandidateIndex::new(old_occurrences)?;
+    let new_index = UnitCandidateIndex::new(new_occurrences)?;
     let mut plausible = Vec::new();
 
     for (old_candidate_index, old_candidate) in old_candidates.recoveries.iter().enumerate() {
         let interval = *old_candidates.intervals.get(old_candidate_index)?;
         let old_occurrence = old_occurrences.get(old_candidate.occurrence_index)?;
-        collect_plausible_occurrences(&mut plausible, &new_edges, &old_occurrence.tokens)?;
+        new_index.collect_plausible_occurrences(&mut plausible, old_occurrence)?;
         plausible.retain(|occurrence_index| {
             new_occurrences[*occurrence_index].kind == old_occurrence.kind
                 && occurrence_roles_are_compatible(
@@ -2610,7 +2686,7 @@ fn paired_modified_sentence_relations(
     for (new_candidate_index, new_candidate) in new_candidates.recoveries.iter().enumerate() {
         let interval = *new_candidates.intervals.get(new_candidate_index)?;
         let new_occurrence = new_occurrences.get(new_candidate.occurrence_index)?;
-        collect_plausible_occurrences(&mut plausible, &old_edges, &new_occurrence.tokens)?;
+        old_index.collect_plausible_occurrences(&mut plausible, new_occurrence)?;
         plausible.retain(|occurrence_index| {
             old_occurrences[*occurrence_index].kind == new_occurrence.kind
                 && occurrence_roles_are_compatible(
@@ -2847,13 +2923,13 @@ fn extend_modified_sentence_relations(
         candidate_index_by_occurrence(old_occurrences.len(), old_candidates)?;
     let new_candidate_by_occurrence =
         candidate_index_by_occurrence(new_occurrences.len(), new_candidates)?;
-    let old_edges = occurrence_edge_index(old_occurrences)?;
-    let new_edges = occurrence_edge_index(new_occurrences)?;
+    let old_index = UnitCandidateIndex::new(old_occurrences)?;
+    let new_index = UnitCandidateIndex::new(new_occurrences)?;
     let mut plausible = Vec::new();
 
     for (old_candidate_index, old_candidate) in old_candidates.iter().enumerate() {
         let old_occurrence = old_occurrences.get(old_candidate.occurrence_index)?;
-        collect_plausible_occurrences(&mut plausible, &new_edges, &old_occurrence.tokens)?;
+        new_index.collect_plausible_occurrences(&mut plausible, old_occurrence)?;
         plausible.retain(|occurrence_index| {
             new_occurrences[*occurrence_index].kind == old_occurrence.kind
                 && occurrence_roles_are_compatible(
@@ -2885,7 +2961,7 @@ fn extend_modified_sentence_relations(
 
     for (new_candidate_index, new_candidate) in new_candidates.iter().enumerate() {
         let new_occurrence = new_occurrences.get(new_candidate.occurrence_index)?;
-        collect_plausible_occurrences(&mut plausible, &old_edges, &new_occurrence.tokens)?;
+        old_index.collect_plausible_occurrences(&mut plausible, new_occurrence)?;
         plausible.retain(|occurrence_index| {
             old_occurrences[*occurrence_index].kind == new_occurrence.kind
                 && occurrence_roles_are_compatible(
@@ -2950,54 +3026,6 @@ fn candidate_index_by_occurrence(
         }
     }
     Some(indices)
-}
-
-fn occurrence_edge_index(
-    occurrences: &[SentenceOccurrence],
-) -> Option<HashMap<SentenceEvidenceToken, Vec<usize>>> {
-    let mut index = HashMap::<SentenceEvidenceToken, Vec<usize>>::new();
-    index.try_reserve(occurrences.len()).ok()?;
-    for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
-        let first = *occurrence.tokens.first()?;
-        let last = *occurrence.tokens.last()?;
-        let first_occurrences = index.entry(first).or_default();
-        first_occurrences.try_reserve(1).ok()?;
-        first_occurrences.push(occurrence_index);
-        if last != first {
-            let last_occurrences = index.entry(last).or_default();
-            last_occurrences.try_reserve(1).ok()?;
-            last_occurrences.push(occurrence_index);
-        }
-    }
-    Some(index)
-}
-
-fn collect_plausible_occurrences(
-    plausible: &mut Vec<usize>,
-    index: &HashMap<SentenceEvidenceToken, Vec<usize>>,
-    tokens: &[SentenceEvidenceToken],
-) -> Option<()> {
-    plausible.clear();
-    let first = tokens.first()?;
-    let last = tokens.last()?;
-    // A pair satisfying the prefix/suffix threshold must share at least one
-    // edge token, so this index prunes work without reducing candidate recall.
-    let first_occurrences = index.get(first).map_or(&[][..], Vec::as_slice);
-    let last_occurrences = index.get(last).map_or(&[][..], Vec::as_slice);
-    plausible
-        .try_reserve(
-            first_occurrences
-                .len()
-                .checked_add(last_occurrences.len())?,
-        )
-        .ok()?;
-    plausible.extend_from_slice(first_occurrences);
-    if first != last {
-        plausible.extend_from_slice(last_occurrences);
-    }
-    plausible.sort_unstable();
-    plausible.dedup();
-    Some(())
 }
 
 fn record_near_pair(diagnostics: &mut Option<SentenceRecoveryDiagnostics>) {
@@ -3814,6 +3842,27 @@ mod tests {
                 stream_index,
                 ordinal,
             }),
+        }
+    }
+
+    fn indexed_occurrence(
+        tokens: &[char],
+        kind: RecoveryUnitKind,
+        role: Option<BlockRole>,
+    ) -> SentenceOccurrence {
+        SentenceOccurrence {
+            key: String::new(),
+            tokens: tokens
+                .iter()
+                .copied()
+                .map(SentenceEvidenceToken::Scalar)
+                .collect(),
+            word_ranges: Vec::new(),
+            kind,
+            role,
+            location: None,
+            span_index: None,
+            trusted_position: None,
         }
     }
 
@@ -4993,6 +5042,110 @@ mod tests {
         assert_eq!(budget.comparisons, 1);
         assert!(relations.old[0].vetoed());
         assert!(!relations.old[1].vetoed());
+    }
+
+    #[test]
+    fn unit_candidate_index_excludes_cross_kind_and_cross_role_postings() {
+        let occurrences = [
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+            indexed_occurrence(&['a'], RecoveryUnitKind::Line, Some(BlockRole::Body)),
+            indexed_occurrence(
+                &['a'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::RepeatedFooter),
+            ),
+        ];
+        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
+        let mut plausible = Vec::new();
+
+        index
+            .collect_plausible_occurrences(&mut plausible, &occurrences[0])
+            .expect("query succeeds");
+
+        assert_eq!(plausible, vec![0]);
+    }
+
+    #[test]
+    fn unit_candidate_index_unions_first_and_last_postings_in_index_order() {
+        let occurrences = [
+            indexed_occurrence(
+                &['a', 'x'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['y', 'z'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(&['q'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+        ];
+        let query = indexed_occurrence(
+            &['a', 'z'],
+            RecoveryUnitKind::Sentence,
+            Some(BlockRole::Body),
+        );
+        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
+        let mut plausible = Vec::new();
+
+        index
+            .collect_plausible_occurrences(&mut plausible, &query)
+            .expect("query succeeds");
+
+        assert_eq!(plausible, vec![0, 1]);
+    }
+
+    #[test]
+    fn unit_candidate_index_deduplicates_equal_edge_postings() {
+        let occurrences = [indexed_occurrence(
+            &['a'],
+            RecoveryUnitKind::Sentence,
+            Some(BlockRole::Body),
+        )];
+        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
+        let mut plausible = Vec::new();
+
+        index
+            .collect_plausible_occurrences(&mut plausible, &occurrences[0])
+            .expect("query succeeds");
+
+        assert_eq!(plausible, vec![0]);
+    }
+
+    #[test]
+    fn unit_candidate_index_reserves_map_capacity_by_distinct_edge_key() {
+        let occurrences = (0..256)
+            .map(|_| indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)))
+            .collect::<Vec<_>>();
+
+        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
+
+        assert_eq!(index.edge_postings.len(), 1);
+        assert!(index.edge_postings.capacity() < occurrences.len());
+        assert_eq!(
+            index.edge_postings.values().next().map(Vec::len),
+            Some(occurrences.len())
+        );
+    }
+
+    #[test]
+    fn unit_candidate_index_skips_roleless_occurrences_and_queries() {
+        let occurrences = [
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, None),
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+        ];
+        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
+        let mut plausible = Vec::new();
+
+        index
+            .collect_plausible_occurrences(&mut plausible, &occurrences[1])
+            .expect("role-bearing query succeeds");
+        assert_eq!(plausible, vec![1]);
+
+        index
+            .collect_plausible_occurrences(&mut plausible, &occurrences[0])
+            .expect("roleless query safely has no candidates");
+        assert!(plausible.is_empty());
     }
 
     #[test]
