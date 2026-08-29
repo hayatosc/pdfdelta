@@ -147,19 +147,25 @@ fn replacement_exits_one() {
     assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
     assert_complete_json_report(&report, 1, Some("replacement"));
     let report_json = read_json(&report);
-    let old_text = report_json["changes"][0]["old_span"]["text"]
+    let old_text = report_json["changes"][0]["occurrences"][0]["old_span"]["text"]
         .as_str()
         .expect("replacement old span should carry resolved text");
-    let new_text = report_json["changes"][0]["new_span"]["text"]
+    let new_text = report_json["changes"][0]["occurrences"][0]["new_span"]["text"]
         .as_str()
         .expect("replacement new span should carry resolved text");
     // Exact-diff semantics keep the change span minimal: only the differing
     // digit is reported as changed content.
     assert_eq!(old_text, "1");
     assert_eq!(new_text, "2");
-    assert_eq!(report_json["changes"][0]["old_span"]["pages"][0], 0);
-    assert_eq!(report_json["changes"][0]["new_span"]["pages"][0], 0);
-    let source = &report_json["changes"][0]["old_span"]["sources"][0];
+    assert_eq!(
+        report_json["changes"][0]["occurrences"][0]["old_span"]["pages"][0],
+        0
+    );
+    assert_eq!(
+        report_json["changes"][0]["occurrences"][0]["new_span"]["pages"][0],
+        0
+    );
+    let source = &report_json["changes"][0]["occurrences"][0]["old_span"]["sources"][0];
     assert_eq!(source["kind"], "glyph");
     assert!(source["glyph_id"].is_u64());
     assert!(source["bbox"]["min"]["x"].is_number());
@@ -525,7 +531,7 @@ fn paragraph_insertion_exits_one_with_one_change() {
     assert_complete_json_report(&report, 1, Some("insertion"));
     let report_json = read_json(&report);
     assert_eq!(
-        report_json["changes"][0]["new_span"]["text"],
+        report_json["changes"][0]["occurrences"][0]["new_span"]["text"],
         "Inserted paragraph contains generic text"
     );
 }
@@ -558,7 +564,7 @@ fn paragraph_deletion_exits_one_with_one_change() {
     assert_complete_json_report(&report, 1, Some("deletion"));
     let report_json = read_json(&report);
     assert_eq!(
-        report_json["changes"][0]["old_span"]["text"],
+        report_json["changes"][0]["occurrences"][0]["old_span"]["text"],
         "Removed paragraph contains generic text"
     );
 }
@@ -577,7 +583,7 @@ fn writes_json_report_atomically() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let json = fs::read_to_string(report).expect("JSON report should be readable");
-    assert!(json.contains("\"schema_version\": 7"));
+    assert!(json.contains("\"schema_version\": 8"));
     assert!(json.contains("\"content_changes\": 0"));
     assert_no_temporary_reports(&directory);
 }
@@ -881,7 +887,7 @@ fn malformed_type0_extraction_reports_without_false_changes() {
         &fs::read(report_path).expect("incomplete JSON report should be readable"),
     )
     .expect("incomplete JSON report should be valid");
-    assert_eq!(report["schema_version"], 7);
+    assert_eq!(report["schema_version"], 8);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["comparison_complete"], false);
     assert_eq!(report["summary"]["unresolved_extraction_issues"], 1);
@@ -953,7 +959,7 @@ fn localized_page_tree_gap_preserves_known_change_and_reports_boundary() {
         &fs::read(report_path).expect("page-gap JSON report should be readable"),
     )
     .expect("page-gap JSON report should be valid");
-    assert_eq!(report["schema_version"], 7);
+    assert_eq!(report["schema_version"], 8);
     assert_eq!(report["summary"]["content_changes"], 1);
     assert_eq!(report["summary"]["unresolved_regions"], 1);
     assert_eq!(report["extraction"]["issues"][0]["scope"], "page_gap");
@@ -1411,7 +1417,7 @@ fn externally_rendered_typst_case3_revision_pair_reports_exact_replacement() {
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 7);
+    assert_eq!(report["schema_version"], 8);
     assert_eq!(report["summary"]["content_changes"], 1);
     assert_eq!(report["summary"]["formatting_only_changes"], 0);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -1428,8 +1434,8 @@ fn externally_rendered_typst_case3_revision_pair_reports_exact_replacement() {
         .expect("changes should be array");
     assert_eq!(changes.len(), 1);
     assert_eq!(changes[0]["kind"], "replacement");
-    assert_eq!(changes[0]["old_span"]["text"], "1");
-    assert_eq!(changes[0]["new_span"]["text"], "2");
+    assert_eq!(changes[0]["occurrences"][0]["old_span"]["text"], "1");
+    assert_eq!(changes[0]["occurrences"][0]["new_span"]["text"], "2");
 
     assert_eq!(report["extraction"]["old_complete"], true);
     assert_eq!(report["extraction"]["new_complete"], true);
@@ -1558,7 +1564,7 @@ fn externally_rendered_typst_japanese_revision_pair_reports_exact_replacement() 
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 7);
+    assert_eq!(report["schema_version"], 8);
     assert_eq!(report["summary"]["content_changes"], 1);
     assert_eq!(report["summary"]["formatting_only_changes"], 0);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -1591,10 +1597,16 @@ fn externally_rendered_typst_japanese_revision_pair_reports_exact_replacement() 
         .expect("changes should be array");
     assert_eq!(changes.len(), 1);
     assert_eq!(changes[0]["kind"], "replacement");
-    assert_eq!(changes[0]["old_span"]["text"], "1");
-    assert_eq!(changes[0]["new_span"]["text"], "2");
-    assert_eq!(changes[0]["old_span"]["pages"], serde_json::json!([0]));
-    assert_eq!(changes[0]["new_span"]["pages"], serde_json::json!([0]));
+    assert_eq!(changes[0]["occurrences"][0]["old_span"]["text"], "1");
+    assert_eq!(changes[0]["occurrences"][0]["new_span"]["text"], "2");
+    assert_eq!(
+        changes[0]["occurrences"][0]["old_span"]["pages"],
+        serde_json::json!([0])
+    );
+    assert_eq!(
+        changes[0]["occurrences"][0]["new_span"]["pages"],
+        serde_json::json!([0])
+    );
 
     assert_eq!(report["extraction"]["old_complete"], true);
     assert_eq!(report["extraction"]["new_complete"], true);
@@ -1706,7 +1718,7 @@ fn externally_rendered_typst_japanese_case1_wrap_revision_pair_reports_zero_cont
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 7);
+    assert_eq!(report["schema_version"], 8);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["formatting_only_changes"], 2);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -1891,7 +1903,7 @@ fn externally_rendered_typst_japanese_case2_pagebreak_revision_pair_reports_zero
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 7);
+    assert_eq!(report["schema_version"], 8);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["formatting_only_changes"], 1);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -2057,7 +2069,7 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     let forward_report: serde_json::Value =
         serde_json::from_str(&forward_json_text).expect("forward JSON report should parse");
 
-    assert_eq!(forward_report["schema_version"], 7);
+    assert_eq!(forward_report["schema_version"], 8);
     assert_eq!(forward_report["summary"]["content_changes"], 1);
     assert_eq!(forward_report["summary"]["formatting_only_changes"], 1);
     assert_eq!(forward_report["summary"]["uncertain_changes"], 0);
@@ -2099,17 +2111,17 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
         .expect("changes should be array");
     assert_eq!(forward_changes.len(), 1);
     assert_eq!(forward_changes[0]["kind"], "insertion");
-    assert!(forward_changes[0]["old_span"].is_null());
+    assert!(forward_changes[0]["occurrences"][0]["old_span"].is_null());
     assert_eq!(
-        forward_changes[0]["new_span"]["blocks"],
+        forward_changes[0]["occurrences"][0]["new_span"]["blocks"],
         serde_json::json!([2])
     );
     assert_eq!(
-        forward_changes[0]["new_span"]["pages"],
+        forward_changes[0]["occurrences"][0]["new_span"]["pages"],
         serde_json::json!([0])
     );
     assert_eq!(
-        forward_changes[0]["new_span"]["text"],
+        forward_changes[0]["occurrences"][0]["new_span"]["text"],
         "運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"
     );
 
@@ -2191,7 +2203,7 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     let reverse_report: serde_json::Value =
         serde_json::from_str(&reverse_json_text).expect("reverse JSON report should parse");
 
-    assert_eq!(reverse_report["schema_version"], 7);
+    assert_eq!(reverse_report["schema_version"], 8);
     assert_eq!(reverse_report["summary"]["content_changes"], 1);
     assert_eq!(reverse_report["summary"]["formatting_only_changes"], 1);
     assert_eq!(reverse_report["summary"]["uncertain_changes"], 0);
@@ -2234,18 +2246,18 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     assert_eq!(reverse_changes.len(), 1);
     assert_eq!(reverse_changes[0]["kind"], "deletion");
     assert_eq!(
-        reverse_changes[0]["old_span"]["blocks"],
+        reverse_changes[0]["occurrences"][0]["old_span"]["blocks"],
         serde_json::json!([2])
     );
     assert_eq!(
-        reverse_changes[0]["old_span"]["pages"],
+        reverse_changes[0]["occurrences"][0]["old_span"]["pages"],
         serde_json::json!([0])
     );
     assert_eq!(
-        reverse_changes[0]["old_span"]["text"],
+        reverse_changes[0]["occurrences"][0]["old_span"]["text"],
         "運用手順書を順次適用し、監視体制の強化と障害検知の自動化を進めます。"
     );
-    assert!(reverse_changes[0]["new_span"].is_null());
+    assert!(reverse_changes[0]["occurrences"][0]["new_span"].is_null());
 
     let reverse_formatting = reverse_report["formatting_only_changes"]
         .as_array()
@@ -2499,7 +2511,7 @@ fn assert_complete_json_report(
 ) {
     let json = fs::read_to_string(report_path).expect("JSON report should be readable");
     let report: Value = serde_json::from_str(&json).expect("JSON report should be valid");
-    assert_eq!(report["schema_version"], 7, "{report:#}");
+    assert_eq!(report["schema_version"], 8, "{report:#}");
     let summary = &report["summary"];
     assert_eq!(
         summary["content_changes"].as_u64(),

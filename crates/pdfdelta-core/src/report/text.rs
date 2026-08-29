@@ -182,11 +182,8 @@ pub(super) fn render(
     Ok(output)
 }
 
-/// Renders one presentation hunk body. All old-side spans of the cluster
-/// share one block group and all new-side spans share one block group (the
-/// clustering guarantees it), so their edited ranges merge into contiguous
-/// runs and render as adjacent `-` / `+` lines instead of one window per
-/// scalar-level exact change.
+/// Renders one presentation hunk body, merging nearby ranges only within a
+/// shared block group and separator coordinate system.
 fn append_cluster_body(
     cluster: &Cluster<'_>,
     old: &SideIndex<'_>,
@@ -198,20 +195,18 @@ fn append_cluster_body(
     let first = cluster.changes[0];
     if first.kind == ChangeKind::Move {
         let move_change = cluster.changes[0];
-        let old_pages = move_change
-            .old_span
-            .as_ref()
-            .map(|span| resolve_window(old, span))
-            .transpose()?
-            .map(|window| window.pages)
-            .unwrap_or_default();
-        let new_pages = move_change
-            .new_span
-            .as_ref()
-            .map(|span| resolve_window(new, span))
-            .transpose()?
-            .map(|window| window.pages)
-            .unwrap_or_default();
+        let mut old_pages = Vec::new();
+        let mut new_pages = Vec::new();
+        for span in old_spans(move_change) {
+            old_pages.extend(resolve_window(old, span)?.pages);
+        }
+        for span in new_spans(move_change) {
+            new_pages.extend(resolve_window(new, span)?.pages);
+        }
+        old_pages.sort_unstable();
+        old_pages.dedup();
+        new_pages.sort_unstable();
+        new_pages.dedup();
         let marker = if old_pages == new_pages {
             format!("~ moved within {}", format_pages(&old_pages))
         } else {
@@ -224,34 +219,36 @@ fn append_cluster_body(
         pages.extend_from_slice(&old_pages);
         pages.extend_from_slice(&new_pages);
         body.push(painter.paint(CODE_MOVE, &marker));
-        append_marked_spans(
-            move_change.old_span.as_ref(),
-            old,
-            MINUS_STYLE,
-            pages,
-            body,
-            painter,
-        )?;
-        append_marked_spans(
-            move_change.new_span.as_ref(),
-            new,
-            PLUS_STYLE,
-            pages,
-            body,
-            painter,
-        )?;
+        for occurrence in &move_change.occurrences {
+            append_marked_spans(
+                occurrence.old_span.as_ref(),
+                old,
+                MINUS_STYLE,
+                pages,
+                body,
+                painter,
+            )?;
+            append_marked_spans(
+                occurrence.new_span.as_ref(),
+                new,
+                PLUS_STYLE,
+                pages,
+                body,
+                painter,
+            )?;
+        }
         return Ok(());
     }
 
     let old_spans = cluster
         .changes
         .iter()
-        .filter_map(|change| change.old_span.as_ref())
+        .flat_map(|change| old_spans(change))
         .collect::<Vec<_>>();
     let new_spans = cluster
         .changes
         .iter()
-        .filter_map(|change| change.new_span.as_ref())
+        .flat_map(|change| new_spans(change))
         .collect::<Vec<_>>();
     append_merged_runs(&old_spans, old, MINUS_STYLE, pages, body, painter)?;
     append_merged_runs(&new_spans, new, PLUS_STYLE, pages, body, painter)?;
@@ -266,21 +263,28 @@ fn append_merged_runs(
     body: &mut Vec<String>,
     painter: &Painter,
 ) -> Result<()> {
-    let Some(template) = spans.first() else {
-        return Ok(());
-    };
-    // Every span in the cluster shares the same block list and separator on
-    // this side, so one resolution serves all runs — but every participating
-    // span must pass the same fail-loud bounds contract before merging, not
-    // just the template, or a later out-of-range span would silently clamp.
-    let group = index.resolve_group(&template.blocks, template.separator)?;
+    let mut compatible_groups: Vec<Vec<&TextSpan>> = Vec::new();
     for span in spans {
-        validate_span_against_group(span, &group)?;
+        if let Some(group) = compatible_groups
+            .iter_mut()
+            .find(|group| group[0].blocks == span.blocks && group[0].separator == span.separator)
+        {
+            group.push(*span);
+        } else {
+            compatible_groups.push(vec![*span]);
+        }
     }
-    for (start, end) in merged_edited_ranges(spans.iter().copied()) {
-        let window = bounded_window(&group, start, end);
-        pages.extend_from_slice(&window.pages);
-        body.push(window.render_marked(style, painter));
+    for spans in compatible_groups {
+        let template = spans[0];
+        let group = index.resolve_group(&template.blocks, template.separator)?;
+        for span in &spans {
+            validate_span_against_group(span, &group)?;
+        }
+        for (start, end) in merged_edited_ranges(spans.into_iter()) {
+            let window = bounded_window(&group, start, end);
+            pages.extend_from_slice(&window.pages);
+            body.push(window.render_marked(style, painter));
+        }
     }
     Ok(())
 }
@@ -304,6 +308,8 @@ fn append_marked_spans(
 
 /// Unions nearby edited comparable-token ranges into contiguous hunk spans.
 fn merged_edited_ranges<'a>(spans: impl Iterator<Item = &'a TextSpan>) -> Vec<(usize, usize)> {
+    let mut spans = spans.collect::<Vec<_>>();
+    spans.sort_unstable_by_key(|span| (span.comparable_range.start, span.comparable_range.end));
     let mut merged: Vec<(usize, usize)> = Vec::new();
     for span in spans {
         match merged.last_mut() {
@@ -318,6 +324,20 @@ fn merged_edited_ranges<'a>(spans: impl Iterator<Item = &'a TextSpan>) -> Vec<(u
     merged
 }
 
+fn old_spans(change: &Change) -> impl DoubleEndedIterator<Item = &TextSpan> {
+    change
+        .occurrences
+        .iter()
+        .filter_map(|occurrence| occurrence.old_span.as_ref())
+}
+
+fn new_spans(change: &Change) -> impl DoubleEndedIterator<Item = &TextSpan> {
+    change
+        .occurrences
+        .iter()
+        .filter_map(|occurrence| occurrence.new_span.as_ref())
+}
+
 struct Cluster<'a> {
     changes: Vec<&'a Change>,
     last_old: Option<&'a TextSpan>,
@@ -330,8 +350,8 @@ impl<'a> Cluster<'a> {
     fn starting(change: &'a Change) -> Self {
         Self {
             changes: vec![change],
-            last_old: change.old_span.as_ref(),
-            last_new: change.new_span.as_ref(),
+            last_old: old_spans(change).next_back(),
+            last_new: new_spans(change).next_back(),
             confidence: change.confidence,
             tags: change.tags.clone(),
         }
@@ -339,50 +359,45 @@ impl<'a> Cluster<'a> {
 
     fn can_absorb(&self, next: &Change) -> bool {
         if next.kind == ChangeKind::Move
+            || next.occurrences.len() != 1
             || self
                 .changes
                 .first()
-                .is_some_and(|first| first.kind == ChangeKind::Move)
+                .is_some_and(|first| first.kind == ChangeKind::Move || first.occurrences.len() != 1)
         {
-            // A move is a standalone relocation record; its marker line must
-            // stay attached to exactly one -/+ pair.
+            // Moves and grouped semantic occurrences are standalone records;
+            // only ordinary single-occurrence edits use proximity clustering.
             return false;
         }
         if next.confidence != self.confidence || next.tags != self.tags {
             return false;
         }
-        side_close(self.last_old, next.old_span.as_ref())
-            && side_close(self.last_new, next.new_span.as_ref())
+        side_close(self.last_old, old_spans(next).next())
+            && side_close(self.last_new, new_spans(next).next())
     }
 
     fn absorb(&mut self, next: &'a Change) {
-        if next.old_span.is_some() {
-            self.last_old = next.old_span.as_ref();
+        if let Some(span) = old_spans(next).next_back() {
+            self.last_old = Some(span);
         }
-        if next.new_span.as_ref().is_some() {
-            self.last_new = next.new_span.as_ref();
+        if let Some(span) = new_spans(next).next_back() {
+            self.last_new = Some(span);
         }
         self.changes.push(next);
     }
 
     fn header(&self, pages: &[u32]) -> String {
-        let old_blocks = self
-            .changes
-            .iter()
-            .find_map(|change| change.old_span.as_ref());
-        let new_blocks = self
-            .changes
-            .iter()
-            .find_map(|change| change.new_span.as_ref());
+        let old_blocks =
+            unique_block_groups(self.changes.iter().flat_map(|change| old_spans(change)));
+        let new_blocks =
+            unique_block_groups(self.changes.iter().flat_map(|change| new_spans(change)));
+        let old_blocks = block_groups_label(&old_blocks);
+        let new_blocks = block_groups_label(&new_blocks);
         let mut parts = vec![format_pages(pages)];
-        match (old_blocks, new_blocks) {
-            (Some(old), Some(new)) => parts.push(format!(
-                "old {} -> new {}",
-                blocks_label(&old.blocks),
-                blocks_label(&new.blocks),
-            )),
-            (Some(old), None) => parts.push(format!("old {}", blocks_label(&old.blocks))),
-            (None, Some(new)) => parts.push(format!("new {}", blocks_label(&new.blocks))),
+        match (old_blocks.as_deref(), new_blocks.as_deref()) {
+            (Some(old), Some(new)) => parts.push(format!("old {old} -> new {new}")),
+            (Some(old), None) => parts.push(format!("old {old}")),
+            (None, Some(new)) => parts.push(format!("new {new}")),
             (None, None) => {}
         }
         parts.push(format!("confidence: {}", confidence_name(self.confidence),));
@@ -397,6 +412,32 @@ impl<'a> Cluster<'a> {
             parts.push(format!("tags: {tags}"));
         }
         format!("@@ {} @@", parts.join(" · "))
+    }
+}
+
+fn unique_block_groups<'a>(spans: impl Iterator<Item = &'a TextSpan>) -> Vec<&'a [BlockId]> {
+    let mut groups = Vec::new();
+    for span in spans {
+        let blocks = span.blocks.as_slice();
+        if !groups.contains(&blocks) {
+            groups.push(blocks);
+        }
+    }
+    groups
+}
+
+fn block_groups_label(groups: &[&[BlockId]]) -> Option<String> {
+    match groups {
+        [] => None,
+        [blocks] => Some(blocks_label(blocks)),
+        groups => Some(format!(
+            "groups [{}]",
+            groups
+                .iter()
+                .map(|blocks| blocks_label(blocks))
+                .collect::<Vec<_>>()
+                .join("; ")
+        )),
     }
 }
 

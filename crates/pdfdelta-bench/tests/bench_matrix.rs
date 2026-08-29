@@ -626,8 +626,14 @@ fn right_column_replacement_stays_out_of_the_left_column() {
         assert_eq!(outcome.comparison.old_coverage.ratio, Some(1.0));
         assert_eq!(outcome.comparison.new_coverage.ratio, Some(1.0));
         let change = &outcome.comparison.changes[0];
-        let old_span = change.old_span.as_ref().expect("replacement has old span");
-        let new_span = change.new_span.as_ref().expect("replacement has new span");
+        let old_span = change.occurrences[0]
+            .old_span
+            .as_ref()
+            .expect("replacement has old span");
+        let new_span = change.occurrences[0]
+            .new_span
+            .as_ref()
+            .expect("replacement has new span");
         let selected_text =
             |span: &pdfdelta_core::diff::TextSpan,
              blocks: &[pdfdelta_core::normalize::BlockText]| {

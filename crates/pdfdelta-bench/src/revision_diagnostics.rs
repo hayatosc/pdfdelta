@@ -912,33 +912,35 @@ fn hunk_indices_inside_quote(
     let mut pieces = Vec::new();
     for (index, change) in comparison.changes.iter().enumerate() {
         budget.charge_hunk(limits)?;
-        let span = if old_side {
-            change.old_span.as_ref()
-        } else {
-            change.new_span.as_ref()
-        };
-        let Some(span) = span else {
-            continue;
-        };
-        if span.blocks != [location.block] {
-            if span.blocks.contains(&location.block) {
+        for occurrence in &change.occurrences {
+            let span = if old_side {
+                occurrence.old_span.as_ref()
+            } else {
+                occurrence.new_span.as_ref()
+            };
+            let Some(span) = span else {
+                continue;
+            };
+            if span.blocks != [location.block] {
+                if span.blocks.contains(&location.block) {
+                    return Ok(None);
+                }
+                continue;
+            }
+            let overlaps = span.canonical_range.start < location.scalar_range.end
+                && location.scalar_range.start < span.canonical_range.end;
+            if !overlaps {
+                continue;
+            }
+            if claimed_actuals.contains(&index)
+                || span.canonical_range.start < location.scalar_range.start
+                || span.canonical_range.end > location.scalar_range.end
+                || span.canonical_range.start >= span.canonical_range.end
+            {
                 return Ok(None);
             }
-            continue;
+            pieces.push((index, span.canonical_range));
         }
-        let overlaps = span.canonical_range.start < location.scalar_range.end
-            && location.scalar_range.start < span.canonical_range.end;
-        if !overlaps {
-            continue;
-        }
-        if claimed_actuals.contains(&index)
-            || span.canonical_range.start < location.scalar_range.start
-            || span.canonical_range.end > location.scalar_range.end
-            || span.canonical_range.start >= span.canonical_range.end
-        {
-            return Ok(None);
-        }
-        pieces.push((index, span.canonical_range));
     }
     pieces.sort_unstable_by_key(|(index, range)| (range.start, range.end, *index));
     if pieces.len() < 2
@@ -1476,11 +1478,13 @@ mod tests {
     ) -> ActualChange {
         ActualChange {
             kind,
-            old_text: old_text.map(str::to_owned),
-            new_text: new_text.map(str::to_owned),
-            old_comparable_len: old_len,
-            new_comparable_len: new_len,
-            resolvable: true,
+            occurrences: vec![crate::revisions::ActualChangeOccurrence {
+                old_text: old_text.map(str::to_owned),
+                new_text: new_text.map(str::to_owned),
+                old_comparable_len: old_len,
+                new_comparable_len: new_len,
+                resolvable: true,
+            }],
         }
     }
 
@@ -1524,13 +1528,7 @@ mod tests {
         old_span: Option<TextSpan>,
         new_span: Option<TextSpan>,
     ) -> Change {
-        Change {
-            kind,
-            old_span,
-            new_span,
-            confidence: Confidence::High,
-            tags: Vec::new(),
-        }
+        Change::single_occurrence(kind, old_span, new_span, Confidence::High, Vec::new())
     }
 
     fn diagnostic_comparison(

@@ -443,11 +443,11 @@ fn supported_sentence_recovers_beside_mixed_orientation_text() -> Result<()> {
 
     assert!(changes.iter().any(|change| {
         change["kind"] == "deletion"
-            && change["old_span"]["text"] == "The legacy sentence is removed."
+            && change["occurrences"][0]["old_span"]["text"] == "The legacy sentence is removed."
     }));
     assert!(changes.iter().any(|change| {
         change["kind"] == "insertion"
-            && change["new_span"]["text"] == "A fresh sentence is inserted."
+            && change["occurrences"][0]["new_span"]["text"] == "A fresh sentence is inserted."
     }));
     assert_eq!(report["unresolved_regions"], serde_json::json!([]));
     assert_eq!(report["summary"]["comparison_complete"], true);

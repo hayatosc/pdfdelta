@@ -308,20 +308,20 @@ proptest! {
         for change in &comparison.changes {
             match change.kind {
                 ChangeKind::Move => {
-                    prop_assert!(change.old_span.is_some());
-                    prop_assert!(change.new_span.is_some());
+                    prop_assert!(change.occurrences[0].old_span.is_some());
+                    prop_assert!(change.occurrences[0].new_span.is_some());
                 }
                 ChangeKind::Deletion => {
-                    prop_assert!(change.old_span.is_some());
-                    prop_assert!(change.new_span.is_none());
+                    prop_assert!(change.occurrences[0].old_span.is_some());
+                    prop_assert!(change.occurrences[0].new_span.is_none());
                 }
                 ChangeKind::Insertion => {
-                    prop_assert!(change.old_span.is_none());
-                    prop_assert!(change.new_span.is_some());
+                    prop_assert!(change.occurrences[0].old_span.is_none());
+                    prop_assert!(change.occurrences[0].new_span.is_some());
                 }
                 ChangeKind::Replacement => {
-                    prop_assert!(change.old_span.is_some());
-                    prop_assert!(change.new_span.is_some());
+                    prop_assert!(change.occurrences[0].old_span.is_some());
+                    prop_assert!(change.occurrences[0].new_span.is_some());
                 }
             }
         }

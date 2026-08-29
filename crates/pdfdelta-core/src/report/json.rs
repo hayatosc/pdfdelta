@@ -22,7 +22,7 @@ use super::{
     issue_kind_name, lowercase_hex, side_name, summarize,
 };
 
-const SCHEMA_VERSION: u32 = 7;
+const SCHEMA_VERSION: u32 = 8;
 
 pub fn write_json<W: Write>(
     mut writer: W,
@@ -214,10 +214,15 @@ struct JsonExtractionIssue<'a> {
 #[derive(Serialize)]
 struct JsonChange {
     kind: &'static str,
-    old_span: Option<JsonTextSpan>,
-    new_span: Option<JsonTextSpan>,
+    occurrences: Vec<JsonChangeOccurrence>,
     confidence: &'static str,
     tags: Vec<&'static str>,
+}
+
+#[derive(Serialize)]
+struct JsonChangeOccurrence {
+    old_span: Option<JsonTextSpan>,
+    new_span: Option<JsonTextSpan>,
 }
 
 impl JsonChange {
@@ -230,16 +235,24 @@ impl JsonChange {
     ) -> Result<Self> {
         Ok(Self {
             kind: change_kind(change.kind),
-            old_span: change
-                .old_span
-                .as_ref()
-                .map(|span| JsonTextSpan::new(span, old, old_glyphs))
-                .transpose()?,
-            new_span: change
-                .new_span
-                .as_ref()
-                .map(|span| JsonTextSpan::new(span, new, new_glyphs))
-                .transpose()?,
+            occurrences: change
+                .occurrences
+                .iter()
+                .map(|occurrence| {
+                    Ok(JsonChangeOccurrence {
+                        old_span: occurrence
+                            .old_span
+                            .as_ref()
+                            .map(|span| JsonTextSpan::new(span, old, old_glyphs))
+                            .transpose()?,
+                        new_span: occurrence
+                            .new_span
+                            .as_ref()
+                            .map(|span| JsonTextSpan::new(span, new, new_glyphs))
+                            .transpose()?,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?,
             confidence: confidence(change.confidence),
             tags: change.tags.iter().copied().map(change_tag).collect(),
         })

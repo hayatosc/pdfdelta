@@ -240,8 +240,18 @@ fn change_matches(
     new_index: &CanonicalDocumentIndex,
 ) -> bool {
     expected.kind() == actual.kind
-        && side_span_matches(expected.old_spans(), actual.old_span.as_ref(), old_index)
-        && side_span_matches(expected.new_spans(), actual.new_span.as_ref(), new_index)
+        && actual.occurrences.len() == 1
+        && actual.occurrences.iter().all(|occurrence| {
+            side_span_matches(
+                expected.old_spans(),
+                occurrence.old_span.as_ref(),
+                old_index,
+            ) && side_span_matches(
+                expected.new_spans(),
+                occurrence.new_span.as_ref(),
+                new_index,
+            )
+        })
 }
 
 fn side_span_matches(
@@ -572,7 +582,10 @@ fn pipeline_options() -> PipelineOptions {
 
 #[cfg(test)]
 mod tests {
-    use pdfdelta_core::{diff::TokenRange, normalize::ScalarRange};
+    use pdfdelta_core::{
+        diff::{ChangeOccurrence, Confidence, TokenRange},
+        normalize::ScalarRange,
+    };
 
     use super::*;
 
@@ -633,10 +646,46 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn ordinary_expectation_rejects_a_matching_occurrence_with_a_surplus_occurrence() {
+        let old_index =
+            map_canonical_blocks("abcd", [(BlockId(1), "abcd".to_owned())]).expect("old index");
+        let new_index =
+            map_canonical_blocks("wxyz", [(BlockId(2), "wxyz".to_owned())]).expect("new index");
+        let expected = ExpectedSemanticChange::new(
+            ChangeKind::Replacement,
+            vec![ExpectedCanonicalSpan::new(1, 2).expect("old expected span")],
+            vec![ExpectedCanonicalSpan::new(1, 2).expect("new expected span")],
+        )
+        .expect("valid expectation");
+        let mut actual = Change::single_occurrence(
+            ChangeKind::Replacement,
+            Some(single_block_span(1, 1, 2)),
+            Some(single_block_span(2, 1, 2)),
+            Confidence::High,
+            Vec::new(),
+        );
+        actual.occurrences.push(ChangeOccurrence {
+            old_span: Some(single_block_span(1, 2, 3)),
+            new_span: Some(single_block_span(2, 2, 3)),
+        });
+
+        assert!(!change_matches(&expected, &actual, &old_index, &new_index));
+    }
+
     fn text_span(separator: BlockSeparator, start: usize, end: usize) -> TextSpan {
         TextSpan {
             blocks: vec![BlockId(1), BlockId(2)],
             separator: Some(separator),
+            canonical_range: ScalarRange { start, end },
+            comparable_range: TokenRange { start, end },
+        }
+    }
+
+    fn single_block_span(block: u64, start: usize, end: usize) -> TextSpan {
+        TextSpan {
+            blocks: vec![BlockId(block)],
+            separator: None,
             canonical_range: ScalarRange { start, end },
             comparable_range: TokenRange { start, end },
         }

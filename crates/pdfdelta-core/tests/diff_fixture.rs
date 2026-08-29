@@ -25,9 +25,10 @@ fn exact_diff_never_uses_masked_matching_text() -> Result<()> {
     let result = compare_aligned(&[old], &[new], &alignment, DiffOptions::default())?;
 
     assert_eq!(result.changes.len(), 1);
+    assert_eq!(result.changes[0].occurrences.len(), 1);
     assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
     assert_eq!(
-        result.changes[0]
+        result.changes[0].occurrences[0]
             .old_span
             .as_ref()
             .expect("replacement should have an old span")
@@ -35,7 +36,7 @@ fn exact_diff_never_uses_masked_matching_text() -> Result<()> {
         ScalarRange { start: 7, end: 8 }
     );
     assert_eq!(
-        result.changes[0]
+        result.changes[0].occurrences[0]
             .new_span
             .as_ref()
             .expect("replacement should have a new span")
@@ -66,7 +67,7 @@ fn groups_fragmented_cover_date_as_one_replacement() -> Result<()> {
     let change = &result.changes[0];
     assert_eq!(change.kind, ChangeKind::Replacement);
     assert_eq!(
-        change
+        change.occurrences[0]
             .old_span
             .as_ref()
             .expect("replacement should have an old span")
@@ -77,7 +78,7 @@ fn groups_fragmented_cover_date_as_one_replacement() -> Result<()> {
         }
     );
     assert_eq!(
-        change
+        change.occurrences[0]
             .new_span
             .as_ref()
             .expect("replacement should have a new span")
@@ -106,7 +107,7 @@ fn does_not_extend_a_mixed_replacement_at_asymmetric_word_boundaries() -> Result
         let change = &result.changes[0];
         assert_eq!(change.kind, ChangeKind::Replacement);
         assert_eq!(
-            change
+            change.occurrences[0]
                 .old_span
                 .as_ref()
                 .expect("replacement should have an old span")
@@ -117,7 +118,7 @@ fn does_not_extend_a_mixed_replacement_at_asymmetric_word_boundaries() -> Result
             }
         );
         assert_eq!(
-            change
+            change.occurrences[0]
                 .new_span
                 .as_ref()
                 .expect("replacement should have a new span")
@@ -148,7 +149,7 @@ fn does_not_extend_mixed_replacements_through_non_ascii_boundaries() -> Result<(
         let change = &result.changes[0];
         assert_eq!(change.kind, ChangeKind::Replacement);
         assert_eq!(
-            change
+            change.occurrences[0]
                 .old_span
                 .as_ref()
                 .expect("replacement should have an old span")
@@ -159,7 +160,7 @@ fn does_not_extend_mixed_replacements_through_non_ascii_boundaries() -> Result<(
             }
         );
         assert_eq!(
-            change
+            change.occurrences[0]
                 .new_span
                 .as_ref()
                 .expect("replacement should have a new span")
@@ -265,8 +266,8 @@ fn promotes_an_exact_move_candidate() -> Result<()> {
 
     assert_eq!(result.changes.len(), 1);
     assert_eq!(result.changes[0].kind, ChangeKind::Move);
-    assert!(result.changes[0].old_span.is_some());
-    assert!(result.changes[0].new_span.is_some());
+    assert!(result.changes[0].occurrences[0].old_span.is_some());
+    assert!(result.changes[0].occurrences[0].new_span.is_some());
     assert!(
         result.formatting_changes.is_empty(),
         "Exact identical raw move must not emit formatting changes"
@@ -319,7 +320,7 @@ fn change_ranges_use_unicode_scalar_indices() -> Result<()> {
 
     let change = &result.changes[0];
     assert_eq!(
-        change
+        change.occurrences[0]
             .old_span
             .as_ref()
             .expect("replacement should have an old span")
@@ -575,7 +576,7 @@ fn content_spans_retain_the_exact_multi_block_separator() -> Result<()> {
         assert_eq!(result.changes.len(), 1);
         assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
         assert_eq!(
-            result.changes[0]
+            result.changes[0].occurrences[0]
                 .old_span
                 .as_ref()
                 .expect("replacement should have an old span")
@@ -583,7 +584,7 @@ fn content_spans_retain_the_exact_multi_block_separator() -> Result<()> {
             Some(separator)
         );
         assert_eq!(
-            result.changes[0]
+            result.changes[0].occurrences[0]
                 .new_span
                 .as_ref()
                 .expect("replacement should have a new span")
@@ -717,7 +718,7 @@ fn preserves_unmapped_identity_and_ranges() -> Result<()> {
         DiffOptions::default(),
     )?;
     let change = &changed.changes[0];
-    let old_span = change
+    let old_span = change.occurrences[0]
         .old_span
         .as_ref()
         .expect("unmapped replacement should have an old span");
@@ -756,7 +757,7 @@ fn groups_replacements_across_a_single_equal_scalar() -> Result<()> {
 
     assert_eq!(result.changes.len(), 1);
     assert_eq!(
-        result.changes[0]
+        result.changes[0].occurrences[0]
             .old_span
             .as_ref()
             .expect("replacement should have an old span")
@@ -764,7 +765,7 @@ fn groups_replacements_across_a_single_equal_scalar() -> Result<()> {
         ScalarRange { start: 2, end: 5 }
     );
     assert_eq!(
-        result.changes[0]
+        result.changes[0].occurrences[0]
             .new_span
             .as_ref()
             .expect("replacement should have a new span")
@@ -785,7 +786,7 @@ fn excludes_trailing_equal_tokens_from_a_grouped_replacement() -> Result<()> {
 
     assert_eq!(result.changes.len(), 1);
     assert_eq!(
-        result.changes[0]
+        result.changes[0].occurrences[0]
             .old_span
             .as_ref()
             .expect("replacement should have an old span")
@@ -793,7 +794,7 @@ fn excludes_trailing_equal_tokens_from_a_grouped_replacement() -> Result<()> {
         ScalarRange { start: 2, end: 5 }
     );
     assert_eq!(
-        result.changes[0]
+        result.changes[0].occurrences[0]
             .new_span
             .as_ref()
             .expect("replacement should have a new span")
@@ -1523,8 +1524,8 @@ fn promotes_an_exact_unmapped_move_candidate() -> Result<()> {
 
     assert_eq!(result.changes.len(), 1);
     assert_eq!(result.changes[0].kind, ChangeKind::Move);
-    assert!(result.changes[0].old_span.is_some());
-    assert!(result.changes[0].new_span.is_some());
+    assert!(result.changes[0].occurrences[0].old_span.is_some());
+    assert!(result.changes[0].occurrences[0].new_span.is_some());
     assert!(result.formatting_changes.is_empty());
     assert_eq!(result.old_coverage.ratio, Some(1.0));
     assert_eq!(result.new_coverage.ratio, Some(1.0));
@@ -1703,7 +1704,8 @@ fn confidence_calibration_spans_and_diff_changes_taxonomy() -> Result<()> {
         .changes
         .iter()
         .find(|c| {
-            c.old_span
+            c.occurrences[0]
+                .old_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(2)])
         })
@@ -1715,7 +1717,8 @@ fn confidence_calibration_spans_and_diff_changes_taxonomy() -> Result<()> {
         .changes
         .iter()
         .find(|c| {
-            c.old_span
+            c.occurrences[0]
+                .old_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(3)])
         })
@@ -1727,7 +1730,8 @@ fn confidence_calibration_spans_and_diff_changes_taxonomy() -> Result<()> {
         .changes
         .iter()
         .find(|c| {
-            c.old_span
+            c.occurrences[0]
+                .old_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(5)])
         })
@@ -1739,7 +1743,8 @@ fn confidence_calibration_spans_and_diff_changes_taxonomy() -> Result<()> {
         .changes
         .iter()
         .find(|c| {
-            c.old_span
+            c.occurrences[0]
+                .old_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(6)])
         })
@@ -1751,7 +1756,8 @@ fn confidence_calibration_spans_and_diff_changes_taxonomy() -> Result<()> {
         .changes
         .iter()
         .find(|c| {
-            c.old_span
+            c.occurrences[0]
+                .old_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(7)])
         })
@@ -1763,7 +1769,8 @@ fn confidence_calibration_spans_and_diff_changes_taxonomy() -> Result<()> {
         .changes
         .iter()
         .find(|c| {
-            c.new_span
+            c.occurrences[0]
+                .new_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(108)])
         })
@@ -1775,7 +1782,8 @@ fn confidence_calibration_spans_and_diff_changes_taxonomy() -> Result<()> {
         .changes
         .iter()
         .find(|c| {
-            c.old_span
+            c.occurrences[0]
+                .old_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(8)])
         })

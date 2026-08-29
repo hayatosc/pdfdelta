@@ -2,8 +2,8 @@ use pdfdelta_core::{
     Error, Result,
     alignment::{AlignmentEvidence, BlockSeparator, CandidateSource},
     diff::{
-        Change, ChangeKind, ChangeTag, Comparison, Confidence, Coverage, FormattingChange,
-        FormattingReason, TextSpan, TokenRange, UnresolvedRegion,
+        Change, ChangeKind, ChangeOccurrence, ChangeTag, Comparison, Confidence, Coverage,
+        FormattingChange, FormattingReason, TextSpan, TokenRange, UnresolvedRegion,
     },
     layout::BlockId,
     model::{
@@ -255,7 +255,7 @@ fn reports_page_tree_gap_scope_without_synthesizing_a_page() -> Result<()> {
     write_json(&mut output, &[], &[], &[], &[], &comparison, &extraction)?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
-    assert_eq!(json["schema_version"], 7);
+    assert_eq!(json["schema_version"], 8);
     assert_eq!(json["extraction"]["issues"][0]["scope"], "page_gap");
     assert_eq!(json["extraction"]["issues"][0]["retained_pages_before"], 2);
     assert!(json["extraction"]["issues"][0].get("page").is_none());
@@ -337,7 +337,7 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 7);
+    assert_eq!(json["schema_version"], 8);
     assert_eq!(json["summary"]["content_changes"], 1);
     assert_eq!(
         json["summary"]["old_alignment_coverage"]["resolved_tokens"],
@@ -354,13 +354,14 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
     assert_eq!(json["summary"]["new_alignment_coverage"]["total_tokens"], 2);
     assert_eq!(json["changes"][0]["kind"], "replacement");
     assert_eq!(
-        json["changes"][0]["old_span"]["block_separator"],
-        serde_json::Value::Null
+        json["changes"][0]["occurrences"].as_array().map(Vec::len),
+        Some(1)
     );
-    assert_eq!(
-        json["changes"][0]["old_span"]["canonical_range"]["start"],
-        1
-    );
+    assert!(json["changes"][0].get("old_span").is_none());
+    assert!(json["changes"][0].get("new_span").is_none());
+    let old_span = &json["changes"][0]["occurrences"][0]["old_span"];
+    assert_eq!(old_span["block_separator"], serde_json::Value::Null);
+    assert_eq!(old_span["canonical_range"]["start"], 1);
     assert_eq!(json["changes"][0]["tags"][0], "character_width");
     assert_eq!(
         json["unresolved_regions"][0]["evidence"][0],
@@ -400,7 +401,7 @@ fn json_report_serializes_multi_block_separators() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 7);
+    assert_eq!(json["schema_version"], 8);
     assert_eq!(
         json["formatting_only_changes"][0]["old_span"]["block_separator"],
         "space"
@@ -463,7 +464,7 @@ fn json_report_serializes_unknown_reading_order_evidence() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 7);
+    assert_eq!(json["schema_version"], 8);
     assert_eq!(
         json["unresolved_regions"][0]["evidence"][0],
         "reading_order_unknown"
@@ -480,8 +481,10 @@ fn json_report_projects_replacement_glyph_provenance() -> Result<()> {
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(full_span(1, "a")),
-        new_span: Some(full_span(101, "b")),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(full_span(1, "a")),
+            new_span: Some(full_span(101, "b")),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
@@ -497,9 +500,9 @@ fn json_report_projects_replacement_glyph_provenance() -> Result<()> {
         &ExtractionStatus::complete(),
     )?;
     let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
-    let source = &json["changes"][0]["old_span"]["sources"][0];
+    let source = &json["changes"][0]["occurrences"][0]["old_span"]["sources"][0];
 
-    assert_eq!(json["schema_version"], 7);
+    assert_eq!(json["schema_version"], 8);
     assert_eq!(source["kind"], "glyph");
     assert_eq!(source["glyph_id"], 1);
     assert_eq!(source["page"], 0);
@@ -539,8 +542,10 @@ fn json_report_deduplicates_expansion_and_preserves_contraction_sources() -> Res
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(full_span(1, "ffi")),
-        new_span: Some(full_span(101, "é")),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(full_span(1, "ffi")),
+            new_span: Some(full_span(101, "é")),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
@@ -558,13 +563,13 @@ fn json_report_deduplicates_expansion_and_preserves_contraction_sources() -> Res
     let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
 
     assert_eq!(
-        json["changes"][0]["old_span"]["sources"]
+        json["changes"][0]["occurrences"][0]["old_span"]["sources"]
             .as_array()
             .map(Vec::len),
         Some(1)
     );
     assert_eq!(
-        json["changes"][0]["new_span"]["sources"]
+        json["changes"][0]["occurrences"][0]["new_span"]["sources"]
             .as_array()
             .map(Vec::len),
         Some(2)
@@ -606,13 +611,15 @@ fn json_report_keeps_synthetic_unmapped_and_separator_sources_distinct() -> Resu
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(full_span(1, " ")),
-        new_span: Some(TextSpan {
-            blocks: vec![BlockId(101)],
-            separator: None,
-            canonical_range: ScalarRange { start: 0, end: 0 },
-            comparable_range: TokenRange { start: 0, end: 1 },
-        }),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(full_span(1, " ")),
+            new_span: Some(TextSpan {
+                blocks: vec![BlockId(101)],
+                separator: None,
+                canonical_range: ScalarRange { start: 0, end: 0 },
+                comparable_range: TokenRange { start: 0, end: 1 },
+            }),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
@@ -627,7 +634,7 @@ fn json_report_keeps_synthetic_unmapped_and_separator_sources_distinct() -> Resu
         &ExtractionStatus::complete(),
     )?;
     let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
-    let old_sources = json["changes"][0]["old_span"]["sources"]
+    let old_sources = json["changes"][0]["occurrences"][0]["old_span"]["sources"]
         .as_array()
         .expect("sources array");
 
@@ -635,7 +642,10 @@ fn json_report_keeps_synthetic_unmapped_and_separator_sources_distinct() -> Resu
     assert!(old_sources[0].get("content_stream").is_none());
     assert_eq!(old_sources[1]["kind"], "glyph");
     assert_eq!(old_sources[2]["kind"], "glyph");
-    assert_eq!(json["changes"][0]["new_span"]["sources"][0]["glyph_id"], 3);
+    assert_eq!(
+        json["changes"][0]["occurrences"][0]["new_span"]["sources"][0]["glyph_id"],
+        3
+    );
 
     let grouped_blocks = [
         sourced_block(10, "a", vec![glyph_entry(0, 1, 1)]),
@@ -1109,11 +1119,21 @@ fn rejects_inconsistent_coverage_before_rendering() {
 
 #[test]
 fn rejects_invalid_public_change_and_region_shapes() {
+    let mut missing_occurrence = content_comparison();
+    missing_occurrence.changes[0].occurrences.clear();
+    assert!(matches!(
+        summarize(&missing_occurrence, &ExtractionStatus::complete()),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("at least one occurrence")
+    ));
+
     let mut missing_span = empty_comparison();
     missing_span.changes.push(Change {
         kind: ChangeKind::Insertion,
-        old_span: None,
-        new_span: None,
+        occurrences: vec![ChangeOccurrence {
+            old_span: None,
+            new_span: None,
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
@@ -1124,7 +1144,7 @@ fn rejects_invalid_public_change_and_region_shapes() {
     ));
 
     let mut reversed_range = content_comparison();
-    reversed_range.changes[0]
+    reversed_range.changes[0].occurrences[0]
         .old_span
         .as_mut()
         .expect("fixture replacement should have an old span")
@@ -1135,7 +1155,7 @@ fn rejects_invalid_public_change_and_region_shapes() {
     ));
 
     let mut empty_blocks = content_comparison();
-    empty_blocks.changes[0]
+    empty_blocks.changes[0].occurrences[0]
         .new_span
         .as_mut()
         .expect("fixture replacement should have a new span")
@@ -1148,7 +1168,7 @@ fn rejects_invalid_public_change_and_region_shapes() {
     ));
 
     let mut single_block_separator = content_comparison();
-    single_block_separator.changes[0]
+    single_block_separator.changes[0].occurrences[0]
         .old_span
         .as_mut()
         .expect("fixture replacement should have an old span")
@@ -1163,7 +1183,7 @@ fn rejects_invalid_public_change_and_region_shapes() {
     ));
 
     let mut missing_multi_block_separator = content_comparison();
-    missing_multi_block_separator.changes[0]
+    missing_multi_block_separator.changes[0].occurrences[0]
         .old_span
         .as_mut()
         .expect("fixture replacement should have an old span")
@@ -1179,7 +1199,7 @@ fn rejects_invalid_public_change_and_region_shapes() {
     ));
 
     let mut empty_change = content_comparison();
-    empty_change.changes[0]
+    empty_change.changes[0].occurrences[0]
         .new_span
         .as_mut()
         .expect("fixture replacement should have a new span")
@@ -1229,22 +1249,28 @@ fn text_report_renders_replacement_insertion_and_deletion_hunks() -> Result<()> 
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(full_span(2, "Release 10 remains available")),
-        new_span: Some(full_span(102, "Release 20 remains available")),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(full_span(2, "Release 10 remains available")),
+            new_span: Some(full_span(102, "Release 20 remains available")),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
     comparison.changes.push(Change {
         kind: ChangeKind::Insertion,
-        old_span: None,
-        new_span: Some(full_span(103, "Inserted paragraph appears here")),
+        occurrences: vec![ChangeOccurrence {
+            old_span: None,
+            new_span: Some(full_span(103, "Inserted paragraph appears here")),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
     comparison.changes.push(Change {
         kind: ChangeKind::Deletion,
-        old_span: Some(full_span(3, "Removed paragraph disappears")),
-        new_span: None,
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(full_span(3, "Removed paragraph disappears")),
+            new_span: None,
+        }],
         confidence: Confidence::Medium,
         tags: Vec::new(),
     });
@@ -1285,8 +1311,10 @@ fn text_report_renders_change_tags_in_hunk_headers() -> Result<()> {
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(full_span(2, "Ａ")),
-        new_span: Some(full_span(102, "A")),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(full_span(2, "Ａ")),
+            new_span: Some(full_span(102, "A")),
+        }],
         confidence: Confidence::High,
         tags: vec![ChangeTag::CharacterWidth, ChangeTag::OcrConfusion],
     });
@@ -1316,15 +1344,19 @@ fn text_report_keeps_different_tag_sets_in_separate_hunks() -> Result<()> {
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(range_span(7, 0, 1)),
-        new_span: Some(range_span(107, 0, 1)),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(range_span(7, 0, 1)),
+            new_span: Some(range_span(107, 0, 1)),
+        }],
         confidence: Confidence::High,
         tags: vec![ChangeTag::CharacterWidth],
     });
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(range_span(7, 2, 3)),
-        new_span: Some(range_span(107, 2, 3)),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(range_span(7, 2, 3)),
+            new_span: Some(range_span(107, 2, 3)),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
@@ -1353,15 +1385,19 @@ fn text_report_coalesces_adjacent_edits_without_mutating_the_comparison() -> Res
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(range_span(7, 14, 15)),
-        new_span: Some(range_span(9, 14, 15)),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(range_span(7, 14, 15)),
+            new_span: Some(range_span(9, 14, 15)),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(range_span(7, 15, 16)),
-        new_span: Some(range_span(9, 15, 16)),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(range_span(7, 15, 16)),
+            new_span: Some(range_span(9, 15, 16)),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
@@ -1390,6 +1426,64 @@ fn text_report_coalesces_adjacent_edits_without_mutating_the_comparison() -> Res
 }
 
 #[test]
+fn text_report_groups_unsorted_occurrences_by_compatible_block_coordinates() -> Result<()> {
+    let old_blocks = vec![
+        block_with_text(7, "alpha Release 10 omega"),
+        block_with_text(8, "beta 3"),
+    ];
+    let new_blocks = vec![
+        block_with_text(107, "alpha Release 21 omega"),
+        block_with_text(108, "beta 4"),
+    ];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        occurrences: vec![
+            ChangeOccurrence {
+                old_span: Some(range_span(7, 15, 16)),
+                new_span: Some(range_span(107, 15, 16)),
+            },
+            ChangeOccurrence {
+                old_span: Some(range_span(8, 5, 6)),
+                new_span: Some(range_span(108, 5, 6)),
+            },
+            ChangeOccurrence {
+                old_span: Some(range_span(7, 14, 15)),
+                new_span: Some(range_span(107, 14, 15)),
+            },
+        ],
+        confidence: Confidence::High,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert!(
+        report.contains("old groups [block 7; block 8] -> new groups [block 107; block 108]"),
+        "{report}"
+    );
+    assert_eq!(
+        report.matches("- alpha Release 10 omega").count(),
+        1,
+        "{report}"
+    );
+    assert_eq!(
+        report.matches("+ alpha Release 21 omega").count(),
+        1,
+        "{report}"
+    );
+    assert_eq!(report.matches("- beta 3").count(), 1, "{report}");
+    assert_eq!(report.matches("+ beta 4").count(), 1, "{report}");
+    Ok(())
+}
+
+#[test]
 fn text_report_keeps_distant_edits_in_separate_hunks() -> Result<()> {
     let filler = "x".repeat(40);
     let old_text = format!("start {filler} middle {filler} end");
@@ -1398,15 +1492,19 @@ fn text_report_keeps_distant_edits_in_separate_hunks() -> Result<()> {
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(range_span(5, 0, 1)),
-        new_span: Some(range_span(105, 0, 1)),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(range_span(5, 0, 1)),
+            new_span: Some(range_span(105, 0, 1)),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(range_span(5, 88, 89)),
-        new_span: Some(range_span(105, 88, 89)),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(range_span(5, 88, 89)),
+            new_span: Some(range_span(105, 88, 89)),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
@@ -1440,8 +1538,10 @@ fn text_report_bounds_context_for_tiny_edits_inside_long_blocks() -> Result<()> 
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(range_span(11, 81, 82)),
-        new_span: Some(range_span(111, 81, 82)),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(range_span(11, 81, 82)),
+            new_span: Some(range_span(111, 81, 82)),
+        }],
         confidence: Confidence::Medium,
         tags: Vec::new(),
     });
@@ -1472,8 +1572,10 @@ fn text_report_renders_move_marker_and_locations() -> Result<()> {
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Move,
-        old_span: Some(full_span(3, "Shared paragraph text")),
-        new_span: Some(full_span(8, "Shared paragraph text")),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(full_span(3, "Shared paragraph text")),
+            new_span: Some(full_span(8, "Shared paragraph text")),
+        }],
         confidence: Confidence::Medium,
         tags: Vec::new(),
     });
@@ -1493,6 +1595,56 @@ fn text_report_renders_move_marker_and_locations() -> Result<()> {
     assert!(report.contains("~ moved from page 2 to page 5"), "{report}");
     assert!(
         report.contains("- Shared paragraph text\n+ Shared paragraph text"),
+        "{report}"
+    );
+    Ok(())
+}
+
+#[test]
+fn text_report_sorts_and_deduplicates_multi_occurrence_move_pages() -> Result<()> {
+    let old_blocks = vec![
+        block_with_pages(3, "First moved text", &[4]),
+        block_with_pages(4, "Second moved text", &[1]),
+    ];
+    let new_blocks = vec![
+        block_with_pages(8, "First moved text", &[5]),
+        block_with_pages(9, "Second moved text", &[2]),
+    ];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Move,
+        occurrences: vec![
+            ChangeOccurrence {
+                old_span: Some(full_span(3, "First moved text")),
+                new_span: Some(full_span(8, "First moved text")),
+            },
+            ChangeOccurrence {
+                old_span: Some(full_span(4, "Second moved text")),
+                new_span: Some(full_span(9, "Second moved text")),
+            },
+            ChangeOccurrence {
+                old_span: Some(full_span(3, "First moved text")),
+                new_span: Some(full_span(8, "First moved text")),
+            },
+        ],
+        confidence: Confidence::Medium,
+        tags: Vec::new(),
+    });
+
+    let report = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+
+    assert!(
+        report.contains("~ moved from pages 2,5 to pages 3,6"),
+        "{report}"
+    );
+    assert!(
+        report.contains("old groups [block 3; block 4] -> new groups [block 8; block 9]"),
         "{report}"
     );
     Ok(())
@@ -1592,8 +1744,10 @@ fn text_report_color_supplements_markers_and_can_be_disabled() -> Result<()> {
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(range_span(7, 14, 16)),
-        new_span: Some(range_span(9, 14, 16)),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(range_span(7, 14, 16)),
+            new_span: Some(range_span(9, 14, 16)),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
@@ -1656,13 +1810,15 @@ fn json_report_resolves_span_text_pages_and_unmapped_tokens() -> Result<()> {
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(TextSpan {
-            blocks: vec![BlockId(9)],
-            separator: None,
-            canonical_range: ScalarRange { start: 0, end: 2 },
-            comparable_range: TokenRange { start: 0, end: 4 },
-        }),
-        new_span: Some(full_span(109, "Release 20")),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(TextSpan {
+                blocks: vec![BlockId(9)],
+                separator: None,
+                canonical_range: ScalarRange { start: 0, end: 2 },
+                comparable_range: TokenRange { start: 0, end: 4 },
+            }),
+            new_span: Some(full_span(109, "Release 20")),
+        }],
         confidence: Confidence::Low,
         tags: vec![ChangeTag::OcrConfusion],
     });
@@ -1680,16 +1836,17 @@ fn json_report_resolves_span_text_pages_and_unmapped_tokens() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 7);
+    assert_eq!(json["schema_version"], 8);
     assert_eq!(json["changes"][0]["kind"], "replacement");
     assert_eq!(json["changes"][0]["confidence"], "low");
     assert_eq!(json["changes"][0]["tags"][0], "ocr_confusion");
-    assert_eq!(json["changes"][0]["old_span"]["blocks"][0], 9);
-    assert_eq!(json["changes"][0]["old_span"]["pages"][0], 4);
-    assert_eq!(json["changes"][0]["old_span"]["text"], "ab");
+    let old_span = &json["changes"][0]["occurrences"][0]["old_span"];
+    assert_eq!(old_span["blocks"][0], 9);
+    assert_eq!(old_span["pages"][0], 4);
+    assert_eq!(old_span["text"], "ab");
     // Two distinct unmapped glyphs keep their stable identity and their
     // order relative to the resolved scalars (leading and trailing).
-    let unmapped = &json["changes"][0]["old_span"]["unmapped_tokens"];
+    let unmapped = &old_span["unmapped_tokens"];
     assert_eq!(
         unmapped.as_array().expect("unmapped tokens").len(),
         2,
@@ -1701,10 +1858,11 @@ fn json_report_resolves_span_text_pages_and_unmapped_tokens() -> Result<()> {
     assert_eq!(unmapped[1]["scalar_offset"], 2);
     assert_eq!(unmapped[1]["font_hash"], "09");
     assert_eq!(unmapped[1]["glyph_id"], 11);
-    assert_eq!(json["changes"][0]["new_span"]["pages"][0], 0);
-    assert_eq!(json["changes"][0]["new_span"]["text"], "Release 20");
+    let new_span = &json["changes"][0]["occurrences"][0]["new_span"];
+    assert_eq!(new_span["pages"][0], 0);
+    assert_eq!(new_span["text"], "Release 20");
     assert_eq!(
-        json["changes"][0]["new_span"]["unmapped_tokens"]
+        new_span["unmapped_tokens"]
             .as_array()
             .expect("unmapped tokens")
             .len(),
@@ -1720,13 +1878,15 @@ fn text_report_marks_unmapped_glyph_positions_in_order() -> Result<()> {
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(TextSpan {
-            blocks: vec![BlockId(9)],
-            separator: None,
-            canonical_range: ScalarRange { start: 0, end: 2 },
-            comparable_range: TokenRange { start: 0, end: 4 },
-        }),
-        new_span: Some(full_span(109, "Release 20")),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(TextSpan {
+                blocks: vec![BlockId(9)],
+                separator: None,
+                canonical_range: ScalarRange { start: 0, end: 2 },
+                comparable_range: TokenRange { start: 0, end: 4 },
+            }),
+            new_span: Some(full_span(109, "Release 20")),
+        }],
         confidence: Confidence::Low,
         tags: Vec::new(),
     });
@@ -1757,20 +1917,22 @@ fn text_report_renders_pure_unmapped_replacement_in_the_changed_segment() -> Res
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        // Unmapped-only edits legally carry a zero-width canonical range;
-        // the changed segment must still identify both placeholders.
-        old_span: Some(TextSpan {
-            blocks: vec![BlockId(9)],
-            separator: None,
-            canonical_range: ScalarRange { start: 0, end: 0 },
-            comparable_range: TokenRange { start: 0, end: 1 },
-        }),
-        new_span: Some(TextSpan {
-            blocks: vec![BlockId(109)],
-            separator: None,
-            canonical_range: ScalarRange { start: 0, end: 0 },
-            comparable_range: TokenRange { start: 0, end: 1 },
-        }),
+        occurrences: vec![ChangeOccurrence {
+            // Unmapped-only edits legally carry a zero-width canonical range;
+            // the changed segment must still identify both placeholders.
+            old_span: Some(TextSpan {
+                blocks: vec![BlockId(9)],
+                separator: None,
+                canonical_range: ScalarRange { start: 0, end: 0 },
+                comparable_range: TokenRange { start: 0, end: 1 },
+            }),
+            new_span: Some(TextSpan {
+                blocks: vec![BlockId(109)],
+                separator: None,
+                canonical_range: ScalarRange { start: 0, end: 0 },
+                comparable_range: TokenRange { start: 0, end: 1 },
+            }),
+        }],
         confidence: Confidence::Low,
         tags: Vec::new(),
     });
@@ -1807,8 +1969,10 @@ fn text_report_rejects_spans_that_exceed_the_block_evidence() -> Result<()> {
     let mut comparable_overrun = empty_comparison();
     comparable_overrun.changes.push(Change {
         kind: ChangeKind::Deletion,
-        old_span: Some(range_span(7, 0, 9)),
-        new_span: None,
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(range_span(7, 0, 9)),
+            new_span: None,
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
@@ -1828,13 +1992,15 @@ fn text_report_rejects_spans_that_exceed_the_block_evidence() -> Result<()> {
     let mut canonical_overrun = empty_comparison();
     canonical_overrun.changes.push(Change {
         kind: ChangeKind::Deletion,
-        old_span: Some(TextSpan {
-            blocks: vec![BlockId(7)],
-            separator: None,
-            canonical_range: ScalarRange { start: 0, end: 9 },
-            comparable_range: TokenRange { start: 0, end: 3 },
-        }),
-        new_span: None,
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(TextSpan {
+                blocks: vec![BlockId(7)],
+                separator: None,
+                canonical_range: ScalarRange { start: 0, end: 9 },
+                comparable_range: TokenRange { start: 0, end: 3 },
+            }),
+            new_span: None,
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
@@ -1864,15 +2030,19 @@ fn text_report_rejects_out_of_range_second_coalesced_span() -> Result<()> {
         let mut comparison = empty_comparison();
         comparison.changes.push(Change {
             kind: ChangeKind::Deletion,
-            old_span: Some(range_span(7, 0, 1)),
-            new_span: None,
+            occurrences: vec![ChangeOccurrence {
+                old_span: Some(range_span(7, 0, 1)),
+                new_span: None,
+            }],
             confidence: Confidence::High,
             tags: Vec::new(),
         });
         comparison.changes.push(Change {
             kind: ChangeKind::Deletion,
-            old_span: Some(second),
-            new_span: None,
+            occurrences: vec![ChangeOccurrence {
+                old_span: Some(second),
+                new_span: None,
+            }],
             confidence: Confidence::High,
             tags: Vec::new(),
         });
@@ -1933,17 +2103,21 @@ fn separator_mismatch_keeps_adjacent_edits_in_separate_hunks() -> Result<()> {
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(group_span(&[1, 2], Some(BlockSeparator::Space))),
-        new_span: Some(group_span(&[101, 102], Some(BlockSeparator::Space))),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(group_span(&[1, 2], Some(BlockSeparator::Space))),
+            new_span: Some(group_span(&[101, 102], Some(BlockSeparator::Space))),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        // Same blocks but a different separator means a different coordinate
-        // system, so the adjacent edit must not coalesce into one hunk.
-        old_span: Some(group_span(&[1, 2], Some(BlockSeparator::Concatenate))),
-        new_span: Some(group_span(&[101, 102], Some(BlockSeparator::Concatenate))),
+        occurrences: vec![ChangeOccurrence {
+            // Same blocks but a different separator means a different coordinate
+            // system, so the adjacent edit must not coalesce into one hunk.
+            old_span: Some(group_span(&[1, 2], Some(BlockSeparator::Concatenate))),
+            new_span: Some(group_span(&[101, 102], Some(BlockSeparator::Concatenate))),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
@@ -1982,8 +2156,10 @@ fn content_comparison() -> Comparison {
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(span(1, 1, 2, 1, 2)),
-        new_span: Some(span(101, 1, 2, 1, 2)),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(span(1, 1, 2, 1, 2)),
+            new_span: Some(span(101, 1, 2, 1, 2)),
+        }],
         confidence: Confidence::Low,
         tags: vec![ChangeTag::CharacterWidth],
     });
@@ -2615,8 +2791,10 @@ fn text_and_json_report_renders_promoted_move_with_formatting_normalization_chan
     let mut comparison = empty_comparison();
     comparison.changes.push(Change {
         kind: ChangeKind::Move,
-        old_span: Some(full_span(3, "Moved paragraph text line one line two")),
-        new_span: Some(full_span(8, "Moved paragraph text line one line two")),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(full_span(3, "Moved paragraph text line one line two")),
+            new_span: Some(full_span(8, "Moved paragraph text line one line two")),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
@@ -2704,8 +2882,10 @@ fn text_report_handles_max_page_id_without_overflow() -> Result<()> {
     comparison.new_coverage.resolved_tokens = new_tokens;
     comparison.changes.push(Change {
         kind: ChangeKind::Replacement,
-        old_span: Some(full_span(1, "Old block on max page")),
-        new_span: Some(full_span(101, "New block on max page")),
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(full_span(1, "Old block on max page")),
+            new_span: Some(full_span(101, "New block on max page")),
+        }],
         confidence: Confidence::High,
         tags: Vec::new(),
     });
@@ -2886,15 +3066,19 @@ fn reports_render_and_serialize_calibrated_confidence_levels() -> Result<()> {
         changes: vec![
             Change {
                 kind: ChangeKind::Replacement,
-                old_span: Some(full_span(2, "Strong fuzzy block text")),
-                new_span: Some(full_span(102, "Strong fuzzy edited text")),
+                occurrences: vec![ChangeOccurrence {
+                    old_span: Some(full_span(2, "Strong fuzzy block text")),
+                    new_span: Some(full_span(102, "Strong fuzzy edited text")),
+                }],
                 confidence: Confidence::Medium,
                 tags: Vec::new(),
             },
             Change {
                 kind: ChangeKind::Replacement,
-                old_span: Some(full_span(3, "Weak fuzzy block text")),
-                new_span: Some(full_span(103, "Weak fuzzy edited text")),
+                occurrences: vec![ChangeOccurrence {
+                    old_span: Some(full_span(3, "Weak fuzzy block text")),
+                    new_span: Some(full_span(103, "Weak fuzzy edited text")),
+                }],
                 confidence: Confidence::Low,
                 tags: Vec::new(),
             },

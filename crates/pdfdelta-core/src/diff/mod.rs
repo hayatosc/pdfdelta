@@ -60,12 +60,56 @@ pub struct TextSpan {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Change {
-    pub kind: ChangeKind,
+pub struct ChangeOccurrence {
     pub old_span: Option<TextSpan>,
     pub new_span: Option<TextSpan>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Change {
+    pub kind: ChangeKind,
+    pub occurrences: Vec<ChangeOccurrence>,
     pub confidence: Confidence,
     pub tags: Vec<ChangeTag>,
+}
+
+impl Change {
+    /// Creates a change containing exactly one occurrence.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the span shape does not match `kind`.
+    pub fn single_occurrence(
+        kind: ChangeKind,
+        old_span: Option<TextSpan>,
+        new_span: Option<TextSpan>,
+        confidence: Confidence,
+        tags: Vec<ChangeTag>,
+    ) -> Self {
+        assert!(valid_change_occurrence_shape(
+            kind,
+            old_span.as_ref(),
+            new_span.as_ref()
+        ));
+        Self {
+            kind,
+            occurrences: vec![ChangeOccurrence { old_span, new_span }],
+            confidence,
+            tags,
+        }
+    }
+}
+
+pub(crate) fn valid_change_occurrence_shape(
+    kind: ChangeKind,
+    old_span: Option<&TextSpan>,
+    new_span: Option<&TextSpan>,
+) -> bool {
+    match kind {
+        ChangeKind::Replacement | ChangeKind::Move => old_span.is_some() && new_span.is_some(),
+        ChangeKind::Insertion => old_span.is_none() && new_span.is_some(),
+        ChangeKind::Deletion => old_span.is_some() && new_span.is_none(),
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -350,13 +394,13 @@ fn compare_aligned_inner(
                     let new_tokens = new.source_token_count(&new_blocks);
                     resolved_old += old_tokens;
                     resolved_new += new_tokens;
-                    changes.push(Change {
-                        kind: ChangeKind::Move,
-                        old_span: Some(old.canonical_group(&span.old, None).full_span()),
-                        new_span: Some(new.canonical_group(&new_blocks, None).full_span()),
-                        confidence: promoted.confidence,
-                        tags: Vec::new(),
-                    });
+                    changes.push(Change::single_occurrence(
+                        ChangeKind::Move,
+                        Some(old.canonical_group(&span.old, None).full_span()),
+                        Some(new.canonical_group(&new_blocks, None).full_span()),
+                        promoted.confidence,
+                        Vec::new(),
+                    ));
                     let old_raw = old.raw_group(&span.old, None)?;
                     let new_raw = new.raw_group(&new_blocks, None)?;
                     if old_raw.tokens != new_raw.tokens {
@@ -373,13 +417,13 @@ fn compare_aligned_inner(
                 resolved_old += source_tokens;
                 if source_tokens > 0 {
                     let group = old.canonical_group(&span.old, span.old_separator);
-                    changes.push(Change {
-                        kind: ChangeKind::Deletion,
-                        old_span: Some(group.full_span()),
-                        new_span: None,
-                        confidence: span.confidence.into(),
-                        tags: Vec::new(),
-                    });
+                    changes.push(Change::single_occurrence(
+                        ChangeKind::Deletion,
+                        Some(group.full_span()),
+                        None,
+                        span.confidence.into(),
+                        Vec::new(),
+                    ));
                 }
             }
             AlignmentKind::Insertion => {
@@ -390,13 +434,13 @@ fn compare_aligned_inner(
                 resolved_new += source_tokens;
                 if source_tokens > 0 {
                     let group = new.canonical_group(&span.new, span.new_separator);
-                    changes.push(Change {
-                        kind: ChangeKind::Insertion,
-                        old_span: None,
-                        new_span: Some(group.full_span()),
-                        confidence: span.confidence.into(),
-                        tags: Vec::new(),
-                    });
+                    changes.push(Change::single_occurrence(
+                        ChangeKind::Insertion,
+                        None,
+                        Some(group.full_span()),
+                        span.confidence.into(),
+                        Vec::new(),
+                    ));
                 }
             }
             AlignmentKind::Unresolved => {
@@ -937,13 +981,13 @@ fn prepare_recovered_changes(
             ChangeKind::Insertion => (None, Some(span)),
             ChangeKind::Replacement | ChangeKind::Move => return None,
         };
-        changes.push(Change {
+        changes.push(Change::single_occurrence(
             kind,
             old_span,
             new_span,
-            confidence: Confidence::High,
-            tags: Vec::new(),
-        });
+            Confidence::High,
+            Vec::new(),
+        ));
     }
     Some(resolved)
 }
@@ -971,13 +1015,13 @@ fn prepare_recovered_replacements(
         if !output_budget.charge(estimated_change_bytes(block_count)?) {
             return None;
         }
-        changes.push(Change {
-            kind: ChangeKind::Replacement,
-            old_span: Some(recovered_text_span(&replacement.old)?),
-            new_span: Some(recovered_text_span(&replacement.new)?),
-            confidence: Confidence::High,
-            tags: Vec::new(),
-        });
+        changes.push(Change::single_occurrence(
+            ChangeKind::Replacement,
+            Some(recovered_text_span(&replacement.old)?),
+            Some(recovered_text_span(&replacement.new)?),
+            Confidence::High,
+            Vec::new(),
+        ));
     }
     Some((resolved_old, resolved_new))
 }
@@ -1000,7 +1044,7 @@ fn recovered_old_change_key(
     if !matches!(change.kind, ChangeKind::Deletion | ChangeKind::Replacement) {
         return None;
     }
-    let span = change.old_span.as_ref()?;
+    let span = change.occurrences.first()?.old_span.as_ref()?;
     let block = span.blocks.first()?;
     Some((
         *side.index.get(block)?,
@@ -1674,12 +1718,14 @@ fn append_line_grouped_changes(
     changes: &mut Vec<Change>,
 ) {
     changes.reserve(grouped.len());
-    changes.extend(grouped.into_iter().map(|(old_range, new_range)| Change {
-        kind: ChangeKind::Replacement,
-        old_span: Some(old.span(old_range.start, old_range.end)),
-        new_span: Some(new.span(new_range.start, new_range.end)),
-        confidence,
-        tags: Vec::new(),
+    changes.extend(grouped.into_iter().map(|(old_range, new_range)| {
+        Change::single_occurrence(
+            ChangeKind::Replacement,
+            Some(old.span(old_range.start, old_range.end)),
+            Some(new.span(new_range.start, new_range.end)),
+            confidence,
+            Vec::new(),
+        )
     }));
 }
 
@@ -1939,13 +1985,13 @@ fn flush_hunk(
     .then_some(ChangeTag::CharacterWidth)
     .into_iter()
     .collect();
-    changes.push(Change {
+    changes.push(Change::single_occurrence(
         kind,
-        old_span: old_changed.then(|| old.span(old_start, old_end)),
-        new_span: new_changed.then(|| new.span(new_start, new_end)),
+        old_changed.then(|| old.span(old_start, old_end)),
+        new_changed.then(|| new.span(new_start, new_end)),
         confidence,
         tags,
-    });
+    ));
 }
 
 fn change_kind(
@@ -2704,14 +2750,20 @@ mod tests {
                 .iter()
                 .all(|change| change.kind == ChangeKind::Replacement)
         );
-        assert_eq!(changes[0].old_span, Some(old.span(0, old_stage.len())));
-        assert_eq!(changes[0].new_span, Some(new.span(0, new_stage.len())));
         assert_eq!(
-            changes[1].old_span,
+            changes[0].occurrences[0].old_span,
+            Some(old.span(0, old_stage.len()))
+        );
+        assert_eq!(
+            changes[0].occurrences[0].new_span,
+            Some(new.span(0, new_stage.len()))
+        );
+        assert_eq!(
+            changes[1].occurrences[0].old_span,
             Some(old.span(old_stage.len() + 1, old.tokens.len()))
         );
         assert_eq!(
-            changes[1].new_span,
+            changes[1].occurrences[0].new_span,
             Some(new.span(new_stage.len() + 1, new.tokens.len() - 1))
         );
     }
@@ -2898,8 +2950,10 @@ mod tests {
             deletion.changes,
             vec![Change {
                 kind: ChangeKind::Deletion,
-                old_span: Some(test_span(1, sentence_start, sentence_end)),
-                new_span: None,
+                occurrences: vec![ChangeOccurrence {
+                    old_span: Some(test_span(1, sentence_start, sentence_end)),
+                    new_span: None,
+                }],
                 confidence: Confidence::High,
                 tags: Vec::new(),
             }]
@@ -2932,8 +2986,10 @@ mod tests {
             insertion.changes,
             vec![Change {
                 kind: ChangeKind::Insertion,
-                old_span: None,
-                new_span: Some(test_span(4, sentence_start, sentence_end)),
+                occurrences: vec![ChangeOccurrence {
+                    old_span: None,
+                    new_span: Some(test_span(4, sentence_start, sentence_end)),
+                }],
                 confidence: Confidence::High,
                 tags: Vec::new(),
             }]
@@ -3052,11 +3108,11 @@ mod tests {
         assert_eq!(result.changes.len(), 1);
         assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
         assert_eq!(
-            result.changes[0].old_span,
+            result.changes[0].occurrences[0].old_span,
             Some(test_span(2, 0, old_clause.chars().count()))
         );
         assert_eq!(
-            result.changes[0].new_span,
+            result.changes[0].occurrences[0].new_span,
             Some(test_span(102, 0, new_clause.chars().count()))
         );
     }
@@ -3081,11 +3137,11 @@ mod tests {
         assert_eq!(result.changes.len(), 1);
         assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
         assert_eq!(
-            result.changes[0].old_span,
+            result.changes[0].occurrences[0].old_span,
             Some(test_span(2, 0, old_date.chars().count()))
         );
         assert_eq!(
-            result.changes[0].new_span,
+            result.changes[0].occurrences[0].new_span,
             Some(test_span(102, 0, new_date.chars().count()))
         );
     }
@@ -3129,11 +3185,11 @@ mod tests {
         assert_eq!(result.changes.len(), 1);
         assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
         assert_eq!(
-            result.changes[0].old_span,
+            result.changes[0].occurrences[0].old_span,
             Some(test_span(1, 0, old_stamp.chars().count()))
         );
         assert_eq!(
-            result.changes[0].new_span,
+            result.changes[0].occurrences[0].new_span,
             Some(test_span(101, 0, new_stamp.chars().count()))
         );
         assert_eq!(
@@ -3373,12 +3429,14 @@ mod tests {
             result.changes,
             vec![Change {
                 kind: ChangeKind::Deletion,
-                old_span: Some(test_span(
-                    recovered_block.0,
-                    0,
-                    recovered_text.chars().count(),
-                )),
-                new_span: None,
+                occurrences: vec![ChangeOccurrence {
+                    old_span: Some(test_span(
+                        recovered_block.0,
+                        0,
+                        recovered_text.chars().count(),
+                    )),
+                    new_span: None,
+                }],
                 confidence: Confidence::High,
                 tags: Vec::new(),
             }]
@@ -3460,15 +3518,19 @@ mod tests {
             vec![
                 Change {
                     kind: ChangeKind::Deletion,
-                    old_span: Some(test_span(3, first_recovered.start, first_recovered.end,)),
-                    new_span: None,
+                    occurrences: vec![ChangeOccurrence {
+                        old_span: Some(test_span(3, first_recovered.start, first_recovered.end,)),
+                        new_span: None,
+                    }],
                     confidence: Confidence::High,
                     tags: Vec::new(),
                 },
                 Change {
                     kind: ChangeKind::Deletion,
-                    old_span: Some(test_span(3, second_recovered.start, second_recovered.end,)),
-                    new_span: None,
+                    occurrences: vec![ChangeOccurrence {
+                        old_span: Some(test_span(3, second_recovered.start, second_recovered.end,)),
+                        new_span: None,
+                    }],
                     confidence: Confidence::High,
                     tags: Vec::new(),
                 },
@@ -3607,7 +3669,7 @@ mod tests {
             assert_eq!(result.changes.len(), 1);
             assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
             assert_eq!(
-                result.changes[0].old_span,
+                result.changes[0].occurrences[0].old_span,
                 Some(test_span(
                     old[0].block.0,
                     0,
@@ -3615,7 +3677,7 @@ mod tests {
                 ))
             );
             assert_eq!(
-                result.changes[0].new_span,
+                result.changes[0].occurrences[0].new_span,
                 Some(test_span(
                     new[0].block.0,
                     0,
@@ -3663,8 +3725,10 @@ mod tests {
             result.changes,
             vec![Change {
                 kind: ChangeKind::Replacement,
-                old_span: Some(test_span(12, old_start, old_end)),
-                new_span: Some(test_span(13, new_start, new_end)),
+                occurrences: vec![ChangeOccurrence {
+                    old_span: Some(test_span(12, old_start, old_end)),
+                    new_span: Some(test_span(13, new_start, new_end)),
+                }],
                 confidence: Confidence::High,
                 tags: Vec::new(),
             }]
@@ -3744,7 +3808,7 @@ mod tests {
                 .changes
                 .iter()
                 .map(|change| {
-                    change
+                    change.occurrences[0]
                         .old_span
                         .as_ref()
                         .expect("old-side recovery has an old span")
@@ -3759,7 +3823,7 @@ mod tests {
                 .find(|change| change.kind == ChangeKind::Replacement)
                 .expect("unique near pair becomes a replacement");
             assert_eq!(
-                replacement.new_span,
+                replacement.occurrences[0].new_span,
                 Some(test_span(15, 0, replacement_new.chars().count()))
             );
             assert_eq!(
@@ -3872,8 +3936,14 @@ mod tests {
 
             assert_eq!(result.changes.len(), 1);
             assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
-            assert_eq!(result.changes[0].old_span, Some(expected_old));
-            assert_eq!(result.changes[0].new_span, Some(expected_new));
+            assert_eq!(
+                result.changes[0].occurrences[0].old_span,
+                Some(expected_old)
+            );
+            assert_eq!(
+                result.changes[0].occurrences[0].new_span,
+                Some(expected_new)
+            );
             assert!(result.unresolved_regions.is_empty());
             assert_eq!(
                 result.old_coverage.resolved_tokens,
@@ -4774,12 +4844,12 @@ mod tests {
             assert_eq!(result.changes.len(), 2);
             assert_eq!(result.changes[0].kind, ChangeKind::Deletion);
             assert_eq!(
-                result.changes[0].old_span,
+                result.changes[0].occurrences[0].old_span,
                 Some(test_span(10, 0, first.chars().count()))
             );
             assert_eq!(result.changes[1].kind, ChangeKind::Deletion);
             assert_eq!(
-                result.changes[1].old_span,
+                result.changes[1].occurrences[0].old_span,
                 Some(test_span(11, 0, second.chars().count()))
             );
             assert!(result.unresolved_regions.is_empty());
@@ -4805,7 +4875,7 @@ mod tests {
         );
 
         assert_eq!(result.changes.len(), 1);
-        let span = result.changes[0]
+        let span = result.changes[0].occurrences[0]
             .old_span
             .as_ref()
             .expect("joined old sentence has a span");
@@ -4886,8 +4956,10 @@ mod tests {
             result.changes,
             vec![Change {
                 kind: ChangeKind::Replacement,
-                old_span: Some(test_span(21, 0, old_parameter.chars().count())),
-                new_span: Some(test_span(23, 0, new_parameter.chars().count())),
+                occurrences: vec![ChangeOccurrence {
+                    old_span: Some(test_span(21, 0, old_parameter.chars().count())),
+                    new_span: Some(test_span(23, 0, new_parameter.chars().count())),
+                }],
                 confidence: Confidence::High,
                 tags: Vec::new(),
             }]
@@ -5294,11 +5366,11 @@ mod tests {
         assert_eq!(result.changes.len(), 1);
         assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
         assert_eq!(
-            result.changes[0].old_span,
+            result.changes[0].occurrences[0].old_span,
             Some(test_span(2, 0, full.chars().count()))
         );
         assert_eq!(
-            result.changes[0].new_span,
+            result.changes[0].occurrences[0].new_span,
             Some(test_span(103, 0, suffix.chars().count()))
         );
     }
@@ -5388,11 +5460,11 @@ mod tests {
         assert_eq!(result.changes.len(), 1);
         assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
         assert_eq!(
-            result.changes[0].old_span,
+            result.changes[0].occurrences[0].old_span,
             Some(test_span(2, 0, old_clause.chars().count()))
         );
         assert_eq!(
-            result.changes[0].new_span,
+            result.changes[0].occurrences[0].new_span,
             Some(test_span(102, 0, new_clause.chars().count()))
         );
     }
@@ -5434,11 +5506,11 @@ mod tests {
         assert_eq!(result.changes.len(), 1);
         assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
         assert_eq!(
-            result.changes[0].old_span,
+            result.changes[0].occurrences[0].old_span,
             Some(test_span(1, 0, full.chars().count()))
         );
         assert_eq!(
-            result.changes[0].new_span,
+            result.changes[0].occurrences[0].new_span,
             Some(test_span(101, 0, suffix.chars().count()))
         );
     }
@@ -5564,9 +5636,9 @@ mod tests {
                 }
             );
             let span = if reverse {
-                change.new_span.as_ref()
+                change.occurrences[0].new_span.as_ref()
             } else {
-                change.old_span.as_ref()
+                change.occurrences[0].old_span.as_ref()
             }
             .expect("the recovered side has one multi-block span");
             assert_eq!(span.blocks, [BlockId(1), BlockId(2)]);
@@ -5948,9 +6020,15 @@ mod tests {
             .map(|change| {
                 assert_eq!(change.kind, expected_kind);
                 let (recovered, absent) = if reverse {
-                    (&change.new_span, &change.old_span)
+                    (
+                        &change.occurrences[0].new_span,
+                        &change.occurrences[0].old_span,
+                    )
                 } else {
-                    (&change.old_span, &change.new_span)
+                    (
+                        &change.occurrences[0].old_span,
+                        &change.occurrences[0].new_span,
+                    )
                 };
                 assert!(absent.is_none());
                 let recovered = recovered

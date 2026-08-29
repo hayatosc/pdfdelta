@@ -414,21 +414,28 @@ fn validate_issue_scopes(
 
 fn validate_comparison(comparison: &Comparison) -> Result<()> {
     for change in &comparison.changes {
-        let valid_shape = match change.kind {
-            ChangeKind::Replacement | ChangeKind::Move => {
-                change.old_span.is_some() && change.new_span.is_some()
-            }
-            ChangeKind::Insertion => change.old_span.is_none() && change.new_span.is_some(),
-            ChangeKind::Deletion => change.old_span.is_some() && change.new_span.is_none(),
-        };
-        if !valid_shape {
+        if change.occurrences.is_empty() {
+            return Err(Error::InvalidConfiguration(format!(
+                "{:?} changes require at least one occurrence",
+                change.kind
+            )));
+        }
+        if change.occurrences.iter().any(|occurrence| {
+            !crate::diff::valid_change_occurrence_shape(
+                change.kind,
+                occurrence.old_span.as_ref(),
+                occurrence.new_span.as_ref(),
+            )
+        }) {
             return Err(Error::InvalidConfiguration(format!(
                 "invalid {:?} change span shape",
                 change.kind
             )));
         }
-        for span in change.old_span.iter().chain(change.new_span.iter()) {
-            validate_change_span(span)?;
+        for occurrence in &change.occurrences {
+            for span in occurrence.old_span.iter().chain(occurrence.new_span.iter()) {
+                validate_change_span(span)?;
+            }
         }
     }
 

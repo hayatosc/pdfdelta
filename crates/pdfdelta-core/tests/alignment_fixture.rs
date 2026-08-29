@@ -2657,8 +2657,8 @@ fn relocated_paragraph_across_stable_anchors_promotes_to_move_change() {
         1,
         "Relocated unique paragraph must promote to Move"
     );
-    assert!(moves[0].old_span.is_some());
-    assert!(moves[0].new_span.is_some());
+    assert!(moves[0].occurrences[0].old_span.is_some());
+    assert!(moves[0].occurrences[0].new_span.is_some());
 }
 
 #[test]
@@ -3036,11 +3036,19 @@ fn relocated_stable_unmapped_block_promotes_to_move_change() {
         "Relocated unique unmapped block must promote to Move"
     );
     assert_eq!(
-        moves[0].old_span.as_ref().expect("old span").blocks,
+        moves[0].occurrences[0]
+            .old_span
+            .as_ref()
+            .expect("old span")
+            .blocks,
         vec![BlockId(2)]
     );
     assert_eq!(
-        moves[0].new_span.as_ref().expect("new span").blocks,
+        moves[0].occurrences[0]
+            .new_span
+            .as_ref()
+            .expect("new span")
+            .blocks,
         vec![BlockId(102)]
     );
     assert!(diff.formatting_changes.is_empty());
@@ -3279,7 +3287,8 @@ fn confidence_calibration_end_to_end_across_alignment_and_diff() -> Result<()> {
         .changes
         .iter()
         .find(|c| {
-            c.old_span
+            c.occurrences[0]
+                .old_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(2)])
         })
@@ -3291,7 +3300,8 @@ fn confidence_calibration_end_to_end_across_alignment_and_diff() -> Result<()> {
         .changes
         .iter()
         .find(|c| {
-            c.old_span
+            c.occurrences[0]
+                .old_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(4)])
         })
@@ -3303,7 +3313,8 @@ fn confidence_calibration_end_to_end_across_alignment_and_diff() -> Result<()> {
         .changes
         .iter()
         .find(|c| {
-            c.new_span
+            c.occurrences[0]
+                .new_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(105)])
         })
@@ -3315,7 +3326,8 @@ fn confidence_calibration_end_to_end_across_alignment_and_diff() -> Result<()> {
         .changes
         .iter()
         .find(|c| {
-            c.old_span
+            c.occurrences[0]
+                .old_span
                 .as_ref()
                 .is_some_and(|s| s.blocks == [BlockId(7)])
         })
@@ -3514,7 +3526,7 @@ fn real_dp_competing_margin_calibrates_deletion_to_low_confidence() -> Result<()
         .expect("deletion change must be present");
     assert_eq!(del_change.confidence, Confidence::Low);
     assert_eq!(
-        del_change
+        del_change.occurrences[0]
             .old_span
             .as_ref()
             .expect("old span present")
@@ -3629,7 +3641,7 @@ fn real_dp_competing_margin_calibrates_insertion_to_low_confidence() -> Result<(
         .expect("insertion change must be present");
     assert_eq!(ins_change.confidence, Confidence::Low);
     assert_eq!(
-        ins_change
+        ins_change.occurrences[0]
             .new_span
             .as_ref()
             .expect("new span present")
@@ -3757,7 +3769,7 @@ fn real_dp_competing_margin_with_secondary_anchor_preserves_exact_structure_and_
         .expect("contested deletion must be reported");
     assert_eq!(deletion.confidence, Confidence::Low);
     assert_eq!(
-        deletion
+        deletion.occurrences[0]
             .old_span
             .as_ref()
             .expect("deletion must have an old span")
@@ -3767,13 +3779,13 @@ fn real_dp_competing_margin_with_secondary_anchor_preserves_exact_structure_and_
 
     // The exact secondary anchor (block 4 -> 103) must not emit any changes.
     for change in &diff.changes {
-        if let Some(old_span) = &change.old_span {
+        if let Some(old_span) = &change.occurrences[0].old_span {
             assert!(
                 !old_span.blocks.contains(&BlockId(4)),
                 "Exact secondary anchor block 4 must not have changes"
             );
         }
-        if let Some(new_span) = &change.new_span {
+        if let Some(new_span) = &change.occurrences[0].new_span {
             assert!(
                 !new_span.blocks.contains(&BlockId(103)),
                 "Exact secondary anchor block 103 must not have changes"

@@ -76,11 +76,15 @@ pub const MANIFEST_HEADER: [&str; 17] = [
 
 const SHA256_HEX_LEN: usize = 64;
 
-/// A reported change flattened to the texts a human reviewer compares against
-/// expected quotes.
+/// One reported semantic change and every location where it occurs.
 #[derive(Debug)]
 pub struct ActualChange {
     pub kind: ChangeKind,
+    pub occurrences: Vec<ActualChangeOccurrence>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ActualChangeOccurrence {
     pub old_text: Option<String>,
     pub new_text: Option<String>,
     pub old_comparable_len: Option<usize>,
@@ -105,6 +109,7 @@ pub struct QualityMetrics {
     /// `Complete` annotations where every semantic change was reviewed.
     pub review_hunks_per_expected_change: Option<f64>,
     pub unmatched_tiny_changes: usize,
+    /// Occurrences with at least one existing side that could not be resolved.
     pub unresolvable_reported_spans: usize,
 }
 
@@ -502,11 +507,6 @@ struct MatchOutcome {
     claimed_actual_by_expected: Vec<Option<usize>>,
 }
 
-struct ActualTexts {
-    old: Option<String>,
-    new: Option<String>,
-}
-
 pub fn parse_manifest(manifest: &str) -> Result<Vec<RevisionPair>> {
     let mut pairs = Vec::new();
     let mut seen_ids = HashSet::new();
@@ -833,29 +833,39 @@ fn flatten_actual_changes(
         .changes
         .iter()
         .map(|change| {
-            let old_resolved = change
-                .old_span
-                .as_ref()
-                .map(|span| resolve_span(blocks_by_side[0], span));
-            let new_resolved = change
-                .new_span
-                .as_ref()
-                .map(|span| resolve_span(blocks_by_side[1], span));
-            let resolvable = old_resolved.as_ref().is_none_or(Option::is_some)
-                && new_resolved.as_ref().is_none_or(Option::is_some);
-            let unwrap_resolved = |resolved: Option<Option<(String, usize)>>| match resolved {
-                Some(Some((text, len))) => (Some(collapse_whitespace(&text)), Some(len)),
-                _ => (None, None),
-            };
-            let (old_text, old_len) = unwrap_resolved(old_resolved);
-            let (new_text, new_len) = unwrap_resolved(new_resolved);
+            let occurrences = change
+                .occurrences
+                .iter()
+                .map(|occurrence| {
+                    let old_resolved = occurrence
+                        .old_span
+                        .as_ref()
+                        .map(|span| resolve_span(blocks_by_side[0], span));
+                    let new_resolved = occurrence
+                        .new_span
+                        .as_ref()
+                        .map(|span| resolve_span(blocks_by_side[1], span));
+                    let resolvable = old_resolved.as_ref().is_none_or(Option::is_some)
+                        && new_resolved.as_ref().is_none_or(Option::is_some);
+                    let unwrap_resolved = |resolved: Option<Option<(String, usize)>>| match resolved
+                    {
+                        Some(Some((text, len))) => (Some(collapse_whitespace(&text)), Some(len)),
+                        _ => (None, None),
+                    };
+                    let (old_text, old_comparable_len) = unwrap_resolved(old_resolved);
+                    let (new_text, new_comparable_len) = unwrap_resolved(new_resolved);
+                    ActualChangeOccurrence {
+                        old_text,
+                        new_text,
+                        old_comparable_len,
+                        new_comparable_len,
+                        resolvable,
+                    }
+                })
+                .collect();
             ActualChange {
                 kind: change.kind,
-                old_text,
-                new_text,
-                old_comparable_len: old_len,
-                new_comparable_len: new_len,
-                resolvable,
+                occurrences,
             }
         })
         .collect()
@@ -870,26 +880,24 @@ fn contains_needle(haystack: Option<&str>, needle: Option<&str>) -> bool {
 }
 
 fn match_changes(expected: &[ExpectedChange], actuals: &[ActualChange]) -> MatchOutcome {
-    let collapsed_actuals: Vec<ActualTexts> = actuals
-        .iter()
-        .map(|change| ActualTexts {
-            old: change.old_text.as_deref().map(collapse_whitespace),
-            new: change.new_text.as_deref().map(collapse_whitespace),
-        })
-        .collect();
     let mut claimed_actuals = HashSet::new();
     let mut claimed_actual_by_expected = vec![None; expected.len()];
     let mut kind_agreements = 0_usize;
     for (expected_index, change) in expected.iter().enumerate() {
         let needle_old = change.old_quote.as_deref().map(collapse_whitespace);
         let needle_new = change.new_quote.as_deref().map(collapse_whitespace);
-        for (index, actual) in collapsed_actuals.iter().enumerate() {
-            if claimed_actuals.contains(&index) || !actuals[index].resolvable {
+        for (index, actual) in actuals.iter().enumerate() {
+            if claimed_actuals.contains(&index) {
                 continue;
             }
-            let old_ok = contains_needle(actual.old.as_deref(), needle_old.as_deref());
-            let new_ok = contains_needle(actual.new.as_deref(), needle_new.as_deref());
-            if old_ok && new_ok {
+            let matches_occurrence = actual.occurrences.iter().any(|occurrence| {
+                let old = occurrence.old_text.as_deref().map(collapse_whitespace);
+                let new = occurrence.new_text.as_deref().map(collapse_whitespace);
+                occurrence.resolvable
+                    && contains_needle(old.as_deref(), needle_old.as_deref())
+                    && contains_needle(new.as_deref(), needle_new.as_deref())
+            });
+            if matches_occurrence {
                 claimed_actuals.insert(index);
                 claimed_actual_by_expected[expected_index] = Some(index);
                 if change.kind.agrees_with(actuals[index].kind) {
@@ -931,12 +939,11 @@ fn quality_from_match_outcome(
     outcome: &MatchOutcome,
 ) -> QualityMetrics {
     let reported = actuals.len();
+    let reported_hunks = reported_hunk_count(actuals);
     let unmatched_tiny = actuals
         .iter()
         .enumerate()
-        .filter(|(index, change)| {
-            !outcome.claimed_actuals.contains(index) && change.resolvable && is_tiny(change)
-        })
+        .filter(|(index, change)| !outcome.claimed_actuals.contains(index) && is_tiny(change))
         .count();
     QualityMetrics {
         annotation,
@@ -950,13 +957,23 @@ fn quality_from_match_outcome(
             .then(|| ratio(outcome.kind_agreements, outcome.matched))
             .flatten(),
         reported_hunks_per_matched_change: (outcome.matched > 0)
-            .then(|| reported as f64 / outcome.matched as f64),
+            .then(|| reported_hunks as f64 / outcome.matched as f64),
         review_hunks_per_expected_change: (annotation == Annotation::Complete)
-            .then(|| ratio(reported, expected.len()))
+            .then(|| ratio(reported_hunks, expected.len()))
             .flatten(),
         unmatched_tiny_changes: unmatched_tiny,
-        unresolvable_reported_spans: actuals.iter().filter(|change| !change.resolvable).count(),
+        unresolvable_reported_spans: actuals
+            .iter()
+            .flat_map(|change| &change.occurrences)
+            .filter(|occurrence| !occurrence.resolvable)
+            .count(),
     }
+}
+
+fn reported_hunk_count(actuals: &[ActualChange]) -> usize {
+    actuals.iter().fold(0, |total, change| {
+        total.saturating_add(change.occurrences.len())
+    })
 }
 
 /// One- or two-token edits on every existing side, the shape of changes bad
@@ -964,14 +981,17 @@ fn quality_from_match_outcome(
 /// (unresolvable spans) are never tiny: they are counted separately as
 /// unresolvable and must not inflate the suspicious-edit signal.
 fn is_tiny(change: &ActualChange) -> bool {
-    let mut longest_existing: Option<usize> = None;
-    for length in [change.old_comparable_len, change.new_comparable_len]
-        .into_iter()
-        .flatten()
-    {
-        longest_existing = Some(longest_existing.map_or(length, |current| current.max(length)));
-    }
-    longest_existing.is_some_and(|longest| longest <= 2)
+    !change.occurrences.is_empty()
+        && change.occurrences.iter().all(|occurrence| {
+            if !occurrence.resolvable {
+                return false;
+            }
+            [occurrence.old_comparable_len, occurrence.new_comparable_len]
+                .into_iter()
+                .flatten()
+                .max()
+                .is_some_and(|longest| longest <= 2)
+        })
 }
 
 fn unresolved_token_shares(comparison: &Comparison) -> (Option<f64>, Option<f64>) {
@@ -1230,8 +1250,8 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
             .iter()
             .map(|change| ReportedChangeText {
                 kind: change_kind_name(change.kind),
-                old_text: change.old_text.as_deref().map(truncate_preview),
-                new_text: change.new_text.as_deref().map(truncate_preview),
+                old_text: occurrence_preview(change, |occurrence| occurrence.old_text.as_deref()),
+                new_text: occurrence_preview(change, |occurrence| occurrence.new_text.as_deref()),
             })
             .collect();
     }
@@ -1276,6 +1296,19 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     }
 
     finish(record, started)
+}
+
+fn occurrence_preview<'a>(
+    change: &'a ActualChange,
+    text: impl Fn(&'a ActualChangeOccurrence) -> Option<&'a str>,
+) -> Option<String> {
+    let mut unique = Vec::new();
+    for value in change.occurrences.iter().filter_map(text) {
+        if !unique.contains(&value) {
+            unique.push(value);
+        }
+    }
+    (!unique.is_empty()).then(|| truncate_preview(&unique.join(" | ")))
 }
 
 /// Single exit point that derives the final status: an explicit failure wins,
@@ -2086,11 +2119,13 @@ mod tests {
     ) -> ActualChange {
         ActualChange {
             kind,
-            old_text: old_text.map(str::to_owned),
-            new_text: new_text.map(str::to_owned),
-            old_comparable_len: old_len,
-            new_comparable_len: new_len,
-            resolvable: true,
+            occurrences: vec![ActualChangeOccurrence {
+                old_text: old_text.map(str::to_owned),
+                new_text: new_text.map(str::to_owned),
+                old_comparable_len: old_len,
+                new_comparable_len: new_len,
+                resolvable: true,
+            }],
         }
     }
 
@@ -2267,6 +2302,63 @@ mod tests {
     }
 
     #[test]
+    fn quote_matching_considers_every_occurrence_of_one_semantic_change() {
+        let expected = vec![expected_change(
+            "c1",
+            ExpectedKind::Replacement,
+            Some("target old text"),
+            Some("target new text"),
+        )];
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("unrelated old text"),
+            Some("unrelated new text"),
+            Some(18),
+            Some(18),
+        );
+        actual.occurrences.push(ActualChangeOccurrence {
+            old_text: Some("prefix target old text suffix".to_owned()),
+            new_text: Some("prefix target new text suffix".to_owned()),
+            old_comparable_len: Some(29),
+            new_comparable_len: Some(29),
+            resolvable: true,
+        });
+
+        let quality = compute_quality(Annotation::Complete, &expected, &[actual]);
+
+        assert_eq!(quality.recall, Some(1.0));
+        assert_eq!(quality.precision, Some(1.0));
+        assert_eq!(quality.reported_changes, 1);
+        assert_eq!(quality.reported_hunks_per_matched_change, Some(2.0));
+        assert_eq!(quality.review_hunks_per_expected_change, Some(2.0));
+    }
+
+    #[test]
+    fn repeated_occurrences_count_once_semantically_but_all_resolution_failures_count() {
+        let mut repeated = actual_change(
+            ChangeKind::Replacement,
+            Some("a"),
+            Some("b"),
+            Some(1),
+            Some(1),
+        );
+        repeated.occurrences.push(repeated.occurrences[0].clone());
+        let quality = compute_quality(Annotation::Complete, &[], &[repeated]);
+        assert_eq!(quality.reported_changes, 1);
+        assert_eq!(quality.unmatched_tiny_changes, 1);
+
+        let mut unresolved = actual_change(ChangeKind::Replacement, None, None, None, None);
+        unresolved.occurrences[0].resolvable = false;
+        unresolved
+            .occurrences
+            .push(unresolved.occurrences[0].clone());
+        let quality = compute_quality(Annotation::Complete, &[], &[unresolved]);
+        assert_eq!(quality.reported_changes, 1);
+        assert_eq!(quality.unresolvable_reported_spans, 2);
+        assert_eq!(quality.unmatched_tiny_changes, 0);
+    }
+
+    #[test]
     fn tiny_unmatched_edits_are_counted_as_false_positive_candidates() {
         let expected = vec![expected_change(
             "c1",
@@ -2325,12 +2417,12 @@ mod tests {
         // lengths; previously the 0-initialized maximum made such changes
         // look like two-token edits.
         let mut both_unresolved = actual_change(ChangeKind::Replacement, None, None, None, None);
-        both_unresolved.resolvable = false;
+        both_unresolved.occurrences[0].resolvable = false;
         // A partially resolved change keeps one short length while still
         // being unresolvable overall.
         let mut partially_resolved =
             actual_change(ChangeKind::Replacement, Some("ab"), None, Some(2), None);
-        partially_resolved.resolvable = false;
+        partially_resolved.occurrences[0].resolvable = false;
         let expected = vec![expected_change(
             "c1",
             ExpectedKind::Deletion,
@@ -2450,7 +2542,7 @@ mod tests {
         )];
         let mut unresolvable =
             actual_change(ChangeKind::Deletion, Some("gone text"), None, Some(9), None);
-        unresolvable.resolvable = false;
+        unresolvable.occurrences[0].resolvable = false;
         let quality = compute_quality(
             Annotation::Partial,
             &expected,
