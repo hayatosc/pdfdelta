@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-29
-- **Generator / engine commit**: [`dfc77f1`](https://github.com/hayatosc/pdfdelta/commit/dfc77f1)
+- **Generator / engine commit**: [`4e6ae73`](https://github.com/hayatosc/pdfdelta/commit/4e6ae73)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-29-dfc77f1.json`](2026-08-29-dfc77f1.json)
+  - File: [`2026-08-29-4e6ae73.json`](2026-08-29-4e6ae73.json)
   - Schema: v8
-  - Size: 56,988 bytes
-  - SHA-256: `91bcb5370a62e34bd8b87e65b5bd2a7a4a722af6e9363875834f17c8c78ac56b`
+  - Size: 56,977 bytes
+  - SHA-256: `b08baf63ee0dd1dffd5d00a4b23f52f1211c3e383a31605e36e7bea189e2aea8`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 18 completed extraction, 11 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-29-dfc77f1.json
+  benchmark/realworld/results/2026-08-29-4e6ae73.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -67,11 +67,12 @@ decreases from 53.52% to 53.22% without changing reviewed recall or kind accurac
 Running-matter boundaries split unresolved evidence more locally, so raw unresolved
 region counts are not directly comparable with the preceding capture; token shares
 remain the coverage measure.
-The schema-v8 diagnostics identify five near-relation searches stopped by the
-pair-visit budget and two stopped by the similarity-comparison budget. Ten
+The schema-v8 diagnostics identify six near-relation searches stopped by the
+pair-visit budget and one stopped by the similarity-comparison budget. Ten
 complete-extraction pairs finish near-relation analysis, and no pair reaches
-the recovery-unit candidate-count cap. Removing the schema-v8 diagnostic fields
-produces the same compact summary values as the `f5406f3` capture.
+the recovery-unit candidate-count cap. Component score upper bounds reduce
+similarity-comparison work without changing any report field outside the
+sentence-recovery diagnostics compared with the `dfc77f1` capture.
 
 ## Current Writer Schema (v8)
 
@@ -104,6 +105,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-29-dfc77f1.json`](2026-08-29-dfc77f1.json): schema-v8 near-search work counters, candidate-set maxima, and typed stop reasons.
 - [`2026-08-29-f5406f3.json`](2026-08-29-f5406f3.json): role-local running-matter alignment and the schema-v7 scoped-precision baseline.
 - [`2026-08-29-27f096e.json`](2026-08-29-27f096e.json): scoped-complete event and changed-token precision for three fully reviewed regions.
 - [`2026-08-29-556686c.json`](2026-08-29-556686c.json): behavior-preserving multi-occurrence change-model migration.
