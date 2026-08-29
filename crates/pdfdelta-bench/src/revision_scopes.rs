@@ -4,14 +4,15 @@ use pdfdelta_core::{
     alignment::BlockSeparator,
     diff::{Change, TextSpan},
     layout::BlockId,
-    normalize::BlockText,
+    normalize::{BlockText, ComparableToken},
 };
 
 use super::{
-    ExpectedChange, ExpectedScope,
+    ExpectedChange, ExpectedScope, ScopedTokenMetrics,
     revision_diagnostics::{
-        DiagnosticBudget, DiagnosticLimits, QuoteLocateOutcome, QuoteLocation, ScopedQuoteRange,
-        locate_scope_anchor_quote, locate_scoped_quote,
+        DiagnosticBudget, DiagnosticLimits, QuoteLocateOutcome, QuoteLocation,
+        ScopedQuoteLocateOutcome, ScopedQuoteLocation, ScopedQuoteRange, locate_scope_anchor_quote,
+        locate_scoped_quote,
     },
 };
 
@@ -25,11 +26,35 @@ pub(super) const SCOPED_CHANGE_LIMITED: &str =
     "scoped-complete reported change classification reached its resource limit";
 const SCOPED_EXPECTED_CHANGE_LIMITED: &str =
     "scoped-complete expected change quote resolution reached its resource limit";
+const SCOPED_TOKEN_METRICS_INDETERMINATE: &str = "scoped-complete token metrics are indeterminate";
+const SCOPED_TOKEN_METRICS_LIMITED: &str =
+    "scoped-complete token metrics reached its resource limit";
+
+fn token_metrics_error(error: String) -> String {
+    if error == SCOPED_CHANGE_LIMITED {
+        SCOPED_TOKEN_METRICS_LIMITED.to_owned()
+    } else {
+        error
+    }
+}
 
 #[derive(Clone, Copy)]
 struct ClassificationLimits {
     max_work: usize,
     max_output: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct TokenInterval {
+    block_order: usize,
+    start: usize,
+    end: usize,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(super) struct ScopedExpectedTokenEvidence {
+    old: Vec<TokenInterval>,
+    new: Vec<TokenInterval>,
 }
 
 impl Default for ClassificationLimits {
@@ -551,6 +576,138 @@ fn classification_block_order(
     Ok(order)
 }
 
+fn push_token_interval(
+    intervals: &mut Vec<TokenInterval>,
+    interval: TokenInterval,
+    budget: &mut ClassificationBudget,
+    limits: ClassificationLimits,
+) -> Result<(), String> {
+    if interval.start >= interval.end {
+        return Ok(());
+    }
+    if let Some(last) = intervals.last_mut()
+        && last.block_order == interval.block_order
+        && interval.start <= last.end
+    {
+        last.end = last.end.max(interval.end);
+        return Ok(());
+    }
+    budget.charge_output(limits)?;
+    intervals.push(interval);
+    Ok(())
+}
+
+fn normalize_intervals(
+    intervals: &mut Vec<TokenInterval>,
+    budget: &mut ClassificationBudget,
+    limits: ClassificationLimits,
+) -> Result<(), String> {
+    budget.charge_work(intervals.len(), limits)?;
+    intervals.sort_unstable();
+    let mut merged = Vec::with_capacity(intervals.len());
+    for interval in intervals.drain(..) {
+        budget.charge_work(1, limits)?;
+        push_token_interval(&mut merged, interval, budget, limits)?;
+    }
+    *intervals = merged;
+    Ok(())
+}
+
+fn scalar_location_intervals(
+    location: ScopedQuoteLocation,
+    blocks: &[BlockText],
+    budget: &mut ClassificationBudget,
+    limits: ClassificationLimits,
+) -> Result<Vec<TokenInterval>, String> {
+    if location.start_block > location.end_block
+        || location.end_block >= blocks.len()
+        || (location.start_block == location.end_block
+            && location.start_scalar >= location.end_scalar)
+    {
+        return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+    }
+    let mut intervals = Vec::new();
+    for (block_offset, block) in blocks[location.start_block..=location.end_block]
+        .iter()
+        .enumerate()
+    {
+        budget.charge_work(1, limits)?;
+        let block_order = budget.checked_add(location.start_block, block_offset)?;
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .map_err(|_| SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned())?;
+        let scalar_count = block.canonical.text.chars().count();
+        let start_scalar = if block_order == location.start_block {
+            location.start_scalar
+        } else {
+            0
+        };
+        let end_scalar = if block_order == location.end_block {
+            location.end_scalar
+        } else {
+            scalar_count
+        };
+        if start_scalar > end_scalar || end_scalar > scalar_count {
+            return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+        }
+        let mut scalar = 0_usize;
+        let mut interval_start = None;
+        let mut interval_end = 0_usize;
+        for (token_index, token) in tokens.iter().enumerate() {
+            budget.charge_work(1, limits)?;
+            match token {
+                ComparableToken::Scalar(_) => {
+                    if start_scalar <= scalar && scalar < end_scalar {
+                        interval_start.get_or_insert(token_index);
+                        interval_end = budget.checked_add(token_index, 1)?;
+                    }
+                    scalar = budget.checked_add(scalar, 1)?;
+                }
+                ComparableToken::Unmapped { .. }
+                    if start_scalar <= scalar && scalar < end_scalar =>
+                {
+                    return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+                }
+                ComparableToken::Unmapped { .. } => {}
+            }
+        }
+        if scalar != scalar_count {
+            return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+        }
+        if let Some(start) = interval_start {
+            push_token_interval(
+                &mut intervals,
+                TokenInterval {
+                    block_order,
+                    start,
+                    end: interval_end,
+                },
+                budget,
+                limits,
+            )?;
+        }
+    }
+    Ok(intervals)
+}
+
+fn scope_location(range: ResolvedScopeRange) -> Result<ScopedQuoteLocation, String> {
+    Ok(ScopedQuoteLocation {
+        start_block: range.start.block_order,
+        start_scalar: range.start.scalar,
+        end_block: range.end.block_order,
+        end_scalar: range
+            .end
+            .scalar
+            .checked_add(1)
+            .ok_or_else(|| SCOPED_TOKEN_METRICS_LIMITED.to_owned())?,
+    })
+}
+
+fn is_comparable_whitespace(token: &ComparableToken) -> bool {
+    matches!(token, ComparableToken::Scalar(scalar) if scalar.is_whitespace())
+}
+
 fn expected_quote_unavailable(
     change: &ExpectedChange,
     scope: &str,
@@ -568,9 +725,12 @@ pub(super) fn validate_scoped_expected_changes(
     scopes: &[ResolvedScope],
     old_blocks: &[BlockText],
     new_blocks: &[BlockText],
-) -> Result<(), String> {
+) -> Result<ScopedExpectedTokenEvidence, String> {
     let mut budget = DiagnosticBudget::default();
     let limits = DiagnosticLimits::default();
+    let mut token_budget = ClassificationBudget::default();
+    let token_limits = ClassificationLimits::default();
+    let mut evidence = ScopedExpectedTokenEvidence::default();
     for change in changes {
         if !budget.charge_scope(limits) {
             return Err(SCOPED_EXPECTED_CHANGE_LIMITED.to_owned());
@@ -607,24 +767,349 @@ pub(super) fn validate_scoped_expected_changes(
                 limits,
             )
             .map_err(|_| expected_quote_unavailable(change, scope_id, side, "indeterminate"))?;
-            let unavailable = match outcome {
-                QuoteLocateOutcome::Unique(_) | QuoteLocateOutcome::Segmented => continue,
-                QuoteLocateOutcome::Missing => "missing",
-                QuoteLocateOutcome::Ambiguous => "ambiguous",
-                QuoteLocateOutcome::Indeterminate => "indeterminate",
-                QuoteLocateOutcome::Limited => {
+            let location = match outcome {
+                ScopedQuoteLocateOutcome::Unique(location) => location,
+                ScopedQuoteLocateOutcome::Missing => {
+                    return Err(expected_quote_unavailable(
+                        change, scope_id, side, "missing",
+                    ));
+                }
+                ScopedQuoteLocateOutcome::Ambiguous => {
+                    return Err(expected_quote_unavailable(
+                        change,
+                        scope_id,
+                        side,
+                        "ambiguous",
+                    ));
+                }
+                ScopedQuoteLocateOutcome::Indeterminate => {
+                    return Err(expected_quote_unavailable(
+                        change,
+                        scope_id,
+                        side,
+                        "indeterminate",
+                    ));
+                }
+                ScopedQuoteLocateOutcome::Limited => {
                     return Err(SCOPED_EXPECTED_CHANGE_LIMITED.to_owned());
                 }
             };
-            return Err(expected_quote_unavailable(
-                change,
-                scope_id,
-                side,
-                unavailable,
-            ));
+            let intervals =
+                scalar_location_intervals(location, blocks, &mut token_budget, token_limits)
+                    .map_err(token_metrics_error)?;
+            if side == "old" {
+                evidence.old.extend(intervals);
+            } else {
+                evidence.new.extend(intervals);
+            }
         }
     }
-    Ok(())
+    normalize_intervals(&mut evidence.old, &mut token_budget, token_limits)
+        .map_err(token_metrics_error)?;
+    normalize_intervals(&mut evidence.new, &mut token_budget, token_limits)
+        .map_err(token_metrics_error)?;
+    Ok(evidence)
+}
+
+fn project_span_intervals(
+    span: &TextSpan,
+    blocks: &[BlockText],
+    order: &HashMap<BlockId, usize>,
+    budget: &mut ClassificationBudget,
+    limits: ClassificationLimits,
+) -> Result<Vec<TokenInterval>, String> {
+    let (_, rest) = span
+        .blocks
+        .split_first()
+        .ok_or_else(|| SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned())?;
+    let separator = if rest.is_empty() {
+        if span.separator.is_some() {
+            return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+        }
+        BlockSeparator::Concatenate
+    } else {
+        span.separator.unwrap_or(BlockSeparator::Concatenate)
+    };
+    if span.comparable_range.start > span.comparable_range.end
+        || span.canonical_range.start > span.canonical_range.end
+    {
+        return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+    }
+
+    let mut intervals = Vec::new();
+    let mut comparable_offset = 0_usize;
+    let mut scalar_offset = 0_usize;
+    let mut previous_order = None;
+    let mut combined_last = None::<ComparableToken>;
+    for (position, block_id) in span.blocks.iter().enumerate() {
+        let block_order = *order
+            .get(block_id)
+            .ok_or_else(|| SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned())?;
+        if let Some(previous) = previous_order
+            && block_order != budget.checked_add(previous, 1)?
+        {
+            return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+        }
+        let tokens = blocks[block_order]
+            .canonical
+            .comparable_tokens()
+            .map_err(|_| SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned())?;
+        let synthetic_space = position > 0
+            && separator == BlockSeparator::Space
+            && !combined_last.as_ref().is_some_and(is_comparable_whitespace)
+            && !tokens.first().is_some_and(is_comparable_whitespace);
+        if synthetic_space {
+            if comparable_offset == span.comparable_range.start
+                && scalar_offset != span.canonical_range.start
+            {
+                return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+            }
+            comparable_offset = budget.checked_add(comparable_offset, 1)?;
+            scalar_offset = budget.checked_add(scalar_offset, 1)?;
+            combined_last = Some(ComparableToken::Scalar(' '));
+            budget.charge_work(1, limits)?;
+            if comparable_offset == span.comparable_range.end
+                && scalar_offset != span.canonical_range.end
+            {
+                return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+            }
+        }
+        for (token_index, token) in tokens.iter().enumerate() {
+            budget.charge_work(1, limits)?;
+            if comparable_offset == span.comparable_range.start
+                && scalar_offset != span.canonical_range.start
+            {
+                return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+            }
+            let selected = span.comparable_range.start <= comparable_offset
+                && comparable_offset < span.comparable_range.end;
+            if selected {
+                if !token.is_scalar() {
+                    return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+                }
+                push_token_interval(
+                    &mut intervals,
+                    TokenInterval {
+                        block_order,
+                        start: token_index,
+                        end: budget.checked_add(token_index, 1)?,
+                    },
+                    budget,
+                    limits,
+                )?;
+            }
+            comparable_offset = budget.checked_add(comparable_offset, 1)?;
+            if token.is_scalar() {
+                scalar_offset = budget.checked_add(scalar_offset, 1)?;
+            }
+            if comparable_offset == span.comparable_range.end
+                && scalar_offset != span.canonical_range.end
+            {
+                return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+            }
+        }
+        if let Some(last) = tokens.last() {
+            combined_last = Some(last.clone());
+        }
+        previous_order = Some(block_order);
+    }
+    if span.comparable_range.end > comparable_offset || span.canonical_range.end > scalar_offset {
+        return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+    }
+    Ok(intervals)
+}
+
+fn interval_count(
+    intervals: &[TokenInterval],
+    budget: &mut ClassificationBudget,
+    limits: ClassificationLimits,
+) -> Result<usize, String> {
+    let mut count = 0_usize;
+    for interval in intervals {
+        budget.charge_work(1, limits)?;
+        count = budget.checked_add(count, interval.end - interval.start)?;
+    }
+    Ok(count)
+}
+
+fn intersection_count(
+    left: &[TokenInterval],
+    right: &[TokenInterval],
+    budget: &mut ClassificationBudget,
+    limits: ClassificationLimits,
+) -> Result<usize, String> {
+    let (mut left_index, mut right_index, mut count) = (0, 0, 0_usize);
+    while left_index < left.len() && right_index < right.len() {
+        budget.charge_work(1, limits)?;
+        let a = left[left_index];
+        let b = right[right_index];
+        if a.block_order < b.block_order || (a.block_order == b.block_order && a.end <= b.start) {
+            left_index += 1;
+            continue;
+        }
+        if b.block_order < a.block_order || (a.block_order == b.block_order && b.end <= a.start) {
+            right_index += 1;
+            continue;
+        }
+        count = budget.checked_add(count, a.end.min(b.end) - a.start.max(b.start))?;
+        if a.end <= b.end {
+            left_index += 1;
+        }
+        if b.end <= a.end {
+            right_index += 1;
+        }
+    }
+    Ok(count)
+}
+
+fn rate(numerator: usize, denominator: usize, corresponding_empty: bool) -> f64 {
+    if denominator == 0 {
+        if corresponding_empty { 1.0 } else { 0.0 }
+    } else {
+        numerator as f64 / denominator as f64
+    }
+}
+
+pub(super) fn evaluate_scoped_token_metrics(
+    changes: &[Change],
+    classified: &[ScopedChange],
+    expected: ScopedExpectedTokenEvidence,
+    scopes: &[ResolvedScope],
+    old_blocks: &[BlockText],
+    new_blocks: &[BlockText],
+) -> Result<ScopedTokenMetrics, String> {
+    evaluate_scoped_token_metrics_with_limits(
+        changes,
+        classified,
+        expected,
+        scopes,
+        old_blocks,
+        new_blocks,
+        ClassificationLimits::default(),
+    )
+    .map_err(token_metrics_error)
+}
+
+fn evaluate_scoped_token_metrics_with_limits(
+    changes: &[Change],
+    classified: &[ScopedChange],
+    expected: ScopedExpectedTokenEvidence,
+    scopes: &[ResolvedScope],
+    old_blocks: &[BlockText],
+    new_blocks: &[BlockText],
+    limits: ClassificationLimits,
+) -> Result<ScopedTokenMetrics, String> {
+    let mut budget = ClassificationBudget::default();
+    let old_order = classification_block_order(old_blocks, &mut budget, limits)?;
+    let new_order = classification_block_order(new_blocks, &mut budget, limits)?;
+    let mut reported_old = Vec::new();
+    let mut reported_new = Vec::new();
+    for classified_change in classified {
+        budget.charge_work(1, limits)?;
+        let change = changes
+            .get(classified_change.change_index)
+            .ok_or_else(|| SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned())?;
+        for occurrence in &change.occurrences {
+            for (span, blocks, order, output) in [
+                (
+                    occurrence.old_span.as_ref(),
+                    old_blocks,
+                    &old_order,
+                    &mut reported_old,
+                ),
+                (
+                    occurrence.new_span.as_ref(),
+                    new_blocks,
+                    &new_order,
+                    &mut reported_new,
+                ),
+            ] {
+                if let Some(span) = span {
+                    output.extend(project_span_intervals(
+                        span,
+                        blocks,
+                        order,
+                        &mut budget,
+                        limits,
+                    )?);
+                }
+            }
+        }
+    }
+    normalize_intervals(&mut reported_old, &mut budget, limits)?;
+    normalize_intervals(&mut reported_new, &mut budget, limits)?;
+
+    let mut scope_old = Vec::new();
+    let mut scope_new = Vec::new();
+    for scope in scopes {
+        scope_old.extend(scalar_location_intervals(
+            scope_location(scope.old)?,
+            old_blocks,
+            &mut budget,
+            limits,
+        )?);
+        scope_new.extend(scalar_location_intervals(
+            scope_location(scope.new)?,
+            new_blocks,
+            &mut budget,
+            limits,
+        )?);
+    }
+    normalize_intervals(&mut scope_old, &mut budget, limits)?;
+    normalize_intervals(&mut scope_new, &mut budget, limits)?;
+
+    let expected_old_count = interval_count(&expected.old, &mut budget, limits)?;
+    let expected_new_count = interval_count(&expected.new, &mut budget, limits)?;
+    let expected_count = budget.checked_add(expected_old_count, expected_new_count)?;
+    let reported_old_count = interval_count(&reported_old, &mut budget, limits)?;
+    let reported_new_count = interval_count(&reported_new, &mut budget, limits)?;
+    let reported_count = budget.checked_add(reported_old_count, reported_new_count)?;
+    let true_positive_old = intersection_count(&expected.old, &reported_old, &mut budget, limits)?;
+    let true_positive_new = intersection_count(&expected.new, &reported_new, &mut budget, limits)?;
+    let true_positive = budget.checked_add(true_positive_old, true_positive_new)?;
+    let scope_old_count = interval_count(&scope_old, &mut budget, limits)?;
+    let scope_new_count = interval_count(&scope_new, &mut budget, limits)?;
+    let scope_count = budget.checked_add(scope_old_count, scope_new_count)?;
+    let expected_in_scope_old = intersection_count(&expected.old, &scope_old, &mut budget, limits)?;
+    let expected_in_scope_new = intersection_count(&expected.new, &scope_new, &mut budget, limits)?;
+    let expected_in_scope = budget.checked_add(expected_in_scope_old, expected_in_scope_new)?;
+    let reported_in_scope_old = intersection_count(&reported_old, &scope_old, &mut budget, limits)?;
+    let reported_in_scope_new = intersection_count(&reported_new, &scope_new, &mut budget, limits)?;
+    let reported_in_scope = budget.checked_add(reported_in_scope_old, reported_in_scope_new)?;
+    if expected_in_scope != expected_count
+        || reported_in_scope != reported_count
+        || expected_count > scope_count
+    {
+        return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+    }
+    let union = budget
+        .checked_add(expected_count, reported_count)?
+        .checked_sub(true_positive)
+        .ok_or_else(|| SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned())?;
+    let unchanged = scope_count
+        .checked_sub(expected_count)
+        .ok_or_else(|| SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned())?;
+    let false_positive = reported_count
+        .checked_sub(true_positive)
+        .ok_or_else(|| SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned())?;
+    let precision = rate(true_positive, reported_count, expected_count == 0);
+    let recall = rate(true_positive, expected_count, reported_count == 0);
+    let f1 = if precision + recall == 0.0 {
+        0.0
+    } else {
+        2.0 * precision * recall / (precision + recall)
+    };
+    Ok(ScopedTokenMetrics {
+        expected_changed_tokens: expected_count,
+        reported_changed_tokens: reported_count,
+        true_positive_tokens: true_positive,
+        precision,
+        recall,
+        f1,
+        span_iou: rate(true_positive, union, true),
+        false_positive_tokens_per_10k_unchanged: (unchanged != 0)
+            .then(|| false_positive as f64 * 10_000.0 / unchanged as f64),
+    })
 }
 
 #[cfg(test)]
@@ -731,6 +1216,388 @@ mod tests {
             new_quote: Some(new.to_owned()),
             note: String::new(),
         }
+    }
+
+    fn scoped_metrics(
+        old: &[BlockText],
+        new: &[BlockText],
+        expected_changes: &[ExpectedChange],
+        actual_changes: &[Change],
+    ) -> ScopedTokenMetrics {
+        let old_end = old
+            .last()
+            .expect("old scope has a block")
+            .canonical
+            .text
+            .chars()
+            .count()
+            - 1;
+        let new_end = new
+            .last()
+            .expect("new scope has a block")
+            .canonical
+            .text
+            .chars()
+            .count()
+            - 1;
+        let scopes = [ResolvedScope {
+            id: "body".to_owned(),
+            old: ResolvedScopeRange {
+                start: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: 0,
+                },
+                end: ScopeCoordinate {
+                    block_order: old.len() - 1,
+                    scalar: old_end,
+                },
+            },
+            new: ResolvedScopeRange {
+                start: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: 0,
+                },
+                end: ScopeCoordinate {
+                    block_order: new.len() - 1,
+                    scalar: new_end,
+                },
+            },
+        }];
+        let evidence = validate_scoped_expected_changes(expected_changes, &scopes, old, new)
+            .expect("expected quotes resolve");
+        let classified = classify_scoped_changes(actual_changes, &scopes, old, new)
+            .expect("actual spans classify");
+        evaluate_scoped_token_metrics(actual_changes, &classified, evidence, &scopes, old, new)
+            .expect("token metrics evaluate")
+    }
+
+    #[test]
+    fn scoped_token_metrics_cover_exact_replacement_insertion_and_deletion() {
+        let replacement = scoped_metrics(
+            &[block(1, "aaOLDzz")],
+            &[block(2, "aaNEWzz")],
+            &[expected("body", "OLD", "NEW")],
+            &[change(Some(span(1, 2, 5)), Some(span(2, 2, 5)))],
+        );
+        assert_eq!(replacement.expected_changed_tokens, 6);
+        assert_eq!(replacement.reported_changed_tokens, 6);
+        assert_eq!(replacement.true_positive_tokens, 6);
+        assert_eq!(
+            (replacement.precision, replacement.recall, replacement.f1),
+            (1.0, 1.0, 1.0)
+        );
+        assert_eq!(replacement.span_iou, 1.0);
+
+        let insertion_expected = ExpectedChange {
+            id: "insert".to_owned(),
+            kind: ExpectedKind::Insertion,
+            scope: Some("body".to_owned()),
+            old_quote: None,
+            new_quote: Some("ADD".to_owned()),
+            note: String::new(),
+        };
+        let insertion = scoped_metrics(
+            &[block(3, "anchor")],
+            &[block(4, "aaADDzz")],
+            &[insertion_expected],
+            &[change(None, Some(span(4, 2, 5)))],
+        );
+        assert_eq!(
+            (
+                insertion.expected_changed_tokens,
+                insertion.true_positive_tokens
+            ),
+            (3, 3)
+        );
+
+        let deletion_expected = ExpectedChange {
+            id: "delete".to_owned(),
+            kind: ExpectedKind::Deletion,
+            scope: Some("body".to_owned()),
+            old_quote: Some("OLD".to_owned()),
+            new_quote: None,
+            note: String::new(),
+        };
+        let deletion = scoped_metrics(
+            &[block(5, "aaOLDzz")],
+            &[block(6, "anchor")],
+            &[deletion_expected],
+            &[change(Some(span(5, 2, 5)), None)],
+        );
+        assert_eq!(
+            (
+                deletion.expected_changed_tokens,
+                deletion.true_positive_tokens
+            ),
+            (3, 3)
+        );
+    }
+
+    #[test]
+    fn scoped_token_metrics_penalize_overwide_and_underwide_spans() {
+        let old = [block(1, "aaOLDzz")];
+        let new = [block(2, "aaNEWzz")];
+        let expected = [expected("body", "OLD", "NEW")];
+        let overwide = scoped_metrics(
+            &old,
+            &new,
+            &expected,
+            &[change(Some(span(1, 1, 6)), Some(span(2, 1, 6)))],
+        );
+        assert_eq!(
+            (
+                overwide.expected_changed_tokens,
+                overwide.reported_changed_tokens,
+                overwide.true_positive_tokens
+            ),
+            (6, 10, 6)
+        );
+        assert_eq!(overwide.precision, 0.6);
+        assert_eq!(overwide.recall, 1.0);
+        assert_eq!(overwide.span_iou, 0.6);
+
+        let underwide = scoped_metrics(
+            &old,
+            &new,
+            &expected,
+            &[change(Some(span(1, 3, 4)), Some(span(2, 3, 4)))],
+        );
+        assert_eq!(
+            (
+                underwide.expected_changed_tokens,
+                underwide.reported_changed_tokens,
+                underwide.true_positive_tokens
+            ),
+            (6, 2, 2)
+        );
+        assert_eq!(underwide.precision, 1.0);
+        assert_eq!(underwide.recall, 1.0 / 3.0);
+        assert_eq!(underwide.span_iou, 1.0 / 3.0);
+    }
+
+    #[test]
+    fn scoped_token_metrics_deduplicate_overlaps_and_keep_sides_distinct() {
+        let metrics = scoped_metrics(
+            &[block(1, "aBCDe")],
+            &[block(2, "aBCDe")],
+            &[expected("body", "BCD", "BCD")],
+            &[
+                change(Some(span(1, 1, 3)), Some(span(2, 1, 3))),
+                change(Some(span(1, 2, 4)), Some(span(2, 2, 4))),
+            ],
+        );
+        assert_eq!(metrics.expected_changed_tokens, 6);
+        assert_eq!(metrics.reported_changed_tokens, 6);
+        assert_eq!(metrics.true_positive_tokens, 6);
+    }
+
+    #[test]
+    fn scoped_token_metrics_exclude_synthetic_group_separators() {
+        let old = [block(1, "ab"), block(2, "cd")];
+        let new = [block(3, "ab"), block(4, "cd")];
+        let metrics = scoped_metrics(
+            &old,
+            &new,
+            &[expected("body", "ab cd", "ab cd")],
+            &[change(
+                Some(group_span(
+                    vec![BlockId(1), BlockId(2)],
+                    BlockSeparator::Space,
+                    0,
+                    5,
+                )),
+                Some(group_span(
+                    vec![BlockId(3), BlockId(4)],
+                    BlockSeparator::Space,
+                    0,
+                    5,
+                )),
+            )],
+        );
+        assert_eq!(
+            (
+                metrics.expected_changed_tokens,
+                metrics.reported_changed_tokens
+            ),
+            (8, 8)
+        );
+        assert_eq!(metrics.span_iou, 1.0);
+    }
+
+    #[test]
+    fn scoped_token_metrics_use_unicode_whitespace_separator_parity() {
+        let old = [block(10, "ab\n"), block(11, "cd")];
+        let new = [block(20, "ab"), block(21, "\tcd")];
+        let metrics = scoped_metrics(
+            &old,
+            &new,
+            &[expected("body", "ab cd", "ab cd")],
+            &[change(
+                Some(group_span(
+                    vec![BlockId(10), BlockId(11)],
+                    BlockSeparator::Space,
+                    0,
+                    5,
+                )),
+                Some(group_span(
+                    vec![BlockId(20), BlockId(21)],
+                    BlockSeparator::Space,
+                    0,
+                    5,
+                )),
+            )],
+        );
+
+        assert_eq!(metrics.expected_changed_tokens, 10);
+        assert_eq!(metrics.reported_changed_tokens, 10);
+        assert_eq!(metrics.true_positive_tokens, 10);
+        assert_eq!(
+            (metrics.precision, metrics.recall, metrics.span_iou),
+            (1.0, 1.0, 1.0)
+        );
+    }
+
+    #[test]
+    fn scoped_token_metrics_preserve_combined_tail_across_empty_blocks() {
+        let space_old = [block(30, "ab"), block(31, ""), block(32, "cd")];
+        let space_new = [block(40, "ab"), block(41, ""), block(42, "cd")];
+        let space = scoped_metrics(
+            &space_old,
+            &space_new,
+            &[expected("body", "ab cd", "ab cd")],
+            &[change(
+                Some(group_span(
+                    vec![BlockId(30), BlockId(31), BlockId(32)],
+                    BlockSeparator::Space,
+                    0,
+                    5,
+                )),
+                Some(group_span(
+                    vec![BlockId(40), BlockId(41), BlockId(42)],
+                    BlockSeparator::Space,
+                    0,
+                    5,
+                )),
+            )],
+        );
+        assert_eq!(space.expected_changed_tokens, 8);
+        assert_eq!(space.reported_changed_tokens, 8);
+        assert_eq!(space.true_positive_tokens, 8);
+        assert_eq!(
+            (space.precision, space.recall, space.span_iou),
+            (1.0, 1.0, 1.0)
+        );
+
+        let concatenate = scoped_metrics(
+            &space_old,
+            &space_new,
+            &[expected("body", "abcd", "abcd")],
+            &[change(
+                Some(group_span(
+                    vec![BlockId(30), BlockId(31), BlockId(32)],
+                    BlockSeparator::Concatenate,
+                    0,
+                    4,
+                )),
+                Some(group_span(
+                    vec![BlockId(40), BlockId(41), BlockId(42)],
+                    BlockSeparator::Concatenate,
+                    0,
+                    4,
+                )),
+            )],
+        );
+        assert_eq!(concatenate.expected_changed_tokens, 8);
+        assert_eq!(concatenate.reported_changed_tokens, 8);
+        assert_eq!(concatenate.true_positive_tokens, 8);
+        assert_eq!(
+            (
+                concatenate.precision,
+                concatenate.recall,
+                concatenate.span_iou,
+            ),
+            (1.0, 1.0, 1.0)
+        );
+    }
+
+    #[test]
+    fn scoped_token_metrics_define_empty_and_false_positive_denominators() {
+        let empty = evaluate_scoped_token_metrics(
+            &[],
+            &[],
+            ScopedExpectedTokenEvidence::default(),
+            &[],
+            &[],
+            &[],
+        )
+        .expect("empty reviewed set evaluates");
+        assert_eq!(
+            (empty.precision, empty.recall, empty.f1, empty.span_iou),
+            (1.0, 1.0, 1.0, 1.0)
+        );
+        assert_eq!(empty.false_positive_tokens_per_10k_unchanged, None);
+
+        let no_unchanged = scoped_metrics(
+            &[block(1, "OLD")],
+            &[block(2, "NEW")],
+            &[expected("body", "OLD", "NEW")],
+            &[change(Some(span(1, 0, 3)), Some(span(2, 0, 3)))],
+        );
+        assert_eq!(no_unchanged.false_positive_tokens_per_10k_unchanged, None);
+
+        let false_positive = scoped_metrics(
+            &[block(3, "aaOLDzz")],
+            &[block(4, "aaNEWzz")],
+            &[expected("body", "OLD", "NEW")],
+            &[change(Some(span(3, 1, 6)), Some(span(4, 1, 6)))],
+        );
+        assert_eq!(
+            false_positive.false_positive_tokens_per_10k_unchanged,
+            Some(5_000.0)
+        );
+    }
+
+    #[test]
+    fn scoped_token_metric_budget_exhaustion_fails_the_whole_measurement() {
+        let blocks = [block(1, "a")];
+        let scopes = [ResolvedScope {
+            id: "body".to_owned(),
+            old: ResolvedScopeRange {
+                start: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: 0,
+                },
+                end: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: 0,
+                },
+            },
+            new: ResolvedScopeRange {
+                start: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: 0,
+                },
+                end: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: 0,
+                },
+            },
+        }];
+        let result = evaluate_scoped_token_metrics_with_limits(
+            &[],
+            &[],
+            ScopedExpectedTokenEvidence::default(),
+            &scopes,
+            &blocks,
+            &blocks,
+            ClassificationLimits {
+                max_work: 0,
+                max_output: 1,
+            },
+        )
+        .map_err(token_metrics_error);
+
+        assert_eq!(result, Err(SCOPED_TOKEN_METRICS_LIMITED.to_owned()));
     }
 
     #[test]
@@ -1336,13 +2203,28 @@ mod tests {
         }];
         let old = [block(1, "split"), block(2, "quote")];
         let new = [block(3, "split"), block(4, "quote")];
-        validate_scoped_expected_changes(
+        let wrapped = validate_scoped_expected_changes(
             &[expected("body", "split quote", "split quote")],
             &scopes,
             &old,
             &new,
         )
         .expect("a unique wrapped quote is valid inside a reviewed scope");
+        assert_eq!(
+            wrapped.old,
+            [
+                TokenInterval {
+                    block_order: 0,
+                    start: 0,
+                    end: 5,
+                },
+                TokenInterval {
+                    block_order: 1,
+                    start: 0,
+                    end: 5,
+                },
+            ]
+        );
 
         let ambiguous_scopes = [ResolvedScope {
             id: "body".to_owned(),

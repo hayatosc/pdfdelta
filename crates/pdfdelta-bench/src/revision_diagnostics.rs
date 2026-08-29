@@ -174,6 +174,23 @@ pub(super) struct ScopedQuoteRange {
     pub(super) end_scalar: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct ScopedQuoteLocation {
+    pub(super) start_block: usize,
+    pub(super) start_scalar: usize,
+    pub(super) end_block: usize,
+    pub(super) end_scalar: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum ScopedQuoteLocateOutcome {
+    Unique(ScopedQuoteLocation),
+    Missing,
+    Ambiguous,
+    Indeterminate,
+    Limited,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum QuoteLocateOutcome {
     Unique(QuoteLocation),
@@ -503,34 +520,36 @@ fn occurrence_outcome(
     }))
 }
 
-fn record_occurrence(
+#[derive(Clone, Copy)]
+enum RawQuoteOutcome {
+    Unique(RawOccurrence),
+    Ambiguous,
+}
+
+fn record_raw_occurrence(
     occurrence: RawOccurrence,
-    blocks: &[BlockText],
-    normalized_blocks: &[Vec<LocatedItem>],
-    first: &mut Option<(RawOccurrence, QuoteLocateOutcome)>,
+    first: &mut Option<RawOccurrence>,
     budget: &mut DiagnosticBudget,
     limits: DiagnosticLimits,
-) -> DiagnosticScanResult<Option<QuoteLocateOutcome>> {
-    if first.as_ref().is_some_and(|(seen, _)| *seen == occurrence) {
+) -> DiagnosticScanResult<Option<RawQuoteOutcome>> {
+    if first.as_ref().is_some_and(|seen| *seen == occurrence) {
         return Ok(None);
     }
     budget.charge_occurrence(limits)?;
-    let outcome = occurrence_outcome(occurrence, blocks, normalized_blocks)?;
     if first.is_some() {
-        return Ok(Some(QuoteLocateOutcome::Ambiguous));
+        return Ok(Some(RawQuoteOutcome::Ambiguous));
     }
-    *first = Some((occurrence, outcome));
+    *first = Some(occurrence);
     Ok(None)
 }
 
-fn scan_quote_matches(
-    blocks: &[BlockText],
+fn scan_quote_raw(
     normalized_blocks: &[Vec<LocatedItem>],
     needle: &[char],
     prefix: &[usize],
     budget: &mut DiagnosticBudget,
     limits: DiagnosticLimits,
-) -> DiagnosticScanResult<Option<QuoteLocateOutcome>> {
+) -> DiagnosticScanResult<Option<RawQuoteOutcome>> {
     let mut states = vec![MatcherState::default()];
     let mut first = None;
     for (block_index, items) in normalized_blocks.iter().enumerate() {
@@ -561,14 +580,9 @@ fn scan_quote_matches(
                     prefix,
                     budget,
                     limits,
-                )? && let Some(outcome) = record_occurrence(
-                    occurrence,
-                    blocks,
-                    normalized_blocks,
-                    &mut first,
-                    budget,
-                    limits,
-                )? {
+                )? && let Some(outcome) =
+                    record_raw_occurrence(occurrence, &mut first, budget, limits)?
+                {
                     return Ok(Some(outcome));
                 }
                 branched.push(spaced);
@@ -595,14 +609,9 @@ fn scan_quote_matches(
                     prefix,
                     budget,
                     limits,
-                )? && let Some(outcome) = record_occurrence(
-                    occurrence,
-                    blocks,
-                    normalized_blocks,
-                    &mut first,
-                    budget,
-                    limits,
-                )? {
+                )? && let Some(outcome) =
+                    record_raw_occurrence(occurrence, &mut first, budget, limits)?
+                {
                     return Ok(Some(outcome));
                 }
                 advanced.push(state);
@@ -610,7 +619,52 @@ fn scan_quote_matches(
             states = advanced;
         }
     }
-    Ok(first.map(|(_, outcome)| outcome))
+    Ok(first.map(RawQuoteOutcome::Unique))
+}
+
+fn scan_quote_matches(
+    blocks: &[BlockText],
+    normalized_blocks: &[Vec<LocatedItem>],
+    needle: &[char],
+    prefix: &[usize],
+    budget: &mut DiagnosticBudget,
+    limits: DiagnosticLimits,
+) -> DiagnosticScanResult<Option<QuoteLocateOutcome>> {
+    match scan_quote_raw(normalized_blocks, needle, prefix, budget, limits)? {
+        Some(RawQuoteOutcome::Unique(occurrence)) => {
+            occurrence_outcome(occurrence, blocks, normalized_blocks).map(Some)
+        }
+        Some(RawQuoteOutcome::Ambiguous) => Ok(Some(QuoteLocateOutcome::Ambiguous)),
+        None => Ok(None),
+    }
+}
+
+fn scoped_occurrence_location(
+    occurrence: RawOccurrence,
+    normalized_blocks: &[Vec<LocatedItem>],
+    block_offset: usize,
+) -> DiagnosticScanResult<ScopedQuoteLocation> {
+    let range = |position: ScalarPosition| match normalized_blocks
+        .get(position.block)
+        .and_then(|items| items.get(position.item))
+    {
+        Some(LocatedItem::Scalar { range, .. }) => Ok(*range),
+        _ => Err(DiagnosticScanError::Invalid(
+            "scoped quote match references a non-scalar position".to_owned(),
+        )),
+    };
+    let start = range(occurrence.start)?;
+    let end = range(occurrence.end)?;
+    Ok(ScopedQuoteLocation {
+        start_block: block_offset
+            .checked_add(occurrence.start.block)
+            .ok_or(DiagnosticScanError::Limited)?,
+        start_scalar: start.start,
+        end_block: block_offset
+            .checked_add(occurrence.end.block)
+            .ok_or(DiagnosticScanError::Limited)?,
+        end_scalar: end.end,
+    })
 }
 
 pub(super) fn locate_quote(
@@ -691,7 +745,7 @@ pub(super) fn locate_scoped_quote(
     range: ScopedQuoteRange,
     budget: &mut DiagnosticBudget,
     limits: DiagnosticLimits,
-) -> std::result::Result<QuoteLocateOutcome, String> {
+) -> std::result::Result<ScopedQuoteLocateOutcome, String> {
     let ScopedQuoteRange {
         start_block,
         start_scalar,
@@ -699,19 +753,19 @@ pub(super) fn locate_scoped_quote(
         end_scalar,
     } = range;
     if start_block > end_block || end_block >= blocks.len() {
-        return Ok(QuoteLocateOutcome::Indeterminate);
+        return Ok(ScopedQuoteLocateOutcome::Indeterminate);
     }
     let needle = match normalize_quote(quote, budget, limits) {
         Ok(needle) => needle,
-        Err(DiagnosticScanError::Limited) => return Ok(QuoteLocateOutcome::Limited),
+        Err(DiagnosticScanError::Limited) => return Ok(ScopedQuoteLocateOutcome::Limited),
         Err(DiagnosticScanError::Invalid(error)) => return Err(error),
     };
     if needle.is_empty() {
-        return Ok(QuoteLocateOutcome::Missing);
+        return Ok(ScopedQuoteLocateOutcome::Missing);
     }
     let prefix = match kmp_prefix(&needle, budget, limits) {
         Ok(prefix) => prefix,
-        Err(DiagnosticScanError::Limited) => return Ok(QuoteLocateOutcome::Limited),
+        Err(DiagnosticScanError::Limited) => return Ok(ScopedQuoteLocateOutcome::Limited),
         Err(DiagnosticScanError::Invalid(error)) => return Err(error),
     };
     let scope_blocks = &blocks[start_block..=end_block];
@@ -719,7 +773,9 @@ pub(super) fn locate_scoped_quote(
         .iter()
         .enumerate()
         .map(|(offset, block)| {
-            let block_index = start_block + offset;
+            let block_index = start_block.checked_add(offset).ok_or_else(|| {
+                DiagnosticScanError::Invalid("scoped quote block coordinate overflow".to_owned())
+            })?;
             let start = if block_index == start_block {
                 start_scalar
             } else {
@@ -739,31 +795,32 @@ pub(super) fn locate_scoped_quote(
         .collect::<DiagnosticScanResult<Vec<_>>>()
     {
         Ok(blocks) => blocks,
-        Err(DiagnosticScanError::Limited) => return Ok(QuoteLocateOutcome::Limited),
+        Err(DiagnosticScanError::Limited) => return Ok(ScopedQuoteLocateOutcome::Limited),
         Err(DiagnosticScanError::Invalid(error)) => return Err(error),
     };
-    let outcome = match scan_quote_matches(
-        scope_blocks,
-        &normalized_blocks,
-        &needle,
-        &prefix,
-        budget,
-        limits,
-    ) {
-        Ok(Some(outcome)) => outcome,
-        Ok(None) => QuoteLocateOutcome::Missing,
-        Err(DiagnosticScanError::Limited) => return Ok(QuoteLocateOutcome::Limited),
+    let outcome = match scan_quote_raw(&normalized_blocks, &needle, &prefix, budget, limits) {
+        Ok(Some(RawQuoteOutcome::Unique(occurrence))) => ScopedQuoteLocateOutcome::Unique(
+            scoped_occurrence_location(occurrence, &normalized_blocks, start_block).map_err(
+                |error| match error {
+                    DiagnosticScanError::Limited => "scoped quote coordinates overflow".to_owned(),
+                    DiagnosticScanError::Invalid(error) => error,
+                },
+            )?,
+        ),
+        Ok(Some(RawQuoteOutcome::Ambiguous)) => ScopedQuoteLocateOutcome::Ambiguous,
+        Ok(None) => ScopedQuoteLocateOutcome::Missing,
+        Err(DiagnosticScanError::Limited) => return Ok(ScopedQuoteLocateOutcome::Limited),
         Err(DiagnosticScanError::Invalid(error)) => return Err(error),
     };
     for block in scope_blocks {
         if budget.charge_scan(1, limits).is_err() {
-            return Ok(QuoteLocateOutcome::Limited);
+            return Ok(ScopedQuoteLocateOutcome::Limited);
         }
         if !block.issues.is_empty()
             || !block.raw.unmapped.is_empty()
             || !block.canonical.unmapped.is_empty()
         {
-            return Ok(QuoteLocateOutcome::Indeterminate);
+            return Ok(ScopedQuoteLocateOutcome::Indeterminate);
         }
     }
     Ok(outcome)

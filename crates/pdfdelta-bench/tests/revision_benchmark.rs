@@ -353,6 +353,14 @@ fn scoped_complete_requires_resolved_scopes_before_evaluation() {
             f1: 1.0,
         })
     );
+    let token_metrics = resolved_report
+        .scoped_token_metrics
+        .expect("scoped token quality is available");
+    assert_eq!(token_metrics.precision, 1.0);
+    assert_eq!(token_metrics.recall, 1.0);
+    assert_eq!(token_metrics.f1, 1.0);
+    assert_eq!(token_metrics.span_iou, 1.0);
+    assert_eq!(token_metrics.false_positive_tokens_per_10k_unchanged, None);
     assert!(resolved_report.candidate_recall.is_none());
     assert!(resolved_report.expected_change_diagnostics.is_none());
 
@@ -661,7 +669,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 6);
+    assert_eq!(val["schema_version"], 7);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 

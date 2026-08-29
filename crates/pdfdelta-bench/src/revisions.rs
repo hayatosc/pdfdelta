@@ -50,7 +50,8 @@ mod revision_scopes;
 
 use revision_diagnostics::evaluate_reviewed_diagnostics;
 use revision_scopes::{
-    classify_scoped_changes, resolve_revision_scopes, validate_scoped_expected_changes,
+    classify_scoped_changes, evaluate_scoped_token_metrics, resolve_revision_scopes,
+    validate_scoped_expected_changes,
 };
 
 pub const QUALITY_SKIP_RESOURCE_LIMIT: &str = "comparison stopped at a resource limit";
@@ -125,6 +126,19 @@ pub struct ScopedEventMetrics {
     pub precision: f64,
     pub recall: f64,
     pub f1: f64,
+}
+
+/// Comparable-token overlap quality over fully reviewed scopes.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct ScopedTokenMetrics {
+    pub expected_changed_tokens: usize,
+    pub reported_changed_tokens: usize,
+    pub true_positive_tokens: usize,
+    pub precision: f64,
+    pub recall: f64,
+    pub f1: f64,
+    pub span_iou: f64,
+    pub false_positive_tokens_per_10k_unchanged: Option<f64>,
 }
 
 /// Recall of human-reviewed replacement and move counterparts in the
@@ -305,10 +319,13 @@ pub struct PairRunReport {
     pub reported_changes_preview: Vec<ReportedChangeText>,
     pub quality: Option<QualityMetrics>,
     pub quality_skipped_reason: Option<String>,
-    /// Scoped event quality is published only in compact summary schema v6;
+    /// Scoped event quality is published only in compact summaries;
     /// the unversioned full-report v1 key set remains unchanged.
     #[serde(skip)]
     pub scoped_event_metrics: Option<ScopedEventMetrics>,
+    /// Scoped token quality is published only in compact summary schema v7.
+    #[serde(skip)]
+    pub scoped_token_metrics: Option<ScopedTokenMetrics>,
     /// Reviewed candidate recall is published only in compact summary schema
     /// v3 so the full report v1 key set remains unchanged.
     #[serde(skip)]
@@ -502,8 +519,12 @@ pub struct ExpectedChange {
     pub kind: ExpectedKind,
     #[serde(default)]
     pub scope: Option<String>,
+    /// Under `ScopedComplete`, this is the exact expected changed span on the
+    /// old side, not surrounding context used only for identification.
     #[serde(default)]
     pub old_quote: Option<String>,
+    /// Under `ScopedComplete`, this is the exact expected changed span on the
+    /// new side, not surrounding context used only for identification.
     #[serde(default)]
     pub new_quote: Option<String>,
     #[serde(default)]
@@ -1252,6 +1273,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         quality: None,
         quality_skipped_reason: None,
         scoped_event_metrics: None,
+        scoped_token_metrics: None,
         candidate_recall: None,
         expected_change_diagnostics: None,
         resource_limit_failure: None,
@@ -1414,22 +1436,30 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
             let scoped =
                 resolve_revision_scopes(&document.scopes, &outcome.old_blocks, &outcome.new_blocks)
                     .and_then(|scopes| {
-                        validate_scoped_expected_changes(
+                        let expected_tokens = validate_scoped_expected_changes(
                             &document.changes,
                             &scopes,
                             &outcome.old_blocks,
                             &outcome.new_blocks,
                         )?;
-                        classify_scoped_changes(
+                        let changes = classify_scoped_changes(
                             &outcome.comparison.changes,
                             &scopes,
                             &outcome.old_blocks,
                             &outcome.new_blocks,
-                        )
-                        .map(|changes| (scopes, changes))
+                        )?;
+                        let token_metrics = evaluate_scoped_token_metrics(
+                            &outcome.comparison.changes,
+                            &changes,
+                            expected_tokens,
+                            &scopes,
+                            &outcome.old_blocks,
+                            &outcome.new_blocks,
+                        )?;
+                        Ok((scopes, changes, token_metrics))
                     });
             match scoped {
-                Ok((scopes, changes)) => {
+                Ok((scopes, changes, token_metrics)) => {
                     let all_actuals = actuals.unwrap_or_default();
                     let scoped_actuals = changes
                         .iter()
@@ -1447,6 +1477,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                     );
                     record.quality = Some(quality);
                     record.scoped_event_metrics = Some(scoped_event_metrics);
+                    record.scoped_token_metrics = Some(token_metrics);
                 }
                 Err(reason) => record.quality_skipped_reason = Some(reason),
             }
@@ -2028,7 +2059,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 6;
+    pub const SCHEMA_VERSION: u32 = 7;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -2072,6 +2103,8 @@ pub struct RevisionSummaryRecord {
     pub quality_skipped_reason: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scoped_event_metrics: Option<ScopedEventMetrics>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scoped_token_metrics: Option<ScopedTokenMetrics>,
     pub candidate_recall: Option<CandidateRecallMetrics>,
     pub expected_change_diagnostics: Option<ExpectedChangeDiagnostics>,
 }
@@ -2103,6 +2136,7 @@ impl RevisionSummaryRecord {
             quality: report.quality,
             quality_skipped_reason: report.quality_skipped_reason.clone(),
             scoped_event_metrics: report.scoped_event_metrics,
+            scoped_token_metrics: report.scoped_token_metrics,
             candidate_recall: report.candidate_recall,
             expected_change_diagnostics: report.expected_change_diagnostics.clone(),
         }
@@ -2548,7 +2582,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 6);
+        assert_eq!(completed["schema_version"], 7);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -2561,13 +2595,13 @@ mod tests {
     }
 
     #[test]
-    fn scoped_event_metrics_are_compact_v6_only_and_omitted_when_unavailable() {
+    fn scoped_metrics_are_compact_v7_only_and_omitted_when_unavailable() {
         let legacy = record(PairRunStatus::Ok);
         let legacy_full = serde_json::to_value(&legacy).expect("full report serializes");
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 6);
+        assert_eq!(legacy_summary["schema_version"], 7);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -2581,13 +2615,37 @@ mod tests {
             recall: 1.0,
             f1: 2.0 / 3.0,
         });
+        scoped.scoped_token_metrics = Some(ScopedTokenMetrics {
+            expected_changed_tokens: 8,
+            reported_changed_tokens: 10,
+            true_positive_tokens: 6,
+            precision: 0.6,
+            recall: 0.75,
+            f1: 2.0 / 3.0,
+            span_iou: 0.5,
+            false_positive_tokens_per_10k_unchanged: Some(20.0),
+        });
         let scoped_full = serde_json::to_value(&scoped).expect("full report serializes");
         assert!(scoped_full.get("scoped_event_metrics").is_none());
+        assert!(scoped_full.get("scoped_token_metrics").is_none());
         let summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[scoped]))
             .expect("summary serializes");
         assert_eq!(
             summary["records"][0]["scoped_event_metrics"]["reviewed_scope_count"],
             2
+        );
+        assert_eq!(
+            summary["records"][0]["scoped_token_metrics"],
+            serde_json::json!({
+                "expected_changed_tokens": 8,
+                "reported_changed_tokens": 10,
+                "true_positive_tokens": 6,
+                "precision": 0.6,
+                "recall": 0.75,
+                "f1": 2.0 / 3.0,
+                "span_iou": 0.5,
+                "false_positive_tokens_per_10k_unchanged": 20.0
+            })
         );
     }
 
@@ -2866,6 +2924,7 @@ mod tests {
             quality: None,
             quality_skipped_reason: None,
             scoped_event_metrics: None,
+            scoped_token_metrics: None,
             candidate_recall: None,
             expected_change_diagnostics: None,
             resource_limit_failure: None,
@@ -3299,7 +3358,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 6);
+        assert_eq!(json["schema_version"], 7);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -3674,6 +3733,7 @@ mod tests {
                 }),
                 quality_skipped_reason: None,
                 scoped_event_metrics: None,
+                scoped_token_metrics: None,
                 candidate_recall: None,
                 expected_change_diagnostics: None,
                 resource_limit_failure: None,
@@ -3722,6 +3782,7 @@ mod tests {
                 quality: None,
                 quality_skipped_reason: Some(QUALITY_SKIP_RESOURCE_LIMIT.to_owned()),
                 scoped_event_metrics: None,
+                scoped_token_metrics: None,
                 candidate_recall: None,
                 expected_change_diagnostics: None,
                 resource_limit_failure: Some(
@@ -3769,6 +3830,7 @@ mod tests {
                 quality: None,
                 quality_skipped_reason: Some(QUALITY_SKIP_INCOMPLETE_EXTRACTION.to_owned()),
                 scoped_event_metrics: None,
+                scoped_token_metrics: None,
                 candidate_recall: None,
                 expected_change_diagnostics: None,
                 resource_limit_failure: None,
@@ -3798,7 +3860,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 6);
+        assert_eq!(value["schema_version"], 7);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -3952,6 +4014,7 @@ mod tests {
             quality: None,
             quality_skipped_reason: None,
             scoped_event_metrics: None,
+            scoped_token_metrics: None,
             candidate_recall: Some(CandidateRecallMetrics {
                 top_k: 32,
                 annotated_counterparts: 1,
@@ -4076,6 +4139,7 @@ mod tests {
             quality: None,
             quality_skipped_reason: None,
             scoped_event_metrics: None,
+            scoped_token_metrics: None,
             candidate_recall: None,
             expected_change_diagnostics: None,
             resource_limit_failure: None,

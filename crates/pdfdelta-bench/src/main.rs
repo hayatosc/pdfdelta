@@ -1330,6 +1330,7 @@ mod tests {
             quality: None,
             quality_skipped_reason: None,
             scoped_event_metrics: None,
+            scoped_token_metrics: None,
             candidate_recall: None,
             expected_change_diagnostics: None,
             resource_limit_failure: None,
