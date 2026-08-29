@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 4;
+const TRACE_SCHEMA_VERSION: u8 = 5;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -365,6 +365,18 @@ fn pipeline_metrics(
             sentence.near_relation_stop_reason,
             Some(pdfdelta_core::diff::NearRelationStopReason::CandidateCountLimit)
         );
+        let run_signature_posting_limit = matches!(
+            sentence.run_signature_stop_reason,
+            Some(pdfdelta_core::diff::RunSignatureStopReason::PostingVisitLimit)
+        );
+        let run_signature_verification_limit = matches!(
+            sentence.run_signature_stop_reason,
+            Some(pdfdelta_core::diff::RunSignatureStopReason::TokenVerificationLimit)
+        );
+        let run_signature_candidate_limit = matches!(
+            sentence.run_signature_stop_reason,
+            Some(pdfdelta_core::diff::RunSignatureStopReason::CandidatePairLimit)
+        );
         flattened.extend([
             (
                 "sentence_recovery_old_trusted_run_source_tokens",
@@ -441,6 +453,98 @@ fn pipeline_metrics(
             (
                 "sentence_recovery_structural_unique_crossing_veto_pairs",
                 sentence.structural_unique_crossing_veto_pairs,
+            ),
+            (
+                "sentence_recovery_run_signature_available",
+                usize::from(sentence.run_signature_available),
+            ),
+            (
+                "sentence_recovery_run_signature_complete",
+                usize::from(sentence.run_signature_complete),
+            ),
+            (
+                "sentence_recovery_old_run_signature_unique_units",
+                sentence.old_run_signature_unique_units,
+            ),
+            (
+                "sentence_recovery_new_run_signature_unique_units",
+                sentence.new_run_signature_unique_units,
+            ),
+            (
+                "sentence_recovery_old_run_signature_duplicate_units",
+                sentence.old_run_signature_duplicate_units,
+            ),
+            (
+                "sentence_recovery_new_run_signature_duplicate_units",
+                sentence.new_run_signature_duplicate_units,
+            ),
+            (
+                "sentence_recovery_run_signature_shared_unit_keys",
+                sentence.run_signature_shared_unit_keys,
+            ),
+            (
+                "sentence_recovery_run_signature_largest_posting",
+                sentence.run_signature_largest_posting,
+            ),
+            (
+                "sentence_recovery_run_signature_posting_visits_attempted",
+                sentence.run_signature_posting_visits_attempted,
+            ),
+            (
+                "sentence_recovery_run_signature_posting_visits_examined",
+                sentence.run_signature_posting_visits_examined,
+            ),
+            (
+                "sentence_recovery_run_signature_token_verifications_attempted",
+                sentence.run_signature_token_verifications_attempted,
+            ),
+            (
+                "sentence_recovery_run_signature_token_verifications_examined",
+                sentence.run_signature_token_verifications_examined,
+            ),
+            (
+                "sentence_recovery_run_signature_candidate_pairs",
+                sentence.run_signature_candidate_pairs,
+            ),
+            (
+                "sentence_recovery_run_signature_globally_anchored_runs_skipped",
+                sentence.run_signature_globally_anchored_runs_skipped,
+            ),
+            (
+                "sentence_recovery_run_signature_reciprocal_unique_pairs",
+                sentence.run_signature_reciprocal_unique_pairs,
+            ),
+            (
+                "sentence_recovery_run_signature_margin_qualified_pairs",
+                sentence.run_signature_margin_qualified_pairs,
+            ),
+            (
+                "sentence_recovery_run_signature_margin_veto_pairs",
+                sentence.run_signature_margin_veto_pairs,
+            ),
+            (
+                "sentence_recovery_run_signature_monotone_pairs",
+                sentence.run_signature_monotone_pairs,
+            ),
+            (
+                "sentence_recovery_run_signature_crossing_veto_pairs",
+                sentence.run_signature_crossing_veto_pairs,
+            ),
+            (
+                "sentence_recovery_run_signature_max_shared_units",
+                sentence.run_signature_max_shared_units,
+            ),
+            (
+                "sentence_recovery_run_signature_stop_reason_posting_visit_limit",
+                usize::from(run_signature_posting_limit),
+            ),
+            (
+                "sentence_recovery_run_signature_stop_reason_token_verification_limit",
+                usize::from(run_signature_verification_limit),
+            ),
+            (
+                "sentence_recovery_run_signature_stop_reason_candidate_pair_limit",
+                usize::from(run_signature_candidate_limit),
             ),
             (
                 "sentence_recovery_exact_shared_units",
@@ -632,7 +736,7 @@ fn expected_phases() -> Vec<(&'static str, Option<TraceSide>)> {
 #[cfg(test)]
 mod tests {
     use pdfdelta_core::{
-        diff::{NearRelationStopReason, SentenceRecoveryMetrics},
+        diff::{NearRelationStopReason, RunSignatureStopReason, SentenceRecoveryMetrics},
         pipeline::PipelineMetrics,
     };
 
@@ -655,6 +759,15 @@ mod tests {
             old_structural_descriptors: 3,
             structural_candidate_pairs: 2,
             structural_duplicate_pairs: 2,
+            run_signature_available: true,
+            run_signature_complete: false,
+            old_run_signature_unique_units: 7,
+            run_signature_shared_unit_keys: 3,
+            run_signature_largest_posting: 4,
+            run_signature_posting_visits_attempted: 9,
+            run_signature_posting_visits_examined: 8,
+            run_signature_candidate_pairs: 5,
+            run_signature_stop_reason: Some(RunSignatureStopReason::PostingVisitLimit),
             near_relation_complete: true,
             near_pair_visits_examined: 29,
             near_pair_visits_attempted: 31,
@@ -689,6 +802,24 @@ mod tests {
         assert_eq!(metrics["sentence_recovery_structural_candidate_pairs"], 2);
         assert_eq!(
             metrics["sentence_recovery_structural_unique_no_anchor_pairs"],
+            0
+        );
+        assert_eq!(metrics["sentence_recovery_run_signature_available"], 1);
+        assert_eq!(metrics["sentence_recovery_run_signature_complete"], 0);
+        assert_eq!(
+            metrics["sentence_recovery_old_run_signature_unique_units"],
+            7
+        );
+        assert_eq!(
+            metrics["sentence_recovery_run_signature_candidate_pairs"],
+            5
+        );
+        assert_eq!(
+            metrics["sentence_recovery_run_signature_stop_reason_posting_visit_limit"],
+            1
+        );
+        assert_eq!(
+            metrics["sentence_recovery_run_signature_stop_reason_token_verification_limit"],
             0
         );
         assert_eq!(metrics["sentence_recovery_near_relation_complete"], 1);
@@ -755,6 +886,41 @@ mod tests {
                 PipelineMetrics {
                     sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
                         near_relation_stop_reason: Some(reason),
+                        ..SentenceRecoveryMetrics::default()
+                    }),
+                    ..PipelineMetrics::default()
+                },
+                None,
+            );
+
+            for (_, key) in cases {
+                assert_eq!(metrics[key], usize::from(key == expected));
+            }
+        }
+    }
+
+    #[test]
+    fn flattens_each_run_signature_stop_reason_as_one_hot() {
+        let cases = [
+            (
+                RunSignatureStopReason::PostingVisitLimit,
+                "sentence_recovery_run_signature_stop_reason_posting_visit_limit",
+            ),
+            (
+                RunSignatureStopReason::TokenVerificationLimit,
+                "sentence_recovery_run_signature_stop_reason_token_verification_limit",
+            ),
+            (
+                RunSignatureStopReason::CandidatePairLimit,
+                "sentence_recovery_run_signature_stop_reason_candidate_pair_limit",
+            ),
+        ];
+
+        for (reason, expected) in cases {
+            let metrics = pipeline_metrics(
+                PipelineMetrics {
+                    sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
+                        run_signature_stop_reason: Some(reason),
                         ..SentenceRecoveryMetrics::default()
                     }),
                     ..PipelineMetrics::default()

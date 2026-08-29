@@ -20,7 +20,10 @@ use std::{
 
 use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
-    diff::{ChangeKind, Comparison, NearRelationStopReason, SentenceRecoveryMetrics, TextSpan},
+    diff::{
+        ChangeKind, Comparison, NearRelationStopReason, RunSignatureStopReason,
+        SentenceRecoveryMetrics, TextSpan,
+    },
     model::Document,
     normalize::{BlockText, ComparableToken},
     pdf::{LopdfParser, ParseLimits},
@@ -262,6 +265,27 @@ pub struct SentenceRecoveryMetricsReport {
     pub structural_unique_no_anchor_pairs: usize,
     pub structural_unique_monotone_anchor_pairs: usize,
     pub structural_unique_crossing_veto_pairs: usize,
+    pub run_signature_available: bool,
+    pub run_signature_complete: bool,
+    pub old_run_signature_unique_units: usize,
+    pub new_run_signature_unique_units: usize,
+    pub old_run_signature_duplicate_units: usize,
+    pub new_run_signature_duplicate_units: usize,
+    pub run_signature_shared_unit_keys: usize,
+    pub run_signature_largest_posting: usize,
+    pub run_signature_posting_visits_attempted: usize,
+    pub run_signature_posting_visits_examined: usize,
+    pub run_signature_token_verifications_attempted: usize,
+    pub run_signature_token_verifications_examined: usize,
+    pub run_signature_candidate_pairs: usize,
+    pub run_signature_globally_anchored_runs_skipped: usize,
+    pub run_signature_reciprocal_unique_pairs: usize,
+    pub run_signature_margin_qualified_pairs: usize,
+    pub run_signature_margin_veto_pairs: usize,
+    pub run_signature_monotone_pairs: usize,
+    pub run_signature_crossing_veto_pairs: usize,
+    pub run_signature_max_shared_units: usize,
+    pub run_signature_stop_reason: Option<RunSignatureStopReasonReport>,
     pub exact_shared_units: usize,
     pub old_exact_one_sided_units: usize,
     pub new_exact_one_sided_units: usize,
@@ -295,12 +319,30 @@ pub enum NearRelationStopReasonReport {
     CandidateCountLimit,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RunSignatureStopReasonReport {
+    PostingVisitLimit,
+    TokenVerificationLimit,
+    CandidatePairLimit,
+}
+
 impl From<NearRelationStopReason> for NearRelationStopReasonReport {
     fn from(reason: NearRelationStopReason) -> Self {
         match reason {
             NearRelationStopReason::PairVisitLimit => Self::PairVisitLimit,
             NearRelationStopReason::SimilarityComparisonLimit => Self::SimilarityComparisonLimit,
             NearRelationStopReason::CandidateCountLimit => Self::CandidateCountLimit,
+        }
+    }
+}
+
+impl From<RunSignatureStopReason> for RunSignatureStopReasonReport {
+    fn from(reason: RunSignatureStopReason) -> Self {
+        match reason {
+            RunSignatureStopReason::PostingVisitLimit => Self::PostingVisitLimit,
+            RunSignatureStopReason::TokenVerificationLimit => Self::TokenVerificationLimit,
+            RunSignatureStopReason::CandidatePairLimit => Self::CandidatePairLimit,
         }
     }
 }
@@ -328,6 +370,30 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             structural_unique_monotone_anchor_pairs: metrics
                 .structural_unique_monotone_anchor_pairs,
             structural_unique_crossing_veto_pairs: metrics.structural_unique_crossing_veto_pairs,
+            run_signature_available: metrics.run_signature_available,
+            run_signature_complete: metrics.run_signature_complete,
+            old_run_signature_unique_units: metrics.old_run_signature_unique_units,
+            new_run_signature_unique_units: metrics.new_run_signature_unique_units,
+            old_run_signature_duplicate_units: metrics.old_run_signature_duplicate_units,
+            new_run_signature_duplicate_units: metrics.new_run_signature_duplicate_units,
+            run_signature_shared_unit_keys: metrics.run_signature_shared_unit_keys,
+            run_signature_largest_posting: metrics.run_signature_largest_posting,
+            run_signature_posting_visits_attempted: metrics.run_signature_posting_visits_attempted,
+            run_signature_posting_visits_examined: metrics.run_signature_posting_visits_examined,
+            run_signature_token_verifications_attempted: metrics
+                .run_signature_token_verifications_attempted,
+            run_signature_token_verifications_examined: metrics
+                .run_signature_token_verifications_examined,
+            run_signature_candidate_pairs: metrics.run_signature_candidate_pairs,
+            run_signature_globally_anchored_runs_skipped: metrics
+                .run_signature_globally_anchored_runs_skipped,
+            run_signature_reciprocal_unique_pairs: metrics.run_signature_reciprocal_unique_pairs,
+            run_signature_margin_qualified_pairs: metrics.run_signature_margin_qualified_pairs,
+            run_signature_margin_veto_pairs: metrics.run_signature_margin_veto_pairs,
+            run_signature_monotone_pairs: metrics.run_signature_monotone_pairs,
+            run_signature_crossing_veto_pairs: metrics.run_signature_crossing_veto_pairs,
+            run_signature_max_shared_units: metrics.run_signature_max_shared_units,
+            run_signature_stop_reason: metrics.run_signature_stop_reason.map(Into::into),
             exact_shared_units: metrics.exact_shared_units,
             old_exact_one_sided_units: metrics.old_exact_one_sided_units,
             new_exact_one_sided_units: metrics.new_exact_one_sided_units,
@@ -1743,6 +1809,7 @@ fn validate_sentence_recovery_metrics(
     metrics: SentenceRecoveryMetrics,
 ) -> std::result::Result<SentenceRecoveryMetricsReport, String> {
     validate_structural_pairing_metrics(metrics)?;
+    validate_run_signature_metrics(metrics)?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
             "examined near pair visits {} exceed attempted visits {}",
@@ -1899,6 +1966,104 @@ fn validate_structural_pairing_metrics(
     }
     if (metrics.structural_shared_profiles == 0) != (metrics.structural_largest_posting == 0) {
         return Err("structural largest posting disagrees with shared profiles".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_run_signature_metrics(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<(), String> {
+    let counters = [
+        metrics.old_run_signature_unique_units,
+        metrics.new_run_signature_unique_units,
+        metrics.old_run_signature_duplicate_units,
+        metrics.new_run_signature_duplicate_units,
+        metrics.run_signature_shared_unit_keys,
+        metrics.run_signature_largest_posting,
+        metrics.run_signature_posting_visits_attempted,
+        metrics.run_signature_posting_visits_examined,
+        metrics.run_signature_token_verifications_attempted,
+        metrics.run_signature_token_verifications_examined,
+        metrics.run_signature_candidate_pairs,
+        metrics.run_signature_globally_anchored_runs_skipped,
+        metrics.run_signature_reciprocal_unique_pairs,
+        metrics.run_signature_margin_qualified_pairs,
+        metrics.run_signature_margin_veto_pairs,
+        metrics.run_signature_monotone_pairs,
+        metrics.run_signature_crossing_veto_pairs,
+        metrics.run_signature_max_shared_units,
+    ];
+    if !metrics.run_signature_available {
+        if metrics.run_signature_complete
+            || metrics.run_signature_stop_reason.is_some()
+            || counters.iter().any(|counter| *counter != 0)
+        {
+            return Err("unavailable run signature has diagnostic state".to_owned());
+        }
+        return Ok(());
+    }
+    if metrics.run_signature_posting_visits_examined
+        > metrics.run_signature_posting_visits_attempted
+        || metrics.run_signature_token_verifications_examined
+            > metrics.run_signature_token_verifications_attempted
+    {
+        return Err("run signature examined work exceeds attempted work".to_owned());
+    }
+    let posting_deficit = metrics.run_signature_posting_visits_examined
+        < metrics.run_signature_posting_visits_attempted;
+    let verification_deficit = metrics.run_signature_token_verifications_examined
+        < metrics.run_signature_token_verifications_attempted;
+    if metrics.run_signature_complete {
+        if posting_deficit || verification_deficit || metrics.run_signature_stop_reason.is_some() {
+            return Err("complete run signature has unfinished work".to_owned());
+        }
+    } else {
+        if metrics.run_signature_stop_reason.is_none() {
+            return Err("incomplete run signature has no stop reason".to_owned());
+        }
+        if [
+            metrics.run_signature_reciprocal_unique_pairs,
+            metrics.run_signature_margin_qualified_pairs,
+            metrics.run_signature_margin_veto_pairs,
+            metrics.run_signature_monotone_pairs,
+            metrics.run_signature_crossing_veto_pairs,
+            metrics.run_signature_max_shared_units,
+        ]
+        .iter()
+        .any(|counter| *counter != 0)
+        {
+            return Err("incomplete run signature exposes pair results".to_owned());
+        }
+    }
+    match metrics.run_signature_stop_reason {
+        Some(RunSignatureStopReason::PostingVisitLimit) if posting_deficit => {}
+        Some(RunSignatureStopReason::TokenVerificationLimit) if verification_deficit => {}
+        Some(RunSignatureStopReason::CandidatePairLimit) if !verification_deficit => {}
+        Some(_) => {
+            return Err("run signature stop reason disagrees with unfinished work".to_owned());
+        }
+        None => {}
+    }
+    let margin_partition = metrics
+        .run_signature_margin_qualified_pairs
+        .checked_add(metrics.run_signature_margin_veto_pairs)
+        .ok_or_else(|| "run signature margin partition overflows".to_owned())?;
+    if margin_partition != metrics.run_signature_reciprocal_unique_pairs {
+        return Err("run signature margin partition is inconsistent".to_owned());
+    }
+    if metrics.run_signature_reciprocal_unique_pairs > metrics.run_signature_candidate_pairs {
+        return Err("run signature reciprocal pairs exceed candidate pairs".to_owned());
+    }
+    let order_partition = metrics
+        .run_signature_monotone_pairs
+        .checked_add(metrics.run_signature_crossing_veto_pairs)
+        .ok_or_else(|| "run signature order partition overflows".to_owned())?;
+    if order_partition != metrics.run_signature_margin_qualified_pairs {
+        return Err("run signature order partition is inconsistent".to_owned());
+    }
+    if (metrics.run_signature_shared_unit_keys == 0) != (metrics.run_signature_largest_posting == 0)
+    {
+        return Err("run signature largest posting disagrees with shared keys".to_owned());
     }
     Ok(())
 }
@@ -2266,7 +2431,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 9;
+    pub const SCHEMA_VERSION: u32 = 10;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -2789,7 +2954,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 9);
+        assert_eq!(completed["schema_version"], 10);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -2808,7 +2973,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 9);
+        assert_eq!(legacy_summary["schema_version"], 10);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -3566,7 +3731,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 9);
+        assert_eq!(json["schema_version"], 10);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -3597,6 +3762,21 @@ mod tests {
             structural_duplicate_pairs: 1,
             structural_unique_reciprocal_pairs: 1,
             structural_unique_monotone_anchor_pairs: 1,
+            run_signature_available: true,
+            run_signature_complete: true,
+            old_run_signature_unique_units: 3,
+            new_run_signature_unique_units: 4,
+            run_signature_shared_unit_keys: 2,
+            run_signature_largest_posting: 1,
+            run_signature_posting_visits_attempted: 2,
+            run_signature_posting_visits_examined: 2,
+            run_signature_token_verifications_attempted: 10,
+            run_signature_token_verifications_examined: 10,
+            run_signature_candidate_pairs: 1,
+            run_signature_reciprocal_unique_pairs: 1,
+            run_signature_margin_qualified_pairs: 1,
+            run_signature_monotone_pairs: 1,
+            run_signature_max_shared_units: 2,
             near_relation_complete: true,
             near_pair_visits_examined: 20,
             near_pair_visits_attempted: 20,
@@ -3621,16 +3801,92 @@ mod tests {
         assert!(validated.structural_pairing_available);
         assert_eq!(validated.structural_candidate_pairs, 2);
         assert_eq!(validated.structural_unique_monotone_anchor_pairs, 1);
+        assert!(validated.run_signature_complete);
+        assert_eq!(validated.run_signature_margin_qualified_pairs, 1);
         assert!(validated.near_relation_complete);
         assert_eq!(validated.near_pair_visits_examined, 20);
         assert_eq!(validated.near_similarity_comparisons_attempted, 8);
         assert_eq!(validated.near_largest_edge_posting, 12);
         assert_eq!(validated.recovered_replacement_new_tokens, 12);
         assert_eq!(validated.vetoed_near_pairs, 1);
+
+        let candidate_stop = SentenceRecoveryMetrics {
+            run_signature_available: true,
+            run_signature_shared_unit_keys: 1,
+            run_signature_largest_posting: 2,
+            run_signature_posting_visits_attempted: 4,
+            run_signature_posting_visits_examined: 2,
+            run_signature_token_verifications_attempted: 2,
+            run_signature_token_verifications_examined: 2,
+            run_signature_candidate_pairs: 1,
+            run_signature_stop_reason: Some(RunSignatureStopReason::CandidatePairLimit),
+            ..SentenceRecoveryMetrics::default()
+        };
+        let validated = validate_sentence_recovery_metrics(candidate_stop)
+            .expect("candidate pair stop may leave an admitted posting partially visited");
+        assert_eq!(
+            validated.run_signature_stop_reason,
+            Some(RunSignatureStopReasonReport::CandidatePairLimit)
+        );
     }
 
     #[test]
     fn rejects_invalid_sentence_recovery_metrics() {
+        let unavailable_run_signature = SentenceRecoveryMetrics {
+            run_signature_candidate_pairs: 1,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(unavailable_run_signature).is_err());
+
+        let complete_run_signature_with_deficit = SentenceRecoveryMetrics {
+            run_signature_available: true,
+            run_signature_complete: true,
+            run_signature_posting_visits_attempted: 1,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(complete_run_signature_with_deficit).is_err());
+
+        let incomplete_run_signature_without_reason = SentenceRecoveryMetrics {
+            run_signature_available: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(
+            validate_sentence_recovery_metrics(incomplete_run_signature_without_reason).is_err()
+        );
+
+        let invalid_run_signature_partition = SentenceRecoveryMetrics {
+            run_signature_available: true,
+            run_signature_complete: true,
+            run_signature_reciprocal_unique_pairs: 1,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(invalid_run_signature_partition).is_err());
+
+        let reciprocal_exceeds_candidates = SentenceRecoveryMetrics {
+            run_signature_available: true,
+            run_signature_complete: true,
+            run_signature_reciprocal_unique_pairs: 1,
+            run_signature_margin_veto_pairs: 1,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(reciprocal_exceeds_candidates).is_err());
+
+        let candidate_stop_with_verification_deficit = SentenceRecoveryMetrics {
+            run_signature_available: true,
+            run_signature_shared_unit_keys: 1,
+            run_signature_largest_posting: 2,
+            run_signature_posting_visits_attempted: 4,
+            run_signature_posting_visits_examined: 2,
+            run_signature_token_verifications_attempted: 2,
+            run_signature_token_verifications_examined: 1,
+            run_signature_candidate_pairs: 1,
+            run_signature_stop_reason: Some(RunSignatureStopReason::CandidatePairLimit),
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(
+            validate_sentence_recovery_metrics(candidate_stop_with_verification_deficit).is_err()
+        );
+
         let unavailable_structural = SentenceRecoveryMetrics {
             structural_candidate_pairs: 1,
             ..SentenceRecoveryMetrics::default()
@@ -4312,7 +4568,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 9);
+        assert_eq!(value["schema_version"], 10);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -4399,6 +4655,27 @@ mod tests {
             "structural_unique_no_anchor_pairs".to_owned(),
             "structural_unique_monotone_anchor_pairs".to_owned(),
             "structural_unique_crossing_veto_pairs".to_owned(),
+            "run_signature_available".to_owned(),
+            "run_signature_complete".to_owned(),
+            "old_run_signature_unique_units".to_owned(),
+            "new_run_signature_unique_units".to_owned(),
+            "old_run_signature_duplicate_units".to_owned(),
+            "new_run_signature_duplicate_units".to_owned(),
+            "run_signature_shared_unit_keys".to_owned(),
+            "run_signature_largest_posting".to_owned(),
+            "run_signature_posting_visits_attempted".to_owned(),
+            "run_signature_posting_visits_examined".to_owned(),
+            "run_signature_token_verifications_attempted".to_owned(),
+            "run_signature_token_verifications_examined".to_owned(),
+            "run_signature_candidate_pairs".to_owned(),
+            "run_signature_globally_anchored_runs_skipped".to_owned(),
+            "run_signature_reciprocal_unique_pairs".to_owned(),
+            "run_signature_margin_qualified_pairs".to_owned(),
+            "run_signature_margin_veto_pairs".to_owned(),
+            "run_signature_monotone_pairs".to_owned(),
+            "run_signature_crossing_veto_pairs".to_owned(),
+            "run_signature_max_shared_units".to_owned(),
+            "run_signature_stop_reason".to_owned(),
             "exact_shared_units".to_owned(),
             "old_exact_one_sided_units".to_owned(),
             "new_exact_one_sided_units".to_owned(),

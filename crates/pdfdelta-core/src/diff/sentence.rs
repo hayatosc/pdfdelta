@@ -18,8 +18,8 @@ use crate::{
 
 use super::{
     MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
-    SentenceRecoveryCommittedTokens, SentenceRecoveryInput, SentenceRecoveryMetrics, Side,
-    TokenRange, TrustedRunRecoveryInput,
+    RunSignatureStopReason, SentenceRecoveryCommittedTokens, SentenceRecoveryInput,
+    SentenceRecoveryMetrics, Side, TokenRange, TrustedRunRecoveryInput,
 };
 
 pub(super) const MAX_SENTENCE_RECOVERY_RANGES: usize = 8_192;
@@ -631,6 +631,7 @@ struct StructuralSideProfiles {
     eligible_count: usize,
     mixed_count: usize,
     split_count: usize,
+    eligible: Vec<bool>,
     postings: HashMap<StructuralProfile, Vec<usize>>,
 }
 
@@ -805,9 +806,9 @@ fn structural_side_profiles(
     let mut postings = HashMap::<StructuralProfile, Vec<usize>>::new();
     postings.try_reserve(eligible_count).ok()?;
     for (descriptor_index, (descriptor, is_eligible)) in
-        evidence.descriptors.iter().zip(eligible).enumerate()
+        evidence.descriptors.iter().zip(&eligible).enumerate()
     {
-        if !is_eligible {
+        if !*is_eligible {
             continue;
         }
         let posting = postings
@@ -825,8 +826,37 @@ fn structural_side_profiles(
         eligible_count,
         mixed_count,
         split_count,
+        eligible,
         postings,
     })
+}
+
+fn descriptor_recovery_eligibility(
+    profiles: &StructuralSideProfiles,
+    evidence: &RunRecoveryEvidence<'_>,
+    side: &Side<'_>,
+    span_by_block: &HashMap<BlockId, usize>,
+    recovery_spans: &[bool],
+) -> Option<Vec<bool>> {
+    if profiles.eligible.len() != evidence.descriptors.len() {
+        return None;
+    }
+    let mut eligible = Vec::new();
+    eligible.try_reserve_exact(profiles.eligible.len()).ok()?;
+    for (descriptor, structurally_eligible) in evidence.descriptors.iter().zip(&profiles.eligible) {
+        let mut fully_contained = *structurally_eligible && !descriptor.block_indices.is_empty();
+        for block_index in &descriptor.block_indices {
+            let block = side.blocks.get(*block_index)?;
+            let in_recovery_span = span_by_block
+                .get(&block.block)
+                .and_then(|span_index| recovery_spans.get(*span_index))
+                .copied()
+                .unwrap_or(false);
+            fully_contained &= in_recovery_span;
+        }
+        eligible.push(fully_contained);
+    }
+    Some(eligible)
 }
 
 fn increment_histogram(
@@ -977,6 +1007,483 @@ fn clear_structural_pairing_metrics(diagnostics: &mut Option<SentenceRecoveryDia
     metrics.structural_unique_no_anchor_pairs = 0;
     metrics.structural_unique_monotone_anchor_pairs = 0;
     metrics.structural_unique_crossing_veto_pairs = 0;
+}
+
+#[derive(Clone, Copy)]
+struct RunUnitPosting {
+    descriptor_index: usize,
+    occurrence_index: usize,
+    ordinal: usize,
+}
+
+enum RunLocalUnitState {
+    Unique(usize),
+    Duplicate,
+}
+
+struct RunUnitIndex<'a> {
+    postings: HashMap<OccurrenceKey<'a>, Vec<RunUnitPosting>>,
+    unique_units: usize,
+    duplicate_units: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+struct RunSignatureScore {
+    shared_units: usize,
+    shared_tokens: usize,
+}
+
+#[derive(Default)]
+struct RunPairScore {
+    score: RunSignatureScore,
+    ordinals: Vec<(usize, usize)>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct RunBest {
+    score: RunSignatureScore,
+    second: RunSignatureScore,
+    partner: Option<usize>,
+    ambiguous: bool,
+}
+
+impl RunBest {
+    fn record(&mut self, partner: usize, score: RunSignatureScore) {
+        if score > self.score {
+            self.second = self.score;
+            self.score = score;
+            self.partner = Some(partner);
+            self.ambiguous = false;
+        } else if score == self.score {
+            self.second = self.second.max(score);
+            self.partner = None;
+            self.ambiguous = true;
+        } else {
+            self.second = self.second.max(score);
+        }
+    }
+
+    fn unique_partner(self) -> Option<usize> {
+        (!self.ambiguous && self.score > self.second).then_some(self.partner?)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct RunSignatureBudget {
+    posting_limit: usize,
+    verification_limit: usize,
+    candidate_pair_limit: usize,
+    posting_attempted: usize,
+    posting_examined: usize,
+    verification_attempted: usize,
+    verification_examined: usize,
+    stop_reason: Option<RunSignatureStopReason>,
+}
+
+#[derive(Clone, Copy)]
+struct RunSignatureLimits {
+    min_tokens: usize,
+    old_tokens: usize,
+    new_tokens: usize,
+    candidate_pairs: usize,
+}
+
+#[derive(Clone, Copy)]
+struct RunSignatureEligibility<'a> {
+    old: &'a [bool],
+    new: &'a [bool],
+}
+
+impl RunSignatureBudget {
+    fn new(old_tokens: usize, new_tokens: usize, candidate_pair_limit: usize) -> Option<Self> {
+        let posting_limit = old_tokens.checked_add(new_tokens)?;
+        Some(Self {
+            posting_limit,
+            verification_limit: posting_limit.checked_mul(4)?,
+            candidate_pair_limit,
+            posting_attempted: 0,
+            posting_examined: 0,
+            verification_attempted: 0,
+            verification_examined: 0,
+            stop_reason: None,
+        })
+    }
+
+    fn admit_posting_product(&mut self, amount: usize) -> Option<bool> {
+        self.posting_attempted = self.posting_attempted.checked_add(amount)?;
+        if self.posting_examined.checked_add(amount)? > self.posting_limit {
+            self.stop_reason = Some(RunSignatureStopReason::PostingVisitLimit);
+            return Some(false);
+        }
+        Some(true)
+    }
+
+    fn record_posting_visit(&mut self) -> Option<()> {
+        self.posting_examined = self.posting_examined.checked_add(1)?;
+        (self.posting_examined <= self.posting_attempted).then_some(())
+    }
+
+    fn charge_verification(&mut self, amount: usize) -> Option<bool> {
+        Self::charge(
+            &mut self.verification_attempted,
+            &mut self.verification_examined,
+            amount,
+            self.verification_limit,
+            RunSignatureStopReason::TokenVerificationLimit,
+            &mut self.stop_reason,
+        )
+    }
+
+    fn admit_candidate_pair(&mut self, current_pairs: usize) -> bool {
+        if current_pairs < self.candidate_pair_limit {
+            true
+        } else {
+            self.stop_reason = Some(RunSignatureStopReason::CandidatePairLimit);
+            false
+        }
+    }
+
+    fn charge(
+        attempted: &mut usize,
+        examined: &mut usize,
+        amount: usize,
+        limit: usize,
+        reason: RunSignatureStopReason,
+        stop_reason: &mut Option<RunSignatureStopReason>,
+    ) -> Option<bool> {
+        *attempted = attempted.checked_add(amount)?;
+        let next_examined = examined.checked_add(amount)?;
+        if next_examined > limit {
+            *stop_reason = Some(reason);
+            return Some(false);
+        }
+        *examined = next_examined;
+        Some(true)
+    }
+}
+
+fn run_signature_metrics(
+    eligibility: RunSignatureEligibility<'_>,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    exact_candidates: &[ExactMatchCandidate],
+    limits: RunSignatureLimits,
+) -> Option<SentenceRecoveryMetrics> {
+    let (old_anchored, new_anchored) = globally_anchored_descriptors(
+        exact_candidates,
+        old_occurrences,
+        new_occurrences,
+        eligibility.old,
+        eligibility.new,
+    )?;
+    let globally_anchored_runs_skipped = old_anchored.len().checked_add(new_anchored.len())?;
+    let old_index = run_unit_index(old_occurrences, eligibility.old, &old_anchored)?;
+    let new_index = run_unit_index(new_occurrences, eligibility.new, &new_anchored)?;
+    let mut budget =
+        RunSignatureBudget::new(limits.old_tokens, limits.new_tokens, limits.candidate_pairs)?;
+    let mut shared_keys = Vec::new();
+    shared_keys
+        .try_reserve(old_index.postings.len().min(new_index.postings.len()))
+        .ok()?;
+    let mut largest_posting = 0usize;
+    for (key, old_posting) in &old_index.postings {
+        let Some(new_posting) = new_index.postings.get(key) else {
+            continue;
+        };
+        let product = old_posting.len().checked_mul(new_posting.len())?;
+        largest_posting = largest_posting
+            .max(old_posting.len())
+            .max(new_posting.len());
+        shared_keys.push((*key, product));
+    }
+    shared_keys.sort_unstable_by(|(left_key, left_product), (right_key, right_product)| {
+        left_product
+            .cmp(right_product)
+            .then_with(|| run_unit_sort_key(*left_key).cmp(&run_unit_sort_key(*right_key)))
+    });
+
+    let mut pairs = HashMap::<(usize, usize), RunPairScore>::new();
+    'keys: for (key, product) in &shared_keys {
+        if !budget.admit_posting_product(*product)? {
+            break;
+        }
+        let old_posting = old_index.postings.get(key)?;
+        let new_posting = new_index.postings.get(key)?;
+        for old_unit in old_posting {
+            for new_unit in new_posting {
+                budget.record_posting_visit()?;
+                let old_occurrence = old_occurrences.get(old_unit.occurrence_index)?;
+                let new_occurrence = new_occurrences.get(new_unit.occurrence_index)?;
+                let verification_tokens =
+                    old_occurrence.tokens.len().max(new_occurrence.tokens.len());
+                if !budget.charge_verification(verification_tokens)? {
+                    break 'keys;
+                }
+                if old_occurrence.tokens != new_occurrence.tokens {
+                    continue;
+                }
+                let pair_key = (old_unit.descriptor_index, new_unit.descriptor_index);
+                if !pairs.contains_key(&pair_key) {
+                    if !budget.admit_candidate_pair(pairs.len()) {
+                        break 'keys;
+                    }
+                    pairs.try_reserve(1).ok()?;
+                    pairs.insert(pair_key, RunPairScore::default());
+                }
+                let pair = pairs.get_mut(&pair_key)?;
+                pair.score.shared_units = pair.score.shared_units.checked_add(1)?;
+                pair.score.shared_tokens = pair
+                    .score
+                    .shared_tokens
+                    .checked_add(old_occurrence.tokens.len())?;
+                pair.ordinals.try_reserve(1).ok()?;
+                pair.ordinals.push((old_unit.ordinal, new_unit.ordinal));
+            }
+        }
+    }
+
+    let complete = budget.stop_reason.is_none();
+    let mut metrics = SentenceRecoveryMetrics {
+        run_signature_available: true,
+        run_signature_complete: complete,
+        old_run_signature_unique_units: old_index.unique_units,
+        new_run_signature_unique_units: new_index.unique_units,
+        old_run_signature_duplicate_units: old_index.duplicate_units,
+        new_run_signature_duplicate_units: new_index.duplicate_units,
+        run_signature_shared_unit_keys: shared_keys.len(),
+        run_signature_largest_posting: largest_posting,
+        run_signature_posting_visits_attempted: budget.posting_attempted,
+        run_signature_posting_visits_examined: budget.posting_examined,
+        run_signature_token_verifications_attempted: budget.verification_attempted,
+        run_signature_token_verifications_examined: budget.verification_examined,
+        run_signature_candidate_pairs: pairs.len(),
+        run_signature_globally_anchored_runs_skipped: globally_anchored_runs_skipped,
+        run_signature_stop_reason: budget.stop_reason,
+        ..SentenceRecoveryMetrics::default()
+    };
+    if complete {
+        classify_run_signature_pairs(&mut metrics, &mut pairs, limits.min_tokens)?;
+    }
+    Some(metrics)
+}
+
+fn run_unit_sort_key(key: OccurrenceKey<'_>) -> (&str, u8, u8) {
+    let kind = match key.1 {
+        RecoveryUnitKind::Sentence => 0,
+        RecoveryUnitKind::Line => 1,
+    };
+    let role = match key.2 {
+        OccurrenceRole::Body => 0,
+        OccurrenceRole::RepeatedHeader => 1,
+        OccurrenceRole::RepeatedFooter => 2,
+    };
+    (key.0, kind, role)
+}
+
+fn globally_anchored_descriptors(
+    candidates: &[ExactMatchCandidate],
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_eligible: &[bool],
+    new_eligible: &[bool],
+) -> Option<(HashSet<usize>, HashSet<usize>)> {
+    let mut old = HashSet::new();
+    let mut new = HashSet::new();
+    old.try_reserve(candidates.len()).ok()?;
+    new.try_reserve(candidates.len()).ok()?;
+    for candidate in candidates {
+        if let Some(index) = old_occurrences
+            .get(candidate.old_occurrence_index)?
+            .run_descriptor_index
+            .filter(|index| old_eligible.get(*index).copied().unwrap_or(false))
+        {
+            old.insert(index);
+        }
+        if let Some(index) = new_occurrences
+            .get(candidate.new_occurrence_index)?
+            .run_descriptor_index
+            .filter(|index| new_eligible.get(*index).copied().unwrap_or(false))
+        {
+            new.insert(index);
+        }
+    }
+    Some((old, new))
+}
+
+fn run_unit_index<'a>(
+    occurrences: &'a [SentenceOccurrence],
+    eligible: &[bool],
+    anchored: &HashSet<usize>,
+) -> Option<RunUnitIndex<'a>> {
+    let mut local = HashMap::<(usize, OccurrenceKey<'a>), RunLocalUnitState>::new();
+    local.try_reserve(occurrences.len()).ok()?;
+    for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
+        let (Some(descriptor_index), Some(position), Some(role)) = (
+            occurrence.run_descriptor_index,
+            occurrence.trusted_position,
+            occurrence.role,
+        ) else {
+            continue;
+        };
+        if !eligible.get(descriptor_index).copied().unwrap_or(false)
+            || anchored.contains(&descriptor_index)
+            || occurrence
+                .tokens
+                .iter()
+                .any(|token| matches!(token, SentenceEvidenceToken::Unmapped { .. }))
+        {
+            continue;
+        }
+        let key = (occurrence.key.as_str(), occurrence.kind, role.into());
+        match local.entry((descriptor_index, key)) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(RunLocalUnitState::Unique(occurrence_index));
+            }
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                *entry.get_mut() = RunLocalUnitState::Duplicate;
+            }
+        }
+        let _ = position;
+    }
+
+    let mut postings = HashMap::<OccurrenceKey<'a>, Vec<RunUnitPosting>>::new();
+    postings.try_reserve(local.len()).ok()?;
+    let mut unique_units = 0usize;
+    let mut duplicate_units = 0usize;
+    for ((descriptor_index, key), state) in local {
+        let RunLocalUnitState::Unique(occurrence_index) = state else {
+            duplicate_units = duplicate_units.checked_add(1)?;
+            continue;
+        };
+        let occurrence = occurrences.get(occurrence_index)?;
+        let ordinal = occurrence.trusted_position?.ordinal;
+        let posting = postings.entry(key).or_default();
+        posting.try_reserve(1).ok()?;
+        posting.push(RunUnitPosting {
+            descriptor_index,
+            occurrence_index,
+            ordinal,
+        });
+        unique_units = unique_units.checked_add(1)?;
+    }
+    for posting in postings.values_mut() {
+        posting.sort_unstable_by_key(|unit| unit.descriptor_index);
+    }
+    Some(RunUnitIndex {
+        postings,
+        unique_units,
+        duplicate_units,
+    })
+}
+
+fn classify_run_signature_pairs(
+    metrics: &mut SentenceRecoveryMetrics,
+    pairs: &mut HashMap<(usize, usize), RunPairScore>,
+    min_tokens: usize,
+) -> Option<()> {
+    let mut old_best = HashMap::<usize, RunBest>::new();
+    let mut new_best = HashMap::<usize, RunBest>::new();
+    old_best.try_reserve(pairs.len()).ok()?;
+    new_best.try_reserve(pairs.len()).ok()?;
+    for ((old_run, new_run), pair) in pairs.iter() {
+        old_best
+            .entry(*old_run)
+            .or_default()
+            .record(*new_run, pair.score);
+        new_best
+            .entry(*new_run)
+            .or_default()
+            .record(*old_run, pair.score);
+        metrics.run_signature_max_shared_units = metrics
+            .run_signature_max_shared_units
+            .max(pair.score.shared_units);
+    }
+    for ((old_run, new_run), pair) in pairs.iter_mut() {
+        let Some(old_relation) = old_best.get(old_run).copied() else {
+            continue;
+        };
+        let Some(new_relation) = new_best.get(new_run).copied() else {
+            continue;
+        };
+        if old_relation.unique_partner() != Some(*new_run)
+            || new_relation.unique_partner() != Some(*old_run)
+        {
+            continue;
+        }
+        metrics.run_signature_reciprocal_unique_pairs = metrics
+            .run_signature_reciprocal_unique_pairs
+            .checked_add(1)?;
+        let old_margin = pair
+            .score
+            .shared_units
+            .checked_sub(old_relation.second.shared_units)?;
+        let new_margin = pair
+            .score
+            .shared_units
+            .checked_sub(new_relation.second.shared_units)?;
+        if pair.score.shared_units < 2
+            || old_margin < 1
+            || new_margin < 1
+            || pair.score.shared_tokens < min_tokens
+        {
+            metrics.run_signature_margin_veto_pairs =
+                metrics.run_signature_margin_veto_pairs.checked_add(1)?;
+            continue;
+        }
+        metrics.run_signature_margin_qualified_pairs = metrics
+            .run_signature_margin_qualified_pairs
+            .checked_add(1)?;
+        pair.ordinals.sort_unstable();
+        if pair
+            .ordinals
+            .windows(2)
+            .all(|window| window[0].0 < window[1].0 && window[0].1 < window[1].1)
+        {
+            metrics.run_signature_monotone_pairs =
+                metrics.run_signature_monotone_pairs.checked_add(1)?;
+        } else {
+            metrics.run_signature_crossing_veto_pairs =
+                metrics.run_signature_crossing_veto_pairs.checked_add(1)?;
+        }
+    }
+    Some(())
+}
+
+fn record_run_signature_metrics(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    run_metrics: Option<SentenceRecoveryMetrics>,
+) {
+    let (Some(diagnostics), Some(run_metrics)) = (diagnostics.as_mut(), run_metrics) else {
+        return;
+    };
+    let metrics = &mut diagnostics.metrics;
+    metrics.run_signature_available = run_metrics.run_signature_available;
+    metrics.run_signature_complete = run_metrics.run_signature_complete;
+    metrics.old_run_signature_unique_units = run_metrics.old_run_signature_unique_units;
+    metrics.new_run_signature_unique_units = run_metrics.new_run_signature_unique_units;
+    metrics.old_run_signature_duplicate_units = run_metrics.old_run_signature_duplicate_units;
+    metrics.new_run_signature_duplicate_units = run_metrics.new_run_signature_duplicate_units;
+    metrics.run_signature_shared_unit_keys = run_metrics.run_signature_shared_unit_keys;
+    metrics.run_signature_largest_posting = run_metrics.run_signature_largest_posting;
+    metrics.run_signature_posting_visits_attempted =
+        run_metrics.run_signature_posting_visits_attempted;
+    metrics.run_signature_posting_visits_examined =
+        run_metrics.run_signature_posting_visits_examined;
+    metrics.run_signature_token_verifications_attempted =
+        run_metrics.run_signature_token_verifications_attempted;
+    metrics.run_signature_token_verifications_examined =
+        run_metrics.run_signature_token_verifications_examined;
+    metrics.run_signature_candidate_pairs = run_metrics.run_signature_candidate_pairs;
+    metrics.run_signature_globally_anchored_runs_skipped =
+        run_metrics.run_signature_globally_anchored_runs_skipped;
+    metrics.run_signature_reciprocal_unique_pairs =
+        run_metrics.run_signature_reciprocal_unique_pairs;
+    metrics.run_signature_margin_qualified_pairs = run_metrics.run_signature_margin_qualified_pairs;
+    metrics.run_signature_margin_veto_pairs = run_metrics.run_signature_margin_veto_pairs;
+    metrics.run_signature_monotone_pairs = run_metrics.run_signature_monotone_pairs;
+    metrics.run_signature_crossing_veto_pairs = run_metrics.run_signature_crossing_veto_pairs;
+    metrics.run_signature_max_shared_units = run_metrics.run_signature_max_shared_units;
+    metrics.run_signature_stop_reason = run_metrics.run_signature_stop_reason;
 }
 
 struct StreamBlock {
@@ -1320,6 +1827,24 @@ pub(super) fn build_sentence_recovery_plan(
         input.old_trusted_run_intervals,
         input.new_trusted_run_intervals,
     );
+    let run_signature_eligibility = structural_pairing.as_ref().and_then(|structural| {
+        Some((
+            descriptor_recovery_eligibility(
+                &structural.old,
+                structural_evidence.old.as_ref()?,
+                old,
+                &membership.old,
+                &membership.recovery_spans,
+            )?,
+            descriptor_recovery_eligibility(
+                &structural.new,
+                structural_evidence.new.as_ref()?,
+                new,
+                &membership.new,
+                &membership.recovery_spans,
+            )?,
+        ))
+    });
     record_structural_pairing_plan(&mut diagnostics, structural_pairing.as_ref());
     if !membership.recovery_spans.iter().any(|eligible| *eligible) {
         return Ok(SentenceRecoveryBuildOutcome {
@@ -1401,6 +1926,27 @@ pub(super) fn build_sentence_recovery_plan(
         &new_occurrences,
         &exact_match_candidates,
     );
+    let run_metrics =
+        run_signature_eligibility
+            .as_ref()
+            .and_then(|(old_eligible, new_eligible)| {
+                run_signature_metrics(
+                    RunSignatureEligibility {
+                        old: old_eligible,
+                        new: new_eligible,
+                    },
+                    &old_occurrences,
+                    &new_occurrences,
+                    &exact_match_candidates,
+                    RunSignatureLimits {
+                        min_tokens: input.min_tokens,
+                        old_tokens: old.total_tokens,
+                        new_tokens: new.total_tokens,
+                        candidate_pairs: budget.output_range_limit,
+                    },
+                )
+            });
+    record_run_signature_metrics(&mut diagnostics, run_metrics);
     let Some(old_candidate_outcome) = recovery_candidates(
         &old_occurrences,
         &counts,
@@ -4589,6 +5135,61 @@ mod tests {
         occurrence
     }
 
+    fn run_occurrence(
+        key: &str,
+        tokens: &[char],
+        descriptor_index: usize,
+        ordinal: usize,
+    ) -> SentenceOccurrence {
+        let mut occurrence = positioned_occurrence(key, ordinal as u64, descriptor_index, ordinal);
+        occurrence.tokens = tokens
+            .iter()
+            .copied()
+            .map(SentenceEvidenceToken::Scalar)
+            .collect();
+        occurrence.run_descriptor_index = Some(descriptor_index);
+        occurrence
+    }
+
+    fn run_structural_plan(old_runs: usize, new_runs: usize) -> StructuralPairingPlan {
+        StructuralPairingPlan {
+            old: StructuralSideProfiles {
+                descriptor_count: old_runs,
+                eligible_count: old_runs,
+                eligible: vec![true; old_runs],
+                ..StructuralSideProfiles::default()
+            },
+            new: StructuralSideProfiles {
+                descriptor_count: new_runs,
+                eligible_count: new_runs,
+                eligible: vec![true; new_runs],
+                ..StructuralSideProfiles::default()
+            },
+            ..StructuralPairingPlan::default()
+        }
+    }
+
+    fn run_limits(
+        min_tokens: usize,
+        old_tokens: usize,
+        new_tokens: usize,
+        candidate_pairs: usize,
+    ) -> RunSignatureLimits {
+        RunSignatureLimits {
+            min_tokens,
+            old_tokens,
+            new_tokens,
+            candidate_pairs,
+        }
+    }
+
+    fn run_eligibility(plan: &StructuralPairingPlan) -> RunSignatureEligibility<'_> {
+        RunSignatureEligibility {
+            old: &plan.old.eligible,
+            new: &plan.new.eligible,
+        }
+    }
+
     fn similarity_occurrence(
         key: &str,
         tokens: Vec<SentenceEvidenceToken>,
@@ -4956,6 +5557,285 @@ mod tests {
             structural_anchor_classes(&plan, &old, &new, &exact),
             Some((0, 0, 0))
         );
+    }
+
+    #[test]
+    fn run_unit_index_deduplicates_runs_and_excludes_local_duplicates() {
+        let distinct = vec![
+            run_occurrence("shared", &['a'], 0, 0),
+            run_occurrence("shared", &['a'], 1, 0),
+        ];
+        let index = run_unit_index(&distinct, &[true, true], &HashSet::new())
+            .expect("distinct run postings should index");
+        assert_eq!(index.unique_units, 2);
+        assert_eq!(index.duplicate_units, 0);
+        assert_eq!(index.postings.values().next().map(Vec::len), Some(2));
+
+        let duplicate = vec![
+            run_occurrence("shared", &['a'], 0, 0),
+            run_occurrence("shared", &['a'], 0, 1),
+            run_occurrence("shared", &['b'], 1, 0),
+            run_occurrence("shared", &['c'], 1, 1),
+        ];
+        let index = run_unit_index(&duplicate, &[true, true], &HashSet::new())
+            .expect("ambiguous run-local keys should fail closed");
+        assert_eq!(index.unique_units, 0);
+        assert_eq!(index.duplicate_units, 2);
+        assert!(index.postings.is_empty());
+    }
+
+    #[test]
+    fn run_signature_requires_full_token_equality_after_key_lookup() {
+        let structural = run_structural_plan(1, 1);
+        let old = vec![run_occurrence("same-key", &['a', 'b'], 0, 0)];
+        let new = vec![run_occurrence("same-key", &['a', 'c'], 0, 0)];
+
+        let metrics = run_signature_metrics(
+            run_eligibility(&structural),
+            &old,
+            &new,
+            &[],
+            run_limits(1, 10, 10, 10),
+        )
+        .expect("bounded signature diagnostics should complete");
+
+        assert!(metrics.run_signature_complete);
+        assert_eq!(metrics.run_signature_shared_unit_keys, 1);
+        assert_eq!(metrics.run_signature_token_verifications_examined, 2);
+        assert_eq!(metrics.run_signature_candidate_pairs, 0);
+    }
+
+    #[test]
+    fn run_signature_never_uses_unmapped_tokens_as_positive_evidence() {
+        let structural = run_structural_plan(1, 1);
+        let mut old = run_occurrence("collision-key", &['a'], 0, 0);
+        old.tokens = vec![SentenceEvidenceToken::Unmapped {
+            font_fingerprint: 7,
+            glyph_id: 11,
+        }];
+        let new = vec![run_occurrence("collision-key", &['a'], 0, 0)];
+
+        let metrics = run_signature_metrics(
+            run_eligibility(&structural),
+            &[old],
+            &new,
+            &[],
+            run_limits(1, 10, 10, 10),
+        )
+        .expect("unmapped evidence should be excluded without failing diagnostics");
+
+        assert_eq!(metrics.old_run_signature_unique_units, 0);
+        assert_eq!(metrics.new_run_signature_unique_units, 1);
+        assert_eq!(metrics.run_signature_shared_unit_keys, 0);
+        assert_eq!(metrics.run_signature_posting_visits_attempted, 0);
+        assert_eq!(metrics.run_signature_candidate_pairs, 0);
+    }
+
+    #[test]
+    fn run_signature_processes_rare_keys_before_posting_limit() {
+        let structural = run_structural_plan(3, 3);
+        let old = vec![
+            run_occurrence("rare", &['r'], 0, 0),
+            run_occurrence("frequent", &['f'], 1, 0),
+            run_occurrence("frequent", &['f'], 2, 0),
+        ];
+        let new = vec![
+            run_occurrence("rare", &['r'], 0, 0),
+            run_occurrence("frequent", &['f'], 1, 0),
+            run_occurrence("frequent", &['f'], 2, 0),
+        ];
+
+        let metrics = run_signature_metrics(
+            run_eligibility(&structural),
+            &old,
+            &new,
+            &[],
+            run_limits(1, 1, 0, 10),
+        )
+        .expect("posting limit should remain a diagnostic outcome");
+
+        assert!(!metrics.run_signature_complete);
+        assert_eq!(
+            metrics.run_signature_stop_reason,
+            Some(RunSignatureStopReason::PostingVisitLimit)
+        );
+        assert_eq!(metrics.run_signature_posting_visits_examined, 1);
+        assert_eq!(metrics.run_signature_posting_visits_attempted, 5);
+        assert_eq!(metrics.run_signature_candidate_pairs, 1);
+        assert_eq!(metrics.run_signature_reciprocal_unique_pairs, 0);
+    }
+
+    #[test]
+    fn run_signature_reports_verification_and_candidate_pair_limits() {
+        let structural = run_structural_plan(1, 1);
+        let old = vec![run_occurrence("shared", &['a', 'b', 'c', 'd', 'e'], 0, 0)];
+        let new = old
+            .iter()
+            .map(|occurrence| run_occurrence(&occurrence.key, &['a', 'b', 'c', 'd', 'e'], 0, 0))
+            .collect::<Vec<_>>();
+
+        let verification = run_signature_metrics(
+            run_eligibility(&structural),
+            &old,
+            &new,
+            &[],
+            run_limits(1, 1, 0, 10),
+        )
+        .expect("verification limit should remain diagnostic");
+        assert_eq!(
+            verification.run_signature_stop_reason,
+            Some(RunSignatureStopReason::TokenVerificationLimit)
+        );
+        assert_eq!(verification.run_signature_token_verifications_examined, 0);
+        assert_eq!(verification.run_signature_token_verifications_attempted, 5);
+        assert_eq!(verification.run_signature_posting_visits_attempted, 1);
+        assert_eq!(verification.run_signature_posting_visits_examined, 1);
+
+        let candidate = run_signature_metrics(
+            run_eligibility(&structural),
+            &old,
+            &new,
+            &[],
+            run_limits(1, 10, 10, 0),
+        )
+        .expect("candidate limit should remain diagnostic");
+        assert_eq!(
+            candidate.run_signature_stop_reason,
+            Some(RunSignatureStopReason::CandidatePairLimit)
+        );
+        assert_eq!(candidate.run_signature_candidate_pairs, 0);
+
+        let two_by_two = run_structural_plan(2, 2);
+        let old = vec![
+            run_occurrence("shared", &['a'], 0, 0),
+            run_occurrence("shared", &['a'], 1, 0),
+        ];
+        let new = vec![
+            run_occurrence("shared", &['a'], 0, 0),
+            run_occurrence("shared", &['a'], 1, 0),
+        ];
+        let candidate = run_signature_metrics(
+            run_eligibility(&two_by_two),
+            &old,
+            &new,
+            &[],
+            run_limits(1, 10, 10, 1),
+        )
+        .expect("candidate stop should preserve bounded work counters");
+        assert_eq!(
+            candidate.run_signature_stop_reason,
+            Some(RunSignatureStopReason::CandidatePairLimit)
+        );
+        assert_eq!(candidate.run_signature_posting_visits_attempted, 4);
+        assert_eq!(candidate.run_signature_posting_visits_examined, 2);
+        assert_eq!(candidate.run_signature_token_verifications_attempted, 2);
+        assert_eq!(candidate.run_signature_token_verifications_examined, 2);
+        assert_eq!(candidate.run_signature_candidate_pairs, 1);
+    }
+
+    #[test]
+    fn run_signature_requires_two_units_and_margin_for_reciprocal_pair() {
+        let structural = run_structural_plan(1, 1);
+        let old = vec![
+            run_occurrence("first", &['a', 'a'], 0, 0),
+            run_occurrence("second", &['b', 'b'], 0, 1),
+        ];
+        let new = vec![
+            run_occurrence("first", &['a', 'a'], 0, 0),
+            run_occurrence("second", &['b', 'b'], 0, 1),
+        ];
+        let qualified = run_signature_metrics(
+            run_eligibility(&structural),
+            &old,
+            &new,
+            &[],
+            run_limits(4, 20, 20, 10),
+        )
+        .expect("two exact units should score");
+        assert_eq!(qualified.run_signature_reciprocal_unique_pairs, 1);
+        assert_eq!(qualified.run_signature_margin_qualified_pairs, 1);
+        assert_eq!(qualified.run_signature_margin_veto_pairs, 0);
+        assert_eq!(qualified.run_signature_monotone_pairs, 1);
+
+        let one_unit = run_signature_metrics(
+            run_eligibility(&structural),
+            &old[..1],
+            &new[..1],
+            &[],
+            run_limits(1, 10, 10, 10),
+        )
+        .expect("one exact unit should remain diagnostic");
+        assert_eq!(one_unit.run_signature_reciprocal_unique_pairs, 1);
+        assert_eq!(one_unit.run_signature_margin_qualified_pairs, 0);
+        assert_eq!(one_unit.run_signature_margin_veto_pairs, 1);
+    }
+
+    #[test]
+    fn run_signature_rejects_tied_best_and_crossing_ordinals() {
+        let tied_structural = run_structural_plan(1, 2);
+        let old = vec![
+            run_occurrence("first", &['a'], 0, 0),
+            run_occurrence("second", &['b'], 0, 1),
+        ];
+        let tied_new = vec![
+            run_occurrence("first", &['a'], 0, 0),
+            run_occurrence("second", &['b'], 0, 1),
+            run_occurrence("first", &['a'], 1, 0),
+            run_occurrence("second", &['b'], 1, 1),
+        ];
+        let tied = run_signature_metrics(
+            run_eligibility(&tied_structural),
+            &old,
+            &tied_new,
+            &[],
+            run_limits(1, 20, 20, 10),
+        )
+        .expect("tied scores should complete");
+        assert_eq!(tied.run_signature_reciprocal_unique_pairs, 0);
+
+        let crossing_structural = run_structural_plan(1, 1);
+        let crossing_new = vec![
+            run_occurrence("first", &['a'], 0, 1),
+            run_occurrence("second", &['b'], 0, 0),
+        ];
+        let crossing = run_signature_metrics(
+            run_eligibility(&crossing_structural),
+            &old,
+            &crossing_new,
+            &[],
+            run_limits(1, 20, 20, 10),
+        )
+        .expect("crossing evidence should complete");
+        assert_eq!(crossing.run_signature_margin_qualified_pairs, 1);
+        assert_eq!(crossing.run_signature_monotone_pairs, 0);
+        assert_eq!(crossing.run_signature_crossing_veto_pairs, 1);
+    }
+
+    #[test]
+    fn run_signature_skips_runs_participating_in_global_exact_candidates() {
+        let structural = run_structural_plan(1, 1);
+        let old = vec![run_occurrence("shared", &['a'], 0, 0)];
+        let new = vec![run_occurrence("shared", &['a'], 0, 0)];
+        let exact = [ExactMatchCandidate {
+            old_span_index: 0,
+            new_span_index: 0,
+            old_occurrence_index: 0,
+            new_occurrence_index: 0,
+        }];
+
+        let metrics = run_signature_metrics(
+            run_eligibility(&structural),
+            &old,
+            &new,
+            &exact,
+            run_limits(1, 10, 10, 10),
+        )
+        .expect("anchored runs should be skipped without failing diagnostics");
+
+        assert_eq!(metrics.run_signature_globally_anchored_runs_skipped, 2);
+        assert_eq!(metrics.old_run_signature_unique_units, 0);
+        assert_eq!(metrics.new_run_signature_unique_units, 0);
+        assert_eq!(metrics.run_signature_candidate_pairs, 0);
     }
 
     #[test]

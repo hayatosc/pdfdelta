@@ -161,6 +161,14 @@ pub enum NearRelationStopReason {
     CandidateCountLimit,
 }
 
+/// Resource limit that stopped run-local exact-signature diagnostics.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RunSignatureStopReason {
+    PostingVisitLimit,
+    TokenVerificationLimit,
+    CandidatePairLimit,
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -183,6 +191,27 @@ pub struct SentenceRecoveryMetrics {
     pub structural_unique_no_anchor_pairs: usize,
     pub structural_unique_monotone_anchor_pairs: usize,
     pub structural_unique_crossing_veto_pairs: usize,
+    pub run_signature_available: bool,
+    pub run_signature_complete: bool,
+    pub old_run_signature_unique_units: usize,
+    pub new_run_signature_unique_units: usize,
+    pub old_run_signature_duplicate_units: usize,
+    pub new_run_signature_duplicate_units: usize,
+    pub run_signature_shared_unit_keys: usize,
+    pub run_signature_largest_posting: usize,
+    pub run_signature_posting_visits_attempted: usize,
+    pub run_signature_posting_visits_examined: usize,
+    pub run_signature_token_verifications_attempted: usize,
+    pub run_signature_token_verifications_examined: usize,
+    pub run_signature_candidate_pairs: usize,
+    pub run_signature_globally_anchored_runs_skipped: usize,
+    pub run_signature_reciprocal_unique_pairs: usize,
+    pub run_signature_margin_qualified_pairs: usize,
+    pub run_signature_margin_veto_pairs: usize,
+    pub run_signature_monotone_pairs: usize,
+    pub run_signature_crossing_veto_pairs: usize,
+    pub run_signature_max_shared_units: usize,
+    pub run_signature_stop_reason: Option<RunSignatureStopReason>,
     pub exact_shared_units: usize,
     pub old_exact_one_sided_units: usize,
     pub new_exact_one_sided_units: usize,
@@ -2660,8 +2689,8 @@ mod tests {
     use super::*;
     use crate::{
         alignment::{Alignment, ExactAnchor},
-        layout::{BlockRole, TrustedRunId},
-        model::FontProgramHash,
+        layout::{BlockRole, RegionId, TrustedRunDescriptor, TrustedRunId},
+        model::{FontProgramHash, PageId, Rect, Vec2},
         normalize::{
             MappedText, NormalizationIssue, NormalizationIssueKind, TextSource, UnmappedToken,
         },
@@ -6281,6 +6310,192 @@ mod tests {
             },
         )
         .expect("sentence recovery comparison succeeds")
+    }
+
+    fn compare_run_signature_diagnostics(
+        old: &[BlockText],
+        new: &[BlockText],
+        min_tokens: usize,
+    ) -> (
+        ComparisonWithSentenceRecoveryMetrics,
+        ComparisonWithSentenceRecoveryMetrics,
+    ) {
+        let alignment =
+            unresolved_alignment(old, new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        compare_run_signature_diagnostics_with_alignment(old, new, &alignment, min_tokens)
+    }
+
+    fn compare_run_signature_diagnostics_with_alignment(
+        old: &[BlockText],
+        new: &[BlockText],
+        alignment: &Alignment,
+        min_tokens: usize,
+    ) -> (
+        ComparisonWithSentenceRecoveryMetrics,
+        ComparisonWithSentenceRecoveryMetrics,
+    ) {
+        let old_run_ids = (0..old.len())
+            .map(|index| Some(TrustedRunId(index as u64)))
+            .collect::<Vec<_>>();
+        let new_run_ids = (0..new.len())
+            .map(|index| Some(TrustedRunId(index as u64)))
+            .collect::<Vec<_>>();
+        let old_intervals = trusted_run_intervals(&old_run_ids);
+        let new_intervals = trusted_run_intervals(&new_run_ids);
+        let old_descriptors = trusted_run_descriptors(old);
+        let new_descriptors = trusted_run_descriptors(new);
+        let baseline = compare_aligned_with_sentence_recovery_metrics(
+            old,
+            new,
+            alignment,
+            DiffOptions::default(),
+            SentenceRecoveryInput {
+                old_trusted_run_intervals: &old_intervals,
+                new_trusted_run_intervals: &new_intervals,
+                old_trusted_run_evidence: None,
+                new_trusted_run_evidence: None,
+                min_tokens,
+            },
+        )
+        .expect("baseline sentence recovery succeeds");
+        let measured = compare_aligned_with_sentence_recovery_metrics(
+            old,
+            new,
+            alignment,
+            DiffOptions::default(),
+            SentenceRecoveryInput {
+                old_trusted_run_intervals: &old_intervals,
+                new_trusted_run_intervals: &new_intervals,
+                old_trusted_run_evidence: Some(TrustedRunRecoveryInput {
+                    descriptors: &old_descriptors,
+                    raw_region_edges: &[],
+                }),
+                new_trusted_run_evidence: Some(TrustedRunRecoveryInput {
+                    descriptors: &new_descriptors,
+                    raw_region_edges: &[],
+                }),
+                min_tokens,
+            },
+        )
+        .expect("instrumented sentence recovery succeeds");
+        (baseline, measured)
+    }
+
+    fn trusted_run_descriptors(blocks: &[BlockText]) -> Vec<TrustedRunDescriptor> {
+        blocks
+            .iter()
+            .enumerate()
+            .map(|(index, block)| TrustedRunDescriptor {
+                id: TrustedRunId(index as u64),
+                page: PageId(0),
+                bbox: Rect {
+                    min: Vec2 { x: 0.0, y: 0.0 },
+                    max: Vec2 { x: 1.0, y: 1.0 },
+                },
+                block_indices: vec![index],
+                trusted_block_indices: vec![index],
+                role: Some(block.role),
+                source_region_ids: vec![RegionId(index as u64)],
+            })
+            .collect()
+    }
+
+    fn repeated_sentence_blocks(start: u64, count: usize, text: &str) -> Vec<BlockText> {
+        (0..count)
+            .map(|offset| sentence_block(start + offset as u64, text))
+            .collect()
+    }
+
+    #[test]
+    fn run_signature_diagnostics_do_not_change_comparison_when_complete_or_stopped() {
+        let cases = [
+            (
+                repeated_sentence_blocks(1_000, 1, "A stable exact sentence."),
+                repeated_sentence_blocks(2_000, 1, "A stable exact sentence."),
+                1,
+                None,
+            ),
+            (
+                repeated_sentence_blocks(3_000, 64, "Alpha remains stable."),
+                repeated_sentence_blocks(4_000, 64, "Alpha remains stable."),
+                1,
+                Some(RunSignatureStopReason::PostingVisitLimit),
+            ),
+            (
+                repeated_sentence_blocks(
+                    5_000,
+                    9,
+                    "A sufficiently long shared sentence remains stable.",
+                ),
+                repeated_sentence_blocks(
+                    6_000,
+                    9,
+                    "A sufficiently long shared sentence remains stable.",
+                ),
+                1,
+                Some(RunSignatureStopReason::TokenVerificationLimit),
+            ),
+            (
+                repeated_sentence_blocks(7_000, 2, "A shared sentence."),
+                repeated_sentence_blocks(8_000, 2, "A shared sentence."),
+                10_000,
+                Some(RunSignatureStopReason::CandidatePairLimit),
+            ),
+        ];
+
+        for (old, new, min_tokens, expected_stop) in cases {
+            let (baseline, measured) = compare_run_signature_diagnostics(&old, &new, min_tokens);
+            assert_eq!(measured.comparison, baseline.comparison);
+            let metrics = measured
+                .sentence_recovery_metrics
+                .expect("run signature diagnostics should be available");
+            assert!(metrics.run_signature_available);
+            assert_eq!(
+                metrics.run_signature_complete,
+                expected_stop.is_none(),
+                "{metrics:?}"
+            );
+            assert_eq!(
+                metrics.run_signature_stop_reason, expected_stop,
+                "{metrics:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn run_signature_diagnostics_exclude_resolved_runs_without_consuming_budget() {
+        let old = vec![
+            sentence_block(9_000, "Shared resolved sentence."),
+            sentence_block(9_001, "Shared unresolved sentence."),
+        ];
+        let new = vec![
+            sentence_block(9_100, "Shared resolved sentence."),
+            sentence_block(9_101, "Shared unresolved sentence."),
+        ];
+        let mut resolved = reading_order_unknown_span(vec![BlockId(9_000)], vec![BlockId(9_100)]);
+        resolved.kind = AlignmentKind::Match;
+        resolved.evidence.clear();
+        resolved.confidence = AlignmentConfidence::High;
+        let alignment = Alignment {
+            spans: vec![
+                resolved,
+                reading_order_unknown_span(vec![BlockId(9_001)], vec![BlockId(9_101)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+
+        let (baseline, measured) =
+            compare_run_signature_diagnostics_with_alignment(&old, &new, &alignment, 10_000);
+
+        assert_eq!(measured.comparison, baseline.comparison);
+        let metrics = measured
+            .sentence_recovery_metrics
+            .expect("run signature diagnostics should be available");
+        assert_eq!(metrics.old_run_signature_unique_units, 1);
+        assert_eq!(metrics.new_run_signature_unique_units, 1);
+        assert_eq!(metrics.run_signature_posting_visits_attempted, 1);
+        assert_eq!(metrics.run_signature_posting_visits_examined, 1);
     }
 
     fn source_tokens(blocks: &[BlockText]) -> usize {
