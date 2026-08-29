@@ -2823,6 +2823,109 @@ mod tests {
     }
 
     #[test]
+    fn untrusted_atomic_line_recovers_a_unique_near_replacement() {
+        let old_stamp = "arXiv:1706.03762v6 [cs.CL] 24 Jul 2023";
+        let new_stamp = "arXiv:1706.03762v7 [cs.CL] 2 Aug 2023";
+        let old = vec![line_block(1, old_stamp)];
+        let new = vec![line_block(101, new_stamp)];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[None],
+            &[None],
+            16,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(
+            result.changes[0].old_span,
+            Some(test_span(1, 0, old_stamp.chars().count()))
+        );
+        assert_eq!(
+            result.changes[0].new_span,
+            Some(test_span(101, 0, new_stamp.chars().count()))
+        );
+        assert_eq!(
+            result.old_coverage.resolved_tokens,
+            old_stamp.chars().count()
+        );
+        assert_eq!(
+            result.new_coverage.resolved_tokens,
+            new_stamp.chars().count()
+        );
+    }
+
+    #[test]
+    fn duplicate_untrusted_atomic_lines_remain_unresolved() {
+        let old_stamp = "arXiv:1706.03762v6 [cs.CL] 24 Jul 2023";
+        let new_stamp = "arXiv:1706.03762v7 [cs.CL] 2 Aug 2023";
+        let old = vec![line_block(1, old_stamp), line_block(2, old_stamp)];
+        let new = vec![line_block(101, new_stamp), line_block(102, new_stamp)];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[None, None],
+            &[None, None],
+            16,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert!(result.changes.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
+        assert_eq!(result.unresolved_regions.len(), 1);
+    }
+
+    #[test]
+    fn untrusted_multiline_block_remains_unresolved() {
+        let old_text = "first line second line old value";
+        let new_text = "first line second line new value";
+        let mut old_block = line_block(1, old_text);
+        let mut new_block = line_block(101, new_text);
+        old_block.line_breaks = Some(vec![10]);
+        new_block.line_breaks = Some(vec![10]);
+
+        let result = compare_sentence_recovery(
+            &[old_block],
+            &[new_block],
+            &[None],
+            &[None],
+            16,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert!(result.changes.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
+        assert_eq!(result.unresolved_regions.len(), 1);
+    }
+
+    #[test]
+    fn oversized_untrusted_line_block_remains_unresolved() {
+        let text = "a".repeat(sentence::MAX_UNTRUSTED_LINE_TOKENS + 1);
+        let old = vec![line_block(1, &text)];
+        let new = vec![line_block(101, &text)];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[None],
+            &[None],
+            16,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert!(result.changes.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
+        assert_eq!(result.unresolved_regions.len(), 1);
+    }
+
+    #[test]
     fn crossing_near_replacements_inside_a_trusted_run_remain_unresolved() {
         let anchor = "A unique anchor identifies this trusted run.";
         let old_alpha = "The alpha requirement preserves all values except old.";
@@ -5452,6 +5555,13 @@ mod tests {
             line_breaks: None,
             page_breaks: None,
         }
+    }
+
+    fn line_block(id: u64, text: &str) -> BlockText {
+        let mut block = sentence_block(id, text);
+        block.line_breaks = Some(Vec::new());
+        block.page_breaks = Some(Vec::new());
+        block
     }
 
     fn sentence_block_with_unmapped(id: u64, text: &str) -> BlockText {

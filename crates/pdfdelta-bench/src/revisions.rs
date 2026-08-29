@@ -1429,14 +1429,12 @@ fn validate_sentence_recovery_metrics(
         .checked_add(metrics.recovered_replacement_new_tokens)
         .and_then(|tokens| tokens.checked_add(metrics.recovered_insertion_tokens))
         .ok_or_else(|| "new recovered token counters overflow".to_owned())?;
-    if recovered_old > metrics.old_trusted_run_source_tokens
-        || recovered_new > metrics.new_trusted_run_source_tokens
-    {
-        return Err(format!(
-            "recovered source tokens exceed trusted-run source tokens: old={recovered_old}/{} new={recovered_new}/{}",
-            metrics.old_trusted_run_source_tokens, metrics.new_trusted_run_source_tokens
-        ));
-    }
+    recovered_old
+        .checked_add(metrics.unresolved_remainder_old_source_tokens)
+        .ok_or_else(|| "old eligible source token counters overflow".to_owned())?;
+    recovered_new
+        .checked_add(metrics.unresolved_remainder_new_source_tokens)
+        .ok_or_else(|| "new eligible source token counters overflow".to_owned())?;
     Ok(metrics.into())
 }
 
@@ -2853,8 +2851,8 @@ mod tests {
         assert!(validate_sentence_recovery_metrics(invalid_veto).is_err());
 
         let invalid_recovered_total = SentenceRecoveryMetrics {
-            recovered_exact_match_old_tokens: 2,
-            old_trusted_run_source_tokens: 1,
+            recovered_exact_match_old_tokens: usize::MAX,
+            unresolved_remainder_old_source_tokens: 1,
             ..SentenceRecoveryMetrics::default()
         };
         assert!(validate_sentence_recovery_metrics(invalid_recovered_total).is_err());

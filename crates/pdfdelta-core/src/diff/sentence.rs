@@ -24,6 +24,12 @@ const MIN_NEAR_SCORE_MARGIN: u16 = 500;
 const MIN_WORD_SCORE_EDGE_EVIDENCE: u16 = 3_000;
 const MIN_PAIRED_STREAM_EXACT_TOKENS: usize = 4;
 const MIN_PAIRED_STREAM_NEAR_TOKENS: usize = 4;
+const LINE_NGRAM_SIZE: usize = 3;
+const MAX_LINE_NEAR_LENGTH_RATIO: usize = 3;
+const MAX_UNTRUSTED_LINE_NEAR_CANDIDATES: usize = 256;
+/// Larger single-line blocks are likely collapsed page or form regions rather
+/// than independently comparable lines and remain unresolved.
+pub(super) const MAX_UNTRUSTED_LINE_TOKENS: usize = 512;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct LocalSentenceRange {
@@ -265,9 +271,16 @@ struct SentenceOccurrence {
     key: String,
     tokens: Vec<SentenceEvidenceToken>,
     word_ranges: Vec<Range<usize>>,
+    kind: RecoveryUnitKind,
     location: Option<SentenceLocation>,
     span_index: Option<usize>,
     trusted_position: Option<TrustedStreamPosition>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum RecoveryUnitKind {
+    Sentence,
+    Line,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -288,6 +301,8 @@ struct OccurrenceCount {
     old_index: Option<usize>,
     new_index: Option<usize>,
 }
+
+type OccurrenceKey<'a> = (&'a str, RecoveryUnitKind);
 
 struct RecoveryCandidate {
     occurrence_index: usize,
@@ -394,6 +409,7 @@ struct Stream {
     scalar_to_token: Vec<usize>,
     blocks: Vec<StreamBlock>,
     forced_sentence_boundaries: Vec<ForcedSentenceBoundary>,
+    atomic_line: bool,
     trusted: bool,
 }
 
@@ -904,11 +920,17 @@ fn collect_occurrences(
     let mut occurrences = Vec::new();
     for (stream_index, plan) in plans.into_iter().enumerate() {
         let stream = build_stream(side, &plan)?;
-        for (ordinal, boundary) in
-            sentence_boundaries(&stream.text, &stream.forced_sentence_boundaries, budget)?
-                .into_iter()
-                .enumerate()
-        {
+        let sentence_boundaries =
+            sentence_boundaries(&stream.text, &stream.forced_sentence_boundaries, budget)?;
+        let (boundaries, kind) = if stream.atomic_line && sentence_boundaries.is_empty() {
+            (
+                atomic_line_boundaries(&stream.text, budget)?,
+                RecoveryUnitKind::Line,
+            )
+        } else {
+            (sentence_boundaries, RecoveryUnitKind::Sentence)
+        };
+        for (ordinal, boundary) in boundaries.into_iter().enumerate() {
             let key = stream.text.get(boundary.byte_start..boundary.byte_end)?;
             if !budget.charge_key_bytes(key.len()) {
                 return None;
@@ -923,9 +945,15 @@ fn collect_occurrences(
             let span_index =
                 sentence_span_index(side, &stream, touched_blocks.clone(), span_by_block)?;
             let location = match span_index {
-                Some(span_index) if recovery_spans.get(span_index).copied()? => {
-                    sentence_location(side, &stream, boundary, touched_blocks, span_index, budget)?
-                }
+                Some(span_index) if recovery_spans.get(span_index).copied()? => sentence_location(
+                    side,
+                    &stream,
+                    boundary,
+                    touched_blocks,
+                    span_index,
+                    kind,
+                    budget,
+                )?,
                 Some(_) | None => None,
             };
             occurrences.try_reserve(1).ok()?;
@@ -933,6 +961,7 @@ fn collect_occurrences(
                 key: owned_key,
                 tokens,
                 word_ranges,
+                kind,
                 location,
                 span_index,
                 trusted_position: stream.trusted.then_some(TrustedStreamPosition {
@@ -1141,12 +1170,21 @@ fn build_stream(side: &Side<'_>, plan: &StreamPlan) -> Option<Stream> {
     }
 
     let scalar_to_token = scalar_to_token_boundaries(&tokens)?;
+    let atomic_line = if let [side_index] = plan.block_indices.as_slice() {
+        let block = side.blocks.get(*side_index)?;
+        !plan.trusted
+            && side.canonical.get(*side_index)?.len() <= MAX_UNTRUSTED_LINE_TOKENS
+            && block.line_breaks.as_ref().is_some_and(Vec::is_empty)
+    } else {
+        false
+    };
     Some(Stream {
         text,
         tokens,
         scalar_to_token,
         blocks,
         forced_sentence_boundaries,
+        atomic_line,
         trusted: plan.trusted,
     })
 }
@@ -1190,9 +1228,10 @@ fn sentence_location(
     boundary: SentenceBoundary,
     touched_blocks: Range<usize>,
     span_index: usize,
+    kind: RecoveryUnitKind,
     budget: &mut RecoveryBudget,
 ) -> Option<Option<SentenceLocation>> {
-    if !stream.trusted {
+    if !stream.trusted && kind != RecoveryUnitKind::Line {
         return Some(None);
     }
     let stream_blocks = stream.blocks.get(touched_blocks)?;
@@ -1335,7 +1374,7 @@ fn sentence_span_index(
 fn occurrence_counts<'a>(
     old: &'a [SentenceOccurrence],
     new: &'a [SentenceOccurrence],
-) -> Option<HashMap<&'a str, OccurrenceCount>> {
+) -> Option<HashMap<OccurrenceKey<'a>, OccurrenceCount>> {
     let capacity = old.len().checked_add(new.len())?;
     let mut counts = HashMap::new();
     counts.try_reserve(capacity).ok()?;
@@ -1345,12 +1384,14 @@ fn occurrence_counts<'a>(
 }
 
 fn count_occurrences<'a>(
-    counts: &mut HashMap<&'a str, OccurrenceCount>,
+    counts: &mut HashMap<OccurrenceKey<'a>, OccurrenceCount>,
     occurrences: &'a [SentenceOccurrence],
     side: OccurrenceSide,
 ) -> Option<()> {
     for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
-        let count = counts.entry(occurrence.key.as_str()).or_default();
+        let count = counts
+            .entry((occurrence.key.as_str(), occurrence.kind))
+            .or_default();
         match side {
             OccurrenceSide::Old => {
                 count.old = count.old.checked_add(1)?;
@@ -1382,7 +1423,7 @@ fn record_candidate_metrics(
 fn exact_match_candidates(
     old_occurrences: &[SentenceOccurrence],
     new_occurrences: &[SentenceOccurrence],
-    counts: &HashMap<&str, OccurrenceCount>,
+    counts: &HashMap<OccurrenceKey<'_>, OccurrenceCount>,
     recovery_spans: &[bool],
     min_tokens: usize,
     max_candidates: usize,
@@ -1391,36 +1432,52 @@ fn exact_match_candidates(
     candidates
         .try_reserve_exact(counts.len().min(max_candidates))
         .ok()?;
-    for count in counts.values() {
-        if count.old != 1 || count.new != 1 {
-            continue;
+    for phase in [RecoveryUnitKind::Sentence, RecoveryUnitKind::Line] {
+        for (old_occurrence_index, old) in old_occurrences.iter().enumerate() {
+            let count = counts.get(&(old.key.as_str(), old.kind))?;
+            if count.old != 1 || count.new != 1 || count.old_index != Some(old_occurrence_index) {
+                continue;
+            }
+            let new_occurrence_index = count.new_index?;
+            let new = new_occurrences.get(new_occurrence_index)?;
+            let candidate_kind = if old.kind == RecoveryUnitKind::Sentence
+                && new.kind == RecoveryUnitKind::Sentence
+            {
+                RecoveryUnitKind::Sentence
+            } else {
+                RecoveryUnitKind::Line
+            };
+            if candidate_kind != phase {
+                continue;
+            }
+            let Some(old_span_index) = old.span_index else {
+                continue;
+            };
+            let Some(new_span_index) = new.span_index else {
+                continue;
+            };
+            if !recovery_spans.get(old_span_index).copied()?
+                || !recovery_spans.get(new_span_index).copied()?
+                || old.location.is_none()
+                || new.location.is_none()
+                || old.tokens.len() < min_tokens
+                || new.tokens.len() < min_tokens
+            {
+                continue;
+            }
+            if candidates.len() == max_candidates {
+                if phase == RecoveryUnitKind::Sentence {
+                    return None;
+                }
+                break;
+            }
+            candidates.push(ExactMatchCandidate {
+                old_span_index,
+                new_span_index,
+                old_occurrence_index,
+                new_occurrence_index,
+            });
         }
-        let old = old_occurrences.get(count.old_index?)?;
-        let new = new_occurrences.get(count.new_index?)?;
-        let Some(old_span_index) = old.span_index else {
-            continue;
-        };
-        let Some(new_span_index) = new.span_index else {
-            continue;
-        };
-        if !recovery_spans.get(old_span_index).copied()?
-            || !recovery_spans.get(new_span_index).copied()?
-            || old.location.is_none()
-            || new.location.is_none()
-            || old.tokens.len() < min_tokens
-            || new.tokens.len() < min_tokens
-        {
-            continue;
-        }
-        if candidates.len() == max_candidates {
-            return None;
-        }
-        candidates.push(ExactMatchCandidate {
-            old_span_index,
-            new_span_index,
-            old_occurrence_index: count.old_index?,
-            new_occurrence_index: count.new_index?,
-        });
     }
     candidates.sort_unstable_by_key(|candidate| {
         (
@@ -1989,13 +2046,14 @@ fn reorder_paired_candidates(
 
 fn recovery_candidates(
     occurrences: &[SentenceOccurrence],
-    counts: &HashMap<&str, OccurrenceCount>,
+    counts: &HashMap<OccurrenceKey<'_>, OccurrenceCount>,
     side: OccurrenceSide,
     recovery_spans: &[bool],
     min_tokens: usize,
 ) -> Option<Vec<RecoveryCandidate>> {
     let mut candidates = Vec::new();
     candidates.try_reserve(occurrences.len()).ok()?;
+    let mut line_candidates = 0usize;
     for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
         if occurrence.location.is_none() {
             continue;
@@ -2009,12 +2067,18 @@ fn recovery_candidates(
         if !recovery_spans.get(span_index).copied()? {
             continue;
         }
-        let count = counts.get(occurrence.key.as_str())?;
+        let count = counts.get(&(occurrence.key.as_str(), occurrence.kind))?;
         let unique = match side {
             OccurrenceSide::Old => count.old == 1 && count.new == 0,
             OccurrenceSide::New => count.new == 1 && count.old == 0,
         };
         if unique {
+            if occurrence.kind == RecoveryUnitKind::Line {
+                if line_candidates == MAX_UNTRUSTED_LINE_NEAR_CANDIDATES {
+                    continue;
+                }
+                line_candidates = line_candidates.checked_add(1)?;
+            }
             candidates.push(RecoveryCandidate {
                 occurrence_index,
                 span_index,
@@ -2064,11 +2128,12 @@ fn paired_modified_sentence_relations(
         let old_occurrence = old_occurrences.get(old_candidate.occurrence_index)?;
         collect_plausible_occurrences(&mut plausible, &new_edges, &old_occurrence.tokens)?;
         plausible.retain(|occurrence_index| {
-            new_intervals
-                .get(*occurrence_index)
-                .copied()
-                .flatten()
-                .is_some_and(|candidate| candidate.pair_index == interval.pair_index)
+            new_occurrences[*occurrence_index].kind == old_occurrence.kind
+                && new_intervals
+                    .get(*occurrence_index)
+                    .copied()
+                    .flatten()
+                    .is_some_and(|candidate| candidate.pair_index == interval.pair_index)
         });
         if !budget.charge_pair_visits(plausible.len()) {
             return None;
@@ -2099,11 +2164,12 @@ fn paired_modified_sentence_relations(
         let new_occurrence = new_occurrences.get(new_candidate.occurrence_index)?;
         collect_plausible_occurrences(&mut plausible, &old_edges, &new_occurrence.tokens)?;
         plausible.retain(|occurrence_index| {
-            old_intervals
-                .get(*occurrence_index)
-                .copied()
-                .flatten()
-                .is_some_and(|candidate| candidate.pair_index == interval.pair_index)
+            old_occurrences[*occurrence_index].kind == new_occurrence.kind
+                && old_intervals
+                    .get(*occurrence_index)
+                    .copied()
+                    .flatten()
+                    .is_some_and(|candidate| candidate.pair_index == interval.pair_index)
         });
         let noncandidate_visits =
             plausible
@@ -2337,10 +2403,11 @@ fn extend_modified_sentence_relations(
         let old_occurrence = old_occurrences.get(old_candidate.occurrence_index)?;
         collect_plausible_occurrences(&mut plausible, &new_edges, &old_occurrence.tokens)?;
         plausible.retain(|occurrence_index| {
-            scope.includes(
-                old_occurrence.span_index,
-                new_occurrences[*occurrence_index].span_index,
-            )
+            new_occurrences[*occurrence_index].kind == old_occurrence.kind
+                && scope.includes(
+                    old_occurrence.span_index,
+                    new_occurrences[*occurrence_index].span_index,
+                )
         });
         if !budget.charge_pair_visits(plausible.len()) {
             return None;
@@ -2364,10 +2431,11 @@ fn extend_modified_sentence_relations(
         let new_occurrence = new_occurrences.get(new_candidate.occurrence_index)?;
         collect_plausible_occurrences(&mut plausible, &old_edges, &new_occurrence.tokens)?;
         plausible.retain(|occurrence_index| {
-            scope.includes(
-                new_occurrence.span_index,
-                old_occurrences[*occurrence_index].span_index,
-            )
+            old_occurrences[*occurrence_index].kind == new_occurrence.kind
+                && scope.includes(
+                    new_occurrence.span_index,
+                    old_occurrences[*occurrence_index].span_index,
+                )
         });
         let noncandidate_visits =
             plausible
@@ -2529,6 +2597,13 @@ fn sentence_similarity(
     if shorter == 0 {
         return Some(0);
     }
+    if old.kind == RecoveryUnitKind::Line
+        && new.kind == RecoveryUnitKind::Line
+        && old.tokens.len().max(new.tokens.len())
+            > shorter.checked_mul(MAX_LINE_NEAR_LENGTH_RATIO)?
+    {
+        return Some(0);
+    }
 
     let mut prefix = 0usize;
     while prefix < shorter {
@@ -2554,11 +2629,16 @@ fn sentence_similarity(
 
     let shared = prefix.checked_add(suffix)?;
     let edge_score = basis_points(shared, shorter)?;
+    let line_score = if old.kind == RecoveryUnitKind::Line && new.kind == RecoveryUnitKind::Line {
+        token_ngram_multiset_dice(&old.tokens, &new.tokens, LINE_NGRAM_SIZE, budget)?
+    } else {
+        0
+    };
     if edge_score < MIN_WORD_SCORE_EDGE_EVIDENCE {
-        return Some(edge_score);
+        return Some(edge_score.max(line_score));
     }
     let word_score = word_multiset_dice(old, new, budget)?;
-    Some(edge_score.max(word_score))
+    Some(edge_score.max(word_score).max(line_score))
 }
 
 fn word_multiset_dice(
@@ -2589,6 +2669,48 @@ fn word_multiset_dice(
             }
         }
     }
+    basis_points(shared.checked_mul(2)?, total)
+}
+
+fn token_ngram_multiset_dice(
+    old: &[SentenceEvidenceToken],
+    new: &[SentenceEvidenceToken],
+    size: usize,
+    budget: &mut RecoveryBudget,
+) -> Option<u16> {
+    if size == 0 || old.len() < size || new.len() < size {
+        return Some(0);
+    }
+    let old_windows = old.len().checked_sub(size)?.checked_add(1)?;
+    let new_windows = new.len().checked_sub(size)?.checked_add(1)?;
+    let total = old_windows.checked_add(new_windows)?;
+    if !budget.charge_comparisons(total) {
+        return None;
+    }
+
+    let mut old_counts = HashMap::<&[SentenceEvidenceToken], usize>::new();
+    let mut new_counts = HashMap::<&[SentenceEvidenceToken], usize>::new();
+    old_counts.try_reserve(old_windows).ok()?;
+    new_counts.try_reserve(new_windows).ok()?;
+    for ngram in old.windows(size) {
+        let count = old_counts.entry(ngram).or_default();
+        *count = count.checked_add(1)?;
+    }
+    for ngram in new.windows(size) {
+        let count = new_counts.entry(ngram).or_default();
+        *count = count.checked_add(1)?;
+    }
+    let (shorter, longer) = if old_counts.len() <= new_counts.len() {
+        (&old_counts, &new_counts)
+    } else {
+        (&new_counts, &old_counts)
+    };
+    if !budget.charge_comparisons(shorter.len()) {
+        return None;
+    }
+    let shared = shorter.iter().try_fold(0usize, |shared, (ngram, count)| {
+        shared.checked_add((*count).min(longer.get(ngram).copied().unwrap_or(0)))
+    })?;
     basis_points(shared.checked_mul(2)?, total)
 }
 
@@ -2811,10 +2933,11 @@ fn append_candidate_recoveries(
         if relation.vetoed() {
             continue;
         }
-        let location = occurrences
-            .get(candidate.occurrence_index)?
-            .location
-            .as_ref()?;
+        let occurrence = occurrences.get(candidate.occurrence_index)?;
+        if occurrence.kind == RecoveryUnitKind::Line {
+            continue;
+        }
+        let location = occurrence.location.as_ref()?;
         retained_count = retained_count.checked_add(1)?;
         retained_tokens = retained_tokens.checked_add(location.recovery.source_tokens)?;
         consumed_count = consumed_count.checked_add(location.consumed.len())?;
@@ -2828,10 +2951,11 @@ fn append_candidate_recoveries(
         if relation.vetoed() {
             continue;
         }
-        let location = occurrences
-            .get_mut(candidate.occurrence_index)?
-            .location
-            .take()?;
+        let occurrence = occurrences.get_mut(candidate.occurrence_index)?;
+        if occurrence.kind == RecoveryUnitKind::Line {
+            continue;
+        }
+        let location = occurrence.location.take()?;
         recoveries.push(location.recovery);
         consumed.extend(location.consumed);
     }
@@ -2876,6 +3000,32 @@ fn sentence_boundaries(
         &mut boundaries,
         budget,
     )?;
+    Some(boundaries)
+}
+
+fn atomic_line_boundaries(
+    text: &str,
+    budget: &mut RecoveryBudget,
+) -> Option<Vec<SentenceBoundary>> {
+    let mut boundaries = Vec::new();
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Some(boundaries);
+    }
+    if !budget.charge_occurrences(1) {
+        return None;
+    }
+    let byte_start = text.len().checked_sub(text.trim_start().len())?;
+    let byte_end = text.trim_end().len();
+    let scalar_start = text.get(..byte_start)?.chars().count();
+    let scalar_end = scalar_start.checked_add(trimmed.chars().count())?;
+    boundaries.try_reserve_exact(1).ok()?;
+    boundaries.push(SentenceBoundary {
+        byte_start,
+        byte_end,
+        scalar_start,
+        scalar_end,
+    });
     Some(boundaries)
 }
 
@@ -3119,6 +3269,7 @@ mod tests {
             key: key.to_owned(),
             tokens: vec![SentenceEvidenceToken::Scalar('a'); 5],
             word_ranges: Vec::new(),
+            kind: RecoveryUnitKind::Sentence,
             location: Some(test_location(range, 0)),
             span_index: Some(0),
             trusted_position: Some(TrustedStreamPosition {
@@ -3190,6 +3341,7 @@ mod tests {
             scalar_to_token: Vec::new(),
             blocks: Vec::new(),
             forced_sentence_boundaries: Vec::new(),
+            atomic_line: false,
             trusted: true,
         };
         let boundary = SentenceBoundary {
@@ -3326,6 +3478,7 @@ mod tests {
             key: "candidate".to_owned(),
             tokens: candidate_tokens,
             word_ranges: Vec::new(),
+            kind: RecoveryUnitKind::Sentence,
             location: Some(test_location(location, 0)),
             span_index: Some(0),
             trusted_position: None,
@@ -3334,6 +3487,7 @@ mod tests {
             key: "counterpart".to_owned(),
             tokens: counterpart_tokens,
             word_ranges: Vec::new(),
+            kind: RecoveryUnitKind::Sentence,
             location: None,
             span_index: Some(0),
             trusted_position: None,
@@ -3367,6 +3521,58 @@ mod tests {
 
         assert!(relation.vetoed());
         assert_eq!(relation.unique_partner(), None);
+    }
+
+    #[test]
+    fn line_similarity_uses_ngrams_and_rejects_extreme_length_ratios() {
+        let occurrence = |text: &str| SentenceOccurrence {
+            key: text.to_owned(),
+            tokens: text.chars().map(SentenceEvidenceToken::Scalar).collect(),
+            word_ranges: Vec::new(),
+            kind: RecoveryUnitKind::Line,
+            location: None,
+            span_index: Some(0),
+            trusted_position: None,
+        };
+        let old = occurrence("arXiv:1706.03762v6 [cs.CL] 24 Jul 2023");
+        let new = occurrence("arXiv:1706.03762v7 [cs.CL] 2 Aug 2023");
+        let mut budget = RecoveryBudget::new(
+            old.tokens.len(),
+            new.tokens.len(),
+            old.tokens.len() + new.tokens.len(),
+            1,
+        )
+        .expect("line similarity budget is valid");
+
+        assert_eq!(sentence_similarity(&old, &new, &mut budget), Some(7_323));
+
+        let tiny = occurrence("a");
+        let mut budget = RecoveryBudget::new(
+            old.tokens.len(),
+            tiny.tokens.len(),
+            old.tokens.len() + tiny.tokens.len(),
+            1,
+        )
+        .expect("length guard budget is valid");
+        assert_eq!(sentence_similarity(&old, &tiny, &mut budget), Some(0));
+    }
+
+    #[test]
+    fn atomic_line_boundary_keeps_trimmed_non_sentence_text() {
+        let text = "  arXiv:1706.03762v7 [cs.CL] 2 Aug 2023  ";
+        let mut budget = RecoveryBudget::new(text.chars().count(), 0, text.chars().count(), 1)
+            .expect("line boundary budget is valid");
+        let boundaries =
+            atomic_line_boundaries(text, &mut budget).expect("line boundary fits budget");
+
+        assert_eq!(boundaries.len(), 1);
+        let boundary = boundaries[0];
+        assert_eq!(
+            &text[boundary.byte_start..boundary.byte_end],
+            "arXiv:1706.03762v7 [cs.CL] 2 Aug 2023"
+        );
+        assert_eq!(boundary.scalar_start, 2);
+        assert_eq!(boundary.scalar_end, text.chars().count() - 2);
     }
 
     #[test]
@@ -3443,6 +3649,7 @@ mod tests {
             key: "same".to_owned(),
             tokens: Vec::new(),
             word_ranges: Vec::new(),
+            kind: RecoveryUnitKind::Sentence,
             location: Some(test_location(old_range, 0)),
             span_index: Some(0),
             trusted_position: None,
@@ -3451,6 +3658,7 @@ mod tests {
             key: "same".to_owned(),
             tokens: Vec::new(),
             word_ranges: Vec::new(),
+            kind: RecoveryUnitKind::Sentence,
             location: Some(test_location(new_range, 0)),
             span_index: Some(0),
             trusted_position: None,
@@ -3498,6 +3706,7 @@ mod tests {
                 key: key.to_owned(),
                 tokens: vec![SentenceEvidenceToken::Scalar('a'); 5],
                 word_ranges: Vec::new(),
+                kind: RecoveryUnitKind::Sentence,
                 location: Some(test_location(range, span_index)),
                 span_index: Some(span_index),
                 trusted_position: None,
@@ -3758,6 +3967,7 @@ mod tests {
                 scalar_to_token: boundaries,
             }],
             forced_sentence_boundaries: Vec::new(),
+            atomic_line: false,
             trusted: true,
         };
         let boundary = SentenceBoundary {
@@ -3771,13 +3981,32 @@ mod tests {
         budget.location_items = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS - 2;
 
         assert!(
-            sentence_location(&side, &stream, boundary, 0..1, 0, &mut budget)
-                .is_some_and(|location| location.is_some())
+            sentence_location(
+                &side,
+                &stream,
+                boundary,
+                0..1,
+                0,
+                RecoveryUnitKind::Sentence,
+                &mut budget,
+            )
+            .is_some_and(|location| location.is_some())
         );
         assert_eq!(budget.location_items, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS);
         let bytes = budget.location_bytes;
 
-        assert!(sentence_location(&side, &stream, boundary, 0..1, 0, &mut budget).is_none());
+        assert!(
+            sentence_location(
+                &side,
+                &stream,
+                boundary,
+                0..1,
+                0,
+                RecoveryUnitKind::Sentence,
+                &mut budget,
+            )
+            .is_none()
+        );
         assert_eq!(budget.location_items, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS);
         assert_eq!(budget.location_bytes, bytes);
     }
@@ -3789,6 +4018,7 @@ mod tests {
                 key: "old-a".to_owned(),
                 tokens: vec![SentenceEvidenceToken::Scalar('a')],
                 word_ranges: Vec::new(),
+                kind: RecoveryUnitKind::Sentence,
                 location: None,
                 span_index: Some(0),
                 trusted_position: None,
@@ -3797,6 +4027,7 @@ mod tests {
                 key: "old-b".to_owned(),
                 tokens: vec![SentenceEvidenceToken::Scalar('b')],
                 word_ranges: Vec::new(),
+                kind: RecoveryUnitKind::Sentence,
                 location: None,
                 span_index: Some(0),
                 trusted_position: None,
@@ -3806,6 +4037,7 @@ mod tests {
             key: "new".to_owned(),
             tokens: vec![SentenceEvidenceToken::Scalar('a')],
             word_ranges: Vec::new(),
+            kind: RecoveryUnitKind::Sentence,
             location: None,
             span_index: None,
             trusted_position: None,
@@ -3845,6 +4077,7 @@ mod tests {
             key: key.to_owned(),
             tokens: vec![SentenceEvidenceToken::Scalar('a')],
             word_ranges: Vec::new(),
+            kind: RecoveryUnitKind::Sentence,
             location: None,
             span_index: Some(span_index),
             trusted_position: None,

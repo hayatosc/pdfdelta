@@ -194,7 +194,7 @@ fn self_compares_tilted_text() -> Result<()> {
 
     let comparison = compare_glyph_documents(&document, &document, PipelineOptions::default())?;
 
-    assert_unknown_reading_order(&comparison);
+    assert_no_content_changes(&comparison);
     Ok(())
 }
 
@@ -449,19 +449,13 @@ fn supported_sentence_recovers_beside_mixed_orientation_text() -> Result<()> {
         change["kind"] == "insertion"
             && change["new_span"]["text"] == "A fresh sentence is inserted."
     }));
-    let unresolved = report["unresolved_regions"]
-        .as_array()
-        .expect("unresolved regions should be an array");
-    assert!(unresolved.iter().any(|region| {
-        region["old_span"]["text"] == "Unresolved side label"
-            || region["new_span"]["text"] == "Unresolved side label"
-    }));
-    assert_eq!(report["summary"]["comparison_complete"], false);
+    assert_eq!(report["unresolved_regions"], serde_json::json!([]));
+    assert_eq!(report["summary"]["comparison_complete"], true);
     Ok(())
 }
 
 #[test]
-fn partial_render_order_uncertainty_isolates_one_line_from_a_safe_replacement() -> Result<()> {
+fn partial_render_order_uncertainty_recovers_one_line_beside_a_safe_replacement() -> Result<()> {
     let old = document(&[
         line("Opening anchor remains stable", 0, 148.0),
         line_at("Boundary anchor remains stable", 0, 20.0, 124.0),
@@ -504,22 +498,7 @@ fn partial_render_order_uncertainty_isolates_one_line_from_a_safe_replacement() 
         PipelineOptions::default(),
     )?;
 
-    assert_single_change_with_unresolved(&outcome.comparison, ChangeKind::Replacement);
-    assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
-    let unresolved_blocks = &outcome.comparison.unresolved_regions[0]
-        .old_span
-        .as_ref()
-        .expect("old-side omitted line evidence should be retained")
-        .blocks;
-    let unresolved_text = outcome
-        .old_blocks
-        .iter()
-        .filter(|block| unresolved_blocks.contains(&block.block))
-        .map(|block| block.canonical.text.as_str())
-        .collect::<Vec<_>>()
-        .join(" ");
-    assert!(unresolved_text.contains("Omitted middle evidence"));
-    assert!(!unresolved_text.contains("Release 10"));
+    assert_single_change(&outcome.comparison, ChangeKind::Replacement);
     Ok(())
 }
 
@@ -647,7 +626,7 @@ fn unknown_reading_order_is_page_scoped_while_safe_changes_continue() -> Result<
 }
 
 #[test]
-fn unknown_line_does_not_mark_an_independent_cross_page_block() -> Result<()> {
+fn recovered_unknown_line_does_not_mark_an_independent_cross_page_block() -> Result<()> {
     let old = document(&[
         line("Page zero first continuation line", 0, 100.0),
         line("Page zero second continuation line", 0, 88.0),
@@ -679,40 +658,18 @@ fn unknown_line_does_not_mark_an_independent_cross_page_block() -> Result<()> {
         PipelineOptions::default(),
     )?;
 
-    let cross_page_block = outcome
+    let _cross_page_block = outcome
         .old_blocks
         .iter()
         .find(|block| block.pages == [0, 1])
         .expect("fixture cadence should reconstruct one cross-page body block");
     assert_eq!(outcome.comparison.changes.len(), 1, "{outcome:#?}");
     assert_eq!(outcome.comparison.changes[0].kind, ChangeKind::Replacement);
-    assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
-    assert!(
-        outcome.comparison.unresolved_regions[0]
-            .old_span
-            .as_ref()
-            .is_some_and(|span| !span.blocks.contains(&cross_page_block.block))
-    );
-    assert_eq!(
-        outcome.comparison.unresolved_regions[0].evidence,
-        [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
-    );
+    assert!(outcome.comparison.unresolved_regions.is_empty());
     assert!(outcome.extraction.old_complete);
     assert!(outcome.extraction.new_complete);
-    assert!(
-        outcome
-            .comparison
-            .old_coverage
-            .ratio
-            .is_some_and(|ratio| ratio < 1.0)
-    );
-    assert!(
-        outcome
-            .comparison
-            .new_coverage
-            .ratio
-            .is_some_and(|ratio| ratio < 1.0)
-    );
+    assert_eq!(outcome.comparison.old_coverage.ratio, Some(1.0));
+    assert_eq!(outcome.comparison.new_coverage.ratio, Some(1.0));
     Ok(())
 }
 
