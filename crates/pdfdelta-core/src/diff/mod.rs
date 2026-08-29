@@ -1599,35 +1599,52 @@ fn append_changes(
     let mut old_index = 0;
     let mut new_index = 0;
     let mut hunk_start = None;
+    let mut equal_start = None;
 
-    for edit in edits {
+    for (edit_index, edit) in edits.iter().enumerate() {
         match edit {
             Edit::Equal => {
-                flush_hunk(
-                    old,
-                    new,
-                    hunk_start.take(),
-                    old_index,
-                    new_index,
-                    confidence,
-                    changes,
-                );
+                if hunk_start.is_some() {
+                    equal_start.get_or_insert((old_index, new_index));
+                }
                 old_index += 1;
                 new_index += 1;
             }
-            Edit::Delete => {
-                hunk_start.get_or_insert((old_index, new_index));
-                old_index += 1;
-            }
-            Edit::Insert => {
-                hunk_start.get_or_insert((old_index, new_index));
-                new_index += 1;
+            Edit::Delete | Edit::Insert => {
+                if let Some((old_equal_start, new_equal_start)) = equal_start.take() {
+                    let left_kind = hunk_start.and_then(|(old_start, new_start)| {
+                        change_kind(old_start, new_start, old_equal_start, new_equal_start)
+                    });
+                    let right_kind = contiguous_change_kind(&edits[edit_index..]);
+                    if !bridges_replacement_hunks(
+                        &old.tokens[old_equal_start..old_index],
+                        left_kind,
+                        right_kind,
+                    ) {
+                        flush_hunk(
+                            old,
+                            new,
+                            hunk_start.take(),
+                            old_equal_start,
+                            new_equal_start,
+                            confidence,
+                            changes,
+                        );
+                        hunk_start = Some((old_index, new_index));
+                    }
+                } else if hunk_start.is_none() {
+                    hunk_start = Some((old_index, new_index));
+                }
+                match edit {
+                    Edit::Delete => old_index += 1,
+                    Edit::Insert => new_index += 1,
+                    Edit::Equal => unreachable!(),
+                }
             }
         }
     }
-    flush_hunk(
-        old, new, hunk_start, old_index, new_index, confidence, changes,
-    );
+    let (old_end, new_end) = equal_start.unwrap_or((old_index, new_index));
+    flush_hunk(old, new, hunk_start, old_end, new_end, confidence, changes);
 }
 
 fn contiguous_change_kind(edits: &[Edit]) -> Option<ChangeKind> {

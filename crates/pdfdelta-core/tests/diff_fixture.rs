@@ -620,7 +620,7 @@ fn coalesces_each_contiguous_edit_run() -> Result<()> {
 }
 
 #[test]
-fn preserves_exact_spans_across_a_single_equal_scalar() -> Result<()> {
+fn groups_replacements_across_a_single_equal_scalar() -> Result<()> {
     let result = compare_aligned(
         &[block(1, "abXcYef")],
         &[block(101, "abQcRef")],
@@ -628,22 +628,51 @@ fn preserves_exact_spans_across_a_single_equal_scalar() -> Result<()> {
         DiffOptions::default(),
     )?;
 
-    assert_eq!(result.changes.len(), 2);
+    assert_eq!(result.changes.len(), 1);
     assert_eq!(
         result.changes[0]
             .old_span
             .as_ref()
             .expect("replacement should have an old span")
             .canonical_range,
-        ScalarRange { start: 2, end: 3 }
+        ScalarRange { start: 2, end: 5 }
     );
     assert_eq!(
-        result.changes[1]
+        result.changes[0]
+            .new_span
+            .as_ref()
+            .expect("replacement should have a new span")
+            .canonical_range,
+        ScalarRange { start: 2, end: 5 }
+    );
+    Ok(())
+}
+
+#[test]
+fn excludes_trailing_equal_tokens_from_a_grouped_replacement() -> Result<()> {
+    let result = compare_aligned(
+        &[block(1, "abXcYtail")],
+        &[block(101, "abQcRtail")],
+        &aligned(vec![matched(&[1], &[101])]),
+        DiffOptions::default(),
+    )?;
+
+    assert_eq!(result.changes.len(), 1);
+    assert_eq!(
+        result.changes[0]
             .old_span
             .as_ref()
             .expect("replacement should have an old span")
             .canonical_range,
-        ScalarRange { start: 4, end: 5 }
+        ScalarRange { start: 2, end: 5 }
+    );
+    assert_eq!(
+        result.changes[0]
+            .new_span
+            .as_ref()
+            .expect("replacement should have a new span")
+            .canonical_range,
+        ScalarRange { start: 2, end: 5 }
     );
     Ok(())
 }
