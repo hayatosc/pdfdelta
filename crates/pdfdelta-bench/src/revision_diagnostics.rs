@@ -1081,7 +1081,15 @@ fn alignment_failure_reason(
     };
     match (index.old.get(&old.block), index.new.get(&new.block)) {
         (Some(old_span), Some(new_span)) if old_span != new_span => {
-            Some(ExpectedChangeFailureReason::AlignmentSpanMismatch)
+            let unknown_mask = u8::from(index.reading_order_unknown.contains(old_span))
+                | (u8::from(index.reading_order_unknown.contains(new_span)) << 1);
+            if unknown_mask == 0 {
+                Some(ExpectedChangeFailureReason::AlignmentSpanMismatch)
+            } else {
+                Some(ExpectedChangeFailureReason::ReadingOrderUnresolved {
+                    side: side_from_mask(unknown_mask),
+                })
+            }
         }
         (Some(old_span), Some(new_span))
             if old_span == new_span && index.reading_order_unknown.contains(old_span) =>
@@ -1619,6 +1627,45 @@ mod tests {
         assert_eq!(
             diagnostics.expected_change_diagnostics.failures[0].reason,
             ExpectedChangeFailureReason::AlignmentSpanMismatch
+        );
+    }
+
+    #[test]
+    fn mismatched_unknown_order_spans_report_the_affected_sides() {
+        let locations = ExpectedQuoteLocations {
+            old: Some(QuoteLocateOutcome::Unique(QuoteLocation {
+                block: BlockId(1),
+                scalar_range: ScalarRange { start: 0, end: 3 },
+            })),
+            new: Some(QuoteLocateOutcome::Unique(QuoteLocation {
+                block: BlockId(2),
+                scalar_range: ScalarRange { start: 0, end: 3 },
+            })),
+        };
+        for (unknown, side) in [
+            (HashSet::from([0]), MissSide::Old),
+            (HashSet::from([1]), MissSide::New),
+            (HashSet::from([0, 1]), MissSide::Both),
+        ] {
+            let index = AlignmentSpanIndex {
+                old: HashMap::from([(BlockId(1), 0)]),
+                new: HashMap::from([(BlockId(2), 1)]),
+                reading_order_unknown: unknown,
+            };
+            assert_eq!(
+                alignment_failure_reason(Some(&index), &locations),
+                Some(ExpectedChangeFailureReason::ReadingOrderUnresolved { side })
+            );
+        }
+
+        let index = AlignmentSpanIndex {
+            old: HashMap::from([(BlockId(1), 0)]),
+            new: HashMap::from([(BlockId(2), 1)]),
+            reading_order_unknown: HashSet::new(),
+        };
+        assert_eq!(
+            alignment_failure_reason(Some(&index), &locations),
+            Some(ExpectedChangeFailureReason::AlignmentSpanMismatch)
         );
     }
 
