@@ -277,6 +277,17 @@ struct SentenceOccurrence {
     trusted_position: Option<TrustedStreamPosition>,
 }
 
+struct SentenceFragment {
+    tokens: Vec<SentenceEvidenceToken>,
+    span_index: usize,
+    uncertain: bool,
+}
+
+struct FragmentIndex<'a> {
+    uncertain_spans: HashSet<usize>,
+    clean_by_span_and_len: HashMap<(usize, usize), Vec<&'a SentenceFragment>>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum RecoveryUnitKind {
     Sentence,
@@ -371,6 +382,11 @@ impl CandidateNearRelation {
         let margin = self.best_score.checked_sub(self.second_score)?;
         (self.best_score >= MIN_NEAR_SCORE && margin >= MIN_NEAR_SCORE_MARGIN)
             .then_some(self.best_partner?)
+    }
+
+    fn veto_without_partner(&mut self) {
+        self.best_score = self.best_score.max(MIN_NEAR_SCORE);
+        self.best_partner = None;
     }
 }
 
@@ -604,7 +620,7 @@ pub(super) fn build_sentence_recovery_plan(
         });
     }
 
-    let Some(mut old_occurrences) = collect_occurrences(
+    let Some((mut old_occurrences, old_fragments)) = collect_occurrences(
         old,
         input.old_trusted_run_intervals,
         &membership.old,
@@ -613,7 +629,7 @@ pub(super) fn build_sentence_recovery_plan(
     ) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
-    let Some(mut new_occurrences) = collect_occurrences(
+    let Some((mut new_occurrences, new_fragments)) = collect_occurrences(
         new,
         input.new_trusted_run_intervals,
         &membership.new,
@@ -709,6 +725,8 @@ pub(super) fn build_sentence_recovery_plan(
         &mut budget,
         &mut diagnostics,
         &mut paired_vetoes,
+        &old_fragments,
+        &new_fragments,
     )
     .is_none()
     {
@@ -744,7 +762,7 @@ pub(super) fn build_sentence_recovery_plan(
     let near_pair_start = diagnostics
         .as_ref()
         .map_or(0, |diagnostics| diagnostics.metrics.near_pair_candidates);
-    let Some(relations) = modified_sentence_relations(
+    let Some(mut relations) = modified_sentence_relations(
         &old_occurrences,
         &new_occurrences,
         &old_candidates,
@@ -763,6 +781,29 @@ pub(super) fn build_sentence_recovery_plan(
         }
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    if veto_fragment_completed_replacements(
+        &old_occurrences,
+        &new_occurrences,
+        &old_candidates,
+        &new_candidates,
+        &old_fragments,
+        &new_fragments,
+        &mut relations,
+        &mut budget,
+    )
+    .is_none()
+    {
+        if plan.has_exact_matches()
+            && normalize_ranges(&mut plan.deletion_consumed)
+            && normalize_ranges(&mut plan.insertion_consumed)
+        {
+            return Ok(SentenceRecoveryBuildOutcome {
+                plan: Some(plan),
+                diagnostics,
+            });
+        }
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    }
     record_vetoed_near_pairs(&mut diagnostics, &relations, near_pair_start);
     if let Some(diagnostics) = diagnostics.as_mut() {
         diagnostics.metrics.near_relation_complete = relations.complete;
@@ -915,13 +956,19 @@ fn collect_occurrences(
     span_by_block: &HashMap<BlockId, usize>,
     recovery_spans: &[bool],
     budget: &mut RecoveryBudget,
-) -> Option<Vec<SentenceOccurrence>> {
+) -> Option<(Vec<SentenceOccurrence>, Vec<SentenceFragment>)> {
     let plans = stream_plans(trusted_run_intervals)?;
     let mut occurrences = Vec::new();
+    let mut fragments = Vec::new();
     for (stream_index, plan) in plans.into_iter().enumerate() {
         let stream = build_stream(side, &plan)?;
         let sentence_boundaries =
             sentence_boundaries(&stream.text, &stream.forced_sentence_boundaries, budget)?;
+        let fragment_boundary = if stream.trusted {
+            trailing_fragment_boundary(&stream.text, &sentence_boundaries, budget)?
+        } else {
+            None
+        };
         let (boundaries, kind) = if stream.atomic_line && sentence_boundaries.is_empty() {
             (
                 atomic_line_boundaries(&stream.text, budget)?,
@@ -970,9 +1017,36 @@ fn collect_occurrences(
                 }),
             });
         }
+        if let Some(boundary) = fragment_boundary {
+            let touched_blocks = sentence_stream_block_range(&stream, boundary)?;
+            let span_index =
+                sentence_span_index(side, &stream, touched_blocks.clone(), span_by_block)?;
+            if let Some(span_index) = span_index
+                && recovery_spans.get(span_index).copied()?
+            {
+                let uncertain = stream.blocks.get(touched_blocks)?.iter().try_fold(
+                    false,
+                    |uncertain, stream_block| {
+                        let block = side.blocks.get(stream_block.side_index)?;
+                        Some(
+                            uncertain
+                                || !block.issues.is_empty()
+                                || !block.canonical.unmapped.is_empty(),
+                        )
+                    },
+                )?;
+                let tokens = sentence_tokens(&stream, boundary, budget)?;
+                fragments.try_reserve(1).ok()?;
+                fragments.push(SentenceFragment {
+                    tokens,
+                    span_index,
+                    uncertain,
+                });
+            }
+        }
     }
     occurrences.sort_unstable_by_key(|occurrence| occurrence.span_index);
-    Some(occurrences)
+    Some((occurrences, fragments))
 }
 
 fn sorted_word_ranges(text: &str, budget: &mut RecoveryBudget) -> Option<Vec<Range<usize>>> {
@@ -1842,6 +1916,8 @@ fn append_paired_stream_replacements<'a>(
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     vetoes: &mut PairedNearVetoes,
+    old_fragments: &[SentenceFragment],
+    new_fragments: &[SentenceFragment],
 ) -> Option<()> {
     if pairs.is_empty() {
         return Some(());
@@ -1906,6 +1982,16 @@ fn append_paired_stream_replacements<'a>(
         diagnostics,
     )?;
     reject_crossing_paired_replacements(&old_candidates, &new_candidates, &mut relations)?;
+    veto_fragment_completed_replacements(
+        old_occurrences,
+        new_occurrences,
+        &old_candidates.recoveries,
+        &new_candidates.recoveries,
+        old_fragments,
+        new_fragments,
+        &mut relations,
+        budget,
+    )?;
     record_vetoed_near_pairs(diagnostics, &relations, near_pair_start);
     collect_paired_near_vetoes(&old_candidates, &new_candidates, &relations, vetoes)?;
     append_replacements(
@@ -1917,6 +2003,193 @@ fn append_paired_stream_replacements<'a>(
         &relations,
         budget,
     )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn veto_fragment_completed_replacements(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    old_fragments: &[SentenceFragment],
+    new_fragments: &[SentenceFragment],
+    relations: &mut ModifiedSentenceRelations,
+    budget: &mut RecoveryBudget,
+) -> Option<()> {
+    let mut proposals = Vec::new();
+    proposals.try_reserve_exact(relations.old.len()).ok()?;
+    for (old_index, relation) in relations.old.iter().copied().enumerate() {
+        if let Some(new_index) = mutual_replacement_partner(old_index, relation, &relations.new) {
+            proposals.push((old_index, new_index));
+        }
+    }
+    if proposals.is_empty() {
+        return Some(());
+    }
+
+    let mut tentative_budget = *budget;
+    let old_fragment_index = fragment_index(old_fragments, &mut tentative_budget)?;
+    let new_fragment_index = fragment_index(new_fragments, &mut tentative_budget)?;
+    let mut vetoes = Vec::new();
+    vetoes.try_reserve_exact(proposals.len()).ok()?;
+    for (old_index, new_index) in proposals {
+        let old = old_occurrences.get(old_candidates.get(old_index)?.occurrence_index)?;
+        let new = new_occurrences.get(new_candidates.get(new_index)?.occurrence_index)?;
+        let (shorter, longer, shorter_span, fragment_index) =
+            match old.tokens.len().cmp(&new.tokens.len()) {
+                std::cmp::Ordering::Less => (
+                    old,
+                    new,
+                    old_candidates.get(old_index)?.span_index,
+                    &old_fragment_index,
+                ),
+                std::cmp::Ordering::Greater => (
+                    new,
+                    old,
+                    new_candidates.get(new_index)?.span_index,
+                    &new_fragment_index,
+                ),
+                std::cmp::Ordering::Equal => continue,
+            };
+        if shorter.span_index != Some(shorter_span) {
+            return None;
+        }
+        let completed = fragment_index.uncertain_spans.contains(&shorter_span)
+            || clean_fragment_completes(
+                fragment_index,
+                shorter_span,
+                &shorter.tokens,
+                &longer.tokens,
+                &mut tentative_budget,
+            )?;
+        if completed {
+            vetoes.push((old_index, new_index));
+        }
+    }
+
+    *budget = tentative_budget;
+    for (old_index, new_index) in vetoes {
+        relations.old.get_mut(old_index)?.veto_without_partner();
+        relations.new.get_mut(new_index)?.veto_without_partner();
+    }
+    Some(())
+}
+
+fn fragment_index<'a>(
+    fragments: &'a [SentenceFragment],
+    budget: &mut RecoveryBudget,
+) -> Option<FragmentIndex<'a>> {
+    if !budget.charge_pair_visits(fragments.len()) {
+        return None;
+    }
+    let mut uncertain_spans = HashSet::new();
+    let mut clean_by_span_and_len = HashMap::<(usize, usize), Vec<&SentenceFragment>>::new();
+    for fragment in fragments {
+        if fragment.uncertain {
+            if !uncertain_spans.contains(&fragment.span_index) {
+                uncertain_spans.try_reserve(1).ok()?;
+                uncertain_spans.insert(fragment.span_index);
+            }
+            continue;
+        }
+        let key = (fragment.span_index, fragment.tokens.len());
+        if !clean_by_span_and_len.contains_key(&key) {
+            clean_by_span_and_len.try_reserve(1).ok()?;
+            clean_by_span_and_len.insert(key, Vec::new());
+        }
+        let bucket = clean_by_span_and_len.get_mut(&key)?;
+        bucket.try_reserve(1).ok()?;
+        bucket.push(fragment);
+    }
+    Some(FragmentIndex {
+        uncertain_spans,
+        clean_by_span_and_len,
+    })
+}
+
+fn clean_fragment_completes(
+    index: &FragmentIndex<'_>,
+    span_index: usize,
+    shorter: &[SentenceEvidenceToken],
+    longer: &[SentenceEvidenceToken],
+    budget: &mut RecoveryBudget,
+) -> Option<bool> {
+    let missing = longer.len().checked_sub(shorter.len())?;
+    for fragment_len in [Some(missing), missing.checked_sub(1)]
+        .into_iter()
+        .flatten()
+    {
+        let Some(fragments) = index.clean_by_span_and_len.get(&(span_index, fragment_len)) else {
+            continue;
+        };
+        for fragment in fragments {
+            if !budget.charge_pair_visits(1) {
+                return None;
+            }
+            if joined_tokens_equal(&fragment.tokens, shorter, longer, budget)?
+                || joined_tokens_equal(shorter, &fragment.tokens, longer, budget)?
+            {
+                return Some(true);
+            }
+        }
+    }
+    Some(false)
+}
+
+fn joined_length_matches(
+    left: &[SentenceEvidenceToken],
+    right: &[SentenceEvidenceToken],
+    target_len: usize,
+) -> bool {
+    let insert_space = !left.last().is_some_and(|token| token.is_space())
+        && !right.first().is_some_and(|token| token.is_space());
+    left.len()
+        .checked_add(usize::from(insert_space))
+        .and_then(|len| len.checked_add(right.len()))
+        == Some(target_len)
+}
+
+fn joined_tokens_equal(
+    left: &[SentenceEvidenceToken],
+    right: &[SentenceEvidenceToken],
+    target: &[SentenceEvidenceToken],
+    budget: &mut RecoveryBudget,
+) -> Option<bool> {
+    if !joined_length_matches(left, right, target.len()) {
+        return Some(false);
+    }
+    let insert_space = !left.last().is_some_and(|token| token.is_space())
+        && !right.first().is_some_and(|token| token.is_space());
+
+    let mut target_index = 0usize;
+    for token in left {
+        if !budget.charge_comparisons(1) {
+            return None;
+        }
+        if !token.is_scalar() || target.get(target_index).copied() != Some(*token) {
+            return Some(false);
+        }
+        target_index = target_index.checked_add(1)?;
+    }
+    if insert_space {
+        if !budget.charge_comparisons(1) {
+            return None;
+        }
+        if target.get(target_index).copied() != Some(SentenceEvidenceToken::Scalar(' ')) {
+            return Some(false);
+        }
+        target_index = target_index.checked_add(1)?;
+    }
+    for token in right {
+        if !budget.charge_comparisons(1) {
+            return None;
+        }
+        if !token.is_scalar() || target.get(target_index).copied() != Some(*token) {
+            return Some(false);
+        }
+        target_index = target_index.checked_add(1)?;
+    }
+    Some(target_index == target.len())
 }
 
 fn collect_paired_near_vetoes(
@@ -3003,6 +3276,33 @@ fn sentence_boundaries(
     Some(boundaries)
 }
 
+fn trailing_fragment_boundary(
+    text: &str,
+    boundaries: &[SentenceBoundary],
+    budget: &mut RecoveryBudget,
+) -> Option<Option<SentenceBoundary>> {
+    let tail_start = boundaries.last().map_or(0, |boundary| boundary.byte_end);
+    let tail = text.get(tail_start..)?;
+    let trimmed = tail.trim();
+    if trimmed.is_empty() || is_true_sentence_terminal(trimmed) {
+        return Some(None);
+    }
+    if !budget.charge_occurrences(1) {
+        return None;
+    }
+    let leading_bytes = tail.len().checked_sub(tail.trim_start().len())?;
+    let byte_start = tail_start.checked_add(leading_bytes)?;
+    let byte_end = tail_start.checked_add(tail.trim_end().len())?;
+    let scalar_start = text.get(..byte_start)?.chars().count();
+    let scalar_end = scalar_start.checked_add(trimmed.chars().count())?;
+    Some(Some(SentenceBoundary {
+        byte_start,
+        byte_end,
+        scalar_start,
+        scalar_end,
+    }))
+}
+
 fn atomic_line_boundaries(
     text: &str,
     budget: &mut RecoveryBudget,
@@ -3631,6 +3931,234 @@ mod tests {
             assert!(output.charge_output(1));
         }
         assert!(!output.charge_output(1));
+    }
+
+    #[test]
+    fn fragment_completion_uses_scalar_evidence_and_fails_atomically_on_budget_exhaustion() {
+        let tokens = |text: &str| {
+            text.chars()
+                .map(SentenceEvidenceToken::Scalar)
+                .collect::<Vec<_>>()
+        };
+        let mut old = positioned_occurrence("full", 1, 0, 0);
+        old.tokens = tokens("前半 後半です。");
+        let mut new = positioned_occurrence("suffix", 2, 1, 0);
+        new.tokens = tokens("後半です。");
+        let fragment = SentenceFragment {
+            tokens: tokens("前半"),
+            span_index: 0,
+            uncertain: false,
+        };
+        let old_candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let new_candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut old_relation = CandidateNearRelation::default();
+        old_relation.record_eligible(0, MIN_NEAR_SCORE);
+        let mut new_relation = CandidateNearRelation::default();
+        new_relation.record_eligible(0, MIN_NEAR_SCORE);
+        let mut relations = ModifiedSentenceRelations {
+            old: vec![old_relation],
+            new: vec![new_relation],
+            complete: true,
+        };
+        let mut budget = RecoveryBudget::new(
+            old.tokens.len(),
+            new.tokens.len(),
+            old.tokens.len() + new.tokens.len(),
+            1,
+        )
+        .expect("test budget is valid");
+        budget.comparison_limit = 1;
+        let before = budget;
+
+        assert!(
+            veto_fragment_completed_replacements(
+                &[old],
+                &[new],
+                &old_candidates,
+                &new_candidates,
+                &[],
+                &[fragment],
+                &mut relations,
+                &mut budget,
+            )
+            .is_none()
+        );
+        assert_eq!(relations.old[0].unique_partner(), Some(0));
+        assert_eq!(relations.new[0].unique_partner(), Some(0));
+        assert_eq!(budget.pair_visits, before.pair_visits);
+        assert_eq!(budget.comparisons, before.comparisons);
+
+        let mut old = positioned_occurrence("full", 3, 0, 0);
+        old.tokens = tokens("前半です。 後半");
+        let mut new = positioned_occurrence("prefix", 4, 1, 0);
+        new.tokens = tokens("前半です。");
+        let mut old_relation = CandidateNearRelation::default();
+        old_relation.record_eligible(0, MIN_NEAR_SCORE);
+        let mut new_relation = CandidateNearRelation::default();
+        new_relation.record_eligible(0, MIN_NEAR_SCORE);
+        let mut relations = ModifiedSentenceRelations {
+            old: vec![old_relation],
+            new: vec![new_relation],
+            complete: true,
+        };
+        let mut budget = RecoveryBudget::new(
+            old.tokens.len(),
+            new.tokens.len(),
+            old.tokens.len() + new.tokens.len(),
+            1,
+        )
+        .expect("test budget is valid");
+        let fragments = [
+            SentenceFragment {
+                tokens: tokens("誤答"),
+                span_index: 0,
+                uncertain: false,
+            },
+            SentenceFragment {
+                tokens: tokens("後半"),
+                span_index: 0,
+                uncertain: false,
+            },
+        ];
+
+        assert!(
+            veto_fragment_completed_replacements(
+                &[old],
+                &[new],
+                &old_candidates,
+                &new_candidates,
+                &[],
+                &fragments,
+                &mut relations,
+                &mut budget,
+            )
+            .is_some()
+        );
+        assert!(relations.old[0].vetoed());
+        assert!(relations.new[0].vetoed());
+        assert_eq!(relations.old[0].unique_partner(), None);
+        assert_eq!(relations.new[0].unique_partner(), None);
+
+        let unmapped = SentenceEvidenceToken::Unmapped {
+            font_fingerprint: 1,
+            glyph_id: 1,
+        };
+        let mut exact_budget = RecoveryBudget::new(3, 0, 3, 1).expect("test budget is valid");
+        assert_eq!(
+            joined_tokens_equal(
+                &[unmapped],
+                &[SentenceEvidenceToken::Scalar('a')],
+                &[
+                    SentenceEvidenceToken::Scalar('x'),
+                    SentenceEvidenceToken::Scalar(' '),
+                    SentenceEvidenceToken::Scalar('a'),
+                ],
+                &mut exact_budget
+            ),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn cross_span_fragments_charge_visits_before_span_rejection() {
+        let mut old = positioned_occurrence("full", 1, 0, 0);
+        old.tokens = vec![SentenceEvidenceToken::Scalar('a'); 10];
+        let mut new = positioned_occurrence("short", 2, 1, 0);
+        new.tokens = vec![SentenceEvidenceToken::Scalar('a'); 5];
+        let candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut old_relation = CandidateNearRelation::default();
+        old_relation.record_eligible(0, MIN_NEAR_SCORE);
+        let mut new_relation = CandidateNearRelation::default();
+        new_relation.record_eligible(0, MIN_NEAR_SCORE);
+        let mut relations = ModifiedSentenceRelations {
+            old: vec![old_relation],
+            new: vec![new_relation],
+            complete: true,
+        };
+        let fragments = (0..16)
+            .map(|_| SentenceFragment {
+                tokens: vec![SentenceEvidenceToken::Scalar('x')],
+                span_index: 1,
+                uncertain: true,
+            })
+            .collect::<Vec<_>>();
+        let mut budget = RecoveryBudget::new(10, 5, 15, 1).expect("test budget is valid");
+        let before = budget;
+
+        assert!(
+            veto_fragment_completed_replacements(
+                &[old],
+                &[new],
+                &candidates,
+                &candidates,
+                &[],
+                &fragments,
+                &mut relations,
+                &mut budget,
+            )
+            .is_none()
+        );
+        assert_eq!(relations.old[0].unique_partner(), Some(0));
+        assert_eq!(relations.new[0].unique_partner(), Some(0));
+        assert_eq!(budget.pair_visits, before.pair_visits);
+        assert_eq!(budget.comparisons, before.comparisons);
+    }
+
+    #[test]
+    fn same_length_fragment_bucket_scan_is_budgeted_atomically() {
+        let mut old = positioned_occurrence("full", 1, 0, 0);
+        old.tokens = vec![SentenceEvidenceToken::Scalar('a'); 10];
+        let mut new = positioned_occurrence("short", 2, 1, 0);
+        new.tokens = vec![SentenceEvidenceToken::Scalar('a'); 5];
+        let candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut old_relation = CandidateNearRelation::default();
+        old_relation.record_eligible(0, MIN_NEAR_SCORE);
+        let mut new_relation = CandidateNearRelation::default();
+        new_relation.record_eligible(0, MIN_NEAR_SCORE);
+        let mut relations = ModifiedSentenceRelations {
+            old: vec![old_relation],
+            new: vec![new_relation],
+            complete: true,
+        };
+        let fragments = (0..8)
+            .map(|_| SentenceFragment {
+                tokens: vec![SentenceEvidenceToken::Scalar('x'); 4],
+                span_index: 0,
+                uncertain: false,
+            })
+            .collect::<Vec<_>>();
+        let mut budget = RecoveryBudget::new(10, 5, 15, 1).expect("test budget is valid");
+        let before = budget;
+
+        assert!(
+            veto_fragment_completed_replacements(
+                &[old],
+                &[new],
+                &candidates,
+                &candidates,
+                &[],
+                &fragments,
+                &mut relations,
+                &mut budget,
+            )
+            .is_none()
+        );
+        assert_eq!(relations.old[0].unique_partner(), Some(0));
+        assert_eq!(relations.new[0].unique_partner(), Some(0));
+        assert_eq!(budget.pair_visits, before.pair_visits);
+        assert_eq!(budget.comparisons, before.comparisons);
     }
 
     #[test]

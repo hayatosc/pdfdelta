@@ -5207,6 +5207,222 @@ mod tests {
     }
 
     #[test]
+    fn trailing_fragments_veto_fragment_completed_replacements_in_both_directions() {
+        let anchor = "A unique anchor pairs the trusted sentence streams.";
+        let prefix = "As a result, information has";
+        let suffix = "to be provided about all personal data covered by the request.";
+        let full = format!("{prefix} {suffix}");
+        let complete = vec![sentence_block(1, anchor), sentence_block(2, &full)];
+        let split = vec![
+            sentence_block(101, prefix),
+            line_block(102, "17 Adopted"),
+            sentence_block(103, prefix),
+            sentence_block(104, anchor),
+            sentence_block(105, suffix),
+        ];
+        let complete_intervals =
+            trusted_run_intervals(&[Some(TrustedRunId(1)), Some(TrustedRunId(1))]);
+        let split_intervals = vec![
+            trusted_interval(3, 0, 1),
+            None,
+            trusted_interval(4, 0, 1),
+            trusted_interval(2, 0, 1),
+            trusted_interval(2, 1, 2),
+        ];
+
+        for reverse in [false, true] {
+            let (old, new, old_intervals, new_intervals) = if reverse {
+                (
+                    split.as_slice(),
+                    complete.as_slice(),
+                    split_intervals.as_slice(),
+                    complete_intervals.as_slice(),
+                )
+            } else {
+                (
+                    complete.as_slice(),
+                    split.as_slice(),
+                    complete_intervals.as_slice(),
+                    split_intervals.as_slice(),
+                )
+            };
+            let alignment =
+                unresolved_alignment(old, new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+            let result = compare_sentence_recovery_with_intervals(
+                old,
+                new,
+                &alignment,
+                old_intervals,
+                new_intervals,
+                16,
+                DiffOptions::default(),
+            );
+
+            assert!(result.changes.is_empty(), "reverse={reverse}");
+            assert_eq!(
+                result.old_coverage.resolved_tokens,
+                anchor.chars().count(),
+                "reverse={reverse}"
+            );
+            assert_eq!(
+                result.new_coverage.resolved_tokens,
+                anchor.chars().count(),
+                "reverse={reverse}"
+            );
+        }
+    }
+
+    #[test]
+    fn uncertain_trailing_fragments_remain_veto_only_evidence() {
+        let anchor = "A unique anchor pairs the trusted sentence streams.";
+        let prefix = "As a result, information has";
+        let suffix = "to be provided about all personal data covered by the request.";
+        let full = format!("{prefix} {suffix}");
+        let complete = vec![sentence_block(1, anchor), sentence_block(2, &full)];
+        let complete_intervals =
+            trusted_run_intervals(&[Some(TrustedRunId(1)), Some(TrustedRunId(1))]);
+
+        let mut issue = sentence_block(101, "As a result,\ninformation has");
+        issue.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource { atoms: Vec::new() },
+        });
+        let mut unmapped = sentence_block(102, "opaque evidence");
+        unmapped.canonical.unmapped.extend([
+            UnmappedToken {
+                scalar_index: 0,
+                font_hash: FontProgramHash(vec![1]),
+                glyph_id: 1,
+                source: TextSource { atoms: Vec::new() },
+            },
+            UnmappedToken {
+                scalar_index: 1,
+                font_hash: FontProgramHash(vec![2]),
+                glyph_id: 2,
+                source: TextSource { atoms: Vec::new() },
+            },
+        ]);
+        for fragment in [issue, unmapped] {
+            let split = vec![
+                fragment,
+                sentence_block(103, anchor),
+                sentence_block(104, suffix),
+            ];
+            let split_intervals = vec![
+                trusted_interval(3, 0, 1),
+                trusted_interval(2, 0, 1),
+                trusted_interval(2, 1, 2),
+            ];
+            let alignment = unresolved_alignment(
+                &complete,
+                &split,
+                vec![AlignmentEvidence::ReadingOrderUnknown],
+            );
+            let result = compare_sentence_recovery_with_intervals(
+                &complete,
+                &split,
+                &alignment,
+                &complete_intervals,
+                &split_intervals,
+                16,
+                DiffOptions::default(),
+            );
+
+            assert!(result.changes.is_empty());
+            assert_eq!(result.old_coverage.resolved_tokens, anchor.chars().count());
+            assert_eq!(result.new_coverage.resolved_tokens, anchor.chars().count());
+        }
+
+        let fragment_only = vec![sentence_block(201, prefix)];
+        let result = compare_sentence_recovery(
+            &fragment_only,
+            &[],
+            &[Some(TrustedRunId(9))],
+            &[],
+            16,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+        assert!(result.changes.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+    }
+
+    #[test]
+    fn trailing_fragment_veto_preserves_genuine_replacements() {
+        let anchor = "A unique anchor pairs the trusted sentence streams.";
+        let old_clause = "Confirmation of processing will mostly not be affected by the exception.";
+        let new_clause = "Confirmation of processing may not be affected by the exception.";
+        let old = vec![sentence_block(1, anchor), sentence_block(2, old_clause)];
+        let new = vec![sentence_block(101, anchor), sentence_block(102, new_clause)];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2)), Some(TrustedRunId(2))],
+            16,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(
+            result.changes[0].old_span,
+            Some(test_span(2, 0, old_clause.chars().count()))
+        );
+        assert_eq!(
+            result.changes[0].new_span,
+            Some(test_span(102, 0, new_clause.chars().count()))
+        );
+    }
+
+    #[test]
+    fn fragment_from_an_unrelated_span_does_not_veto_a_genuine_replacement() {
+        let prefix = "As a result, information has";
+        let suffix = "to be provided about all personal data covered by the request.";
+        let full = format!("{prefix} {suffix}");
+        let old = vec![sentence_block(1, &full)];
+        let mut unrelated_fragment = sentence_block(102, "unrelated\nuncertain evidence");
+        unrelated_fragment.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource { atoms: Vec::new() },
+        });
+        let new = vec![sentence_block(101, suffix), unrelated_fragment];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(1)], vec![BlockId(101)]),
+                reading_order_unknown_span(Vec::new(), vec![BlockId(102)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let old_intervals = [trusted_interval(1, 0, 1)];
+        let new_intervals = [trusted_interval(2, 0, 1), trusted_interval(3, 0, 1)];
+
+        let result = compare_sentence_recovery_with_intervals(
+            &old,
+            &new,
+            &alignment,
+            &old_intervals,
+            &new_intervals,
+            16,
+            DiffOptions::default(),
+        );
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(
+            result.changes[0].old_span,
+            Some(test_span(1, 0, full.chars().count()))
+        );
+        assert_eq!(
+            result.changes[0].new_span,
+            Some(test_span(101, 0, suffix.chars().count()))
+        );
+    }
+
+    #[test]
     fn cross_block_recovery_requires_one_unbroken_clean_trusted_run() {
         let first = "This guarded cross-block";
         let second = "sentence must remain unresolved.";
