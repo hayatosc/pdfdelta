@@ -3274,16 +3274,29 @@ fn sentence_similarity(
 
     let shared = prefix.checked_add(suffix)?;
     let edge_score = basis_points(shared, shorter)?;
-    let line_score = if old.kind == RecoveryUnitKind::Line && new.kind == RecoveryUnitKind::Line {
-        token_ngram_multiset_dice(&old.tokens, &new.tokens, LINE_NGRAM_SIZE, budget)?
-    } else {
-        0
-    };
-    if edge_score < MIN_WORD_SCORE_EDGE_EVIDENCE {
-        return Some(edge_score.max(line_score));
+    let mut exact_score = edge_score;
+    if old.kind == RecoveryUnitKind::Line && new.kind == RecoveryUnitKind::Line {
+        let old_ngrams = ngram_count(old.tokens.len(), LINE_NGRAM_SIZE)?;
+        let new_ngrams = ngram_count(new.tokens.len(), LINE_NGRAM_SIZE)?;
+        if multiset_dice_upper_bound(old_ngrams, new_ngrams)? > exact_score {
+            let line_score =
+                token_ngram_multiset_dice(&old.tokens, &new.tokens, LINE_NGRAM_SIZE, budget)?;
+            exact_score = exact_score.max(line_score);
+        }
     }
-    let word_score = word_multiset_dice(old, new, budget)?;
-    Some(edge_score.max(word_score).max(line_score))
+    if edge_score < MIN_WORD_SCORE_EDGE_EVIDENCE {
+        return Some(exact_score);
+    }
+    if multiset_dice_upper_bound(old.word_ranges.len(), new.word_ranges.len())? > exact_score {
+        let word_score = word_multiset_dice(old, new, budget)?;
+        exact_score = exact_score.max(word_score);
+    }
+    Some(exact_score)
+}
+
+fn multiset_dice_upper_bound(old_count: usize, new_count: usize) -> Option<u16> {
+    let total = old_count.checked_add(new_count)?;
+    basis_points(old_count.min(new_count).checked_mul(2)?, total)
 }
 
 fn word_multiset_dice(
@@ -3323,11 +3336,11 @@ fn token_ngram_multiset_dice(
     size: usize,
     budget: &mut RecoveryBudget,
 ) -> Option<u16> {
-    if size == 0 || old.len() < size || new.len() < size {
+    let old_windows = ngram_count(old.len(), size)?;
+    let new_windows = ngram_count(new.len(), size)?;
+    if old_windows == 0 || new_windows == 0 {
         return Some(0);
     }
-    let old_windows = old.len().checked_sub(size)?.checked_add(1)?;
-    let new_windows = new.len().checked_sub(size)?.checked_add(1)?;
     let total = old_windows.checked_add(new_windows)?;
     if !budget.charge_comparisons(total) {
         return None;
@@ -3357,6 +3370,13 @@ fn token_ngram_multiset_dice(
         shared.checked_add((*count).min(longer.get(ngram).copied().unwrap_or(0)))
     })?;
     basis_points(shared.checked_mul(2)?, total)
+}
+
+fn ngram_count(token_count: usize, size: usize) -> Option<usize> {
+    if size == 0 || token_count < size {
+        return Some(0);
+    }
+    token_count.checked_sub(size)?.checked_add(1)
 }
 
 fn basis_points(numerator: usize, denominator: usize) -> Option<u16> {
@@ -4015,6 +4035,32 @@ mod tests {
         }
     }
 
+    fn similarity_occurrence(
+        key: &str,
+        tokens: Vec<SentenceEvidenceToken>,
+        kind: RecoveryUnitKind,
+    ) -> SentenceOccurrence {
+        let mut word_ranges = key
+            .unicode_word_indices()
+            .map(|(start, word)| start..start + word.len())
+            .collect::<Vec<_>>();
+        word_ranges.sort_unstable_by(|left, right| {
+            key[left.clone()]
+                .cmp(&key[right.clone()])
+                .then_with(|| left.start.cmp(&right.start))
+        });
+        SentenceOccurrence {
+            key: key.to_owned(),
+            tokens,
+            word_ranges,
+            kind,
+            role: Some(BlockRole::Body),
+            location: None,
+            span_index: Some(0),
+            trusted_position: None,
+        }
+    }
+
     fn extend_test_paired_exact_matches(
         old: &[SentenceOccurrence],
         new: &[SentenceOccurrence],
@@ -4294,6 +4340,92 @@ mod tests {
         )
         .expect("length guard budget is valid");
         assert_eq!(sentence_similarity(&old, &tiny, &mut budget), Some(0));
+    }
+
+    #[test]
+    fn line_similarity_skips_ngrams_when_the_upper_bound_cannot_improve() {
+        let occurrence = |text: &str| {
+            similarity_occurrence(
+                text,
+                text.chars().map(SentenceEvidenceToken::Scalar).collect(),
+                RecoveryUnitKind::Line,
+            )
+        };
+
+        let old = occurrence("abcd");
+        let same = occurrence("abcd");
+        let mut equality_budget = RecoveryBudget::new(4, 4, 8, 1).expect("valid budget");
+        assert_eq!(
+            sentence_similarity(&old, &same, &mut equality_budget),
+            Some(10_000)
+        );
+        assert_eq!(equality_budget.comparisons, 4);
+
+        let longer = occurrence("abXcd");
+        let mut unequal_budget = RecoveryBudget::new(4, 5, 9, 1).expect("valid budget");
+        assert_eq!(
+            sentence_similarity(&old, &longer, &mut unequal_budget),
+            Some(10_000)
+        );
+        assert_eq!(unequal_budget.comparisons, 5);
+    }
+
+    #[test]
+    fn line_similarity_evaluates_ngrams_when_the_upper_bound_is_one_point_higher() {
+        let mut new_tokens = vec![SentenceEvidenceToken::Scalar('a'); 10_000];
+        new_tokens[5_000] = SentenceEvidenceToken::Scalar('b');
+        let old = similarity_occurrence(
+            "old",
+            vec![SentenceEvidenceToken::Scalar('a'); 10_000],
+            RecoveryUnitKind::Line,
+        );
+        let new = similarity_occurrence("new", new_tokens, RecoveryUnitKind::Line);
+        let mut budget = RecoveryBudget::new(10_000, 10_000, 20_000, 1).expect("valid budget");
+
+        assert_eq!(sentence_similarity(&old, &new, &mut budget), Some(9_999));
+        assert!(budget.comparisons > 10_000);
+    }
+
+    #[test]
+    fn sentence_similarity_skips_word_dice_at_its_unequal_count_upper_bound() {
+        let old = similarity_occurrence(
+            "alpha",
+            vec![
+                SentenceEvidenceToken::Scalar('a'),
+                SentenceEvidenceToken::Scalar('b'),
+            ],
+            RecoveryUnitKind::Sentence,
+        );
+        let new = similarity_occurrence(
+            "beta delta gamma",
+            vec![
+                SentenceEvidenceToken::Scalar('a'),
+                SentenceEvidenceToken::Scalar('x'),
+                SentenceEvidenceToken::Scalar('y'),
+                SentenceEvidenceToken::Scalar('z'),
+            ],
+            RecoveryUnitKind::Sentence,
+        );
+        let mut budget = RecoveryBudget::new(2, 4, 6, 1).expect("valid budget");
+
+        assert_eq!(sentence_similarity(&old, &new, &mut budget), Some(5_000));
+        assert_eq!(budget.comparisons, 3);
+    }
+
+    #[test]
+    fn sentence_similarity_evaluates_word_dice_when_its_upper_bound_is_one_point_higher() {
+        let mut new_tokens = vec![SentenceEvidenceToken::Scalar('a'); 10_000];
+        new_tokens[5_000] = SentenceEvidenceToken::Scalar('b');
+        let old = similarity_occurrence(
+            "alpha",
+            vec![SentenceEvidenceToken::Scalar('a'); 10_000],
+            RecoveryUnitKind::Sentence,
+        );
+        let new = similarity_occurrence("alpha", new_tokens, RecoveryUnitKind::Sentence);
+        let mut budget = RecoveryBudget::new(10_000, 10_000, 20_000, 1).expect("valid budget");
+
+        assert_eq!(sentence_similarity(&old, &new, &mut budget), Some(10_000));
+        assert_eq!(budget.comparisons, 10_002);
     }
 
     #[test]
