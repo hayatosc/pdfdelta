@@ -100,9 +100,13 @@ misses. The evidence instead points to recovery-unit granularity and competing
 relations. The remaining FIPS move is unfound on both sides, which supports
 segment-level move detection rather than a looser run-pairing rule.
 
-## Current Writer Schema (v11)
+## Current Writer Schema (v12)
 
-The benchmark writer uses schema v11; older immutable captures retain their recorded schema.
+The benchmark writer uses schema v12; older immutable captures retain their recorded schema.
+Schema v12 extends bounded recovery watches to locate exact quotes spanning two
+to eight adjacent units in one trusted stream. Segment observations remain
+diagnostic-only, mark unit-level exact counts unavailable, and do not change
+comparison output.
 Schema v11 adds bounded expected-change recovery watches with side-local unit
 locations, existing near-candidate scores and relations, reciprocal status,
 and typed search completion evidence. It does not run additional candidate or

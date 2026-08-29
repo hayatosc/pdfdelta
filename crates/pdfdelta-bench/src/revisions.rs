@@ -272,12 +272,14 @@ pub enum RecoveryWatchBlockRoleReport {
 pub enum RecoveryWatchUnitKindReport {
     Sentence,
     Line,
+    Segment,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct RecoveryWatchPairEvidenceReport {
     pub same_span: bool,
     pub exact_shared_units: usize,
+    pub exact_shared_units_available: bool,
     pub near_candidate_examined: bool,
     pub near_score: Option<u16>,
     pub near_scope: Option<RecoveryWatchNearScopeReport>,
@@ -500,6 +502,7 @@ impl From<RecoveryWatchUnitKind> for RecoveryWatchUnitKindReport {
         match kind {
             RecoveryWatchUnitKind::Sentence => Self::Sentence,
             RecoveryWatchUnitKind::Line => Self::Line,
+            RecoveryWatchUnitKind::Segment => Self::Segment,
         }
     }
 }
@@ -509,6 +512,7 @@ impl From<RecoveryWatchPairEvidence> for RecoveryWatchPairEvidenceReport {
         Self {
             same_span: pair.same_span,
             exact_shared_units: pair.exact_shared_units,
+            exact_shared_units_available: pair.exact_shared_units_available,
             near_candidate_examined: pair.near_candidate_examined,
             near_score: pair.near_score,
             near_scope: pair.near_scope.map(Into::into),
@@ -2802,7 +2806,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 11;
+    pub const SCHEMA_VERSION: u32 = 12;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -3077,12 +3081,13 @@ mod tests {
                     max: Vec2 { x: 3.0, y: 4.0 },
                 }),
                 role: Some(BlockRole::Body),
-                kind: RecoveryWatchUnitKind::Sentence,
+                kind: RecoveryWatchUnitKind::Segment,
             }),
             new: RecoveryWatchOccurrenceEvidence::Unavailable,
             pair: Some(RecoveryWatchPairEvidence {
                 same_span: false,
                 exact_shared_units: 1,
+                exact_shared_units_available: true,
                 near_candidate_examined: true,
                 near_score: Some(700),
                 near_scope: Some(RecoveryWatchNearScope::CrossSpan),
@@ -3135,8 +3140,13 @@ mod tests {
         assert_eq!(value["records"][1]["old"]["status"], "ambiguous");
         assert_eq!(value["records"][2]["old"]["status"], "unavailable");
         assert_eq!(value["records"][3]["old"]["status"], "found");
+        assert_eq!(value["records"][3]["old"]["kind"], "segment");
         assert_eq!(value["records"][3]["old"]["bbox"]["max"]["x"], 3.0);
         assert_eq!(value["records"][3]["pair"]["near_scope"], "cross_span");
+        assert_eq!(
+            value["records"][3]["pair"]["exact_shared_units_available"],
+            true
+        );
         assert_eq!(
             value["records"][3]["pair"]["old_relation"]["best_score"],
             700
@@ -3538,7 +3548,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 11);
+        assert_eq!(completed["schema_version"], 12);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -3567,7 +3577,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 11);
+        assert_eq!(legacy_summary["schema_version"], 12);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -4333,7 +4343,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 11);
+        assert_eq!(json["schema_version"], 12);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -5170,7 +5180,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 11);
+        assert_eq!(value["schema_version"], 12);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

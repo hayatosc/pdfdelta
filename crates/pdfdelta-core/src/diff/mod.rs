@@ -166,6 +166,9 @@ pub struct RecoveryWatchQuery<'a> {
 pub enum RecoveryWatchUnitKind {
     Sentence,
     Line,
+    /// A diagnostic-only quote spanning two to eight adjacent units in one
+    /// trusted stream.
+    Segment,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -212,6 +215,9 @@ pub struct RecoveryWatchRelation {
 pub struct RecoveryWatchPairEvidence {
     pub same_span: bool,
     pub exact_shared_units: usize,
+    /// Whether [`Self::exact_shared_units`] was computed for two concrete
+    /// trusted-run descriptors.
+    pub exact_shared_units_available: bool,
     pub near_candidate_examined: bool,
     pub near_score: Option<u16>,
     pub near_scope: Option<RecoveryWatchNearScope>,
@@ -6707,6 +6713,7 @@ mod tests {
         assert_eq!(pair.near_scope, Some(RecoveryWatchNearScope::PairedStream));
         assert!(pair.reciprocal, "{pair:?}");
         assert_eq!(pair.exact_shared_units, 2);
+        assert!(pair.exact_shared_units_available);
     }
 
     #[test]
