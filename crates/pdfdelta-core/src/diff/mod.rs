@@ -59,12 +59,20 @@ pub struct TextSpan {
     pub comparable_range: TokenRange,
 }
 
+/// One source-location pair belonging to a semantic [`ChangeEvent`].
+///
+/// An event may contain multiple occurrences when the same semantic change is
+/// reported once across repeated content while retaining every exact span.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChangeOccurrence {
     pub old_span: Option<TextSpan>,
     pub new_span: Option<TextSpan>,
 }
 
+/// One reviewable semantic content-change event.
+///
+/// [`Change::occurrences`] retains the exact old and new spans for every
+/// location grouped into this event.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Change {
     pub kind: ChangeKind,
@@ -99,6 +107,10 @@ impl Change {
         }
     }
 }
+
+/// Preferred name for [`Change`] when distinguishing semantic events from
+/// lower-level edit evidence.
+pub type ChangeEvent = Change;
 
 pub(crate) fn valid_change_occurrence_shape(
     kind: ChangeKind,
@@ -146,7 +158,7 @@ pub struct Coverage {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Comparison {
-    pub changes: Vec<Change>,
+    pub changes: Vec<ChangeEvent>,
     pub formatting_changes: Vec<FormattingChange>,
     pub unresolved_regions: Vec<UnresolvedRegion>,
     pub old_coverage: Coverage,
@@ -581,7 +593,7 @@ fn compare_aligned_inner(
                     let new_tokens = new.source_token_count(&new_blocks);
                     resolved_old += old_tokens;
                     resolved_new += new_tokens;
-                    changes.push(Change::single_occurrence(
+                    changes.push(ChangeEvent::single_occurrence(
                         ChangeKind::Move,
                         Some(old.canonical_group(&span.old, None).full_span()),
                         Some(new.canonical_group(&new_blocks, None).full_span()),
@@ -604,7 +616,7 @@ fn compare_aligned_inner(
                 resolved_old += source_tokens;
                 if source_tokens > 0 {
                     let group = old.canonical_group(&span.old, span.old_separator);
-                    changes.push(Change::single_occurrence(
+                    changes.push(ChangeEvent::single_occurrence(
                         ChangeKind::Deletion,
                         Some(group.full_span()),
                         None,
@@ -621,7 +633,7 @@ fn compare_aligned_inner(
                 resolved_new += source_tokens;
                 if source_tokens > 0 {
                     let group = new.canonical_group(&span.new, span.new_separator);
-                    changes.push(Change::single_occurrence(
+                    changes.push(ChangeEvent::single_occurrence(
                         ChangeKind::Insertion,
                         None,
                         Some(group.full_span()),
@@ -781,7 +793,7 @@ impl RecoveryOutputBudget {
 }
 
 struct PreparedSentenceRecovery {
-    changes: Vec<Change>,
+    changes: Vec<ChangeEvent>,
     unresolved_regions: Vec<UnresolvedRegion>,
     resolved_old: usize,
     resolved_new: usize,
@@ -854,7 +866,7 @@ fn prepare_sentence_recovery_batch(
 
 fn commit_prepared_sentence_recovery_batch(
     mut batch: PreparedSentenceRecoveryBatch,
-    changes: &mut Vec<Change>,
+    changes: &mut Vec<ChangeEvent>,
     unresolved_regions: &mut Vec<UnresolvedRegion>,
     resolved_old: &mut usize,
     resolved_new: &mut usize,
@@ -946,7 +958,7 @@ fn apply_sentence_recovery_or_fallback(
     span_index: usize,
     span: &AlignmentSpan,
     recovery: &sentence::SentenceRecoveryPlan,
-    changes: &mut Vec<Change>,
+    changes: &mut Vec<ChangeEvent>,
     unresolved_regions: &mut Vec<UnresolvedRegion>,
     resolved_old: &mut usize,
     resolved_new: &mut usize,
@@ -981,7 +993,7 @@ fn append_sentence_recovery(
     span_index: usize,
     span: &AlignmentSpan,
     recovery: &sentence::SentenceRecoveryPlan,
-    changes: &mut Vec<Change>,
+    changes: &mut Vec<ChangeEvent>,
     unresolved_regions: &mut Vec<UnresolvedRegion>,
     resolved_old: &mut usize,
     resolved_new: &mut usize,
@@ -1148,7 +1160,7 @@ fn recovered_range_count(
 fn prepare_recovered_changes(
     recovered: &[sentence::RecoveredSentence],
     kind: ChangeKind,
-    changes: &mut Vec<Change>,
+    changes: &mut Vec<ChangeEvent>,
     output_budget: &mut RecoveryOutputBudget,
 ) -> Option<usize> {
     let mut resolved = 0usize;
@@ -1171,7 +1183,7 @@ fn prepare_recovered_changes(
             ChangeKind::Insertion => (None, Some(span)),
             ChangeKind::Replacement | ChangeKind::Move => return None,
         };
-        changes.push(Change::single_occurrence(
+        changes.push(ChangeEvent::single_occurrence(
             kind,
             old_span,
             new_span,
@@ -1184,7 +1196,7 @@ fn prepare_recovered_changes(
 
 fn prepare_recovered_replacements(
     replacements: &[sentence::RecoveredReplacement],
-    changes: &mut Vec<Change>,
+    changes: &mut Vec<ChangeEvent>,
     output_budget: &mut RecoveryOutputBudget,
 ) -> Option<(usize, usize)> {
     let mut resolved_old = 0usize;
@@ -1205,7 +1217,7 @@ fn prepare_recovered_replacements(
         if !output_budget.charge(estimated_change_bytes(block_count)?) {
             return None;
         }
-        changes.push(Change::single_occurrence(
+        changes.push(ChangeEvent::single_occurrence(
             ChangeKind::Replacement,
             Some(recovered_text_span(&replacement.old)?),
             Some(recovered_text_span(&replacement.new)?),
@@ -1216,7 +1228,7 @@ fn prepare_recovered_replacements(
     Some((resolved_old, resolved_new))
 }
 
-fn sort_recovered_old_changes(side: &Side<'_>, changes: &mut [Change]) -> Option<()> {
+fn sort_recovered_old_changes(side: &Side<'_>, changes: &mut [ChangeEvent]) -> Option<()> {
     if changes
         .iter()
         .any(|change| recovered_old_change_key(side, change).is_none())
@@ -1229,7 +1241,7 @@ fn sort_recovered_old_changes(side: &Side<'_>, changes: &mut [Change]) -> Option
 
 fn recovered_old_change_key(
     side: &Side<'_>,
-    change: &Change,
+    change: &ChangeEvent,
 ) -> Option<(usize, usize, usize, bool)> {
     if !matches!(change.kind, ChangeKind::Deletion | ChangeKind::Replacement) {
         return None;
@@ -1486,7 +1498,7 @@ fn try_copy_slice<T: Copy>(source: &[T]) -> Option<Vec<T>> {
 }
 
 fn estimated_change_bytes(block_count: usize) -> Option<usize> {
-    std::mem::size_of::<Change>()
+    std::mem::size_of::<ChangeEvent>()
         .checked_add(block_count.checked_mul(std::mem::size_of::<BlockId>())?)?
         .checked_mul(2)
 }
@@ -1496,7 +1508,7 @@ fn estimated_recovery_reservation_bytes(
     unresolved_count: usize,
 ) -> Option<usize> {
     change_count
-        .checked_mul(std::mem::size_of::<Change>())?
+        .checked_mul(std::mem::size_of::<ChangeEvent>())?
         .checked_add(unresolved_count.checked_mul(std::mem::size_of::<UnresolvedRegion>())?)?
         .checked_mul(2)
 }
@@ -1643,7 +1655,7 @@ fn compare_match(
     new_side: &Side<'_>,
     span: &AlignmentSpan,
     options: DiffOptions,
-    changes: &mut Vec<Change>,
+    changes: &mut Vec<ChangeEvent>,
     formatting_changes: &mut Vec<FormattingChange>,
     unresolved_regions: &mut Vec<UnresolvedRegion>,
 ) -> Result<bool> {
@@ -1908,11 +1920,11 @@ fn append_line_grouped_changes(
     new: &GroupText,
     grouped: Vec<(Range<usize>, Range<usize>)>,
     confidence: Confidence,
-    changes: &mut Vec<Change>,
+    changes: &mut Vec<ChangeEvent>,
 ) {
     changes.reserve(grouped.len());
     changes.extend(grouped.into_iter().map(|(old_range, new_range)| {
-        Change::single_occurrence(
+        ChangeEvent::single_occurrence(
             ChangeKind::Replacement,
             Some(old.span(old_range.start, old_range.end)),
             Some(new.span(new_range.start, new_range.end)),
@@ -1963,7 +1975,7 @@ fn append_changes(
     new: &GroupText,
     edits: &[Edit],
     confidence: Confidence,
-    changes: &mut Vec<Change>,
+    changes: &mut Vec<ChangeEvent>,
 ) {
     let mut old_index = 0;
     let mut new_index = 0;
@@ -2160,7 +2172,7 @@ fn flush_hunk(
     old_end: usize,
     new_end: usize,
     confidence: Confidence,
-    changes: &mut Vec<Change>,
+    changes: &mut Vec<ChangeEvent>,
 ) {
     let Some((old_start, new_start)) = start else {
         return;
@@ -2178,7 +2190,7 @@ fn flush_hunk(
     .then_some(ChangeTag::CharacterWidth)
     .into_iter()
     .collect();
-    changes.push(Change::single_occurrence(
+    changes.push(ChangeEvent::single_occurrence(
         kind,
         old_changed.then(|| old.span(old_start, old_end)),
         new_changed.then(|| new.span(new_start, new_end)),
@@ -3166,7 +3178,7 @@ mod tests {
         );
         assert_eq!(
             deletion.changes,
-            vec![Change {
+            vec![ChangeEvent {
                 kind: ChangeKind::Deletion,
                 occurrences: vec![ChangeOccurrence {
                     old_span: Some(test_span(1, sentence_start, sentence_end)),
@@ -3202,7 +3214,7 @@ mod tests {
         );
         assert_eq!(
             insertion.changes,
-            vec![Change {
+            vec![ChangeEvent {
                 kind: ChangeKind::Insertion,
                 occurrences: vec![ChangeOccurrence {
                     old_span: None,
@@ -3645,7 +3657,7 @@ mod tests {
         );
         assert_eq!(
             result.changes,
-            vec![Change {
+            vec![ChangeEvent {
                 kind: ChangeKind::Deletion,
                 occurrences: vec![ChangeOccurrence {
                     old_span: Some(test_span(
@@ -3734,7 +3746,7 @@ mod tests {
         assert_eq!(
             changes,
             vec![
-                Change {
+                ChangeEvent {
                     kind: ChangeKind::Deletion,
                     occurrences: vec![ChangeOccurrence {
                         old_span: Some(test_span(3, first_recovered.start, first_recovered.end,)),
@@ -3743,7 +3755,7 @@ mod tests {
                     confidence: Confidence::High,
                     tags: Vec::new(),
                 },
-                Change {
+                ChangeEvent {
                     kind: ChangeKind::Deletion,
                     occurrences: vec![ChangeOccurrence {
                         old_span: Some(test_span(3, second_recovered.start, second_recovered.end,)),
@@ -4148,7 +4160,7 @@ mod tests {
         let new_end = new_start + new_sentence.chars().count();
         assert_eq!(
             result.changes,
-            vec![Change {
+            vec![ChangeEvent {
                 kind: ChangeKind::Replacement,
                 occurrences: vec![ChangeOccurrence {
                     old_span: Some(test_span(12, old_start, old_end)),
@@ -5395,7 +5407,7 @@ mod tests {
 
         assert_eq!(
             result.changes,
-            vec![Change {
+            vec![ChangeEvent {
                 kind: ChangeKind::Replacement,
                 occurrences: vec![ChangeOccurrence {
                     old_span: Some(test_span(21, 0, old_parameter.chars().count())),

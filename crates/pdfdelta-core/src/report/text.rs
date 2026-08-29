@@ -7,7 +7,7 @@ use std::fmt::Write;
 
 use crate::{
     Error, Result,
-    diff::{Change, ChangeKind, ChangeTag, Comparison, Confidence, TextSpan},
+    diff::{ChangeEvent, ChangeKind, ChangeTag, Comparison, Confidence, TextSpan},
     layout::BlockId,
     model::FontProgramHash,
     normalize::{BlockText, ComparableToken},
@@ -324,14 +324,14 @@ fn merged_edited_ranges<'a>(spans: impl Iterator<Item = &'a TextSpan>) -> Vec<(u
     merged
 }
 
-fn old_spans(change: &Change) -> impl DoubleEndedIterator<Item = &TextSpan> {
+fn old_spans(change: &ChangeEvent) -> impl DoubleEndedIterator<Item = &TextSpan> {
     change
         .occurrences
         .iter()
         .filter_map(|occurrence| occurrence.old_span.as_ref())
 }
 
-fn new_spans(change: &Change) -> impl DoubleEndedIterator<Item = &TextSpan> {
+fn new_spans(change: &ChangeEvent) -> impl DoubleEndedIterator<Item = &TextSpan> {
     change
         .occurrences
         .iter()
@@ -339,7 +339,7 @@ fn new_spans(change: &Change) -> impl DoubleEndedIterator<Item = &TextSpan> {
 }
 
 struct Cluster<'a> {
-    changes: Vec<&'a Change>,
+    changes: Vec<&'a ChangeEvent>,
     last_old: Option<&'a TextSpan>,
     last_new: Option<&'a TextSpan>,
     confidence: Confidence,
@@ -347,7 +347,7 @@ struct Cluster<'a> {
 }
 
 impl<'a> Cluster<'a> {
-    fn starting(change: &'a Change) -> Self {
+    fn starting(change: &'a ChangeEvent) -> Self {
         Self {
             changes: vec![change],
             last_old: old_spans(change).next_back(),
@@ -357,7 +357,7 @@ impl<'a> Cluster<'a> {
         }
     }
 
-    fn can_absorb(&self, next: &Change) -> bool {
+    fn can_absorb(&self, next: &ChangeEvent) -> bool {
         if next.kind == ChangeKind::Move
             || next.occurrences.len() != 1
             || self
@@ -376,7 +376,7 @@ impl<'a> Cluster<'a> {
             && side_close(self.last_new, new_spans(next).next())
     }
 
-    fn absorb(&mut self, next: &'a Change) {
+    fn absorb(&mut self, next: &'a ChangeEvent) {
         if let Some(span) = old_spans(next).next_back() {
             self.last_old = Some(span);
         }

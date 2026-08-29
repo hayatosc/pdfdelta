@@ -9,7 +9,7 @@ use crate::{
     Error, Result,
     alignment::{AlignmentEvidence, BlockSeparator, CandidateSource},
     diff::{
-        Change, Comparison, Coverage, FormattingChange, FormattingReason, TextSpan,
+        ChangeEvent, Comparison, Coverage, FormattingChange, FormattingReason, TextSpan,
         UnresolvedRegion,
     },
     model::{GlyphEvidence, GlyphId, Rect},
@@ -227,7 +227,7 @@ struct JsonChangeOccurrence {
 
 impl JsonChange {
     fn new(
-        change: &Change,
+        change: &ChangeEvent,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
         old_glyphs: &GlyphEvidenceIndex<'_>,
