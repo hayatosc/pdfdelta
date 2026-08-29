@@ -18,9 +18,11 @@ use crate::{
 
 use super::{
     ExactSegmentRelation, MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS,
-    NearRelationStopReason, RecoveryWatchDiagnostics, RecoveryWatchNearScope,
-    RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence, RecoveryWatchOccurrences,
-    RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
+    NearRelationStopReason, RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence,
+    RecoveryWatchGranularRelation, RecoveryWatchGranularStopReason,
+    RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope, RecoveryWatchOccurrence,
+    RecoveryWatchOccurrenceEvidence, RecoveryWatchOccurrences, RecoveryWatchPairEvidence,
+    RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
     RecoveryWatchSegmentPairEvidence, RecoveryWatchUnitKind, RunSignatureStopReason,
     SegmentStopReason, SentenceRecoveryCommittedTokens, SentenceRecoveryInput,
     SentenceRecoveryMetrics, Side, TokenRange, TrustedRunRecoveryInput,
@@ -688,6 +690,11 @@ struct RecoveryWatchState {
     segment_analysis: SegmentDiagnosticAnalysis,
     segment_stop_reason: Option<SegmentStopReason>,
     segment_overlap_vetoes: usize,
+    granular_complete: bool,
+    granular_old_units: usize,
+    granular_new_units: usize,
+    granular_pair_comparisons: usize,
+    granular_stop_reason: Option<RecoveryWatchGranularStopReason>,
     records: Vec<RecoveryWatchStateRecord>,
     pair_by_occurrences: HashMap<(usize, usize), Vec<usize>>,
     scan_work: usize,
@@ -1427,6 +1434,810 @@ fn watched_segment_pair_evidence(
     })
 }
 
+#[derive(Clone, Copy)]
+struct GranularBoundary {
+    kind: RecoveryWatchUnitKind,
+    byte_start: usize,
+    byte_end: usize,
+}
+
+struct GranularUnit {
+    kind: RecoveryWatchUnitKind,
+    byte_start: usize,
+    byte_end: usize,
+    text: String,
+    tokens: Vec<SentenceEvidenceToken>,
+    page: Option<u32>,
+    role: Option<BlockRole>,
+    recovery_location_available: bool,
+}
+
+#[derive(Default)]
+struct GranularDiagnosticBudget {
+    units: usize,
+    token_bytes: usize,
+    comparisons: usize,
+    outputs: usize,
+    auxiliary_items: usize,
+    auxiliary_bytes: usize,
+}
+
+impl GranularDiagnosticBudget {
+    const UNIT_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS / 16;
+    const TOKEN_BYTE_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_BYTES / 16;
+    const COMPARISON_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS * 16;
+    const OUTPUT_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS / 16;
+    const AUXILIARY_ITEM_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS / 4;
+    const AUXILIARY_BYTE_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_BYTES / 8;
+
+    fn charge_units(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), RecoveryWatchGranularStopReason> {
+        self.units = self
+            .units
+            .checked_add(amount)
+            .ok_or(RecoveryWatchGranularStopReason::UnitCountLimit)?;
+        (self.units <= Self::UNIT_LIMIT)
+            .then_some(())
+            .ok_or(RecoveryWatchGranularStopReason::UnitCountLimit)
+    }
+
+    fn charge_token_bytes(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), RecoveryWatchGranularStopReason> {
+        self.token_bytes = self
+            .token_bytes
+            .checked_add(amount)
+            .ok_or(RecoveryWatchGranularStopReason::TokenByteLimit)?;
+        (self.token_bytes <= Self::TOKEN_BYTE_LIMIT)
+            .then_some(())
+            .ok_or(RecoveryWatchGranularStopReason::TokenByteLimit)
+    }
+
+    fn charge_comparisons(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), RecoveryWatchGranularStopReason> {
+        self.comparisons = self
+            .comparisons
+            .checked_add(amount)
+            .ok_or(RecoveryWatchGranularStopReason::ComparisonLimit)?;
+        (self.comparisons <= Self::COMPARISON_LIMIT)
+            .then_some(())
+            .ok_or(RecoveryWatchGranularStopReason::ComparisonLimit)
+    }
+
+    fn charge_outputs(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), RecoveryWatchGranularStopReason> {
+        self.outputs = self
+            .outputs
+            .checked_add(amount)
+            .ok_or(RecoveryWatchGranularStopReason::OutputLimit)?;
+        (self.outputs <= Self::OUTPUT_LIMIT)
+            .then_some(())
+            .ok_or(RecoveryWatchGranularStopReason::OutputLimit)
+    }
+
+    fn charge_auxiliary<T>(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), RecoveryWatchGranularStopReason> {
+        self.auxiliary_items = self
+            .auxiliary_items
+            .checked_add(amount)
+            .ok_or(RecoveryWatchGranularStopReason::AuxiliaryLimit)?;
+        self.auxiliary_bytes = self
+            .auxiliary_bytes
+            .checked_add(
+                amount
+                    .checked_mul(std::mem::size_of::<T>())
+                    .ok_or(RecoveryWatchGranularStopReason::AuxiliaryLimit)?,
+            )
+            .ok_or(RecoveryWatchGranularStopReason::AuxiliaryLimit)?;
+        if self.auxiliary_items > Self::AUXILIARY_ITEM_LIMIT
+            || self.auxiliary_bytes > Self::AUXILIARY_BYTE_LIMIT
+        {
+            return Err(RecoveryWatchGranularStopReason::AuxiliaryLimit);
+        }
+        Ok(())
+    }
+}
+
+struct CollapsedGranularText {
+    text: String,
+    /// Original byte offset for every byte boundary in `text`.
+    original_boundaries: Vec<usize>,
+}
+
+fn collapse_granular_whitespace(
+    value: &str,
+    budget: &mut GranularDiagnosticBudget,
+) -> std::result::Result<CollapsedGranularText, RecoveryWatchGranularStopReason> {
+    budget.charge_token_bytes(value.len())?;
+    budget.charge_comparisons(value.len())?;
+    budget.charge_auxiliary::<usize>(
+        value
+            .len()
+            .checked_add(1)
+            .ok_or(RecoveryWatchGranularStopReason::AuxiliaryLimit)?,
+    )?;
+    let mut output = String::new();
+    let mut original_boundaries = Vec::new();
+    output
+        .try_reserve(value.len())
+        .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+    original_boundaries
+        .try_reserve(
+            value
+                .len()
+                .checked_add(1)
+                .ok_or(RecoveryWatchGranularStopReason::AuxiliaryLimit)?,
+        )
+        .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+    let mut part_start = None;
+    for (offset, character) in value
+        .char_indices()
+        .chain(std::iter::once((value.len(), ' ')))
+    {
+        if !character.is_whitespace() {
+            part_start.get_or_insert(offset);
+            continue;
+        }
+        let Some(start) = part_start.take() else {
+            continue;
+        };
+        let part = value
+            .get(start..offset)
+            .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+        if !output.is_empty() {
+            output.push(' ');
+            original_boundaries.push(start);
+        } else {
+            original_boundaries.push(start);
+        }
+        output.push_str(part);
+        original_boundaries.extend((1..=part.len()).map(|relative| start + relative));
+    }
+    if output.is_empty() {
+        original_boundaries.push(value.len());
+    }
+    Ok(CollapsedGranularText {
+        text: output,
+        original_boundaries,
+    })
+}
+
+fn watched_quote_range_for_granular(
+    quote: &str,
+    occurrence: &SentenceOccurrence,
+    budget: &mut GranularDiagnosticBudget,
+) -> std::result::Result<Option<Range<usize>>, RecoveryWatchGranularStopReason> {
+    let needle = collapse_granular_whitespace(quote, budget)?;
+    if needle.text.is_empty() {
+        return Ok(None);
+    }
+    let haystack = collapse_granular_whitespace(&occurrence.key, budget)?;
+    budget.charge_comparisons(haystack.text.len())?;
+    let mut matches = haystack.text.match_indices(&needle.text);
+    let Some((start, matched)) = matches.next() else {
+        return Ok(None);
+    };
+    if matches.next().is_some() {
+        return Ok(None);
+    }
+    let end = start
+        .checked_add(matched.len())
+        .ok_or(RecoveryWatchGranularStopReason::AuxiliaryLimit)?;
+    let original_start = *haystack
+        .original_boundaries
+        .get(start)
+        .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+    let original_end = *haystack
+        .original_boundaries
+        .get(end)
+        .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+    Ok((original_start < original_end).then_some(original_start..original_end))
+}
+
+fn push_trimmed_boundary(
+    text: &str,
+    range: Range<usize>,
+    kind: RecoveryWatchUnitKind,
+    output: &mut Vec<GranularBoundary>,
+) -> std::result::Result<(), RecoveryWatchGranularStopReason> {
+    let raw = text
+        .get(range.clone())
+        .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+    let leading = raw.len().saturating_sub(raw.trim_start().len());
+    let trailing_end = raw.trim_end().len();
+    let start = range
+        .start
+        .checked_add(leading)
+        .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+    let end = range
+        .start
+        .checked_add(trailing_end)
+        .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+    if start >= end {
+        return Ok(());
+    }
+    if text
+        .get(start..end)
+        .is_none_or(|candidate| candidate.unicode_words().next().is_none())
+    {
+        return Ok(());
+    }
+    output
+        .try_reserve(1)
+        .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+    output.push(GranularBoundary {
+        kind,
+        byte_start: start,
+        byte_end: end,
+    });
+    Ok(())
+}
+
+fn is_leading_subordinate_clause(text: &str) -> bool {
+    let first = text
+        .split(|character: char| !character.is_alphabetic())
+        .find(|word| !word.is_empty())
+        .unwrap_or_default();
+    [
+        "after", "although", "as", "because", "before", "if", "once", "since", "unless", "until",
+        "when", "whereas", "while",
+    ]
+    .iter()
+    .any(|marker| first.eq_ignore_ascii_case(marker))
+}
+
+fn clause_boundaries(
+    text: &str,
+    budget: &mut GranularDiagnosticBudget,
+) -> std::result::Result<Vec<GranularBoundary>, RecoveryWatchGranularStopReason> {
+    budget.charge_auxiliary::<usize>(64)?;
+    budget.charge_comparisons(text.len())?;
+    let mut cuts = Vec::new();
+    cuts.try_reserve(64)
+        .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+    cuts.push(0usize);
+
+    if is_leading_subordinate_clause(text)
+        && let Some(comma) = text.find(',')
+        && text
+            .get(comma + 1..)
+            .is_some_and(|tail| tail.unicode_words().count() >= 2)
+    {
+        cuts.push(comma);
+        cuts.push(comma + 1);
+    }
+    let contains_url = text.contains("://");
+    for (offset, character) in text.char_indices() {
+        if cuts.len() >= 64 {
+            return Err(RecoveryWatchGranularStopReason::UnitCountLimit);
+        }
+        let width = character.len_utf8();
+        match character {
+            ';' => {
+                cuts.push(offset);
+                cuts.push(offset + width);
+            }
+            ':' => {
+                budget.charge_comparisons(text.len())?;
+                let left = text.get(..offset).unwrap_or_default();
+                let right = text.get(offset + width..).unwrap_or_default();
+                let numeric_colon = left.ends_with(|character: char| character.is_ascii_digit())
+                    && right.starts_with(|character: char| character.is_ascii_digit());
+                if !contains_url
+                    && !numeric_colon
+                    && left.unicode_words().count() >= 2
+                    && right.unicode_words().count() >= 2
+                {
+                    cuts.push(offset);
+                    cuts.push(offset + width);
+                }
+            }
+            '\u{2014}' => {
+                cuts.push(offset);
+                cuts.push(offset + width);
+            }
+            _ => {}
+        }
+    }
+    cuts.push(text.len());
+    budget.charge_comparisons(
+        cuts.len()
+            .checked_mul(cuts.len())
+            .ok_or(RecoveryWatchGranularStopReason::ComparisonLimit)?,
+    )?;
+    cuts.sort_unstable();
+    cuts.dedup();
+    let mut boundaries = Vec::new();
+    for pair in cuts.windows(2) {
+        push_trimmed_boundary(
+            text,
+            pair[0]..pair[1],
+            RecoveryWatchUnitKind::Clause,
+            &mut boundaries,
+        )?;
+    }
+    if boundaries.len() < 2 {
+        boundaries.clear();
+    }
+    Ok(boundaries)
+}
+
+fn explicit_list_item_start(text: &str) -> Option<usize> {
+    let trimmed_start = text.len().checked_sub(text.trim_start().len())?;
+    let trimmed = text.get(trimmed_start..)?;
+    for marker in ["- ", "* ", "\u{2022} ", "\u{25e6} "] {
+        if trimmed.starts_with(marker) {
+            return trimmed_start.checked_add(marker.len());
+        }
+    }
+    let marker_end = trimmed
+        .char_indices()
+        .take(8)
+        .find_map(|(index, character)| matches!(character, '.' | ')').then_some(index))?;
+    let marker = trimmed.get(..marker_end)?;
+    let valid = (!marker.is_empty() && marker.chars().all(|character| character.is_ascii_digit()))
+        || marker.get(1..).is_some_and(|inner| {
+            marker.starts_with('(')
+                && !inner.is_empty()
+                && inner
+                    .chars()
+                    .all(|character| character.is_ascii_alphanumeric())
+        });
+    let after = marker_end.checked_add(1)?;
+    (valid && trimmed.get(after..)?.starts_with(char::is_whitespace)).then(|| {
+        trimmed_start + after + trimmed[after..].len() - trimmed[after..].trim_start().len()
+    })
+}
+
+fn short_enumeration_boundaries(
+    text: &str,
+    output: &mut Vec<GranularBoundary>,
+    budget: &mut GranularDiagnosticBudget,
+) -> std::result::Result<(), RecoveryWatchGranularStopReason> {
+    let Some((delimiter, width)) = text
+        .char_indices()
+        .find(|(_, character)| matches!(character, ':' | '\u{2014}'))
+        .map(|(offset, character)| (offset, character.len_utf8()))
+    else {
+        return Ok(());
+    };
+    let body_start = delimiter
+        .checked_add(width)
+        .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+    let tail = text
+        .get(body_start..)
+        .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+    let body_end = tail
+        .find('\u{2014}')
+        .or_else(|| tail.rfind('.'))
+        .unwrap_or(tail.len());
+    let body = tail
+        .get(..body_end)
+        .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+    budget.charge_auxiliary::<Range<usize>>(16)?;
+    let mut ranges = Vec::new();
+    ranges
+        .try_reserve(8)
+        .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+    let mut start = 0usize;
+    for (offset, character) in body.char_indices() {
+        if character == ',' {
+            if ranges.len() == 8 {
+                return Ok(());
+            }
+            ranges.push(start..offset);
+            start = offset + 1;
+        }
+    }
+    ranges.push(start..body.len());
+    if !(2..=8).contains(&ranges.len()) {
+        return Ok(());
+    }
+    let mut adjusted = Vec::new();
+    adjusted
+        .try_reserve_exact(ranges.len())
+        .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+    for range in ranges {
+        let item = body
+            .get(range.clone())
+            .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+        let leading = item.len().saturating_sub(item.trim_start().len());
+        let mut item_start = range.start + leading;
+        let item_end = range.start + item.trim_end().len();
+        let trimmed = body
+            .get(item_start..item_end)
+            .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+        for conjunction in ["and ", "or "] {
+            if trimmed
+                .get(..conjunction.len())
+                .is_some_and(|head| head.eq_ignore_ascii_case(conjunction))
+            {
+                item_start += conjunction.len();
+                break;
+            }
+        }
+        budget.charge_comparisons(range.len())?;
+        let words = body
+            .get(item_start..item_end)
+            .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?
+            .unicode_words()
+            .count();
+        if !(1..=3).contains(&words) {
+            return Ok(());
+        }
+        adjusted.push(item_start..item_end);
+    }
+    for range in adjusted {
+        push_trimmed_boundary(
+            text,
+            body_start + range.start..body_start + range.end,
+            RecoveryWatchUnitKind::ListItem,
+            output,
+        )?;
+    }
+    Ok(())
+}
+
+fn granular_boundaries(
+    occurrence: &SentenceOccurrence,
+    quote_range: Range<usize>,
+    budget: &mut GranularDiagnosticBudget,
+) -> std::result::Result<Vec<GranularBoundary>, RecoveryWatchGranularStopReason> {
+    let text = occurrence
+        .key
+        .get(quote_range.clone())
+        .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+    let mut boundaries = clause_boundaries(text, budget)?;
+    if occurrence.kind == RecoveryUnitKind::Line
+        && let Some(start) = explicit_list_item_start(text)
+    {
+        push_trimmed_boundary(
+            text,
+            start..text.len(),
+            RecoveryWatchUnitKind::ListItem,
+            &mut boundaries,
+        )?;
+    }
+    short_enumeration_boundaries(text, &mut boundaries, budget)?;
+    budget.charge_comparisons(
+        boundaries
+            .len()
+            .checked_mul(boundaries.len())
+            .ok_or(RecoveryWatchGranularStopReason::ComparisonLimit)?,
+    )?;
+    boundaries.sort_unstable_by_key(|boundary| {
+        (
+            boundary.byte_start,
+            boundary.byte_end,
+            match boundary.kind {
+                RecoveryWatchUnitKind::Clause => 0,
+                RecoveryWatchUnitKind::ListItem => 1,
+                _ => 2,
+            },
+        )
+    });
+    boundaries.dedup_by_key(|boundary| (boundary.kind, boundary.byte_start, boundary.byte_end));
+    for boundary in &mut boundaries {
+        boundary.byte_start = boundary
+            .byte_start
+            .checked_add(quote_range.start)
+            .ok_or(RecoveryWatchGranularStopReason::AuxiliaryLimit)?;
+        boundary.byte_end = boundary
+            .byte_end
+            .checked_add(quote_range.start)
+            .ok_or(RecoveryWatchGranularStopReason::AuxiliaryLimit)?;
+    }
+    Ok(boundaries)
+}
+
+fn build_granular_units(
+    occurrence: &SentenceOccurrence,
+    quote_range: Range<usize>,
+    budget: &mut GranularDiagnosticBudget,
+) -> std::result::Result<Vec<GranularUnit>, RecoveryWatchGranularStopReason> {
+    if occurrence.location.is_none() || occurrence.tokens.iter().any(|token| !token.is_scalar()) {
+        return Ok(Vec::new());
+    }
+    let boundaries = granular_boundaries(occurrence, quote_range, budget)?;
+    budget.charge_units(boundaries.len())?;
+    budget.charge_outputs(boundaries.len())?;
+    budget.charge_auxiliary::<usize>(
+        occurrence
+            .tokens
+            .len()
+            .checked_add(1)
+            .ok_or(RecoveryWatchGranularStopReason::AuxiliaryLimit)?,
+    )?;
+    let scalar_to_token = scalar_to_token_boundaries(&occurrence.tokens)
+        .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+    let mut units = Vec::new();
+    units
+        .try_reserve_exact(boundaries.len())
+        .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+    for boundary in boundaries {
+        let text = occurrence
+            .key
+            .get(boundary.byte_start..boundary.byte_end)
+            .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+        let scalar_start = occurrence
+            .key
+            .get(..boundary.byte_start)
+            .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?
+            .chars()
+            .count();
+        let scalar_end = scalar_start
+            .checked_add(text.chars().count())
+            .ok_or(RecoveryWatchGranularStopReason::TokenByteLimit)?;
+        let token_start = *scalar_to_token
+            .get(scalar_start)
+            .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+        let token_end = *scalar_to_token
+            .get(scalar_end)
+            .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+        let tokens = occurrence
+            .tokens
+            .get(token_start..token_end)
+            .ok_or(RecoveryWatchGranularStopReason::AllocationFailure)?;
+        budget.charge_token_bytes(
+            text.len()
+                .checked_add(
+                    tokens
+                        .len()
+                        .checked_mul(std::mem::size_of::<SentenceEvidenceToken>())
+                        .ok_or(RecoveryWatchGranularStopReason::TokenByteLimit)?,
+                )
+                .ok_or(RecoveryWatchGranularStopReason::TokenByteLimit)?,
+        )?;
+        let mut owned_text = String::new();
+        owned_text
+            .try_reserve_exact(text.len())
+            .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+        owned_text.push_str(text);
+        let mut owned_tokens = Vec::new();
+        owned_tokens
+            .try_reserve_exact(tokens.len())
+            .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+        owned_tokens.extend_from_slice(tokens);
+        units.push(GranularUnit {
+            kind: boundary.kind,
+            byte_start: boundary.byte_start,
+            byte_end: boundary.byte_end,
+            text: owned_text,
+            tokens: owned_tokens,
+            page: occurrence.page,
+            role: occurrence.role,
+            recovery_location_available: occurrence.location.is_some(),
+        });
+    }
+    Ok(units)
+}
+
+fn granular_similarity(
+    old: &GranularUnit,
+    new: &GranularUnit,
+    budget: &mut GranularDiagnosticBudget,
+) -> std::result::Result<u16, RecoveryWatchGranularStopReason> {
+    if old.kind != new.kind
+        || !matches!((old.role, new.role), (Some(old), Some(new)) if old.is_alignment_compatible(new))
+    {
+        return Ok(0);
+    }
+    let shorter = old.tokens.len().min(new.tokens.len());
+    if shorter == 0 {
+        return Ok(0);
+    }
+    let mut prefix = 0usize;
+    while prefix < shorter {
+        budget.charge_comparisons(1)?;
+        if old.tokens[prefix] != new.tokens[prefix] {
+            break;
+        }
+        prefix += 1;
+    }
+    let mut suffix = 0usize;
+    while suffix < shorter - prefix {
+        budget.charge_comparisons(1)?;
+        if old.tokens[old.tokens.len() - suffix - 1] != new.tokens[new.tokens.len() - suffix - 1] {
+            break;
+        }
+        suffix += 1;
+    }
+    let edge = basis_points(
+        prefix
+            .checked_add(suffix)
+            .ok_or(RecoveryWatchGranularStopReason::ComparisonLimit)?,
+        shorter,
+    )
+    .ok_or(RecoveryWatchGranularStopReason::ComparisonLimit)?;
+    if edge < MIN_WORD_SCORE_EDGE_EVIDENCE {
+        return Ok(edge);
+    }
+    let old_word_count = old.text.unicode_words().count();
+    let new_word_count = new.text.unicode_words().count();
+    let mut shared = 0usize;
+    for (old_index, old_word) in old.text.unicode_words().enumerate() {
+        let mut prior_old = 0usize;
+        for candidate in old.text.unicode_words().take(old_index) {
+            budget.charge_comparisons(1)?;
+            prior_old += usize::from(candidate == old_word);
+        }
+        let mut matching_new = 0usize;
+        for candidate in new.text.unicode_words() {
+            budget.charge_comparisons(1)?;
+            matching_new += usize::from(candidate == old_word);
+        }
+        shared += usize::from(prior_old < matching_new);
+    }
+    let total = old_word_count
+        .checked_add(new_word_count)
+        .ok_or(RecoveryWatchGranularStopReason::ComparisonLimit)?;
+    let word = if total == 0 {
+        0
+    } else {
+        basis_points(
+            shared
+                .checked_mul(2)
+                .ok_or(RecoveryWatchGranularStopReason::ComparisonLimit)?,
+            total,
+        )
+        .ok_or(RecoveryWatchGranularStopReason::ComparisonLimit)?
+    };
+    Ok(edge.max(word))
+}
+
+fn granular_relation(scores: impl IntoIterator<Item = u16>) -> RecoveryWatchGranularRelation {
+    let mut relation = RecoveryWatchGranularRelation {
+        available: true,
+        ..RecoveryWatchGranularRelation::default()
+    };
+    for (partner, score) in scores.into_iter().enumerate() {
+        if score > relation.best_score {
+            relation.second_score = relation.best_score;
+            relation.best_score = score;
+            relation.partner_index = Some(partner);
+            relation.tied_for_best = false;
+        } else if score == relation.best_score {
+            relation.second_score = score;
+            relation.tied_for_best = true;
+        } else {
+            relation.second_score = relation.second_score.max(score);
+        }
+    }
+    if relation.best_score == 0 {
+        relation.available = false;
+        relation.partner_index = None;
+        relation.tied_for_best = false;
+    }
+    relation
+}
+
+fn granular_pair_evidence(
+    old_quote: &str,
+    new_quote: &str,
+    old_occurrence: &SentenceOccurrence,
+    new_occurrence: &SentenceOccurrence,
+    budget: &mut GranularDiagnosticBudget,
+) -> std::result::Result<Option<RecoveryWatchGranularPairEvidence>, RecoveryWatchGranularStopReason>
+{
+    let (Some(old_quote_range), Some(new_quote_range)) = (
+        watched_quote_range_for_granular(old_quote, old_occurrence, budget)?,
+        watched_quote_range_for_granular(new_quote, new_occurrence, budget)?,
+    ) else {
+        return Ok(None);
+    };
+    let old = build_granular_units(old_occurrence, old_quote_range, budget)?;
+    let new = build_granular_units(new_occurrence, new_quote_range, budget)?;
+    if old.is_empty() || new.is_empty() {
+        return Ok(None);
+    }
+    let pair_count = old
+        .len()
+        .checked_mul(new.len())
+        .ok_or(RecoveryWatchGranularStopReason::ComparisonLimit)?;
+    budget.charge_comparisons(pair_count)?;
+    budget.charge_auxiliary::<u16>(pair_count)?;
+    let mut scores = Vec::new();
+    scores
+        .try_reserve_exact(pair_count)
+        .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+    for old_unit in &old {
+        for new_unit in &new {
+            scores.push(granular_similarity(old_unit, new_unit, budget)?);
+        }
+    }
+    let mut old_relations = Vec::new();
+    let mut new_relations = Vec::new();
+    budget.charge_auxiliary::<RecoveryWatchGranularRelation>(
+        old.len()
+            .checked_add(new.len())
+            .ok_or(RecoveryWatchGranularStopReason::AuxiliaryLimit)?,
+    )?;
+    old_relations
+        .try_reserve_exact(old.len())
+        .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+    new_relations
+        .try_reserve_exact(new.len())
+        .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+    for row in scores.chunks_exact(new.len()) {
+        old_relations.push(granular_relation(row.iter().copied()));
+    }
+    for new_index in 0..new.len() {
+        new_relations.push(granular_relation(
+            (0..old.len()).map(|old_index| scores[old_index * new.len() + new_index]),
+        ));
+    }
+    for (old_index, relation) in old_relations.iter_mut().enumerate() {
+        let Some(new_index) = relation.partner_index else {
+            continue;
+        };
+        relation.exact = old[old_index].tokens == new[new_index].tokens;
+        relation.reciprocal = !relation.tied_for_best
+            && new_relations.get(new_index).is_some_and(|new_relation| {
+                !new_relation.tied_for_best && new_relation.partner_index == Some(old_index)
+            });
+    }
+    for (new_index, relation) in new_relations.iter_mut().enumerate() {
+        let Some(old_index) = relation.partner_index else {
+            continue;
+        };
+        relation.exact = new[new_index].tokens == old[old_index].tokens;
+        relation.reciprocal = !relation.tied_for_best
+            && old_relations.get(old_index).is_some_and(|old_relation| {
+                !old_relation.tied_for_best && old_relation.partner_index == Some(new_index)
+            });
+    }
+    let mut old_units = Vec::new();
+    let mut new_units = Vec::new();
+    budget.charge_auxiliary::<RecoveryWatchGranularUnitEvidence>(
+        old.len()
+            .checked_add(new.len())
+            .ok_or(RecoveryWatchGranularStopReason::AuxiliaryLimit)?,
+    )?;
+    old_units
+        .try_reserve_exact(old.len())
+        .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+    new_units
+        .try_reserve_exact(new.len())
+        .map_err(|_| RecoveryWatchGranularStopReason::AllocationFailure)?;
+    for (unit, relation) in old.into_iter().zip(old_relations) {
+        old_units.push(RecoveryWatchGranularUnitEvidence {
+            kind: unit.kind,
+            byte_start: unit.byte_start,
+            byte_end: unit.byte_end,
+            token_count: unit.tokens.len(),
+            page: unit.page,
+            role: unit.role,
+            recovery_location_available: unit.recovery_location_available,
+            relation,
+        });
+    }
+    for (unit, relation) in new.into_iter().zip(new_relations) {
+        new_units.push(RecoveryWatchGranularUnitEvidence {
+            kind: unit.kind,
+            byte_start: unit.byte_start,
+            byte_end: unit.byte_end,
+            token_count: unit.tokens.len(),
+            page: unit.page,
+            role: unit.role,
+            recovery_location_available: unit.recovery_location_available,
+            relation,
+        });
+    }
+    Ok(Some(RecoveryWatchGranularPairEvidence {
+        old_units,
+        new_units,
+    }))
+}
+
 impl RecoveryWatchState {
     fn new(
         queries: &[RecoveryWatchQuery<'_>],
@@ -1457,12 +2268,18 @@ impl RecoveryWatchState {
             segment_analysis,
             segment_stop_reason,
             segment_overlap_vetoes: 0,
+            granular_complete: true,
+            granular_old_units: 0,
+            granular_new_units: 0,
+            granular_pair_comparisons: 0,
+            granular_stop_reason: None,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
             scan_work: 0,
             scan_limit: context.max_tokens.checked_mul(16)?,
             retained_one_sided_occurrences: 0,
         };
+        let mut granular_budget = GranularDiagnosticBudget::default();
         state.records.try_reserve_exact(processed).ok()?;
         state.pair_by_occurrences.try_reserve(processed).ok()?;
         for query in queries.iter().take(processed) {
@@ -1573,6 +2390,48 @@ impl RecoveryWatchState {
                 }
                 _ => None,
             };
+            let granular_pair = match (
+                query.old_quote,
+                query.new_quote,
+                old_occurrence,
+                new_occurrence,
+                state.granular_stop_reason,
+            ) {
+                (Some(old_quote), Some(new_quote), Some(old_index), Some(new_index), None) => {
+                    match granular_pair_evidence(
+                        old_quote,
+                        new_quote,
+                        old_occurrences.get(old_index)?,
+                        new_occurrences.get(new_index)?,
+                        &mut granular_budget,
+                    ) {
+                        Ok(evidence) => evidence,
+                        Err(reason) => {
+                            state.granular_complete = false;
+                            state.granular_stop_reason = Some(reason);
+                            state.granular_old_units = 0;
+                            state.granular_new_units = 0;
+                            state.granular_pair_comparisons = 0;
+                            for record in &mut state.records {
+                                record.output.granular_pair = None;
+                            }
+                            None
+                        }
+                    }
+                }
+                _ => None,
+            };
+            if state.granular_stop_reason.is_none()
+                && let Some(evidence) = granular_pair.as_ref()
+            {
+                state.granular_old_units = state
+                    .granular_old_units
+                    .checked_add(evidence.old_units.len())?;
+                state.granular_new_units = state
+                    .granular_new_units
+                    .checked_add(evidence.new_units.len())?;
+                state.granular_pair_comparisons = granular_budget.comparisons;
+            }
             let index = state.records.len();
             let mut id = String::new();
             id.try_reserve_exact(query.id.len()).ok()?;
@@ -1584,6 +2443,7 @@ impl RecoveryWatchState {
                     new: new.evidence,
                     pair,
                     segment_pair,
+                    granular_pair,
                 },
                 old_occurrence,
                 new_occurrence,
@@ -2244,6 +3104,11 @@ impl RecoveryWatchState {
             segment_crossing_pairs: self.segment_analysis.segment_crossing_pairs,
             segment_overlap_vetoes: self.segment_overlap_vetoes,
             segment_stop_reason: self.segment_stop_reason,
+            granular_complete: self.granular_complete,
+            granular_old_units: self.granular_old_units,
+            granular_new_units: self.granular_new_units,
+            granular_pair_comparisons: self.granular_pair_comparisons,
+            granular_stop_reason: self.granular_stop_reason,
             records: self
                 .records
                 .into_iter()
@@ -7065,6 +7930,11 @@ mod tests {
             segment_analysis: SegmentDiagnosticAnalysis::default(),
             segment_stop_reason: None,
             segment_overlap_vetoes: 0,
+            granular_complete: true,
+            granular_old_units: 0,
+            granular_new_units: 0,
+            granular_pair_comparisons: 0,
+            granular_stop_reason: None,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
             scan_work: 0,
@@ -7098,6 +7968,11 @@ mod tests {
             segment_analysis: SegmentDiagnosticAnalysis::default(),
             segment_stop_reason: None,
             segment_overlap_vetoes: 0,
+            granular_complete: true,
+            granular_old_units: 0,
+            granular_new_units: 0,
+            granular_pair_comparisons: 0,
+            granular_stop_reason: None,
             records: vec![RecoveryWatchStateRecord {
                 output: RecoveryWatchRecord {
                     id: "one-sided".to_owned(),
@@ -7115,6 +7990,7 @@ mod tests {
                         reciprocal: false,
                     }),
                     segment_pair: None,
+                    granular_pair: None,
                 },
                 old_occurrence: Some(0),
                 new_occurrence: Some(1),
@@ -7240,12 +8116,290 @@ mod tests {
             segment_analysis: SegmentDiagnosticAnalysis::default(),
             segment_stop_reason: None,
             segment_overlap_vetoes: 0,
+            granular_complete: true,
+            granular_old_units: 0,
+            granular_new_units: 0,
+            granular_pair_comparisons: 0,
+            granular_stop_reason: None,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
             scan_work: 0,
             scan_limit: 100_000,
             retained_one_sided_occurrences: 0,
         }
+    }
+
+    fn granular_occurrence(text: &str, kind: RecoveryUnitKind) -> SentenceOccurrence {
+        let mut occurrence = positioned_occurrence(text, 1, 0, 0);
+        occurrence.tokens = text.chars().map(SentenceEvidenceToken::Scalar).collect();
+        occurrence.kind = kind;
+        occurrence
+    }
+
+    fn granular_texts<'a>(
+        text: &'a str,
+        boundaries: &[GranularBoundary],
+        kind: RecoveryWatchUnitKind,
+    ) -> Vec<&'a str> {
+        boundaries
+            .iter()
+            .filter(|boundary| boundary.kind == kind)
+            .map(|boundary| &text[boundary.byte_start..boundary.byte_end])
+            .collect()
+    }
+
+    #[test]
+    fn clause_boundaries_split_only_evidenced_commas() {
+        let subordinate = "While critical infrastructure operates, organizations adapt.";
+        let mut budget = GranularDiagnosticBudget::default();
+        let boundaries =
+            clause_boundaries(subordinate, &mut budget).expect("bounded clause scan succeeds");
+        assert_eq!(
+            granular_texts(subordinate, &boundaries, RecoveryWatchUnitKind::Clause),
+            [
+                "While critical infrastructure operates",
+                "organizations adapt."
+            ]
+        );
+
+        let ordinary = "Organizations identify, protect, and recover systems.";
+        assert!(
+            clause_boundaries(ordinary, &mut budget)
+                .expect("ordinary comma scan succeeds")
+                .is_empty()
+        );
+        assert!(
+            clause_boundaries("See https://example.test:8443/v1.2.", &mut budget)
+                .expect("URL scan succeeds")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn clause_boundaries_accept_spaced_and_unspaced_em_dash_parentheticals() {
+        for text in [
+            "Organizations\u{2014}including public bodies\u{2014}adapt.",
+            "Organizations \u{2014} including public bodies \u{2014} adapt.",
+        ] {
+            let mut budget = GranularDiagnosticBudget::default();
+            let boundaries =
+                clause_boundaries(text, &mut budget).expect("bounded clause scan succeeds");
+            assert_eq!(
+                granular_texts(text, &boundaries, RecoveryWatchUnitKind::Clause),
+                ["Organizations", "including public bodies", "adapt."]
+            );
+        }
+    }
+
+    #[test]
+    fn list_item_boundaries_require_markers_or_bounded_enumerations() {
+        let mut marked = granular_occurrence("2) Identify risks", RecoveryUnitKind::Line);
+        let mut budget = GranularDiagnosticBudget::default();
+        let boundaries = granular_boundaries(&marked, 0..marked.key.len(), &mut budget)
+            .expect("marked line scan succeeds");
+        assert_eq!(
+            granular_texts(&marked.key, &boundaries, RecoveryWatchUnitKind::ListItem),
+            ["Identify risks"]
+        );
+
+        marked.kind = RecoveryUnitKind::Sentence;
+        assert!(
+            granular_texts(
+                &marked.key,
+                &granular_boundaries(&marked, 0..marked.key.len(), &mut budget)
+                    .expect("unmarked sentence scan succeeds"),
+                RecoveryWatchUnitKind::ListItem,
+            )
+            .is_empty()
+        );
+
+        for text in [
+            "Functions\u{2014}Identify, Protect, Detect, Respond, and Recover.",
+            "Functions \u{2014} GOVERN, IDENTIFY, PROTECT, DETECT, RESPOND, and RECOVER \u{2014} organize outcomes.",
+        ] {
+            let occurrence = granular_occurrence(text, RecoveryUnitKind::Sentence);
+            let mut budget = GranularDiagnosticBudget::default();
+            let boundaries = granular_boundaries(&occurrence, 0..occurrence.key.len(), &mut budget)
+                .expect("enumeration scan succeeds");
+            let items = granular_texts(text, &boundaries, RecoveryWatchUnitKind::ListItem);
+            assert!(items.len() >= 5);
+            assert!(items.last().is_some_and(|item| {
+                item.eq_ignore_ascii_case("recover") || item.eq_ignore_ascii_case("recover.")
+            }));
+        }
+
+        for text in [
+            ". Empty numeric",
+            ") Empty numeric",
+            "() Empty parenthesized",
+        ] {
+            assert_eq!(explicit_list_item_start(text), None);
+        }
+    }
+
+    #[test]
+    fn granular_quote_mapping_preserves_partial_unicode_occurrence_offsets() {
+        let occurrence = granular_occurrence(
+            "前置き。 While\u{3000}systems operate, organizations adapt. 後置き。",
+            RecoveryUnitKind::Sentence,
+        );
+        let mut budget = GranularDiagnosticBudget::default();
+        let range = watched_quote_range_for_granular(
+            "While systems operate, organizations adapt.",
+            &occurrence,
+            &mut budget,
+        )
+        .expect("bounded quote mapping succeeds")
+        .expect("the partial quote is unique");
+        assert_eq!(
+            &occurrence.key[range.clone()],
+            "While\u{3000}systems operate, organizations adapt."
+        );
+        let units = build_granular_units(&occurrence, range, &mut budget)
+            .expect("partial quote units build");
+        assert_eq!(units.len(), 2);
+        assert_eq!(
+            &occurrence.key[units[0].byte_start..units[0].byte_end],
+            "While\u{3000}systems operate"
+        );
+        assert_eq!(
+            &occurrence.key[units[1].byte_start..units[1].byte_end],
+            "organizations adapt."
+        );
+    }
+
+    #[test]
+    fn granular_quote_mapping_rejects_repeated_matches_in_one_occurrence() {
+        let occurrence = granular_occurrence(
+            "While systems operate, organizations adapt. While systems operate, organizations adapt.",
+            RecoveryUnitKind::Sentence,
+        );
+        let mut budget = GranularDiagnosticBudget::default();
+        assert_eq!(
+            watched_quote_range_for_granular(
+                "While systems operate, organizations adapt.",
+                &occurrence,
+                &mut budget,
+            )
+            .expect("bounded quote mapping succeeds"),
+            None
+        );
+    }
+
+    #[test]
+    fn granular_relations_report_exact_reciprocal_partners_and_ties() {
+        let old = [granular_occurrence(
+            "While systems operate, organizations adapt.",
+            RecoveryUnitKind::Sentence,
+        )];
+        let new = [granular_occurrence(
+            "While systems operate, organizations adapt.",
+            RecoveryUnitKind::Sentence,
+        )];
+        let mut budget = GranularDiagnosticBudget::default();
+        let evidence = granular_pair_evidence(
+            old[0].key.as_str(),
+            new[0].key.as_str(),
+            &old[0],
+            &new[0],
+            &mut budget,
+        )
+        .expect("bounded relation scan succeeds")
+        .expect("clause evidence is available");
+        assert_eq!(evidence.old_units.len(), 2);
+        assert!(evidence.old_units.iter().all(|unit| {
+            unit.relation.available
+                && unit.relation.best_score == 10_000
+                && unit.relation.partner_index.is_some()
+                && unit.relation.exact
+                && unit.relation.reciprocal
+                && !unit.relation.tied_for_best
+        }));
+
+        let tie = granular_relation([8_000, 8_000, 2_000]);
+        assert_eq!(tie.best_score, 8_000);
+        assert_eq!(tie.second_score, 8_000);
+        assert_eq!(tie.partner_index, Some(0));
+        assert!(tie.tied_for_best);
+    }
+
+    #[test]
+    fn granular_units_fail_closed_for_missing_location_or_unmapped_tokens() {
+        let mut missing_location = similarity_occurrence(
+            "While systems operate, organizations adapt."
+                .chars()
+                .collect::<String>()
+                .as_str(),
+            "While systems operate, organizations adapt."
+                .chars()
+                .map(SentenceEvidenceToken::Scalar)
+                .collect(),
+            RecoveryUnitKind::Sentence,
+        );
+        let mut budget = GranularDiagnosticBudget::default();
+        assert!(
+            build_granular_units(
+                &missing_location,
+                0..missing_location.key.len(),
+                &mut budget,
+            )
+            .expect("missing location fails closed")
+            .is_empty()
+        );
+        missing_location.location = positioned_occurrence("x", 1, 0, 0).location;
+        missing_location.tokens[0] = SentenceEvidenceToken::Unmapped {
+            font_fingerprint: 1,
+            glyph_id: 2,
+        };
+        assert!(
+            build_granular_units(
+                &missing_location,
+                0..missing_location.key.len(),
+                &mut budget,
+            )
+            .expect("unmapped evidence fails closed")
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn granular_budget_stops_are_typed_and_watchless_builds_skip_the_pool() {
+        let mut budget = GranularDiagnosticBudget::default();
+        assert_eq!(
+            budget.charge_units(GranularDiagnosticBudget::UNIT_LIMIT + 1),
+            Err(RecoveryWatchGranularStopReason::UnitCountLimit)
+        );
+        let mut budget = GranularDiagnosticBudget::default();
+        assert_eq!(
+            budget.charge_token_bytes(GranularDiagnosticBudget::TOKEN_BYTE_LIMIT + 1),
+            Err(RecoveryWatchGranularStopReason::TokenByteLimit)
+        );
+        let mut budget = GranularDiagnosticBudget::default();
+        assert_eq!(
+            budget.charge_auxiliary::<usize>(GranularDiagnosticBudget::AUXILIARY_ITEM_LIMIT + 1),
+            Err(RecoveryWatchGranularStopReason::AuxiliaryLimit)
+        );
+        let occurrences = [granular_occurrence(
+            "While systems operate, organizations adapt.",
+            RecoveryUnitKind::Sentence,
+        )];
+        assert!(
+            RecoveryWatchState::new(
+                &[],
+                &occurrences,
+                &occurrences,
+                &[],
+                RecoveryWatchBuildContext {
+                    old_evidence: None,
+                    new_evidence: None,
+                    old_fully_contained: None,
+                    new_fully_contained: None,
+                    min_tokens: 1,
+                    max_tokens: 100,
+                },
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -7750,6 +8904,11 @@ mod tests {
             segment_analysis: analysis,
             segment_stop_reason: None,
             segment_overlap_vetoes: 0,
+            granular_complete: true,
+            granular_old_units: 0,
+            granular_new_units: 0,
+            granular_pair_comparisons: 0,
+            granular_stop_reason: None,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
             scan_work: 0,

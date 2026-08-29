@@ -208,6 +208,10 @@ pub enum RecoveryWatchUnitKind {
     /// A diagnostic-only quote spanning two to eight adjacent units in one
     /// trusted stream.
     Segment,
+    /// A diagnostic-only conservative clause inside a sentence.
+    Clause,
+    /// A diagnostic-only explicitly marked or bounded enumerated list item.
+    ListItem,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -322,6 +326,51 @@ pub struct RecoveryWatchSegmentPairEvidence {
     pub relation: ExactSegmentRelation,
 }
 
+/// Resource limit that stopped diagnostic Clause/ListItem analysis.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RecoveryWatchGranularStopReason {
+    UnitCountLimit,
+    TokenByteLimit,
+    ComparisonLimit,
+    OutputLimit,
+    AuxiliaryLimit,
+    AllocationFailure,
+}
+
+/// Best-partner evidence for one diagnostic Clause/ListItem unit.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RecoveryWatchGranularRelation {
+    pub available: bool,
+    pub best_score: u16,
+    pub second_score: u16,
+    pub partner_index: Option<usize>,
+    pub exact: bool,
+    pub reciprocal: bool,
+    pub tied_for_best: bool,
+}
+
+/// One bounded diagnostic unit inside a watched quote.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecoveryWatchGranularUnitEvidence {
+    pub kind: RecoveryWatchUnitKind,
+    /// Start byte in the containing sentence/line occurrence's canonical text.
+    pub byte_start: usize,
+    /// End byte in the containing sentence/line occurrence's canonical text.
+    pub byte_end: usize,
+    pub token_count: usize,
+    pub page: Option<u32>,
+    pub role: Option<BlockRole>,
+    pub recovery_location_available: bool,
+    pub relation: RecoveryWatchGranularRelation,
+}
+
+/// Clause/ListItem evidence computed independently of sentence recovery.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RecoveryWatchGranularPairEvidence {
+    pub old_units: Vec<RecoveryWatchGranularUnitEvidence>,
+    pub new_units: Vec<RecoveryWatchGranularUnitEvidence>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecoveryWatchRecord {
     pub id: String,
@@ -329,6 +378,7 @@ pub struct RecoveryWatchRecord {
     pub new: RecoveryWatchOccurrenceEvidence,
     pub pair: Option<RecoveryWatchPairEvidence>,
     pub segment_pair: Option<RecoveryWatchSegmentPairEvidence>,
+    pub granular_pair: Option<RecoveryWatchGranularPairEvidence>,
 }
 
 /// Bounded sidecar diagnostics that never alter the recovery plan.
@@ -347,6 +397,11 @@ pub struct RecoveryWatchDiagnostics {
     pub segment_crossing_pairs: usize,
     pub segment_overlap_vetoes: usize,
     pub segment_stop_reason: Option<SegmentStopReason>,
+    pub granular_complete: bool,
+    pub granular_old_units: usize,
+    pub granular_new_units: usize,
+    pub granular_pair_comparisons: usize,
+    pub granular_stop_reason: Option<RecoveryWatchGranularStopReason>,
     pub records: Vec<RecoveryWatchRecord>,
 }
 
@@ -7108,6 +7163,90 @@ mod tests {
             diagnostics.records[2].old,
             RecoveryWatchOccurrenceEvidence::Unfound
         ));
+    }
+
+    #[test]
+    fn granular_clause_and_list_watch_is_behavior_neutral() {
+        let old_text = "While systems operate, organizations adapt; Functions\u{2014}Identify, Protect, Detect, Respond, and Recover.";
+        let new_text = "While systems operate, organizations improve; Functions \u{2014} IDENTIFY, PROTECT, DETECT, RESPOND, and RECOVER \u{2014} organize outcomes.";
+        let old = vec![sentence_block(22_000, old_text)];
+        let new = vec![sentence_block(22_001, new_text)];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let watched = compare_recovery_watch(
+            &old,
+            &new,
+            &alignment,
+            1,
+            &[RecoveryWatchQuery {
+                id: "granular-active",
+                old_quote: Some(old_text),
+                new_quote: Some(new_text),
+            }],
+        );
+        let baseline = compare_recovery_watch(&old, &new, &alignment, 1, &[]);
+        assert_eq!(watched.comparison, baseline.comparison);
+        assert_eq!(
+            watched.sentence_recovery_metrics,
+            baseline.sentence_recovery_metrics
+        );
+        let diagnostics = watched
+            .recovery_watch_diagnostics
+            .expect("granular diagnostics are available");
+        let granular = diagnostics.records[0]
+            .granular_pair
+            .as_ref()
+            .expect("clause/list units are active");
+        assert!(granular.old_units.len() >= 7);
+        assert!(granular.new_units.len() >= 8);
+        assert_eq!(diagnostics.granular_stop_reason, None);
+    }
+
+    #[test]
+    fn granular_budget_stop_is_behavior_neutral_and_atomic() {
+        let text = (0..70)
+            .map(|index| format!("clause {index}"))
+            .collect::<Vec<_>>()
+            .join("; ")
+            + ".";
+        let old = vec![sentence_block(22_100, &text)];
+        let new = vec![sentence_block(22_101, &text)];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let watched = compare_recovery_watch(
+            &old,
+            &new,
+            &alignment,
+            1,
+            &[RecoveryWatchQuery {
+                id: "granular-stopped",
+                old_quote: Some(&text),
+                new_quote: Some(&text),
+            }],
+        );
+        let baseline = compare_recovery_watch(&old, &new, &alignment, 1, &[]);
+        assert_eq!(watched.comparison, baseline.comparison);
+        assert_eq!(
+            watched.sentence_recovery_metrics,
+            baseline.sentence_recovery_metrics
+        );
+        let diagnostics = watched
+            .recovery_watch_diagnostics
+            .expect("stopped granular diagnostics survive");
+        assert_eq!(
+            diagnostics.granular_stop_reason,
+            Some(RecoveryWatchGranularStopReason::UnitCountLimit)
+        );
+        assert!(!diagnostics.granular_complete);
+        assert_eq!(diagnostics.granular_old_units, 0);
+        assert_eq!(diagnostics.granular_new_units, 0);
+        assert_eq!(diagnostics.granular_pair_comparisons, 0);
+        assert!(
+            diagnostics
+                .records
+                .iter()
+                .all(|record| record.granular_pair.is_none())
+        );
     }
 
     #[test]

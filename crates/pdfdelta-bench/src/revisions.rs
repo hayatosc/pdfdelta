@@ -22,10 +22,12 @@ use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
         ChangeKind, Comparison, ExactSegmentRelation, NearRelationStopReason,
-        RecoveryWatchDiagnostics, RecoveryWatchNearScope, RecoveryWatchOccurrence,
-        RecoveryWatchOccurrenceEvidence, RecoveryWatchPairEvidence, RecoveryWatchQuery,
-        RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence, RecoveryWatchUnitKind,
-        RunSignatureStopReason, SegmentStopReason, SentenceRecoveryMetrics, TextSpan,
+        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
+        RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
+        RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence, RecoveryWatchPairEvidence,
+        RecoveryWatchQuery, RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
+        RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason, SentenceRecoveryMetrics,
+        TextSpan,
     },
     layout::BlockRole,
     model::Document,
@@ -221,6 +223,11 @@ pub struct RecoveryWatchDiagnosticsReport {
     pub segment_crossing_pairs: usize,
     pub segment_overlap_vetoes: usize,
     pub segment_stop_reason: Option<SegmentStopReasonReport>,
+    pub granular_complete: bool,
+    pub granular_old_units: usize,
+    pub granular_new_units: usize,
+    pub granular_pair_comparisons: usize,
+    pub granular_stop_reason: Option<RecoveryWatchGranularStopReasonReport>,
     pub records: Vec<ExpectedChangeRecoveryWatchRecord>,
 }
 
@@ -231,6 +238,7 @@ pub struct ExpectedChangeRecoveryWatchRecord {
     pub new: RecoveryWatchOccurrenceReport,
     pub pair: Option<RecoveryWatchPairEvidenceReport>,
     pub segment_pair: Option<RecoveryWatchSegmentPairEvidenceReport>,
+    pub granular_pair: Option<RecoveryWatchGranularPairEvidenceReport>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -294,6 +302,48 @@ pub enum RecoveryWatchUnitKindReport {
     Sentence,
     Line,
     Segment,
+    Clause,
+    ListItem,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RecoveryWatchGranularPairEvidenceReport {
+    pub old_units: Vec<RecoveryWatchGranularUnitEvidenceReport>,
+    pub new_units: Vec<RecoveryWatchGranularUnitEvidenceReport>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RecoveryWatchGranularUnitEvidenceReport {
+    pub kind: RecoveryWatchUnitKindReport,
+    pub byte_start: usize,
+    pub byte_end: usize,
+    pub token_count: usize,
+    pub page: Option<u32>,
+    pub role: Option<RecoveryWatchBlockRoleReport>,
+    pub recovery_location_available: bool,
+    pub relation: RecoveryWatchGranularRelationReport,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub struct RecoveryWatchGranularRelationReport {
+    pub available: bool,
+    pub best_score: u16,
+    pub second_score: u16,
+    pub partner_index: Option<usize>,
+    pub exact: bool,
+    pub reciprocal: bool,
+    pub tied_for_best: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryWatchGranularStopReasonReport {
+    UnitCountLimit,
+    TokenByteLimit,
+    ComparisonLimit,
+    OutputLimit,
+    AuxiliaryLimit,
+    AllocationFailure,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -576,6 +626,59 @@ impl From<RecoveryWatchUnitKind> for RecoveryWatchUnitKindReport {
             RecoveryWatchUnitKind::Sentence => Self::Sentence,
             RecoveryWatchUnitKind::Line => Self::Line,
             RecoveryWatchUnitKind::Segment => Self::Segment,
+            RecoveryWatchUnitKind::Clause => Self::Clause,
+            RecoveryWatchUnitKind::ListItem => Self::ListItem,
+        }
+    }
+}
+
+impl From<RecoveryWatchGranularPairEvidence> for RecoveryWatchGranularPairEvidenceReport {
+    fn from(pair: RecoveryWatchGranularPairEvidence) -> Self {
+        Self {
+            old_units: pair.old_units.into_iter().map(Into::into).collect(),
+            new_units: pair.new_units.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<RecoveryWatchGranularUnitEvidence> for RecoveryWatchGranularUnitEvidenceReport {
+    fn from(unit: RecoveryWatchGranularUnitEvidence) -> Self {
+        Self {
+            kind: unit.kind.into(),
+            byte_start: unit.byte_start,
+            byte_end: unit.byte_end,
+            token_count: unit.token_count,
+            page: unit.page,
+            role: unit.role.map(Into::into),
+            recovery_location_available: unit.recovery_location_available,
+            relation: unit.relation.into(),
+        }
+    }
+}
+
+impl From<RecoveryWatchGranularRelation> for RecoveryWatchGranularRelationReport {
+    fn from(relation: RecoveryWatchGranularRelation) -> Self {
+        Self {
+            available: relation.available,
+            best_score: relation.best_score,
+            second_score: relation.second_score,
+            partner_index: relation.partner_index,
+            exact: relation.exact,
+            reciprocal: relation.reciprocal,
+            tied_for_best: relation.tied_for_best,
+        }
+    }
+}
+
+impl From<RecoveryWatchGranularStopReason> for RecoveryWatchGranularStopReasonReport {
+    fn from(reason: RecoveryWatchGranularStopReason) -> Self {
+        match reason {
+            RecoveryWatchGranularStopReason::UnitCountLimit => Self::UnitCountLimit,
+            RecoveryWatchGranularStopReason::TokenByteLimit => Self::TokenByteLimit,
+            RecoveryWatchGranularStopReason::ComparisonLimit => Self::ComparisonLimit,
+            RecoveryWatchGranularStopReason::OutputLimit => Self::OutputLimit,
+            RecoveryWatchGranularStopReason::AuxiliaryLimit => Self::AuxiliaryLimit,
+            RecoveryWatchGranularStopReason::AllocationFailure => Self::AllocationFailure,
         }
     }
 }
@@ -677,6 +780,11 @@ fn completed_empty_recovery_watch_report() -> RecoveryWatchDiagnosticsReport {
         segment_crossing_pairs: 0,
         segment_overlap_vetoes: 0,
         segment_stop_reason: None,
+        granular_complete: true,
+        granular_old_units: 0,
+        granular_new_units: 0,
+        granular_pair_comparisons: 0,
+        granular_stop_reason: None,
         records: Vec::new(),
     }
 }
@@ -715,6 +823,7 @@ fn recovery_watch_report(
                     new: record.new.into(),
                     pair: record.pair.map(Into::into),
                     segment_pair: record.segment_pair.map(Into::into),
+                    granular_pair: record.granular_pair.map(Into::into),
                 },
                 None => {
                     join_complete = false;
@@ -729,6 +838,7 @@ fn recovery_watch_report(
                         ),
                         pair: None,
                         segment_pair: None,
+                        granular_pair: None,
                     }
                 }
             }
@@ -749,6 +859,11 @@ fn recovery_watch_report(
         segment_crossing_pairs: diagnostics.segment_crossing_pairs,
         segment_overlap_vetoes: diagnostics.segment_overlap_vetoes,
         segment_stop_reason: diagnostics.segment_stop_reason.map(Into::into),
+        granular_complete: diagnostics.granular_complete,
+        granular_old_units: diagnostics.granular_old_units,
+        granular_new_units: diagnostics.granular_new_units,
+        granular_pair_comparisons: diagnostics.granular_pair_comparisons,
+        granular_stop_reason: diagnostics.granular_stop_reason.map(Into::into),
         records,
     }
 }
@@ -3048,7 +3163,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 14;
+    pub const SCHEMA_VERSION: u32 = 15;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -3282,6 +3397,7 @@ mod tests {
                     new: RecoveryWatchOccurrenceEvidence::Ambiguous,
                     pair: None,
                     segment_pair: None,
+                    granular_pair: None,
                 },
                 pdfdelta_core::diff::RecoveryWatchRecord {
                     id: query_set.ids[0].clone(),
@@ -3289,6 +3405,7 @@ mod tests {
                     new: RecoveryWatchOccurrenceEvidence::Unavailable,
                     pair: None,
                     segment_pair: None,
+                    granular_pair: None,
                 },
                 pdfdelta_core::diff::RecoveryWatchRecord {
                     id: "unknown".to_owned(),
@@ -3296,6 +3413,7 @@ mod tests {
                     new: RecoveryWatchOccurrenceEvidence::Unfound,
                     pair: None,
                     segment_pair: None,
+                    granular_pair: None,
                 },
             ],
             ..RecoveryWatchDiagnostics::default()
@@ -3358,6 +3476,7 @@ mod tests {
                 new: RecoveryWatchOccurrenceEvidence::Unfound,
                 pair: None,
                 segment_pair: None,
+                granular_pair: None,
             },
         )
         .collect::<Vec<_>>();
@@ -3419,6 +3538,44 @@ mod tests {
                 crossing_anchor_count: 0,
                 relation: ExactSegmentRelation::ExactUniqueMonotone,
             }),
+            granular_pair: Some(RecoveryWatchGranularPairEvidence {
+                old_units: vec![RecoveryWatchGranularUnitEvidence {
+                    kind: RecoveryWatchUnitKind::Clause,
+                    byte_start: 2,
+                    byte_end: 14,
+                    token_count: 10,
+                    page: Some(5),
+                    role: Some(BlockRole::Body),
+                    recovery_location_available: true,
+                    relation: RecoveryWatchGranularRelation {
+                        available: true,
+                        best_score: 900,
+                        second_score: 700,
+                        partner_index: Some(0),
+                        exact: false,
+                        reciprocal: true,
+                        tied_for_best: false,
+                    },
+                }],
+                new_units: vec![RecoveryWatchGranularUnitEvidence {
+                    kind: RecoveryWatchUnitKind::ListItem,
+                    byte_start: 3,
+                    byte_end: 16,
+                    token_count: 11,
+                    page: Some(6),
+                    role: Some(BlockRole::Body),
+                    recovery_location_available: true,
+                    relation: RecoveryWatchGranularRelation {
+                        available: true,
+                        best_score: 900,
+                        second_score: 650,
+                        partner_index: Some(0),
+                        exact: false,
+                        reciprocal: true,
+                        tied_for_best: false,
+                    },
+                }],
+            }),
         });
         records.push(pdfdelta_core::diff::RecoveryWatchRecord {
             id: query_set.ids[4].clone(),
@@ -3426,6 +3583,7 @@ mod tests {
             new: RecoveryWatchOccurrenceEvidence::Unavailable,
             pair: None,
             segment_pair: None,
+            granular_pair: None,
         });
         let occurrence = RecoveryWatchOccurrence {
             span_index: Some(10),
@@ -3453,6 +3611,7 @@ mod tests {
             new: RecoveryWatchOccurrenceEvidence::NotQueried,
             pair: None,
             segment_pair: None,
+            granular_pair: None,
         });
         let report = recovery_watch_report(
             &document.changes,
@@ -3471,6 +3630,11 @@ mod tests {
                 segment_crossing_pairs: 1,
                 segment_overlap_vetoes: 1,
                 segment_stop_reason: Some(SegmentStopReason::TokenVerificationLimit),
+                granular_complete: false,
+                granular_old_units: 3,
+                granular_new_units: 4,
+                granular_pair_comparisons: 12,
+                granular_stop_reason: Some(RecoveryWatchGranularStopReason::OutputLimit),
                 records,
             },
         );
@@ -3497,6 +3661,11 @@ mod tests {
                 "segment_crossing_pairs",
                 "segment_overlap_vetoes",
                 "segment_stop_reason",
+                "granular_complete",
+                "granular_old_units",
+                "granular_new_units",
+                "granular_pair_comparisons",
+                "granular_stop_reason",
                 "records",
             ])
         );
@@ -3511,6 +3680,11 @@ mod tests {
         assert_eq!(value["segment_crossing_pairs"], 1);
         assert_eq!(value["segment_overlap_vetoes"], 1);
         assert_eq!(value["segment_stop_reason"], "token_verification_limit");
+        assert_eq!(value["granular_complete"], false);
+        assert_eq!(value["granular_old_units"], 3);
+        assert_eq!(value["granular_new_units"], 4);
+        assert_eq!(value["granular_pair_comparisons"], 12);
+        assert_eq!(value["granular_stop_reason"], "output_limit");
         assert_eq!(value["records"][0]["old"]["status"], "unfound");
         assert_eq!(value["records"][1]["old"]["status"], "ambiguous");
         assert_eq!(value["records"][2]["old"]["status"], "unavailable");
@@ -3529,13 +3703,61 @@ mod tests {
         );
         assert_eq!(value["records"][5]["new"]["status"], "not_queried");
         assert_eq!(
+            value["records"][3]["granular_pair"],
+            serde_json::json!({
+                "old_units": [{
+                    "kind": "clause",
+                    "byte_start": 2,
+                    "byte_end": 14,
+                    "token_count": 10,
+                    "page": 5,
+                    "role": "body",
+                    "recovery_location_available": true,
+                    "relation": {
+                        "available": true,
+                        "best_score": 900,
+                        "second_score": 700,
+                        "partner_index": 0,
+                        "exact": false,
+                        "reciprocal": true,
+                        "tied_for_best": false
+                    }
+                }],
+                "new_units": [{
+                    "kind": "list_item",
+                    "byte_start": 3,
+                    "byte_end": 16,
+                    "token_count": 11,
+                    "page": 6,
+                    "role": "body",
+                    "recovery_location_available": true,
+                    "relation": {
+                        "available": true,
+                        "best_score": 900,
+                        "second_score": 650,
+                        "partner_index": 0,
+                        "exact": false,
+                        "reciprocal": true,
+                        "tied_for_best": false
+                    }
+                }]
+            })
+        );
+        assert_eq!(
             value["records"][3]
                 .as_object()
                 .expect("watch record object")
                 .keys()
                 .map(String::as_str)
                 .collect::<HashSet<_>>(),
-            HashSet::from(["expected_id", "old", "new", "pair", "segment_pair"])
+            HashSet::from([
+                "expected_id",
+                "old",
+                "new",
+                "pair",
+                "segment_pair",
+                "granular_pair",
+            ])
         );
         assert_eq!(
             value["records"][3]["old"]
@@ -3661,6 +3883,37 @@ mod tests {
             assert_eq!(
                 serde_json::to_value(SegmentStopReasonReport::from(reason))
                     .expect("segment stop reason serializes"),
+                expected
+            );
+        }
+
+        let granular_stop_reasons = [
+            (
+                RecoveryWatchGranularStopReason::UnitCountLimit,
+                "unit_count_limit",
+            ),
+            (
+                RecoveryWatchGranularStopReason::TokenByteLimit,
+                "token_byte_limit",
+            ),
+            (
+                RecoveryWatchGranularStopReason::ComparisonLimit,
+                "comparison_limit",
+            ),
+            (RecoveryWatchGranularStopReason::OutputLimit, "output_limit"),
+            (
+                RecoveryWatchGranularStopReason::AuxiliaryLimit,
+                "auxiliary_limit",
+            ),
+            (
+                RecoveryWatchGranularStopReason::AllocationFailure,
+                "allocation_failure",
+            ),
+        ];
+        for (reason, expected) in granular_stop_reasons {
+            assert_eq!(
+                serde_json::to_value(RecoveryWatchGranularStopReasonReport::from(reason))
+                    .expect("granular stop reason serializes"),
                 expected
             );
         }
@@ -4103,12 +4356,17 @@ mod tests {
                 segment_crossing_pairs: 0,
                 segment_overlap_vetoes: 0,
                 segment_stop_reason: None,
+                granular_complete: true,
+                granular_old_units: 0,
+                granular_new_units: 0,
+                granular_pair_comparisons: 0,
+                granular_stop_reason: None,
                 records: Vec::new(),
             }),
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 14);
+        assert_eq!(completed["schema_version"], 15);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -4133,6 +4391,11 @@ mod tests {
                     "segment_crossing_pairs": 0,
                     "segment_overlap_vetoes": 0,
                     "segment_stop_reason": null,
+                    "granular_complete": true,
+                    "granular_old_units": 0,
+                    "granular_new_units": 0,
+                    "granular_pair_comparisons": 0,
+                    "granular_stop_reason": null,
                     "records": []
                 }
             })
@@ -4146,7 +4409,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 14);
+        assert_eq!(legacy_summary["schema_version"], 15);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -5010,7 +5273,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 14);
+        assert_eq!(json["schema_version"], 15);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -5847,7 +6110,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 14);
+        assert_eq!(value["schema_version"], 15);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

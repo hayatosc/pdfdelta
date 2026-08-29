@@ -300,7 +300,7 @@ ended `LIMIT`/`FAIL`; low quality scores never fail a run because the dated
 captures serve as calibration evidence and current fragmentation and recall
 remain too unstable for rigid quality-gate thresholds (confidence calibration
 has landed, but broader large-document alignment quality remains ongoing work).
-Compact revision summaries use schema version 14 and include optional nested
+Compact revision summaries use schema version 15 and include optional nested
 sentence-recovery diagnostics, near-search examined and attempted work,
 candidate-posting maxima, an explicit candidate-count truncation flag, typed
 near-search stop reasons, structural trusted-run profile diagnostics,
@@ -310,6 +310,8 @@ occurrence evidence for single-unit or adjacent-unit
 segment locations, exact segment-pair candidate and classification counters,
 per-record exact segment-pair evidence, existing candidate scores and
 relations, reciprocal status, and typed stop evidence,
+bounded Clause/ListItem unit boundaries, locations, best-partner relations,
+tie and exactness evidence, aggregate work counts, completion, and typed stops,
 scoped-complete event and changed-token
 precision/recall/F1, changed-span intersection-over-union, false-positive
 tokens per 10,000 reviewed unchanged tokens,

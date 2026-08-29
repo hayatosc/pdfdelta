@@ -113,10 +113,17 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v14)
+## Current Writer Schema (v15)
 
-The latest committed capture and benchmark writer use schema v14. Older
-captures retain their recorded schemas.
+The benchmark writer uses schema v15. The latest committed capture uses schema
+v14, and older captures retain their recorded schemas.
+Schema v15 adds bounded Clause/ListItem recovery-watch diagnostics. Each unit
+retains its kind, byte boundaries, comparable-token count, page, role, and
+location availability. Per-side best-partner evidence records the partner
+index, best and second scores, exactness, reciprocity, and tied-best state;
+aggregate fields expose unit and comparison counts, completion, and a typed
+stop reason. This evidence is diagnostic-only and does not alter comparison,
+coverage, quality, or candidate-recall behavior.
 Schema v14 extends recovery watches to insertions and deletions. Each queried
 side records bounded occurrence evidence with explicit complete or truncated
 semantics, while an absent quote is reported as `not_queried` instead of being
