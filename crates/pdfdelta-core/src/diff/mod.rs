@@ -13,7 +13,7 @@ use crate::{
         Alignment, AlignmentConfidence, AlignmentEvidence, AlignmentKind, AlignmentSpan,
         BlockSeparator,
     },
-    layout::{BlockId, TrustedRunInterval},
+    layout::{BlockId, TrustedRegionEdge, TrustedRunDescriptor, TrustedRunInterval},
     model::Vec2,
     normalize::{
         BlockText, ComparableToken, FontSizeSignature, PositionSignature, ScalarRange,
@@ -269,9 +269,17 @@ pub(crate) fn enforce_diff_raw_token_budget(
 }
 
 #[derive(Clone, Copy, Debug)]
+pub(crate) struct TrustedRunRecoveryInput<'a> {
+    pub(crate) descriptors: &'a [TrustedRunDescriptor],
+    pub(crate) raw_region_edges: &'a [TrustedRegionEdge],
+}
+
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct SentenceRecoveryInput<'a> {
     pub(crate) old_trusted_run_intervals: &'a [Option<TrustedRunInterval>],
     pub(crate) new_trusted_run_intervals: &'a [Option<TrustedRunInterval>],
+    pub(crate) old_trusted_run_evidence: Option<TrustedRunRecoveryInput<'a>>,
+    pub(crate) new_trusted_run_evidence: Option<TrustedRunRecoveryInput<'a>>,
     pub(crate) min_tokens: usize,
 }
 
@@ -4615,6 +4623,8 @@ mod tests {
             SentenceRecoveryInput {
                 old_trusted_run_intervals: &old_intervals,
                 new_trusted_run_intervals: &new_intervals,
+                old_trusted_run_evidence: None,
+                new_trusted_run_evidence: None,
                 min_tokens: 5,
             },
         )
@@ -4679,6 +4689,8 @@ mod tests {
             SentenceRecoveryInput {
                 old_trusted_run_intervals: &old_intervals,
                 new_trusted_run_intervals: &new_intervals,
+                old_trusted_run_evidence: None,
+                new_trusted_run_evidence: None,
                 min_tokens: 1,
             },
         )
@@ -4792,6 +4804,8 @@ mod tests {
             Some(SentenceRecoveryInput {
                 old_trusted_run_intervals: &old_intervals,
                 new_trusted_run_intervals: &new_intervals,
+                old_trusted_run_evidence: None,
+                new_trusted_run_evidence: None,
                 min_tokens: 1,
             }),
             RecoveryOutputLimits {
@@ -4837,6 +4851,8 @@ mod tests {
             Some(SentenceRecoveryInput {
                 old_trusted_run_intervals: &old_intervals,
                 new_trusted_run_intervals: &new_intervals,
+                old_trusted_run_evidence: None,
+                new_trusted_run_evidence: None,
                 min_tokens: 5,
             }),
             RecoveryOutputLimits {
@@ -4898,6 +4914,8 @@ mod tests {
             Some(SentenceRecoveryInput {
                 old_trusted_run_intervals: &old_intervals,
                 new_trusted_run_intervals: &new_intervals,
+                old_trusted_run_evidence: None,
+                new_trusted_run_evidence: None,
                 min_tokens: 5,
             }),
             RecoveryOutputLimits {
@@ -4956,6 +4974,8 @@ mod tests {
             Some(SentenceRecoveryInput {
                 old_trusted_run_intervals: &old_intervals,
                 new_trusted_run_intervals: &new_intervals,
+                old_trusted_run_evidence: None,
+                new_trusted_run_evidence: None,
                 min_tokens: 5,
             }),
             RecoveryOutputLimits {
@@ -5296,6 +5316,8 @@ mod tests {
             SentenceRecoveryInput {
                 old_trusted_run_intervals: &[],
                 new_trusted_run_intervals: &[],
+                old_trusted_run_evidence: None,
+                new_trusted_run_evidence: None,
                 min_tokens: 1,
             },
         )
@@ -6058,6 +6080,8 @@ mod tests {
             SentenceRecoveryInput {
                 old_trusted_run_intervals: &[],
                 new_trusted_run_intervals: &[],
+                old_trusted_run_evidence: None,
+                new_trusted_run_evidence: None,
                 min_tokens: 1,
             },
         )
@@ -6076,6 +6100,8 @@ mod tests {
                     end: 1,
                 })],
                 new_trusted_run_intervals: &[],
+                old_trusted_run_evidence: None,
+                new_trusted_run_evidence: None,
                 min_tokens: 0,
             },
         )
@@ -6107,6 +6133,8 @@ mod tests {
                     start: 0,
                     end: 1,
                 })],
+                old_trusted_run_evidence: None,
+                new_trusted_run_evidence: None,
                 min_tokens: 1,
             },
         )
@@ -6230,6 +6258,8 @@ mod tests {
             SentenceRecoveryInput {
                 old_trusted_run_intervals: &old_trusted_run_intervals,
                 new_trusted_run_intervals: &new_trusted_run_intervals,
+                old_trusted_run_evidence: None,
+                new_trusted_run_evidence: None,
                 min_tokens,
             },
         )
@@ -6257,6 +6287,8 @@ mod tests {
             SentenceRecoveryInput {
                 old_trusted_run_intervals,
                 new_trusted_run_intervals,
+                old_trusted_run_evidence: None,
+                new_trusted_run_evidence: None,
                 min_tokens,
             },
         )

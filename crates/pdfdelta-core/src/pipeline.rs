@@ -8,8 +8,9 @@ use crate::{
     },
     diff::{
         Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, SentenceRecoveryInput,
-        SentenceRecoveryMetrics, compare_aligned, compare_aligned_with_sentence_recovery_metrics,
-        enforce_diff_raw_token_budget, enforce_diff_token_budget, validate_diff_options,
+        SentenceRecoveryMetrics, TrustedRunRecoveryInput, compare_aligned,
+        compare_aligned_with_sentence_recovery_metrics, enforce_diff_raw_token_budget,
+        enforce_diff_token_budget, validate_diff_options,
     },
     layout::{
         BlockOptions, LayoutIssue, LineOptions, TrustedRegionEdge, TrustedRunDescriptor,
@@ -650,13 +651,6 @@ fn compare_validated_glyph_documents_inner(
             return Err(error);
         }
     };
-    // Descriptor evidence reaches the recovery boundary without changing its decisions yet.
-    let _trusted_run_evidence = (
-        &old_trusted_run_descriptors,
-        &new_trusted_run_descriptors,
-        &old_trusted_region_edges,
-        &new_trusted_region_edges,
-    );
     let comparison_result = if enable_sentence_recovery {
         compare_aligned_with_sentence_recovery_metrics(
             &old,
@@ -666,6 +660,14 @@ fn compare_validated_glyph_documents_inner(
             SentenceRecoveryInput {
                 old_trusted_run_intervals: &old_trusted_run_intervals,
                 new_trusted_run_intervals: &new_trusted_run_intervals,
+                old_trusted_run_evidence: Some(TrustedRunRecoveryInput {
+                    descriptors: &old_trusted_run_descriptors,
+                    raw_region_edges: &old_trusted_region_edges,
+                }),
+                new_trusted_run_evidence: Some(TrustedRunRecoveryInput {
+                    descriptors: &new_trusted_run_descriptors,
+                    raw_region_edges: &new_trusted_region_edges,
+                }),
                 min_tokens: options.alignment.anchor_min_tokens,
             },
         )

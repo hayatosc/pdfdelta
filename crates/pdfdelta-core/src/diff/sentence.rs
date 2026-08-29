@@ -8,14 +8,17 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::{
     Result,
     alignment::{Alignment, AlignmentEvidence, AlignmentKind, BlockSeparator},
-    layout::{BlockId, BlockRole, TrustedRunId, TrustedRunInterval},
+    layout::{
+        BlockId, BlockRole, TrustedRegionEdge, TrustedRunDescriptor, TrustedRunId,
+        TrustedRunInterval,
+    },
     normalize::{ComparableToken, ScalarRange},
 };
 
 use super::{
     MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
     SentenceRecoveryCommittedTokens, SentenceRecoveryInput, SentenceRecoveryMetrics, Side,
-    TokenRange,
+    TokenRange, TrustedRunRecoveryInput,
 };
 
 pub(super) const MAX_SENTENCE_RECOVERY_RANGES: usize = 8_192;
@@ -276,6 +279,8 @@ struct SentenceOccurrence {
     location: Option<SentenceLocation>,
     span_index: Option<usize>,
     trusted_position: Option<TrustedStreamPosition>,
+    run_descriptor_index: Option<usize>,
+    evidence_block_index: Option<usize>,
 }
 
 struct SentenceFragment {
@@ -508,6 +513,7 @@ struct ModifiedSentenceRelations {
 struct StreamPlan {
     block_indices: Vec<usize>,
     trusted: bool,
+    run_id: Option<TrustedRunId>,
 }
 
 #[derive(Clone, Copy)]
@@ -518,8 +524,95 @@ struct IntervalBlock {
 }
 
 enum StreamPlanGroup {
-    Trusted(Vec<IntervalBlock>),
+    Trusted {
+        run_id: TrustedRunId,
+        blocks: Vec<IntervalBlock>,
+    },
     Untrusted(usize),
+}
+
+struct RunRecoveryEvidence<'a> {
+    descriptors: &'a [TrustedRunDescriptor],
+    raw_region_edges: &'a [TrustedRegionEdge],
+    descriptor_by_id: HashMap<TrustedRunId, usize>,
+    descriptor_indices_by_block: HashMap<usize, Vec<usize>>,
+}
+
+impl<'a> RunRecoveryEvidence<'a> {
+    fn new(input: TrustedRunRecoveryInput<'a>) -> Option<Self> {
+        let mut descriptor_by_id = HashMap::new();
+        descriptor_by_id.try_reserve(input.descriptors.len()).ok()?;
+        let membership_count = input
+            .descriptors
+            .iter()
+            .try_fold(0usize, |count, descriptor| {
+                count.checked_add(descriptor.block_indices.len())
+            })?;
+        let mut descriptor_indices_by_block = HashMap::<usize, Vec<usize>>::new();
+        descriptor_indices_by_block
+            .try_reserve(membership_count)
+            .ok()?;
+        for (index, descriptor) in input.descriptors.iter().enumerate() {
+            if descriptor_by_id.insert(descriptor.id, index).is_some() {
+                return None;
+            }
+            for block_index in &descriptor.block_indices {
+                let indices = descriptor_indices_by_block.entry(*block_index).or_default();
+                indices.try_reserve(1).ok()?;
+                indices.push(index);
+            }
+        }
+        Some(Self {
+            descriptors: input.descriptors,
+            raw_region_edges: input.raw_region_edges,
+            descriptor_by_id,
+            descriptor_indices_by_block,
+        })
+    }
+
+    fn descriptor_index(&self, run_id: TrustedRunId) -> Option<usize> {
+        self.descriptor_by_id.get(&run_id).copied()
+    }
+
+    fn descriptor_for_occurrence(
+        &self,
+        occurrence: &SentenceOccurrence,
+    ) -> Option<&TrustedRunDescriptor> {
+        self.descriptors.get(occurrence.run_descriptor_index?)
+    }
+
+    fn descriptor_indices_for_untrusted_occurrence(
+        &self,
+        occurrence: &SentenceOccurrence,
+    ) -> Option<&[usize]> {
+        self.descriptor_indices_by_block
+            .get(&occurrence.evidence_block_index?)
+            .map(Vec::as_slice)
+    }
+
+    fn raw_region_edges(&self) -> &[TrustedRegionEdge] {
+        self.raw_region_edges
+    }
+}
+
+struct RecoveryStructuralEvidence<'a> {
+    old: Option<RunRecoveryEvidence<'a>>,
+    new: Option<RunRecoveryEvidence<'a>>,
+}
+
+impl<'a> RecoveryStructuralEvidence<'a> {
+    fn new(input: SentenceRecoveryInput<'a>) -> Option<Self> {
+        Some(Self {
+            old: match input.old_trusted_run_evidence {
+                Some(input) => Some(RunRecoveryEvidence::new(input)?),
+                None => None,
+            },
+            new: match input.new_trusted_run_evidence {
+                Some(input) => Some(RunRecoveryEvidence::new(input)?),
+                None => None,
+            },
+        })
+    }
 }
 
 struct StreamBlock {
@@ -831,6 +924,9 @@ pub(super) fn build_sentence_recovery_plan(
     input: SentenceRecoveryInput<'_>,
     max_tokens: usize,
 ) -> Result<SentenceRecoveryBuildOutcome> {
+    let Some(structural_evidence) = RecoveryStructuralEvidence::new(input) else {
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    };
     let Some(mut budget) = RecoveryBudget::new(
         old.total_tokens,
         new.total_tokens,
@@ -865,6 +961,7 @@ pub(super) fn build_sentence_recovery_plan(
     let Some((mut old_occurrences, old_fragments)) = collect_occurrences(
         old,
         input.old_trusted_run_intervals,
+        structural_evidence.old.as_ref(),
         &membership.old,
         &membership.recovery_spans,
         &mut budget,
@@ -874,12 +971,19 @@ pub(super) fn build_sentence_recovery_plan(
     let Some((mut new_occurrences, new_fragments)) = collect_occurrences(
         new,
         input.new_trusted_run_intervals,
+        structural_evidence.new.as_ref(),
         &membership.new,
         &membership.recovery_spans,
         &mut budget,
     ) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    if validate_occurrence_evidence(&old_occurrences, structural_evidence.old.as_ref()).is_none()
+        || validate_occurrence_evidence(&new_occurrences, structural_evidence.new.as_ref())
+            .is_none()
+    {
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    }
     let Some(counts) = occurrence_counts(&old_occurrences, &new_occurrences) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
@@ -1090,6 +1194,29 @@ pub(super) fn build_sentence_recovery_plan(
     })
 }
 
+fn validate_occurrence_evidence(
+    occurrences: &[SentenceOccurrence],
+    evidence: Option<&RunRecoveryEvidence<'_>>,
+) -> Option<()> {
+    let Some(evidence) = evidence else {
+        return Some(());
+    };
+    for occurrence in occurrences {
+        if occurrence.run_descriptor_index.is_some() {
+            evidence.descriptor_for_occurrence(occurrence)?;
+        }
+        if let Some(indices) = evidence.descriptor_indices_for_untrusted_occurrence(occurrence)
+            && !indices
+                .iter()
+                .all(|index| evidence.descriptors.get(*index).is_some())
+        {
+            return None;
+        }
+    }
+    let _raw_region_edges = evidence.raw_region_edges();
+    Some(())
+}
+
 fn record_near_search_metrics(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     budget: &RecoveryBudget,
@@ -1217,6 +1344,7 @@ fn is_sentence_recovery_span(kind: AlignmentKind, evidence: &[AlignmentEvidence]
 fn collect_occurrences(
     side: &Side<'_>,
     trusted_run_intervals: &[Option<TrustedRunInterval>],
+    run_evidence: Option<&RunRecoveryEvidence<'_>>,
     span_by_block: &HashMap<BlockId, usize>,
     recovery_spans: &[bool],
     budget: &mut RecoveryBudget,
@@ -1225,6 +1353,10 @@ fn collect_occurrences(
     let mut occurrences = Vec::new();
     let mut fragments = Vec::new();
     for (stream_index, plan) in plans.into_iter().enumerate() {
+        let run_descriptor_index = match (plan.run_id, run_evidence) {
+            (Some(run_id), Some(evidence)) => Some(evidence.descriptor_index(run_id)?),
+            _ => None,
+        };
         let stream = build_stream(side, &plan)?;
         let sentence_boundaries =
             sentence_boundaries(&stream.text, &stream.forced_sentence_boundaries, budget)?;
@@ -1283,6 +1415,10 @@ fn collect_occurrences(
                     stream_index,
                     ordinal,
                 }),
+                run_descriptor_index,
+                evidence_block_index: (!plan.trusted)
+                    .then(|| plan.block_indices.first().copied())
+                    .flatten(),
             });
         }
         if let Some(boundary) = fragment_boundary {
@@ -1380,7 +1516,7 @@ fn stream_plans(trusted_run_intervals: &[Option<TrustedRunInterval>]) -> Option<
                     end: interval.end,
                 };
                 if let Some(position) = trusted_positions.get(&interval.run_id).copied() {
-                    let StreamPlanGroup::Trusted(blocks) = groups.get_mut(position)? else {
+                    let StreamPlanGroup::Trusted { blocks, .. } = groups.get_mut(position)? else {
                         return None;
                     };
                     blocks.try_reserve(1).ok()?;
@@ -1390,7 +1526,10 @@ fn stream_plans(trusted_run_intervals: &[Option<TrustedRunInterval>]) -> Option<
                     blocks.try_reserve(1).ok()?;
                     blocks.push(block);
                     trusted_positions.insert(interval.run_id, groups.len());
-                    groups.push(StreamPlanGroup::Trusted(blocks));
+                    groups.push(StreamPlanGroup::Trusted {
+                        run_id: interval.run_id,
+                        blocks,
+                    });
                 }
             }
             None => groups.push(StreamPlanGroup::Untrusted(block_index)),
@@ -1408,9 +1547,10 @@ fn stream_plans(trusted_run_intervals: &[Option<TrustedRunInterval>]) -> Option<
                 plans.push(StreamPlan {
                     block_indices,
                     trusted: false,
+                    run_id: None,
                 });
             }
-            StreamPlanGroup::Trusted(mut blocks) => {
+            StreamPlanGroup::Trusted { run_id, mut blocks } => {
                 blocks.sort_unstable_by_key(|block| (block.start, block.end, block.block_index));
                 let mut current = Vec::new();
                 let mut previous: Option<IntervalBlock> = None;
@@ -1432,6 +1572,7 @@ fn stream_plans(trusted_run_intervals: &[Option<TrustedRunInterval>]) -> Option<
                         plans.push(StreamPlan {
                             block_indices: std::mem::take(&mut current),
                             trusted: true,
+                            run_id: Some(run_id),
                         });
                     }
                     current.try_reserve(1).ok()?;
@@ -1442,6 +1583,7 @@ fn stream_plans(trusted_run_intervals: &[Option<TrustedRunInterval>]) -> Option<
                     plans.push(StreamPlan {
                         block_indices: current,
                         trusted: true,
+                        run_id: Some(run_id),
                     });
                 }
             }
@@ -3947,7 +4089,10 @@ fn starts_with_ignore_ascii_case(value: &str, prefix: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::FontProgramHash;
+    use crate::{
+        layout::{RegionId, RegionRelation},
+        model::{FontProgramHash, PageId, Rect, Vec2},
+    };
 
     fn interval(run_id: u64, start: usize, end: usize) -> Option<TrustedRunInterval> {
         Some(TrustedRunInterval {
@@ -4011,6 +4156,8 @@ mod tests {
                 stream_index,
                 ordinal,
             }),
+            run_descriptor_index: None,
+            evidence_block_index: None,
         }
     }
 
@@ -4032,6 +4179,8 @@ mod tests {
             location: None,
             span_index: None,
             trusted_position: None,
+            run_descriptor_index: None,
+            evidence_block_index: None,
         }
     }
 
@@ -4058,6 +4207,8 @@ mod tests {
             location: None,
             span_index: Some(0),
             trusted_position: None,
+            run_descriptor_index: None,
+            evidence_block_index: None,
         }
     }
 
@@ -4099,6 +4250,81 @@ mod tests {
         assert_eq!(
             plan_blocks(&plans),
             vec![(vec![0], true), (vec![2], true), (vec![1], false)]
+        );
+        assert_eq!(plans[0].run_id, Some(TrustedRunId(1)));
+        assert_eq!(plans[1].run_id, Some(TrustedRunId(1)));
+        assert_eq!(plans[2].run_id, None);
+    }
+
+    #[test]
+    fn mixed_untrusted_occurrence_retains_all_descriptor_evidence() {
+        let descriptors = [
+            TrustedRunDescriptor {
+                id: TrustedRunId(10),
+                page: PageId(2),
+                bbox: Rect {
+                    min: Vec2 { x: 10.0, y: 20.0 },
+                    max: Vec2 { x: 30.0, y: 40.0 },
+                },
+                block_indices: vec![7],
+                trusted_block_indices: Vec::new(),
+                role: Some(BlockRole::Body),
+                source_region_ids: vec![RegionId(3)],
+            },
+            TrustedRunDescriptor {
+                id: TrustedRunId(11),
+                page: PageId(2),
+                bbox: Rect {
+                    min: Vec2 { x: 40.0, y: 20.0 },
+                    max: Vec2 { x: 60.0, y: 40.0 },
+                },
+                block_indices: vec![7],
+                trusted_block_indices: Vec::new(),
+                role: Some(BlockRole::Body),
+                source_region_ids: vec![RegionId(4)],
+            },
+        ];
+        let raw_edges = [TrustedRegionEdge {
+            page: PageId(2),
+            source: RegionId(3),
+            target: RegionId(4),
+            relation: RegionRelation::LeftOf,
+        }];
+        let evidence = RunRecoveryEvidence::new(TrustedRunRecoveryInput {
+            descriptors: &descriptors,
+            raw_region_edges: &raw_edges,
+        })
+        .expect("bounded descriptor evidence should index");
+        let mut occurrence =
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body));
+        occurrence.evidence_block_index = Some(7);
+
+        let indices = evidence
+            .descriptor_indices_for_untrusted_occurrence(&occurrence)
+            .expect("mixed block should retain both run descriptors");
+
+        assert_eq!(indices, [0, 1]);
+        assert_eq!(evidence.descriptors[indices[0]].id, TrustedRunId(10));
+        assert_eq!(evidence.descriptors[indices[0]].page, PageId(2));
+        assert_eq!(evidence.descriptors[indices[0]].bbox, descriptors[0].bbox);
+        assert_eq!(evidence.descriptors[indices[0]].role, Some(BlockRole::Body));
+        assert!(
+            evidence.descriptors[indices[0]]
+                .trusted_block_indices
+                .is_empty()
+        );
+        assert_eq!(
+            evidence.descriptors[indices[0]].source_region_ids,
+            [RegionId(3)]
+        );
+        assert_eq!(evidence.raw_region_edges(), raw_edges);
+        occurrence.run_descriptor_index = Some(0);
+        assert_eq!(
+            evidence
+                .descriptor_for_occurrence(&occurrence)
+                .expect("trusted occurrence should resolve its descriptor")
+                .id,
+            TrustedRunId(10)
         );
     }
 
@@ -4265,6 +4491,8 @@ mod tests {
             location: Some(test_location(location, 0)),
             span_index: Some(0),
             trusted_position: None,
+            run_descriptor_index: None,
+            evidence_block_index: None,
         }];
         let new_occurrences = [SentenceOccurrence {
             key: "counterpart".to_owned(),
@@ -4275,6 +4503,8 @@ mod tests {
             location: None,
             span_index: Some(0),
             trusted_position: None,
+            run_descriptor_index: None,
+            evidence_block_index: None,
         }];
         let old_candidates = [RecoveryCandidate {
             occurrence_index: 0,
@@ -4318,6 +4548,8 @@ mod tests {
             location: None,
             span_index: Some(0),
             trusted_position: None,
+            run_descriptor_index: None,
+            evidence_block_index: None,
         };
         let old = occurrence("arXiv:1706.03762v6 [cs.CL] 24 Jul 2023");
         let new = occurrence("arXiv:1706.03762v7 [cs.CL] 2 Aug 2023");
@@ -4854,6 +5086,8 @@ mod tests {
             location: Some(test_location(old_range, 0)),
             span_index: Some(0),
             trusted_position: None,
+            run_descriptor_index: None,
+            evidence_block_index: None,
         }];
         let mut new_occurrences = [SentenceOccurrence {
             key: "same".to_owned(),
@@ -4864,6 +5098,8 @@ mod tests {
             location: Some(test_location(new_range, 0)),
             span_index: Some(0),
             trusted_position: None,
+            run_descriptor_index: None,
+            evidence_block_index: None,
         }];
         let candidates = [ExactMatchCandidate {
             old_span_index: 0,
@@ -4913,6 +5149,8 @@ mod tests {
                 location: Some(test_location(range, span_index)),
                 span_index: Some(span_index),
                 trusted_position: None,
+                run_descriptor_index: None,
+                evidence_block_index: None,
             }
         };
         let old = [
@@ -5282,6 +5520,8 @@ mod tests {
                 location: None,
                 span_index: Some(0),
                 trusted_position: None,
+                run_descriptor_index: None,
+                evidence_block_index: None,
             },
             SentenceOccurrence {
                 key: "old-b".to_owned(),
@@ -5292,6 +5532,8 @@ mod tests {
                 location: None,
                 span_index: Some(0),
                 trusted_position: None,
+                run_descriptor_index: None,
+                evidence_block_index: None,
             },
         ];
         let new_occurrences = [SentenceOccurrence {
@@ -5303,6 +5545,8 @@ mod tests {
             location: None,
             span_index: None,
             trusted_position: None,
+            run_descriptor_index: None,
+            evidence_block_index: None,
         }];
         let old_candidates = [
             RecoveryCandidate {
@@ -5635,6 +5879,8 @@ mod tests {
             location: None,
             span_index: Some(span_index),
             trusted_position: None,
+            run_descriptor_index: None,
+            evidence_block_index: None,
         };
         let old_occurrences = [occurrence("old-a", 0), occurrence("old-b", 1)];
         let new_occurrences = [occurrence("new-a", 0), occurrence("new-b", 1)];
@@ -5697,6 +5943,8 @@ mod tests {
             location: None,
             span_index: Some(span_index),
             trusted_position: None,
+            run_descriptor_index: None,
+            evidence_block_index: None,
         };
         let old_occurrences = [occurrence("old-a", 0), occurrence("old-b", 1)];
         let new_occurrences = [occurrence("new-a", 0), occurrence("new-b", 1)];
