@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 3;
+const TRACE_SCHEMA_VERSION: u8 = 4;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -375,6 +375,74 @@ fn pipeline_metrics(
                 sentence.new_trusted_run_source_tokens,
             ),
             (
+                "sentence_recovery_structural_pairing_available",
+                usize::from(sentence.structural_pairing_available),
+            ),
+            (
+                "sentence_recovery_old_structural_descriptors",
+                sentence.old_structural_descriptors,
+            ),
+            (
+                "sentence_recovery_new_structural_descriptors",
+                sentence.new_structural_descriptors,
+            ),
+            (
+                "sentence_recovery_old_structural_eligible_descriptors",
+                sentence.old_structural_eligible_descriptors,
+            ),
+            (
+                "sentence_recovery_new_structural_eligible_descriptors",
+                sentence.new_structural_eligible_descriptors,
+            ),
+            (
+                "sentence_recovery_old_structural_mixed_descriptors",
+                sentence.old_structural_mixed_descriptors,
+            ),
+            (
+                "sentence_recovery_new_structural_mixed_descriptors",
+                sentence.new_structural_mixed_descriptors,
+            ),
+            (
+                "sentence_recovery_old_structural_split_descriptors",
+                sentence.old_structural_split_descriptors,
+            ),
+            (
+                "sentence_recovery_new_structural_split_descriptors",
+                sentence.new_structural_split_descriptors,
+            ),
+            (
+                "sentence_recovery_structural_shared_profiles",
+                sentence.structural_shared_profiles,
+            ),
+            (
+                "sentence_recovery_structural_candidate_pairs",
+                sentence.structural_candidate_pairs,
+            ),
+            (
+                "sentence_recovery_structural_largest_posting",
+                sentence.structural_largest_posting,
+            ),
+            (
+                "sentence_recovery_structural_duplicate_pairs",
+                sentence.structural_duplicate_pairs,
+            ),
+            (
+                "sentence_recovery_structural_unique_reciprocal_pairs",
+                sentence.structural_unique_reciprocal_pairs,
+            ),
+            (
+                "sentence_recovery_structural_unique_no_anchor_pairs",
+                sentence.structural_unique_no_anchor_pairs,
+            ),
+            (
+                "sentence_recovery_structural_unique_monotone_anchor_pairs",
+                sentence.structural_unique_monotone_anchor_pairs,
+            ),
+            (
+                "sentence_recovery_structural_unique_crossing_veto_pairs",
+                sentence.structural_unique_crossing_veto_pairs,
+            ),
+            (
                 "sentence_recovery_exact_shared_units",
                 sentence.exact_shared_units,
             ),
@@ -583,6 +651,10 @@ mod tests {
     fn flattens_sentence_recovery_metrics_including_real_zeros() {
         let sentence = SentenceRecoveryMetrics {
             old_trusted_run_source_tokens: 41,
+            structural_pairing_available: true,
+            old_structural_descriptors: 3,
+            structural_candidate_pairs: 2,
+            structural_duplicate_pairs: 2,
             near_relation_complete: true,
             near_pair_visits_examined: 29,
             near_pair_visits_attempted: 31,
@@ -612,6 +684,13 @@ mod tests {
         );
         assert_eq!(metrics["sentence_recovery_recovered_deletion_tokens"], 17);
         assert_eq!(metrics["sentence_recovery_exact_shared_units"], 0);
+        assert_eq!(metrics["sentence_recovery_structural_pairing_available"], 1);
+        assert_eq!(metrics["sentence_recovery_old_structural_descriptors"], 3);
+        assert_eq!(metrics["sentence_recovery_structural_candidate_pairs"], 2);
+        assert_eq!(
+            metrics["sentence_recovery_structural_unique_no_anchor_pairs"],
+            0
+        );
         assert_eq!(metrics["sentence_recovery_near_relation_complete"], 1);
         assert_eq!(metrics["sentence_recovery_near_pair_visits_examined"], 29);
         assert_eq!(metrics["sentence_recovery_near_pair_visits_attempted"], 31);

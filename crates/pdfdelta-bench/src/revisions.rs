@@ -245,6 +245,23 @@ fn truncate_preview(text: &str) -> String {
 pub struct SentenceRecoveryMetricsReport {
     pub old_trusted_run_source_tokens: usize,
     pub new_trusted_run_source_tokens: usize,
+    pub structural_pairing_available: bool,
+    pub old_structural_descriptors: usize,
+    pub new_structural_descriptors: usize,
+    pub old_structural_eligible_descriptors: usize,
+    pub new_structural_eligible_descriptors: usize,
+    pub old_structural_mixed_descriptors: usize,
+    pub new_structural_mixed_descriptors: usize,
+    pub old_structural_split_descriptors: usize,
+    pub new_structural_split_descriptors: usize,
+    pub structural_shared_profiles: usize,
+    pub structural_candidate_pairs: usize,
+    pub structural_largest_posting: usize,
+    pub structural_duplicate_pairs: usize,
+    pub structural_unique_reciprocal_pairs: usize,
+    pub structural_unique_no_anchor_pairs: usize,
+    pub structural_unique_monotone_anchor_pairs: usize,
+    pub structural_unique_crossing_veto_pairs: usize,
     pub exact_shared_units: usize,
     pub old_exact_one_sided_units: usize,
     pub new_exact_one_sided_units: usize,
@@ -293,6 +310,24 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
         Self {
             old_trusted_run_source_tokens: metrics.old_trusted_run_source_tokens,
             new_trusted_run_source_tokens: metrics.new_trusted_run_source_tokens,
+            structural_pairing_available: metrics.structural_pairing_available,
+            old_structural_descriptors: metrics.old_structural_descriptors,
+            new_structural_descriptors: metrics.new_structural_descriptors,
+            old_structural_eligible_descriptors: metrics.old_structural_eligible_descriptors,
+            new_structural_eligible_descriptors: metrics.new_structural_eligible_descriptors,
+            old_structural_mixed_descriptors: metrics.old_structural_mixed_descriptors,
+            new_structural_mixed_descriptors: metrics.new_structural_mixed_descriptors,
+            old_structural_split_descriptors: metrics.old_structural_split_descriptors,
+            new_structural_split_descriptors: metrics.new_structural_split_descriptors,
+            structural_shared_profiles: metrics.structural_shared_profiles,
+            structural_candidate_pairs: metrics.structural_candidate_pairs,
+            structural_largest_posting: metrics.structural_largest_posting,
+            structural_duplicate_pairs: metrics.structural_duplicate_pairs,
+            structural_unique_reciprocal_pairs: metrics.structural_unique_reciprocal_pairs,
+            structural_unique_no_anchor_pairs: metrics.structural_unique_no_anchor_pairs,
+            structural_unique_monotone_anchor_pairs: metrics
+                .structural_unique_monotone_anchor_pairs,
+            structural_unique_crossing_veto_pairs: metrics.structural_unique_crossing_veto_pairs,
             exact_shared_units: metrics.exact_shared_units,
             old_exact_one_sided_units: metrics.old_exact_one_sided_units,
             new_exact_one_sided_units: metrics.new_exact_one_sided_units,
@@ -1707,6 +1742,7 @@ fn alignment_visit_metrics(
 fn validate_sentence_recovery_metrics(
     metrics: SentenceRecoveryMetrics,
 ) -> std::result::Result<SentenceRecoveryMetricsReport, String> {
+    validate_structural_pairing_metrics(metrics)?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
             "examined near pair visits {} exceed attempted visits {}",
@@ -1794,6 +1830,77 @@ fn validate_sentence_recovery_metrics(
         .checked_add(metrics.unresolved_remainder_new_source_tokens)
         .ok_or_else(|| "new eligible source token counters overflow".to_owned())?;
     Ok(metrics.into())
+}
+
+fn validate_structural_pairing_metrics(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<(), String> {
+    let structural_counters = [
+        metrics.old_structural_descriptors,
+        metrics.new_structural_descriptors,
+        metrics.old_structural_eligible_descriptors,
+        metrics.new_structural_eligible_descriptors,
+        metrics.old_structural_mixed_descriptors,
+        metrics.new_structural_mixed_descriptors,
+        metrics.old_structural_split_descriptors,
+        metrics.new_structural_split_descriptors,
+        metrics.structural_shared_profiles,
+        metrics.structural_candidate_pairs,
+        metrics.structural_largest_posting,
+        metrics.structural_duplicate_pairs,
+        metrics.structural_unique_reciprocal_pairs,
+        metrics.structural_unique_no_anchor_pairs,
+        metrics.structural_unique_monotone_anchor_pairs,
+        metrics.structural_unique_crossing_veto_pairs,
+    ];
+    if !metrics.structural_pairing_available {
+        if structural_counters.iter().any(|counter| *counter != 0) {
+            return Err("unavailable structural pairing has nonzero counters".to_owned());
+        }
+        return Ok(());
+    }
+    let old_partition = metrics
+        .old_structural_eligible_descriptors
+        .checked_add(metrics.old_structural_mixed_descriptors)
+        .and_then(|count| count.checked_add(metrics.old_structural_split_descriptors))
+        .ok_or_else(|| "old structural descriptor partition overflows".to_owned())?;
+    if old_partition != metrics.old_structural_descriptors {
+        return Err("old structural descriptor partition is inconsistent".to_owned());
+    }
+    let new_partition = metrics
+        .new_structural_eligible_descriptors
+        .checked_add(metrics.new_structural_mixed_descriptors)
+        .and_then(|count| count.checked_add(metrics.new_structural_split_descriptors))
+        .ok_or_else(|| "new structural descriptor partition overflows".to_owned())?;
+    if new_partition != metrics.new_structural_descriptors {
+        return Err("new structural descriptor partition is inconsistent".to_owned());
+    }
+    let pair_partition = metrics
+        .structural_duplicate_pairs
+        .checked_add(metrics.structural_unique_reciprocal_pairs)
+        .ok_or_else(|| "structural candidate pair partition overflows".to_owned())?;
+    if pair_partition != metrics.structural_candidate_pairs {
+        return Err("structural candidate pair partition is inconsistent".to_owned());
+    }
+    let anchor_partition = metrics
+        .structural_unique_no_anchor_pairs
+        .checked_add(metrics.structural_unique_monotone_anchor_pairs)
+        .and_then(|count| count.checked_add(metrics.structural_unique_crossing_veto_pairs))
+        .ok_or_else(|| "structural anchor class partition overflows".to_owned())?;
+    if anchor_partition != metrics.structural_unique_reciprocal_pairs {
+        return Err("structural anchor class partition is inconsistent".to_owned());
+    }
+    if metrics.structural_shared_profiles
+        > metrics
+            .old_structural_eligible_descriptors
+            .min(metrics.new_structural_eligible_descriptors)
+    {
+        return Err("shared structural profiles exceed eligible descriptors".to_owned());
+    }
+    if (metrics.structural_shared_profiles == 0) != (metrics.structural_largest_posting == 0) {
+        return Err("structural largest posting disagrees with shared profiles".to_owned());
+    }
+    Ok(())
 }
 
 /// Extracts the optional nested sentence-recovery metrics from the completed
@@ -2159,7 +2266,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 8;
+    pub const SCHEMA_VERSION: u32 = 9;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -2682,7 +2789,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 8);
+        assert_eq!(completed["schema_version"], 9);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -2701,7 +2808,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 8);
+        assert_eq!(legacy_summary["schema_version"], 9);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -3262,6 +3369,7 @@ mod tests {
         assert_eq!(
             sentence_recovery_metrics,
             Some(SentenceRecoveryMetricsReport {
+                structural_pairing_available: true,
                 near_relation_complete: true,
                 ..SentenceRecoveryMetricsReport::default()
             })
@@ -3458,7 +3566,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 8);
+        assert_eq!(json["schema_version"], 9);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -3475,6 +3583,20 @@ mod tests {
         let populated = SentenceRecoveryMetrics {
             old_trusted_run_source_tokens: 30,
             new_trusted_run_source_tokens: 40,
+            structural_pairing_available: true,
+            old_structural_descriptors: 4,
+            new_structural_descriptors: 3,
+            old_structural_eligible_descriptors: 2,
+            new_structural_eligible_descriptors: 2,
+            old_structural_mixed_descriptors: 1,
+            new_structural_mixed_descriptors: 1,
+            old_structural_split_descriptors: 1,
+            structural_shared_profiles: 1,
+            structural_candidate_pairs: 2,
+            structural_largest_posting: 2,
+            structural_duplicate_pairs: 1,
+            structural_unique_reciprocal_pairs: 1,
+            structural_unique_monotone_anchor_pairs: 1,
             near_relation_complete: true,
             near_pair_visits_examined: 20,
             near_pair_visits_attempted: 20,
@@ -3496,6 +3618,9 @@ mod tests {
         let validated = validate_sentence_recovery_metrics(populated)
             .expect("populated metrics satisfy the contract");
         assert_eq!(validated.old_trusted_run_source_tokens, 30);
+        assert!(validated.structural_pairing_available);
+        assert_eq!(validated.structural_candidate_pairs, 2);
+        assert_eq!(validated.structural_unique_monotone_anchor_pairs, 1);
         assert!(validated.near_relation_complete);
         assert_eq!(validated.near_pair_visits_examined, 20);
         assert_eq!(validated.near_similarity_comparisons_attempted, 8);
@@ -3506,6 +3631,29 @@ mod tests {
 
     #[test]
     fn rejects_invalid_sentence_recovery_metrics() {
+        let unavailable_structural = SentenceRecoveryMetrics {
+            structural_candidate_pairs: 1,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(unavailable_structural).is_err());
+
+        let invalid_structural_partition = SentenceRecoveryMetrics {
+            structural_pairing_available: true,
+            old_structural_descriptors: 1,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(invalid_structural_partition).is_err());
+
+        let invalid_anchor_partition = SentenceRecoveryMetrics {
+            structural_pairing_available: true,
+            structural_shared_profiles: 1,
+            structural_candidate_pairs: 1,
+            structural_largest_posting: 1,
+            structural_unique_reciprocal_pairs: 1,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(invalid_anchor_partition).is_err());
+
         let invalid_veto = SentenceRecoveryMetrics {
             near_pair_candidates: 1,
             vetoed_near_pairs: 2,
@@ -4164,7 +4312,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 8);
+        assert_eq!(value["schema_version"], 9);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -4234,6 +4382,23 @@ mod tests {
         let expected_sentence_recovery_keys = HashSet::from([
             "old_trusted_run_source_tokens".to_owned(),
             "new_trusted_run_source_tokens".to_owned(),
+            "structural_pairing_available".to_owned(),
+            "old_structural_descriptors".to_owned(),
+            "new_structural_descriptors".to_owned(),
+            "old_structural_eligible_descriptors".to_owned(),
+            "new_structural_eligible_descriptors".to_owned(),
+            "old_structural_mixed_descriptors".to_owned(),
+            "new_structural_mixed_descriptors".to_owned(),
+            "old_structural_split_descriptors".to_owned(),
+            "new_structural_split_descriptors".to_owned(),
+            "structural_shared_profiles".to_owned(),
+            "structural_candidate_pairs".to_owned(),
+            "structural_largest_posting".to_owned(),
+            "structural_duplicate_pairs".to_owned(),
+            "structural_unique_reciprocal_pairs".to_owned(),
+            "structural_unique_no_anchor_pairs".to_owned(),
+            "structural_unique_monotone_anchor_pairs".to_owned(),
+            "structural_unique_crossing_veto_pairs".to_owned(),
             "exact_shared_units".to_owned(),
             "old_exact_one_sided_units".to_owned(),
             "new_exact_one_sided_units".to_owned(),

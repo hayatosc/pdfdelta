@@ -9,9 +9,10 @@ use crate::{
     Result,
     alignment::{Alignment, AlignmentEvidence, AlignmentKind, BlockSeparator},
     layout::{
-        BlockId, BlockRole, TrustedRegionEdge, TrustedRunDescriptor, TrustedRunId,
-        TrustedRunInterval,
+        BlockId, BlockRole, RegionId, RegionRelation, TrustedRegionEdge, TrustedRunDescriptor,
+        TrustedRunId, TrustedRunInterval,
     },
+    model::PageId,
     normalize::{ComparableToken, ScalarRange},
 };
 
@@ -615,6 +616,369 @@ impl<'a> RecoveryStructuralEvidence<'a> {
     }
 }
 
+const STRUCTURAL_EDGE_HISTOGRAM_BINS: usize = 24;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct StructuralProfile {
+    role: BlockRole,
+    source_region_count: usize,
+    edge_histogram: [usize; STRUCTURAL_EDGE_HISTOGRAM_BINS],
+}
+
+#[derive(Default)]
+struct StructuralSideProfiles {
+    descriptor_count: usize,
+    eligible_count: usize,
+    mixed_count: usize,
+    split_count: usize,
+    postings: HashMap<StructuralProfile, Vec<usize>>,
+}
+
+#[derive(Default)]
+struct StructuralPairingPlan {
+    old: StructuralSideProfiles,
+    new: StructuralSideProfiles,
+    shared_profiles: usize,
+    candidate_pairs: usize,
+    largest_posting: usize,
+    duplicate_pairs: usize,
+    unique_pairs: Vec<(usize, usize)>,
+}
+
+fn structural_pairing_plan(
+    evidence: &RecoveryStructuralEvidence<'_>,
+    old_intervals: &[Option<TrustedRunInterval>],
+    new_intervals: &[Option<TrustedRunInterval>],
+) -> Option<StructuralPairingPlan> {
+    let old_evidence = evidence.old.as_ref()?;
+    let new_evidence = evidence.new.as_ref()?;
+    let old = structural_side_profiles(old_evidence, old_intervals)?;
+    let new = structural_side_profiles(new_evidence, new_intervals)?;
+    let shared_capacity = old.postings.len().min(new.postings.len());
+    let mut unique_pairs = Vec::new();
+    unique_pairs.try_reserve_exact(shared_capacity).ok()?;
+    let mut shared_profiles = 0usize;
+    let mut candidate_pairs = 0usize;
+    let mut largest_posting = 0usize;
+    let mut duplicate_pairs = 0usize;
+    for (profile, old_posting) in &old.postings {
+        let Some(new_posting) = new.postings.get(profile) else {
+            continue;
+        };
+        shared_profiles = shared_profiles.checked_add(1)?;
+        let pairs = old_posting.len().checked_mul(new_posting.len())?;
+        candidate_pairs = candidate_pairs.checked_add(pairs)?;
+        largest_posting = largest_posting
+            .max(old_posting.len())
+            .max(new_posting.len());
+        if let ([old_index], [new_index]) = (old_posting.as_slice(), new_posting.as_slice()) {
+            unique_pairs.push((*old_index, *new_index));
+        } else {
+            duplicate_pairs = duplicate_pairs.checked_add(pairs)?;
+        }
+    }
+    Some(StructuralPairingPlan {
+        old,
+        new,
+        shared_profiles,
+        candidate_pairs,
+        largest_posting,
+        duplicate_pairs,
+        unique_pairs,
+    })
+}
+
+fn structural_side_profiles(
+    evidence: &RunRecoveryEvidence<'_>,
+    intervals: &[Option<TrustedRunInterval>],
+) -> Option<StructuralSideProfiles> {
+    let plans = stream_plans(intervals)?;
+    let mut plans_by_run = HashMap::<TrustedRunId, Vec<usize>>::new();
+    plans_by_run.try_reserve(plans.len()).ok()?;
+    for (plan_index, plan) in plans.iter().enumerate() {
+        let Some(run_id) = plan.run_id else { continue };
+        let indices = plans_by_run.entry(run_id).or_default();
+        indices.try_reserve(1).ok()?;
+        indices.push(plan_index);
+    }
+
+    let descriptor_count = evidence.descriptors.len();
+    let mut eligible = Vec::new();
+    eligible.try_reserve_exact(descriptor_count).ok()?;
+    let mut eligible_count = 0usize;
+    let mut mixed_count = 0usize;
+    let mut split_count = 0usize;
+    for descriptor in evidence.descriptors {
+        let is_eligible = if descriptor.role.is_none() {
+            mixed_count = mixed_count.checked_add(1)?;
+            false
+        } else if descriptor.trusted_block_indices.is_empty()
+            || descriptor.block_indices != descriptor.trusted_block_indices
+        {
+            split_count = split_count.checked_add(1)?;
+            false
+        } else {
+            let matching_plan = plans_by_run
+                .get(&descriptor.id)
+                .filter(|indices| indices.len() == 1)
+                .and_then(|indices| plans.get(indices[0]));
+            if matching_plan.is_some_and(|plan| {
+                plan.trusted && plan.block_indices == descriptor.trusted_block_indices
+            }) {
+                eligible_count = eligible_count.checked_add(1)?;
+                true
+            } else {
+                split_count = split_count.checked_add(1)?;
+                false
+            }
+        };
+        eligible.push(is_eligible);
+    }
+    if descriptor_count
+        != eligible_count
+            .checked_add(mixed_count)?
+            .checked_add(split_count)?
+    {
+        return None;
+    }
+
+    let membership_count = evidence.descriptors.iter().zip(&eligible).try_fold(
+        0usize,
+        |count, (descriptor, eligible)| {
+            if *eligible {
+                count.checked_add(descriptor.source_region_ids.len())
+            } else {
+                Some(count)
+            }
+        },
+    )?;
+    let mut descriptors_by_region = HashMap::<(PageId, RegionId), Vec<usize>>::new();
+    descriptors_by_region.try_reserve(membership_count).ok()?;
+    let mut membership = HashSet::<(usize, PageId, RegionId)>::new();
+    membership.try_reserve(membership_count).ok()?;
+    for (descriptor_index, (descriptor, is_eligible)) in
+        evidence.descriptors.iter().zip(&eligible).enumerate()
+    {
+        if !is_eligible {
+            continue;
+        }
+        for region_id in &descriptor.source_region_ids {
+            if !membership.insert((descriptor_index, descriptor.page, *region_id)) {
+                return None;
+            }
+            let posting = descriptors_by_region
+                .entry((descriptor.page, *region_id))
+                .or_default();
+            posting.try_reserve(1).ok()?;
+            posting.push(descriptor_index);
+        }
+    }
+
+    let mut histograms = Vec::new();
+    histograms.try_reserve_exact(descriptor_count).ok()?;
+    histograms.resize(descriptor_count, [0usize; STRUCTURAL_EDGE_HISTOGRAM_BINS]);
+    for edge in evidence.raw_region_edges {
+        if let Some(posting) = descriptors_by_region.get(&(edge.page, edge.source)) {
+            for descriptor_index in posting {
+                let internal = membership.contains(&(*descriptor_index, edge.page, edge.target));
+                increment_histogram(
+                    &mut histograms[*descriptor_index],
+                    edge.relation,
+                    false,
+                    internal,
+                )?;
+            }
+        }
+        if let Some(posting) = descriptors_by_region.get(&(edge.page, edge.target)) {
+            for descriptor_index in posting {
+                let internal = membership.contains(&(*descriptor_index, edge.page, edge.source));
+                increment_histogram(
+                    &mut histograms[*descriptor_index],
+                    edge.relation,
+                    true,
+                    internal,
+                )?;
+            }
+        }
+    }
+
+    let mut postings = HashMap::<StructuralProfile, Vec<usize>>::new();
+    postings.try_reserve(eligible_count).ok()?;
+    for (descriptor_index, (descriptor, is_eligible)) in
+        evidence.descriptors.iter().zip(eligible).enumerate()
+    {
+        if !is_eligible {
+            continue;
+        }
+        let posting = postings
+            .entry(StructuralProfile {
+                role: descriptor.role?,
+                source_region_count: descriptor.source_region_ids.len(),
+                edge_histogram: histograms[descriptor_index],
+            })
+            .or_default();
+        posting.try_reserve(1).ok()?;
+        posting.push(descriptor_index);
+    }
+    Some(StructuralSideProfiles {
+        descriptor_count,
+        eligible_count,
+        mixed_count,
+        split_count,
+        postings,
+    })
+}
+
+fn increment_histogram(
+    histogram: &mut [usize; STRUCTURAL_EDGE_HISTOGRAM_BINS],
+    relation: RegionRelation,
+    incoming: bool,
+    internal: bool,
+) -> Option<()> {
+    let relation_index = match relation {
+        RegionRelation::Above => 0,
+        RegionRelation::Below => 1,
+        RegionRelation::LeftOf => 2,
+        RegionRelation::RightOf => 3,
+        RegionRelation::Aligned => 4,
+        RegionRelation::SameColumn => 5,
+    };
+    let index = relation_index * 4 + usize::from(incoming) * 2 + usize::from(internal);
+    histogram[index] = histogram[index].checked_add(1)?;
+    Some(())
+}
+
+fn record_structural_pairing_plan(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    plan: Option<&StructuralPairingPlan>,
+) {
+    let (Some(diagnostics), Some(plan)) = (diagnostics.as_mut(), plan) else {
+        return;
+    };
+    let metrics = &mut diagnostics.metrics;
+    metrics.structural_pairing_available = true;
+    metrics.old_structural_descriptors = plan.old.descriptor_count;
+    metrics.new_structural_descriptors = plan.new.descriptor_count;
+    metrics.old_structural_eligible_descriptors = plan.old.eligible_count;
+    metrics.new_structural_eligible_descriptors = plan.new.eligible_count;
+    metrics.old_structural_mixed_descriptors = plan.old.mixed_count;
+    metrics.new_structural_mixed_descriptors = plan.new.mixed_count;
+    metrics.old_structural_split_descriptors = plan.old.split_count;
+    metrics.new_structural_split_descriptors = plan.new.split_count;
+    metrics.structural_shared_profiles = plan.shared_profiles;
+    metrics.structural_candidate_pairs = plan.candidate_pairs;
+    metrics.structural_largest_posting = plan.largest_posting;
+    metrics.structural_duplicate_pairs = plan.duplicate_pairs;
+    metrics.structural_unique_reciprocal_pairs = plan.unique_pairs.len();
+    metrics.structural_unique_no_anchor_pairs = plan.unique_pairs.len();
+}
+
+fn classify_structural_pair_anchors(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    plan: Option<&StructuralPairingPlan>,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    exact_candidates: &[ExactMatchCandidate],
+) {
+    let Some(plan) = plan else { return };
+    let Some((no_anchor, monotone, crossing)) =
+        structural_anchor_classes(plan, old_occurrences, new_occurrences, exact_candidates)
+    else {
+        clear_structural_pairing_metrics(diagnostics);
+        return;
+    };
+    let Some(metrics) = diagnostics
+        .as_mut()
+        .map(|diagnostics| &mut diagnostics.metrics)
+    else {
+        return;
+    };
+    metrics.structural_unique_no_anchor_pairs = no_anchor;
+    metrics.structural_unique_monotone_anchor_pairs = monotone;
+    metrics.structural_unique_crossing_veto_pairs = crossing;
+}
+
+fn structural_anchor_classes(
+    plan: &StructuralPairingPlan,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    exact_candidates: &[ExactMatchCandidate],
+) -> Option<(usize, usize, usize)> {
+    let mut eligible_pairs = HashSet::new();
+    eligible_pairs.try_reserve(plan.unique_pairs.len()).ok()?;
+    eligible_pairs.extend(plan.unique_pairs.iter().copied());
+    let mut anchors = HashMap::<(usize, usize), Vec<(usize, usize)>>::new();
+    anchors.try_reserve(plan.unique_pairs.len()).ok()?;
+    for candidate in exact_candidates {
+        let old = old_occurrences.get(candidate.old_occurrence_index)?;
+        let new = new_occurrences.get(candidate.new_occurrence_index)?;
+        let (Some(old_descriptor), Some(new_descriptor)) =
+            (old.run_descriptor_index, new.run_descriptor_index)
+        else {
+            continue;
+        };
+        if !eligible_pairs.contains(&(old_descriptor, new_descriptor)) {
+            continue;
+        }
+        let (Some(old_position), Some(new_position)) = (old.trusted_position, new.trusted_position)
+        else {
+            continue;
+        };
+        let posting = anchors.entry((old_descriptor, new_descriptor)).or_default();
+        posting.try_reserve(1).ok()?;
+        posting.push((old_position.ordinal, new_position.ordinal));
+    }
+
+    let mut no_anchor = 0usize;
+    let mut monotone = 0usize;
+    let mut crossing = 0usize;
+    for pair in &plan.unique_pairs {
+        let Some(posting) = anchors.get_mut(pair) else {
+            no_anchor = no_anchor.checked_add(1)?;
+            continue;
+        };
+        posting.sort_unstable();
+        if posting
+            .windows(2)
+            .all(|window| window[0].0 < window[1].0 && window[0].1 < window[1].1)
+        {
+            monotone = monotone.checked_add(1)?;
+        } else {
+            crossing = crossing.checked_add(1)?;
+        }
+    }
+    if plan.unique_pairs.len() != no_anchor.checked_add(monotone)?.checked_add(crossing)? {
+        return None;
+    }
+    Some((no_anchor, monotone, crossing))
+}
+
+fn clear_structural_pairing_metrics(diagnostics: &mut Option<SentenceRecoveryDiagnostics>) {
+    let Some(metrics) = diagnostics
+        .as_mut()
+        .map(|diagnostics| &mut diagnostics.metrics)
+    else {
+        return;
+    };
+    metrics.structural_pairing_available = false;
+    metrics.old_structural_descriptors = 0;
+    metrics.new_structural_descriptors = 0;
+    metrics.old_structural_eligible_descriptors = 0;
+    metrics.new_structural_eligible_descriptors = 0;
+    metrics.old_structural_mixed_descriptors = 0;
+    metrics.new_structural_mixed_descriptors = 0;
+    metrics.old_structural_split_descriptors = 0;
+    metrics.new_structural_split_descriptors = 0;
+    metrics.structural_shared_profiles = 0;
+    metrics.structural_candidate_pairs = 0;
+    metrics.structural_largest_posting = 0;
+    metrics.structural_duplicate_pairs = 0;
+    metrics.structural_unique_reciprocal_pairs = 0;
+    metrics.structural_unique_no_anchor_pairs = 0;
+    metrics.structural_unique_monotone_anchor_pairs = 0;
+    metrics.structural_unique_crossing_veto_pairs = 0;
+}
+
 struct StreamBlock {
     side_index: usize,
     scalar_range: Range<usize>,
@@ -951,6 +1315,12 @@ pub(super) fn build_sentence_recovery_plan(
         input.new_trusted_run_intervals,
         &membership.recovery_spans,
     );
+    let structural_pairing = structural_pairing_plan(
+        &structural_evidence,
+        input.old_trusted_run_intervals,
+        input.new_trusted_run_intervals,
+    );
+    record_structural_pairing_plan(&mut diagnostics, structural_pairing.as_ref());
     if !membership.recovery_spans.iter().any(|eligible| *eligible) {
         return Ok(SentenceRecoveryBuildOutcome {
             plan: None,
@@ -1024,6 +1394,13 @@ pub(super) fn build_sentence_recovery_plan(
     else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    classify_structural_pair_anchors(
+        &mut diagnostics,
+        structural_pairing.as_ref(),
+        &old_occurrences,
+        &new_occurrences,
+        &exact_match_candidates,
+    );
     let Some(old_candidate_outcome) = recovery_candidates(
         &old_occurrences,
         &counts,
@@ -4184,6 +4561,34 @@ mod tests {
         }
     }
 
+    fn structural_descriptor(
+        id: u64,
+        page: u32,
+        block_indices: Vec<usize>,
+        trusted_block_indices: Vec<usize>,
+        role: Option<BlockRole>,
+        source_region_ids: Vec<u64>,
+    ) -> TrustedRunDescriptor {
+        TrustedRunDescriptor {
+            id: TrustedRunId(id),
+            page: PageId(page),
+            bbox: Rect {
+                min: Vec2 { x: 0.0, y: 0.0 },
+                max: Vec2 { x: 1.0, y: 1.0 },
+            },
+            block_indices,
+            trusted_block_indices,
+            role,
+            source_region_ids: source_region_ids.into_iter().map(RegionId).collect(),
+        }
+    }
+
+    fn structural_occurrence(descriptor_index: usize, ordinal: usize) -> SentenceOccurrence {
+        let mut occurrence = positioned_occurrence("anchor", ordinal as u64, 0, ordinal);
+        occurrence.run_descriptor_index = Some(descriptor_index);
+        occurrence
+    }
+
     fn similarity_occurrence(
         key: &str,
         tokens: Vec<SentenceEvidenceToken>,
@@ -4325,6 +4730,231 @@ mod tests {
                 .expect("trusted occurrence should resolve its descriptor")
                 .id,
             TrustedRunId(10)
+        );
+    }
+
+    #[test]
+    fn structural_profiles_partition_eligible_mixed_and_split_descriptors() {
+        let descriptors = [
+            structural_descriptor(1, 0, vec![0], vec![0], Some(BlockRole::Body), vec![1]),
+            structural_descriptor(2, 0, vec![1], vec![1], None, vec![2]),
+            structural_descriptor(3, 0, vec![2, 3], vec![2], Some(BlockRole::Body), vec![3]),
+            structural_descriptor(4, 0, vec![4, 6], vec![4, 6], Some(BlockRole::Body), vec![4]),
+        ];
+        let intervals = [
+            interval(1, 0, 1),
+            interval(2, 0, 1),
+            interval(3, 0, 1),
+            interval(3, 1, 2),
+            interval(4, 0, 1),
+            None,
+            interval(4, 1, 2),
+        ];
+        let evidence = RunRecoveryEvidence::new(TrustedRunRecoveryInput {
+            descriptors: &descriptors,
+            raw_region_edges: &[],
+        })
+        .expect("descriptor evidence should index");
+
+        let profiles = structural_side_profiles(&evidence, &intervals)
+            .expect("bounded structural profiles should build");
+
+        assert_eq!(profiles.descriptor_count, 4);
+        assert_eq!(profiles.eligible_count, 1);
+        assert_eq!(profiles.mixed_count, 1);
+        assert_eq!(profiles.split_count, 2);
+        assert_eq!(
+            profiles.descriptor_count,
+            profiles.eligible_count + profiles.mixed_count + profiles.split_count
+        );
+    }
+
+    #[test]
+    fn structural_profiles_match_across_page_and_region_identifiers() {
+        let old_descriptors = [structural_descriptor(
+            1,
+            2,
+            vec![0],
+            vec![0],
+            Some(BlockRole::Body),
+            vec![10],
+        )];
+        let new_descriptors = [structural_descriptor(
+            9,
+            8,
+            vec![0],
+            vec![0],
+            Some(BlockRole::Body),
+            vec![90],
+        )];
+        let old_input = TrustedRunRecoveryInput {
+            descriptors: &old_descriptors,
+            raw_region_edges: &[],
+        };
+        let new_input = TrustedRunRecoveryInput {
+            descriptors: &new_descriptors,
+            raw_region_edges: &[],
+        };
+        let old_intervals = [interval(1, 0, 1)];
+        let new_intervals = [interval(9, 0, 1)];
+        let evidence = RecoveryStructuralEvidence::new(SentenceRecoveryInput {
+            old_trusted_run_intervals: &old_intervals,
+            new_trusted_run_intervals: &new_intervals,
+            old_trusted_run_evidence: Some(old_input),
+            new_trusted_run_evidence: Some(new_input),
+            min_tokens: 1,
+        })
+        .expect("descriptor evidence should index");
+
+        let plan = structural_pairing_plan(&evidence, &old_intervals, &new_intervals)
+            .expect("structural profiles should pair");
+
+        assert_eq!(plan.shared_profiles, 1);
+        assert_eq!(plan.candidate_pairs, 1);
+        assert_eq!(plan.duplicate_pairs, 0);
+        assert_eq!(plan.unique_pairs, [(0, 0)]);
+    }
+
+    #[test]
+    fn duplicate_structural_profiles_are_not_unique_pairs() {
+        let old_descriptors = [
+            structural_descriptor(1, 0, vec![0], vec![0], Some(BlockRole::Body), vec![1]),
+            structural_descriptor(2, 0, vec![1], vec![1], Some(BlockRole::Body), vec![2]),
+        ];
+        let new_descriptors = [
+            structural_descriptor(3, 1, vec![0], vec![0], Some(BlockRole::Body), vec![3]),
+            structural_descriptor(4, 1, vec![1], vec![1], Some(BlockRole::Body), vec![4]),
+        ];
+        let old_evidence = RunRecoveryEvidence::new(TrustedRunRecoveryInput {
+            descriptors: &old_descriptors,
+            raw_region_edges: &[],
+        })
+        .expect("old descriptors should index");
+        let new_evidence = RunRecoveryEvidence::new(TrustedRunRecoveryInput {
+            descriptors: &new_descriptors,
+            raw_region_edges: &[],
+        })
+        .expect("new descriptors should index");
+        let evidence = RecoveryStructuralEvidence {
+            old: Some(old_evidence),
+            new: Some(new_evidence),
+        };
+
+        let plan = structural_pairing_plan(
+            &evidence,
+            &[interval(1, 0, 1), interval(2, 0, 1)],
+            &[interval(3, 0, 1), interval(4, 0, 1)],
+        )
+        .expect("duplicate profiles should remain diagnostic candidates");
+
+        assert_eq!(plan.shared_profiles, 1);
+        assert_eq!(plan.candidate_pairs, 4);
+        assert_eq!(plan.largest_posting, 2);
+        assert_eq!(plan.duplicate_pairs, 4);
+        assert!(plan.unique_pairs.is_empty());
+        assert_eq!(
+            plan.candidate_pairs,
+            plan.duplicate_pairs + plan.unique_pairs.len()
+        );
+    }
+
+    #[test]
+    fn structural_edge_histogram_counts_internal_edges_once_per_direction() {
+        let descriptors = [structural_descriptor(
+            1,
+            0,
+            vec![0],
+            vec![0],
+            Some(BlockRole::Body),
+            vec![1, 2],
+        )];
+        let edges = [TrustedRegionEdge {
+            page: PageId(0),
+            source: RegionId(1),
+            target: RegionId(2),
+            relation: RegionRelation::LeftOf,
+        }];
+        let evidence = RunRecoveryEvidence::new(TrustedRunRecoveryInput {
+            descriptors: &descriptors,
+            raw_region_edges: &edges,
+        })
+        .expect("descriptor evidence should index");
+
+        let profiles = structural_side_profiles(&evidence, &[interval(1, 0, 1)])
+            .expect("histogram should build");
+        let profile = profiles.postings.keys().next().expect("one profile");
+
+        assert_eq!(profile.edge_histogram.iter().sum::<usize>(), 2);
+        assert_eq!(profile.edge_histogram[2 * 4 + 1], 1);
+        assert_eq!(profile.edge_histogram[2 * 4 + 2 + 1], 1);
+    }
+
+    #[test]
+    fn structural_unique_pairs_classify_exact_anchor_order() {
+        let plan = StructuralPairingPlan {
+            unique_pairs: vec![(0, 0), (1, 1), (2, 2)],
+            ..StructuralPairingPlan::default()
+        };
+        let old = vec![
+            structural_occurrence(1, 1),
+            structural_occurrence(1, 3),
+            structural_occurrence(2, 1),
+            structural_occurrence(2, 3),
+        ];
+        let new = vec![
+            structural_occurrence(1, 2),
+            structural_occurrence(1, 4),
+            structural_occurrence(2, 4),
+            structural_occurrence(2, 2),
+        ];
+        let exact = vec![
+            ExactMatchCandidate {
+                old_span_index: 0,
+                new_span_index: 0,
+                old_occurrence_index: 0,
+                new_occurrence_index: 0,
+            },
+            ExactMatchCandidate {
+                old_span_index: 0,
+                new_span_index: 0,
+                old_occurrence_index: 1,
+                new_occurrence_index: 1,
+            },
+            ExactMatchCandidate {
+                old_span_index: 0,
+                new_span_index: 0,
+                old_occurrence_index: 2,
+                new_occurrence_index: 2,
+            },
+            ExactMatchCandidate {
+                old_span_index: 0,
+                new_span_index: 0,
+                old_occurrence_index: 3,
+                new_occurrence_index: 3,
+            },
+        ];
+
+        assert_eq!(
+            structural_anchor_classes(&plan, &old, &new, &exact),
+            Some((1, 1, 1))
+        );
+    }
+
+    #[test]
+    fn structural_anchor_classification_ignores_unrelated_exact_candidates() {
+        let plan = StructuralPairingPlan::default();
+        let old = vec![structural_occurrence(10, 1)];
+        let new = vec![structural_occurrence(20, 1)];
+        let exact = [ExactMatchCandidate {
+            old_span_index: 0,
+            new_span_index: 0,
+            old_occurrence_index: 0,
+            new_occurrence_index: 0,
+        }];
+
+        assert_eq!(
+            structural_anchor_classes(&plan, &old, &new, &exact),
+            Some((0, 0, 0))
         );
     }
 
