@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-29
-- **Generator / engine commit**: [`3074d95`](https://github.com/hayatosc/pdfdelta/commit/3074d95)
+- **Generator / engine commit**: [`de4ed4c`](https://github.com/hayatosc/pdfdelta/commit/de4ed4c)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-29-3074d95.json`](2026-08-29-3074d95.json)
+  - File: [`2026-08-29-de4ed4c.json`](2026-08-29-de4ed4c.json)
   - Schema: v5
-  - Size: 49,553 bytes
-  - SHA-256: `a411fd2a41ea039b0fc8265137302482bf9ff48669e1ec5d6c96602e086f0b29`
+  - Size: 49,357 bytes
+  - SHA-256: `c27a40adba5f1589f8aef07a0ec9cc6253d33d7c17bf28a9de476e85ebb28ada`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 18 completed extraction, 11 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-29-3074d95.json
+  benchmark/realworld/results/2026-08-29-de4ed4c.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -39,28 +39,29 @@ All 11 annotation files in this capture are partial review sets. Recall and kind
 
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `nist-fips-186-4-to-5` | dev | standard | 65.07% | 2,398 | 1,377 | 0.857 | 1.000 | 229.500 | 122 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 71.22% | 5,401 | 2,540 | 1.000 | 0.750 | 635.000 | 164 |
+| `nist-fips-186-4-to-5` | dev | standard | 65.07% | 2,398 | 1,350 | 0.857 | 1.000 | 225.000 | 107 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 71.22% | 5,401 | 2,456 | 1.000 | 0.750 | 614.000 | 103 |
 | `irs-form-1040-2024-to-2025` | holdout | stress | 36.80% | 75 | 19 | 0.000 | N/A | N/A | 1 |
-| `edpb-right-of-access-v1-to-final` | holdout | standard | 87.12% | 2,262 | 751 | 0.400 | 0.500 | 375.500 | 80 |
+| `edpb-right-of-access-v1-to-final` | holdout | standard | 87.12% | 2,262 | 703 | 0.400 | 0.500 | 351.500 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 1.000 | 0 |
-| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.64% | 267 | 131 | 0.750 | 1.000 | 43.667 | 27 |
+| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.64% | 267 | 128 | 1.000 | 1.000 | 32.000 | 25 |
 | `ecma-109-ed10-to-ed11` | dev | stress | 74.02% | 372 | 80 | 0.333 | 0.000 | 80.000 | 5 |
-| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.20% | 513 | 484 | 1.000 | 1.000 | 161.333 | 71 |
+| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.20% | 513 | 474 | 1.000 | 1.000 | 158.000 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
 | `bis-operational-risk-2011-to-2021` | dev | standard | 68.12% | 648 | 350 | 1.000 | 1.000 | 87.500 | 0 |
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 53.52% | 788 | 648 | 0.333 | 1.000 | 648.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
 
-Compared with the earlier same-day `80def43` capture, short structural-label
-anchors keep `Previous stage:` stable while promoting the adjacent exact URL to
-a move. OASIS recall rises from 0.667 to 1.000, kind accuracy remains 1.000,
-hunks per matched change fall from 240.000 to 161.333, and tiny unmatched
-changes fall from 92 to 71. The OASIS record reports four additional content
-changes and 23 fewer uncertain changes. Every other record is byte-for-byte
-unchanged. These fragmentation reductions are not precision claims because all
-current annotations are partial.
+Compared with the preceding `3074d95` capture, mixed character edit runs that
+collectively replace a word are grouped without changing resolved coverage or
+unresolved-region counts. Fifteen records change: total reported content changes
+fall from 10,465 to 10,088 and uncertain changes fall from 896 to 735, with no
+record increasing either count. W3C publication-date recall rises from 0.750 to
+1.000 after the reviewed quote was narrowed to the exact changed phrase; kind
+accuracy remains 1.000, hunks per matched change fall from 43.667 to 32.000, and
+tiny unmatched changes fall from 27 to 25. These fragmentation reductions are
+not precision claims because all current annotations are partial.
 
 ## Current Writer Schema (v5)
 
@@ -85,6 +86,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-29-3074d95.json`](2026-08-29-3074d95.json): short structural-label anchors for adjacent value moves.
 - [`2026-08-29-80def43.json`](2026-08-29-80def43.json): bounded semantic line grouping for short matched regions.
 - [`2026-08-29-c2de839.json`](2026-08-29-c2de839.json): exact and reciprocal near-match recovery for punctuation-free uncertain lines.
 - [`2026-08-29-adc74e0.json`](2026-08-29-adc74e0.json): refined semantic hunk grouping, candidate diagnostics, and forced-reading-order miss classification.
