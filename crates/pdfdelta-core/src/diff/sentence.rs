@@ -725,8 +725,6 @@ pub(super) fn build_sentence_recovery_plan(
         &mut budget,
         &mut diagnostics,
         &mut paired_vetoes,
-        &old_fragments,
-        &new_fragments,
     )
     .is_none()
     {
@@ -1916,8 +1914,6 @@ fn append_paired_stream_replacements<'a>(
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     vetoes: &mut PairedNearVetoes,
-    old_fragments: &[SentenceFragment],
-    new_fragments: &[SentenceFragment],
 ) -> Option<()> {
     if pairs.is_empty() {
         return Some(());
@@ -1982,16 +1978,6 @@ fn append_paired_stream_replacements<'a>(
         diagnostics,
     )?;
     reject_crossing_paired_replacements(&old_candidates, &new_candidates, &mut relations)?;
-    veto_fragment_completed_replacements(
-        old_occurrences,
-        new_occurrences,
-        &old_candidates.recoveries,
-        &new_candidates.recoveries,
-        old_fragments,
-        new_fragments,
-        &mut relations,
-        budget,
-    )?;
     record_vetoed_near_pairs(diagnostics, &relations, near_pair_start);
     collect_paired_near_vetoes(&old_candidates, &new_candidates, &relations, vetoes)?;
     append_replacements(

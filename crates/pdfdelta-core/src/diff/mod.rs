@@ -5208,26 +5208,22 @@ mod tests {
 
     #[test]
     fn trailing_fragments_veto_fragment_completed_replacements_in_both_directions() {
-        let anchor = "A unique anchor pairs the trusted sentence streams.";
         let prefix = "As a result, information has";
         let suffix = "to be provided about all personal data covered by the request.";
         let full = format!("{prefix} {suffix}");
-        let complete = vec![sentence_block(1, anchor), sentence_block(2, &full)];
+        let complete = vec![sentence_block(1, &full)];
         let split = vec![
             sentence_block(101, prefix),
             line_block(102, "17 Adopted"),
             sentence_block(103, prefix),
-            sentence_block(104, anchor),
-            sentence_block(105, suffix),
+            sentence_block(104, suffix),
         ];
-        let complete_intervals =
-            trusted_run_intervals(&[Some(TrustedRunId(1)), Some(TrustedRunId(1))]);
+        let complete_intervals = [trusted_interval(1, 0, 1)];
         let split_intervals = vec![
             trusted_interval(3, 0, 1),
             None,
             trusted_interval(4, 0, 1),
             trusted_interval(2, 0, 1),
-            trusted_interval(2, 1, 2),
         ];
 
         for reverse in [false, true] {
@@ -5259,28 +5255,61 @@ mod tests {
             );
 
             assert!(result.changes.is_empty(), "reverse={reverse}");
-            assert_eq!(
-                result.old_coverage.resolved_tokens,
-                anchor.chars().count(),
-                "reverse={reverse}"
-            );
-            assert_eq!(
-                result.new_coverage.resolved_tokens,
-                anchor.chars().count(),
-                "reverse={reverse}"
-            );
+            assert_eq!(result.old_coverage.resolved_tokens, 0, "reverse={reverse}");
+            assert_eq!(result.new_coverage.resolved_tokens, 0, "reverse={reverse}");
         }
     }
 
     #[test]
-    fn uncertain_trailing_fragments_remain_veto_only_evidence() {
+    fn paired_replacement_ignores_fragment_completion_evidence() {
         let anchor = "A unique anchor pairs the trusted sentence streams.";
         let prefix = "As a result, information has";
         let suffix = "to be provided about all personal data covered by the request.";
         let full = format!("{prefix} {suffix}");
-        let complete = vec![sentence_block(1, anchor), sentence_block(2, &full)];
-        let complete_intervals =
-            trusted_run_intervals(&[Some(TrustedRunId(1)), Some(TrustedRunId(1))]);
+        let old = vec![sentence_block(1, anchor), sentence_block(2, &full)];
+        let new = vec![
+            sentence_block(101, prefix),
+            sentence_block(102, anchor),
+            sentence_block(103, suffix),
+        ];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let old_intervals = [trusted_interval(1, 0, 1), trusted_interval(1, 1, 2)];
+        let new_intervals = [
+            trusted_interval(3, 0, 1),
+            trusted_interval(2, 0, 1),
+            trusted_interval(2, 1, 2),
+        ];
+
+        let result = compare_sentence_recovery_with_intervals(
+            &old,
+            &new,
+            &alignment,
+            &old_intervals,
+            &new_intervals,
+            16,
+            DiffOptions::default(),
+        );
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(
+            result.changes[0].old_span,
+            Some(test_span(2, 0, full.chars().count()))
+        );
+        assert_eq!(
+            result.changes[0].new_span,
+            Some(test_span(103, 0, suffix.chars().count()))
+        );
+    }
+
+    #[test]
+    fn uncertain_trailing_fragments_remain_veto_only_evidence() {
+        let prefix = "As a result, information has";
+        let suffix = "to be provided about all personal data covered by the request.";
+        let full = format!("{prefix} {suffix}");
+        let complete = vec![sentence_block(1, &full)];
+        let complete_intervals = [trusted_interval(1, 0, 1)];
 
         let mut issue = sentence_block(101, "As a result,\ninformation has");
         issue.issues.push(NormalizationIssue {
@@ -5304,16 +5333,8 @@ mod tests {
             },
         ]);
         for fragment in [issue, unmapped] {
-            let split = vec![
-                fragment,
-                sentence_block(103, anchor),
-                sentence_block(104, suffix),
-            ];
-            let split_intervals = vec![
-                trusted_interval(3, 0, 1),
-                trusted_interval(2, 0, 1),
-                trusted_interval(2, 1, 2),
-            ];
+            let split = vec![fragment, sentence_block(103, suffix)];
+            let split_intervals = vec![trusted_interval(3, 0, 1), trusted_interval(2, 0, 1)];
             let alignment = unresolved_alignment(
                 &complete,
                 &split,
@@ -5330,8 +5351,8 @@ mod tests {
             );
 
             assert!(result.changes.is_empty());
-            assert_eq!(result.old_coverage.resolved_tokens, anchor.chars().count());
-            assert_eq!(result.new_coverage.resolved_tokens, anchor.chars().count());
+            assert_eq!(result.old_coverage.resolved_tokens, 0);
+            assert_eq!(result.new_coverage.resolved_tokens, 0);
         }
 
         let fragment_only = vec![sentence_block(201, prefix)];
