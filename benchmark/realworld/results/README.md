@@ -4,19 +4,19 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 
 ## Latest Capture
 
-- **Capture date**: 2026-08-29
-- **Generator / engine commit**: [`24a2300`](https://github.com/hayatosc/pdfdelta/commit/24a2300)
+- **Capture date**: 2026-08-30
+- **Generator / engine commit**: [`5ffa3e0`](https://github.com/hayatosc/pdfdelta/commit/5ffa3e0)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-29-24a2300.json`](2026-08-29-24a2300.json)
-  - Schema: v12
-  - Size: 107,394 bytes
-  - SHA-256: `65d99a96190c7d33d1dd7d003e7ff68d53243ff511cddad655b41e6afb814ad3`
+  - File: [`2026-08-30-5ffa3e0.json`](2026-08-30-5ffa3e0.json)
+  - Schema: v13
+  - Size: 116,719 bytes
+  - SHA-256: `2579bf048d37175ea70805138f714d937b64361afa651caf08f8a2b153392be4`
 
-The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 18 completed extraction, 11 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
+The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
 ## Reproduction
 
@@ -28,16 +28,17 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-29-24a2300.json
+  benchmark/realworld/results/2026-08-30-5ffa3e0.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
 
 ## Reviewed-Pair Overview
 
-This capture contains three scoped-complete review sets and eight partial review
-sets. Precision is available only inside the declared complete scopes; recall and
-kind accuracy for partial sets still apply only to their recorded review items.
+This capture contains three scoped-complete review sets plus one complete scope
+inside the partial FIPS review set. Precision is available only inside declared
+complete scopes; recall and kind accuracy for partial sets still apply only to
+their recorded review items.
 
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
@@ -54,13 +55,15 @@ kind accuracy for partial sets still apply only to their recorded review items.
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
 
-| Scoped-complete pair | Event P / R / F1 | Token P / R / F1 | Span IoU | FP tokens / 10k unchanged |
+| Pair with a complete scope | Event P / R / F1 | Token P / R / F1 | Span IoU | FP tokens / 10k unchanged |
 |---|---:|---:|---:|---:|
+| `nist-fips-186-4-to-5` | 1.000 / 0.000 / 0.000 | 0.000 / 0.000 / 0.000 | 0.000 | N/A |
 | `arxiv-attention-v6-to-v7` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 | `w3c-ws-policy-attach-20060927-to-20061102` | 1.000 / 1.000 / 1.000 | 0.984 / 1.000 / 0.992 | 0.984 | 68.027 |
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 
-The scoped-complete event and token metrics are unchanged from `27f096e`.
+The original arXiv, W3C, and BIS scoped-complete metrics are unchanged from
+`27f096e`.
 Role-local alignment raises SP 800-57 comparison coverage from 70.95% to 71.90%
 and corrects its reviewed kind accuracy from 0.750 to 1.000. NIST CSF coverage
 decreases from 53.52% to 53.22% without changing reviewed recall or kind accuracy.
@@ -112,14 +115,20 @@ occurrences have no alignment-span location.
 
 ## Current Writer Schema (v13)
 
-The benchmark writer uses schema v13. The latest committed capture above remains
-an immutable historical schema-v12 artifact; older captures likewise retain
-their recorded schemas.
+The latest committed capture and benchmark writer use schema v13. Older captures
+retain their recorded schemas.
 Schema v13 adds bounded exact segment-pair diagnostics to recovery watches. It
 records candidate, hash-match, token-verification, uniqueness, monotonicity,
 crossing, overlap-veto, and typed stop evidence, plus the exact segment-pair
 classification associated with each watched change. These observations remain
 diagnostic-only and do not change comparison output.
+The FIPS domain-parameter watch is exact and unique across two units on each
+side, but has no crossing-anchor evidence and overlaps an existing recovery.
+It is therefore classified as `exact_unique_topology_unknown`, not promoted to
+a move. Across all 29 pairs, segment diagnostics finish without a typed stop.
+The segment implementation itself preserves comparison behavior; this capture
+also includes the separately reviewed mixed-scope and extraction changes made
+after the preceding immutable schema-v12 artifact.
 Schema v12 extends bounded recovery watches to locate exact quotes spanning two
 to eight adjacent units in one trusted stream. Segment observations remain
 diagnostic-only, mark unit-level exact counts unavailable, and do not change
@@ -161,6 +170,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-29-24a2300.json`](2026-08-29-24a2300.json): schema-v12 adjacent-unit recovery watches and the pre-segment-relation baseline.
 - [`2026-08-29-1a0675f.json`](2026-08-29-1a0675f.json): schema-v11 bounded expected-change recovery watches.
 - [`2026-08-29-1463932.json`](2026-08-29-1463932.json): schema-v10 exact-unit signature diagnostics for trusted runs.
 - [`2026-08-29-5145723.json`](2026-08-29-5145723.json): schema-v9 structural trusted-run profile diagnostics.
