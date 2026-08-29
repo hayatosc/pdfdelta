@@ -12,8 +12,9 @@ use crate::{
         enforce_diff_raw_token_budget, enforce_diff_token_budget, validate_diff_options,
     },
     layout::{
-        BlockOptions, LayoutIssue, LineOptions, TrustedRunInterval, reconstruct_blocks_with_issues,
-        reconstruct_lines, validate_block_options, validate_line_options,
+        BlockOptions, LayoutIssue, LineOptions, TrustedRegionEdge, TrustedRunDescriptor,
+        TrustedRunInterval, reconstruct_blocks_with_issues, reconstruct_lines,
+        validate_block_options, validate_line_options,
     },
     model::{Document, Glyph, GlyphCropStatus, GlyphEvidence, GlyphPathClipStatus, TextRenderMode},
     normalize::{BlockText, normalize_blocks},
@@ -500,11 +501,15 @@ fn compare_validated_glyph_documents_inner(
         blocks: old,
         uncertain_block_indices: old_uncertain_block_indices,
         trusted_run_intervals: old_trusted_run_intervals,
+        trusted_run_descriptors: old_trusted_run_descriptors,
+        trusted_region_edges: old_trusted_region_edges,
     } = old_prepared;
     let PreparedDocument {
         blocks: new,
         uncertain_block_indices: new_uncertain_block_indices,
         trusted_run_intervals: new_trusted_run_intervals,
+        trusted_run_descriptors: new_trusted_run_descriptors,
+        trusted_region_edges: new_trusted_region_edges,
     } = new_prepared;
     let (old_gap_boundaries, old_extraction_uncertain_block_indices) =
         gap_boundaries(old_document, &old, old_issue_boundaries);
@@ -645,6 +650,13 @@ fn compare_validated_glyph_documents_inner(
             return Err(error);
         }
     };
+    // Descriptor evidence reaches the recovery boundary without changing its decisions yet.
+    let _trusted_run_evidence = (
+        &old_trusted_run_descriptors,
+        &new_trusted_run_descriptors,
+        &old_trusted_region_edges,
+        &new_trusted_region_edges,
+    );
     let comparison_result = if enable_sentence_recovery {
         compare_aligned_with_sentence_recovery_metrics(
             &old,
@@ -1003,6 +1015,8 @@ fn prepare(
     )?;
     let blocks = reconstruction.blocks;
     let trusted_run_intervals = reconstruction.trusted_run_intervals;
+    let trusted_run_descriptors = reconstruction.trusted_run_descriptors;
+    let trusted_region_edges = reconstruction.trusted_region_edges;
     if let Err(error) =
         validate_trusted_run_interval_count(blocks.len(), trusted_run_intervals.len())
     {
@@ -1079,6 +1093,8 @@ fn prepare(
         blocks: normalized,
         uncertain_block_indices,
         trusted_run_intervals,
+        trusted_run_descriptors,
+        trusted_region_edges,
     })
 }
 
@@ -1086,6 +1102,8 @@ struct PreparedDocument {
     blocks: Vec<BlockText>,
     uncertain_block_indices: Vec<usize>,
     trusted_run_intervals: Vec<Option<TrustedRunInterval>>,
+    trusted_run_descriptors: Vec<TrustedRunDescriptor>,
+    trusted_region_edges: Vec<TrustedRegionEdge>,
 }
 
 fn validate_trusted_run_interval_count(block_count: usize, interval_count: usize) -> Result<()> {
@@ -1118,6 +1136,62 @@ fn is_comparison_visible(glyph: &Glyph) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        layout::{BlockRole, TrustedRunId},
+        model::{DecodedText, FontId, GlyphId, GlyphProvenance, PageId, Rect, Vec2},
+        pdf::ObjectRef,
+    };
+
+    #[test]
+    fn prepared_document_retains_trusted_run_descriptors() {
+        let document = Document::new(vec![Glyph {
+            id: GlyphId(1),
+            text: DecodedText::Mapped("A".to_owned()),
+            raw_code: vec![b'A'],
+            page: PageId(0),
+            bbox: Rect {
+                min: Vec2 { x: 10.0, y: 10.0 },
+                max: Vec2 { x: 20.0, y: 20.0 },
+            },
+            baseline: Vec2 { x: 10.0, y: 10.0 },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+            font_id: FontId(1),
+            font_size: 10.0,
+            render_order: 0,
+            render_mode: TextRenderMode::Fill,
+            crop_status: GlyphCropStatus::Inside,
+            path_clip_status: GlyphPathClipStatus::Unclipped,
+            provenance: GlyphProvenance {
+                content_stream: ObjectRef {
+                    object_number: 1,
+                    generation: 0,
+                },
+                operator_index: 0,
+            },
+        }]);
+        let mut diagnostics = PipelineDiagnostics::new();
+
+        let prepared = prepare(
+            &document,
+            PipelineOptions::default(),
+            DocumentSide::Old,
+            &mut diagnostics,
+        )
+        .expect("one supported line should prepare");
+
+        assert_eq!(prepared.trusted_run_descriptors.len(), 1);
+        let descriptor = &prepared.trusted_run_descriptors[0];
+        assert_eq!(descriptor.id, TrustedRunId(0));
+        assert_eq!(descriptor.page, PageId(0));
+        assert_eq!(descriptor.block_indices, vec![0]);
+        assert_eq!(descriptor.trusted_block_indices, vec![0]);
+        assert_eq!(descriptor.role, Some(BlockRole::Body));
+        assert!(prepared.trusted_region_edges.is_empty());
+        assert_eq!(
+            prepared.trusted_run_intervals[0].map(|run| run.run_id),
+            Some(descriptor.id)
+        );
+    }
 
     #[test]
     fn trusted_run_interval_metadata_must_match_block_count() {

@@ -12,6 +12,7 @@ use super::{
         directions_are_compatible, interval_gap, interval_overlap_ratio, is_horizontal,
         length_squared, median, normalize, perpendicular, projected_extent, projected_interval,
     },
+    region::{RegionId, RegionRelation},
 };
 
 const WEIGHT_SUM_TOLERANCE: f64 = 1.0e-9;
@@ -56,11 +57,38 @@ pub(crate) struct TrustedRunInterval {
     pub(crate) end: usize,
 }
 
+/// Preserves the structural evidence that produced one trusted line run.
+///
+/// `block_indices` includes every final block intersecting the run.
+/// `trusted_block_indices` is restricted to blocks with a contiguous exclusive
+/// [`TrustedRunInterval`].
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct TrustedRunDescriptor {
+    pub(crate) id: TrustedRunId,
+    pub(crate) page: PageId,
+    pub(crate) bbox: Rect,
+    pub(crate) block_indices: Vec<usize>,
+    pub(crate) trusted_block_indices: Vec<usize>,
+    /// Present only when every intersecting final block has the same role.
+    pub(crate) role: Option<BlockRole>,
+    pub(crate) source_region_ids: Vec<RegionId>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TrustedRegionEdge {
+    pub(crate) page: PageId,
+    pub(crate) source: RegionId,
+    pub(crate) target: RegionId,
+    pub(crate) relation: RegionRelation,
+}
+
 pub(crate) struct BlockReconstruction {
     pub blocks: Vec<Block>,
     pub issues: Vec<LayoutIssue>,
     /// Parallel to `blocks`; mixed, discontinuous, or untrusted blocks have no interval.
     pub trusted_run_intervals: Vec<Option<TrustedRunInterval>>,
+    pub trusted_run_descriptors: Vec<TrustedRunDescriptor>,
+    pub trusted_region_edges: Vec<TrustedRegionEdge>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -232,6 +260,8 @@ pub(crate) fn reconstruct_blocks_with_issues(
     let mut ordered_stats = Vec::with_capacity(lines.len());
     let mut partial_uncertain_line_ids = HashSet::new();
     let mut trusted_run_positions_by_line_id = HashMap::new();
+    let mut trusted_run_descriptors = Vec::new();
+    let mut trusted_region_edges = Vec::new();
     let mut next_trusted_run_id = 0;
     let mut issues = Vec::new();
     for (page_num, page_lines) in page_lines_map {
@@ -249,9 +279,12 @@ pub(crate) fn reconstruct_blocks_with_issues(
         )?;
         assign_trusted_run_positions(
             &mut trusted_run_positions_by_line_id,
+            &mut trusted_run_descriptors,
             &partition.trusted_runs,
+            &partition.trusted_run_provenance,
             &mut next_trusted_run_id,
         )?;
+        append_trusted_region_edges(&mut trusted_region_edges, page, &partition.graph.edges)?;
         // Partial uncertainty remains deterministic evidence serialization, not proven order.
         // Barriers only keep already-classified uncertain lines from contaminating trusted blocks.
         if !partition.uncertain_line_ids.is_empty()
@@ -347,19 +380,49 @@ pub(crate) fn reconstruct_blocks_with_issues(
         .collect::<Vec<_>>();
     let trusted_run_intervals =
         block_trusted_run_intervals(&blocks, &trusted_run_positions_by_line_id);
+    populate_trusted_run_descriptors(
+        &mut trusted_run_descriptors,
+        &blocks,
+        &trusted_run_intervals,
+        &trusted_run_positions_by_line_id,
+        lines,
+    )?;
     Ok(BlockReconstruction {
         blocks,
         issues,
         trusted_run_intervals,
+        trusted_run_descriptors,
+        trusted_region_edges,
     })
 }
 
 fn assign_trusted_run_positions(
     run_positions_by_line_id: &mut HashMap<LineId, (TrustedRunId, usize)>,
+    descriptors: &mut Vec<TrustedRunDescriptor>,
     trusted_runs: &[super::region::TrustedLineRun],
+    provenance: &[super::region::TrustedLineRunProvenance],
     next_run_id: &mut u64,
 ) -> Result<()> {
-    for run in trusted_runs {
+    if trusted_runs.len() != provenance.len() {
+        return Err(Error::Unresolved(
+            "trusted run provenance length does not match runs".to_owned(),
+        ));
+    }
+    let descriptor_limit =
+        descriptors
+            .len()
+            .checked_add(trusted_runs.len())
+            .ok_or(Error::LimitExceeded {
+                resource: "trusted run descriptors",
+                limit: usize::MAX,
+            })?;
+    descriptors
+        .try_reserve_exact(trusted_runs.len())
+        .map_err(|_| Error::LimitExceeded {
+            resource: "trusted run descriptors",
+            limit: descriptor_limit,
+        })?;
+    for (run, provenance) in trusted_runs.iter().zip(provenance) {
         if run.line_ids.is_empty() {
             continue;
         }
@@ -382,7 +445,219 @@ fn assign_trusted_run_positions(
                 .enumerate()
                 .map(|(ordinal, line_id)| (*line_id, (run_id, ordinal))),
         );
+        descriptors.push(TrustedRunDescriptor {
+            id: run_id,
+            page: provenance.page,
+            bbox: provenance.bbox,
+            block_indices: Vec::new(),
+            trusted_block_indices: Vec::new(),
+            role: None,
+            source_region_ids: copy_slice_checked(
+                &provenance.source_region_ids,
+                "trusted run source regions",
+            )?,
+        });
         *next_run_id = following_run_id;
+    }
+    Ok(())
+}
+
+fn append_trusted_region_edges(
+    output: &mut Vec<TrustedRegionEdge>,
+    page: PageId,
+    edges: &[(RegionId, RegionId, RegionRelation)],
+) -> Result<()> {
+    let limit = output
+        .len()
+        .checked_add(edges.len())
+        .ok_or(Error::LimitExceeded {
+            resource: "trusted region graph edges",
+            limit: usize::MAX,
+        })?;
+    output
+        .try_reserve_exact(edges.len())
+        .map_err(|_| Error::LimitExceeded {
+            resource: "trusted region graph edges",
+            limit,
+        })?;
+    output.extend(
+        edges
+            .iter()
+            .map(|&(source, target, relation)| TrustedRegionEdge {
+                page,
+                source,
+                target,
+                relation,
+            }),
+    );
+    Ok(())
+}
+
+fn copy_slice_checked<T: Clone>(source: &[T], resource: &'static str) -> Result<Vec<T>> {
+    let mut copied = Vec::new();
+    copied
+        .try_reserve_exact(source.len())
+        .map_err(|_| Error::LimitExceeded {
+            resource,
+            limit: source.len(),
+        })?;
+    copied.extend_from_slice(source);
+    Ok(copied)
+}
+
+fn populate_trusted_run_descriptors(
+    descriptors: &mut [TrustedRunDescriptor],
+    blocks: &[Block],
+    intervals: &[Option<TrustedRunInterval>],
+    run_positions_by_line_id: &HashMap<LineId, (TrustedRunId, usize)>,
+    lines: &[Line],
+) -> Result<()> {
+    for (index, descriptor) in descriptors.iter().enumerate() {
+        let expected_id = u64::try_from(index).map_err(|_| {
+            Error::Unresolved("trusted run descriptor index does not fit its id".to_owned())
+        })?;
+        if descriptor.id != TrustedRunId(expected_id) {
+            return Err(Error::Unresolved(format!(
+                "trusted run descriptor {} is out of deterministic id order",
+                descriptor.id.0
+            )));
+        }
+        if !descriptor.block_indices.is_empty() || !descriptor.trusted_block_indices.is_empty() {
+            return Err(Error::Unresolved(format!(
+                "trusted run descriptor {} has duplicate membership initialization",
+                descriptor.id.0
+            )));
+        }
+    }
+    let mut lines_by_id = HashMap::new();
+    lines_by_id
+        .try_reserve(lines.len())
+        .map_err(|_| Error::LimitExceeded {
+            resource: "trusted run line membership",
+            limit: lines.len(),
+        })?;
+    lines_by_id.extend(lines.iter().map(|line| (line.id, line)));
+    for (block_index, block) in blocks.iter().enumerate() {
+        let mut member_run_ids = HashSet::new();
+        member_run_ids
+            .try_reserve(block.lines.len())
+            .map_err(|_| Error::LimitExceeded {
+                resource: "trusted run block membership",
+                limit: block.lines.len(),
+            })?;
+        for line_id in &block.lines {
+            let Some(&(run_id, _)) = run_positions_by_line_id.get(line_id) else {
+                continue;
+            };
+            let descriptor_index = usize::try_from(run_id.0).map_err(|_| {
+                Error::Unresolved("trusted run id does not fit descriptor indexing".to_owned())
+            })?;
+            let descriptor = descriptors.get(descriptor_index).ok_or_else(|| {
+                Error::Unresolved(format!("trusted line references missing run {}", run_id.0))
+            })?;
+            let line = lines_by_id.get(line_id).ok_or_else(|| {
+                Error::Unresolved(format!(
+                    "trusted block references missing line {}",
+                    line_id.0
+                ))
+            })?;
+            if line.page != descriptor.page {
+                return Err(Error::Unresolved(format!(
+                    "trusted run {} spans multiple pages",
+                    descriptor.id.0
+                )));
+            }
+            member_run_ids.insert(run_id);
+        }
+        for run_id in member_run_ids {
+            let descriptor = &mut descriptors[usize::try_from(run_id.0).map_err(|_| {
+                Error::Unresolved("trusted run id does not fit descriptor indexing".to_owned())
+            })?];
+            descriptor
+                .block_indices
+                .try_reserve(1)
+                .map_err(|_| Error::LimitExceeded {
+                    resource: "trusted run block membership",
+                    limit: blocks.len(),
+                })?;
+            descriptor.block_indices.push(block_index);
+        }
+    }
+    for (block_index, interval) in intervals.iter().enumerate() {
+        let Some(interval) = interval else { continue };
+        let descriptor_index = usize::try_from(interval.run_id.0).map_err(|_| {
+            Error::Unresolved("trusted run id does not fit descriptor indexing".to_owned())
+        })?;
+        let descriptor = descriptors.get_mut(descriptor_index).ok_or_else(|| {
+            Error::Unresolved(format!(
+                "trusted interval references missing run {}",
+                interval.run_id.0
+            ))
+        })?;
+        if descriptor.id != interval.run_id {
+            return Err(Error::Unresolved(format!(
+                "trusted run descriptor {} does not match interval {}",
+                descriptor.id.0, interval.run_id.0
+            )));
+        }
+        let block = blocks.get(block_index).ok_or_else(|| {
+            Error::Unresolved(format!(
+                "trusted interval references missing block {block_index}"
+            ))
+        })?;
+        if interval.start >= interval.end
+            || interval.end.checked_sub(interval.start) != Some(block.lines.len())
+        {
+            return Err(Error::Unresolved(format!(
+                "trusted interval for block {block_index} does not match its line ordinals"
+            )));
+        }
+        if let Some(&previous_block_index) = descriptor.trusted_block_indices.last() {
+            let previous_end = intervals
+                .get(previous_block_index)
+                .copied()
+                .flatten()
+                .ok_or_else(|| {
+                    Error::Unresolved(
+                        "trusted descriptor membership lost its source interval".to_owned(),
+                    )
+                })?
+                .end;
+            if interval.start < previous_end {
+                return Err(Error::Unresolved(format!(
+                    "trusted run {} has overlapping block ordinals",
+                    descriptor.id.0
+                )));
+            }
+        }
+        if descriptor.trusted_block_indices.last() == Some(&block_index) {
+            return Err(Error::Unresolved(format!(
+                "block {block_index} is duplicated in trusted run {}",
+                descriptor.id.0
+            )));
+        }
+        descriptor
+            .trusted_block_indices
+            .try_reserve(1)
+            .map_err(|_| Error::LimitExceeded {
+                resource: "trusted run block membership",
+                limit: blocks.len(),
+            })?;
+        descriptor.trusted_block_indices.push(block_index);
+    }
+
+    for descriptor in descriptors {
+        descriptor.role = descriptor
+            .block_indices
+            .first()
+            .map(|&first| blocks[first].role);
+        if descriptor
+            .block_indices
+            .iter()
+            .any(|&index| Some(blocks[index].role) != descriptor.role)
+        {
+            descriptor.role = None;
+        }
     }
     Ok(())
 }
@@ -1238,7 +1513,10 @@ fn invalid_line(line: &Line, reason: &str) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{layout::region::TrustedLineRun, model::FontProgramHash};
+    use crate::{
+        layout::region::{TrustedLineRun, TrustedLineRunProvenance},
+        model::FontProgramHash,
+    };
     use std::cmp::Ordering;
 
     fn block(id: u64, lines: &[u64]) -> Block {
@@ -1246,6 +1524,43 @@ mod tests {
             id: BlockId(id),
             lines: lines.iter().copied().map(LineId).collect(),
             role: BlockRole::Body,
+        }
+    }
+
+    fn run_provenance(id: u64) -> TrustedLineRunProvenance {
+        TrustedLineRunProvenance {
+            page: PageId(0),
+            bbox: Rect {
+                min: Vec2 { x: 0.0, y: 0.0 },
+                max: Vec2 { x: 1.0, y: 1.0 },
+            },
+            source_region_ids: vec![RegionId(id)],
+        }
+    }
+
+    fn descriptor_line(id: u64) -> Line {
+        Line {
+            id: LineId(id),
+            page: PageId(0),
+            glyphs: Vec::new(),
+            synthetic_spaces: Vec::new(),
+            bbox: Rect {
+                min: Vec2 {
+                    x: 0.0,
+                    y: id as f64,
+                },
+                max: Vec2 {
+                    x: 1.0,
+                    y: id as f64 + 1.0,
+                },
+            },
+            baseline: Vec2 {
+                x: 0.0,
+                y: id as f64,
+            },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+            text_direction: super::super::LineTextDirection::LeftToRight,
+            render_order: id as u32..=id as u32,
         }
     }
 
@@ -1261,14 +1576,29 @@ mod tests {
         ];
         let blocks = vec![block(0, &[1, 2]), block(1, &[3, 4])];
         let original_blocks = blocks.clone();
+        let provenance = vec![run_provenance(10), run_provenance(11)];
         let mut first_assignment = HashMap::new();
+        let mut first_descriptors = Vec::new();
         let mut first_next_id = 0;
-        assign_trusted_run_positions(&mut first_assignment, &trusted_runs, &mut first_next_id)
-            .expect("disjoint trusted runs should be assigned");
+        assign_trusted_run_positions(
+            &mut first_assignment,
+            &mut first_descriptors,
+            &trusted_runs,
+            &provenance,
+            &mut first_next_id,
+        )
+        .expect("disjoint trusted runs should be assigned");
         let mut second_assignment = HashMap::new();
+        let mut second_descriptors = Vec::new();
         let mut second_next_id = 0;
-        assign_trusted_run_positions(&mut second_assignment, &trusted_runs, &mut second_next_id)
-            .expect("repeated assignment should succeed");
+        assign_trusted_run_positions(
+            &mut second_assignment,
+            &mut second_descriptors,
+            &trusted_runs,
+            &provenance,
+            &mut second_next_id,
+        )
+        .expect("repeated assignment should succeed");
 
         let first_metadata = block_trusted_run_intervals(&blocks, &first_assignment);
         let second_metadata = block_trusted_run_intervals(&blocks, &second_assignment);
@@ -1289,6 +1619,7 @@ mod tests {
             ]
         );
         assert_eq!(second_assignment, first_assignment);
+        assert_eq!(second_descriptors, first_descriptors);
         assert_eq!(second_metadata, first_metadata);
         assert_eq!(blocks, original_blocks);
     }
@@ -1331,6 +1662,156 @@ mod tests {
     }
 
     #[test]
+    fn descriptors_preserve_membership_ordinals_and_homogeneous_roles() {
+        let mut blocks = vec![
+            block(0, &[1]),
+            block(1, &[2]),
+            block(2, &[3]),
+            block(3, &[4]),
+        ];
+        blocks[2].role = BlockRole::RepeatedHeader;
+        blocks[3].role = BlockRole::RepeatedFooter;
+        let intervals = vec![
+            Some(TrustedRunInterval {
+                run_id: TrustedRunId(0),
+                start: 0,
+                end: 1,
+            }),
+            Some(TrustedRunInterval {
+                run_id: TrustedRunId(0),
+                start: 1,
+                end: 2,
+            }),
+            Some(TrustedRunInterval {
+                run_id: TrustedRunId(1),
+                start: 0,
+                end: 1,
+            }),
+            Some(TrustedRunInterval {
+                run_id: TrustedRunId(1),
+                start: 1,
+                end: 2,
+            }),
+        ];
+        let mut descriptors = vec![
+            TrustedRunDescriptor {
+                id: TrustedRunId(0),
+                page: PageId(0),
+                bbox: run_provenance(10).bbox,
+                block_indices: Vec::new(),
+                trusted_block_indices: Vec::new(),
+                role: None,
+                source_region_ids: vec![RegionId(10)],
+            },
+            TrustedRunDescriptor {
+                id: TrustedRunId(1),
+                page: PageId(0),
+                bbox: run_provenance(11).bbox,
+                block_indices: Vec::new(),
+                trusted_block_indices: Vec::new(),
+                role: None,
+                source_region_ids: vec![RegionId(11)],
+            },
+        ];
+        let lines = (1..=4).map(descriptor_line).collect::<Vec<_>>();
+        let run_positions = HashMap::from([
+            (LineId(1), (TrustedRunId(0), 0)),
+            (LineId(2), (TrustedRunId(0), 1)),
+            (LineId(3), (TrustedRunId(1), 0)),
+            (LineId(4), (TrustedRunId(1), 1)),
+        ]);
+
+        populate_trusted_run_descriptors(
+            &mut descriptors,
+            &blocks,
+            &intervals,
+            &run_positions,
+            &lines,
+        )
+        .expect("consistent descriptors should be populated");
+
+        assert_eq!(descriptors[0].block_indices, vec![0, 1]);
+        assert_eq!(descriptors[0].trusted_block_indices, vec![0, 1]);
+        assert_eq!(descriptors[0].role, Some(BlockRole::Body));
+        assert_eq!(descriptors[1].block_indices, vec![2, 3]);
+        assert_eq!(descriptors[1].trusted_block_indices, vec![2, 3]);
+        assert_eq!(descriptors[1].role, None);
+        assert_eq!(intervals[0].expect("interval").start, 0);
+        assert_eq!(intervals[1].expect("interval").start, 1);
+    }
+
+    #[test]
+    fn mixed_run_block_is_member_of_each_run_but_not_trusted() {
+        let blocks = vec![block(0, &[1, 2])];
+        let intervals = vec![None];
+        let mut descriptors = vec![
+            TrustedRunDescriptor {
+                id: TrustedRunId(0),
+                page: PageId(0),
+                bbox: run_provenance(10).bbox,
+                block_indices: Vec::new(),
+                trusted_block_indices: Vec::new(),
+                role: None,
+                source_region_ids: vec![RegionId(10)],
+            },
+            TrustedRunDescriptor {
+                id: TrustedRunId(1),
+                page: PageId(0),
+                bbox: run_provenance(11).bbox,
+                block_indices: Vec::new(),
+                trusted_block_indices: Vec::new(),
+                role: None,
+                source_region_ids: vec![RegionId(11)],
+            },
+        ];
+        let lines = vec![descriptor_line(1), descriptor_line(2)];
+        let run_positions = HashMap::from([
+            (LineId(1), (TrustedRunId(0), 0)),
+            (LineId(2), (TrustedRunId(1), 0)),
+        ]);
+
+        populate_trusted_run_descriptors(
+            &mut descriptors,
+            &blocks,
+            &intervals,
+            &run_positions,
+            &lines,
+        )
+        .expect("a mixed block should preserve each intersecting run");
+
+        assert_eq!(descriptors[0].block_indices, vec![0]);
+        assert_eq!(descriptors[1].block_indices, vec![0]);
+        assert!(
+            descriptors
+                .iter()
+                .all(|descriptor| descriptor.trusted_block_indices.is_empty())
+        );
+        assert!(
+            descriptors
+                .iter()
+                .all(|descriptor| descriptor.role == Some(BlockRole::Body))
+        );
+    }
+
+    #[test]
+    fn raw_region_edges_are_stored_once_with_page_identity() {
+        let mut output = Vec::new();
+        let edges = [
+            (RegionId(1), RegionId(2), RegionRelation::LeftOf),
+            (RegionId(2), RegionId(1), RegionRelation::RightOf),
+        ];
+
+        append_trusted_region_edges(&mut output, PageId(7), &edges)
+            .expect("bounded raw edges should be retained");
+
+        assert_eq!(output.len(), edges.len());
+        assert_eq!(output[0].page, PageId(7));
+        assert_eq!(output[0].source, RegionId(1));
+        assert_eq!(output[0].target, RegionId(2));
+        assert_eq!(output[0].relation, RegionRelation::LeftOf);
+    }
+
+    #[test]
     fn duplicate_trusted_line_assignment_is_rejected() {
         let trusted_runs = vec![
             TrustedLineRun {
@@ -1341,11 +1822,18 @@ mod tests {
             },
         ];
         let mut runs_by_line_id = HashMap::new();
+        let mut descriptors = Vec::new();
         let mut next_run_id = 0;
+        let provenance = vec![run_provenance(10), run_provenance(11)];
 
-        let error =
-            assign_trusted_run_positions(&mut runs_by_line_id, &trusted_runs, &mut next_run_id)
-                .expect_err("a line cannot belong to two trusted runs");
+        let error = assign_trusted_run_positions(
+            &mut runs_by_line_id,
+            &mut descriptors,
+            &trusted_runs,
+            &provenance,
+            &mut next_run_id,
+        )
+        .expect_err("a line cannot belong to two trusted runs");
 
         assert!(
             matches!(error, Error::Unresolved(message) if message.contains("assigned to multiple trusted runs"))

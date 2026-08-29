@@ -140,6 +140,7 @@ pub(super) struct RegionPartition {
     pub graph: RegionGraph,
     pub uncertain_line_ids: Vec<LineId>,
     pub trusted_runs: Vec<TrustedLineRun>,
+    pub trusted_run_provenance: Vec<TrustedLineRunProvenance>,
 }
 
 /// A maximal contiguous selected segment within one leaf region.
@@ -151,6 +152,20 @@ pub(crate) struct TrustedLineRun {
     pub line_ids: Vec<LineId>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct TrustedLineRunProvenance {
+    pub page: PageId,
+    pub bbox: Rect,
+    pub source_region_ids: Vec<RegionId>,
+}
+
+struct ReadingOrderClassification {
+    reading_order: ReadingOrder,
+    uncertain_line_ids: Vec<LineId>,
+    trusted_runs: Vec<TrustedLineRun>,
+    trusted_run_provenance: Vec<TrustedLineRunProvenance>,
+}
+
 pub(super) fn partition_regions_from_refs(
     page: PageId,
     lines: &[&Line],
@@ -159,16 +174,16 @@ pub(super) fn partition_regions_from_refs(
 ) -> Result<RegionPartition> {
     let mut edges = Vec::new();
     let regions = partition_regions_inner(page, lines, options, Some(&mut edges))?;
-    let (reading_order, uncertain_line_ids, trusted_runs) =
-        classify_reading_order(lines, vector_lines, &regions, &edges);
+    let classification = classify_reading_order(lines, vector_lines, &regions, &edges)?;
     Ok(RegionPartition {
         graph: RegionGraph {
             regions,
             edges,
-            reading_order,
+            reading_order: classification.reading_order,
         },
-        uncertain_line_ids,
-        trusted_runs,
+        uncertain_line_ids: classification.uncertain_line_ids,
+        trusted_runs: classification.trusted_runs,
+        trusted_run_provenance: classification.trusted_run_provenance,
     })
 }
 
@@ -177,7 +192,7 @@ fn classify_reading_order(
     vector_lines: &[&VectorLine],
     regions: &[Region],
     edges: &[(RegionId, RegionId, RegionRelation)],
-) -> (ReadingOrder, Vec<LineId>, Vec<TrustedLineRun>) {
+) -> Result<ReadingOrderClassification> {
     let lines_by_id = lines
         .iter()
         .map(|line| (line.id, *line))
@@ -216,31 +231,53 @@ fn classify_reading_order(
         &lines_by_id,
         vector_lines,
     );
-
-    if matches!(supported_order, ReadingOrder::Unknown) {
-        return (ReadingOrder::Unknown, sorted_line_ids(lines), trusted_runs);
-    }
-    let uncertain_line_ids = lines
-        .iter()
-        .map(|line| line.id)
-        .filter(|line_id| !trusted_line_ids.contains(line_id))
-        .collect::<Vec<_>>();
-    if uncertain_line_ids.is_empty() {
-        let trusted_runs = match &supported_order {
-            ReadingOrder::KnownLines(line_ids) if !line_ids.is_empty() => vec![TrustedLineRun {
-                line_ids: line_ids.clone(),
-            }],
-            ReadingOrder::KnownLines(_) => Vec::new(),
-            _ => trusted_runs,
+    let (reading_order, uncertain_line_ids, trusted_runs) =
+        if matches!(supported_order, ReadingOrder::Unknown) {
+            (ReadingOrder::Unknown, sorted_line_ids(lines), trusted_runs)
+        } else {
+            let uncertain_line_ids = lines
+                .iter()
+                .map(|line| line.id)
+                .filter(|line_id| !trusted_line_ids.contains(line_id))
+                .collect::<Vec<_>>();
+            if uncertain_line_ids.is_empty() {
+                let trusted_runs = match &supported_order {
+                    ReadingOrder::KnownLines(line_ids) if !line_ids.is_empty() => {
+                        vec![TrustedLineRun {
+                            line_ids: copy_line_ids_checked(line_ids)?,
+                        }]
+                    }
+                    ReadingOrder::KnownLines(_) => Vec::new(),
+                    _ => trusted_runs,
+                };
+                (supported_order, Vec::new(), trusted_runs)
+            } else if matches!(supported_order, ReadingOrder::KnownLines(_)) {
+                // Block reconstruction cannot merge a proven row-major line order
+                // with unsupported lines without inventing their relative position.
+                (ReadingOrder::Unknown, sorted_line_ids(lines), trusted_runs)
+            } else {
+                (ReadingOrder::Unknown, uncertain_line_ids, trusted_runs)
+            }
         };
-        (supported_order, Vec::new(), trusted_runs)
-    } else if matches!(supported_order, ReadingOrder::KnownLines(_)) {
-        // Block reconstruction cannot merge a proven row-major line order
-        // with unsupported lines without inventing their relative position.
-        (ReadingOrder::Unknown, sorted_line_ids(lines), trusted_runs)
-    } else {
-        (ReadingOrder::Unknown, uncertain_line_ids, trusted_runs)
-    }
+    let trusted_run_provenance = trusted_run_provenance(&trusted_runs, regions, &lines_by_id)?;
+    Ok(ReadingOrderClassification {
+        reading_order,
+        uncertain_line_ids,
+        trusted_runs,
+        trusted_run_provenance,
+    })
+}
+
+fn copy_line_ids_checked(source: &[LineId]) -> Result<Vec<LineId>> {
+    let mut copied = Vec::new();
+    copied
+        .try_reserve_exact(source.len())
+        .map_err(|_| Error::LimitExceeded {
+            resource: "trusted line run provenance",
+            limit: source.len(),
+        })?;
+    copied.extend_from_slice(source);
+    Ok(copied)
 }
 
 fn trusted_region_segments(
@@ -264,6 +301,145 @@ fn trusted_region_segments(
         }
     }
     runs
+}
+
+fn trusted_run_provenance(
+    runs: &[TrustedLineRun],
+    regions: &[Region],
+    lines_by_id: &HashMap<LineId, &Line>,
+) -> Result<Vec<TrustedLineRunProvenance>> {
+    let line_count = regions
+        .iter()
+        .try_fold(0usize, |total, region| {
+            total.checked_add(region.line_ids.len())
+        })
+        .ok_or(Error::LimitExceeded {
+            resource: "trusted run region membership",
+            limit: usize::MAX,
+        })?;
+    let mut region_ids_by_line = HashMap::<LineId, Vec<RegionId>>::new();
+    region_ids_by_line
+        .try_reserve(line_count)
+        .map_err(|_| Error::LimitExceeded {
+            resource: "trusted run region membership",
+            limit: line_count,
+        })?;
+    for region in regions {
+        for line_id in &region.line_ids {
+            let ids = region_ids_by_line.entry(*line_id).or_default();
+            ids.try_reserve(1).map_err(|_| Error::LimitExceeded {
+                resource: "trusted run region membership",
+                limit: line_count,
+            })?;
+            ids.push(region.id);
+        }
+    }
+
+    let mut provenance = Vec::new();
+    provenance
+        .try_reserve_exact(runs.len())
+        .map_err(|_| Error::LimitExceeded {
+            resource: "trusted run provenance",
+            limit: runs.len(),
+        })?;
+    for run in runs {
+        let first_line = run.line_ids.first().ok_or_else(|| {
+            Error::Unresolved("trusted run provenance contains an empty run".to_owned())
+        })?;
+        let page = lines_by_id
+            .get(first_line)
+            .ok_or_else(|| {
+                Error::Unresolved(format!(
+                    "trusted run references missing line {}",
+                    first_line.0
+                ))
+            })?
+            .page;
+        let mut source_region_ids = Vec::new();
+        let mut seen_region_ids = HashSet::new();
+        source_region_ids
+            .try_reserve(run.line_ids.len())
+            .map_err(|_| Error::LimitExceeded {
+                resource: "trusted run source regions",
+                limit: run.line_ids.len(),
+            })?;
+        seen_region_ids
+            .try_reserve(run.line_ids.len())
+            .map_err(|_| Error::LimitExceeded {
+                resource: "trusted run source regions",
+                limit: run.line_ids.len(),
+            })?;
+        for line_id in &run.line_ids {
+            let line = lines_by_id.get(line_id).ok_or_else(|| {
+                Error::Unresolved(format!("trusted run references missing line {}", line_id.0))
+            })?;
+            if line.page != page {
+                return Err(Error::Unresolved(
+                    "trusted line run spans multiple pages".to_owned(),
+                ));
+            }
+            let region_ids = region_ids_by_line.get(line_id).ok_or_else(|| {
+                Error::Unresolved(format!("trusted line {} has no source region", line_id.0))
+            })?;
+            for region_id in region_ids {
+                seen_region_ids
+                    .try_reserve(1)
+                    .map_err(|_| Error::LimitExceeded {
+                        resource: "trusted run source regions",
+                        limit: line_count,
+                    })?;
+                if seen_region_ids.insert(*region_id) {
+                    source_region_ids
+                        .try_reserve(1)
+                        .map_err(|_| Error::LimitExceeded {
+                            resource: "trusted run source regions",
+                            limit: line_count,
+                        })?;
+                    source_region_ids.push(*region_id);
+                }
+            }
+        }
+        provenance.push(TrustedLineRunProvenance {
+            page,
+            bbox: line_ids_bounding_box(&run.line_ids, lines_by_id),
+            source_region_ids,
+        });
+    }
+    Ok(provenance)
+}
+
+fn line_ids_bounding_box(line_ids: &[LineId], lines_by_id: &HashMap<LineId, &Line>) -> Rect {
+    bounding_box(
+        line_ids
+            .iter()
+            .filter_map(|line_id| lines_by_id.get(line_id).copied()),
+    )
+}
+
+fn bounding_box<'a>(lines: impl IntoIterator<Item = &'a Line>) -> Rect {
+    let mut min_x = f64::INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+
+    for line in lines {
+        min_x = min_x.min(line.bbox.min.x);
+        min_y = min_y.min(line.bbox.min.y);
+        max_x = max_x.max(line.bbox.max.x);
+        max_y = max_y.max(line.bbox.max.y);
+    }
+
+    if min_x.is_infinite() {
+        Rect {
+            min: Vec2 { x: 0.0, y: 0.0 },
+            max: Vec2 { x: 0.0, y: 0.0 },
+        }
+    } else {
+        Rect {
+            min: Vec2 { x: min_x, y: min_y },
+            max: Vec2 { x: max_x, y: max_y },
+        }
+    }
 }
 
 fn classify_supported_region_order(
@@ -1126,29 +1302,7 @@ fn compute_median_height(lines: &[&Line], indices: &[usize]) -> Option<f64> {
 }
 
 fn compute_bounding_box(lines: &[&Line], indices: &[usize]) -> Rect {
-    let mut min_x = f64::INFINITY;
-    let mut min_y = f64::INFINITY;
-    let mut max_x = f64::NEG_INFINITY;
-    let mut max_y = f64::NEG_INFINITY;
-
-    for &i in indices {
-        min_x = min_x.min(lines[i].bbox.min.x);
-        min_y = min_y.min(lines[i].bbox.min.y);
-        max_x = max_x.max(lines[i].bbox.max.x);
-        max_y = max_y.max(lines[i].bbox.max.y);
-    }
-
-    if min_x.is_infinite() {
-        Rect {
-            min: Vec2 { x: 0.0, y: 0.0 },
-            max: Vec2 { x: 0.0, y: 0.0 },
-        }
-    } else {
-        Rect {
-            min: Vec2 { x: min_x, y: min_y },
-            max: Vec2 { x: max_x, y: max_y },
-        }
-    }
+    bounding_box(indices.iter().map(|&index| lines[index]))
 }
 
 #[cfg(test)]
@@ -1267,6 +1421,19 @@ mod tests {
             .flat_map(|run| run.line_ids.iter().copied())
             .collect::<HashSet<_>>();
         assert_eq!(distinct_line_ids.len(), 6);
+        assert_eq!(partition.trusted_run_provenance.len(), 2);
+        assert_eq!(
+            partition.trusted_run_provenance[0].source_region_ids.len(),
+            1
+        );
+        assert_eq!(
+            partition.trusted_run_provenance[1].source_region_ids.len(),
+            1
+        );
+        assert_ne!(
+            partition.trusted_run_provenance[0].source_region_ids,
+            partition.trusted_run_provenance[1].source_region_ids
+        );
     }
 
     #[test]
@@ -1302,6 +1469,34 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn raw_edges_retain_supported_to_unsupported_region_relation() {
+        let mut lines = vec![
+            line(1, 50.0, 700.0, 150.0, 712.0),
+            line(2, 250.0, 700.0, 350.0, 712.0),
+            line(3, 50.0, 675.0, 150.0, 687.0),
+            line(4, 250.0, 675.0, 350.0, 687.0),
+            line(5, 50.0, 650.0, 150.0, 662.0),
+            line(6, 250.0, 650.0, 350.0, 662.0),
+        ];
+        for index in [1, 3, 5] {
+            lines[index].direction = Vec2 { x: 0.0, y: 0.0 };
+        }
+
+        let partition = partition(&lines);
+
+        assert_eq!(partition.graph.regions.len(), 2);
+        let supported_ids = partition
+            .trusted_run_provenance
+            .iter()
+            .flat_map(|provenance| provenance.source_region_ids.iter().copied())
+            .collect::<HashSet<_>>();
+        assert_eq!(supported_ids.len(), 1);
+        assert!(partition.graph.edges.iter().any(|(source, target, _)| {
+            supported_ids.contains(source) != supported_ids.contains(target)
+        }));
     }
 
     #[test]
@@ -1355,6 +1550,18 @@ mod tests {
             vec![TrustedLineRun {
                 line_ids: (1..=6).map(LineId).collect(),
             }]
+        );
+        assert_eq!(partition.trusted_run_provenance.len(), 1);
+        let provenance = &partition.trusted_run_provenance[0];
+        assert_eq!(provenance.page, PageId(0));
+        assert_eq!(provenance.source_region_ids.len(), 2);
+        assert!(!partition.graph.edges.is_empty());
+        assert_eq!(
+            provenance.bbox,
+            Rect {
+                min: Vec2 { x: 50.0, y: 650.0 },
+                max: Vec2 { x: 350.0, y: 712.0 },
+            }
         );
     }
 
