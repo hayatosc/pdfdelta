@@ -620,6 +620,35 @@ fn coalesces_each_contiguous_edit_run() -> Result<()> {
 }
 
 #[test]
+fn preserves_exact_spans_across_a_single_equal_scalar() -> Result<()> {
+    let result = compare_aligned(
+        &[block(1, "abXcYef")],
+        &[block(101, "abQcRef")],
+        &aligned(vec![matched(&[1], &[101])]),
+        DiffOptions::default(),
+    )?;
+
+    assert_eq!(result.changes.len(), 2);
+    assert_eq!(
+        result.changes[0]
+            .old_span
+            .as_ref()
+            .expect("replacement should have an old span")
+            .canonical_range,
+        ScalarRange { start: 2, end: 3 }
+    );
+    assert_eq!(
+        result.changes[1]
+            .old_span
+            .as_ref()
+            .expect("replacement should have an old span")
+            .canonical_range,
+        ScalarRange { start: 4, end: 5 }
+    );
+    Ok(())
+}
+
+#[test]
 fn degrades_a_weak_match_whose_tokens_mostly_changed() -> Result<()> {
     let old = [block(1, "aaaabbbbccccdddd")];
     let new = [block(101, "aaaaXXXXXXXXYYYY")];

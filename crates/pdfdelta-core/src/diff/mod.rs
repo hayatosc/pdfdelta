@@ -1462,13 +1462,7 @@ fn compare_match(
         );
         return Ok(false);
     };
-    if is_implausible_match(
-        &edits,
-        old.tokens.len(),
-        new.tokens.len(),
-        span.confidence,
-        options,
-    ) {
+    if is_implausible_match(&edits, &old.tokens, &new.tokens, span.confidence, options) {
         push_unresolved_match(
             &old,
             &new,
@@ -1508,12 +1502,12 @@ const MIN_HUNK_DENSITY_TOKENS: usize = 8;
 /// Returns true if a non-exact match has excessive changes or hunk fragmentation.
 fn is_implausible_match(
     edits: &[Edit],
-    old_tokens: usize,
-    new_tokens: usize,
+    old_tokens: &[ComparableToken],
+    new_tokens: &[ComparableToken],
     confidence: AlignmentConfidence,
     options: DiffOptions,
 ) -> bool {
-    let total = old_tokens.max(new_tokens);
+    let total = old_tokens.len().max(new_tokens.len());
     if total == 0 {
         return false;
     }
@@ -1532,22 +1526,67 @@ fn is_implausible_match(
     if total < MIN_HUNK_DENSITY_TOKENS {
         return false;
     }
-    let hunks = edits
-        .iter()
-        .fold((0usize, false), |(hunks, in_hunk), edit| {
-            match *edit != Edit::Equal {
-                true if !in_hunk => (hunks + 1, true),
-                true => (hunks, true),
-                false => (hunks, false),
-            }
-        })
-        .0;
+    let hunks = count_grouped_hunks(edits, old_tokens, new_tokens);
     let hunk_ratio_limit = match confidence {
         AlignmentConfidence::Low => MAX_WEAK_MATCH_HUNK_RATIO,
         AlignmentConfidence::Medium => 0.25,
         AlignmentConfidence::High => 0.3,
     };
     hunks as f64 / total as f64 > hunk_ratio_limit
+}
+
+fn count_grouped_hunks(
+    edits: &[Edit],
+    old_tokens: &[ComparableToken],
+    new_tokens: &[ComparableToken],
+) -> usize {
+    let mut old_index = 0;
+    let mut new_index = 0;
+    let mut hunks = 0;
+    let mut hunk_start = None;
+    let mut equal_start = None;
+
+    for (edit_index, edit) in edits.iter().enumerate() {
+        match edit {
+            Edit::Equal => {
+                if hunk_start.is_some() {
+                    equal_start.get_or_insert((old_index, new_index));
+                }
+                old_index += 1;
+                new_index += 1;
+            }
+            Edit::Delete | Edit::Insert => {
+                if let Some((old_equal_start, new_equal_start)) = equal_start.take() {
+                    debug_assert_eq!(
+                        old_tokens[old_equal_start..old_index],
+                        new_tokens[new_equal_start..new_index]
+                    );
+                    let left_kind = hunk_start.and_then(|(old_start, new_start)| {
+                        change_kind(old_start, new_start, old_equal_start, new_equal_start)
+                    });
+                    let right_kind = contiguous_change_kind(&edits[edit_index..]);
+                    if !bridges_replacement_hunks(
+                        &old_tokens[old_equal_start..old_index],
+                        left_kind,
+                        right_kind,
+                    ) {
+                        hunks += 1;
+                        hunk_start = Some((old_index, new_index));
+                    }
+                } else if hunk_start.is_none() {
+                    hunk_start = Some((old_index, new_index));
+                }
+                match edit {
+                    Edit::Delete => old_index += 1,
+                    Edit::Insert => new_index += 1,
+                    Edit::Equal => unreachable!(),
+                }
+            }
+        }
+    }
+    debug_assert_eq!(old_index, old_tokens.len());
+    debug_assert_eq!(new_index, new_tokens.len());
+    hunks + usize::from(hunk_start.is_some())
 }
 
 fn append_changes(
@@ -1591,6 +1630,77 @@ fn append_changes(
     );
 }
 
+fn contiguous_change_kind(edits: &[Edit]) -> Option<ChangeKind> {
+    let mut old_changed = false;
+    let mut new_changed = false;
+    for edit in edits.iter().take_while(|edit| **edit != Edit::Equal) {
+        match edit {
+            Edit::Delete => old_changed = true,
+            Edit::Insert => new_changed = true,
+            Edit::Equal => unreachable!(),
+        }
+    }
+    change_kind(0, 0, usize::from(old_changed), usize::from(new_changed))
+}
+
+fn bridges_replacement_hunks(
+    tokens: &[ComparableToken],
+    previous_kind: Option<ChangeKind>,
+    next_kind: Option<ChangeKind>,
+) -> bool {
+    const MAX_SEPARATOR_TOKENS: usize = 3;
+
+    if previous_kind != Some(ChangeKind::Replacement) || next_kind != Some(ChangeKind::Replacement)
+    {
+        return false;
+    }
+    match tokens {
+        [ComparableToken::Scalar(_)] => true,
+        [] => false,
+        tokens if tokens.len() <= MAX_SEPARATOR_TOKENS => tokens.iter().all(|token| {
+            matches!(token, ComparableToken::Scalar(scalar) if scalar.is_whitespace() || is_common_punctuation(*scalar))
+        }),
+        _ => false,
+    }
+}
+
+fn is_common_punctuation(scalar: char) -> bool {
+    scalar.is_ascii_punctuation()
+        || matches!(
+            scalar,
+            '。' | '、'
+                | '，'
+                | '．'
+                | '：'
+                | '；'
+                | '！'
+                | '？'
+                | '（'
+                | '）'
+                | '［'
+                | '］'
+                | '｛'
+                | '｝'
+                | '「'
+                | '」'
+                | '『'
+                | '』'
+                | '【'
+                | '】'
+                | '〈'
+                | '〉'
+                | '《'
+                | '》'
+                | '“'
+                | '”'
+                | '‘'
+                | '’'
+                | '…'
+                | '—'
+                | '–'
+        )
+}
+
 #[allow(clippy::too_many_arguments)]
 fn flush_hunk(
     old: &GroupText,
@@ -1604,14 +1714,11 @@ fn flush_hunk(
     let Some((old_start, new_start)) = start else {
         return;
     };
+    let Some(kind) = change_kind(old_start, new_start, old_end, new_end) else {
+        return;
+    };
     let old_changed = old_start != old_end;
     let new_changed = new_start != new_end;
-    let kind = match (old_changed, new_changed) {
-        (true, true) => ChangeKind::Replacement,
-        (true, false) => ChangeKind::Deletion,
-        (false, true) => ChangeKind::Insertion,
-        (false, false) => return,
-    };
     let tags = (kind == ChangeKind::Replacement
         && is_character_width_replacement(
             &old.tokens[old_start..old_end],
@@ -1627,6 +1734,20 @@ fn flush_hunk(
         confidence,
         tags,
     });
+}
+
+fn change_kind(
+    old_start: usize,
+    new_start: usize,
+    old_end: usize,
+    new_end: usize,
+) -> Option<ChangeKind> {
+    match (old_start != old_end, new_start != new_end) {
+        (true, true) => Some(ChangeKind::Replacement),
+        (true, false) => Some(ChangeKind::Deletion),
+        (false, true) => Some(ChangeKind::Insertion),
+        (false, false) => None,
+    }
 }
 
 fn is_character_width_replacement(old: &[ComparableToken], new: &[ComparableToken]) -> bool {
@@ -2225,6 +2346,10 @@ mod tests {
         }
     }
 
+    fn scalar_tokens(count: usize) -> Vec<ComparableToken> {
+        vec![ComparableToken::Scalar('a'); count]
+    }
+
     #[test]
     fn rejects_edit_distance_above_the_trace_memory_cap() {
         let at_cap = DiffOptions {
@@ -2249,8 +2374,8 @@ mod tests {
     fn empty_edits_are_never_implausible() {
         assert!(!is_implausible_match(
             &[],
-            0,
-            0,
+            &[],
+            &[],
             AlignmentConfidence::Low,
             options(0.5)
         ));
@@ -2266,10 +2391,12 @@ mod tests {
             Edit::Equal,
             Edit::Equal,
         ];
+        let old = scalar_tokens(4);
+        let new = scalar_tokens(4);
         assert!(!is_implausible_match(
             &edits,
-            4,
-            4,
+            &old,
+            &new,
             AlignmentConfidence::Low,
             options(0.5)
         ));
@@ -2277,8 +2404,8 @@ mod tests {
         let edits = [Edit::Delete, Edit::Insert, Edit::Delete, Edit::Insert];
         assert!(is_implausible_match(
             &edits,
-            4,
-            4,
+            &scalar_tokens(2),
+            &scalar_tokens(2),
             AlignmentConfidence::Low,
             options(0.5)
         ));
@@ -2299,22 +2426,22 @@ mod tests {
 
         assert!(is_implausible_match(
             &full_replacement,
-            4,
-            4,
+            &scalar_tokens(4),
+            &scalar_tokens(4),
             AlignmentConfidence::Low,
             options(0.5)
         ));
         assert!(is_implausible_match(
             &full_replacement,
-            4,
-            4,
+            &scalar_tokens(4),
+            &scalar_tokens(4),
             AlignmentConfidence::Medium,
             options(0.5)
         ));
         assert!(!is_implausible_match(
             &full_replacement,
-            4,
-            4,
+            &scalar_tokens(4),
+            &scalar_tokens(4),
             AlignmentConfidence::High,
             options(0.5)
         ));
@@ -2329,8 +2456,8 @@ mod tests {
         ];
         assert!(!is_implausible_match(
             &medium_boundary,
-            4,
-            4,
+            &scalar_tokens(4),
+            &scalar_tokens(4),
             AlignmentConfidence::Medium,
             options(0.5)
         ));
@@ -2342,8 +2469,8 @@ mod tests {
         ] {
             assert!(is_implausible_match(
                 &[Edit::Delete, Edit::Insert],
-                1,
-                1,
+                &scalar_tokens(1),
+                &scalar_tokens(1),
                 confidence,
                 options(0.0),
             ));
@@ -2353,7 +2480,7 @@ mod tests {
     #[test]
     fn a_large_enough_span_with_dense_low_ratio_hunks_is_soup() {
         // Four islands separated by three-token equal runs: changed ratio
-        // 8/19 stays under the limit while the hunk density exceeds it.
+        // 8/17 stays under the limit while the hunk density exceeds it.
         let mut edits = Vec::new();
         for _ in 0..4 {
             edits.extend([
@@ -2367,10 +2494,28 @@ mod tests {
         edits.push(Edit::Equal);
         assert!(is_implausible_match(
             &edits,
-            19,
-            19,
+            &scalar_tokens(17),
+            &scalar_tokens(17),
             AlignmentConfidence::Low,
             options(0.5)
+        ));
+    }
+
+    #[test]
+    fn short_equal_islands_do_not_inflate_hunk_density() {
+        let mut edits = Vec::new();
+        for _ in 0..4 {
+            edits.extend([Edit::Delete, Edit::Insert, Edit::Equal]);
+        }
+        let old = scalar_tokens(8);
+        let new = scalar_tokens(8);
+
+        assert!(!is_implausible_match(
+            &edits,
+            &old,
+            &new,
+            AlignmentConfidence::Low,
+            options(1.0)
         ));
     }
 
@@ -2378,11 +2523,17 @@ mod tests {
     fn hunk_density_is_skipped_below_the_minimum_sample_size() {
         // Two isolated deletions in a five-token span: under the ceiling on
         // changed tokens, so fragmentation must not degrade it.
-        let edits = [Edit::Equal, Edit::Delete, Edit::Equal, Edit::Delete];
+        let edits = [
+            Edit::Equal,
+            Edit::Delete,
+            Edit::Equal,
+            Edit::Delete,
+            Edit::Equal,
+        ];
         assert!(!is_implausible_match(
             &edits,
-            5,
-            3,
+            &scalar_tokens(5),
+            &scalar_tokens(3),
             AlignmentConfidence::Low,
             options(0.5)
         ));
