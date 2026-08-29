@@ -1,9 +1,9 @@
 {
   "version": 1,
   "pair": "edpb-right-of-access-v1-to-final",
-  "reviewed_on": "2026-08-24",
+  "reviewed_on": "2026-08-29",
   "annotation": "partial",
-  "notes": "Representative human-reviewed subset of EDPB Guidelines 01/2022 on data subject rights - right of access, consultation version 1.0 (18 January 2022) -> final adopted version (v2.x, after public consultation). The sampled changes were reviewed directly against the extracted text of both PDFs and correspond to documented post-consultation edits: removal of the consultation watermark, expanded completeness wording around providing a copy, restructured wording on third-party exceptions, and footnote/citation reflow.",
+  "notes": "Representative human-reviewed subset of EDPB Guidelines 01/2022 on data subject rights - right of access, consultation version 1.0 (18 January 2022) -> final adopted version (v2.x, after public consultation). The sampled changes were reviewed directly against the extracted text of both PDFs and correspond to documented post-consultation edits: removal of the consultation watermark, expanded completeness wording around providing a copy, a changed qualification of whether an exception affects confirmation of processing, and footnote/citation reflow.",
   "changes": [
     {
       "id": "consultation-watermark-removed",
@@ -18,16 +18,11 @@
       "note": "Paragraph 23 area: final text adds an explicit completeness clause when providing a copy."
     },
     {
-      "id": "third-party-exception-old-wording-removed",
-      "kind": "deletion",
-      "old_quote": "to in Art. 15(1) and (2) that are not concerned by the exception or the restriction.",
-      "note": "One semantic edit that the pipeline reports as separate deletion plus insertion hunks at minimal-edit granularity."
-    },
-    {
-      "id": "third-party-exception-new-wording-added",
-      "kind": "insertion",
-      "new_quote": "to be provided about all the personal data and all the information referred to in Art. 15(1) and (2) that are not concerned by the exception or the restriction.",
-      "note": "Companion hunk of the same semantic edit."
+      "id": "exception-effect-qualified",
+      "kind": "replacement",
+      "old_quote": "will mostly not be affected by the exception",
+      "new_quote": "may not be affected by the exception",
+      "note": "The final text changes the qualification of whether the exception affects confirmation of processing."
     },
     {
       "id": "rijkeboer-citation-reflow",
