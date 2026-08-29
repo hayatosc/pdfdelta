@@ -1,6 +1,6 @@
 use crate::normalize::ComparableToken;
 
-use super::{BlockFeatures, dice_similarity, features::token_ngrams};
+use super::{BlockFeatures, features::token_ngram_counts, multiset_dice_similarity};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlockSeparator {
@@ -166,8 +166,8 @@ fn token_similarity(left: &[ComparableToken], right: &[ComparableToken], ngram_s
     if left == right {
         return 1.0;
     }
-    dice_similarity(
-        &token_ngrams(left, ngram_size),
-        &token_ngrams(right, ngram_size),
+    multiset_dice_similarity(
+        &token_ngram_counts(left, ngram_size),
+        &token_ngram_counts(right, ngram_size),
     )
 }

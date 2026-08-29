@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     Error, Result,
@@ -13,6 +13,7 @@ pub struct ExactHash(pub u64);
 pub struct NGram(pub Vec<ComparableToken>);
 
 pub type NGramSet = HashSet<NGram>;
+pub type NGramCounts = HashMap<NGram, usize>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockFeatures {
@@ -20,7 +21,7 @@ pub struct BlockFeatures {
     pub exact_hash: ExactHash,
     pub canonical_tokens: Vec<ComparableToken>,
     pub matching_tokens: Vec<ComparableToken>,
-    pub ngrams: NGramSet,
+    pub ngram_counts: NGramCounts,
     pub ngram_size: usize,
     pub numeric_mask_applied: bool,
     pub has_normalization_issues: bool,
@@ -40,11 +41,12 @@ pub fn build_block_features(blocks: &[BlockText], ngram_size: usize) -> Result<V
         }
         let canonical_tokens = block.canonical.comparable_tokens()?;
         let matching_tokens = block.matching_tokens.clone();
+        let ngram_counts = token_ngram_counts(&matching_tokens, ngram_size);
         features.push(BlockFeatures {
             block: block.block,
             exact_hash: exact_hash(&canonical_tokens),
             canonical_tokens,
-            ngrams: token_ngrams(&matching_tokens, ngram_size),
+            ngram_counts,
             matching_tokens,
             ngram_size,
             numeric_mask_applied: block.numeric_mask_applied,
@@ -62,6 +64,20 @@ pub fn dice_similarity(left: &NGramSet, right: &NGramSet) -> f64 {
     2.0 * shared as f64 / (left.len() + right.len()) as f64
 }
 
+pub fn multiset_dice_similarity(left: &NGramCounts, right: &NGramCounts) -> f64 {
+    let left_total = left.values().map(|count| *count as f64).sum::<f64>();
+    let right_total = right.values().map(|count| *count as f64).sum::<f64>();
+    let total = left_total + right_total;
+    if total == 0.0 {
+        return 1.0;
+    }
+    let shared = left
+        .iter()
+        .map(|(ngram, left_count)| *left_count.min(right.get(ngram).unwrap_or(&0)) as f64)
+        .sum::<f64>();
+    2.0 * shared / total
+}
+
 pub(crate) fn validate_feature_ids(side: &str, features: &[BlockFeatures]) -> Result<()> {
     let mut ids = HashSet::with_capacity(features.len());
     for features in features {
@@ -75,19 +91,25 @@ pub(crate) fn validate_feature_ids(side: &str, features: &[BlockFeatures]) -> Re
     Ok(())
 }
 
-pub(crate) fn token_ngrams(tokens: &[ComparableToken], size: usize) -> NGramSet {
+pub(crate) fn token_ngram_counts(tokens: &[ComparableToken], size: usize) -> NGramCounts {
     if tokens.is_empty() {
-        return HashSet::new();
+        return HashMap::new();
     }
     if tokens.len() <= size {
-        let mut grams = HashSet::from([NGram(tokens.to_vec())]);
-        grams.extend(tokens.iter().cloned().map(|token| NGram(vec![token])));
+        let mut grams = HashMap::new();
+        grams.insert(NGram(tokens.to_vec()), 1);
+        if tokens.len() > 1 {
+            for token in tokens {
+                *grams.entry(NGram(vec![token.clone()])).or_default() += 1;
+            }
+        }
         return grams;
     }
-    tokens
-        .windows(size)
-        .map(|window| NGram(window.to_vec()))
-        .collect()
+    let mut grams = HashMap::new();
+    for window in tokens.windows(size) {
+        *grams.entry(NGram(window.to_vec())).or_default() += 1;
+    }
+    grams
 }
 
 pub(crate) fn validate_ngram_size(size: usize) -> Result<()> {
@@ -160,4 +182,19 @@ fn exact_hash(tokens: &[ComparableToken]) -> ExactHash {
         }
     }
     ExactHash(hash)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn repeated_ngrams_preserve_counts_and_affect_similarity() {
+        let token = ComparableToken::Scalar('a');
+        let repeated = token_ngram_counts(&[token.clone(), token.clone(), token.clone()], 2);
+        let single = HashMap::from([(NGram(vec![token.clone(), token]), 1)]);
+
+        assert_eq!(repeated.values().copied().collect::<Vec<_>>(), [2]);
+        assert_eq!(multiset_dice_similarity(&single, &repeated), 2.0 / 3.0);
+    }
 }

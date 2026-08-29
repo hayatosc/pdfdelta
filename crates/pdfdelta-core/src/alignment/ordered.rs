@@ -2176,7 +2176,7 @@ mod tests {
             exact_hash: ExactHash(exact_hash),
             canonical_tokens: tokens.clone(),
             matching_tokens: tokens,
-            ngrams: Default::default(),
+            ngram_counts: Default::default(),
             ngram_size: 3,
             numeric_mask_applied: false,
             has_normalization_issues: false,

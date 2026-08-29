@@ -843,13 +843,13 @@ fn ngram_visit_stats(
 ) -> Result<NGramVisitStats> {
     let mut new_df = HashMap::<&NGram, usize>::new();
     for features in new_features {
-        for ngram in &features.ngrams {
+        for ngram in features.ngram_counts.keys() {
             *new_df.entry(ngram).or_default() += 1;
         }
     }
     let mut old_occurrences = HashMap::<&NGram, usize>::new();
     for features in old_features {
-        for ngram in &features.ngrams {
+        for ngram in features.ngram_counts.keys() {
             *old_occurrences.entry(ngram).or_default() += 1;
         }
     }
@@ -1411,12 +1411,13 @@ mod tests {
     /// A single-gram feature block; the gram is the only n-gram.
     fn ngram_feature(block: BlockId, gram: char) -> BlockFeatures {
         let token = ComparableToken::Scalar(gram);
+        let ngram = NGram(vec![token.clone()]);
         BlockFeatures {
             block,
             exact_hash: ExactHash(0),
             canonical_tokens: vec![token.clone()],
             matching_tokens: vec![token.clone()],
-            ngrams: HashSet::from([NGram(vec![token])]),
+            ngram_counts: HashMap::from([(ngram, 1)]),
             ngram_size: 1,
             numeric_mask_applied: false,
             has_normalization_issues: false,

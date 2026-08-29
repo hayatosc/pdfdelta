@@ -15,8 +15,8 @@ pub use candidate::{
 };
 pub(crate) use features::validate_ngram_size;
 pub use features::{
-    BlockFeatures, ExactHash, NGram, NGramSet, build_block_features, dice_similarity,
-    estimate_ngram_token_elements,
+    BlockFeatures, ExactHash, NGram, NGramCounts, NGramSet, build_block_features, dice_similarity,
+    estimate_ngram_token_elements, multiset_dice_similarity,
 };
 pub(crate) use ordered::validate_alignment_options;
 pub use ordered::{

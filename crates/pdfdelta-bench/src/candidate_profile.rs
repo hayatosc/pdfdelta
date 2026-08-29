@@ -208,9 +208,10 @@ fn synthetic_features(blocks: usize) -> Result<Vec<BlockFeatures>> {
             .into_iter()
             .map(ComparableToken::Scalar)
             .collect::<Vec<_>>();
-        let ngrams = matching_tokens
+        let ngram_counts = matching_tokens
             .windows(SYNTHETIC_NGRAM_SIZE)
             .map(|window| NGram(window.to_vec()))
+            .map(|ngram| (ngram, 1))
             .collect();
         let block_id = u64::try_from(index).map_err(|_| {
             BenchError::InvalidInput("candidate profile block id overflowed".to_owned())
@@ -223,7 +224,7 @@ fn synthetic_features(blocks: usize) -> Result<Vec<BlockFeatures>> {
             exact_hash: ExactHash(exact_hash),
             canonical_tokens: matching_tokens.clone(),
             matching_tokens,
-            ngrams,
+            ngram_counts,
             ngram_size: SYNTHETIC_NGRAM_SIZE,
             numeric_mask_applied: false,
             has_normalization_issues: false,

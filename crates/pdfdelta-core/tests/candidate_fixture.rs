@@ -28,7 +28,7 @@ fn builds_exact_features_from_canonical_not_masked_matching_text() {
     assert_ne!(features[0].exact_hash, features[1].exact_hash);
     assert_ne!(features[0].canonical_tokens, features[1].canonical_tokens);
     assert_eq!(features[0].matching_tokens, features[1].matching_tokens);
-    assert_eq!(features[0].ngrams, features[1].ngrams);
+    assert_eq!(features[0].ngram_counts, features[1].ngram_counts);
 }
 
 #[test]

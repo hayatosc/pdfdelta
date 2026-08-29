@@ -2149,7 +2149,7 @@ fn anchor_feature(block: u64, key: usize) -> BlockFeatures {
         exact_hash: ExactHash(key as u64),
         canonical_tokens: tokens.clone(),
         matching_tokens: tokens,
-        ngrams: Default::default(),
+        ngram_counts: Default::default(),
         ngram_size: 3,
         numeric_mask_applied: false,
         has_normalization_issues: false,
