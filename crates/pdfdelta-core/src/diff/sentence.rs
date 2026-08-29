@@ -293,6 +293,25 @@ struct RecoveryCandidate {
     span_index: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+struct PairedInterval {
+    pair_index: usize,
+    interval_index: usize,
+}
+
+#[derive(Default)]
+struct PairedNearCandidates {
+    recoveries: Vec<RecoveryCandidate>,
+    intervals: Vec<PairedInterval>,
+    ordinals: Vec<usize>,
+}
+
+#[derive(Default)]
+struct PairedNearVetoes {
+    old_occurrences: Vec<usize>,
+    new_occurrences: Vec<usize>,
+}
+
 struct ExactMatchCandidate {
     old_span_index: usize,
     new_span_index: usize,
@@ -599,10 +618,16 @@ pub(super) fn build_sentence_recovery_plan(
     ) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    let Some(paired_streams) =
+        paired_trusted_streams(&old_occurrences, &new_occurrences, &exact_match_candidates)
+    else {
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    };
     if extend_paired_stream_exact_matches(
         &old_occurrences,
         &new_occurrences,
         &mut exact_match_candidates,
+        &paired_streams,
         &membership.recovery_spans,
         input.min_tokens.min(MIN_PAIRED_STREAM_EXACT_TOKENS),
         budget.output_range_limit / 2,
@@ -611,7 +636,12 @@ pub(super) fn build_sentence_recovery_plan(
     {
         return Ok(SentenceRecoveryBuildOutcome::default());
     }
-    let Some(old_candidates) = recovery_candidates(
+    let Some(paired_streams) =
+        paired_trusted_streams(&old_occurrences, &new_occurrences, &exact_match_candidates)
+    else {
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    };
+    let Some(mut old_candidates) = recovery_candidates(
         &old_occurrences,
         &counts,
         OccurrenceSide::Old,
@@ -620,7 +650,7 @@ pub(super) fn build_sentence_recovery_plan(
     ) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
-    let Some(new_candidates) = recovery_candidates(
+    let Some(mut new_candidates) = recovery_candidates(
         &new_occurrences,
         &counts,
         OccurrenceSide::New,
@@ -636,7 +666,6 @@ pub(super) fn build_sentence_recovery_plan(
         &new_candidates,
     );
     drop(counts);
-
     let mut plan = SentenceRecoveryPlan::default();
     if append_exact_matches(
         &mut plan,
@@ -652,6 +681,52 @@ pub(super) fn build_sentence_recovery_plan(
     if let Some(diagnostics) = diagnostics.as_mut() {
         diagnostics.metrics.near_relation_complete = false;
     }
+    let mut paired_vetoes = PairedNearVetoes::default();
+    if append_paired_stream_replacements(
+        &mut plan,
+        &mut old_occurrences,
+        &mut new_occurrences,
+        &paired_streams,
+        &membership.recovery_spans,
+        input.min_tokens,
+        &mut budget,
+        &mut diagnostics,
+        &mut paired_vetoes,
+    )
+    .is_none()
+    {
+        if plan.has_exact_matches()
+            && normalize_ranges(&mut plan.deletion_consumed)
+            && normalize_ranges(&mut plan.insertion_consumed)
+        {
+            return Ok(SentenceRecoveryBuildOutcome {
+                plan: Some(plan),
+                diagnostics,
+            });
+        }
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    }
+    old_candidates.retain(|candidate| {
+        old_occurrences[candidate.occurrence_index]
+            .location
+            .is_some()
+            && paired_vetoes
+                .old_occurrences
+                .binary_search(&candidate.occurrence_index)
+                .is_err()
+    });
+    new_candidates.retain(|candidate| {
+        new_occurrences[candidate.occurrence_index]
+            .location
+            .is_some()
+            && paired_vetoes
+                .new_occurrences
+                .binary_search(&candidate.occurrence_index)
+                .is_err()
+    });
+    let near_pair_start = diagnostics
+        .as_ref()
+        .map_or(0, |diagnostics| diagnostics.metrics.near_pair_candidates);
     let Some(relations) = modified_sentence_relations(
         &old_occurrences,
         &new_occurrences,
@@ -671,7 +746,7 @@ pub(super) fn build_sentence_recovery_plan(
         }
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
-    record_vetoed_near_pairs(&mut diagnostics, &relations);
+    record_vetoed_near_pairs(&mut diagnostics, &relations, near_pair_start);
     if let Some(diagnostics) = diagnostics.as_mut() {
         diagnostics.metrics.near_relation_complete = relations.complete;
     }
@@ -1397,11 +1472,11 @@ fn extend_paired_stream_exact_matches<'a>(
     old_occurrences: &'a [SentenceOccurrence],
     new_occurrences: &'a [SentenceOccurrence],
     candidates: &mut Vec<ExactMatchCandidate>,
+    pairs: &[PairedTrustedStream],
     recovery_spans: &[bool],
     min_tokens: usize,
     max_candidates: usize,
 ) -> Option<()> {
-    let pairs = paired_trusted_streams(old_occurrences, new_occurrences, candidates)?;
     if pairs.is_empty() {
         return Some(());
     }
@@ -1425,7 +1500,7 @@ fn extend_paired_stream_exact_matches<'a>(
         &mut groups,
         old_occurrences,
         PairedOccurrenceScope {
-            pairs: &pairs,
+            pairs,
             pair_by_stream: &old_pair_by_stream,
             recovery_spans,
             min_tokens,
@@ -1437,7 +1512,7 @@ fn extend_paired_stream_exact_matches<'a>(
         &mut groups,
         new_occurrences,
         PairedOccurrenceScope {
-            pairs: &pairs,
+            pairs,
             pair_by_stream: &new_pair_by_stream,
             recovery_spans,
             min_tokens,
@@ -1698,6 +1773,219 @@ fn append_paired_stream_occurrences<'a>(
     Some(())
 }
 
+#[allow(clippy::too_many_arguments)]
+fn append_paired_stream_replacements<'a>(
+    plan: &mut SentenceRecoveryPlan,
+    old_occurrences: &'a mut [SentenceOccurrence],
+    new_occurrences: &'a mut [SentenceOccurrence],
+    pairs: &[PairedTrustedStream],
+    recovery_spans: &[bool],
+    min_tokens: usize,
+    budget: &mut RecoveryBudget,
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    vetoes: &mut PairedNearVetoes,
+) -> Option<()> {
+    if pairs.is_empty() {
+        return Some(());
+    }
+    let (old_pair_by_stream, new_pair_by_stream) = paired_stream_indices(pairs)?;
+    let group_limit = budget.output_range_limit.checked_mul(2)?;
+    let mut groups = HashMap::<(usize, usize, &'a str), PairedStreamOccurrences>::new();
+    groups.try_reserve(group_limit).ok()?;
+    append_paired_stream_occurrences(
+        &mut groups,
+        old_occurrences,
+        PairedOccurrenceScope {
+            pairs,
+            pair_by_stream: &old_pair_by_stream,
+            recovery_spans,
+            min_tokens,
+            max_occurrences: budget.output_range_limit,
+            side: OccurrenceSide::Old,
+        },
+    )?;
+    append_paired_stream_occurrences(
+        &mut groups,
+        new_occurrences,
+        PairedOccurrenceScope {
+            pairs,
+            pair_by_stream: &new_pair_by_stream,
+            recovery_spans,
+            min_tokens,
+            max_occurrences: budget.output_range_limit,
+            side: OccurrenceSide::New,
+        },
+    )?;
+
+    let old_candidates = paired_near_candidates(
+        &groups,
+        old_occurrences,
+        OccurrenceSide::Old,
+        budget.output_range_limit,
+    )?;
+    let new_candidates = paired_near_candidates(
+        &groups,
+        new_occurrences,
+        OccurrenceSide::New,
+        budget.output_range_limit,
+    )?;
+    if old_candidates.recoveries.is_empty() || new_candidates.recoveries.is_empty() {
+        return Some(());
+    }
+
+    let near_pair_start = diagnostics
+        .as_ref()
+        .map_or(0, |diagnostics| diagnostics.metrics.near_pair_candidates);
+    let mut relations = paired_modified_sentence_relations(
+        old_occurrences,
+        new_occurrences,
+        &old_candidates,
+        &new_candidates,
+        pairs,
+        &old_pair_by_stream,
+        &new_pair_by_stream,
+        budget,
+        diagnostics,
+    )?;
+    reject_crossing_paired_replacements(&old_candidates, &new_candidates, &mut relations)?;
+    record_vetoed_near_pairs(diagnostics, &relations, near_pair_start);
+    collect_paired_near_vetoes(&old_candidates, &new_candidates, &relations, vetoes)?;
+    append_replacements(
+        plan,
+        old_occurrences,
+        new_occurrences,
+        &old_candidates.recoveries,
+        &new_candidates.recoveries,
+        &relations,
+        budget,
+    )
+}
+
+fn collect_paired_near_vetoes(
+    old_candidates: &PairedNearCandidates,
+    new_candidates: &PairedNearCandidates,
+    relations: &ModifiedSentenceRelations,
+    vetoes: &mut PairedNearVetoes,
+) -> Option<()> {
+    vetoes
+        .old_occurrences
+        .try_reserve_exact(relations.old.len())
+        .ok()?;
+    vetoes
+        .new_occurrences
+        .try_reserve_exact(relations.new.len())
+        .ok()?;
+    for (index, relation) in relations.old.iter().enumerate() {
+        if relation.vetoed() {
+            vetoes
+                .old_occurrences
+                .push(old_candidates.recoveries.get(index)?.occurrence_index);
+        }
+    }
+    for (index, relation) in relations.new.iter().enumerate() {
+        if relation.vetoed() {
+            vetoes
+                .new_occurrences
+                .push(new_candidates.recoveries.get(index)?.occurrence_index);
+        }
+    }
+    vetoes.old_occurrences.sort_unstable();
+    vetoes.old_occurrences.dedup();
+    vetoes.new_occurrences.sort_unstable();
+    vetoes.new_occurrences.dedup();
+    Some(())
+}
+
+fn paired_stream_indices(
+    pairs: &[PairedTrustedStream],
+) -> Option<(HashMap<usize, usize>, HashMap<usize, usize>)> {
+    let mut old = HashMap::new();
+    let mut new = HashMap::new();
+    old.try_reserve(pairs.len()).ok()?;
+    new.try_reserve(pairs.len()).ok()?;
+    for (pair_index, pair) in pairs.iter().enumerate() {
+        if old.insert(pair.old_stream, pair_index).is_some()
+            || new.insert(pair.new_stream, pair_index).is_some()
+        {
+            return None;
+        }
+    }
+    Some((old, new))
+}
+
+fn paired_near_candidates(
+    groups: &HashMap<(usize, usize, &str), PairedStreamOccurrences>,
+    occurrences: &[SentenceOccurrence],
+    side: OccurrenceSide,
+    max_candidates: usize,
+) -> Option<PairedNearCandidates> {
+    let mut candidates = PairedNearCandidates::default();
+    candidates
+        .recoveries
+        .try_reserve_exact(max_candidates)
+        .ok()?;
+    candidates
+        .intervals
+        .try_reserve_exact(max_candidates)
+        .ok()?;
+    candidates.ordinals.try_reserve_exact(max_candidates).ok()?;
+    for ((pair_index, interval_index, _), group) in groups {
+        let (own, other) = match side {
+            OccurrenceSide::Old => (&group.old, &group.new),
+            OccurrenceSide::New => (&group.new, &group.old),
+        };
+        if own.len() != 1 || !other.is_empty() {
+            continue;
+        }
+        if candidates.recoveries.len() == max_candidates {
+            return None;
+        }
+        let occurrence_index = own[0];
+        let occurrence = occurrences.get(occurrence_index)?;
+        candidates.recoveries.push(RecoveryCandidate {
+            occurrence_index,
+            span_index: occurrence.span_index?,
+        });
+        candidates.intervals.push(PairedInterval {
+            pair_index: *pair_index,
+            interval_index: *interval_index,
+        });
+        candidates
+            .ordinals
+            .push(occurrence.trusted_position?.ordinal);
+    }
+    let mut order = Vec::new();
+    order.try_reserve_exact(candidates.recoveries.len()).ok()?;
+    order.extend(0..candidates.recoveries.len());
+    order.sort_unstable_by_key(|index| {
+        (
+            candidates.intervals[*index],
+            candidates.ordinals[*index],
+            candidates.recoveries[*index].occurrence_index,
+        )
+    });
+    reorder_paired_candidates(candidates, &order)
+}
+
+fn reorder_paired_candidates(
+    candidates: PairedNearCandidates,
+    order: &[usize],
+) -> Option<PairedNearCandidates> {
+    let mut sorted = PairedNearCandidates::default();
+    sorted.recoveries.try_reserve_exact(order.len()).ok()?;
+    sorted.intervals.try_reserve_exact(order.len()).ok()?;
+    sorted.ordinals.try_reserve_exact(order.len()).ok()?;
+    for index in order {
+        sorted.recoveries.push(RecoveryCandidate {
+            occurrence_index: candidates.recoveries.get(*index)?.occurrence_index,
+            span_index: candidates.recoveries.get(*index)?.span_index,
+        });
+        sorted.intervals.push(*candidates.intervals.get(*index)?);
+        sorted.ordinals.push(*candidates.ordinals.get(*index)?);
+    }
+    Some(sorted)
+}
+
 fn recovery_candidates(
     occurrences: &[SentenceOccurrence],
     counts: &HashMap<&str, OccurrenceCount>,
@@ -1734,6 +2022,192 @@ fn recovery_candidates(
     }
     candidates.sort_unstable_by_key(|candidate| (candidate.span_index, candidate.occurrence_index));
     Some(candidates)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn paired_modified_sentence_relations(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &PairedNearCandidates,
+    new_candidates: &PairedNearCandidates,
+    pairs: &[PairedTrustedStream],
+    old_pair_by_stream: &HashMap<usize, usize>,
+    new_pair_by_stream: &HashMap<usize, usize>,
+    budget: &mut RecoveryBudget,
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+) -> Option<ModifiedSentenceRelations> {
+    let mut relations =
+        empty_modified_sentence_relations(&old_candidates.recoveries, &new_candidates.recoveries)?;
+    let old_candidate_by_occurrence =
+        candidate_index_by_occurrence(old_occurrences.len(), &old_candidates.recoveries)?;
+    let new_candidate_by_occurrence =
+        candidate_index_by_occurrence(new_occurrences.len(), &new_candidates.recoveries)?;
+    let old_intervals = paired_intervals_for_occurrences(
+        old_occurrences,
+        pairs,
+        old_pair_by_stream,
+        OccurrenceSide::Old,
+    )?;
+    let new_intervals = paired_intervals_for_occurrences(
+        new_occurrences,
+        pairs,
+        new_pair_by_stream,
+        OccurrenceSide::New,
+    )?;
+    let old_edges = occurrence_edge_index(old_occurrences)?;
+    let new_edges = occurrence_edge_index(new_occurrences)?;
+    let mut plausible = Vec::new();
+
+    for (old_candidate_index, old_candidate) in old_candidates.recoveries.iter().enumerate() {
+        let interval = *old_candidates.intervals.get(old_candidate_index)?;
+        let old_occurrence = old_occurrences.get(old_candidate.occurrence_index)?;
+        collect_plausible_occurrences(&mut plausible, &new_edges, &old_occurrence.tokens)?;
+        plausible.retain(|occurrence_index| {
+            new_intervals
+                .get(*occurrence_index)
+                .copied()
+                .flatten()
+                .is_some_and(|candidate| candidate.pair_index == interval.pair_index)
+        });
+        if !budget.charge_pair_visits(plausible.len()) {
+            return None;
+        }
+        for &new_occurrence_index in &plausible {
+            let new_occurrence = new_occurrences.get(new_occurrence_index)?;
+            let score = sentence_similarity(old_occurrence, new_occurrence, budget)?;
+            if let Some(new_candidate_index) = new_candidate_by_occurrence[new_occurrence_index]
+                && new_candidates.intervals.get(new_candidate_index).copied() == Some(interval)
+            {
+                relations.old[old_candidate_index].record_eligible(new_candidate_index, score);
+                relations.new[new_candidate_index].record_eligible(old_candidate_index, score);
+            } else {
+                relations.old[old_candidate_index].record_disqualifying(score);
+                if let Some(new_candidate_index) = new_candidate_by_occurrence[new_occurrence_index]
+                {
+                    relations.new[new_candidate_index].record_disqualifying(score);
+                }
+            }
+            if score >= MIN_NEAR_SCORE {
+                record_near_pair(diagnostics);
+            }
+        }
+    }
+
+    for (new_candidate_index, new_candidate) in new_candidates.recoveries.iter().enumerate() {
+        let interval = *new_candidates.intervals.get(new_candidate_index)?;
+        let new_occurrence = new_occurrences.get(new_candidate.occurrence_index)?;
+        collect_plausible_occurrences(&mut plausible, &old_edges, &new_occurrence.tokens)?;
+        plausible.retain(|occurrence_index| {
+            old_intervals
+                .get(*occurrence_index)
+                .copied()
+                .flatten()
+                .is_some_and(|candidate| candidate.pair_index == interval.pair_index)
+        });
+        let noncandidate_visits =
+            plausible
+                .iter()
+                .try_fold(0usize, |count, occurrence_index| {
+                    if old_candidate_by_occurrence
+                        .get(*occurrence_index)?
+                        .is_none()
+                    {
+                        count.checked_add(1)
+                    } else {
+                        Some(count)
+                    }
+                })?;
+        if !budget.charge_pair_visits(noncandidate_visits) {
+            return None;
+        }
+        for &old_occurrence_index in &plausible {
+            if old_candidate_by_occurrence[old_occurrence_index].is_some() {
+                continue;
+            }
+            let old_occurrence = old_occurrences.get(old_occurrence_index)?;
+            let score = sentence_similarity(old_occurrence, new_occurrence, budget)?;
+            relations.new[new_candidate_index].record_disqualifying(score);
+            if score >= MIN_NEAR_SCORE {
+                record_near_pair(diagnostics);
+            }
+        }
+    }
+    relations.complete = true;
+    Some(relations)
+}
+
+fn paired_intervals_for_occurrences(
+    occurrences: &[SentenceOccurrence],
+    pairs: &[PairedTrustedStream],
+    pair_by_stream: &HashMap<usize, usize>,
+    side: OccurrenceSide,
+) -> Option<Vec<Option<PairedInterval>>> {
+    let mut intervals = Vec::new();
+    intervals.try_reserve_exact(occurrences.len()).ok()?;
+    for occurrence in occurrences {
+        let interval = occurrence.trusted_position.and_then(|position| {
+            let pair_index = pair_by_stream.get(&position.stream_index).copied()?;
+            let pair = pairs.get(pair_index)?;
+            let interval_index = pair.anchors.partition_point(|(old, new)| {
+                let anchor_ordinal = match side {
+                    OccurrenceSide::Old => *old,
+                    OccurrenceSide::New => *new,
+                };
+                anchor_ordinal < position.ordinal
+            });
+            Some(PairedInterval {
+                pair_index,
+                interval_index,
+            })
+        });
+        intervals.push(interval);
+    }
+    Some(intervals)
+}
+
+fn reject_crossing_paired_replacements(
+    old_candidates: &PairedNearCandidates,
+    new_candidates: &PairedNearCandidates,
+    relations: &mut ModifiedSentenceRelations,
+) -> Option<()> {
+    let mut proposals = Vec::new();
+    proposals.try_reserve_exact(relations.old.len()).ok()?;
+    for (old_index, relation) in relations.old.iter().copied().enumerate() {
+        let Some(new_index) = mutual_replacement_partner(old_index, relation, &relations.new)
+        else {
+            continue;
+        };
+        let interval = *old_candidates.intervals.get(old_index)?;
+        if new_candidates.intervals.get(new_index).copied()? != interval {
+            return None;
+        }
+        proposals.push((
+            interval,
+            *old_candidates.ordinals.get(old_index)?,
+            *new_candidates.ordinals.get(new_index)?,
+            old_index,
+            new_index,
+        ));
+    }
+    proposals.sort_unstable();
+    let mut start = 0usize;
+    while start < proposals.len() {
+        let interval = proposals[start].0;
+        let end = start + proposals[start..].partition_point(|proposal| proposal.0 == interval);
+        if !proposals[start..end]
+            .windows(2)
+            .all(|pair| pair[0].1 < pair[1].1 && pair[0].2 < pair[1].2)
+        {
+            for proposal in &proposals[start..end] {
+                let old_score = relations.old[proposal.3].best_score;
+                let new_score = relations.new[proposal.4].best_score;
+                relations.old[proposal.3].record_disqualifying(old_score);
+                relations.new[proposal.4].record_disqualifying(new_score);
+            }
+        }
+        start = end;
+    }
+    Some(())
 }
 
 fn modified_sentence_relations(
@@ -2005,6 +2479,7 @@ fn record_near_pair(diagnostics: &mut Option<SentenceRecoveryDiagnostics>) {
 fn record_vetoed_near_pairs(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     relations: &ModifiedSentenceRelations,
+    near_pair_start: usize,
 ) {
     let Some(near_pair_candidates) = diagnostics
         .as_ref()
@@ -2022,7 +2497,20 @@ fn record_vetoed_near_pairs(
             }
         },
     );
-    let Some(vetoed) = adopted.and_then(|adopted| near_pair_candidates.checked_sub(adopted)) else {
+    let Some(vetoed) = adopted
+        .and_then(|adopted| {
+            near_pair_candidates
+                .checked_sub(near_pair_start)?
+                .checked_sub(adopted)
+        })
+        .and_then(|vetoed| {
+            diagnostics
+                .as_ref()?
+                .metrics
+                .vetoed_near_pairs
+                .checked_add(vetoed)
+        })
+    else {
         *diagnostics = None;
         return;
     };
@@ -2639,6 +3127,16 @@ mod tests {
         }
     }
 
+    fn extend_test_paired_exact_matches(
+        old: &[SentenceOccurrence],
+        new: &[SentenceOccurrence],
+        candidates: &mut Vec<ExactMatchCandidate>,
+        max_candidates: usize,
+    ) -> Option<()> {
+        let pairs = paired_trusted_streams(old, new, candidates)?;
+        extend_paired_stream_exact_matches(old, new, candidates, &pairs, &[true], 5, max_candidates)
+    }
+
     #[test]
     fn stream_plans_use_run_ordinals_across_column_major_block_order() {
         let metadata = [interval(1, 1, 2), interval(2, 0, 1), interval(1, 0, 1)];
@@ -3054,7 +3552,7 @@ mod tests {
         let mut candidates = exact_match_candidates(&old, &new, &counts, &[true], 5, 3)
             .expect("global exact matches fit");
 
-        extend_paired_stream_exact_matches(&old, &new, &mut candidates, &[true], 5, 3)
+        extend_test_paired_exact_matches(&old, &new, &mut candidates, 3)
             .expect("paired-stream exact matches fit");
 
         assert_eq!(candidates.len(), 3);
@@ -3086,7 +3584,7 @@ mod tests {
         let mut candidates = exact_match_candidates(&old, &new, &counts, &[true], 5, 3)
             .expect("global exact matches fit");
 
-        extend_paired_stream_exact_matches(&old, &new, &mut candidates, &[true], 5, 3)
+        extend_test_paired_exact_matches(&old, &new, &mut candidates, 3)
             .expect("cross-anchor moves remain unresolved");
 
         assert_eq!(candidates.len(), 1);
@@ -3119,7 +3617,7 @@ mod tests {
         let mut candidates = exact_match_candidates(&old, &new, &counts, &[true], 5, 5)
             .expect("global exact matches fit");
 
-        extend_paired_stream_exact_matches(&old, &new, &mut candidates, &[true], 5, 5)
+        extend_test_paired_exact_matches(&old, &new, &mut candidates, 5)
             .expect("crossing duplicate groups fail closed");
 
         assert_eq!(candidates.len(), 1);
@@ -3150,7 +3648,7 @@ mod tests {
         let mut candidates = exact_match_candidates(&old, &new, &counts, &[true], 5, 4)
             .expect("global exact matches fit");
 
-        extend_paired_stream_exact_matches(&old, &new, &mut candidates, &[true], 5, 4)
+        extend_test_paired_exact_matches(&old, &new, &mut candidates, 4)
             .expect("ambiguous streams fail closed");
 
         assert_eq!(candidates.len(), 2);
@@ -3179,7 +3677,7 @@ mod tests {
         let mut candidates = exact_match_candidates(&old, &new, &counts, &[true], 5, 4)
             .expect("global exact matches fit");
 
-        extend_paired_stream_exact_matches(&old, &new, &mut candidates, &[true], 5, 4)
+        extend_test_paired_exact_matches(&old, &new, &mut candidates, 4)
             .expect("crossing anchors fail closed");
 
         assert_eq!(candidates.len(), 2);

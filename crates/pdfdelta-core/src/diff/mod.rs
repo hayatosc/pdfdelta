@@ -2707,6 +2707,163 @@ mod tests {
     }
 
     #[test]
+    fn exact_anchors_scope_a_repeated_near_replacement_to_its_trusted_run() {
+        let anchor_a = "A unique anchor identifies the first trusted run.";
+        let anchor_b = "A different unique anchor identifies the second trusted run.";
+        let old_clause = "The reviewed clause keeps every value except alpha.";
+        let new_clause = "The reviewed clause keeps every value except beta.";
+        let old = vec![
+            sentence_block(1, anchor_a),
+            sentence_block(2, old_clause),
+            sentence_block(3, anchor_b),
+            sentence_block(4, old_clause),
+        ];
+        let new = vec![
+            sentence_block(101, anchor_a),
+            sentence_block(102, new_clause),
+            sentence_block(103, anchor_b),
+            sentence_block(104, old_clause),
+        ];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[
+                Some(TrustedRunId(1)),
+                Some(TrustedRunId(1)),
+                Some(TrustedRunId(2)),
+                Some(TrustedRunId(2)),
+            ],
+            &[
+                Some(TrustedRunId(11)),
+                Some(TrustedRunId(11)),
+                Some(TrustedRunId(12)),
+                Some(TrustedRunId(12)),
+            ],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(
+            result.changes[0].old_span,
+            Some(test_span(2, 0, old_clause.chars().count()))
+        );
+        assert_eq!(
+            result.changes[0].new_span,
+            Some(test_span(102, 0, new_clause.chars().count()))
+        );
+    }
+
+    #[test]
+    fn crossing_near_replacements_inside_a_trusted_run_remain_unresolved() {
+        let anchor = "A unique anchor identifies this trusted run.";
+        let old_alpha = "The alpha requirement preserves all values except old.";
+        let new_alpha = "The alpha requirement preserves all values except new.";
+        let old_beta = "The beta requirement preserves all values except old.";
+        let new_beta = "The beta requirement preserves all values except new.";
+        let old = vec![
+            sentence_block(1, anchor),
+            sentence_block(2, old_alpha),
+            sentence_block(3, old_beta),
+        ];
+        let new = vec![
+            sentence_block(101, anchor),
+            sentence_block(102, new_beta),
+            sentence_block(103, new_alpha),
+        ];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[
+                Some(TrustedRunId(1)),
+                Some(TrustedRunId(1)),
+                Some(TrustedRunId(1)),
+            ],
+            &[
+                Some(TrustedRunId(2)),
+                Some(TrustedRunId(2)),
+                Some(TrustedRunId(2)),
+            ],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert!(result.changes.is_empty(), "changes={:?}", result.changes);
+        assert_eq!(result.old_coverage.resolved_tokens, anchor.chars().count());
+        assert_eq!(result.new_coverage.resolved_tokens, anchor.chars().count());
+        assert!(!result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn near_replacement_cannot_cross_recovered_exact_units() {
+        let anchor = "A unique anchor identifies this trusted run.";
+        let repeated = "The repeated obligation remains unchanged.";
+        let old_clause = "The reviewed clause keeps every value except old.";
+        let new_clause = "The reviewed clause keeps every value except new.";
+        let old = vec![
+            sentence_block(1, anchor),
+            sentence_block(2, repeated),
+            sentence_block(3, repeated),
+            sentence_block(4, old_clause),
+        ];
+        let new = vec![
+            sentence_block(101, anchor),
+            sentence_block(102, new_clause),
+            sentence_block(103, repeated),
+            sentence_block(104, repeated),
+        ];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)); 4],
+            &[Some(TrustedRunId(2)); 4],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        let exact_tokens = anchor.chars().count() + 2 * repeated.chars().count();
+        assert!(result.changes.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, exact_tokens);
+        assert_eq!(result.new_coverage.resolved_tokens, exact_tokens);
+    }
+
+    #[test]
+    fn recovered_exact_unit_remains_near_veto_evidence_inside_a_paired_run() {
+        let anchor = "A unique anchor identifies this trusted run.";
+        let exact = "The reviewed clause keeps every value except alpha.";
+        let old_clause = "The reviewed clause keeps every value except beta.";
+        let new_clause = "The reviewed clause keeps every value except gamma.";
+        let old = vec![
+            sentence_block(1, anchor),
+            sentence_block(2, exact),
+            sentence_block(3, old_clause),
+        ];
+        let new = vec![
+            sentence_block(101, anchor),
+            sentence_block(102, exact),
+            sentence_block(103, new_clause),
+        ];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)); 3],
+            &[Some(TrustedRunId(2)); 3],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        let exact_tokens = anchor.chars().count() + exact.chars().count();
+        assert!(result.changes.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, exact_tokens);
+        assert_eq!(result.new_coverage.resolved_tokens, exact_tokens);
+    }
+
+    #[test]
     fn coalesces_thousands_of_full_block_remainders_into_maximal_runs() {
         const RUN_LENGTH: usize = 1_000;
 
