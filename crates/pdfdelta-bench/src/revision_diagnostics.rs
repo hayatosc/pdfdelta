@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet, VecDeque, hash_map::Entry};
 
 use pdfdelta_core::{
     alignment::{
-        Alignment, AlignmentEvidence, BlockFeatures, BlockSeparator, CandidateGenerator,
-        InvertedIndexCandidateGenerator, build_block_features,
+        Alignment, AlignmentEvidence, AlignmentKind, BlockFeatures, BlockSeparator,
+        CandidateGenerator, InvertedIndexCandidateGenerator, build_block_features,
     },
     diff::{Comparison, TextSpan},
     layout::BlockId,
@@ -1026,6 +1026,7 @@ struct ComparisonDiagnosticInput<'a> {
 struct AlignmentSpanIndex {
     old: HashMap<BlockId, usize>,
     new: HashMap<BlockId, usize>,
+    reading_order_unknown: HashSet<usize>,
 }
 
 fn build_alignment_span_index(
@@ -1035,8 +1036,14 @@ fn build_alignment_span_index(
 ) -> DiagnosticScanResult<AlignmentSpanIndex> {
     let mut old = HashMap::new();
     let mut new = HashMap::new();
+    let mut reading_order_unknown = HashSet::new();
     for (index, span) in alignment.spans.iter().enumerate() {
         budget.charge_region(limits)?;
+        if span.kind == AlignmentKind::Unresolved
+            && span.evidence == [AlignmentEvidence::ReadingOrderUnknown]
+        {
+            reading_order_unknown.insert(index);
+        }
         for block in &span.old {
             budget.charge_scan(1, limits)?;
             if old.insert(*block, index).is_some() {
@@ -1056,10 +1063,14 @@ fn build_alignment_span_index(
             }
         }
     }
-    Ok(AlignmentSpanIndex { old, new })
+    Ok(AlignmentSpanIndex {
+        old,
+        new,
+        reading_order_unknown,
+    })
 }
 
-fn split_alignment_reason(
+fn alignment_failure_reason(
     index: Option<&AlignmentSpanIndex>,
     locations: &ExpectedQuoteLocations,
 ) -> Option<ExpectedChangeFailureReason> {
@@ -1071,6 +1082,13 @@ fn split_alignment_reason(
     match (index.old.get(&old.block), index.new.get(&new.block)) {
         (Some(old_span), Some(new_span)) if old_span != new_span => {
             Some(ExpectedChangeFailureReason::AlignmentSpanMismatch)
+        }
+        (Some(old_span), Some(new_span))
+            if old_span == new_span && index.reading_order_unknown.contains(old_span) =>
+        {
+            Some(ExpectedChangeFailureReason::ReadingOrderUnresolved {
+                side: MissSide::Both,
+            })
         }
         _ => None,
     }
@@ -1100,7 +1118,7 @@ fn classify_expected_failure(
                 diagnostic_limited: true,
             });
         }
-        if let Some(reason) = split_alignment_reason(context.alignment_index, locations) {
+        if let Some(reason) = alignment_failure_reason(context.alignment_index, locations) {
             return Ok(reason);
         }
     }
@@ -1601,6 +1619,55 @@ mod tests {
         assert_eq!(
             diagnostics.expected_change_diagnostics.failures[0].reason,
             ExpectedChangeFailureReason::AlignmentSpanMismatch
+        );
+    }
+
+    #[test]
+    fn recalled_counterparts_in_one_unknown_order_span_report_reading_order() {
+        let expected = [expected_change(
+            "fee-replacement",
+            ExpectedKind::Replacement,
+            Some("annual fee of fifty dollars"),
+            Some("annual fee of sixty dollars"),
+        )];
+        let old = [diagnostic_block(1, "annual fee of fifty dollars")];
+        let new = [diagnostic_block(2, "annual fee of sixty dollars")];
+        let alignment = Alignment {
+            spans: vec![AlignmentSpan {
+                kind: AlignmentKind::Unresolved,
+                old: vec![BlockId(1)],
+                new: vec![BlockId(2)],
+                score: 0.0,
+                canonical_similarity: 0.0,
+                score_margin: None,
+                confidence: AlignmentConfidence::Low,
+                evidence: vec![AlignmentEvidence::ReadingOrderUnknown],
+                old_separator: None,
+                new_separator: None,
+            }],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = diagnostic_comparison(Vec::new(), Vec::new());
+        let outcome = match_changes(&expected, &[]);
+
+        let diagnostics = evaluate_reviewed_diagnostics(
+            &expected,
+            &old,
+            &new,
+            Some(&alignment),
+            &comparison,
+            &[],
+            &outcome,
+        )
+        .expect("diagnostics succeed");
+
+        assert_eq!(candidate_recall(&diagnostics).recalled_counterparts, 1);
+        assert_eq!(
+            diagnostics.expected_change_diagnostics.failures[0].reason,
+            ExpectedChangeFailureReason::ReadingOrderUnresolved {
+                side: MissSide::Both,
+            }
         );
     }
 
