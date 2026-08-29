@@ -13,7 +13,7 @@ use crate::{
 };
 
 use super::{
-    MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS,
+    MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
     SentenceRecoveryCommittedTokens, SentenceRecoveryInput, SentenceRecoveryMetrics, Side,
     TokenRange,
 };
@@ -339,8 +339,19 @@ struct RecoveryCandidate {
     span_index: usize,
 }
 
+struct RecoveryCandidates {
+    values: Vec<RecoveryCandidate>,
+    complete: bool,
+}
+
 struct UnitCandidateIndex {
     edge_postings: HashMap<(RecoveryUnitKind, OccurrenceRole, SentenceEvidenceToken), Vec<usize>>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct UnitCandidateQueryMetrics {
+    largest_edge_posting: usize,
+    edge_query_union: usize,
 }
 
 impl UnitCandidateIndex {
@@ -381,10 +392,10 @@ impl UnitCandidateIndex {
         &self,
         plausible: &mut Vec<usize>,
         occurrence: &SentenceOccurrence,
-    ) -> Option<()> {
+    ) -> Option<UnitCandidateQueryMetrics> {
         plausible.clear();
         let Some(role) = occurrence.role.map(OccurrenceRole::from) else {
-            return Some(());
+            return Some(UnitCandidateQueryMetrics::default());
         };
         let first = *occurrence.tokens.first()?;
         let last = *occurrence.tokens.last()?;
@@ -411,7 +422,10 @@ impl UnitCandidateIndex {
         }
         plausible.sort_unstable();
         plausible.dedup();
-        Some(())
+        Some(UnitCandidateQueryMetrics {
+            largest_edge_posting: first_occurrences.len().max(last_occurrences.len()),
+            edge_query_union: plausible.len(),
+        })
     }
 }
 
@@ -558,6 +572,14 @@ struct RecoveryBudget {
     key_bytes: usize,
     pair_visits: usize,
     comparisons: usize,
+    pair_visits_attempted: usize,
+    comparisons_attempted: usize,
+    largest_edge_posting: usize,
+    largest_edge_query_union: usize,
+    largest_filtered_candidate_set: usize,
+    candidate_count_truncated: bool,
+    near_relation_stop_reason: Option<NearRelationStopReason>,
+    near_metrics_available: bool,
     evidence_tokens: usize,
     output_ranges: usize,
     output_tokens: usize,
@@ -588,6 +610,14 @@ impl RecoveryBudget {
             key_bytes: 0,
             pair_visits: 0,
             comparisons: 0,
+            pair_visits_attempted: 0,
+            comparisons_attempted: 0,
+            largest_edge_posting: 0,
+            largest_edge_query_union: 0,
+            largest_filtered_candidate_set: 0,
+            candidate_count_truncated: false,
+            near_relation_stop_reason: None,
+            near_metrics_available: true,
             evidence_tokens: 0,
             output_ranges: 0,
             output_tokens: 0,
@@ -606,11 +636,58 @@ impl RecoveryBudget {
     }
 
     fn charge_pair_visits(&mut self, amount: usize) -> bool {
-        Self::charge(&mut self.pair_visits, amount, self.token_limit)
+        Self::charge_near_search(
+            &mut self.pair_visits,
+            &mut self.pair_visits_attempted,
+            amount,
+            self.token_limit,
+            NearRelationStopReason::PairVisitLimit,
+            &mut self.near_relation_stop_reason,
+            &mut self.near_metrics_available,
+        )
     }
 
     fn charge_comparisons(&mut self, amount: usize) -> bool {
-        Self::charge(&mut self.comparisons, amount, self.comparison_limit)
+        Self::charge_near_search(
+            &mut self.comparisons,
+            &mut self.comparisons_attempted,
+            amount,
+            self.comparison_limit,
+            NearRelationStopReason::SimilarityComparisonLimit,
+            &mut self.near_relation_stop_reason,
+            &mut self.near_metrics_available,
+        )
+    }
+
+    fn record_candidate_query(
+        &mut self,
+        query: UnitCandidateQueryMetrics,
+        filtered_candidate_count: usize,
+    ) {
+        self.largest_edge_posting = self.largest_edge_posting.max(query.largest_edge_posting);
+        self.largest_edge_query_union = self.largest_edge_query_union.max(query.edge_query_union);
+        self.largest_filtered_candidate_set = self
+            .largest_filtered_candidate_set
+            .max(filtered_candidate_count);
+    }
+
+    fn record_candidate_count_limit(&mut self) {
+        self.candidate_count_truncated = true;
+        self.near_relation_stop_reason
+            .get_or_insert(NearRelationStopReason::CandidateCountLimit);
+    }
+
+    fn commit_near_search_spend_from(&mut self, other: Self) {
+        self.pair_visits = other.pair_visits;
+        self.comparisons = other.comparisons;
+        self.pair_visits_attempted = other.pair_visits_attempted;
+        self.comparisons_attempted = other.comparisons_attempted;
+        self.largest_edge_posting = other.largest_edge_posting;
+        self.largest_edge_query_union = other.largest_edge_query_union;
+        self.largest_filtered_candidate_set = other.largest_filtered_candidate_set;
+        self.candidate_count_truncated = other.candidate_count_truncated;
+        self.near_relation_stop_reason = other.near_relation_stop_reason;
+        self.near_metrics_available = other.near_metrics_available;
     }
 
     fn charge_evidence_tokens(&mut self, amount: usize) -> bool {
@@ -679,6 +756,37 @@ impl RecoveryBudget {
             return false;
         }
         *current = next;
+        true
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn charge_near_search(
+        examined: &mut usize,
+        attempted: &mut usize,
+        amount: usize,
+        limit: usize,
+        limit_reason: NearRelationStopReason,
+        stop_reason: &mut Option<NearRelationStopReason>,
+        metrics_available: &mut bool,
+    ) -> bool {
+        let Some(next_attempted) = attempted.checked_add(amount) else {
+            *metrics_available = false;
+            return false;
+        };
+        *attempted = next_attempted;
+        let Some(next_examined) = examined.checked_add(amount) else {
+            *metrics_available = false;
+            return false;
+        };
+        if next_examined > limit {
+            if stop_reason.is_none()
+                || *stop_reason == Some(NearRelationStopReason::CandidateCountLimit)
+            {
+                *stop_reason = Some(limit_reason);
+            }
+            return false;
+        }
+        *examined = next_examined;
         true
     }
 }
@@ -812,7 +920,7 @@ pub(super) fn build_sentence_recovery_plan(
     else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
-    let Some(mut old_candidates) = recovery_candidates(
+    let Some(old_candidate_outcome) = recovery_candidates(
         &old_occurrences,
         &counts,
         OccurrenceSide::Old,
@@ -821,7 +929,7 @@ pub(super) fn build_sentence_recovery_plan(
     ) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
-    let Some(mut new_candidates) = recovery_candidates(
+    let Some(new_candidate_outcome) = recovery_candidates(
         &new_occurrences,
         &counts,
         OccurrenceSide::New,
@@ -830,6 +938,13 @@ pub(super) fn build_sentence_recovery_plan(
     ) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    let candidate_generation_complete =
+        old_candidate_outcome.complete && new_candidate_outcome.complete;
+    if !candidate_generation_complete {
+        budget.record_candidate_count_limit();
+    }
+    let mut old_candidates = old_candidate_outcome.values;
+    let mut new_candidates = new_candidate_outcome.values;
     record_candidate_metrics(
         &mut diagnostics,
         exact_match_candidates.len(),
@@ -870,6 +985,7 @@ pub(super) fn build_sentence_recovery_plan(
             && normalize_ranges(&mut plan.deletion_consumed)
             && normalize_ranges(&mut plan.insertion_consumed)
         {
+            record_near_search_metrics(&mut diagnostics, &budget);
             return Ok(SentenceRecoveryBuildOutcome {
                 plan: Some(plan),
                 diagnostics,
@@ -910,6 +1026,7 @@ pub(super) fn build_sentence_recovery_plan(
             && normalize_ranges(&mut plan.deletion_consumed)
             && normalize_ranges(&mut plan.insertion_consumed)
         {
+            record_near_search_metrics(&mut diagnostics, &budget);
             return Ok(SentenceRecoveryBuildOutcome {
                 plan: Some(plan),
                 diagnostics,
@@ -929,8 +1046,10 @@ pub(super) fn build_sentence_recovery_plan(
     );
     record_vetoed_near_pairs(&mut diagnostics, &relations, near_pair_start);
     if let Some(diagnostics) = diagnostics.as_mut() {
-        diagnostics.metrics.near_relation_complete = relations.complete;
+        diagnostics.metrics.near_relation_complete =
+            relations.complete && candidate_generation_complete;
     }
+    record_near_search_metrics(&mut diagnostics, &budget);
 
     if append_replacements(
         &mut plan,
@@ -969,6 +1088,28 @@ pub(super) fn build_sentence_recovery_plan(
         plan: Some(plan),
         diagnostics,
     })
+}
+
+fn record_near_search_metrics(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    budget: &RecoveryBudget,
+) {
+    if !budget.near_metrics_available {
+        *diagnostics = None;
+        return;
+    }
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    diagnostics.metrics.near_pair_visits_examined = budget.pair_visits;
+    diagnostics.metrics.near_pair_visits_attempted = budget.pair_visits_attempted;
+    diagnostics.metrics.near_similarity_comparisons_examined = budget.comparisons;
+    diagnostics.metrics.near_similarity_comparisons_attempted = budget.comparisons_attempted;
+    diagnostics.metrics.near_largest_edge_posting = budget.largest_edge_posting;
+    diagnostics.metrics.near_largest_edge_query_union = budget.largest_edge_query_union;
+    diagnostics.metrics.near_largest_filtered_candidate_set = budget.largest_filtered_candidate_set;
+    diagnostics.metrics.near_candidate_count_truncated = budget.candidate_count_truncated;
+    diagnostics.metrics.near_relation_stop_reason = budget.near_relation_stop_reason;
 }
 
 fn sentence_recovery_diagnostics(
@@ -2564,10 +2705,11 @@ fn recovery_candidates(
     side: OccurrenceSide,
     recovery_spans: &[bool],
     min_tokens: usize,
-) -> Option<Vec<RecoveryCandidate>> {
+) -> Option<RecoveryCandidates> {
     let mut candidates = Vec::new();
     candidates.try_reserve(occurrences.len()).ok()?;
     let mut line_candidates = 0usize;
+    let mut complete = true;
     for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
         if occurrence.location.is_none() {
             continue;
@@ -2595,6 +2737,7 @@ fn recovery_candidates(
         if one_sided {
             if occurrence.kind == RecoveryUnitKind::Line {
                 if line_candidates == MAX_UNTRUSTED_LINE_NEAR_CANDIDATES {
+                    complete = false;
                     continue;
                 }
                 line_candidates = line_candidates.checked_add(1)?;
@@ -2606,7 +2749,10 @@ fn recovery_candidates(
         }
     }
     candidates.sort_unstable_by_key(|candidate| (candidate.span_index, candidate.occurrence_index));
-    Some(candidates)
+    Some(RecoveryCandidates {
+        values: candidates,
+        complete,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2646,7 +2792,7 @@ fn paired_modified_sentence_relations(
     for (old_candidate_index, old_candidate) in old_candidates.recoveries.iter().enumerate() {
         let interval = *old_candidates.intervals.get(old_candidate_index)?;
         let old_occurrence = old_occurrences.get(old_candidate.occurrence_index)?;
-        new_index.collect_plausible_occurrences(&mut plausible, old_occurrence)?;
+        let query = new_index.collect_plausible_occurrences(&mut plausible, old_occurrence)?;
         plausible.retain(|occurrence_index| {
             new_occurrences[*occurrence_index].kind == old_occurrence.kind
                 && occurrence_roles_are_compatible(
@@ -2659,6 +2805,7 @@ fn paired_modified_sentence_relations(
                     .flatten()
                     .is_some_and(|candidate| candidate.pair_index == interval.pair_index)
         });
+        budget.record_candidate_query(query, plausible.len());
         if !budget.charge_pair_visits(plausible.len()) {
             return None;
         }
@@ -2686,7 +2833,7 @@ fn paired_modified_sentence_relations(
     for (new_candidate_index, new_candidate) in new_candidates.recoveries.iter().enumerate() {
         let interval = *new_candidates.intervals.get(new_candidate_index)?;
         let new_occurrence = new_occurrences.get(new_candidate.occurrence_index)?;
-        old_index.collect_plausible_occurrences(&mut plausible, new_occurrence)?;
+        let query = old_index.collect_plausible_occurrences(&mut plausible, new_occurrence)?;
         plausible.retain(|occurrence_index| {
             old_occurrences[*occurrence_index].kind == new_occurrence.kind
                 && occurrence_roles_are_compatible(
@@ -2712,6 +2859,7 @@ fn paired_modified_sentence_relations(
                         Some(count)
                     }
                 })?;
+        budget.record_candidate_query(query, plausible.len());
         if !budget.charge_pair_visits(noncandidate_visits) {
             return None;
         }
@@ -2848,8 +2996,7 @@ fn modified_sentence_relations(
         return Some(cross_relations);
     }
 
-    budget.pair_visits = cross_budget.pair_visits;
-    budget.comparisons = cross_budget.comparisons;
+    budget.commit_near_search_spend_from(cross_budget);
     Some(relations)
 }
 
@@ -2929,7 +3076,7 @@ fn extend_modified_sentence_relations(
 
     for (old_candidate_index, old_candidate) in old_candidates.iter().enumerate() {
         let old_occurrence = old_occurrences.get(old_candidate.occurrence_index)?;
-        new_index.collect_plausible_occurrences(&mut plausible, old_occurrence)?;
+        let query = new_index.collect_plausible_occurrences(&mut plausible, old_occurrence)?;
         plausible.retain(|occurrence_index| {
             new_occurrences[*occurrence_index].kind == old_occurrence.kind
                 && occurrence_roles_are_compatible(
@@ -2941,6 +3088,7 @@ fn extend_modified_sentence_relations(
                     new_occurrences[*occurrence_index].span_index,
                 )
         });
+        budget.record_candidate_query(query, plausible.len());
         if !budget.charge_pair_visits(plausible.len()) {
             return None;
         }
@@ -2961,7 +3109,7 @@ fn extend_modified_sentence_relations(
 
     for (new_candidate_index, new_candidate) in new_candidates.iter().enumerate() {
         let new_occurrence = new_occurrences.get(new_candidate.occurrence_index)?;
-        old_index.collect_plausible_occurrences(&mut plausible, new_occurrence)?;
+        let query = old_index.collect_plausible_occurrences(&mut plausible, new_occurrence)?;
         plausible.retain(|occurrence_index| {
             old_occurrences[*occurrence_index].kind == new_occurrence.kind
                 && occurrence_roles_are_compatible(
@@ -2986,6 +3134,7 @@ fn extend_modified_sentence_relations(
                         Some(count)
                     }
                 })?;
+        budget.record_candidate_query(query, plausible.len());
         if !budget.charge_pair_visits(noncandidate_visits) {
             return None;
         }
@@ -4213,6 +4362,14 @@ mod tests {
         assert!(!budget.charge_pair_visits(1));
         assert!(budget.charge_comparisons(20));
         assert!(!budget.charge_comparisons(1));
+        assert_eq!(budget.pair_visits, 5);
+        assert_eq!(budget.pair_visits_attempted, 6);
+        assert_eq!(budget.comparisons, 20);
+        assert_eq!(budget.comparisons_attempted, 21);
+        assert_eq!(
+            budget.near_relation_stop_reason,
+            Some(NearRelationStopReason::PairVisitLimit)
+        );
         assert!(budget.charge_evidence_tokens(5));
         assert!(!budget.charge_evidence_tokens(1));
 
@@ -5096,6 +5253,193 @@ mod tests {
     }
 
     #[test]
+    fn near_search_metrics_track_query_maxima_and_successful_charges() {
+        let occurrences = [
+            indexed_occurrence(
+                &['a', 'x'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['a', 'z'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['y', 'z'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+        ];
+        let query = indexed_occurrence(
+            &['a', 'z'],
+            RecoveryUnitKind::Sentence,
+            Some(BlockRole::Body),
+        );
+        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
+        let mut plausible = Vec::new();
+        let query_metrics = index
+            .collect_plausible_occurrences(&mut plausible, &query)
+            .expect("query succeeds");
+        let mut budget = RecoveryBudget::new(8, 0, 8, 1).expect("budget is valid");
+        budget.record_candidate_query(query_metrics, 2);
+        assert!(budget.charge_pair_visits(2));
+        assert!(budget.charge_comparisons(3));
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+
+        record_near_search_metrics(&mut diagnostics, &budget);
+
+        let metrics = diagnostics.expect("metrics remain available").metrics;
+        assert_eq!(metrics.near_pair_visits_examined, 2);
+        assert_eq!(metrics.near_pair_visits_attempted, 2);
+        assert_eq!(metrics.near_similarity_comparisons_examined, 3);
+        assert_eq!(metrics.near_similarity_comparisons_attempted, 3);
+        assert_eq!(metrics.near_largest_edge_posting, 2);
+        assert_eq!(metrics.near_largest_edge_query_union, 3);
+        assert_eq!(metrics.near_largest_filtered_candidate_set, 2);
+        assert_eq!(metrics.near_relation_stop_reason, None);
+    }
+
+    #[test]
+    fn recovery_candidate_cap_is_complete_at_limit_and_incomplete_above_it() {
+        let occurrences = (0..=MAX_UNTRUSTED_LINE_NEAR_CANDIDATES)
+            .map(|index| {
+                let mut occurrence = positioned_occurrence(
+                    &format!("unique-line-{index}"),
+                    index as u64 + 1,
+                    0,
+                    index,
+                );
+                occurrence.kind = RecoveryUnitKind::Line;
+                occurrence
+            })
+            .collect::<Vec<_>>();
+        let counts = occurrence_counts(&occurrences, &[]).expect("occurrence counts fit");
+
+        let at_limit = recovery_candidates(
+            &occurrences[..MAX_UNTRUSTED_LINE_NEAR_CANDIDATES],
+            &counts,
+            OccurrenceSide::Old,
+            &[true],
+            1,
+        )
+        .expect("candidate collection succeeds at the limit");
+        let above_limit =
+            recovery_candidates(&occurrences, &counts, OccurrenceSide::Old, &[true], 1)
+                .expect("candidate collection succeeds above the limit");
+
+        assert!(at_limit.complete);
+        assert_eq!(at_limit.values.len(), MAX_UNTRUSTED_LINE_NEAR_CANDIDATES);
+        assert!(!above_limit.complete);
+        assert_eq!(above_limit.values.len(), MAX_UNTRUSTED_LINE_NEAR_CANDIDATES);
+        let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("budget is valid");
+        budget.record_candidate_count_limit();
+        assert_eq!(
+            budget.near_relation_stop_reason,
+            Some(NearRelationStopReason::CandidateCountLimit)
+        );
+        assert!(budget.candidate_count_truncated);
+        assert_eq!(budget.pair_visits, budget.pair_visits_attempted);
+        assert_eq!(budget.comparisons, budget.comparisons_attempted);
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+        record_near_search_metrics(&mut diagnostics, &budget);
+        let metrics = diagnostics.expect("metrics remain available").metrics;
+        assert!(metrics.near_candidate_count_truncated);
+        assert_eq!(
+            metrics.near_relation_stop_reason,
+            Some(NearRelationStopReason::CandidateCountLimit)
+        );
+    }
+
+    #[test]
+    fn reverse_query_records_fan_out_even_when_forward_examined_every_pair() {
+        let old_occurrences = [
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+        ];
+        let new_occurrences = [indexed_occurrence(
+            &['a'],
+            RecoveryUnitKind::Sentence,
+            Some(BlockRole::Body),
+        )];
+        let old_candidates = [
+            RecoveryCandidate {
+                occurrence_index: 0,
+                span_index: 0,
+            },
+            RecoveryCandidate {
+                occurrence_index: 1,
+                span_index: 0,
+            },
+            RecoveryCandidate {
+                occurrence_index: 2,
+                span_index: 0,
+            },
+        ];
+        let new_candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut budget = RecoveryBudget::new(8, 0, 8, 1).expect("budget is valid");
+        let mut diagnostics = None;
+
+        modified_sentence_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &old_candidates,
+            &new_candidates,
+            &mut budget,
+            &mut diagnostics,
+        )
+        .expect("relations fit within budget");
+
+        assert_eq!(budget.pair_visits, 3);
+        assert_eq!(budget.largest_filtered_candidate_set, 3);
+    }
+
+    #[test]
+    fn comparison_limit_records_first_stop_reason_without_examining_failed_work() {
+        let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("budget is valid");
+        budget.record_candidate_count_limit();
+        assert!(budget.charge_comparisons(4));
+        assert!(!budget.charge_comparisons(2));
+
+        assert_eq!(budget.comparisons, 4);
+        assert_eq!(budget.comparisons_attempted, 6);
+        assert!(budget.candidate_count_truncated);
+        assert_eq!(
+            budget.near_relation_stop_reason,
+            Some(NearRelationStopReason::SimilarityComparisonLimit)
+        );
+    }
+
+    #[test]
+    fn near_search_counter_overflow_makes_metrics_unavailable_without_a_limit_reason() {
+        let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("budget is valid");
+        budget.pair_visits_attempted = usize::MAX;
+        assert!(!budget.charge_pair_visits(1));
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+
+        record_near_search_metrics(&mut diagnostics, &budget);
+
+        assert!(diagnostics.is_none());
+        assert_eq!(budget.near_relation_stop_reason, None);
+    }
+
+    #[test]
     fn unit_candidate_index_deduplicates_equal_edge_postings() {
         let occurrences = [indexed_occurrence(
             &['a'],
@@ -5183,6 +5527,7 @@ mod tests {
             },
         ];
         let mut budget = RecoveryBudget::new(3, 0, 3, 1).expect("test budget is valid");
+        budget.record_candidate_count_limit();
         let mut diagnostics = None;
 
         let relations = modified_sentence_relations(
@@ -5199,7 +5544,62 @@ mod tests {
         assert_eq!(relations.old[0].unique_partner(), Some(0));
         assert_eq!(relations.old[1].unique_partner(), Some(1));
         assert_eq!(budget.pair_visits, 3);
+        assert_eq!(budget.pair_visits_attempted, 4);
         assert_eq!(budget.comparisons, 3);
+        assert_eq!(budget.comparisons_attempted, 3);
+        assert!(budget.candidate_count_truncated);
+        assert_eq!(
+            budget.near_relation_stop_reason,
+            Some(NearRelationStopReason::PairVisitLimit)
+        );
+    }
+
+    #[test]
+    fn cross_span_success_commits_equal_examined_and_attempted_work() {
+        let occurrence = |key: &str, span_index: usize| SentenceOccurrence {
+            key: key.to_owned(),
+            tokens: vec![SentenceEvidenceToken::Scalar('a')],
+            word_ranges: Vec::new(),
+            kind: RecoveryUnitKind::Sentence,
+            role: Some(BlockRole::Body),
+            location: None,
+            span_index: Some(span_index),
+            trusted_position: None,
+        };
+        let old_occurrences = [occurrence("old-a", 0), occurrence("old-b", 1)];
+        let new_occurrences = [occurrence("new-a", 0), occurrence("new-b", 1)];
+        let candidates = [
+            RecoveryCandidate {
+                occurrence_index: 0,
+                span_index: 0,
+            },
+            RecoveryCandidate {
+                occurrence_index: 1,
+                span_index: 1,
+            },
+        ];
+        let mut budget = RecoveryBudget::new(8, 0, 8, 1).expect("test budget is valid");
+        budget.record_candidate_count_limit();
+        let mut diagnostics = None;
+
+        let relations = modified_sentence_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &candidates,
+            &candidates,
+            &mut budget,
+            &mut diagnostics,
+        )
+        .expect("cross-span relations complete within budget");
+
+        assert!(relations.complete);
+        assert_eq!(budget.pair_visits, budget.pair_visits_attempted);
+        assert_eq!(budget.comparisons, budget.comparisons_attempted);
+        assert!(budget.candidate_count_truncated);
+        assert_eq!(
+            budget.near_relation_stop_reason,
+            Some(NearRelationStopReason::CandidateCountLimit)
+        );
     }
 
     #[test]

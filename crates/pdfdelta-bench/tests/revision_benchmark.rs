@@ -669,7 +669,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 7);
+    assert_eq!(val["schema_version"], 8);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 
@@ -690,6 +690,25 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert_eq!(
         rec["sentence_recovery_metrics"]["near_relation_complete"],
         true
+    );
+    assert_eq!(
+        rec["sentence_recovery_metrics"]["near_pair_visits_examined"],
+        rec["sentence_recovery_metrics"]["near_pair_visits_attempted"]
+    );
+    assert_eq!(
+        rec["sentence_recovery_metrics"]["near_similarity_comparisons_examined"],
+        rec["sentence_recovery_metrics"]["near_similarity_comparisons_attempted"]
+    );
+    assert!(rec["sentence_recovery_metrics"]["near_largest_edge_posting"].is_number());
+    assert!(rec["sentence_recovery_metrics"]["near_largest_edge_query_union"].is_number());
+    assert!(rec["sentence_recovery_metrics"]["near_largest_filtered_candidate_set"].is_number());
+    assert_eq!(
+        rec["sentence_recovery_metrics"]["near_candidate_count_truncated"],
+        false
+    );
+    assert_eq!(
+        rec["sentence_recovery_metrics"]["near_relation_stop_reason"],
+        serde_json::Value::Null
     );
 
     let q = &rec["quality"];

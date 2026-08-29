@@ -295,10 +295,12 @@ ended `LIMIT`/`FAIL`; low quality scores never fail a run because the dated
 captures serve as calibration evidence and current fragmentation and recall
 remain too unstable for rigid quality-gate thresholds (confidence calibration
 has landed, but broader large-document alignment quality remains ongoing work).
-Compact revision summaries use schema version 7 and include optional nested
-sentence-recovery diagnostics, scoped-complete event and changed-token precision/recall/F1,
-changed-span intersection-over-union, false-positive tokens per 10,000 reviewed
-unchanged tokens,
+Compact revision summaries use schema version 8 and include optional nested
+sentence-recovery diagnostics, near-search examined and attempted work,
+candidate-posting maxima, an explicit candidate-count truncation flag, typed
+near-search stop reasons, scoped-complete event and changed-token
+precision/recall/F1, changed-span intersection-over-union, false-positive
+tokens per 10,000 reviewed unchanged tokens,
 reviewed candidate recall at the production top-K limit, and bounded
 evidence-backed reasons for missed expected changes.
 For `scoped_complete` annotations, each `old_quote` and `new_quote` is the exact
@@ -309,7 +311,8 @@ fallback instead of a guessed cause. The unversioned full-report v1 key set
 remains unchanged. Reviewed candidate recall and expected-change failure
 diagnostics and scoped event/token metrics are available only through
 `--summary-json-output`; CLI trace
-schema v2 exposes sentence-recovery metrics but not those reviewed metrics.
+schema v3 exposes sentence-recovery metrics, including one-hot near-search stop reasons,
+but not those reviewed metrics.
 `--json-output` and `--summary-json-output` are published independently and
 atomically (each serializing in memory and publishing via same-directory temporary
 files without overwriting existing destinations). If the second publication fails,

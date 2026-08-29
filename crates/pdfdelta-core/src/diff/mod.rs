@@ -153,6 +153,14 @@ pub struct Comparison {
     pub new_coverage: Coverage,
 }
 
+/// Resource limit that stopped near-relation discovery.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NearRelationStopReason {
+    PairVisitLimit,
+    SimilarityComparisonLimit,
+    CandidateCountLimit,
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -163,6 +171,15 @@ pub struct SentenceRecoveryMetrics {
     pub new_exact_one_sided_units: usize,
     pub near_relation_complete: bool,
     pub near_pair_candidates: usize,
+    pub near_pair_visits_examined: usize,
+    pub near_pair_visits_attempted: usize,
+    pub near_similarity_comparisons_examined: usize,
+    pub near_similarity_comparisons_attempted: usize,
+    pub near_largest_edge_posting: usize,
+    pub near_largest_edge_query_union: usize,
+    pub near_largest_filtered_candidate_set: usize,
+    pub near_candidate_count_truncated: bool,
+    pub near_relation_stop_reason: Option<NearRelationStopReason>,
     pub vetoed_near_pairs: usize,
     pub recovered_exact_match_old_tokens: usize,
     pub recovered_exact_match_new_tokens: usize,

@@ -69,9 +69,12 @@ Running-matter boundaries split unresolved evidence more locally, so raw unresol
 region counts are not directly comparable with the preceding capture; token shares
 remain the coverage measure.
 
-## Current Writer Schema (v7)
+## Current Writer Schema (v8)
 
-The benchmark writer uses schema v7; older immutable captures retain their recorded schema.
+The benchmark writer uses schema v8; older immutable captures retain their recorded schema.
+Schema v8 adds near-relation work counters, candidate-set maxima, an explicit
+candidate-count truncation flag, and typed pair-visit, similarity-comparison,
+and candidate-count stop reasons to the nested sentence-recovery diagnostics.
 Schema v7 adds optional scoped-complete changed-token precision, recall, F1,
 span intersection-over-union, and false-positive density while preserving the
 unversioned full-report key set.

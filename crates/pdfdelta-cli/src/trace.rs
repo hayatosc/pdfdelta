@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 2;
+const TRACE_SCHEMA_VERSION: u8 = 3;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -353,6 +353,18 @@ fn pipeline_metrics(
     .filter_map(|(name, value)| value.map(|value| (name, value)))
     .collect::<BTreeMap<_, _>>();
     if let Some(sentence) = metrics.sentence_recovery_metrics {
+        let pair_visit_limit = matches!(
+            sentence.near_relation_stop_reason,
+            Some(pdfdelta_core::diff::NearRelationStopReason::PairVisitLimit)
+        );
+        let similarity_comparison_limit = matches!(
+            sentence.near_relation_stop_reason,
+            Some(pdfdelta_core::diff::NearRelationStopReason::SimilarityComparisonLimit)
+        );
+        let candidate_count_limit = matches!(
+            sentence.near_relation_stop_reason,
+            Some(pdfdelta_core::diff::NearRelationStopReason::CandidateCountLimit)
+        );
         flattened.extend([
             (
                 "sentence_recovery_old_trusted_run_source_tokens",
@@ -381,6 +393,50 @@ fn pipeline_metrics(
             (
                 "sentence_recovery_near_pair_candidates",
                 sentence.near_pair_candidates,
+            ),
+            (
+                "sentence_recovery_near_pair_visits_examined",
+                sentence.near_pair_visits_examined,
+            ),
+            (
+                "sentence_recovery_near_pair_visits_attempted",
+                sentence.near_pair_visits_attempted,
+            ),
+            (
+                "sentence_recovery_near_similarity_comparisons_examined",
+                sentence.near_similarity_comparisons_examined,
+            ),
+            (
+                "sentence_recovery_near_similarity_comparisons_attempted",
+                sentence.near_similarity_comparisons_attempted,
+            ),
+            (
+                "sentence_recovery_near_largest_edge_posting",
+                sentence.near_largest_edge_posting,
+            ),
+            (
+                "sentence_recovery_near_largest_edge_query_union",
+                sentence.near_largest_edge_query_union,
+            ),
+            (
+                "sentence_recovery_near_largest_filtered_candidate_set",
+                sentence.near_largest_filtered_candidate_set,
+            ),
+            (
+                "sentence_recovery_near_candidate_count_truncated",
+                usize::from(sentence.near_candidate_count_truncated),
+            ),
+            (
+                "sentence_recovery_near_relation_stop_reason_pair_visit_limit",
+                usize::from(pair_visit_limit),
+            ),
+            (
+                "sentence_recovery_near_relation_stop_reason_similarity_comparison_limit",
+                usize::from(similarity_comparison_limit),
+            ),
+            (
+                "sentence_recovery_near_relation_stop_reason_candidate_count_limit",
+                usize::from(candidate_count_limit),
             ),
             (
                 "sentence_recovery_vetoed_near_pairs",
@@ -507,7 +563,10 @@ fn expected_phases() -> Vec<(&'static str, Option<TraceSide>)> {
 
 #[cfg(test)]
 mod tests {
-    use pdfdelta_core::{diff::SentenceRecoveryMetrics, pipeline::PipelineMetrics};
+    use pdfdelta_core::{
+        diff::{NearRelationStopReason, SentenceRecoveryMetrics},
+        pipeline::PipelineMetrics,
+    };
 
     use super::{bounded_message, pipeline_metrics};
 
@@ -525,6 +584,15 @@ mod tests {
         let sentence = SentenceRecoveryMetrics {
             old_trusted_run_source_tokens: 41,
             near_relation_complete: true,
+            near_pair_visits_examined: 29,
+            near_pair_visits_attempted: 31,
+            near_similarity_comparisons_examined: 19,
+            near_similarity_comparisons_attempted: 23,
+            near_largest_edge_posting: 11,
+            near_largest_edge_query_union: 13,
+            near_largest_filtered_candidate_set: 7,
+            near_candidate_count_truncated: true,
+            near_relation_stop_reason: Some(NearRelationStopReason::SimilarityComparisonLimit),
             recovered_deletion_tokens: 17,
             unresolved_remainder_old_source_tokens: 24,
             ..SentenceRecoveryMetrics::default()
@@ -545,10 +613,80 @@ mod tests {
         assert_eq!(metrics["sentence_recovery_recovered_deletion_tokens"], 17);
         assert_eq!(metrics["sentence_recovery_exact_shared_units"], 0);
         assert_eq!(metrics["sentence_recovery_near_relation_complete"], 1);
+        assert_eq!(metrics["sentence_recovery_near_pair_visits_examined"], 29);
+        assert_eq!(metrics["sentence_recovery_near_pair_visits_attempted"], 31);
+        assert_eq!(
+            metrics["sentence_recovery_near_similarity_comparisons_examined"],
+            19
+        );
+        assert_eq!(
+            metrics["sentence_recovery_near_similarity_comparisons_attempted"],
+            23
+        );
+        assert_eq!(metrics["sentence_recovery_near_largest_edge_posting"], 11);
+        assert_eq!(
+            metrics["sentence_recovery_near_largest_edge_query_union"],
+            13
+        );
+        assert_eq!(
+            metrics["sentence_recovery_near_largest_filtered_candidate_set"],
+            7
+        );
+        assert_eq!(
+            metrics["sentence_recovery_near_candidate_count_truncated"],
+            1
+        );
+        assert_eq!(
+            metrics["sentence_recovery_near_relation_stop_reason_pair_visit_limit"],
+            0
+        );
+        assert_eq!(
+            metrics["sentence_recovery_near_relation_stop_reason_similarity_comparison_limit"],
+            1
+        );
+        assert_eq!(
+            metrics["sentence_recovery_near_relation_stop_reason_candidate_count_limit"],
+            0
+        );
         assert_eq!(
             metrics["sentence_recovery_unresolved_remainder_old_source_tokens"],
             24
         );
+    }
+
+    #[test]
+    fn flattens_each_near_relation_stop_reason_as_one_hot() {
+        let cases = [
+            (
+                NearRelationStopReason::PairVisitLimit,
+                "sentence_recovery_near_relation_stop_reason_pair_visit_limit",
+            ),
+            (
+                NearRelationStopReason::SimilarityComparisonLimit,
+                "sentence_recovery_near_relation_stop_reason_similarity_comparison_limit",
+            ),
+            (
+                NearRelationStopReason::CandidateCountLimit,
+                "sentence_recovery_near_relation_stop_reason_candidate_count_limit",
+            ),
+        ];
+
+        for (reason, expected) in cases {
+            let metrics = pipeline_metrics(
+                PipelineMetrics {
+                    sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
+                        near_relation_stop_reason: Some(reason),
+                        ..SentenceRecoveryMetrics::default()
+                    }),
+                    ..PipelineMetrics::default()
+                },
+                None,
+            );
+
+            for (_, key) in cases {
+                assert_eq!(metrics[key], usize::from(key == expected));
+            }
+        }
     }
 
     #[test]
