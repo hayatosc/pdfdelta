@@ -5,7 +5,7 @@ mod sentence;
 /// allocation budget while allowing benchmark runs to exceed the default.
 pub(crate) const MAX_MYERS_EDIT_DISTANCE: usize = 4_000;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Range};
 
 use crate::{
     Error, Result,
@@ -1462,7 +1462,15 @@ fn compare_match(
         );
         return Ok(false);
     };
-    if is_implausible_match(&edits, &old.tokens, &new.tokens, span.confidence, options) {
+    let line_groups = beneficial_line_grouped_ranges(&old, &new, &edits);
+    if is_implausible_match_with_short_headroom(
+        &edits,
+        &old.tokens,
+        &new.tokens,
+        span.confidence,
+        options,
+        line_groups.is_some(),
+    ) {
         push_unresolved_match(
             &old,
             &new,
@@ -1473,7 +1481,11 @@ fn compare_match(
         return Ok(false);
     }
 
-    append_changes(&old, &new, &edits, span.confidence.into(), changes);
+    let confidence = span.confidence.into();
+    match line_groups {
+        Some(grouped) => append_line_grouped_changes(&old, &new, grouped, confidence, changes),
+        None => append_changes(&old, &new, &edits, confidence, changes),
+    }
     Ok(true)
 }
 
@@ -1499,7 +1511,16 @@ const MAX_WEAK_MATCH_HUNK_RATIO: f64 = 0.2;
 /// Minimum span length in tokens required to evaluate hunk density.
 const MIN_HUNK_DENSITY_TOKENS: usize = 8;
 
+/// Short replacements need limited edit-ratio headroom because substitutions
+/// count once on each side even when unchanged evidence still anchors the pair.
+const SHORT_MATCH_RATIO_HEADROOM_TOKENS: usize = 64;
+
+/// Larger groups keep character-level hunk boundaries because line pairing by
+/// ordinal becomes weak evidence as the number of independently changed lines grows.
+const MAX_LINE_GROUPING_TOKENS: usize = 128;
+
 /// Returns true if a non-exact match has excessive changes or hunk fragmentation.
+#[cfg(test)]
 fn is_implausible_match(
     edits: &[Edit],
     old_tokens: &[ComparableToken],
@@ -1507,12 +1528,30 @@ fn is_implausible_match(
     confidence: AlignmentConfidence,
     options: DiffOptions,
 ) -> bool {
+    is_implausible_match_with_short_headroom(
+        edits, old_tokens, new_tokens, confidence, options, false,
+    )
+}
+
+fn is_implausible_match_with_short_headroom(
+    edits: &[Edit],
+    old_tokens: &[ComparableToken],
+    new_tokens: &[ComparableToken],
+    confidence: AlignmentConfidence,
+    options: DiffOptions,
+    allow_short_headroom: bool,
+) -> bool {
     let total = old_tokens.len().max(new_tokens.len());
     if total == 0 {
         return false;
     }
     let changed = edits.iter().filter(|edit| **edit != Edit::Equal).count();
     let confidence_factor = match (confidence, total < MIN_HUNK_DENSITY_TOKENS) {
+        (AlignmentConfidence::Low, _)
+            if allow_short_headroom && total < SHORT_MATCH_RATIO_HEADROOM_TOKENS =>
+        {
+            1.25
+        }
         (AlignmentConfidence::Low, _) => 1.0,
         (AlignmentConfidence::Medium, true) => 3.0,
         (AlignmentConfidence::Medium, false) => 1.5,
@@ -1587,6 +1626,97 @@ fn count_grouped_hunks(
     debug_assert_eq!(old_index, old_tokens.len());
     debug_assert_eq!(new_index, new_tokens.len());
     hunks + usize::from(hunk_start.is_some())
+}
+
+fn line_grouped_ranges(
+    old: &GroupText,
+    new: &GroupText,
+) -> Option<Vec<(Range<usize>, Range<usize>)>> {
+    if old.tokens.len().max(new.tokens.len()) > MAX_LINE_GROUPING_TOKENS {
+        return None;
+    }
+    let (Some(old_breaks), Some(new_breaks)) = (&old.line_breaks, &new.line_breaks) else {
+        return None;
+    };
+    if old_breaks.is_empty() || new_breaks.is_empty() {
+        return None;
+    }
+    let old_lines = line_token_ranges(&old.tokens, old_breaks)?;
+    let new_lines = line_token_ranges(&new.tokens, new_breaks)?;
+    if old_lines.len() <= 1 || old_lines.len() != new_lines.len() {
+        return None;
+    }
+    let grouped = old_lines
+        .into_iter()
+        .zip(new_lines)
+        .filter_map(|(old_range, new_range)| {
+            (old.tokens[old_range.clone()] != new.tokens[new_range.clone()])
+                .then_some((old_range, new_range))
+        })
+        .collect::<Vec<_>>();
+    (!grouped.is_empty()).then_some(grouped)
+}
+
+fn beneficial_line_grouped_ranges(
+    old: &GroupText,
+    new: &GroupText,
+    edits: &[Edit],
+) -> Option<Vec<(Range<usize>, Range<usize>)>> {
+    let grouped = line_grouped_ranges(old, new)?;
+    (grouped.len() < count_grouped_hunks(edits, &old.tokens, &new.tokens)).then_some(grouped)
+}
+
+fn append_line_grouped_changes(
+    old: &GroupText,
+    new: &GroupText,
+    grouped: Vec<(Range<usize>, Range<usize>)>,
+    confidence: Confidence,
+    changes: &mut Vec<Change>,
+) {
+    changes.reserve(grouped.len());
+    changes.extend(grouped.into_iter().map(|(old_range, new_range)| Change {
+        kind: ChangeKind::Replacement,
+        old_span: Some(old.span(old_range.start, old_range.end)),
+        new_span: Some(new.span(new_range.start, new_range.end)),
+        confidence,
+        tags: Vec::new(),
+    }));
+}
+
+fn line_token_ranges(
+    tokens: &[ComparableToken],
+    line_breaks: &[usize],
+) -> Option<Vec<Range<usize>>> {
+    let mut ranges = Vec::with_capacity(line_breaks.len().checked_add(1)?);
+    let mut start = 0usize;
+    for end in line_breaks
+        .iter()
+        .copied()
+        .chain(std::iter::once(tokens.len()))
+    {
+        if end <= start || end > tokens.len() {
+            return None;
+        }
+        if let Some(range) = trim_token_range(tokens, start..end) {
+            ranges.push(range);
+        }
+        start = end;
+    }
+    (!ranges.is_empty()).then_some(ranges)
+}
+
+fn trim_token_range(tokens: &[ComparableToken], mut range: Range<usize>) -> Option<Range<usize>> {
+    while range.start < range.end && is_whitespace_token(tokens.get(range.start)?) {
+        range.start += 1;
+    }
+    while range.start < range.end && is_whitespace_token(tokens.get(range.end - 1)?) {
+        range.end -= 1;
+    }
+    (range.start < range.end).then_some(range)
+}
+
+fn is_whitespace_token(token: &ComparableToken) -> bool {
+    matches!(token, ComparableToken::Scalar(scalar) if scalar.is_whitespace())
 }
 
 fn append_changes(
@@ -2426,6 +2556,99 @@ mod tests {
             AlignmentConfidence::Low,
             options(0.5)
         ));
+    }
+
+    #[test]
+    fn a_short_low_confidence_replacement_has_bounded_ratio_headroom() {
+        let old = "Committee Specification 01 12 November 2021"
+            .chars()
+            .map(ComparableToken::Scalar)
+            .collect::<Vec<_>>();
+        let new = "Committee Specification Draft 02 30 March 2022 "
+            .chars()
+            .map(ComparableToken::Scalar)
+            .collect::<Vec<_>>();
+        let edits = myers::diff(&old, &new, DiffOptions::default().max_edit_distance)
+            .expect("the diff stays within its resource limit")
+            .expect("the edit distance stays within its configured bound");
+
+        assert!(!is_implausible_match_with_short_headroom(
+            &edits,
+            &old,
+            &new,
+            AlignmentConfidence::Low,
+            options(0.5),
+            true,
+        ));
+
+        let mut excessive = vec![Edit::Equal; 30];
+        excessive.extend(std::iter::repeat_n(Edit::Delete, 13));
+        excessive.extend(std::iter::repeat_n(Edit::Insert, 17));
+        assert!(is_implausible_match_with_short_headroom(
+            &excessive,
+            &scalar_tokens(43),
+            &scalar_tokens(47),
+            AlignmentConfidence::Low,
+            options(0.5),
+            true,
+        ));
+    }
+
+    #[test]
+    fn short_equal_count_lines_form_semantic_replacements() {
+        let old_stage = "Committee Specification 01";
+        let new_stage = "Committee Specification Draft 02";
+        let old_text = format!("{old_stage} 12 November 2021");
+        let new_text = format!("{new_stage} 30 March 2022 ");
+        let old = GroupText::new(
+            vec![BlockId(1)],
+            None,
+            old_text.chars().map(ComparableToken::Scalar).collect(),
+            None,
+            None,
+            Some(vec![old_stage.chars().count()]),
+            Some(Vec::new()),
+        );
+        let new = GroupText::new(
+            vec![BlockId(2), BlockId(3)],
+            Some(BlockSeparator::Space),
+            new_text.chars().map(ComparableToken::Scalar).collect(),
+            None,
+            None,
+            Some(vec![
+                new_stage.chars().count(),
+                new_text.chars().count() - 1,
+            ]),
+            Some(Vec::new()),
+        );
+        let mut changes = Vec::new();
+
+        let edits = myers::diff(
+            &old.tokens,
+            &new.tokens,
+            DiffOptions::default().max_edit_distance,
+        )
+        .expect("the diff stays within its resource limit")
+        .expect("the edit distance stays within its configured bound");
+        let grouped = beneficial_line_grouped_ranges(&old, &new, &edits)
+            .expect("line grouping should reduce reported hunks");
+        append_line_grouped_changes(&old, &new, grouped, Confidence::Low, &mut changes);
+        assert_eq!(changes.len(), 2);
+        assert!(
+            changes
+                .iter()
+                .all(|change| change.kind == ChangeKind::Replacement)
+        );
+        assert_eq!(changes[0].old_span, Some(old.span(0, old_stage.len())));
+        assert_eq!(changes[0].new_span, Some(new.span(0, new_stage.len())));
+        assert_eq!(
+            changes[1].old_span,
+            Some(old.span(old_stage.len() + 1, old.tokens.len()))
+        );
+        assert_eq!(
+            changes[1].new_span,
+            Some(new.span(new_stage.len() + 1, new.tokens.len() - 1))
+        );
     }
 
     #[test]
