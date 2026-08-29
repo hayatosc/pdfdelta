@@ -3526,8 +3526,8 @@ fn real_dp_competing_margin_calibrates_deletion_to_low_confidence() -> Result<()
     // producing uncertain changes rather than unresolved regions, and yielding strict exit code 1.
     let summary = summarize(&diff, &ExtractionStatus::complete())?;
     assert_eq!(summary.unresolved_regions, 0);
-    assert_eq!(summary.uncertain_changes, 3);
-    assert_eq!(diff.changes.len(), 5);
+    assert_eq!(summary.uncertain_changes, 2);
+    assert_eq!(diff.changes.len(), 3);
     assert!(summary.comparison_complete);
     assert_eq!(
         exit_status(&diff, &ExtractionStatus::complete(), true)?,
@@ -3639,8 +3639,8 @@ fn real_dp_competing_margin_calibrates_insertion_to_low_confidence() -> Result<(
 
     let summary = summarize(&diff, &ExtractionStatus::complete())?;
     assert_eq!(summary.unresolved_regions, 0);
-    assert_eq!(summary.uncertain_changes, 3);
-    assert_eq!(diff.changes.len(), 5);
+    assert_eq!(summary.uncertain_changes, 2);
+    assert_eq!(diff.changes.len(), 3);
     assert!(summary.comparison_complete);
     assert_eq!(
         exit_status(&diff, &ExtractionStatus::complete(), true)?,
@@ -3750,6 +3750,21 @@ fn real_dp_competing_margin_with_secondary_anchor_preserves_exact_structure_and_
     assert_eq!(diff.old_coverage.ratio, Some(1.0));
     assert_eq!(diff.new_coverage.ratio, Some(1.0));
 
+    let deletion = diff
+        .changes
+        .iter()
+        .find(|change| change.kind == ChangeKind::Deletion)
+        .expect("contested deletion must be reported");
+    assert_eq!(deletion.confidence, Confidence::Low);
+    assert_eq!(
+        deletion
+            .old_span
+            .as_ref()
+            .expect("deletion must have an old span")
+            .blocks,
+        [BlockId(3)]
+    );
+
     // The exact secondary anchor (block 4 -> 103) must not emit any changes.
     for change in &diff.changes {
         if let Some(old_span) = &change.old_span {
@@ -3769,7 +3784,7 @@ fn real_dp_competing_margin_with_secondary_anchor_preserves_exact_structure_and_
     let summary = summarize(&diff, &ExtractionStatus::complete())?;
     assert_eq!(summary.unresolved_regions, 0);
     assert_eq!(summary.uncertain_changes, 1);
-    assert_eq!(diff.changes.len(), 5);
+    assert_eq!(diff.changes.len(), 3);
     assert!(summary.comparison_complete);
     assert_eq!(
         exit_status(&diff, &ExtractionStatus::complete(), true)?,

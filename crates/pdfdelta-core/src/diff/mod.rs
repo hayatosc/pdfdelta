@@ -1730,6 +1730,7 @@ fn append_changes(
     let mut new_index = 0;
     let mut hunk_start = None;
     let mut equal_start = None;
+    let mut complete_trailing_word = false;
 
     for (edit_index, edit) in edits.iter().enumerate() {
         match edit {
@@ -1746,21 +1747,34 @@ fn append_changes(
                         change_kind(old_start, new_start, old_equal_start, new_equal_start)
                     });
                     let right_kind = contiguous_change_kind(&edits[edit_index..]);
-                    if !bridges_replacement_hunks(
+                    if bridges_replacement_hunks(
                         &old.tokens[old_equal_start..old_index],
                         left_kind,
                         right_kind,
                     ) {
+                        complete_trailing_word |= left_kind != Some(ChangeKind::Replacement)
+                            || right_kind != Some(ChangeKind::Replacement);
+                    } else {
+                        let (old_end, new_end) = complete_word_ends(
+                            &old.tokens,
+                            &new.tokens,
+                            old_equal_start,
+                            new_equal_start,
+                            old_index,
+                            new_index,
+                            complete_trailing_word,
+                        );
                         flush_hunk(
                             old,
                             new,
                             hunk_start.take(),
-                            old_equal_start,
-                            new_equal_start,
+                            old_end,
+                            new_end,
                             confidence,
                             changes,
                         );
                         hunk_start = Some((old_index, new_index));
+                        complete_trailing_word = false;
                     }
                 } else if hunk_start.is_none() {
                     hunk_start = Some((old_index, new_index));
@@ -1773,8 +1787,49 @@ fn append_changes(
             }
         }
     }
-    let (old_end, new_end) = equal_start.unwrap_or((old_index, new_index));
+    let (old_end, new_end) = equal_start
+        .map(|(old_equal_start, new_equal_start)| {
+            complete_word_ends(
+                &old.tokens,
+                &new.tokens,
+                old_equal_start,
+                new_equal_start,
+                old_index,
+                new_index,
+                complete_trailing_word,
+            )
+        })
+        .unwrap_or((old_index, new_index));
     flush_hunk(old, new, hunk_start, old_end, new_end, confidence, changes);
+}
+
+fn complete_word_ends(
+    old_tokens: &[ComparableToken],
+    new_tokens: &[ComparableToken],
+    old_equal_start: usize,
+    new_equal_start: usize,
+    old_equal_end: usize,
+    new_equal_end: usize,
+    complete: bool,
+) -> (usize, usize) {
+    if !complete
+        || old_equal_start == 0
+        || new_equal_start == 0
+        || !is_ascii_alphanumeric_token(&old_tokens[old_equal_start - 1])
+        || !is_ascii_alphanumeric_token(&new_tokens[new_equal_start - 1])
+    {
+        return (old_equal_start, new_equal_start);
+    }
+    let extension = old_tokens[old_equal_start..old_equal_end]
+        .iter()
+        .zip(&new_tokens[new_equal_start..new_equal_end])
+        .take_while(|(old, new)| old == new && is_ascii_alphanumeric_token(old))
+        .count();
+    (old_equal_start + extension, new_equal_start + extension)
+}
+
+fn is_ascii_alphanumeric_token(token: &ComparableToken) -> bool {
+    matches!(token, ComparableToken::Scalar(scalar) if scalar.is_ascii_alphanumeric())
 }
 
 fn contiguous_change_kind(edits: &[Edit]) -> Option<ChangeKind> {
@@ -1797,8 +1852,18 @@ fn bridges_replacement_hunks(
 ) -> bool {
     const MAX_SEPARATOR_TOKENS: usize = 3;
 
-    if previous_kind != Some(ChangeKind::Replacement) || next_kind != Some(ChangeKind::Replacement)
-    {
+    let (Some(previous_kind), Some(next_kind)) = (previous_kind, next_kind) else {
+        return false;
+    };
+    let changes_old = matches!(
+        previous_kind,
+        ChangeKind::Deletion | ChangeKind::Replacement
+    ) || matches!(next_kind, ChangeKind::Deletion | ChangeKind::Replacement);
+    let changes_new = matches!(
+        previous_kind,
+        ChangeKind::Insertion | ChangeKind::Replacement
+    ) || matches!(next_kind, ChangeKind::Insertion | ChangeKind::Replacement);
+    if !changes_old || !changes_new {
         return false;
     }
     match tokens {

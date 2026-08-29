@@ -48,6 +48,132 @@ fn exact_diff_never_uses_masked_matching_text() -> Result<()> {
 }
 
 #[test]
+fn groups_fragmented_cover_date_as_one_replacement() -> Result<()> {
+    let prefix = "W3C Working Draft ";
+    let old_date = "27 September 2006";
+    let new_date = "02 November 2006";
+    let old = block(1, &format!("{prefix}{old_date}"));
+    let new = block(101, &format!("{prefix}{new_date}"));
+
+    let result = compare_aligned(
+        &[old],
+        &[new],
+        &aligned(vec![matched(&[1], &[101])]),
+        DiffOptions::default(),
+    )?;
+
+    assert_eq!(result.changes.len(), 1);
+    let change = &result.changes[0];
+    assert_eq!(change.kind, ChangeKind::Replacement);
+    assert_eq!(
+        change
+            .old_span
+            .as_ref()
+            .expect("replacement should have an old span")
+            .canonical_range,
+        ScalarRange {
+            start: prefix.chars().count(),
+            end: prefix.chars().count() + "27 September".chars().count(),
+        }
+    );
+    assert_eq!(
+        change
+            .new_span
+            .as_ref()
+            .expect("replacement should have a new span")
+            .canonical_range,
+        ScalarRange {
+            start: prefix.chars().count(),
+            end: prefix.chars().count() + "02 November".chars().count(),
+        }
+    );
+    Ok(())
+}
+
+#[test]
+fn does_not_extend_a_mixed_replacement_at_asymmetric_word_boundaries() -> Result<()> {
+    for (old_text, new_text, old_end, new_end) in
+        [("XaBTAIL", "a!TAIL", 3, 2), ("a!TAIL", "XaBTAIL", 2, 3)]
+    {
+        let result = compare_aligned(
+            &[block(1, old_text)],
+            &[block(101, new_text)],
+            &aligned(vec![matched(&[1], &[101])]),
+            DiffOptions::default(),
+        )?;
+
+        assert_eq!(result.changes.len(), 1, "{old_text:?} -> {new_text:?}");
+        let change = &result.changes[0];
+        assert_eq!(change.kind, ChangeKind::Replacement);
+        assert_eq!(
+            change
+                .old_span
+                .as_ref()
+                .expect("replacement should have an old span")
+                .canonical_range,
+            ScalarRange {
+                start: 0,
+                end: old_end,
+            }
+        );
+        assert_eq!(
+            change
+                .new_span
+                .as_ref()
+                .expect("replacement should have a new span")
+                .canonical_range,
+            ScalarRange {
+                start: 0,
+                end: new_end,
+            }
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn does_not_extend_mixed_replacements_through_non_ascii_boundaries() -> Result<()> {
+    for (old_text, new_text, old_end, new_end) in [
+        ("Xあ本文は同じ", "あY本文は同じ", 2, 2),
+        ("Xe\u{301}TAIL", "eY\u{301}TAIL", 2, 2),
+    ] {
+        let result = compare_aligned(
+            &[block(1, old_text)],
+            &[block(101, new_text)],
+            &aligned(vec![matched(&[1], &[101])]),
+            DiffOptions::default(),
+        )?;
+
+        assert_eq!(result.changes.len(), 1, "{old_text:?} -> {new_text:?}");
+        let change = &result.changes[0];
+        assert_eq!(change.kind, ChangeKind::Replacement);
+        assert_eq!(
+            change
+                .old_span
+                .as_ref()
+                .expect("replacement should have an old span")
+                .canonical_range,
+            ScalarRange {
+                start: 0,
+                end: old_end,
+            }
+        );
+        assert_eq!(
+            change
+                .new_span
+                .as_ref()
+                .expect("replacement should have a new span")
+                .canonical_range,
+            ScalarRange {
+                start: 0,
+                end: new_end,
+            }
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn tags_replacements_explained_only_by_character_width() -> Result<()> {
     for (old_text, new_text) in [
         ("ＡＢＣ", "ABC"),
