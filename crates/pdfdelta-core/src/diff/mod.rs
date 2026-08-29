@@ -189,13 +189,16 @@ pub struct ComparisonWithAtomicEdits {
     pub matched_atomic_diffs: Vec<MatchedAtomicDiff>,
 }
 
-/// One reviewed replacement or move to observe inside uncertain-region recovery.
+/// One reviewed change to observe inside uncertain-region recovery.
+///
+/// Paired quotes diagnose replacements or moves. Omitting exactly one quote
+/// diagnoses insertion or deletion evidence without inferring a relation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RecoveryWatchQuery<'a> {
     /// Opaque caller-provided identifier copied into the diagnostic record.
     pub id: &'a str,
-    pub old_quote: &'a str,
-    pub new_quote: &'a str,
+    pub old_quote: Option<&'a str>,
+    pub new_quote: Option<&'a str>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -230,12 +233,27 @@ pub struct RecoveryWatchOccurrence {
     pub kind: RecoveryWatchUnitKind,
 }
 
+/// Bounded exact occurrences retained for a one-sided watch query.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecoveryWatchOccurrences {
+    /// Total exact occurrences found, including occurrences omitted by the
+    /// diagnostic output bound.
+    pub occurrence_count: usize,
+    /// Whether every found occurrence is present in [`Self::occurrences`].
+    pub complete: bool,
+    pub occurrences: Vec<RecoveryWatchOccurrence>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum RecoveryWatchOccurrenceEvidence {
+    /// This document side was intentionally omitted from the query.
+    NotQueried,
     Unfound,
     Ambiguous,
     Unavailable,
     Found(RecoveryWatchOccurrence),
+    /// Exact occurrences for a query that only observes one document side.
+    Occurrences(RecoveryWatchOccurrences),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -7046,18 +7064,18 @@ mod tests {
         let queries = [
             RecoveryWatchQuery {
                 id: "unique",
-                old_quote: "reviewed   value is alpha",
-                new_quote: "reviewed value is beta",
+                old_quote: Some("reviewed   value is alpha"),
+                new_quote: Some("reviewed value is beta"),
             },
             RecoveryWatchQuery {
                 id: "ambiguous",
-                old_quote: "Duplicate marker",
-                new_quote: "Duplicate marker",
+                old_quote: Some("Duplicate marker"),
+                new_quote: Some("Duplicate marker"),
             },
             RecoveryWatchQuery {
                 id: "unfound",
-                old_quote: "missing old",
-                new_quote: "missing new",
+                old_quote: Some("missing old"),
+                new_quote: Some("missing new"),
             },
         ];
         let watched = compare_recovery_watch(&old, &new, &alignment, 1, &queries);
@@ -7114,8 +7132,8 @@ mod tests {
         };
         let queries = [RecoveryWatchQuery {
             id: "replacement",
-            old_quote: "requirement keeps alpha",
-            new_quote: "requirement keeps beta",
+            old_quote: Some("requirement keeps alpha"),
+            new_quote: Some("requirement keeps beta"),
         }];
         for (alignment, scope) in [
             (&same_alignment, RecoveryWatchNearScope::SameSpan),
@@ -7145,8 +7163,8 @@ mod tests {
             unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
         let query = RecoveryWatchQuery {
             id: "unvisited",
-            old_quote: "Alpha!",
-            new_quote: "Beta?",
+            old_quote: Some("Alpha!"),
+            new_quote: Some("Beta?"),
         };
         let diagnostics = compare_recovery_watch(&old, &new, &alignment, 1, &[query])
             .recovery_watch_diagnostics
@@ -7184,8 +7202,8 @@ mod tests {
             unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
         let queries = [RecoveryWatchQuery {
             id: "paired",
-            old_quote: "paired value is alpha",
-            new_quote: "paired value is beta",
+            old_quote: Some("paired value is alpha"),
+            new_quote: Some("paired value is beta"),
         }];
         let diagnostics = compare_recovery_watch(&old, &new, &alignment, 1, &queries)
             .recovery_watch_diagnostics
@@ -7216,13 +7234,13 @@ mod tests {
         let queries = [
             RecoveryWatchQuery {
                 id: "first",
-                old_quote: "keeps alpha",
-                new_quote: "keeps beta",
+                old_quote: Some("keeps alpha"),
+                new_quote: Some("keeps beta"),
             },
             RecoveryWatchQuery {
                 id: "second",
-                old_quote: "keeps alpha",
-                new_quote: "keeps beta",
+                old_quote: Some("keeps alpha"),
+                new_quote: Some("keeps beta"),
             },
         ];
         let diagnostics = compare_recovery_watch(&old, &new, &alignment, 1, &queries)
@@ -7260,8 +7278,8 @@ mod tests {
             1,
             &[RecoveryWatchQuery {
                 id: "unmapped",
-                old_quote: "keeps alpha",
-                new_quote: "keeps beta",
+                old_quote: Some("keeps alpha"),
+                new_quote: Some("keeps beta"),
             }],
         )
         .recovery_watch_diagnostics
@@ -7300,8 +7318,8 @@ mod tests {
             1,
             &[RecoveryWatchQuery {
                 id: "limited",
-                old_quote: "old candidate number 0 keeps alpha",
-                new_quote: "new candidate number 0 keeps beta",
+                old_quote: Some("old candidate number 0 keeps alpha"),
+                new_quote: Some("new candidate number 0 keeps beta"),
             }],
         )
         .recovery_watch_diagnostics
@@ -7324,7 +7342,7 @@ mod tests {
             .enumerate()
             .map(|(index, block)| TrustedRunDescriptor {
                 id: TrustedRunId(index as u64),
-                page: PageId(0),
+                page: PageId(block.pages.first().copied().unwrap_or(0)),
                 bbox: Rect {
                     min: Vec2 { x: 0.0, y: 0.0 },
                     max: Vec2 { x: 1.0, y: 1.0 },
@@ -7341,6 +7359,91 @@ mod tests {
         (0..count)
             .map(|offset| sentence_block(start + offset as u64, text))
             .collect()
+    }
+
+    #[test]
+    fn recovery_watch_collects_one_sided_deletion_occurrences_across_pages() {
+        let mut old = repeated_sentence_blocks(80_000, 3, "Consultation watermark.");
+        for (page, block) in old.iter_mut().enumerate() {
+            block.pages = vec![page as u32 + 1];
+        }
+        let alignment =
+            unresolved_alignment(&old, &[], vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let query = RecoveryWatchQuery {
+            id: "watermark-deletion",
+            old_quote: Some("Consultation watermark."),
+            new_quote: None,
+        };
+        let watched = compare_recovery_watch(&old, &[], &alignment, 1, &[query]);
+        let baseline = compare_recovery_watch(&old, &[], &alignment, 1, &[]);
+
+        assert_eq!(watched.comparison, baseline.comparison);
+        assert_eq!(
+            watched.sentence_recovery_metrics,
+            baseline.sentence_recovery_metrics
+        );
+        let record = &watched
+            .recovery_watch_diagnostics
+            .expect("one-sided watch diagnostics are available")
+            .records[0];
+        assert!(matches!(
+            record.new,
+            RecoveryWatchOccurrenceEvidence::NotQueried
+        ));
+        let RecoveryWatchOccurrenceEvidence::Occurrences(found) = &record.old else {
+            panic!("queried side retains exact occurrences: {record:?}");
+        };
+        assert_eq!(found.occurrence_count, 3);
+        assert!(found.complete);
+        assert_eq!(
+            found
+                .occurrences
+                .iter()
+                .map(|occurrence| occurrence.page)
+                .collect::<Vec<_>>(),
+            vec![Some(1), Some(2), Some(3)]
+        );
+        assert!(found.occurrences.iter().all(|occurrence| {
+            occurrence.role == Some(BlockRole::Body)
+                && occurrence.kind == RecoveryWatchUnitKind::Sentence
+        }));
+        assert!(record.pair.is_none());
+        assert!(record.segment_pair.is_none());
+    }
+
+    #[test]
+    fn recovery_watch_collects_one_sided_insertion_and_marks_old_not_queried() {
+        let new = vec![sentence_block(81_000, "Inserted reviewed paragraph.")];
+        let alignment =
+            unresolved_alignment(&[], &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let diagnostics = compare_recovery_watch(
+            &[],
+            &new,
+            &alignment,
+            1,
+            &[RecoveryWatchQuery {
+                id: "paragraph-insertion",
+                old_quote: None,
+                new_quote: Some("Inserted reviewed paragraph."),
+            }],
+        )
+        .recovery_watch_diagnostics
+        .expect("one-sided watch diagnostics are available");
+        let record = &diagnostics.records[0];
+        assert!(matches!(
+            record.old,
+            RecoveryWatchOccurrenceEvidence::NotQueried
+        ));
+        assert!(matches!(
+            record.new,
+            RecoveryWatchOccurrenceEvidence::Occurrences(RecoveryWatchOccurrences {
+                occurrence_count: 1,
+                complete: true,
+                ref occurrences,
+            }) if occurrences.len() == 1
+        ));
+        assert!(record.pair.is_none());
+        assert!(record.segment_pair.is_none());
     }
 
     #[test]

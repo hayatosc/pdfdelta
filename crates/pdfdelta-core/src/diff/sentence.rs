@@ -19,8 +19,8 @@ use crate::{
 use super::{
     ExactSegmentRelation, MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS,
     NearRelationStopReason, RecoveryWatchDiagnostics, RecoveryWatchNearScope,
-    RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence, RecoveryWatchPairEvidence,
-    RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
+    RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence, RecoveryWatchOccurrences,
+    RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
     RecoveryWatchSegmentPairEvidence, RecoveryWatchUnitKind, RunSignatureStopReason,
     SegmentStopReason, SentenceRecoveryCommittedTokens, SentenceRecoveryInput,
     SentenceRecoveryMetrics, Side, TokenRange, TrustedRunRecoveryInput,
@@ -36,6 +36,9 @@ const LINE_NGRAM_SIZE: usize = 3;
 const MAX_LINE_NEAR_LENGTH_RATIO: usize = 3;
 const MAX_UNTRUSTED_LINE_NEAR_CANDIDATES: usize = 256;
 pub(super) const MAX_RECOVERY_WATCH_QUERIES: usize = 4_096;
+// One retained diagnostic consumes one of sixteen shares of the existing
+// recovery output item budget. The cap is global across all watch queries.
+const MAX_RECOVERY_WATCH_RETAINED_OCCURRENCES: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS / 16;
 /// Larger single-line blocks are likely collapsed page or form regions rather
 /// than independently comparable lines and remain unresolved.
 pub(super) const MAX_UNTRUSTED_LINE_TOKENS: usize = 512;
@@ -294,6 +297,8 @@ struct SentenceOccurrence {
     span_index: Option<usize>,
     trusted_position: Option<TrustedStreamPosition>,
     run_descriptor_index: Option<usize>,
+    /// Source page when every contributing block names the same single page.
+    page: Option<u32>,
     evidence_block_index: Option<usize>,
 }
 
@@ -687,6 +692,7 @@ struct RecoveryWatchState {
     pair_by_occurrences: HashMap<(usize, usize), Vec<usize>>,
     scan_work: usize,
     scan_limit: usize,
+    retained_one_sided_occurrences: usize,
 }
 
 struct RecoveryWatchStateRecord {
@@ -702,6 +708,63 @@ struct RecoveryWatchLookup {
     occurrence_index: Option<usize>,
     span_index: Option<usize>,
     segment_key: Option<RecoverySegmentKey>,
+}
+
+impl RecoveryWatchLookup {
+    fn not_queried() -> Self {
+        Self {
+            evidence: RecoveryWatchOccurrenceEvidence::NotQueried,
+            occurrence_index: None,
+            span_index: None,
+            segment_key: None,
+        }
+    }
+
+    fn unfound() -> Self {
+        Self {
+            evidence: RecoveryWatchOccurrenceEvidence::Unfound,
+            occurrence_index: None,
+            span_index: None,
+            segment_key: None,
+        }
+    }
+
+    fn unavailable() -> Self {
+        Self {
+            evidence: RecoveryWatchOccurrenceEvidence::Unavailable,
+            occurrence_index: None,
+            span_index: None,
+            segment_key: None,
+        }
+    }
+}
+
+fn recovery_watch_occurrence(
+    occurrence: &SentenceOccurrence,
+    descriptor: Option<&TrustedRunDescriptor>,
+    fully_contained: bool,
+    min_tokens: usize,
+) -> RecoveryWatchOccurrence {
+    RecoveryWatchOccurrence {
+        span_index: occurrence.span_index,
+        trusted_run_descriptor_index: occurrence.run_descriptor_index,
+        ordinal: occurrence.trusted_position.map(|position| position.ordinal),
+        end_ordinal: None,
+        unit_count: None,
+        token_count: None,
+        recovery_location_available: occurrence.location.is_some()
+            && occurrence.tokens.len() >= min_tokens,
+        fully_contained,
+        page: descriptor
+            .map(|descriptor| descriptor.page.0)
+            .or(occurrence.page),
+        bbox: descriptor.map(|descriptor| descriptor.bbox),
+        role: occurrence.role,
+        kind: match occurrence.kind {
+            RecoveryUnitKind::Sentence => RecoveryWatchUnitKind::Sentence,
+            RecoveryUnitKind::Line => RecoveryWatchUnitKind::Line,
+        },
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1398,44 +1461,62 @@ impl RecoveryWatchState {
             pair_by_occurrences: HashMap::new(),
             scan_work: 0,
             scan_limit: context.max_tokens.checked_mul(16)?,
+            retained_one_sided_occurrences: 0,
         };
         state.records.try_reserve_exact(processed).ok()?;
         state.pair_by_occurrences.try_reserve(processed).ok()?;
         for query in queries.iter().take(processed) {
-            let old = state.locate(
-                query.old_quote,
-                old_occurrences,
-                context.old_evidence,
-                context.old_fully_contained,
-                context.min_tokens,
-            );
-            let new = state.locate(
-                query.new_quote,
-                new_occurrences,
-                context.new_evidence,
-                context.new_fully_contained,
-                context.min_tokens,
-            );
+            let paired = query.old_quote.is_some() && query.new_quote.is_some();
+            let valid = query.old_quote.is_some() || query.new_quote.is_some();
+            if !valid {
+                state.complete = false;
+            }
+            let old = match query.old_quote {
+                Some(quote) if paired => state.locate(
+                    quote,
+                    old_occurrences,
+                    context.old_evidence,
+                    context.old_fully_contained,
+                    context.min_tokens,
+                ),
+                Some(quote) => state.locate_one_sided(
+                    quote,
+                    old_occurrences,
+                    context.old_evidence,
+                    context.old_fully_contained,
+                    context.min_tokens,
+                ),
+                None if valid => Some(RecoveryWatchLookup::not_queried()),
+                None => Some(RecoveryWatchLookup::unavailable()),
+            };
+            let new = match query.new_quote {
+                Some(quote) if paired => state.locate(
+                    quote,
+                    new_occurrences,
+                    context.new_evidence,
+                    context.new_fully_contained,
+                    context.min_tokens,
+                ),
+                Some(quote) => state.locate_one_sided(
+                    quote,
+                    new_occurrences,
+                    context.new_evidence,
+                    context.new_fully_contained,
+                    context.min_tokens,
+                ),
+                None if valid => Some(RecoveryWatchLookup::not_queried()),
+                None => Some(RecoveryWatchLookup::unavailable()),
+            };
             let old = old.unwrap_or_else(|| {
                 state.complete = false;
-                RecoveryWatchLookup {
-                    evidence: RecoveryWatchOccurrenceEvidence::Unfound,
-                    occurrence_index: None,
-                    span_index: None,
-                    segment_key: None,
-                }
+                RecoveryWatchLookup::unavailable()
             });
             let new = new.unwrap_or_else(|| {
                 state.complete = false;
-                RecoveryWatchLookup {
-                    evidence: RecoveryWatchOccurrenceEvidence::Unfound,
-                    occurrence_index: None,
-                    span_index: None,
-                    segment_key: None,
-                }
+                RecoveryWatchLookup::unavailable()
             });
-            let pair = match (old.span_index, new.span_index) {
-                (Some(old_span), Some(new_span)) => Some(RecoveryWatchPairEvidence {
+            let pair = match (paired, old.span_index, new.span_index) {
+                (true, Some(old_span), Some(new_span)) => Some(RecoveryWatchPairEvidence {
                     same_span: old_span == new_span,
                     exact_shared_units: 0,
                     exact_shared_units_available: false,
@@ -1464,30 +1545,32 @@ impl RecoveryWatchState {
                     .iter()
                     .position(|segment| segment.key == key)
             });
-            let segment_pair = match (old_segment, new_segment, state.segment_stop_reason) {
-                (Some(old_index), Some(new_index), None) => match watched_segment_pair_evidence(
-                    &mut state.segment_analysis,
-                    old_index,
-                    new_index,
-                    old_occurrences,
-                    new_occurrences,
-                    exact_candidates,
-                ) {
-                    Ok(evidence) => Some(evidence),
-                    Err(reason) => {
-                        state.segment_analysis = SegmentDiagnosticAnalysis::default();
-                        state.segment_stop_reason = Some(reason);
-                        state.segment_overlap_vetoes = 0;
-                        for record in &mut state.records {
-                            record.output.segment_pair = None;
-                            record.old_segment = None;
-                            record.new_segment = None;
+            let segment_pair = match (paired, old_segment, new_segment, state.segment_stop_reason) {
+                (true, Some(old_index), Some(new_index), None) => {
+                    match watched_segment_pair_evidence(
+                        &mut state.segment_analysis,
+                        old_index,
+                        new_index,
+                        old_occurrences,
+                        new_occurrences,
+                        exact_candidates,
+                    ) {
+                        Ok(evidence) => Some(evidence),
+                        Err(reason) => {
+                            state.segment_analysis = SegmentDiagnosticAnalysis::default();
+                            state.segment_stop_reason = Some(reason);
+                            state.segment_overlap_vetoes = 0;
+                            for record in &mut state.records {
+                                record.output.segment_pair = None;
+                                record.old_segment = None;
+                                record.new_segment = None;
+                            }
+                            old_segment = None;
+                            new_segment = None;
+                            None
                         }
-                        old_segment = None;
-                        new_segment = None;
-                        None
                     }
-                },
+                }
                 _ => None,
             };
             let index = state.records.len();
@@ -1507,13 +1590,211 @@ impl RecoveryWatchState {
                 old_segment,
                 new_segment,
             });
-            if let (Some(old), Some(new)) = (old_occurrence, new_occurrence) {
+            if paired && let (Some(old), Some(new)) = (old_occurrence, new_occurrence) {
                 let indices = state.pair_by_occurrences.entry((old, new)).or_default();
                 indices.try_reserve(1).ok()?;
                 indices.push(index);
             }
         }
         Some(state)
+    }
+
+    fn locate_one_sided(
+        &mut self,
+        quote: &str,
+        occurrences: &[SentenceOccurrence],
+        evidence: Option<&RunRecoveryEvidence<'_>>,
+        fully_contained: Option<&[bool]>,
+        min_tokens: usize,
+    ) -> Option<RecoveryWatchLookup> {
+        let needle = collapse_watch_whitespace(quote)?;
+        if needle.is_empty() {
+            return Some(RecoveryWatchLookup::unfound());
+        }
+        let available = MAX_RECOVERY_WATCH_RETAINED_OCCURRENCES
+            .checked_sub(self.retained_one_sided_occurrences)?;
+        let mut outputs = Vec::new();
+        let mut occurrence_count = 0usize;
+        for occurrence in occurrences {
+            let haystack = collapse_watch_whitespace(&occurrence.key)?;
+            self.scan_work = self.scan_work.checked_add(haystack.chars().count())?;
+            if self.scan_work > self.scan_limit {
+                return None;
+            }
+            let matches = haystack.match_indices(&needle).count();
+            if matches == 0 {
+                continue;
+            }
+            if occurrence.tokens.iter().any(|token| !token.is_scalar()) {
+                return Some(RecoveryWatchLookup::unavailable());
+            }
+            occurrence_count = occurrence_count.checked_add(matches)?;
+            let retained = available.saturating_sub(outputs.len()).min(matches);
+            if retained == 0 {
+                continue;
+            }
+            let descriptor = occurrence
+                .run_descriptor_index
+                .and_then(|index| evidence?.descriptors.get(index));
+            let contained = occurrence
+                .run_descriptor_index
+                .and_then(|index| fully_contained?.get(index))
+                .copied()
+                .unwrap_or(false);
+            let output = recovery_watch_occurrence(occurrence, descriptor, contained, min_tokens);
+            outputs.try_reserve_exact(retained).ok()?;
+            outputs.extend(std::iter::repeat_n(output, retained));
+        }
+        if self.collect_one_sided_segment_occurrences(
+            &needle,
+            occurrences,
+            evidence,
+            fully_contained,
+            min_tokens,
+            available,
+            &mut occurrence_count,
+            &mut outputs,
+        )? {
+            return Some(RecoveryWatchLookup::unavailable());
+        }
+        if occurrence_count == 0 {
+            return Some(RecoveryWatchLookup::unfound());
+        }
+        let complete = occurrence_count == outputs.len();
+        self.retained_one_sided_occurrences = self
+            .retained_one_sided_occurrences
+            .checked_add(outputs.len())?;
+        if !complete {
+            self.complete = false;
+        }
+        Some(RecoveryWatchLookup {
+            evidence: RecoveryWatchOccurrenceEvidence::Occurrences(RecoveryWatchOccurrences {
+                occurrence_count,
+                complete,
+                occurrences: outputs,
+            }),
+            occurrence_index: None,
+            span_index: None,
+            segment_key: None,
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn collect_one_sided_segment_occurrences(
+        &mut self,
+        needle: &str,
+        occurrences: &[SentenceOccurrence],
+        evidence: Option<&RunRecoveryEvidence<'_>>,
+        fully_contained: Option<&[bool]>,
+        min_tokens: usize,
+        available: usize,
+        occurrence_count: &mut usize,
+        outputs: &mut Vec<RecoveryWatchOccurrence>,
+    ) -> Option<bool> {
+        const MAX_SEGMENT_UNITS: usize = 8;
+
+        if occurrences.len() > SegmentDiagnosticBudget::AUXILIARY_ITEM_LIMIT {
+            return None;
+        }
+        let mut by_position = HashMap::new();
+        by_position.try_reserve(occurrences.len()).ok()?;
+        for (index, occurrence) in occurrences.iter().enumerate() {
+            if let Some(position) = occurrence.trusted_position
+                && by_position.insert(position, index).is_some()
+            {
+                return None;
+            }
+        }
+        for first in occurrences {
+            let (Some(position), Some(span_index), Some(role)) =
+                (first.trusted_position, first.span_index, first.role)
+            else {
+                continue;
+            };
+            let mut joined = collapse_watch_whitespace(&first.key)?;
+            let first_end = joined.len();
+            let mut second_start = None;
+            let mut token_count = first.tokens.len();
+            let mut descriptor_index = first.run_descriptor_index;
+            let mut page = first.page;
+            let mut all_scalar = first.tokens.iter().all(|token| token.is_scalar());
+            let mut all_locations_available = first.location.is_some();
+            for offset in 1..MAX_SEGMENT_UNITS {
+                let ordinal = position.ordinal.checked_add(offset)?;
+                let next_index = match by_position.get(&TrustedStreamPosition {
+                    stream_index: position.stream_index,
+                    ordinal,
+                }) {
+                    Some(index) => *index,
+                    None => break,
+                };
+                let next = occurrences.get(next_index)?;
+                if next.span_index != Some(span_index) || next.role != Some(role) {
+                    break;
+                }
+                let previous_end = joined.len();
+                let next_key = collapse_watch_whitespace(&next.key)?;
+                joined
+                    .try_reserve(1usize.checked_add(next_key.len())?)
+                    .ok()?;
+                let latest_start = joined.len().checked_add(1)?;
+                second_start.get_or_insert(latest_start);
+                joined.push(' ');
+                joined.push_str(&next_key);
+                token_count = token_count.checked_add(next.tokens.len())?;
+                all_scalar &= next.tokens.iter().all(|token| token.is_scalar());
+                all_locations_available &= next.location.is_some();
+                if descriptor_index != next.run_descriptor_index {
+                    descriptor_index = None;
+                }
+                if page != next.page {
+                    page = None;
+                }
+                self.scan_work = self.scan_work.checked_add(joined.chars().count())?;
+                if self.scan_work > self.scan_limit {
+                    return None;
+                }
+                for (byte_start, _) in joined.match_indices(needle) {
+                    let byte_end = byte_start.checked_add(needle.len())?;
+                    if byte_start >= first_end
+                        || byte_end <= second_start?
+                        || byte_end <= previous_end
+                    {
+                        continue;
+                    }
+                    if !all_scalar {
+                        return Some(true);
+                    }
+                    *occurrence_count = occurrence_count.checked_add(1)?;
+                    if outputs.len() >= available {
+                        continue;
+                    }
+                    let descriptor =
+                        descriptor_index.and_then(|index| evidence?.descriptors.get(index));
+                    let contained = descriptor_index
+                        .and_then(|index| fully_contained?.get(index))
+                        .copied()
+                        .unwrap_or(false);
+                    outputs.try_reserve_exact(1).ok()?;
+                    outputs.push(RecoveryWatchOccurrence {
+                        span_index: Some(span_index),
+                        trusted_run_descriptor_index: descriptor_index,
+                        ordinal: Some(position.ordinal),
+                        end_ordinal: Some(ordinal.checked_add(1)?),
+                        unit_count: Some(offset.checked_add(1)?),
+                        token_count: Some(token_count),
+                        recovery_location_available: all_locations_available
+                            && token_count >= min_tokens,
+                        fully_contained: contained,
+                        page: descriptor.map(|descriptor| descriptor.page.0).or(page),
+                        bbox: descriptor.map(|descriptor| descriptor.bbox),
+                        role: Some(role),
+                        kind: RecoveryWatchUnitKind::Segment,
+                    });
+                }
+            }
+        }
+        Some(false)
     }
 
     fn locate(
@@ -1598,24 +1879,7 @@ impl RecoveryWatchState {
             .and_then(|index| fully_contained?.get(index))
             .copied()
             .unwrap_or(false);
-        let output = RecoveryWatchOccurrence {
-            span_index: occurrence.span_index,
-            trusted_run_descriptor_index: occurrence.run_descriptor_index,
-            ordinal: occurrence.trusted_position.map(|position| position.ordinal),
-            end_ordinal: None,
-            unit_count: None,
-            token_count: None,
-            recovery_location_available: occurrence.location.is_some()
-                && occurrence.tokens.len() >= min_tokens,
-            fully_contained: contained,
-            page: descriptor.map(|descriptor| descriptor.page.0),
-            bbox: descriptor.map(|descriptor| descriptor.bbox),
-            role: occurrence.role,
-            kind: match occurrence.kind {
-                RecoveryUnitKind::Sentence => RecoveryWatchUnitKind::Sentence,
-                RecoveryUnitKind::Line => RecoveryWatchUnitKind::Line,
-            },
-        };
+        let output = recovery_watch_occurrence(occurrence, descriptor, contained, min_tokens);
         Some(RecoveryWatchLookup {
             evidence: RecoveryWatchOccurrenceEvidence::Found(output),
             occurrence_index: Some(occurrence_index),
@@ -1661,6 +1925,7 @@ impl RecoveryWatchState {
             let mut second_start = None;
             let mut token_count = first.tokens.len();
             let mut descriptor_index = first.run_descriptor_index;
+            let mut page = first.page;
             let mut all_scalar = first.tokens.iter().all(|token| token.is_scalar());
             let mut all_locations_available = first.location.is_some();
             for offset in 1..MAX_SEGMENT_UNITS {
@@ -1691,6 +1956,9 @@ impl RecoveryWatchState {
                 all_locations_available &= next.location.is_some();
                 if descriptor_index != next.run_descriptor_index {
                     descriptor_index = None;
+                }
+                if page != next.page {
+                    page = None;
                 }
                 self.scan_work = self.scan_work.checked_add(joined.chars().count())?;
                 if self.scan_work > self.scan_limit {
@@ -1725,6 +1993,7 @@ impl RecoveryWatchState {
                                     hit,
                                     byte_start == 0 && byte_end == joined.len(),
                                     descriptor_index,
+                                    page,
                                     all_scalar,
                                     all_locations_available,
                                 ))
@@ -1751,6 +2020,7 @@ impl RecoveryWatchState {
             hit,
             full_candidate,
             descriptor_index,
+            page,
             all_scalar,
             all_locations_available,
         )) = found
@@ -1786,7 +2056,7 @@ impl RecoveryWatchState {
                 recovery_location_available: all_locations_available
                     && hit.token_count >= min_tokens,
                 fully_contained: contained,
-                page: descriptor.map(|descriptor| descriptor.page.0),
+                page: descriptor.map(|descriptor| descriptor.page.0).or(page),
                 bbox: descriptor.map(|descriptor| descriptor.bbox),
                 role: Some(role),
                 kind: RecoveryWatchUnitKind::Segment,
@@ -4002,6 +4272,7 @@ fn collect_occurrences(
             let word_ranges = sorted_word_ranges(&owned_key, budget)?;
 
             let touched_blocks = sentence_stream_block_range(&stream, boundary)?;
+            let page = sentence_page(side, &stream, touched_blocks.clone());
             let tokens = sentence_tokens(&stream, boundary, budget)?;
             let role = sentence_role(side, &stream, touched_blocks.clone())?;
             let span_index =
@@ -4034,6 +4305,7 @@ fn collect_occurrences(
                     ordinal,
                 }),
                 run_descriptor_index,
+                page,
                 evidence_block_index: (!plan.trusted)
                     .then(|| plan.block_indices.first().copied())
                     .flatten(),
@@ -4071,6 +4343,21 @@ fn collect_occurrences(
     }
     occurrences.sort_unstable_by_key(|occurrence| occurrence.span_index);
     Some((occurrences, fragments))
+}
+
+fn sentence_page(side: &Side<'_>, stream: &Stream, touched_blocks: Range<usize>) -> Option<u32> {
+    let mut page = None;
+    for stream_block in stream.blocks.get(touched_blocks)? {
+        let block = side.blocks.get(stream_block.side_index)?;
+        let [block_page] = block.pages.as_slice() else {
+            return None;
+        };
+        if page.is_some_and(|page| page != *block_page) {
+            return None;
+        }
+        page = Some(*block_page);
+    }
+    page
 }
 
 fn sentence_role(
@@ -6782,6 +7069,7 @@ mod tests {
             pair_by_occurrences: HashMap::new(),
             scan_work: 0,
             scan_limit: 0,
+            retained_one_sided_occurrences: 0,
         };
         watch.record_near_search_state(
             false,
@@ -6836,6 +7124,7 @@ mod tests {
             pair_by_occurrences: HashMap::new(),
             scan_work: 0,
             scan_limit: 0,
+            retained_one_sided_occurrences: 0,
         };
         watch
             .record_relations(
@@ -6925,6 +7214,7 @@ mod tests {
                 ordinal,
             }),
             run_descriptor_index: None,
+            page: None,
             evidence_block_index: None,
         }
     }
@@ -6954,7 +7244,188 @@ mod tests {
             pair_by_occurrences: HashMap::new(),
             scan_work: 0,
             scan_limit: 100_000,
+            retained_one_sided_occurrences: 0,
         }
+    }
+
+    #[test]
+    fn one_sided_watch_caps_retained_occurrences_and_keeps_total_count() {
+        let occurrences = (0..=MAX_RECOVERY_WATCH_RETAINED_OCCURRENCES)
+            .map(|ordinal| positioned_occurrence("Repeated overlay.", ordinal as u64, ordinal, 0))
+            .collect::<Vec<_>>();
+        let mut watch = watch_state();
+        watch.scan_limit = usize::MAX;
+        let lookup = watch
+            .locate_one_sided("Repeated overlay.", &occurrences, None, None, 1)
+            .expect("bounded exact occurrence scan succeeds");
+
+        let RecoveryWatchOccurrenceEvidence::Occurrences(found) = lookup.evidence else {
+            panic!("one-sided scan returns bounded occurrences");
+        };
+        assert_eq!(
+            found.occurrence_count,
+            MAX_RECOVERY_WATCH_RETAINED_OCCURRENCES + 1
+        );
+        assert_eq!(
+            found.occurrences.len(),
+            MAX_RECOVERY_WATCH_RETAINED_OCCURRENCES
+        );
+        assert!(!found.complete);
+        assert!(!watch.complete);
+        assert_eq!(
+            watch.retained_one_sided_occurrences,
+            MAX_RECOVERY_WATCH_RETAINED_OCCURRENCES
+        );
+    }
+
+    #[test]
+    fn one_sided_watch_budget_failure_retains_nothing() {
+        let occurrences = [positioned_occurrence("Observed deletion.", 1, 0, 0)];
+        let mut watch = watch_state();
+        watch.scan_limit = 0;
+
+        assert!(
+            watch
+                .locate_one_sided("Observed deletion.", &occurrences, None, None, 1)
+                .is_none()
+        );
+        assert_eq!(watch.retained_one_sided_occurrences, 0);
+    }
+
+    #[test]
+    fn one_sided_watch_scan_stop_is_unavailable_not_unfound() {
+        let occurrences = [positioned_occurrence("Observed deletion.", 1, 0, 0)];
+        let watch = RecoveryWatchState::new(
+            &[RecoveryWatchQuery {
+                id: "stopped",
+                old_quote: Some("Observed deletion."),
+                new_quote: None,
+            }],
+            &occurrences,
+            &[],
+            &[],
+            RecoveryWatchBuildContext {
+                old_evidence: None,
+                new_evidence: None,
+                old_fully_contained: None,
+                new_fully_contained: None,
+                min_tokens: 1,
+                max_tokens: 0,
+            },
+        )
+        .expect("stopped watch retains explicit unavailable evidence");
+
+        assert!(!watch.complete);
+        assert!(matches!(
+            watch.records[0].output.old,
+            RecoveryWatchOccurrenceEvidence::Unavailable
+        ));
+        assert!(matches!(
+            watch.records[0].output.new,
+            RecoveryWatchOccurrenceEvidence::NotQueried
+        ));
+    }
+
+    #[test]
+    fn one_sided_watch_collects_repeated_adjacent_segments() {
+        let occurrences = [
+            positioned_occurrence("Alpha", 1, 0, 0),
+            positioned_occurrence("Beta", 2, 0, 1),
+            positioned_occurrence("Alpha", 3, 1, 0),
+            positioned_occurrence("Beta", 4, 1, 1),
+        ];
+        let mut watch = watch_state();
+        let lookup = watch
+            .locate_one_sided("Alpha Beta", &occurrences, None, None, 1)
+            .expect("bounded segment scan succeeds");
+
+        let RecoveryWatchOccurrenceEvidence::Occurrences(found) = lookup.evidence else {
+            panic!("one-sided segment occurrences are retained");
+        };
+        assert_eq!(found.occurrence_count, 2);
+        assert!(found.complete);
+        assert!(found.occurrences.iter().all(|occurrence| {
+            occurrence.kind == RecoveryWatchUnitKind::Segment
+                && occurrence.unit_count == Some(2)
+                && occurrence.end_ordinal == Some(2)
+        }));
+    }
+
+    #[test]
+    fn watch_occurrence_uses_single_page_fallback_without_descriptor() {
+        let mut occurrence = positioned_occurrence("Fallback page.", 1, 0, 0);
+        occurrence.page = Some(7);
+
+        let output = recovery_watch_occurrence(&occurrence, None, false, 1);
+
+        assert_eq!(output.page, Some(7));
+        assert!(output.bbox.is_none());
+    }
+
+    #[test]
+    fn one_sided_segment_page_fallback_requires_one_common_page() {
+        let mut same_page = [
+            positioned_occurrence("Alpha", 1, 0, 0),
+            positioned_occurrence("Beta", 2, 0, 1),
+        ];
+        same_page[0].page = Some(5);
+        same_page[1].page = Some(5);
+        let mut watch = watch_state();
+        let same = watch
+            .locate_one_sided("Alpha Beta", &same_page, None, None, 1)
+            .expect("same-page segment scan succeeds");
+        let RecoveryWatchOccurrenceEvidence::Occurrences(same) = same.evidence else {
+            panic!("same-page segment is retained");
+        };
+        assert_eq!(same.occurrences[0].page, Some(5));
+        assert!(same.occurrences[0].bbox.is_none());
+
+        same_page[1].page = Some(6);
+        let mut watch = watch_state();
+        let mixed = watch
+            .locate_one_sided("Alpha Beta", &same_page, None, None, 1)
+            .expect("mixed-page segment scan succeeds");
+        let RecoveryWatchOccurrenceEvidence::Occurrences(mixed) = mixed.evidence else {
+            panic!("mixed-page segment is retained without page inference");
+        };
+        assert_eq!(mixed.occurrences[0].page, None);
+    }
+
+    #[test]
+    fn query_with_both_sides_omitted_is_unavailable_without_scanning() {
+        let occurrences = [positioned_occurrence("Must not be scanned.", 1, 0, 0)];
+        let watch = RecoveryWatchState::new(
+            &[RecoveryWatchQuery {
+                id: "metadata-only",
+                old_quote: None,
+                new_quote: None,
+            }],
+            &occurrences,
+            &occurrences,
+            &[],
+            RecoveryWatchBuildContext {
+                old_evidence: None,
+                new_evidence: None,
+                old_fully_contained: None,
+                new_fully_contained: None,
+                min_tokens: 1,
+                max_tokens: 0,
+            },
+        )
+        .expect("omitted sides need no scan budget");
+
+        assert_eq!(watch.scan_work, 0);
+        assert!(!watch.complete);
+        assert!(matches!(
+            watch.records[0].output.old,
+            RecoveryWatchOccurrenceEvidence::Unavailable
+        ));
+        assert!(matches!(
+            watch.records[0].output.new,
+            RecoveryWatchOccurrenceEvidence::Unavailable
+        ));
+        assert!(watch.records[0].output.pair.is_none());
+        assert!(watch.records[0].output.segment_pair.is_none());
     }
 
     #[test]
@@ -7283,6 +7754,7 @@ mod tests {
             pair_by_occurrences: HashMap::new(),
             scan_work: 0,
             scan_limit: 0,
+            retained_one_sided_occurrences: 0,
         };
 
         let diagnostics = watch.finish(Some(&plan));
@@ -7304,8 +7776,8 @@ mod tests {
         let mut watch = RecoveryWatchState::new(
             &[RecoveryWatchQuery {
                 id: "bounded-overlap",
-                old_quote: "a b",
-                new_quote: "a b",
+                old_quote: Some("a b"),
+                new_quote: Some("a b"),
             }],
             &old,
             &new,
@@ -7378,8 +7850,8 @@ mod tests {
         let watch = RecoveryWatchState::new(
             &[RecoveryWatchQuery {
                 id: "partial-segments",
-                old_quote: "2. Each key",
-                new_quote: "2. Each key pair",
+                old_quote: Some("2. Each key"),
+                new_quote: Some("2. Each key pair"),
             }],
             &old,
             &new,
@@ -7625,8 +8097,8 @@ mod tests {
         let watch = RecoveryWatchState::new(
             &[RecoveryWatchQuery {
                 id: "segment-pair",
-                old_quote: "Old alpha. Old beta.",
-                new_quote: "New alpha. New beta.",
+                old_quote: Some("Old alpha. Old beta."),
+                new_quote: Some("New alpha. New beta."),
             }],
             &old,
             &new,
@@ -7659,8 +8131,8 @@ mod tests {
         let mut watch = RecoveryWatchState::new(
             &[RecoveryWatchQuery {
                 id: "untrusted-pair",
-                old_quote: "Old single.",
-                new_quote: "New single.",
+                old_quote: Some("Old single."),
+                new_quote: Some("New single."),
             }],
             &old,
             &new,
@@ -7707,6 +8179,7 @@ mod tests {
             span_index: None,
             trusted_position: None,
             run_descriptor_index: None,
+            page: None,
             evidence_block_index: None,
         }
     }
@@ -7818,6 +8291,7 @@ mod tests {
             span_index: Some(0),
             trusted_position: None,
             run_descriptor_index: None,
+            page: None,
             evidence_block_index: None,
         }
     }
@@ -8606,6 +9080,7 @@ mod tests {
             span_index: Some(0),
             trusted_position: None,
             run_descriptor_index: None,
+            page: None,
             evidence_block_index: None,
         }];
         let new_occurrences = [SentenceOccurrence {
@@ -8618,6 +9093,7 @@ mod tests {
             span_index: Some(0),
             trusted_position: None,
             run_descriptor_index: None,
+            page: None,
             evidence_block_index: None,
         }];
         let old_candidates = [RecoveryCandidate {
@@ -8664,6 +9140,7 @@ mod tests {
             span_index: Some(0),
             trusted_position: None,
             run_descriptor_index: None,
+            page: None,
             evidence_block_index: None,
         };
         let old = occurrence("arXiv:1706.03762v6 [cs.CL] 24 Jul 2023");
@@ -9202,6 +9679,7 @@ mod tests {
             span_index: Some(0),
             trusted_position: None,
             run_descriptor_index: None,
+            page: None,
             evidence_block_index: None,
         }];
         let mut new_occurrences = [SentenceOccurrence {
@@ -9214,6 +9692,7 @@ mod tests {
             span_index: Some(0),
             trusted_position: None,
             run_descriptor_index: None,
+            page: None,
             evidence_block_index: None,
         }];
         let candidates = [ExactMatchCandidate {
@@ -9265,6 +9744,7 @@ mod tests {
                 span_index: Some(span_index),
                 trusted_position: None,
                 run_descriptor_index: None,
+                page: None,
                 evidence_block_index: None,
             }
         };
@@ -9638,6 +10118,7 @@ mod tests {
                 span_index: Some(0),
                 trusted_position: None,
                 run_descriptor_index: None,
+                page: None,
                 evidence_block_index: None,
             },
             SentenceOccurrence {
@@ -9650,6 +10131,7 @@ mod tests {
                 span_index: Some(0),
                 trusted_position: None,
                 run_descriptor_index: None,
+                page: None,
                 evidence_block_index: None,
             },
         ];
@@ -9663,6 +10145,7 @@ mod tests {
             span_index: None,
             trusted_position: None,
             run_descriptor_index: None,
+            page: None,
             evidence_block_index: None,
         }];
         let old_candidates = [
@@ -9999,6 +10482,7 @@ mod tests {
             span_index: Some(span_index),
             trusted_position: None,
             run_descriptor_index: None,
+            page: None,
             evidence_block_index: None,
         };
         let old_occurrences = [occurrence("old-a", 0), occurrence("old-b", 1)];
@@ -10064,6 +10548,7 @@ mod tests {
             span_index: Some(span_index),
             trusted_position: None,
             run_descriptor_index: None,
+            page: None,
             evidence_block_index: None,
         };
         let old_occurrences = [occurrence("old-a", 0), occurrence("old-b", 1)];

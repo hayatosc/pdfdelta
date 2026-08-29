@@ -113,10 +113,18 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v13)
+## Current Writer Schema (v14)
 
-The latest committed capture and benchmark writer use schema v13. Older captures
-retain their recorded schemas.
+The benchmark writer uses schema v14. Older captures retain their recorded
+schemas.
+Schema v14 extends recovery watches to insertions and deletions. Each queried
+side records bounded occurrence evidence with explicit complete or truncated
+semantics, while an absent quote is reported as `not_queried` instead of being
+mistaken for an unfound occurrence. Comparison, quality, and candidate metrics
+remain unchanged.
+Retained occurrences expose the page, raw trusted-run bounding box, and block
+role already available to the diff. Normalized geometry remains deferred until
+the neutral document model retains authoritative page bounds.
 Schema v13 adds bounded exact segment-pair diagnostics to recovery watches. It
 records candidate, hash-match, token-verification, uniqueness, monotonicity,
 crossing, overlap-veto, and typed stop evidence, plus the exact segment-pair

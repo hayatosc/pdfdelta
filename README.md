@@ -300,12 +300,13 @@ ended `LIMIT`/`FAIL`; low quality scores never fail a run because the dated
 captures serve as calibration evidence and current fragmentation and recall
 remain too unstable for rigid quality-gate thresholds (confidence calibration
 has landed, but broader large-document alignment quality remains ongoing work).
-Compact revision summaries use schema version 13 and include optional nested
+Compact revision summaries use schema version 14 and include optional nested
 sentence-recovery diagnostics, near-search examined and attempted work,
 candidate-posting maxima, an explicit candidate-count truncation flag, typed
 near-search stop reasons, structural trusted-run profile diagnostics,
 budgeted exact-unit trusted-run signature diagnostics,
-bounded expected-change recovery watches with single-unit or adjacent-unit
+bounded one- and two-sided expected-change recovery watches with retained
+occurrence evidence for single-unit or adjacent-unit
 segment locations, exact segment-pair candidate and classification counters,
 per-record exact segment-pair evidence, existing candidate scores and
 relations, reciprocal status, and typed stop evidence,

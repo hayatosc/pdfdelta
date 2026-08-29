@@ -236,12 +236,19 @@ pub struct ExpectedChangeRecoveryWatchRecord {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum RecoveryWatchOccurrenceReport {
+    NotQueried,
     Unfound,
     Ambiguous,
     Unavailable,
     Found {
         #[serde(flatten)]
         occurrence: RecoveryWatchFoundOccurrenceReport,
+    },
+    Occurrences {
+        occurrence_count: usize,
+        complete: bool,
+        truncated: bool,
+        occurrences: Vec<RecoveryWatchFoundOccurrenceReport>,
     },
 }
 
@@ -498,11 +505,22 @@ impl From<NearRelationStopReason> for NearRelationStopReasonReport {
 impl From<RecoveryWatchOccurrenceEvidence> for RecoveryWatchOccurrenceReport {
     fn from(evidence: RecoveryWatchOccurrenceEvidence) -> Self {
         match evidence {
+            RecoveryWatchOccurrenceEvidence::NotQueried => Self::NotQueried,
             RecoveryWatchOccurrenceEvidence::Unfound => Self::Unfound,
             RecoveryWatchOccurrenceEvidence::Ambiguous => Self::Ambiguous,
             RecoveryWatchOccurrenceEvidence::Unavailable => Self::Unavailable,
             RecoveryWatchOccurrenceEvidence::Found(occurrence) => Self::Found {
                 occurrence: occurrence.into(),
+            },
+            RecoveryWatchOccurrenceEvidence::Occurrences(occurrences) => Self::Occurrences {
+                occurrence_count: occurrences.occurrence_count,
+                complete: occurrences.complete,
+                truncated: !occurrences.complete,
+                occurrences: occurrences
+                    .occurrences
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
             },
         }
     }
@@ -700,10 +718,15 @@ fn recovery_watch_report(
                 },
                 None => {
                     join_complete = false;
+                    let change = expected.get(expected_index);
                     ExpectedChangeRecoveryWatchRecord {
                         expected_id,
-                        old: RecoveryWatchOccurrenceReport::Unavailable,
-                        new: RecoveryWatchOccurrenceReport::Unavailable,
+                        old: missing_recovery_watch_side(
+                            change.and_then(|change| change.old_quote.as_deref()),
+                        ),
+                        new: missing_recovery_watch_side(
+                            change.and_then(|change| change.new_quote.as_deref()),
+                        ),
                         pair: None,
                         segment_pair: None,
                     }
@@ -727,6 +750,14 @@ fn recovery_watch_report(
         segment_overlap_vetoes: diagnostics.segment_overlap_vetoes,
         segment_stop_reason: diagnostics.segment_stop_reason.map(Into::into),
         records,
+    }
+}
+
+fn missing_recovery_watch_side(quote: Option<&str>) -> RecoveryWatchOccurrenceReport {
+    if quote.is_some() {
+        RecoveryWatchOccurrenceReport::Unavailable
+    } else {
+        RecoveryWatchOccurrenceReport::NotQueried
     }
 }
 
@@ -1047,8 +1078,12 @@ impl ExpectedKind {
         }
     }
 
-    fn supports_recovery_watch(self) -> bool {
-        matches!(self, Self::Replacement | Self::Move)
+    fn has_recovery_watch_quotes(self, old_quote: Option<&str>, new_quote: Option<&str>) -> bool {
+        match self {
+            Self::Replacement | Self::Move => old_quote.is_some() && new_quote.is_some(),
+            Self::Insertion => old_quote.is_none() && new_quote.is_some(),
+            Self::Deletion => old_quote.is_some() && new_quote.is_none(),
+        }
     }
 }
 
@@ -1130,10 +1165,13 @@ impl RecoveryWatchQuerySet {
             .take(MAX_EXPECTED_CHANGE_DIAGNOSTICS)
             .enumerate()
             .filter_map(|(index, change)| {
-                (change.kind.supports_recovery_watch()
-                    && change.old_quote.is_some()
-                    && change.new_quote.is_some())
-                .then_some(index)
+                change
+                    .kind
+                    .has_recovery_watch_quotes(
+                        change.old_quote.as_deref(),
+                        change.new_quote.as_deref(),
+                    )
+                    .then_some(index)
             })
             .collect::<Vec<_>>();
         let ids = expected_indices
@@ -1154,14 +1192,8 @@ impl RecoveryWatchQuerySet {
                 let change = &changes[index];
                 RecoveryWatchQuery {
                     id,
-                    old_quote: change
-                        .old_quote
-                        .as_deref()
-                        .expect("recovery-watch changes have old quotes"),
-                    new_quote: change
-                        .new_quote
-                        .as_deref()
-                        .expect("recovery-watch changes have new quotes"),
+                    old_quote: change.old_quote.as_deref(),
+                    new_quote: change.new_quote.as_deref(),
                 }
             })
             .collect()
@@ -3016,7 +3048,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 13;
+    pub const SCHEMA_VERSION: u32 = 14;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -3195,15 +3227,47 @@ mod tests {
             query_set.expected_indices.last(),
             Some(&(MAX_EXPECTED_CHANGE_DIAGNOSTICS - 1))
         );
-        assert_eq!(queries[0].old_quote, "old 0");
-        assert_eq!(queries[1].old_quote, "old 2");
+        assert_eq!(queries[0].old_quote, Some("old 0"));
+        assert_eq!(queries[1].old_quote, Some("old 2"));
+    }
+
+    #[test]
+    fn recovery_watch_queries_accept_only_kind_appropriate_quote_shapes() {
+        let mut insertion = recovery_watch_expected_change("insertion", ExpectedKind::Insertion);
+        insertion.old_quote = None;
+        let mut deletion = recovery_watch_expected_change("deletion", ExpectedKind::Deletion);
+        deletion.new_quote = None;
+        let mut invalid_insertion =
+            recovery_watch_expected_change("invalid-insertion", ExpectedKind::Insertion);
+        invalid_insertion.new_quote = None;
+        let mut invalid_deletion =
+            recovery_watch_expected_change("invalid-deletion", ExpectedKind::Deletion);
+        invalid_deletion.old_quote = None;
+        let document = expected_document(vec![
+            insertion,
+            deletion,
+            invalid_insertion,
+            invalid_deletion,
+        ]);
+
+        let query_set = RecoveryWatchQuerySet::new(Some(&document));
+        let queries = query_set.queries(&document.changes);
+
+        assert_eq!(query_set.expected_indices, [0, 1]);
+        assert_eq!(queries[0].old_quote, None);
+        assert_eq!(queries[0].new_quote, Some("new insertion"));
+        assert_eq!(queries[1].old_quote, Some("old deletion"));
+        assert_eq!(queries[1].new_quote, None);
     }
 
     #[test]
     fn recovery_watch_join_is_ordinal_safe_with_duplicate_and_missing_expected_ids() {
+        let mut insertion = recovery_watch_expected_change("insertion", ExpectedKind::Insertion);
+        insertion.old_quote = None;
         let document = expected_document(vec![
             recovery_watch_expected_change("duplicate", ExpectedKind::Replacement),
             recovery_watch_expected_change("duplicate", ExpectedKind::Move),
+            insertion,
         ]);
         let query_set = RecoveryWatchQuerySet::new(Some(&document));
         let diagnostics = RecoveryWatchDiagnostics {
@@ -3240,7 +3304,7 @@ mod tests {
         let report = recovery_watch_report(&document.changes, &query_set, diagnostics);
 
         assert!(!report.complete);
-        assert_eq!(report.records.len(), 2);
+        assert_eq!(report.records.len(), 3);
         assert_eq!(report.records[0].expected_id, "duplicate");
         assert_eq!(
             report.records[0].old,
@@ -3255,14 +3319,29 @@ mod tests {
             report.records[1].old,
             RecoveryWatchOccurrenceReport::Unavailable
         );
+        assert_eq!(
+            report.records[2].old,
+            RecoveryWatchOccurrenceReport::NotQueried
+        );
+        assert_eq!(
+            report.records[2].new,
+            RecoveryWatchOccurrenceReport::Unavailable
+        );
     }
 
     #[test]
     fn recovery_watch_report_serializes_occurrences_pair_evidence_and_stop_state() {
         let document = expected_document(
-            ["unfound", "ambiguous", "unavailable", "found"]
-                .map(|id| recovery_watch_expected_change(id, ExpectedKind::Replacement))
-                .to_vec(),
+            [
+                "unfound",
+                "ambiguous",
+                "unavailable",
+                "found",
+                "not-queried",
+                "occurrences",
+            ]
+            .map(|id| recovery_watch_expected_change(id, ExpectedKind::Replacement))
+            .to_vec(),
         );
         let query_set = RecoveryWatchQuerySet::new(Some(&document));
         let mut records = [
@@ -3341,6 +3420,40 @@ mod tests {
                 relation: ExactSegmentRelation::ExactUniqueMonotone,
             }),
         });
+        records.push(pdfdelta_core::diff::RecoveryWatchRecord {
+            id: query_set.ids[4].clone(),
+            old: RecoveryWatchOccurrenceEvidence::NotQueried,
+            new: RecoveryWatchOccurrenceEvidence::Unavailable,
+            pair: None,
+            segment_pair: None,
+        });
+        let occurrence = RecoveryWatchOccurrence {
+            span_index: Some(10),
+            trusted_run_descriptor_index: Some(11),
+            ordinal: Some(12),
+            end_ordinal: None,
+            unit_count: None,
+            token_count: Some(16),
+            recovery_location_available: true,
+            fully_contained: true,
+            page: Some(13),
+            bbox: None,
+            role: Some(BlockRole::RepeatedFooter),
+            kind: RecoveryWatchUnitKind::Line,
+        };
+        records.push(pdfdelta_core::diff::RecoveryWatchRecord {
+            id: query_set.ids[5].clone(),
+            old: RecoveryWatchOccurrenceEvidence::Occurrences(
+                pdfdelta_core::diff::RecoveryWatchOccurrences {
+                    occurrence_count: 3,
+                    complete: false,
+                    occurrences: vec![occurrence.clone(), occurrence],
+                },
+            ),
+            new: RecoveryWatchOccurrenceEvidence::NotQueried,
+            pair: None,
+            segment_pair: None,
+        });
         let report = recovery_watch_report(
             &document.changes,
             &query_set,
@@ -3402,6 +3515,19 @@ mod tests {
         assert_eq!(value["records"][1]["old"]["status"], "ambiguous");
         assert_eq!(value["records"][2]["old"]["status"], "unavailable");
         assert_eq!(value["records"][3]["old"]["status"], "found");
+        assert_eq!(value["records"][4]["old"]["status"], "not_queried");
+        assert_eq!(value["records"][5]["old"]["status"], "occurrences");
+        assert_eq!(value["records"][5]["old"]["occurrence_count"], 3);
+        assert_eq!(value["records"][5]["old"]["complete"], false);
+        assert_eq!(value["records"][5]["old"]["truncated"], true);
+        assert_eq!(
+            value["records"][5]["old"]["occurrences"]
+                .as_array()
+                .expect("retained occurrences array")
+                .len(),
+            2
+        );
+        assert_eq!(value["records"][5]["new"]["status"], "not_queried");
         assert_eq!(
             value["records"][3]
                 .as_object()
@@ -3469,6 +3595,25 @@ mod tests {
                 "relation": "exact_unique_monotone"
             })
         );
+    }
+
+    #[test]
+    fn recovery_watch_occurrence_report_complements_completion_flags() {
+        for complete in [false, true] {
+            let value = serde_json::to_value(RecoveryWatchOccurrenceReport::from(
+                RecoveryWatchOccurrenceEvidence::Occurrences(
+                    pdfdelta_core::diff::RecoveryWatchOccurrences {
+                        occurrence_count: 0,
+                        complete,
+                        occurrences: Vec::new(),
+                    },
+                ),
+            ))
+            .expect("occurrence evidence serializes");
+
+            assert_eq!(value["complete"], complete);
+            assert_eq!(value["truncated"], !complete);
+        }
     }
 
     #[test]
@@ -3963,7 +4108,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 13);
+        assert_eq!(completed["schema_version"], 14);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -4001,7 +4146,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 13);
+        assert_eq!(legacy_summary["schema_version"], 14);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -4865,7 +5010,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 13);
+        assert_eq!(json["schema_version"], 14);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -5702,7 +5847,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 13);
+        assert_eq!(value["schema_version"], 14);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
