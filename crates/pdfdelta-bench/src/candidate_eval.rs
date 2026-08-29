@@ -924,7 +924,7 @@ fn core_error(stage: &'static str, error: pdfdelta_core::Error) -> BenchError {
 mod tests {
     use pdfdelta_core::{
         alignment::{BlockFeatures, ExactHash, NGram},
-        layout::BlockId,
+        layout::{BlockId, BlockRole},
         model::{
             DecodedText, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
             GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
@@ -943,6 +943,7 @@ mod tests {
     fn block_text(id: u64, text: &str) -> BlockText {
         BlockText {
             block: BlockId(id),
+            role: BlockRole::Body,
             raw: MappedText {
                 text: text.to_owned(),
                 source_map: Vec::new(),
@@ -1414,6 +1415,7 @@ mod tests {
         let ngram = NGram(vec![token.clone()]);
         BlockFeatures {
             block,
+            role: BlockRole::Body,
             exact_hash: ExactHash(0),
             canonical_tokens: vec![token.clone()],
             matching_tokens: vec![token.clone()],

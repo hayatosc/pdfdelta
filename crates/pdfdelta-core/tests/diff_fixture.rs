@@ -1162,6 +1162,7 @@ fn block_with_matching(
 ) -> BlockText {
     BlockText {
         block: BlockId(id),
+        role: pdfdelta_core::layout::BlockRole::Body,
         raw: mapped(canonical),
         canonical: mapped(canonical),
         matching: matching.to_owned(),
@@ -1190,6 +1191,7 @@ fn unmapped_block(id: u64, glyph_id: u16) -> BlockText {
     };
     BlockText {
         block: BlockId(id),
+        role: pdfdelta_core::layout::BlockRole::Body,
         raw: mapped.clone(),
         canonical: mapped,
         matching: String::new(),
@@ -1463,6 +1465,7 @@ fn multi_unmapped_block(id: u64, font_hash: Vec<u8>, glyph_ids: &[u16]) -> Block
     };
     BlockText {
         block: BlockId(id),
+        role: pdfdelta_core::layout::BlockRole::Body,
         raw: mapped.clone(),
         canonical: mapped,
         matching: String::new(),

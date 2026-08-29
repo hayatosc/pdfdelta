@@ -855,6 +855,7 @@ mod tests {
             .collect::<NGramCounts>();
         BlockFeatures {
             block: BlockId(block),
+            role: crate::layout::BlockRole::Body,
             exact_hash: ExactHash(block),
             canonical_tokens: Vec::new(),
             matching_tokens: Vec::new(),

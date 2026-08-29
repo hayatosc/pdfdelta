@@ -1668,6 +1668,7 @@ mod tests {
     use pdfdelta_core::{
         alignment::{AlignmentConfidence, AlignmentKind, AlignmentSpan},
         diff::{Change, ChangeKind, Confidence, Coverage, TokenRange, UnresolvedRegion},
+        layout::BlockRole,
         model::FontProgramHash,
         normalize::{
             MappedText, NormalizationIssue, NormalizationIssueKind, TextSource, UnmappedToken,
@@ -1723,6 +1724,7 @@ mod tests {
     fn diagnostic_block(id: u64, text: &str) -> BlockText {
         BlockText {
             block: BlockId(id),
+            role: BlockRole::Body,
             raw: diagnostic_mapped(text),
             canonical: diagnostic_mapped(text),
             matching: text.to_owned(),

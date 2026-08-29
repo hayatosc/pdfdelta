@@ -12,7 +12,7 @@ use pdfdelta_core::{
         BlockFeatures, CandidateGenerator, ExactHash, ExhaustiveCandidateGenerator,
         InvertedIndexCandidateGenerator, MinHashLshCandidateGenerator, NGram,
     },
-    layout::BlockId,
+    layout::{BlockId, BlockRole},
     normalize::ComparableToken,
 };
 use serde::{Deserialize, Serialize};
@@ -221,6 +221,7 @@ fn synthetic_features(blocks: usize) -> Result<Vec<BlockFeatures>> {
         })?;
         features.push(BlockFeatures {
             block: BlockId(block_id),
+            role: BlockRole::Body,
             exact_hash: ExactHash(exact_hash),
             canonical_tokens: matching_tokens.clone(),
             matching_tokens,

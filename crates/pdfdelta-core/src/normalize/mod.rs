@@ -5,7 +5,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     Error, Result,
-    layout::{Block, BlockId, Line, LineId},
+    layout::{Block, BlockId, BlockRole, Line, LineId},
     model::{DecodedText, Document, FontProgramHash, Glyph, GlyphId, Vec2, index_glyphs},
 };
 
@@ -436,6 +436,7 @@ pub struct NormalizationIssue {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockText {
     pub block: BlockId,
+    pub role: BlockRole,
     pub raw: MappedText,
     pub canonical: MappedText,
     pub matching: String,
@@ -711,7 +712,7 @@ pub fn normalize_blocks(
             &mut assigned_glyphs,
         )?;
         let pages = block_pages(block, &lines);
-        normalized.push(normalize_block(block.id, raw, pages, &glyphs)?);
+        normalized.push(normalize_block(block.id, block.role, raw, pages, &glyphs)?);
     }
 
     if assigned_lines.len() != lines.len() {
@@ -1020,6 +1021,7 @@ fn block_pages(block: &Block, lines: &HashMap<LineId, &Line>) -> Vec<u32> {
 
 fn normalize_block(
     block: BlockId,
+    role: BlockRole,
     raw: RawBlock,
     pages: Vec<u32>,
     glyphs: &HashMap<GlyphId, &Glyph>,
@@ -1041,6 +1043,7 @@ fn normalize_block(
 
     Ok(BlockText {
         block,
+        role,
         raw: raw.mapped,
         canonical,
         matching: matching.text,

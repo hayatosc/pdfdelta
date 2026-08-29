@@ -2240,6 +2240,7 @@ fn fixture_blocks(ids: &[u64]) -> Vec<BlockText> {
 fn block_with_text(id: u64, text: &str) -> BlockText {
     BlockText {
         block: BlockId(id),
+        role: pdfdelta_core::layout::BlockRole::Body,
         raw: MappedText {
             text: String::new(),
             source_map: Vec::new(),
@@ -2315,6 +2316,7 @@ fn source_position(sources: &[serde_json::Value], kind: &str, glyph_id: Option<u
 fn unmapped_block_fixture(id: u64) -> BlockText {
     BlockText {
         block: BlockId(id),
+        role: pdfdelta_core::layout::BlockRole::Body,
         raw: MappedText {
             text: String::new(),
             source_map: Vec::new(),
@@ -2356,6 +2358,7 @@ fn unmapped_block_fixture(id: u64) -> BlockText {
 fn unmapped_only_block(id: u64, hash: Vec<u8>, glyph_id: u16) -> BlockText {
     BlockText {
         block: BlockId(id),
+        role: pdfdelta_core::layout::BlockRole::Body,
         raw: MappedText {
             text: String::new(),
             source_map: Vec::new(),

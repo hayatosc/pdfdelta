@@ -2176,6 +2176,7 @@ mod tests {
             .collect::<Vec<_>>();
         BlockFeatures {
             block: BlockId(block),
+            role: crate::layout::BlockRole::Body,
             exact_hash: ExactHash(exact_hash),
             canonical_tokens: tokens.clone(),
             matching_tokens: tokens,

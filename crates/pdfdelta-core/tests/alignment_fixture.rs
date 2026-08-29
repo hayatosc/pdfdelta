@@ -2167,6 +2167,7 @@ fn unmapped_block_text(id: u64, font_hash: Vec<u8>, glyph_id: u16) -> BlockText 
     };
     BlockText {
         block: BlockId(id),
+        role: pdfdelta_core::layout::BlockRole::Body,
         raw: mapped.clone(),
         canonical: mapped,
         matching: String::new(),
@@ -2190,6 +2191,7 @@ fn anchor_feature(block: u64, key: usize) -> BlockFeatures {
     let tokens = vec![ComparableToken::Scalar(scalar)];
     BlockFeatures {
         block: BlockId(block),
+        role: pdfdelta_core::layout::BlockRole::Body,
         exact_hash: ExactHash(key as u64),
         canonical_tokens: tokens.clone(),
         matching_tokens: tokens,
@@ -2209,6 +2211,7 @@ fn block_text_with_matching(
 ) -> BlockText {
     BlockText {
         block: BlockId(id),
+        role: pdfdelta_core::layout::BlockRole::Body,
         raw: mapped_text(canonical),
         canonical: mapped_text(canonical),
         matching: matching.to_owned(),
@@ -2853,6 +2856,7 @@ fn multi_unmapped_block_text(id: u64, font_hash: Vec<u8>, glyph_ids: &[u16]) -> 
     };
     BlockText {
         block: BlockId(id),
+        role: pdfdelta_core::layout::BlockRole::Body,
         raw: mapped.clone(),
         canonical: mapped,
         matching: String::new(),
@@ -2901,6 +2905,7 @@ fn mixed_mapped_unmapped_block_text(
     }
     BlockText {
         block: BlockId(id),
+        role: pdfdelta_core::layout::BlockRole::Body,
         raw: mapped.clone(),
         canonical: mapped,
         matching: text,

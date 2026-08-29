@@ -4611,6 +4611,7 @@ mod tests {
             .collect::<Vec<_>>();
         let block = BlockText {
             block: BlockId(1),
+            role: crate::layout::BlockRole::Body,
             raw: mapped.clone(),
             canonical: mapped,
             matching: text.to_owned(),

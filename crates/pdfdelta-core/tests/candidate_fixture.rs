@@ -600,6 +600,7 @@ fn minhash_lsh_estimate_visits_decomposes_components() {
 fn block_text(id: u64, canonical: &str, matching: &str, numeric_mask_applied: bool) -> BlockText {
     BlockText {
         block: BlockId(id),
+        role: pdfdelta_core::layout::BlockRole::Body,
         raw: mapped_text(canonical),
         canonical: mapped_text(canonical),
         matching: matching.to_owned(),

@@ -1,10 +1,12 @@
 use pdfdelta_core::{
     Error,
+    alignment::build_block_features,
     layout::{BlockOptions, BlockRole, Line, LineId, SyntheticSpace, reconstruct_blocks},
     model::{
         DecodedText, Document, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphId,
         GlyphPathClipStatus, GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
     },
+    normalize::normalize_blocks,
     pdf::ObjectRef,
 };
 
@@ -328,6 +330,25 @@ fn preserves_repeated_headers_and_footers_as_separate_roles() {
         .collect();
     preserved_lines.sort_by_key(|line| line.0);
     assert_eq!(preserved_lines, (1..=12).map(LineId).collect::<Vec<_>>());
+
+    let normalized = normalize_blocks(&fixture.document, &fixture.lines, &blocks)
+        .expect("reconstructed roles should survive normalization");
+    let features = build_block_features(&normalized, 3)
+        .expect("normalized roles should survive feature extraction");
+    assert_eq!(
+        features
+            .iter()
+            .filter(|feature| feature.role == BlockRole::RepeatedHeader)
+            .count(),
+        3
+    );
+    assert_eq!(
+        features
+            .iter()
+            .filter(|feature| feature.role == BlockRole::RepeatedFooter)
+            .count(),
+        3
+    );
 }
 
 #[test]

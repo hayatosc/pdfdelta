@@ -6145,6 +6145,7 @@ mod tests {
     fn sentence_block(id: u64, text: &str) -> BlockText {
         BlockText {
             block: BlockId(id),
+            role: crate::layout::BlockRole::Body,
             raw: test_mapped(text),
             canonical: test_mapped(text),
             matching: text.to_owned(),

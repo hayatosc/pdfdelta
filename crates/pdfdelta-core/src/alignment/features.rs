@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     Error, Result,
-    layout::BlockId,
+    layout::{BlockId, BlockRole},
     normalize::{BlockText, ComparableToken},
 };
 
@@ -19,6 +19,7 @@ const PAGE_POSITION_SCALE: u64 = 10_000;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockFeatures {
     pub block: BlockId,
+    pub role: BlockRole,
     pub exact_hash: ExactHash,
     pub canonical_tokens: Vec<ComparableToken>,
     pub matching_tokens: Vec<ComparableToken>,
@@ -53,6 +54,7 @@ pub fn build_block_features(blocks: &[BlockText], ngram_size: usize) -> Result<V
         let ngram_counts = token_ngram_counts(&matching_tokens, ngram_size);
         features.push(BlockFeatures {
             block: block.block,
+            role: block.role,
             exact_hash: exact_hash(&canonical_tokens),
             canonical_tokens,
             ngram_counts,

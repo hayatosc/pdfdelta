@@ -1132,6 +1132,7 @@ fn evaluate_scoped_token_metrics_with_limits(
 #[cfg(test)]
 mod tests {
     use pdfdelta_core::diff::{ChangeKind, ChangeOccurrence, Confidence, TokenRange};
+    use pdfdelta_core::layout::BlockRole;
     use pdfdelta_core::normalize::{
         ComparableToken, MappedText, NormalizationIssue, NormalizationIssueKind, ScalarRange,
         TextSource,
@@ -1151,6 +1152,7 @@ mod tests {
     fn block(id: u64, text: &str) -> BlockText {
         BlockText {
             block: BlockId(id),
+            role: BlockRole::Body,
             raw: mapped(text),
             canonical: mapped(text),
             matching: text.to_owned(),
