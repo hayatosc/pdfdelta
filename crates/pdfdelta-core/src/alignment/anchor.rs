@@ -5,6 +5,7 @@ use crate::{Error, Result, layout::BlockId, normalize::ComparableToken};
 use super::features::{BlockFeatures, validate_feature_ids};
 
 pub const DEFAULT_ANCHOR_MIN_TOKENS: usize = 16;
+const MAX_STRUCTURAL_LABEL_TOKENS: usize = 32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExactAnchor {
@@ -73,9 +74,39 @@ pub fn exact_anchors(
         .collect())
 }
 
+pub(crate) fn primary_exact_anchors(
+    old: &[BlockFeatures],
+    new: &[BlockFeatures],
+    min_token_count: usize,
+) -> Result<Vec<ExactAnchor>> {
+    let mut anchors = exact_anchors(old, new, min_token_count)?;
+    if min_token_count == 1 {
+        return Ok(anchors);
+    }
+
+    let included = anchors
+        .iter()
+        .map(|anchor| anchor.old)
+        .collect::<std::collections::HashSet<_>>();
+    let old_by_id = old
+        .iter()
+        .map(|features| (features.block, features))
+        .collect::<HashMap<_, _>>();
+    anchors.extend(
+        exact_anchors(old, new, 1)?
+            .into_iter()
+            .filter(|anchor| !included.contains(&anchor.old))
+            .filter(|anchor| is_structural_label(&old_by_id[&anchor.old].canonical_tokens)),
+    );
+    anchors.sort_unstable();
+    Ok(anchors)
+}
+
 /// Computes the maximum monotone anchor chain using an $O(N \log N)$ Fenwick-tree LIS on new-block positions.
 ///
-/// Anchors not included in the monotone main chain are preserved as move candidates.
+/// Equal-length chains prefer short structural labels, which remain stable
+/// boundaries when an adjacent value such as a URL changes position. Anchors
+/// not included in the monotone main chain are preserved as move candidates.
 pub fn select_monotone_anchor_chain(
     anchors: &[ExactAnchor],
     old: &[BlockFeatures],
@@ -133,11 +164,13 @@ pub fn select_monotone_anchor_chain(
     let mut previous = vec![None; positioned.len()];
     let mut fenwick = vec![None; sorted_new_indices.len() + 1];
     let mut chain_end = None;
-    for (index, (_, _, new_index)) in positioned.iter().enumerate() {
+    for (index, (_, old_index, new_index)) in positioned.iter().enumerate() {
         let rank = sorted_new_indices.partition_point(|candidate| candidate < new_index);
         let predecessor = query_chain_tip(&fenwick, rank);
         let tip = ChainTip {
             length: predecessor.map_or(1, |tip| tip.length + 1),
+            structural_labels: predecessor.map_or(0, |tip| tip.structural_labels)
+                + usize::from(is_structural_label(&old[*old_index].canonical_tokens)),
             position: index,
         };
         previous[index] = predecessor.map(|tip| tip.position);
@@ -180,6 +213,7 @@ pub fn select_monotone_anchor_chain(
 #[derive(Clone, Copy)]
 struct ChainTip {
     length: usize,
+    structural_labels: usize,
     position: usize,
 }
 
@@ -206,12 +240,36 @@ fn preferred_chain_tip(current: Option<ChainTip>, candidate: Option<ChainTip>) -
         (current, None) => current,
         (Some(current), Some(candidate))
             if candidate.length > current.length
-                || candidate.length == current.length && candidate.position < current.position =>
+                || candidate.length == current.length
+                    && candidate.structural_labels > current.structural_labels
+                || candidate.length == current.length
+                    && candidate.structural_labels == current.structural_labels
+                    && candidate.position < current.position =>
         {
             Some(candidate)
         }
         (current, Some(_)) => current,
     }
+}
+
+fn is_structural_label(tokens: &[ComparableToken]) -> bool {
+    if !(2..=MAX_STRUCTURAL_LABEL_TOKENS).contains(&tokens.len()) {
+        return false;
+    }
+
+    let mut has_alphanumeric = false;
+    let mut last_non_whitespace = None;
+    for token in tokens {
+        let Some(scalar) = token.as_scalar() else {
+            return false;
+        };
+        has_alphanumeric |= scalar.is_alphanumeric();
+        if !scalar.is_whitespace() {
+            last_non_whitespace = Some(scalar);
+        }
+    }
+
+    has_alphanumeric && matches!(last_non_whitespace, Some(':' | '：'))
 }
 
 /// Partitions old and new block sequences into bounded alignment interval windows around the monotone main chain.

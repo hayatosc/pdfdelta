@@ -9,7 +9,10 @@ use crate::{
 use super::{
     AnchorIntervalWindow, BlockFeatures, BlockSeparator, CandidateGenerator, CandidateSource,
     ExactAnchor,
-    anchor::{exact_anchors, partition_anchor_windows, select_monotone_anchor_chain},
+    anchor::{
+        exact_anchors, partition_anchor_windows, primary_exact_anchors,
+        select_monotone_anchor_chain,
+    },
     score::{GroupScore, ScoreOptions, score_groups},
 };
 
@@ -354,7 +357,7 @@ pub(crate) fn plan_ordered_gaps(
         .chain(new_extraction_uncertain_indices)
         .copied()
         .collect::<HashSet<_>>();
-    let all_anchors = exact_anchors(old, new, options.anchor_min_tokens)?
+    let all_anchors = primary_exact_anchors(old, new, options.anchor_min_tokens)?
         .into_iter()
         .filter(|anchor| {
             !uncertain_old.contains(&old_indices[&anchor.old])

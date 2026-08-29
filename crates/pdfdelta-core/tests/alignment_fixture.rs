@@ -828,6 +828,50 @@ fn confines_an_off_lis_anchor_to_move_candidate_spans() {
 }
 
 #[test]
+fn keeps_short_structural_label_stable_when_adjacent_url_moves() {
+    let url = "https://docs.example.test/specification/cs01/specification-cs01.pdf";
+    let label = "Stage:";
+    let old = vec![
+        block_text(1, OPENING),
+        block_text(2, url),
+        block_text(3, label),
+        block_text(4, CLOSING),
+    ];
+    let new = vec![
+        block_text(101, OPENING),
+        block_text(103, label),
+        block_text(102, url),
+        block_text(104, CLOSING),
+    ];
+
+    let alignment = align(old.clone(), new.clone());
+
+    assert!(alignment.main_anchors.contains(&ExactAnchor {
+        old: BlockId(3),
+        new: BlockId(103),
+    }));
+    assert_eq!(
+        alignment.move_candidates,
+        [ExactAnchor {
+            old: BlockId(2),
+            new: BlockId(102),
+        }]
+    );
+
+    let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+        .expect("crossed URL should compare");
+    assert_eq!(
+        comparison
+            .changes
+            .iter()
+            .map(|change| change.kind)
+            .collect::<Vec<_>>(),
+        [ChangeKind::Move]
+    );
+    assert!(comparison.unresolved_regions.is_empty());
+}
+
+#[test]
 fn promotes_crossed_move_candidates_from_the_same_intervals() {
     let first_move = "First moved unique paragraph remains exact";
     let second_move = "Second moved unique paragraph remains exact";
