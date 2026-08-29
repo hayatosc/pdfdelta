@@ -1,4 +1,7 @@
-use std::{collections::HashMap, ops::Range};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Range,
+};
 
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -262,6 +265,13 @@ struct SentenceOccurrence {
     word_ranges: Vec<Range<usize>>,
     location: Option<SentenceLocation>,
     span_index: Option<usize>,
+    trusted_position: Option<TrustedStreamPosition>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct TrustedStreamPosition {
+    stream_index: usize,
+    ordinal: usize,
 }
 
 struct SentenceLocation {
@@ -578,7 +588,7 @@ pub(super) fn build_sentence_recovery_plan(
     let Some(counts) = occurrence_counts(&old_occurrences, &new_occurrences) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
-    let Some(exact_match_candidates) = exact_match_candidates(
+    let Some(mut exact_match_candidates) = exact_match_candidates(
         &old_occurrences,
         &new_occurrences,
         &counts,
@@ -588,6 +598,18 @@ pub(super) fn build_sentence_recovery_plan(
     ) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    if extend_paired_stream_exact_matches(
+        &old_occurrences,
+        &new_occurrences,
+        &mut exact_match_candidates,
+        &membership.recovery_spans,
+        input.min_tokens,
+        budget.output_range_limit / 2,
+    )
+    .is_none()
+    {
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    }
     let Some(old_candidates) = recovery_candidates(
         &old_occurrences,
         &counts,
@@ -803,10 +825,12 @@ fn collect_occurrences(
 ) -> Option<Vec<SentenceOccurrence>> {
     let plans = stream_plans(trusted_run_intervals)?;
     let mut occurrences = Vec::new();
-    for plan in plans {
+    for (stream_index, plan) in plans.into_iter().enumerate() {
         let stream = build_stream(side, &plan)?;
-        for boundary in
+        for (ordinal, boundary) in
             sentence_boundaries(&stream.text, &stream.forced_sentence_boundaries, budget)?
+                .into_iter()
+                .enumerate()
         {
             let key = stream.text.get(boundary.byte_start..boundary.byte_end)?;
             if !budget.charge_key_bytes(key.len()) {
@@ -834,6 +858,10 @@ fn collect_occurrences(
                 word_ranges,
                 location,
                 span_index,
+                trusted_position: stream.trusted.then_some(TrustedStreamPosition {
+                    stream_index,
+                    ordinal,
+                }),
             });
         }
     }
@@ -1326,6 +1354,347 @@ fn exact_match_candidates(
         )
     });
     Some(candidates)
+}
+
+#[derive(Clone, Copy)]
+struct TrustedStreamRelation {
+    partner: usize,
+    ambiguous: bool,
+}
+
+#[derive(Default)]
+struct PairedStreamOccurrences {
+    old: Vec<usize>,
+    new: Vec<usize>,
+}
+
+struct PairedTrustedStream {
+    old_stream: usize,
+    new_stream: usize,
+    anchors: Vec<(usize, usize)>,
+}
+
+struct PairedExactProposal {
+    pair_index: usize,
+    interval_index: usize,
+    old_ordinal: usize,
+    new_ordinal: usize,
+    old_occurrence_index: usize,
+    new_occurrence_index: usize,
+}
+
+struct PairedOccurrenceScope<'a> {
+    pairs: &'a [PairedTrustedStream],
+    pair_by_stream: &'a HashMap<usize, usize>,
+    recovery_spans: &'a [bool],
+    min_tokens: usize,
+    max_occurrences: usize,
+    side: OccurrenceSide,
+}
+
+fn extend_paired_stream_exact_matches<'a>(
+    old_occurrences: &'a [SentenceOccurrence],
+    new_occurrences: &'a [SentenceOccurrence],
+    candidates: &mut Vec<ExactMatchCandidate>,
+    recovery_spans: &[bool],
+    min_tokens: usize,
+    max_candidates: usize,
+) -> Option<()> {
+    let pairs = paired_trusted_streams(old_occurrences, new_occurrences, candidates)?;
+    if pairs.is_empty() {
+        return Some(());
+    }
+    candidates
+        .try_reserve(max_candidates.checked_sub(candidates.len())?)
+        .ok()?;
+
+    let mut old_pair_by_stream = HashMap::new();
+    let mut new_pair_by_stream = HashMap::new();
+    old_pair_by_stream.try_reserve(pairs.len()).ok()?;
+    new_pair_by_stream.try_reserve(pairs.len()).ok()?;
+    for (pair_index, pair) in pairs.iter().enumerate() {
+        old_pair_by_stream.insert(pair.old_stream, pair_index);
+        new_pair_by_stream.insert(pair.new_stream, pair_index);
+    }
+
+    let group_limit = max_candidates.checked_mul(2)?;
+    let mut groups = HashMap::<(usize, usize, &'a str), PairedStreamOccurrences>::new();
+    groups.try_reserve(group_limit).ok()?;
+    append_paired_stream_occurrences(
+        &mut groups,
+        old_occurrences,
+        PairedOccurrenceScope {
+            pairs: &pairs,
+            pair_by_stream: &old_pair_by_stream,
+            recovery_spans,
+            min_tokens,
+            max_occurrences: max_candidates,
+            side: OccurrenceSide::Old,
+        },
+    )?;
+    append_paired_stream_occurrences(
+        &mut groups,
+        new_occurrences,
+        PairedOccurrenceScope {
+            pairs: &pairs,
+            pair_by_stream: &new_pair_by_stream,
+            recovery_spans,
+            min_tokens,
+            max_occurrences: max_candidates,
+            side: OccurrenceSide::New,
+        },
+    )?;
+
+    let mut selected_old = HashSet::new();
+    let mut selected_new = HashSet::new();
+    selected_old.try_reserve(max_candidates).ok()?;
+    selected_new.try_reserve(max_candidates).ok()?;
+    for candidate in candidates.iter() {
+        selected_old.insert(candidate.old_occurrence_index);
+        selected_new.insert(candidate.new_occurrence_index);
+    }
+
+    let remaining_candidates = max_candidates.checked_sub(candidates.len())?;
+    let mut proposals = Vec::new();
+    proposals.try_reserve_exact(remaining_candidates).ok()?;
+    for ((pair_index, interval_index, _), group) in groups.iter_mut() {
+        if group.old.len() != group.new.len() || group.old.is_empty() {
+            continue;
+        }
+        group.old.sort_unstable_by_key(|index| {
+            old_occurrences[*index]
+                .trusted_position
+                .map(|position| position.ordinal)
+        });
+        group.new.sort_unstable_by_key(|index| {
+            new_occurrences[*index]
+                .trusted_position
+                .map(|position| position.ordinal)
+        });
+        if group.old.iter().any(|index| selected_old.contains(index))
+            || group.new.iter().any(|index| selected_new.contains(index))
+        {
+            continue;
+        }
+        for (old_index, new_index) in group.old.iter().copied().zip(group.new.iter().copied()) {
+            if proposals.len() == remaining_candidates {
+                return None;
+            }
+            proposals.push(PairedExactProposal {
+                pair_index: *pair_index,
+                interval_index: *interval_index,
+                old_ordinal: old_occurrences.get(old_index)?.trusted_position?.ordinal,
+                new_ordinal: new_occurrences.get(new_index)?.trusted_position?.ordinal,
+                old_occurrence_index: old_index,
+                new_occurrence_index: new_index,
+            });
+        }
+    }
+    proposals.sort_unstable_by_key(|proposal| {
+        (
+            proposal.pair_index,
+            proposal.interval_index,
+            proposal.old_ordinal,
+            proposal.new_ordinal,
+        )
+    });
+    let mut proposal_start = 0usize;
+    while proposal_start < proposals.len() {
+        let first = proposals.get(proposal_start)?;
+        let proposal_end = proposal_start
+            + proposals[proposal_start..].partition_point(|proposal| {
+                proposal.pair_index == first.pair_index
+                    && proposal.interval_index == first.interval_index
+            });
+        let interval = proposals.get(proposal_start..proposal_end)?;
+        if interval.windows(2).all(|proposals| {
+            proposals[0].old_ordinal < proposals[1].old_ordinal
+                && proposals[0].new_ordinal < proposals[1].new_ordinal
+        }) {
+            for proposal in interval {
+                candidates.push(ExactMatchCandidate {
+                    old_span_index: old_occurrences
+                        .get(proposal.old_occurrence_index)?
+                        .span_index?,
+                    new_span_index: new_occurrences
+                        .get(proposal.new_occurrence_index)?
+                        .span_index?,
+                    old_occurrence_index: proposal.old_occurrence_index,
+                    new_occurrence_index: proposal.new_occurrence_index,
+                });
+            }
+        }
+        proposal_start = proposal_end;
+    }
+    candidates.sort_unstable_by_key(|candidate| {
+        (
+            candidate.old_span_index,
+            candidate.new_span_index,
+            candidate.old_occurrence_index,
+            candidate.new_occurrence_index,
+        )
+    });
+    Some(())
+}
+
+fn paired_trusted_streams(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    candidates: &[ExactMatchCandidate],
+) -> Option<Vec<PairedTrustedStream>> {
+    let mut old_relations = HashMap::<usize, TrustedStreamRelation>::new();
+    let mut new_relations = HashMap::<usize, TrustedStreamRelation>::new();
+    old_relations.try_reserve(candidates.len()).ok()?;
+    new_relations.try_reserve(candidates.len()).ok()?;
+    for candidate in candidates {
+        let Some(old_position) = old_occurrences
+            .get(candidate.old_occurrence_index)?
+            .trusted_position
+        else {
+            continue;
+        };
+        let Some(new_position) = new_occurrences
+            .get(candidate.new_occurrence_index)?
+            .trusted_position
+        else {
+            continue;
+        };
+        record_stream_relation(
+            &mut old_relations,
+            old_position.stream_index,
+            new_position.stream_index,
+        );
+        record_stream_relation(
+            &mut new_relations,
+            new_position.stream_index,
+            old_position.stream_index,
+        );
+    }
+
+    let mut stream_pairs = Vec::new();
+    stream_pairs.try_reserve(old_relations.len()).ok()?;
+    for (old_stream, relation) in old_relations {
+        if relation.ambiguous {
+            continue;
+        }
+        let Some(reverse) = new_relations.get(&relation.partner) else {
+            continue;
+        };
+        if !reverse.ambiguous && reverse.partner == old_stream {
+            stream_pairs.push((old_stream, relation.partner));
+        }
+    }
+    stream_pairs.sort_unstable();
+
+    let mut pair_index_by_old_stream = HashMap::new();
+    pair_index_by_old_stream
+        .try_reserve(stream_pairs.len())
+        .ok()?;
+    let mut pairs = Vec::new();
+    pairs.try_reserve_exact(stream_pairs.len()).ok()?;
+    for (pair_index, (old_stream, new_stream)) in stream_pairs.into_iter().enumerate() {
+        pair_index_by_old_stream.insert(old_stream, pair_index);
+        pairs.push(PairedTrustedStream {
+            old_stream,
+            new_stream,
+            anchors: Vec::new(),
+        });
+    }
+    for candidate in candidates {
+        let Some(old_position) = old_occurrences
+            .get(candidate.old_occurrence_index)?
+            .trusted_position
+        else {
+            continue;
+        };
+        let Some(new_position) = new_occurrences
+            .get(candidate.new_occurrence_index)?
+            .trusted_position
+        else {
+            continue;
+        };
+        let Some(pair_index) = pair_index_by_old_stream
+            .get(&old_position.stream_index)
+            .copied()
+        else {
+            continue;
+        };
+        let pair = pairs.get_mut(pair_index)?;
+        if pair.new_stream != new_position.stream_index {
+            continue;
+        }
+        pair.anchors.try_reserve(1).ok()?;
+        pair.anchors
+            .push((old_position.ordinal, new_position.ordinal));
+    }
+    pairs.retain_mut(|pair| {
+        pair.anchors.sort_unstable();
+        pair.anchors
+            .windows(2)
+            .all(|anchors| anchors[0].0 < anchors[1].0 && anchors[0].1 < anchors[1].1)
+    });
+    Some(pairs)
+}
+
+fn record_stream_relation(
+    relations: &mut HashMap<usize, TrustedStreamRelation>,
+    stream: usize,
+    partner: usize,
+) {
+    relations
+        .entry(stream)
+        .and_modify(|relation| relation.ambiguous |= relation.partner != partner)
+        .or_insert(TrustedStreamRelation {
+            partner,
+            ambiguous: false,
+        });
+}
+
+fn append_paired_stream_occurrences<'a>(
+    groups: &mut HashMap<(usize, usize, &'a str), PairedStreamOccurrences>,
+    occurrences: &'a [SentenceOccurrence],
+    scope: PairedOccurrenceScope<'_>,
+) -> Option<()> {
+    let mut appended = 0usize;
+    for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
+        let Some(position) = occurrence.trusted_position else {
+            continue;
+        };
+        let Some(pair_index) = scope.pair_by_stream.get(&position.stream_index).copied() else {
+            continue;
+        };
+        let Some(span_index) = occurrence.span_index else {
+            continue;
+        };
+        if occurrence.location.is_none()
+            || occurrence.tokens.len() < scope.min_tokens
+            || !scope.recovery_spans.get(span_index).copied()?
+        {
+            continue;
+        }
+        appended = appended.checked_add(1)?;
+        if appended > scope.max_occurrences {
+            return None;
+        }
+        let pair = scope.pairs.get(pair_index)?;
+        let interval_index = pair.anchors.partition_point(|(old, new)| {
+            let anchor_ordinal = match scope.side {
+                OccurrenceSide::Old => *old,
+                OccurrenceSide::New => *new,
+            };
+            anchor_ordinal < position.ordinal
+        });
+        let group = groups
+            .entry((pair_index, interval_index, occurrence.key.as_str()))
+            .or_default();
+        let indices = match scope.side {
+            OccurrenceSide::Old => &mut group.old,
+            OccurrenceSide::New => &mut group.new,
+        };
+        indices.try_reserve(1).ok()?;
+        indices.push(occurrence_index);
+    }
+    Some(())
 }
 
 fn recovery_candidates(
@@ -2245,6 +2614,30 @@ mod tests {
         }
     }
 
+    fn positioned_occurrence(
+        key: &str,
+        block: u64,
+        stream_index: usize,
+        ordinal: usize,
+    ) -> SentenceOccurrence {
+        let range = LocalSentenceRange {
+            block: BlockId(block),
+            canonical: ScalarRange { start: 0, end: 5 },
+            comparable: TokenRange { start: 0, end: 5 },
+        };
+        SentenceOccurrence {
+            key: key.to_owned(),
+            tokens: vec![SentenceEvidenceToken::Scalar('a'); 5],
+            word_ranges: Vec::new(),
+            location: Some(test_location(range, 0)),
+            span_index: Some(0),
+            trusted_position: Some(TrustedStreamPosition {
+                stream_index,
+                ordinal,
+            }),
+        }
+    }
+
     #[test]
     fn stream_plans_use_run_ordinals_across_column_major_block_order() {
         let metadata = [interval(1, 1, 2), interval(2, 0, 1), interval(1, 0, 1)];
@@ -2435,6 +2828,7 @@ mod tests {
             word_ranges: Vec::new(),
             location: Some(test_location(location, 0)),
             span_index: Some(0),
+            trusted_position: None,
         }];
         let new_occurrences = [SentenceOccurrence {
             key: "counterpart".to_owned(),
@@ -2442,6 +2836,7 @@ mod tests {
             word_ranges: Vec::new(),
             location: None,
             span_index: Some(0),
+            trusted_position: None,
         }];
         let old_candidates = [RecoveryCandidate {
             occurrence_index: 0,
@@ -2550,6 +2945,7 @@ mod tests {
             word_ranges: Vec::new(),
             location: Some(test_location(old_range, 0)),
             span_index: Some(0),
+            trusted_position: None,
         }];
         let mut new_occurrences = [SentenceOccurrence {
             key: "same".to_owned(),
@@ -2557,6 +2953,7 @@ mod tests {
             word_ranges: Vec::new(),
             location: Some(test_location(new_range, 0)),
             span_index: Some(0),
+            trusted_position: None,
         }];
         let candidates = [ExactMatchCandidate {
             old_span_index: 0,
@@ -2603,6 +3000,7 @@ mod tests {
                 word_ranges: Vec::new(),
                 location: Some(test_location(range, span_index)),
                 span_index: Some(span_index),
+                trusted_position: None,
             }
         };
         let old = [
@@ -2636,6 +3034,158 @@ mod tests {
                 candidates[1].new_occurrence_index,
             ),
             (1, 1, 0, 1)
+        );
+    }
+
+    #[test]
+    fn exact_anchor_pairs_trusted_streams_and_recovers_repeated_units_in_order() {
+        let old = [
+            positioned_occurrence("anchor", 1, 0, 0),
+            positioned_occurrence("repeated", 2, 0, 1),
+            positioned_occurrence("repeated", 3, 0, 2),
+        ];
+        let new = [
+            positioned_occurrence("anchor", 101, 10, 0),
+            positioned_occurrence("repeated", 102, 10, 1),
+            positioned_occurrence("repeated", 103, 10, 2),
+        ];
+        let counts = occurrence_counts(&old, &new).expect("occurrence counts fit");
+        let mut candidates = exact_match_candidates(&old, &new, &counts, &[true], 5, 3)
+            .expect("global exact matches fit");
+
+        extend_paired_stream_exact_matches(&old, &new, &mut candidates, &[true], 5, 3)
+            .expect("paired-stream exact matches fit");
+
+        assert_eq!(candidates.len(), 3);
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|candidate| (
+                    candidate.old_occurrence_index,
+                    candidate.new_occurrence_index
+                ))
+                .collect::<Vec<_>>(),
+            [(0, 0), (1, 1), (2, 2)]
+        );
+    }
+
+    #[test]
+    fn exact_anchor_does_not_recover_repeated_units_moved_across_it() {
+        let old = [
+            positioned_occurrence("anchor", 1, 0, 0),
+            positioned_occurrence("repeated", 2, 0, 1),
+            positioned_occurrence("repeated", 3, 0, 2),
+        ];
+        let new = [
+            positioned_occurrence("repeated", 101, 10, 0),
+            positioned_occurrence("repeated", 102, 10, 1),
+            positioned_occurrence("anchor", 103, 10, 2),
+        ];
+        let counts = occurrence_counts(&old, &new).expect("occurrence counts fit");
+        let mut candidates = exact_match_candidates(&old, &new, &counts, &[true], 5, 3)
+            .expect("global exact matches fit");
+
+        extend_paired_stream_exact_matches(&old, &new, &mut candidates, &[true], 5, 3)
+            .expect("cross-anchor moves remain unresolved");
+
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(
+            (
+                candidates[0].old_occurrence_index,
+                candidates[0].new_occurrence_index
+            ),
+            (0, 2)
+        );
+    }
+
+    #[test]
+    fn exact_anchor_does_not_recover_crossing_duplicate_groups_inside_an_interval() {
+        let old = [
+            positioned_occurrence("anchor", 1, 0, 0),
+            positioned_occurrence("a", 2, 0, 1),
+            positioned_occurrence("a", 3, 0, 2),
+            positioned_occurrence("b", 4, 0, 3),
+            positioned_occurrence("b", 5, 0, 4),
+        ];
+        let new = [
+            positioned_occurrence("anchor", 101, 10, 0),
+            positioned_occurrence("b", 102, 10, 1),
+            positioned_occurrence("b", 103, 10, 2),
+            positioned_occurrence("a", 104, 10, 3),
+            positioned_occurrence("a", 105, 10, 4),
+        ];
+        let counts = occurrence_counts(&old, &new).expect("occurrence counts fit");
+        let mut candidates = exact_match_candidates(&old, &new, &counts, &[true], 5, 5)
+            .expect("global exact matches fit");
+
+        extend_paired_stream_exact_matches(&old, &new, &mut candidates, &[true], 5, 5)
+            .expect("crossing duplicate groups fail closed");
+
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(
+            (
+                candidates[0].old_occurrence_index,
+                candidates[0].new_occurrence_index
+            ),
+            (0, 0)
+        );
+    }
+
+    #[test]
+    fn conflicting_exact_anchors_leave_trusted_streams_unpaired() {
+        let old = [
+            positioned_occurrence("anchor-a", 1, 0, 0),
+            positioned_occurrence("anchor-b", 2, 0, 1),
+            positioned_occurrence("repeated", 3, 0, 2),
+            positioned_occurrence("repeated", 4, 0, 3),
+        ];
+        let new = [
+            positioned_occurrence("anchor-a", 101, 10, 0),
+            positioned_occurrence("repeated", 102, 10, 1),
+            positioned_occurrence("anchor-b", 103, 11, 0),
+            positioned_occurrence("repeated", 104, 11, 1),
+        ];
+        let counts = occurrence_counts(&old, &new).expect("occurrence counts fit");
+        let mut candidates = exact_match_candidates(&old, &new, &counts, &[true], 5, 4)
+            .expect("global exact matches fit");
+
+        extend_paired_stream_exact_matches(&old, &new, &mut candidates, &[true], 5, 4)
+            .expect("ambiguous streams fail closed");
+
+        assert_eq!(candidates.len(), 2);
+        assert!(
+            paired_trusted_streams(&old, &new, &candidates)
+                .expect("stream pairing fits")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn crossing_exact_anchors_leave_trusted_streams_unpaired() {
+        let old = [
+            positioned_occurrence("anchor-a", 1, 0, 0),
+            positioned_occurrence("repeated", 2, 0, 1),
+            positioned_occurrence("repeated", 3, 0, 2),
+            positioned_occurrence("anchor-b", 4, 0, 3),
+        ];
+        let new = [
+            positioned_occurrence("anchor-b", 101, 10, 0),
+            positioned_occurrence("repeated", 102, 10, 1),
+            positioned_occurrence("repeated", 103, 10, 2),
+            positioned_occurrence("anchor-a", 104, 10, 3),
+        ];
+        let counts = occurrence_counts(&old, &new).expect("occurrence counts fit");
+        let mut candidates = exact_match_candidates(&old, &new, &counts, &[true], 5, 4)
+            .expect("global exact matches fit");
+
+        extend_paired_stream_exact_matches(&old, &new, &mut candidates, &[true], 5, 4)
+            .expect("crossing anchors fail closed");
+
+        assert_eq!(candidates.len(), 2);
+        assert!(
+            paired_trusted_streams(&old, &new, &candidates)
+                .expect("stream pairing fits")
+                .is_empty()
         );
     }
 
@@ -2741,6 +3291,7 @@ mod tests {
                 word_ranges: Vec::new(),
                 location: None,
                 span_index: Some(0),
+                trusted_position: None,
             },
             SentenceOccurrence {
                 key: "old-b".to_owned(),
@@ -2748,6 +3299,7 @@ mod tests {
                 word_ranges: Vec::new(),
                 location: None,
                 span_index: Some(0),
+                trusted_position: None,
             },
         ];
         let new_occurrences = [SentenceOccurrence {
@@ -2756,6 +3308,7 @@ mod tests {
             word_ranges: Vec::new(),
             location: None,
             span_index: None,
+            trusted_position: None,
         }];
         let old_candidates = [
             RecoveryCandidate {
@@ -2794,6 +3347,7 @@ mod tests {
             word_ranges: Vec::new(),
             location: None,
             span_index: Some(span_index),
+            trusted_position: None,
         };
         let old_occurrences = [occurrence("old-a", 0), occurrence("old-b", 1)];
         let new_occurrences = [occurrence("new-a", 0), occurrence("new-b", 1)];
