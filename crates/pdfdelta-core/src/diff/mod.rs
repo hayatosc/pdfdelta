@@ -2682,6 +2682,31 @@ mod tests {
     }
 
     #[test]
+    fn exact_anchor_recovers_a_short_unit_inside_paired_trusted_runs() {
+        let anchor = "A sufficiently long unique sentence identifies this trusted run.";
+        let short = "Scope.";
+        let text = format!("{anchor} {short}");
+        let old = vec![sentence_block(1, &text)];
+        let new = vec![sentence_block(2, &text)];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2))],
+            16,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        let recovered_tokens = anchor.chars().count() + short.chars().count();
+        assert!(result.changes.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, recovered_tokens);
+        assert_eq!(result.new_coverage.resolved_tokens, recovered_tokens);
+        assert_eq!(source_tokens(&old) - recovered_tokens, 1);
+        assert_eq!(source_tokens(&new) - recovered_tokens, 1);
+    }
+
+    #[test]
     fn coalesces_thousands_of_full_block_remainders_into_maximal_runs() {
         const RUN_LENGTH: usize = 1_000;
 

@@ -22,6 +22,7 @@ pub(super) const MAX_SENTENCE_RECOVERY_RANGES: usize = 4_096;
 const MIN_NEAR_SCORE: u16 = 7_000;
 const MIN_NEAR_SCORE_MARGIN: u16 = 500;
 const MIN_WORD_SCORE_EDGE_EVIDENCE: u16 = 3_000;
+const MIN_PAIRED_STREAM_EXACT_TOKENS: usize = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct LocalSentenceRange {
@@ -603,7 +604,7 @@ pub(super) fn build_sentence_recovery_plan(
         &new_occurrences,
         &mut exact_match_candidates,
         &membership.recovery_spans,
-        input.min_tokens,
+        input.min_tokens.min(MIN_PAIRED_STREAM_EXACT_TOKENS),
         budget.output_range_limit / 2,
     )
     .is_none()
