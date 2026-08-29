@@ -45,8 +45,11 @@ use crate::{
 
 #[path = "revision_diagnostics.rs"]
 mod revision_diagnostics;
+#[path = "revision_scopes.rs"]
+mod revision_scopes;
 
 use revision_diagnostics::evaluate_reviewed_diagnostics;
+use revision_scopes::resolve_revision_scopes;
 
 pub const QUALITY_SKIP_RESOURCE_LIMIT: &str = "comparison stopped at a resource limit";
 pub const QUALITY_SKIP_INCOMPLETE_EXTRACTION: &str =
@@ -1342,8 +1345,12 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     }
 
     match (expected, extraction_complete) {
-        (Some(document), _) if document.annotation == Annotation::ScopedComplete => {
-            record.quality_skipped_reason = Some(QUALITY_SKIP_SCOPED_COMPLETE.to_owned());
+        (Some(document), true) if document.annotation == Annotation::ScopedComplete => {
+            record.quality_skipped_reason = Some(
+                resolve_revision_scopes(&document.scopes, &outcome.old_blocks, &outcome.new_blocks)
+                    .map(|_| QUALITY_SKIP_SCOPED_COMPLETE.to_owned())
+                    .unwrap_or_else(|reason| reason),
+            );
         }
         (Some(document), true) => {
             let actuals = actuals.unwrap_or_default();

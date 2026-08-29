@@ -7,9 +7,9 @@ use pdfdelta_bench::{
     cases::built_in_cases,
     renderers::{RenderLimits, RendererKind},
     revisions::{
-        Annotation, MANIFEST_HEADER, PairRunStatus, PairSet, QUALITY_SKIP_SCOPED_COMPLETE,
-        load_expected_document, normalize_output_destination, run_revision_benchmark,
-        write_reports_json, write_summary_json,
+        Annotation, MANIFEST_HEADER, PairRunStatus, PairSet, QUALITY_SKIP_INCOMPLETE_EXTRACTION,
+        QUALITY_SKIP_SCOPED_COMPLETE, load_expected_document, normalize_output_destination,
+        run_revision_benchmark, write_reports_json, write_summary_json,
     },
 };
 use sha2::{Digest, Sha256};
@@ -202,7 +202,7 @@ fn reviewed_synthetic_pair_achieves_perfect_recall_precision_and_fragmentation()
 }
 
 #[test]
-fn scoped_complete_emits_no_global_quality_claims_before_scope_resolution() {
+fn scoped_complete_requires_resolved_scopes_before_evaluation() {
     let corpus = temp_corpus("scoped-complete");
     let pair_id = "synthetic-scoped-replacement";
     let (old_bytes, new_bytes) = replacement_case_pdf_bytes();
@@ -294,11 +294,87 @@ fn scoped_complete_emits_no_global_quality_claims_before_scope_resolution() {
     assert!(report.healthy(), "unexpected failure: {:?}", report.failure);
     assert_eq!(
         report.quality_skipped_reason.as_deref(),
-        Some(QUALITY_SKIP_SCOPED_COMPLETE)
+        Some("scoped-complete scope \"body\" old start anchor is missing")
     );
     assert!(report.quality.is_none());
     assert!(report.candidate_recall.is_none());
     assert!(report.expected_change_diagnostics.is_none());
+
+    fs::write(
+        corpus.root.join("expected").join(format!("{pair_id}.json")),
+        format!(
+            r#"{{
+                "version":1,
+                "pair":"{pair_id}",
+                "reviewed_on":"2026-08-29",
+                "annotation":"scoped_complete",
+                "scopes":[{{
+                    "id":"body",
+                    "old":{{"start_quote":{old_quote:?},"end_quote":{old_quote:?}}},
+                    "new":{{"start_quote":{new_quote:?},"end_quote":{new_quote:?}}}
+                }}],
+                "changes":[{{
+                    "id":"reviewed",
+                    "kind":"replacement",
+                    "scope":"body",
+                    "old_quote":{old_quote:?},
+                    "new_quote":{new_quote:?}
+                }}]
+            }}"#
+        ),
+    )
+    .expect("resolvable expected file written");
+
+    let resolved_reports = run_revision_benchmark(
+        &corpus.root.join("manifest.tsv"),
+        &corpus.root,
+        None,
+        Some(pair_id),
+        None,
+        true,
+    )
+    .expect("benchmark runs with resolved scope");
+    let resolved_report = &resolved_reports[0];
+    assert_eq!(
+        resolved_report.quality_skipped_reason.as_deref(),
+        Some(QUALITY_SKIP_SCOPED_COMPLETE)
+    );
+    assert!(resolved_report.quality.is_none());
+    assert!(resolved_report.candidate_recall.is_none());
+    assert!(resolved_report.expected_change_diagnostics.is_none());
+
+    let invalid_old = b"not a PDF";
+    let invalid_old_sha = store(&corpus.root, pair_id, "old", invalid_old);
+    let incomplete_row = manifest_row(
+        pair_id,
+        &format!("expected/{pair_id}.json"),
+        invalid_old.len() as u64,
+        &invalid_old_sha,
+        new_count,
+        &new_sha,
+    )
+    .replace("\tcomplete\t", "\tincomplete\t");
+    fs::write(
+        corpus.root.join("manifest.tsv"),
+        format!("{}\n{incomplete_row}\n", MANIFEST_HEADER.join("\t")),
+    )
+    .expect("incomplete manifest written");
+
+    let incomplete_reports = run_revision_benchmark(
+        &corpus.root.join("manifest.tsv"),
+        &corpus.root,
+        None,
+        Some(pair_id),
+        None,
+        true,
+    )
+    .expect("incomplete benchmark runs");
+    let incomplete_report = &incomplete_reports[0];
+    assert_eq!(incomplete_report.extraction_complete, Some(false));
+    assert_eq!(
+        incomplete_report.quality_skipped_reason.as_deref(),
+        Some(QUALITY_SKIP_INCOMPLETE_EXTRACTION)
+    );
 }
 
 #[test]

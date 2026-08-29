@@ -18,7 +18,7 @@ use super::{
 };
 
 #[derive(Clone, Copy)]
-struct DiagnosticLimits {
+pub(super) struct DiagnosticLimits {
     max_quote_chars: usize,
     max_scan_work: usize,
     max_occurrences: usize,
@@ -46,8 +46,16 @@ impl Default for DiagnosticLimits {
     }
 }
 
+#[cfg(test)]
+impl DiagnosticLimits {
+    pub(super) fn with_max_scan_work(mut self, max_scan_work: usize) -> Self {
+        self.max_scan_work = max_scan_work;
+        self
+    }
+}
+
 #[derive(Default)]
-struct DiagnosticBudget {
+pub(super) struct DiagnosticBudget {
     scan_work: usize,
     occurrences: usize,
     candidate_visits: usize,
@@ -106,6 +114,14 @@ impl DiagnosticBudget {
         Self::charge(&mut self.regions, 1, limits.max_regions, &mut self.limited)
     }
 
+    pub(super) fn charge_scope_scan(&mut self, limits: DiagnosticLimits) -> bool {
+        self.charge_scan(1, limits).is_ok()
+    }
+
+    pub(super) fn charge_scope(&mut self, limits: DiagnosticLimits) -> bool {
+        self.charge_region(limits).is_ok()
+    }
+
     fn charge_hunk(&mut self, limits: DiagnosticLimits) -> DiagnosticScanResult<()> {
         Self::charge(&mut self.hunks, 1, limits.max_hunks, &mut self.limited)
     }
@@ -146,13 +162,13 @@ impl DiagnosticBudget {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct QuoteLocation {
-    block: BlockId,
-    scalar_range: ScalarRange,
+pub(super) struct QuoteLocation {
+    pub(super) block: BlockId,
+    pub(super) scalar_range: ScalarRange,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum QuoteLocateOutcome {
+pub(super) enum QuoteLocateOutcome {
     Unique(QuoteLocation),
     Missing,
     Segmented,
@@ -566,7 +582,7 @@ fn scan_quote_matches(
     Ok(first.map(|(_, outcome)| outcome))
 }
 
-fn locate_quote(
+pub(super) fn locate_quote(
     blocks: &[BlockText],
     quote: &str,
     budget: &mut DiagnosticBudget,
@@ -612,6 +628,30 @@ fn locate_quote(
         }
         None => Ok(QuoteLocateOutcome::Missing),
     }
+}
+
+pub(super) fn locate_scope_anchor_quote(
+    blocks: &[BlockText],
+    quote: &str,
+    budget: &mut DiagnosticBudget,
+    limits: DiagnosticLimits,
+) -> std::result::Result<QuoteLocateOutcome, String> {
+    let outcome = locate_quote(blocks, quote, budget, limits)?;
+    if !matches!(outcome, QuoteLocateOutcome::Unique(_)) {
+        return Ok(outcome);
+    }
+    for block in blocks {
+        if budget.charge_scan(1, limits).is_err() {
+            return Ok(QuoteLocateOutcome::Limited);
+        }
+        if !block.issues.is_empty()
+            || !block.raw.unmapped.is_empty()
+            || !block.canonical.unmapped.is_empty()
+        {
+            return Ok(QuoteLocateOutcome::Indeterminate);
+        }
+    }
+    Ok(outcome)
 }
 
 fn checked_increment(counter: &mut usize, name: &str) -> std::result::Result<(), String> {
