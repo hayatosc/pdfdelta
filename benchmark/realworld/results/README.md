@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-29
-- **Generator / engine commit**: [`5145723`](https://github.com/hayatosc/pdfdelta/commit/5145723)
+- **Generator / engine commit**: [`1463932`](https://github.com/hayatosc/pdfdelta/commit/1463932)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-29-5145723.json`](2026-08-29-5145723.json)
-  - Schema: v9
-  - Size: 70,554 bytes
-  - SHA-256: `7333d0225922e04c0967e8bd10a64a3cb4999a7a699a30a7d82e577d6717322c`
+  - File: [`2026-08-29-1463932.json`](2026-08-29-1463932.json)
+  - Schema: v10
+  - Size: 87,777 bytes
+  - SHA-256: `190cb5723ad460dec5e46275eb8f1c62daf0d14b1ef459cc252cd6b9260fb3a3`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 18 completed extraction, 11 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-29-5145723.json
+  benchmark/realworld/results/2026-08-29-1463932.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -79,10 +79,20 @@ observe 609,532 structural profile candidate pairs, of which 609,505 are
 duplicates. Only 27 profile pairs are reciprocal singletons, and only one has
 monotone exact-anchor evidence. NIST CSF has 1,207 candidates, all duplicate,
 so topology alone is not safe evidence for enabling run pairing there.
+The schema-v10 run-signature diagnostics also finish for all 17 available pairs
+without changing any schema-v9 report field. They observe 110 shared exact-unit
+keys, 1,022 candidate run pairs, 38 reciprocal unique pairs, and 22
+margin-qualified monotone pairs. Those 22 pairs occur in arXiv Attention,
+QGIS PyQGIS English, and LibreOffice Getting Started. NIST CSF has 60 old and
+62 new eligible unique units but no shared key, so exact run signatures cannot
+recover its two reading-order misses.
 
-## Current Writer Schema (v9)
+## Current Writer Schema (v10)
 
-The benchmark writer uses schema v9; older immutable captures retain their recorded schema.
+The benchmark writer uses schema v10; older immutable captures retain their recorded schema.
+Schema v10 adds behavior-neutral, budgeted exact-unit signature diagnostics for
+trusted runs, including typed stop reasons and conservative reciprocal,
+evidence-margin, and monotonicity classifications.
 Schema v9 adds behavior-neutral structural trusted-run profile diagnostics.
 Schema v8 adds near-relation work counters, candidate-set maxima, an explicit
 candidate-count truncation flag, and typed pair-visit, similarity-comparison,
@@ -106,12 +116,13 @@ Each record includes:
   distinct `alignment_span_mismatch` reason when a recalled counterpart was
   assigned to separate old/new alignment spans;
 - `candidate_recall` for reviewed replacement counterparts;
-- `sentence_recovery_metrics`, including exact matches, near replacements, recovered insertions/deletions, vetoes, remainders, and whether near-relation analysis completed within its budget.
+- `sentence_recovery_metrics`, including exact matches, near replacements, recovered insertions/deletions, vetoes, remainders, structural and exact-signature trusted-run evidence, and whether bounded searches completed within their budgets.
 
 `null` means the metric is unavailable for that record, not zero. Incomplete extraction suppresses comparison-wide coverage and quality claims; available per-side coverage may still be retained.
 
 ## Historical Captures
 
+- [`2026-08-29-5145723.json`](2026-08-29-5145723.json): schema-v9 structural trusted-run profile diagnostics.
 - [`2026-08-29-4e6ae73.json`](2026-08-29-4e6ae73.json): safe schema-v8 near-search baseline before structural trusted-run diagnostics.
 - [`2026-08-29-dfc77f1.json`](2026-08-29-dfc77f1.json): schema-v8 near-search work counters, candidate-set maxima, and typed stop reasons.
 - [`2026-08-29-f5406f3.json`](2026-08-29-f5406f3.json): role-local running-matter alignment and the schema-v7 scoped-precision baseline.
