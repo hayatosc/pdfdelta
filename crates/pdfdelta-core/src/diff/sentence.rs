@@ -8,7 +8,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::{
     Result,
     alignment::{Alignment, AlignmentEvidence, AlignmentKind, BlockSeparator},
-    layout::{BlockId, TrustedRunId, TrustedRunInterval},
+    layout::{BlockId, BlockRole, TrustedRunId, TrustedRunInterval},
     normalize::{ComparableToken, ScalarRange},
 };
 
@@ -18,7 +18,7 @@ use super::{
     TokenRange,
 };
 
-pub(super) const MAX_SENTENCE_RECOVERY_RANGES: usize = 4_096;
+pub(super) const MAX_SENTENCE_RECOVERY_RANGES: usize = 8_192;
 const MIN_NEAR_SCORE: u16 = 7_000;
 const MIN_NEAR_SCORE_MARGIN: u16 = 500;
 const MIN_WORD_SCORE_EDGE_EVIDENCE: u16 = 3_000;
@@ -272,6 +272,7 @@ struct SentenceOccurrence {
     tokens: Vec<SentenceEvidenceToken>,
     word_ranges: Vec<Range<usize>>,
     kind: RecoveryUnitKind,
+    role: Option<BlockRole>,
     location: Option<SentenceLocation>,
     span_index: Option<usize>,
     trusted_position: Option<TrustedStreamPosition>,
@@ -280,18 +281,36 @@ struct SentenceOccurrence {
 struct SentenceFragment {
     tokens: Vec<SentenceEvidenceToken>,
     span_index: usize,
+    role: BlockRole,
     uncertain: bool,
 }
 
 struct FragmentIndex<'a> {
-    uncertain_spans: HashSet<usize>,
-    clean_by_span_and_len: HashMap<(usize, usize), Vec<&'a SentenceFragment>>,
+    uncertain_spans: HashSet<(usize, OccurrenceRole)>,
+    clean_by_span_and_len: HashMap<(usize, usize, OccurrenceRole), Vec<&'a SentenceFragment>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum RecoveryUnitKind {
     Sentence,
     Line,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum OccurrenceRole {
+    Body,
+    RepeatedHeader,
+    RepeatedFooter,
+}
+
+impl From<BlockRole> for OccurrenceRole {
+    fn from(role: BlockRole) -> Self {
+        match role {
+            BlockRole::Body => Self::Body,
+            BlockRole::RepeatedHeader => Self::RepeatedHeader,
+            BlockRole::RepeatedFooter => Self::RepeatedFooter,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -313,7 +332,7 @@ struct OccurrenceCount {
     new_index: Option<usize>,
 }
 
-type OccurrenceKey<'a> = (&'a str, RecoveryUnitKind);
+type OccurrenceKey<'a> = (&'a str, RecoveryUnitKind, OccurrenceRole);
 
 struct RecoveryCandidate {
     occurrence_index: usize,
@@ -433,6 +452,7 @@ struct Stream {
 struct ForcedSentenceBoundary {
     byte_offset: usize,
     scalar_offset: usize,
+    include_trailing_unit: bool,
 }
 
 struct SpanMembership {
@@ -694,6 +714,7 @@ pub(super) fn build_sentence_recovery_plan(
     else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    let initial_exact_candidate_count = exact_match_candidates.len();
     if extend_paired_stream_exact_matches(
         &old_occurrences,
         &new_occurrences,
@@ -705,7 +726,10 @@ pub(super) fn build_sentence_recovery_plan(
     )
     .is_none()
     {
-        return Ok(SentenceRecoveryBuildOutcome::default());
+        // Paired-stream matching is optional enrichment. Reaching its bounded
+        // candidate cap must not discard the globally unique exact matches
+        // that were already established above.
+        exact_match_candidates.truncate(initial_exact_candidate_count);
     }
     let Some(paired_streams) =
         paired_trusted_streams(&old_occurrences, &new_occurrences, &exact_match_candidates)
@@ -1012,19 +1036,22 @@ fn collect_occurrences(
 
             let touched_blocks = sentence_stream_block_range(&stream, boundary)?;
             let tokens = sentence_tokens(&stream, boundary, budget)?;
+            let role = sentence_role(side, &stream, touched_blocks.clone())?;
             let span_index =
                 sentence_span_index(side, &stream, touched_blocks.clone(), span_by_block)?;
-            let location = match span_index {
-                Some(span_index) if recovery_spans.get(span_index).copied()? => sentence_location(
-                    side,
-                    &stream,
-                    boundary,
-                    touched_blocks,
-                    span_index,
-                    kind,
-                    budget,
-                )?,
-                Some(_) | None => None,
+            let location = match (span_index, role) {
+                (Some(span_index), Some(_)) if recovery_spans.get(span_index).copied()? => {
+                    sentence_location(
+                        side,
+                        &stream,
+                        boundary,
+                        touched_blocks,
+                        span_index,
+                        kind,
+                        budget,
+                    )?
+                }
+                _ => None,
             };
             occurrences.try_reserve(1).ok()?;
             occurrences.push(SentenceOccurrence {
@@ -1032,6 +1059,7 @@ fn collect_occurrences(
                 tokens,
                 word_ranges,
                 kind,
+                role,
                 location,
                 span_index,
                 trusted_position: stream.trusted.then_some(TrustedStreamPosition {
@@ -1042,9 +1070,10 @@ fn collect_occurrences(
         }
         if let Some(boundary) = fragment_boundary {
             let touched_blocks = sentence_stream_block_range(&stream, boundary)?;
+            let role = sentence_role(side, &stream, touched_blocks.clone())?;
             let span_index =
                 sentence_span_index(side, &stream, touched_blocks.clone(), span_by_block)?;
-            if let Some(span_index) = span_index
+            if let (Some(span_index), Some(role)) = (span_index, role)
                 && recovery_spans.get(span_index).copied()?
             {
                 let uncertain = stream.blocks.get(touched_blocks)?.iter().try_fold(
@@ -1063,6 +1092,7 @@ fn collect_occurrences(
                 fragments.push(SentenceFragment {
                     tokens,
                     span_index,
+                    role,
                     uncertain,
                 });
             }
@@ -1070,6 +1100,30 @@ fn collect_occurrences(
     }
     occurrences.sort_unstable_by_key(|occurrence| occurrence.span_index);
     Some((occurrences, fragments))
+}
+
+fn sentence_role(
+    side: &Side<'_>,
+    stream: &Stream,
+    touched_blocks: Range<usize>,
+) -> Option<Option<BlockRole>> {
+    let mut roles = stream
+        .blocks
+        .get(touched_blocks)?
+        .iter()
+        .map(|stream_block| {
+            side.blocks
+                .get(stream_block.side_index)
+                .map(|block| block.role)
+        });
+    let role = roles.next()??;
+    Some(
+        roles
+            .all(|candidate| {
+                candidate.is_some_and(|candidate| role.is_alignment_compatible(candidate))
+            })
+            .then_some(role),
+    )
 }
 
 fn sorted_word_ranges(text: &str, budget: &mut RecoveryBudget) -> Option<Vec<Range<usize>>> {
@@ -1225,21 +1279,32 @@ fn build_stream(side: &Side<'_>, plan: &StreamPlan) -> Option<Stream> {
     let mut text = String::new();
     let mut tokens = Vec::<SentenceEvidenceToken>::new();
     let mut blocks = Vec::new();
-    let mut forced_sentence_boundaries = Vec::new();
+    let mut forced_sentence_boundaries = Vec::<ForcedSentenceBoundary>::new();
     text.try_reserve_exact(text_capacity).ok()?;
     tokens.try_reserve_exact(token_capacity).ok()?;
     blocks.try_reserve_exact(plan.block_indices.len()).ok()?;
     let mut scalar_count = 0usize;
     let mut previous_ended_terminal = false;
+    let mut previous_role = None;
 
     for (position, side_index) in plan.block_indices.iter().copied().enumerate() {
         let block = side.blocks.get(side_index)?;
         let next = side.canonical.get(side_index)?;
-        if plan.trusted && previous_ended_terminal {
+        let role_transition =
+            previous_role.is_some_and(|role: BlockRole| !role.is_alignment_compatible(block.role));
+        if plan.trusted
+            && (previous_ended_terminal || role_transition)
+            && !text.is_empty()
+            && forced_sentence_boundaries
+                .last()
+                .is_none_or(|boundary| boundary.byte_offset < text.len())
+        {
             forced_sentence_boundaries.try_reserve(1).ok()?;
             forced_sentence_boundaries.push(ForcedSentenceBoundary {
                 byte_offset: text.len(),
                 scalar_offset: scalar_count,
+                include_trailing_unit: role_transition
+                    && previous_role.is_some_and(|role| role != BlockRole::Body),
             });
         }
         let previous_len = tokens.len();
@@ -1264,6 +1329,7 @@ fn build_stream(side: &Side<'_>, plan: &StreamPlan) -> Option<Stream> {
             scalar_to_token: scalar_to_token_boundaries(tokens.get(block_token_start..)?)?,
         });
         previous_ended_terminal = is_true_sentence_terminal(block.canonical.text.trim());
+        previous_role = Some(block.role);
     }
 
     let scalar_to_token = scalar_to_token_boundaries(&tokens)?;
@@ -1486,8 +1552,11 @@ fn count_occurrences<'a>(
     side: OccurrenceSide,
 ) -> Option<()> {
     for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
+        let Some(role) = occurrence.role else {
+            continue;
+        };
         let count = counts
-            .entry((occurrence.key.as_str(), occurrence.kind))
+            .entry((occurrence.key.as_str(), occurrence.kind, role.into()))
             .or_default();
         match side {
             OccurrenceSide::Old => {
@@ -1531,12 +1600,23 @@ fn exact_match_candidates(
         .ok()?;
     for phase in [RecoveryUnitKind::Sentence, RecoveryUnitKind::Line] {
         for (old_occurrence_index, old) in old_occurrences.iter().enumerate() {
-            let count = counts.get(&(old.key.as_str(), old.kind))?;
+            let Some(old_role) = old.role else {
+                continue;
+            };
+            let Some(count) = counts.get(&(old.key.as_str(), old.kind, old_role.into())) else {
+                continue;
+            };
             if count.old != 1 || count.new != 1 || count.old_index != Some(old_occurrence_index) {
                 continue;
             }
             let new_occurrence_index = count.new_index?;
             let new = new_occurrences.get(new_occurrence_index)?;
+            if !new
+                .role
+                .is_some_and(|new_role| old_role.is_alignment_compatible(new_role))
+            {
+                continue;
+            }
             let candidate_kind = if old.kind == RecoveryUnitKind::Sentence
                 && new.kind == RecoveryUnitKind::Sentence
             {
@@ -1649,7 +1729,8 @@ fn extend_paired_stream_exact_matches<'a>(
     }
 
     let group_limit = max_candidates.checked_mul(2)?;
-    let mut groups = HashMap::<(usize, usize, &'a str), PairedStreamOccurrences>::new();
+    let mut groups =
+        HashMap::<(usize, usize, &'a str, OccurrenceRole), PairedStreamOccurrences>::new();
     groups.try_reserve(group_limit).ok()?;
     append_paired_stream_occurrences(
         &mut groups,
@@ -1688,7 +1769,7 @@ fn extend_paired_stream_exact_matches<'a>(
     let remaining_candidates = max_candidates.checked_sub(candidates.len())?;
     let mut proposals = Vec::new();
     proposals.try_reserve_exact(remaining_candidates).ok()?;
-    for ((pair_index, interval_index, _), group) in groups.iter_mut() {
+    for ((pair_index, interval_index, _, _), group) in groups.iter_mut() {
         if group.old.len() != group.new.len() || group.old.is_empty() {
             continue;
         }
@@ -1882,7 +1963,7 @@ fn record_stream_relation(
 }
 
 fn append_paired_stream_occurrences<'a>(
-    groups: &mut HashMap<(usize, usize, &'a str), PairedStreamOccurrences>,
+    groups: &mut HashMap<(usize, usize, &'a str, OccurrenceRole), PairedStreamOccurrences>,
     occurrences: &'a [SentenceOccurrence],
     scope: PairedOccurrenceScope<'_>,
 ) -> Option<()> {
@@ -1895,6 +1976,9 @@ fn append_paired_stream_occurrences<'a>(
             continue;
         };
         let Some(span_index) = occurrence.span_index else {
+            continue;
+        };
+        let Some(role) = occurrence.role else {
             continue;
         };
         if occurrence.location.is_none()
@@ -1916,7 +2000,12 @@ fn append_paired_stream_occurrences<'a>(
             anchor_ordinal < position.ordinal
         });
         let group = groups
-            .entry((pair_index, interval_index, occurrence.key.as_str()))
+            .entry((
+                pair_index,
+                interval_index,
+                occurrence.key.as_str(),
+                role.into(),
+            ))
             .or_default();
         let indices = match scope.side {
             OccurrenceSide::Old => &mut group.old,
@@ -1945,7 +2034,8 @@ fn append_paired_stream_replacements<'a>(
     }
     let (old_pair_by_stream, new_pair_by_stream) = paired_stream_indices(pairs)?;
     let group_limit = budget.output_range_limit.checked_mul(2)?;
-    let mut groups = HashMap::<(usize, usize, &'a str), PairedStreamOccurrences>::new();
+    let mut groups =
+        HashMap::<(usize, usize, &'a str, OccurrenceRole), PairedStreamOccurrences>::new();
     groups.try_reserve(group_limit).ok()?;
     append_paired_stream_occurrences(
         &mut groups,
@@ -2096,10 +2186,14 @@ fn fragment_completed_replacements(
         if shorter.span_index != Some(shorter_span) {
             return None;
         }
-        let completed = fragment_index.uncertain_spans.contains(&shorter_span)
+        let role = shorter.role?;
+        let completed = fragment_index
+            .uncertain_spans
+            .contains(&(shorter_span, role.into()))
             || clean_fragment_completes(
                 fragment_index,
                 shorter_span,
+                role,
                 &shorter.tokens,
                 &longer.tokens,
                 budget,
@@ -2143,16 +2237,22 @@ fn fragment_index<'a>(
         return None;
     }
     let mut uncertain_spans = HashSet::new();
-    let mut clean_by_span_and_len = HashMap::<(usize, usize), Vec<&SentenceFragment>>::new();
+    let mut clean_by_span_and_len =
+        HashMap::<(usize, usize, OccurrenceRole), Vec<&SentenceFragment>>::new();
     for fragment in fragments {
         if fragment.uncertain {
-            if !uncertain_spans.contains(&fragment.span_index) {
+            let key = (fragment.span_index, fragment.role.into());
+            if !uncertain_spans.contains(&key) {
                 uncertain_spans.try_reserve(1).ok()?;
-                uncertain_spans.insert(fragment.span_index);
+                uncertain_spans.insert(key);
             }
             continue;
         }
-        let key = (fragment.span_index, fragment.tokens.len());
+        let key = (
+            fragment.span_index,
+            fragment.tokens.len(),
+            fragment.role.into(),
+        );
         if !clean_by_span_and_len.contains_key(&key) {
             clean_by_span_and_len.try_reserve(1).ok()?;
             clean_by_span_and_len.insert(key, Vec::new());
@@ -2170,6 +2270,7 @@ fn fragment_index<'a>(
 fn clean_fragment_completes(
     index: &FragmentIndex<'_>,
     span_index: usize,
+    role: BlockRole,
     shorter: &[SentenceEvidenceToken],
     longer: &[SentenceEvidenceToken],
     budget: &mut FragmentVetoBudget,
@@ -2179,7 +2280,11 @@ fn clean_fragment_completes(
         .into_iter()
         .flatten()
     {
-        let Some(fragments) = index.clean_by_span_and_len.get(&(span_index, fragment_len)) else {
+        let Some(fragments) =
+            index
+                .clean_by_span_and_len
+                .get(&(span_index, fragment_len, role.into()))
+        else {
             continue;
         };
         for fragment in fragments {
@@ -2305,7 +2410,7 @@ fn paired_stream_indices(
 }
 
 fn paired_near_candidates(
-    groups: &HashMap<(usize, usize, &str), PairedStreamOccurrences>,
+    groups: &HashMap<(usize, usize, &str, OccurrenceRole), PairedStreamOccurrences>,
     occurrences: &[SentenceOccurrence],
     side: OccurrenceSide,
     max_candidates: usize,
@@ -2320,7 +2425,7 @@ fn paired_near_candidates(
         .try_reserve_exact(max_candidates)
         .ok()?;
     candidates.ordinals.try_reserve_exact(max_candidates).ok()?;
-    for ((pair_index, interval_index, _), group) in groups {
+    for ((pair_index, interval_index, _, _), group) in groups {
         let (own, other) = match side {
             OccurrenceSide::Old => (&group.old, &group.new),
             OccurrenceSide::New => (&group.new, &group.old),
@@ -2400,12 +2505,18 @@ fn recovery_candidates(
         if !recovery_spans.get(span_index).copied()? {
             continue;
         }
-        let count = counts.get(&(occurrence.key.as_str(), occurrence.kind))?;
-        let unique = match side {
-            OccurrenceSide::Old => count.old == 1 && count.new == 0,
-            OccurrenceSide::New => count.new == 1 && count.old == 0,
+        let Some(role) = occurrence.role else {
+            continue;
         };
-        if unique {
+        let Some(count) = counts.get(&(occurrence.key.as_str(), occurrence.kind, role.into()))
+        else {
+            continue;
+        };
+        let one_sided = match side {
+            OccurrenceSide::Old => count.new == 0 && (count.old == 1 || role != BlockRole::Body),
+            OccurrenceSide::New => count.old == 0 && (count.new == 1 || role != BlockRole::Body),
+        };
+        if one_sided {
             if occurrence.kind == RecoveryUnitKind::Line {
                 if line_candidates == MAX_UNTRUSTED_LINE_NEAR_CANDIDATES {
                     continue;
@@ -2462,6 +2573,10 @@ fn paired_modified_sentence_relations(
         collect_plausible_occurrences(&mut plausible, &new_edges, &old_occurrence.tokens)?;
         plausible.retain(|occurrence_index| {
             new_occurrences[*occurrence_index].kind == old_occurrence.kind
+                && occurrence_roles_are_compatible(
+                    old_occurrence,
+                    &new_occurrences[*occurrence_index],
+                )
                 && new_intervals
                     .get(*occurrence_index)
                     .copied()
@@ -2498,6 +2613,10 @@ fn paired_modified_sentence_relations(
         collect_plausible_occurrences(&mut plausible, &old_edges, &new_occurrence.tokens)?;
         plausible.retain(|occurrence_index| {
             old_occurrences[*occurrence_index].kind == new_occurrence.kind
+                && occurrence_roles_are_compatible(
+                    new_occurrence,
+                    &old_occurrences[*occurrence_index],
+                )
                 && old_intervals
                     .get(*occurrence_index)
                     .copied()
@@ -2737,6 +2856,10 @@ fn extend_modified_sentence_relations(
         collect_plausible_occurrences(&mut plausible, &new_edges, &old_occurrence.tokens)?;
         plausible.retain(|occurrence_index| {
             new_occurrences[*occurrence_index].kind == old_occurrence.kind
+                && occurrence_roles_are_compatible(
+                    old_occurrence,
+                    &new_occurrences[*occurrence_index],
+                )
                 && scope.includes(
                     old_occurrence.span_index,
                     new_occurrences[*occurrence_index].span_index,
@@ -2765,6 +2888,10 @@ fn extend_modified_sentence_relations(
         collect_plausible_occurrences(&mut plausible, &old_edges, &new_occurrence.tokens)?;
         plausible.retain(|occurrence_index| {
             old_occurrences[*occurrence_index].kind == new_occurrence.kind
+                && occurrence_roles_are_compatible(
+                    new_occurrence,
+                    &old_occurrences[*occurrence_index],
+                )
                 && scope.includes(
                     new_occurrence.span_index,
                     old_occurrences[*occurrence_index].span_index,
@@ -2799,6 +2926,14 @@ fn extend_modified_sentence_relations(
         }
     }
     Some(())
+}
+
+fn occurrence_roles_are_compatible(left: &SentenceOccurrence, right: &SentenceOccurrence) -> bool {
+    left.role.is_some_and(|left_role| {
+        right
+            .role
+            .is_some_and(|right_role| left_role.is_alignment_compatible(right_role))
+    })
 }
 
 fn candidate_index_by_occurrence(
@@ -3323,6 +3458,15 @@ fn sentence_boundaries(
             return None;
         }
         append_sentence_boundaries(segment, byte_offset, scalar_offset, &mut boundaries, budget)?;
+        if forced_boundary.include_trailing_unit {
+            append_trailing_unit(
+                text,
+                byte_offset,
+                forced_boundary.byte_offset,
+                &mut boundaries,
+                budget,
+            )?;
+        }
         byte_offset = forced_boundary.byte_offset;
         scalar_offset = forced_boundary.scalar_offset;
     }
@@ -3334,6 +3478,39 @@ fn sentence_boundaries(
         budget,
     )?;
     Some(boundaries)
+}
+
+fn append_trailing_unit(
+    text: &str,
+    segment_start: usize,
+    segment_end: usize,
+    boundaries: &mut Vec<SentenceBoundary>,
+    budget: &mut RecoveryBudget,
+) -> Option<()> {
+    let tail_start = boundaries
+        .last()
+        .filter(|boundary| boundary.byte_end >= segment_start)
+        .map_or(segment_start, |boundary| boundary.byte_end);
+    let tail = text.get(tail_start..segment_end)?;
+    let trimmed = tail.trim();
+    if trimmed.is_empty() {
+        return Some(());
+    }
+    if !budget.charge_occurrences(1) {
+        return None;
+    }
+    let byte_start = tail_start.checked_add(tail.len().checked_sub(tail.trim_start().len())?)?;
+    let byte_end = tail_start.checked_add(tail.trim_end().len())?;
+    let scalar_start = text.get(..byte_start)?.chars().count();
+    let scalar_end = scalar_start.checked_add(trimmed.chars().count())?;
+    boundaries.try_reserve(1).ok()?;
+    boundaries.push(SentenceBoundary {
+        byte_start,
+        byte_end,
+        scalar_start,
+        scalar_end,
+    });
+    Some(())
 }
 
 fn trailing_fragment_boundary(
@@ -3630,6 +3807,7 @@ mod tests {
             tokens: vec![SentenceEvidenceToken::Scalar('a'); 5],
             word_ranges: Vec::new(),
             kind: RecoveryUnitKind::Sentence,
+            role: Some(BlockRole::Body),
             location: Some(test_location(range, 0)),
             span_index: Some(0),
             trusted_position: Some(TrustedStreamPosition {
@@ -3839,6 +4017,7 @@ mod tests {
             tokens: candidate_tokens,
             word_ranges: Vec::new(),
             kind: RecoveryUnitKind::Sentence,
+            role: Some(BlockRole::Body),
             location: Some(test_location(location, 0)),
             span_index: Some(0),
             trusted_position: None,
@@ -3848,6 +4027,7 @@ mod tests {
             tokens: counterpart_tokens,
             word_ranges: Vec::new(),
             kind: RecoveryUnitKind::Sentence,
+            role: Some(BlockRole::Body),
             location: None,
             span_index: Some(0),
             trusted_position: None,
@@ -3890,6 +4070,7 @@ mod tests {
             tokens: text.chars().map(SentenceEvidenceToken::Scalar).collect(),
             word_ranges: Vec::new(),
             kind: RecoveryUnitKind::Line,
+            role: Some(BlockRole::Body),
             location: None,
             span_index: Some(0),
             trusted_position: None,
@@ -4013,6 +4194,7 @@ mod tests {
         let fragment = SentenceFragment {
             tokens: tokens("前半"),
             span_index: 0,
+            role: BlockRole::Body,
             uncertain: false,
         };
         let old_candidates = [RecoveryCandidate {
@@ -4073,11 +4255,13 @@ mod tests {
             SentenceFragment {
                 tokens: tokens("誤答"),
                 span_index: 0,
+                role: BlockRole::Body,
                 uncertain: false,
             },
             SentenceFragment {
                 tokens: tokens("後半"),
                 span_index: 0,
+                role: BlockRole::Body,
                 uncertain: false,
             },
         ];
@@ -4140,6 +4324,7 @@ mod tests {
             .map(|_| SentenceFragment {
                 tokens: vec![SentenceEvidenceToken::Scalar('x')],
                 span_index: 1,
+                role: BlockRole::Body,
                 uncertain: true,
             })
             .collect::<Vec<_>>();
@@ -4185,6 +4370,7 @@ mod tests {
             .map(|_| SentenceFragment {
                 tokens: vec![SentenceEvidenceToken::Scalar('x'); 4],
                 span_index: 0,
+                role: BlockRole::Body,
                 uncertain: false,
             })
             .collect::<Vec<_>>();
@@ -4240,11 +4426,13 @@ mod tests {
             SentenceFragment {
                 tokens: vec![SentenceEvidenceToken::Scalar('x')],
                 span_index: 1,
+                role: BlockRole::Body,
                 uncertain: false,
             },
             SentenceFragment {
                 tokens: vec![SentenceEvidenceToken::Scalar('y')],
                 span_index: 1,
+                role: BlockRole::Body,
                 uncertain: false,
             },
         ];
@@ -4324,6 +4512,7 @@ mod tests {
             tokens: Vec::new(),
             word_ranges: Vec::new(),
             kind: RecoveryUnitKind::Sentence,
+            role: Some(BlockRole::Body),
             location: Some(test_location(old_range, 0)),
             span_index: Some(0),
             trusted_position: None,
@@ -4333,6 +4522,7 @@ mod tests {
             tokens: Vec::new(),
             word_ranges: Vec::new(),
             kind: RecoveryUnitKind::Sentence,
+            role: Some(BlockRole::Body),
             location: Some(test_location(new_range, 0)),
             span_index: Some(0),
             trusted_position: None,
@@ -4381,6 +4571,7 @@ mod tests {
                 tokens: vec![SentenceEvidenceToken::Scalar('a'); 5],
                 word_ranges: Vec::new(),
                 kind: RecoveryUnitKind::Sentence,
+                role: Some(BlockRole::Body),
                 location: Some(test_location(range, span_index)),
                 span_index: Some(span_index),
                 trusted_position: None,
@@ -4418,6 +4609,61 @@ mod tests {
             ),
             (1, 1, 0, 1)
         );
+    }
+
+    #[test]
+    fn exact_recovery_is_role_local_and_preserves_same_role_matches() {
+        let old = [positioned_occurrence("same", 1, 0, 0)];
+        let mut new = [positioned_occurrence("same", 2, 1, 0)];
+        new[0].role = Some(BlockRole::RepeatedHeader);
+        let counts = occurrence_counts(&old, &new).expect("occurrence counts fit");
+        let cross_role = exact_match_candidates(&old, &new, &counts, &[true], 5, 1)
+            .expect("candidate collection fits");
+        assert!(cross_role.is_empty());
+
+        new[0].role = Some(BlockRole::Body);
+        let counts = occurrence_counts(&old, &new).expect("occurrence counts fit");
+        let same_role = exact_match_candidates(&old, &new, &counts, &[true], 5, 1)
+            .expect("candidate collection fits");
+        assert_eq!(same_role.len(), 1);
+    }
+
+    #[test]
+    fn near_recovery_rejects_cross_role_and_preserves_same_role_pairs() {
+        let old = [positioned_occurrence("old", 1, 0, 0)];
+        let mut new = [positioned_occurrence("new", 2, 1, 0)];
+        new[0].role = Some(BlockRole::RepeatedFooter);
+        let candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("test budget is valid");
+        let mut diagnostics = None;
+        let cross_role = modified_sentence_relations(
+            &old,
+            &new,
+            &candidates,
+            &candidates,
+            &mut budget,
+            &mut diagnostics,
+        )
+        .expect("relation collection fits");
+        assert!(!cross_role.old[0].vetoed());
+        assert!(!cross_role.new[0].vetoed());
+
+        new[0].role = Some(BlockRole::Body);
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("test budget is valid");
+        let same_role = modified_sentence_relations(
+            &old,
+            &new,
+            &candidates,
+            &candidates,
+            &mut budget,
+            &mut diagnostics,
+        )
+        .expect("relation collection fits");
+        assert_eq!(same_role.old[0].unique_partner(), Some(0));
+        assert_eq!(same_role.new[0].unique_partner(), Some(0));
     }
 
     #[test]
@@ -4694,6 +4940,7 @@ mod tests {
                 tokens: vec![SentenceEvidenceToken::Scalar('a')],
                 word_ranges: Vec::new(),
                 kind: RecoveryUnitKind::Sentence,
+                role: Some(BlockRole::Body),
                 location: None,
                 span_index: Some(0),
                 trusted_position: None,
@@ -4703,6 +4950,7 @@ mod tests {
                 tokens: vec![SentenceEvidenceToken::Scalar('b')],
                 word_ranges: Vec::new(),
                 kind: RecoveryUnitKind::Sentence,
+                role: Some(BlockRole::Body),
                 location: None,
                 span_index: Some(0),
                 trusted_position: None,
@@ -4713,6 +4961,7 @@ mod tests {
             tokens: vec![SentenceEvidenceToken::Scalar('a')],
             word_ranges: Vec::new(),
             kind: RecoveryUnitKind::Sentence,
+            role: Some(BlockRole::Body),
             location: None,
             span_index: None,
             trusted_position: None,
@@ -4753,6 +5002,7 @@ mod tests {
             tokens: vec![SentenceEvidenceToken::Scalar('a')],
             word_ranges: Vec::new(),
             kind: RecoveryUnitKind::Sentence,
+            role: Some(BlockRole::Body),
             location: None,
             span_index: Some(span_index),
             trusted_position: None,

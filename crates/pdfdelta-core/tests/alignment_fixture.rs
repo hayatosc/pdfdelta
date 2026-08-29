@@ -10,7 +10,7 @@ use pdfdelta_core::{
         select_monotone_anchor_chain,
     },
     diff::{ChangeKind, Confidence, DiffOptions, compare_aligned},
-    layout::BlockId,
+    layout::{BlockId, BlockRole},
     model::FontProgramHash,
     normalize::{
         BlockText, ComparableToken, MappedText, NormalizationIssue, NormalizationIssueKind,
@@ -79,6 +79,114 @@ fn aligns_identical_repeated_short_features_as_identity() {
 }
 
 #[test]
+fn exact_anchors_are_unique_within_compatible_roles() {
+    let old = build_block_features(
+        &[
+            block_text_with_role(1, "shared running text", BlockRole::Body),
+            block_text_with_role(2, "shared running text", BlockRole::RepeatedHeader),
+        ],
+        3,
+    )
+    .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text_with_role(101, "shared running text", BlockRole::Body),
+            block_text_with_role(102, "shared running text", BlockRole::RepeatedHeader),
+        ],
+        3,
+    )
+    .expect("new features should build");
+
+    assert_eq!(
+        exact_anchors(&old, &new, 1).expect("anchors should build"),
+        [
+            ExactAnchor {
+                old: BlockId(1),
+                new: BlockId(101),
+            },
+            ExactAnchor {
+                old: BlockId(2),
+                new: BlockId(102),
+            },
+        ]
+    );
+
+    let cross_role_old =
+        build_block_features(&[block_text_with_role(3, "cross role", BlockRole::Body)], 3)
+            .expect("old features should build");
+    let cross_role_new = build_block_features(
+        &[block_text_with_role(
+            103,
+            "cross role",
+            BlockRole::RepeatedFooter,
+        )],
+        3,
+    )
+    .expect("new features should build");
+    assert!(
+        exact_anchors(&cross_role_old, &cross_role_new, 1)
+            .expect("anchors should build")
+            .is_empty()
+    );
+}
+
+#[test]
+fn custom_candidates_only_match_compatible_roles() {
+    let old = build_block_features(
+        &[block_text_with_role(
+            1,
+            "running title",
+            BlockRole::RepeatedHeader,
+        )],
+        3,
+    )
+    .expect("old features should build");
+    let incompatible_new = build_block_features(&[block_text(101, "running title")], 3)
+        .expect("new features should build");
+    let mut alignment_options = options();
+    alignment_options.anchor_min_tokens = 100;
+
+    let rejected = align_ordered(
+        &old,
+        &incompatible_new,
+        &MisleadingGenerator {
+            candidate: BlockId(101),
+        },
+        alignment_options,
+    )
+    .expect("alignment should succeed");
+    assert!(
+        rejected
+            .spans
+            .iter()
+            .all(|span| span.kind != AlignmentKind::Match)
+    );
+
+    let compatible_new = build_block_features(
+        &[block_text_with_role(
+            102,
+            "running title",
+            BlockRole::RepeatedHeader,
+        )],
+        3,
+    )
+    .expect("new features should build");
+    let preserved = align_ordered(
+        &old,
+        &compatible_new,
+        &MisleadingGenerator {
+            candidate: BlockId(102),
+        },
+        alignment_options,
+    )
+    .expect("alignment should succeed");
+    assert_eq!(preserved.spans.len(), 1);
+    assert_eq!(preserved.spans[0].kind, AlignmentKind::Match);
+    assert_eq!(preserved.spans[0].old, [BlockId(1)]);
+    assert_eq!(preserved.spans[0].new, [BlockId(102)]);
+}
+
+#[test]
 fn classifies_an_insertion_between_exact_anchors() {
     let alignment = align(
         vec![block_text(1, OPENING), block_text(2, CLOSING)],
@@ -133,6 +241,47 @@ fn aligns_an_english_block_split_as_one_to_two() {
     assert_eq!(split.score, 1.0);
     assert_eq!(split.new_separator, Some(BlockSeparator::Space));
     assert!(split.evidence.contains(&AlignmentEvidence::SplitMerge));
+}
+
+#[test]
+fn rejects_mixed_role_split_and_merge_groups() {
+    let split = align(
+        vec![
+            block_text(1, OPENING),
+            block_text(2, "project log"),
+            block_text(3, CLOSING),
+        ],
+        vec![
+            block_text(101, OPENING),
+            block_text(102, "project"),
+            block_text_with_role(103, "log", BlockRole::RepeatedHeader),
+            block_text(104, CLOSING),
+        ],
+    );
+    assert!(!split.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Match
+            && span.old == [BlockId(2)]
+            && span.new == [BlockId(102), BlockId(103)]
+    }));
+
+    let merge = align(
+        vec![
+            block_text(1, OPENING),
+            block_text(2, "project"),
+            block_text_with_role(3, "log", BlockRole::RepeatedFooter),
+            block_text(4, CLOSING),
+        ],
+        vec![
+            block_text(101, OPENING),
+            block_text(102, "project log"),
+            block_text(103, CLOSING),
+        ],
+    );
+    assert!(!merge.spans.iter().any(|span| {
+        span.kind == AlignmentKind::Match
+            && span.old == [BlockId(2), BlockId(3)]
+            && span.new == [BlockId(102)]
+    }));
 }
 
 #[test]
@@ -2150,6 +2299,12 @@ impl CandidateGenerator for OrderedGenerator {
 
 fn block_text(id: u64, text: &str) -> BlockText {
     block_text_with_matching(id, text, text, false)
+}
+
+fn block_text_with_role(id: u64, text: &str, role: BlockRole) -> BlockText {
+    let mut block = block_text(id, text);
+    block.role = role;
+    block
 }
 
 fn unmapped_block_text(id: u64, font_hash: Vec<u8>, glyph_id: u16) -> BlockText {

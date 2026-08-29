@@ -5,7 +5,7 @@ use pdfdelta_core::{
         InvertedIndexCandidateGenerator, MinHashLshCandidateGenerator, MinHashLshOptions,
         build_block_features, exact_anchors,
     },
-    layout::BlockId,
+    layout::{BlockId, BlockRole},
     normalize::{BlockText, ComparableToken, MappedText},
 };
 
@@ -92,6 +92,148 @@ fn ranks_verified_exact_matches_first_in_the_inverted_index() {
             .sources
             .contains(&CandidateSource::NGramInvertedIndex)
     );
+}
+
+#[test]
+fn cross_role_decoys_do_not_change_inverted_ranking_or_visits() {
+    let old = build_block_features(&[block_text(1, "abcd", "abcd", false)], 3)
+        .expect("old features should build");
+    let same_role = [
+        block_text(10, "abcx", "abcx", false),
+        block_text(11, "xbcd", "xbcd", false),
+    ];
+    let baseline = build_block_features(&same_role, 3).expect("baseline features should build");
+    let mut with_decoys = same_role.to_vec();
+    with_decoys.extend([
+        block_text_with_role(20, "abc1", BlockRole::RepeatedHeader),
+        block_text_with_role(21, "abc2", BlockRole::RepeatedHeader),
+        block_text_with_role(22, "abc3", BlockRole::RepeatedFooter),
+        block_text_with_role(23, "abc4", BlockRole::RepeatedFooter),
+    ]);
+    let with_decoys = build_block_features(&with_decoys, 3).expect("decoy features should build");
+    let baseline_generator =
+        InvertedIndexCandidateGenerator::new(&baseline).expect("baseline index should build");
+    let decoy_generator =
+        InvertedIndexCandidateGenerator::new(&with_decoys).expect("decoy index should build");
+
+    let baseline_candidates = baseline_generator
+        .candidates(&old[0], 1)
+        .expect("baseline query should succeed");
+    let decoy_candidates = decoy_generator
+        .candidates(&old[0], 1)
+        .expect("decoy query should succeed");
+    assert_eq!(baseline_candidates, decoy_candidates);
+    assert_eq!(baseline_candidates[0].block, BlockId(10));
+
+    let baseline_visits = baseline_generator
+        .estimate_visits(&old[0], 1)
+        .expect("baseline estimate should succeed");
+    let decoy_visits = decoy_generator
+        .estimate_visits(&old[0], 1)
+        .expect("decoy estimate should succeed");
+    assert_eq!(baseline_visits, decoy_visits);
+    assert_eq!(
+        baseline_visits
+            .breakdown
+            .expect("inverted index must report a breakdown")
+            .ngram,
+        2
+    );
+}
+
+#[test]
+fn inverted_index_accepts_an_empty_ngram_role_alongside_nonempty_roles() {
+    let old = build_block_features(&[block_text(1, "", "", false)], 3)
+        .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text_with_role(10, "header text", BlockRole::RepeatedHeader),
+            block_text(11, "", "", false),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    let generator =
+        InvertedIndexCandidateGenerator::new(&new).expect("mixed-role index should build");
+
+    let candidates = generator
+        .candidates(&old[0], 1)
+        .expect("empty n-gram query should succeed");
+    let estimate = generator
+        .estimate_visits(&old[0], 1)
+        .expect("empty n-gram estimate should succeed");
+
+    assert_eq!(candidates[0].block, BlockId(11));
+    assert_eq!(
+        estimate
+            .breakdown
+            .expect("inverted index must report a breakdown")
+            .ngram,
+        0
+    );
+}
+
+#[test]
+fn inverted_index_accepts_an_all_empty_ngram_document() {
+    let features = build_block_features(&[block_text(1, "", "", false)], 3)
+        .expect("empty features should build");
+    let generator =
+        InvertedIndexCandidateGenerator::new(&features).expect("empty n-gram index should build");
+
+    let candidates = generator
+        .candidates(&features[0], 1)
+        .expect("empty n-gram query should succeed");
+    let estimate = generator
+        .estimate_visits(&features[0], 1)
+        .expect("empty n-gram estimate should succeed");
+
+    assert_eq!(candidates[0].block, BlockId(1));
+    assert_eq!(
+        estimate
+            .breakdown
+            .expect("inverted index must report a breakdown")
+            .ngram,
+        0
+    );
+}
+
+#[test]
+fn built_in_generators_apply_role_compatibility_before_limit() {
+    let old = build_block_features(
+        &[block_text_with_role_and_page(1, "id", BlockRole::Body, 1)],
+        3,
+    )
+    .expect("old features should build");
+    let new = build_block_features(
+        &[
+            block_text_with_role_and_page(10, "id", BlockRole::RepeatedHeader, 1),
+            block_text_with_role_and_page(11, "ip", BlockRole::Body, 2),
+        ],
+        3,
+    )
+    .expect("new features should build");
+    let inverted = InvertedIndexCandidateGenerator::new(&new).expect("index should be constructed");
+    let exhaustive = ExhaustiveCandidateGenerator::new(&new).expect("oracle should be constructed");
+    let minhash = MinHashLshCandidateGenerator::new(&new).expect("minhash lsh should construct");
+
+    for (name, generator) in [
+        ("inverted", &inverted as &dyn CandidateGenerator),
+        ("exhaustive", &exhaustive as &dyn CandidateGenerator),
+        ("minhash", &minhash as &dyn CandidateGenerator),
+    ] {
+        let candidates = generator
+            .candidates(&old[0], 1)
+            .expect("candidate query should succeed");
+        assert_eq!(candidates.len(), 1, "{name}");
+        assert_eq!(candidates[0].block, BlockId(11), "{name}");
+    }
+
+    let visits = inverted
+        .estimate_visits(&old[0], 1)
+        .expect("visit estimate should succeed")
+        .breakdown
+        .expect("inverted index must report a breakdown");
+    assert_eq!(visits.short_fallback, 2);
 }
 
 #[test]
@@ -614,6 +756,18 @@ fn block_text(id: u64, canonical: &str, matching: &str, numeric_mask_applied: bo
         line_breaks: None,
         page_breaks: None,
     }
+}
+
+fn block_text_with_role_and_page(id: u64, text: &str, role: BlockRole, page: u32) -> BlockText {
+    let mut block = block_text_with_role(id, text, role);
+    block.pages = vec![page];
+    block
+}
+
+fn block_text_with_role(id: u64, text: &str, role: BlockRole) -> BlockText {
+    let mut block = block_text(id, text, text, false);
+    block.role = role;
+    block
 }
 
 fn mapped_text(text: &str) -> MappedText {

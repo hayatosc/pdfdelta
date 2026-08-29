@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::{Error, Result, layout::BlockId};
+use crate::{
+    Error, Result,
+    layout::{BlockId, BlockRole},
+};
 
 use super::features::{BlockFeatures, ExactHash, NGram, NGramCounts, multiset_dice_similarity};
 
@@ -57,13 +60,19 @@ pub trait CandidateGenerator {
         })
     }
 
+    /// Returns at most `limit` candidates in implementation-defined ranking order.
+    ///
+    /// Implementations must consider only blocks with an alignment-compatible role before
+    /// ranking and applying `limit`. Ordered alignment filters incompatible blocks returned by
+    /// custom generators, but cannot recover compatible blocks omitted by premature limiting.
     fn candidates(&self, old: &BlockFeatures, limit: usize) -> Result<Vec<Candidate>>;
 }
 
 pub struct InvertedIndexCandidateGenerator {
     new_features: HashMap<BlockId, BlockFeatures>,
-    exact_index: HashMap<ExactHash, Vec<BlockId>>,
-    ngram_index: HashMap<NGram, Vec<BlockId>>,
+    exact_index: HashMap<BlockRole, HashMap<ExactHash, Vec<BlockId>>>,
+    ngram_index: HashMap<BlockRole, HashMap<NGram, Vec<BlockId>>>,
+    role_document_counts: HashMap<BlockRole, usize>,
     weighted_ngram_totals: HashMap<BlockId, f64>,
     new_order: HashMap<BlockId, usize>,
     /// All new-side short blocks in `BlockId` order, retained for queries that
@@ -78,8 +87,9 @@ impl InvertedIndexCandidateGenerator {
     pub fn new(new: &[BlockFeatures]) -> Result<Self> {
         let ngram_size = common_ngram_size(new)?;
         let mut new_features = HashMap::with_capacity(new.len());
-        let mut exact_index = HashMap::<ExactHash, Vec<BlockId>>::new();
-        let mut ngram_index = HashMap::<NGram, Vec<BlockId>>::new();
+        let mut exact_index = HashMap::<BlockRole, HashMap<ExactHash, Vec<BlockId>>>::new();
+        let mut ngram_index = HashMap::<BlockRole, HashMap<NGram, Vec<BlockId>>>::new();
+        let mut role_document_counts = HashMap::<BlockRole, usize>::new();
         let mut new_order = HashMap::with_capacity(new.len());
         let mut short_blocks = Vec::new();
         let mut positioned_short_blocks = Vec::new();
@@ -95,12 +105,18 @@ impl InvertedIndexCandidateGenerator {
                 )));
             }
             new_order.insert(features.block, index);
+            *role_document_counts.entry(features.role).or_default() += 1;
             exact_index
+                .entry(features.role)
+                .or_default()
                 .entry(features.exact_hash)
                 .or_default()
                 .push(features.block);
+            ngram_index.entry(features.role).or_default();
             for ngram in features.ngram_counts.keys() {
                 ngram_index
+                    .entry(features.role)
+                    .or_default()
                     .entry(ngram.clone())
                     .or_default()
                     .push(features.block);
@@ -113,10 +129,10 @@ impl InvertedIndexCandidateGenerator {
             }
         }
 
-        for blocks in exact_index.values_mut() {
+        for blocks in exact_index.values_mut().flat_map(HashMap::values_mut) {
             blocks.sort_by_key(|block| block.0);
         }
-        for blocks in ngram_index.values_mut() {
+        for blocks in ngram_index.values_mut().flat_map(HashMap::values_mut) {
             blocks.sort_by_key(|block| block.0);
         }
         short_blocks.sort_by_key(|block| block.0);
@@ -126,6 +142,15 @@ impl InvertedIndexCandidateGenerator {
             Error::Unresolved("candidate weighted n-gram totals allocation failed".to_owned())
         })?;
         for features in new {
+            let document_count = role_document_counts
+                .get(&features.role)
+                .copied()
+                .ok_or_else(|| {
+                    Error::Unresolved("candidate role document count missing".to_owned())
+                })?;
+            let role_ngram_index = ngram_index.get(&features.role).ok_or_else(|| {
+                Error::Unresolved("candidate role n-gram index missing".to_owned())
+            })?;
             let mut ngrams = Vec::new();
             ngrams
                 .try_reserve_exact(features.ngram_counts.len())
@@ -135,7 +160,7 @@ impl InvertedIndexCandidateGenerator {
             ngrams.extend(features.ngram_counts.keys());
             ngrams.sort_unstable();
             let total = weighted_ngram_total(&features.ngram_counts, &ngrams, |ngram| {
-                idf(new.len(), &ngram_index, ngram)
+                idf(document_count, role_ngram_index, ngram)
             });
             weighted_ngram_totals.insert(features.block, total);
         }
@@ -144,6 +169,7 @@ impl InvertedIndexCandidateGenerator {
             new_features,
             exact_index,
             ngram_index,
+            role_document_counts,
             weighted_ngram_totals,
             new_order,
             short_blocks,
@@ -152,8 +178,12 @@ impl InvertedIndexCandidateGenerator {
         })
     }
 
-    fn idf(&self, ngram: &NGram) -> f64 {
-        idf(self.new_features.len(), &self.ngram_index, ngram)
+    fn idf(&self, role: BlockRole, ngram: &NGram) -> f64 {
+        let document_count = self.role_document_counts.get(&role).copied().unwrap_or(0);
+        let Some(index) = self.ngram_index.get(&role) else {
+            return 1.0;
+        };
+        idf(document_count, index, ngram)
     }
 
     fn weighted_ngram_scores(
@@ -180,11 +210,10 @@ impl InvertedIndexCandidateGenerator {
         (dice, containment)
     }
 
-    fn short_fallback_visit_count(&self, old: &BlockFeatures, limit: usize) -> usize {
-        if old.page_position.is_some() {
-            self.positioned_short_blocks.len().min(limit)
-        } else {
-            self.short_blocks.len()
+    fn short_fallback_visit_count(&self, old: &BlockFeatures, limit: usize) -> Result<usize> {
+        match old.page_position {
+            Some(position) => self.scan_positioned_short_blocks(old, position, limit, |_| {}),
+            None => Ok(self.short_blocks.len()),
         }
     }
 
@@ -196,7 +225,12 @@ impl InvertedIndexCandidateGenerator {
                 .map_err(|_| {
                     Error::Unresolved("short fallback candidates allocation failed".to_owned())
                 })?;
-            selected.extend_from_slice(&self.short_blocks);
+            selected.extend(
+                self.short_blocks
+                    .iter()
+                    .copied()
+                    .filter(|block| self.has_compatible_role(old, *block)),
+            );
             return Ok(selected);
         };
         let count = self.positioned_short_blocks.len().min(limit);
@@ -204,11 +238,25 @@ impl InvertedIndexCandidateGenerator {
         selected.try_reserve_exact(count).map_err(|_| {
             Error::Unresolved("short structural candidates allocation failed".to_owned())
         })?;
+        self.scan_positioned_short_blocks(old, position, limit, |block| selected.push(block))?;
+        Ok(selected)
+    }
+
+    fn scan_positioned_short_blocks(
+        &self,
+        old: &BlockFeatures,
+        position: u16,
+        limit: usize,
+        mut select: impl FnMut(BlockId),
+    ) -> Result<usize> {
+        let target = self.positioned_short_blocks.len().min(limit);
+        let mut selected = 0;
+        let mut visits = 0;
         let mut right = self
             .positioned_short_blocks
             .partition_point(|(candidate, _)| *candidate < position);
         let mut left = right.checked_sub(1);
-        while selected.len() < count {
+        while selected < target {
             let left_candidate = left.and_then(|index| self.positioned_short_blocks.get(index));
             let right_candidate = self.positioned_short_blocks.get(right);
             let take_left = match (left_candidate, right_candidate) {
@@ -217,27 +265,34 @@ impl InvertedIndexCandidateGenerator {
                 }
                 (Some(_), None) => true,
                 (None, Some(_)) => false,
-                (None, None) => {
-                    return Err(Error::Unresolved(
-                        "short candidate index exhausted".to_owned(),
-                    ));
-                }
+                (None, None) => break,
             };
-            if take_left {
+            let block = if take_left {
                 let (_, block) = left_candidate
                     .ok_or_else(|| Error::Unresolved("short left candidate missing".to_owned()))?;
-                selected.push(*block);
                 left = left.and_then(|index| index.checked_sub(1));
+                *block
             } else {
                 let (_, block) = right_candidate
                     .ok_or_else(|| Error::Unresolved("short right candidate missing".to_owned()))?;
-                selected.push(*block);
                 right = right.checked_add(1).ok_or_else(|| {
                     Error::Unresolved("short candidate index overflowed".to_owned())
                 })?;
+                *block
+            };
+            visits += 1;
+            if self.has_compatible_role(old, block) {
+                selected += 1;
+                select(block);
             }
         }
-        Ok(selected)
+        Ok(visits)
+    }
+
+    fn has_compatible_role(&self, old: &BlockFeatures, block: BlockId) -> bool {
+        self.new_features
+            .get(&block)
+            .is_some_and(|new| old.role.is_alignment_compatible(new.role))
     }
 }
 
@@ -261,13 +316,22 @@ impl CandidateGenerator for InvertedIndexCandidateGenerator {
             });
         }
 
-        let exact = self.exact_index.get(&old.exact_hash).map_or(0, Vec::len);
+        let exact = self
+            .exact_index
+            .get(&old.role)
+            .and_then(|index| index.get(&old.exact_hash))
+            .map_or(0, Vec::len);
         let mut ngram = 0_usize;
+        let role_ngram_index = self.ngram_index.get(&old.role);
         for ngram_key in old.ngram_counts.keys() {
-            ngram = ngram.saturating_add(self.ngram_index.get(ngram_key).map_or(0, Vec::len));
+            ngram = ngram.saturating_add(
+                role_ngram_index
+                    .and_then(|index| index.get(ngram_key))
+                    .map_or(0, Vec::len),
+            );
         }
         let short_fallback = if is_short(old) {
-            self.short_fallback_visit_count(old, limit)
+            self.short_fallback_visit_count(old, limit)?
         } else {
             0
         };
@@ -292,12 +356,18 @@ impl CandidateGenerator for InvertedIndexCandidateGenerator {
         }
 
         let mut evidence = HashMap::<BlockId, CandidateEvidence>::new();
-        if let Some(blocks) = self.exact_index.get(&old.exact_hash) {
+        if let Some(blocks) = self
+            .exact_index
+            .get(&old.role)
+            .and_then(|index| index.get(&old.exact_hash))
+        {
             for block in blocks {
                 let Some(features) = self.new_features.get(block) else {
                     continue;
                 };
-                if features.canonical_tokens == old.canonical_tokens {
+                if old.role.is_alignment_compatible(features.role)
+                    && features.canonical_tokens == old.canonical_tokens
+                {
                     evidence
                         .entry(*block)
                         .or_default()
@@ -313,25 +383,28 @@ impl CandidateGenerator for InvertedIndexCandidateGenerator {
             .map_err(|_| Error::Unresolved("query n-gram ordering allocation failed".to_owned()))?;
         old_ngrams.extend(old.ngram_counts.keys());
         old_ngrams.sort_unstable();
-        let old_weight =
-            weighted_ngram_total(&old.ngram_counts, &old_ngrams, |ngram| self.idf(ngram));
+        let old_weight = weighted_ngram_total(&old.ngram_counts, &old_ngrams, |ngram| {
+            self.idf(old.role, ngram)
+        });
+        let role_ngram_index = self.ngram_index.get(&old.role);
         for ngram in &old_ngrams {
-            let Some(blocks) = self.ngram_index.get(ngram) else {
+            let Some(blocks) = role_ngram_index.and_then(|index| index.get(*ngram)) else {
                 continue;
             };
             let old_count = old.ngram_counts.get(*ngram).copied().unwrap_or(0);
-            let weight = self.idf(ngram);
+            let weight = self.idf(old.role, ngram);
             for block in blocks {
+                let Some(features) = self.new_features.get(block) else {
+                    continue;
+                };
+                if !old.role.is_alignment_compatible(features.role) {
+                    continue;
+                }
                 let candidate = evidence.entry(*block).or_default();
                 candidate
                     .sources
                     .insert(CandidateSource::NGramInvertedIndex);
-                let new_count = self
-                    .new_features
-                    .get(block)
-                    .and_then(|features| features.ngram_counts.get(*ngram))
-                    .copied()
-                    .unwrap_or(0);
+                let new_count = features.ngram_counts.get(*ngram).copied().unwrap_or(0);
                 candidate.shared_ngram_weight += old_count.min(new_count) as f64 * weight;
             }
         }
@@ -506,6 +579,7 @@ impl CandidateGenerator for ExhaustiveCandidateGenerator {
         let mut candidates = self
             .new_features
             .iter()
+            .filter(|new| old.role.is_alignment_compatible(new.role))
             .map(|new| Candidate {
                 block: new.block,
                 sources: vec![CandidateSource::Exhaustive],
@@ -677,7 +751,9 @@ impl CandidateGenerator for MinHashLshCandidateGenerator {
                 let Some(features) = self.new_features.get(block) else {
                     continue;
                 };
-                if features.canonical_tokens == old.canonical_tokens {
+                if old.role.is_alignment_compatible(features.role)
+                    && features.canonical_tokens == old.canonical_tokens
+                {
                     evidence
                         .entry(*block)
                         .or_default()
@@ -694,6 +770,12 @@ impl CandidateGenerator for MinHashLshCandidateGenerator {
             let band_hash = hash_u64_slice(&signature[start..end]);
             if let Some(blocks) = self.buckets.get(&(band as u32, band_hash)) {
                 for block in blocks {
+                    let Some(features) = self.new_features.get(block) else {
+                        continue;
+                    };
+                    if !old.role.is_alignment_compatible(features.role) {
+                        continue;
+                    }
                     evidence
                         .entry(*block)
                         .or_default()
@@ -704,6 +786,12 @@ impl CandidateGenerator for MinHashLshCandidateGenerator {
 
         if is_short(old) {
             for block in &self.short_blocks {
+                let Some(features) = self.new_features.get(block) else {
+                    continue;
+                };
+                if !old.role.is_alignment_compatible(features.role) {
+                    continue;
+                }
                 evidence
                     .entry(*block)
                     .or_default()

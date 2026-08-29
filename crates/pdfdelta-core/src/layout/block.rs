@@ -20,11 +20,18 @@ const GEOMETRY_TOLERANCE: f64 = 1.0e-9;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BlockId(pub u64);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BlockRole {
     Body,
     RepeatedHeader,
     RepeatedFooter,
+}
+
+impl BlockRole {
+    /// Returns whether blocks with these roles may participate in one alignment match.
+    pub fn is_alignment_compatible(self, other: Self) -> bool {
+        self == other
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

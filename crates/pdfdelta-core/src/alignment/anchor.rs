@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 
-use crate::{Error, Result, layout::BlockId, normalize::ComparableToken};
+use crate::{
+    Error, Result,
+    layout::{BlockId, BlockRole},
+    normalize::ComparableToken,
+};
 
 use super::features::{BlockFeatures, validate_feature_ids};
 
@@ -31,7 +35,8 @@ pub struct AnchorIntervalWindow {
 ///
 /// Anchors must:
 /// - Have identical canonical token sequences
-/// - Appear exactly once in `old` and exactly once in `new`
+/// - Have compatible [`BlockRole`] values
+/// - Appear exactly once per role in `old` and exactly once per role in `new`
 /// - Have at least `min_token_count` tokens
 /// - Have no unresolved normalization issues (e.g. ambiguous line breaks); verified stable unmapped identities participate normally
 pub fn exact_anchors(
@@ -54,7 +59,12 @@ pub fn exact_anchors(
         .filter(|features| {
             !features.has_normalization_issues && features.canonical_tokens.len() >= min_token_count
         })
-        .map(|features| (features.canonical_tokens.clone(), features.block))
+        .map(|features| {
+            (
+                (features.role, features.canonical_tokens.clone()),
+                features.block,
+            )
+        })
         .collect::<HashMap<_, _>>();
 
     Ok(old
@@ -64,10 +74,11 @@ pub fn exact_anchors(
         })
         .filter_map(|features| {
             let tokens = &features.canonical_tokens;
-            (old_counts.get(tokens) == Some(&1) && new_counts.get(tokens) == Some(&1)).then(|| {
+            let key = (features.role, tokens.clone());
+            (old_counts.get(&key) == Some(&1) && new_counts.get(&key) == Some(&1)).then(|| {
                 ExactAnchor {
                     old: features.block,
-                    new: new_blocks[tokens],
+                    new: new_blocks[&key],
                 }
             })
         })
@@ -339,12 +350,14 @@ pub fn partition_anchor_windows(
 fn exact_token_counts(
     features: &[BlockFeatures],
     min_token_count: usize,
-) -> HashMap<Vec<ComparableToken>, usize> {
+) -> HashMap<(BlockRole, Vec<ComparableToken>), usize> {
     let mut counts = HashMap::new();
     for features in features.iter().filter(|features| {
         !features.has_normalization_issues && features.canonical_tokens.len() >= min_token_count
     }) {
-        *counts.entry(features.canonical_tokens.clone()).or_default() += 1;
+        *counts
+            .entry((features.role, features.canonical_tokens.clone()))
+            .or_default() += 1;
     }
     counts
 }

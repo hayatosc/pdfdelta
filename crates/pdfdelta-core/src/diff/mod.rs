@@ -1393,6 +1393,9 @@ fn promotable_moves(
         // are visited at most once in this loop.
         if old_tokens.is_empty()
             || old_tokens != new_tokens
+            || !old.blocks[*old_index]
+                .role
+                .is_alignment_compatible(new.blocks[*new_index].role)
             || old_token_counts.get(old_tokens) != Some(&1)
             || new_token_counts.get(new_tokens) != Some(&1)
         {
@@ -2029,6 +2032,9 @@ fn validate_alignment(old: &Side<'_>, new: &Side<'_>, alignment: &Alignment) -> 
         validate_separator("new", &span.new, span.new_separator, span.kind)?;
         consume_blocks("old", &span.old, old, &mut old_cursor)?;
         consume_blocks("new", &span.new, new, &mut new_cursor)?;
+        if span.kind == AlignmentKind::Match {
+            validate_match_roles(old, new, span)?;
+        }
     }
     if old_cursor != old.blocks.len() {
         return Err(Error::Unresolved(format!(
@@ -2045,6 +2051,28 @@ fn validate_alignment(old: &Side<'_>, new: &Side<'_>, alignment: &Alignment) -> 
         )));
     }
     Ok(())
+}
+
+fn validate_match_roles(old: &Side<'_>, new: &Side<'_>, span: &AlignmentSpan) -> Result<()> {
+    let mut roles = span
+        .old
+        .iter()
+        .map(|block| old.blocks[old.index[block]].role)
+        .chain(
+            span.new
+                .iter()
+                .map(|block| new.blocks[new.index[block]].role),
+        );
+    let Some(role) = roles.next() else {
+        return Ok(());
+    };
+    if roles.all(|candidate| role.is_alignment_compatible(candidate)) {
+        Ok(())
+    } else {
+        Err(Error::Unresolved(
+            "matched alignment span contains incompatible block roles".to_owned(),
+        ))
+    }
 }
 
 fn validate_span_shape(span: &AlignmentSpan) -> Result<()> {
@@ -2589,8 +2617,8 @@ impl GroupText {
 mod tests {
     use super::*;
     use crate::{
-        alignment::Alignment,
-        layout::TrustedRunId,
+        alignment::{Alignment, ExactAnchor},
+        layout::{BlockRole, TrustedRunId},
         model::FontProgramHash,
         normalize::{
             MappedText, NormalizationIssue, NormalizationIssueKind, TextSource, UnmappedToken,
@@ -3608,6 +3636,213 @@ mod tests {
         assert_eq!(result.unresolved_regions.len(), 1);
         assert_eq!(result.old_coverage.resolved_tokens, 0);
         assert_eq!(result.new_coverage.resolved_tokens, 0);
+    }
+
+    #[test]
+    fn repeated_footer_sentences_missing_from_new_are_recovered_individually() {
+        let old = repeated_role_blocks(
+            [1, 2],
+            "Acme security standard 2024.",
+            BlockRole::RepeatedFooter,
+        );
+        let result = compare_sentence_recovery(
+            &old,
+            &[],
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), 2);
+        assert!(
+            result
+                .changes
+                .iter()
+                .all(|change| change.kind == ChangeKind::Deletion)
+        );
+        assert!(result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn punctuation_free_repeated_footer_recovers_across_body_role_transitions() {
+        let old = vec![
+            role_block(1, "ACME BRAND", BlockRole::RepeatedFooter),
+            role_block(2, "Repeated body sentence.", BlockRole::Body),
+            role_block(3, "ACME BRAND", BlockRole::RepeatedFooter),
+            role_block(4, "Repeated body sentence.", BlockRole::Body),
+        ];
+        let result = compare_sentence_recovery(
+            &old,
+            &[],
+            &[Some(TrustedRunId(1)); 4],
+            &[],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        let recovered = result
+            .changes
+            .iter()
+            .map(|change| {
+                assert_eq!(change.kind, ChangeKind::Deletion);
+                change.occurrences[0]
+                    .old_span
+                    .as_ref()
+                    .expect("footer deletion has an old span")
+                    .blocks
+                    .clone()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(recovered, [vec![BlockId(1)], vec![BlockId(3)]]);
+    }
+
+    #[test]
+    fn same_role_adjacent_blocks_remain_grouped_at_role_boundaries() {
+        let old = vec![
+            role_block(1, "ACME", BlockRole::RepeatedFooter),
+            role_block(2, "BRAND", BlockRole::RepeatedFooter),
+            role_block(3, "Repeated body sentence.", BlockRole::Body),
+            role_block(4, "ACME", BlockRole::RepeatedFooter),
+            role_block(5, "BRAND", BlockRole::RepeatedFooter),
+            role_block(6, "Repeated body sentence.", BlockRole::Body),
+        ];
+        let result = compare_sentence_recovery(
+            &old,
+            &[],
+            &[Some(TrustedRunId(1)); 6],
+            &[],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        let recovered = result
+            .changes
+            .iter()
+            .map(|change| {
+                change.occurrences[0]
+                    .old_span
+                    .as_ref()
+                    .expect("footer deletion has an old span")
+                    .blocks
+                    .clone()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            recovered,
+            [vec![BlockId(1), BlockId(2)], vec![BlockId(4), BlockId(5)]]
+        );
+    }
+
+    #[test]
+    fn empty_block_at_role_transition_does_not_create_an_empty_unit() {
+        let old = vec![
+            role_block(1, "", BlockRole::RepeatedFooter),
+            role_block(2, "Unique body sentence.", BlockRole::Body),
+        ];
+        let result = compare_sentence_recovery(
+            &old,
+            &[],
+            &[Some(TrustedRunId(1)); 2],
+            &[],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Deletion);
+        assert_eq!(
+            result.changes[0].occurrences[0]
+                .old_span
+                .as_ref()
+                .expect("body deletion has an old span")
+                .blocks,
+            [BlockId(2)]
+        );
+    }
+
+    #[test]
+    fn repeated_body_sentences_missing_from_new_remain_unresolved() {
+        let old = repeated_role_blocks([1, 2], "Repeated body sentence.", BlockRole::Body);
+        let result = compare_sentence_recovery(
+            &old,
+            &[],
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert!(result.changes.is_empty());
+        assert_eq!(result.unresolved_regions.len(), 1);
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+    }
+
+    #[test]
+    fn repeated_footer_near_counterparts_veto_one_sided_recovery() {
+        let old = repeated_role_blocks(
+            [1, 2],
+            "Acme security standard 2024.",
+            BlockRole::RepeatedFooter,
+        );
+        let new = repeated_role_blocks(
+            [3, 4],
+            "Acme security standard 2025.",
+            BlockRole::RepeatedFooter,
+        );
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2)), Some(TrustedRunId(2))],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert!(result.changes.is_empty());
+        assert_eq!(result.unresolved_regions.len(), 1);
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
+    }
+
+    #[test]
+    fn cross_role_near_counterparts_do_not_veto_repeated_running_matter() {
+        let old = repeated_role_blocks(
+            [1, 2],
+            "Acme security standard 2024.",
+            BlockRole::RepeatedFooter,
+        );
+        let new = repeated_role_blocks(
+            [3, 4],
+            "Acme security standard 2025.",
+            BlockRole::RepeatedHeader,
+        );
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2)), Some(TrustedRunId(2))],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(
+            result
+                .changes
+                .iter()
+                .filter(|change| change.kind == ChangeKind::Deletion)
+                .count(),
+            2
+        );
+        assert_eq!(
+            result
+                .changes
+                .iter()
+                .filter(|change| change.kind == ChangeKind::Insertion)
+                .count(),
+            2
+        );
+        assert!(result.unresolved_regions.is_empty());
     }
 
     #[test]
@@ -5868,6 +6103,75 @@ mod tests {
         assert_eq!(recovered.new_coverage.resolved_tokens, source_tokens(&new));
     }
 
+    #[test]
+    fn externally_constructed_cross_role_match_is_rejected() {
+        let old = vec![sentence_block(1, "Same text.")];
+        let mut new = vec![sentence_block(2, "Same text.")];
+        new[0].role = BlockRole::RepeatedHeader;
+        let mut span = reading_order_unknown_span(vec![BlockId(1)], vec![BlockId(2)]);
+        span.kind = AlignmentKind::Match;
+        span.evidence.clear();
+        let alignment = Alignment {
+            spans: vec![span],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+
+        let error = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+            .expect_err("cross-role matches must fail closed");
+        assert!(matches!(error, Error::Unresolved(message) if message.contains("block roles")));
+    }
+
+    #[test]
+    fn cross_role_move_candidate_is_not_promoted() {
+        let old = vec![sentence_block(1, "Moved text.")];
+        let mut new = vec![sentence_block(2, "Moved text.")];
+        new[0].role = BlockRole::RepeatedFooter;
+        let alignment = Alignment {
+            spans: vec![
+                AlignmentSpan {
+                    kind: AlignmentKind::Deletion,
+                    old: vec![BlockId(1)],
+                    new: Vec::new(),
+                    score: 0.0,
+                    canonical_similarity: 0.0,
+                    score_margin: None,
+                    confidence: AlignmentConfidence::High,
+                    evidence: vec![AlignmentEvidence::MoveCandidate],
+                    old_separator: None,
+                    new_separator: None,
+                },
+                AlignmentSpan {
+                    kind: AlignmentKind::Insertion,
+                    old: Vec::new(),
+                    new: vec![BlockId(2)],
+                    score: 0.0,
+                    canonical_similarity: 0.0,
+                    score_margin: None,
+                    confidence: AlignmentConfidence::High,
+                    evidence: vec![AlignmentEvidence::MoveCandidate],
+                    old_separator: None,
+                    new_separator: None,
+                },
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: vec![ExactAnchor {
+                old: BlockId(1),
+                new: BlockId(2),
+            }],
+        };
+
+        let comparison = compare_aligned(&old, &new, &alignment, DiffOptions::default())
+            .expect("valid one-sided spans compare");
+        assert_eq!(comparison.changes.len(), 2);
+        assert!(
+            comparison
+                .changes
+                .iter()
+                .all(|change| change.kind != ChangeKind::Move)
+        );
+    }
+
     fn compare_sentence_recovery(
         old: &[BlockText],
         new: &[BlockText],
@@ -6159,6 +6463,26 @@ mod tests {
             line_breaks: None,
             page_breaks: None,
         }
+    }
+
+    fn repeated_role_blocks<const N: usize>(
+        ids: [u64; N],
+        text: &str,
+        role: BlockRole,
+    ) -> Vec<BlockText> {
+        ids.into_iter()
+            .map(|id| {
+                let mut block = sentence_block(id, text);
+                block.role = role;
+                block
+            })
+            .collect()
+    }
+
+    fn role_block(id: u64, text: &str, role: BlockRole) -> BlockText {
+        let mut block = sentence_block(id, text);
+        block.role = role;
+        block
     }
 
     fn line_block(id: u64, text: &str) -> BlockText {

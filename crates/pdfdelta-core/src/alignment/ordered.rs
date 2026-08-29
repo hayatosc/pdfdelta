@@ -541,7 +541,7 @@ fn align_ordered_inner(
     )?;
     let candidate_map = collect_candidates(
         old,
-        &new_indices,
+        new,
         &plan.excluded_old,
         generator,
         options.candidate_limit,
@@ -993,13 +993,17 @@ type CandidateMap = HashMap<BlockId, HashMap<BlockId, Vec<CandidateSource>>>;
 
 fn collect_candidates(
     old: &[BlockFeatures],
-    new_indices: &HashMap<BlockId, usize>,
+    new: &[BlockFeatures],
     main_anchor_old: &HashSet<BlockId>,
     generator: &dyn CandidateGenerator,
     limit: usize,
     max_visits: usize,
     visit_metrics: &mut AlignmentVisitMetrics,
 ) -> Result<CandidateMap> {
+    let new_by_id = new
+        .iter()
+        .map(|features| (features.block, features))
+        .collect::<HashMap<_, _>>();
     // The required sum is the checked total over every eligible old block;
     // anchors and forced extraction-gap queries are excluded.
     // and is unavailable (`None`) whenever any estimate errors or the sum
@@ -1121,11 +1125,14 @@ fn collect_candidates(
                     candidate.block.0
                 )));
             }
-            if !new_indices.contains_key(&candidate.block) {
-                return Err(Error::Unresolved(format!(
+            let new_features = new_by_id.get(&candidate.block).ok_or_else(|| {
+                Error::Unresolved(format!(
                     "candidate generator returned unknown new block {}",
                     candidate.block.0
-                )));
+                ))
+            })?;
+            if !features.role.is_alignment_compatible(new_features.role) {
+                continue;
             }
             let sources = by_block.entry(candidate.block).or_default();
             sources.extend(candidate.sources);
@@ -1465,6 +1472,9 @@ fn propose_group_match(
     options: AlignmentOptions,
     require_exact_canonical: bool,
 ) -> bool {
+    if !groups_have_compatible_roles(old, new) {
+        return false;
+    }
     let group_score = score_groups(
         old,
         new,
@@ -1498,6 +1508,20 @@ fn propose_group_match(
     };
     propose(cells, edge.0, edge.1, reward, transition);
     true
+}
+
+fn groups_have_compatible_roles(old: &[BlockFeatures], new: &[BlockFeatures]) -> bool {
+    old.first()
+        .zip(new.first())
+        .is_some_and(|(old_first, new_first)| {
+            old_first.role.is_alignment_compatible(new_first.role)
+                && old
+                    .iter()
+                    .all(|features| old_first.role.is_alignment_compatible(features.role))
+                && new
+                    .iter()
+                    .all(|features| new_first.role.is_alignment_compatible(features.role))
+        })
 }
 
 fn update_cell(cell: &mut Cell, score: f64, transition: Option<Transition>) {
@@ -1992,6 +2016,7 @@ fn is_exact_normalization_pair(
 ) -> bool {
     old.has_normalization_issues
         && new.has_normalization_issues
+        && old.role.is_alignment_compatible(new.role)
         && !old.canonical_tokens.is_empty()
         && !new.canonical_tokens.is_empty()
         && !context.move_old.contains(&old.block)
