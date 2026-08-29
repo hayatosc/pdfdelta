@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-30
-- **Generator / engine commit**: [`b1e54e3`](https://github.com/hayatosc/pdfdelta/commit/b1e54e3)
+- **Generator / engine commit**: [`2ddbb6b`](https://github.com/hayatosc/pdfdelta/commit/2ddbb6b)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-30-b1e54e3.json`](2026-08-30-b1e54e3.json)
-  - Schema: v14
-  - Size: 294,568 bytes
-  - SHA-256: `37895a9910e63ab7a51171a085c45650f6ede104d9328818d362d420d24766d6`
+  - File: [`2026-08-30-2ddbb6b.json`](2026-08-30-2ddbb6b.json)
+  - Schema: v15
+  - Size: 314,071 bytes
+  - SHA-256: `823d4afa42a81cfed9b1bb9592c7fa42b9b1c0a6044df549995ad7744d606e25`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-30-b1e54e3.json
+  benchmark/realworld/results/2026-08-30-2ddbb6b.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -115,8 +115,8 @@ occurrences have no alignment-span location.
 
 ## Current Writer Schema (v15)
 
-The benchmark writer uses schema v15. The latest committed capture uses schema
-v14, and older captures retain their recorded schemas.
+The benchmark writer and latest committed capture use schema v15. Older
+captures retain their recorded schemas.
 Schema v15 adds bounded Clause/ListItem recovery-watch diagnostics. Each unit
 retains its kind, byte boundaries, comparable-token count, page, role, and
 location availability. Per-side best-partner evidence records the partner
@@ -124,6 +124,15 @@ index, best and second scores, exactness, reciprocity, and tied-best state;
 aggregate fields expose unit and comparison counts, completion, and a typed
 stop reason. This evidence is diagnostic-only and does not alter comparison,
 coverage, quality, or candidate-recall behavior.
+All eight pairs with recovery watches complete granular diagnostics without a
+typed stop. NIST CSF
+exposes nine old-side and 16 new-side Clause/ListItem units across its two
+watched replacements. The function-list evidence isolates reciprocal item
+relations and preserves tied best relations for the ambiguous final items;
+the all-sector evidence isolates two old and seven new units. These diagnostics
+do not justify a behavior change. Outside schema version and recovery-watch
+evidence, every compact report field is byte-identical to the schema-v14
+`b1e54e3` capture.
 Schema v14 extends recovery watches to insertions and deletions. Each queried
 side records bounded occurrence evidence with explicit complete or truncated
 semantics, while an absent quote is reported as `not_queried` instead of being
@@ -192,6 +201,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-30-b1e54e3.json`](2026-08-30-b1e54e3.json): schema-v14 one-sided insertion/deletion occurrence evidence.
 - [`2026-08-30-5ffa3e0.json`](2026-08-30-5ffa3e0.json): schema-v13 exact adjacent-segment relation diagnostics.
 - [`2026-08-29-24a2300.json`](2026-08-29-24a2300.json): schema-v12 adjacent-unit recovery watches and the pre-segment-relation baseline.
 - [`2026-08-29-1a0675f.json`](2026-08-29-1a0675f.json): schema-v11 bounded expected-change recovery watches.
