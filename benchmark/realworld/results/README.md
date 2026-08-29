@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-30
-- **Generator / engine commit**: [`5ffa3e0`](https://github.com/hayatosc/pdfdelta/commit/5ffa3e0)
+- **Generator / engine commit**: [`b1e54e3`](https://github.com/hayatosc/pdfdelta/commit/b1e54e3)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-30-5ffa3e0.json`](2026-08-30-5ffa3e0.json)
-  - Schema: v13
-  - Size: 116,719 bytes
-  - SHA-256: `2579bf048d37175ea70805138f714d937b64361afa651caf08f8a2b153392be4`
+  - File: [`2026-08-30-b1e54e3.json`](2026-08-30-b1e54e3.json)
+  - Schema: v14
+  - Size: 294,568 bytes
+  - SHA-256: `37895a9910e63ab7a51171a085c45650f6ede104d9328818d362d420d24766d6`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-30-5ffa3e0.json
+  benchmark/realworld/results/2026-08-30-b1e54e3.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -115,8 +115,8 @@ occurrences have no alignment-span location.
 
 ## Current Writer Schema (v14)
 
-The benchmark writer uses schema v14. Older captures retain their recorded
-schemas.
+The latest committed capture and benchmark writer use schema v14. Older
+captures retain their recorded schemas.
 Schema v14 extends recovery watches to insertions and deletions. Each queried
 side records bounded occurrence evidence with explicit complete or truncated
 semantics, while an absent quote is reported as `not_queried` instead of being
@@ -125,6 +125,13 @@ remain unchanged.
 Retained occurrences expose the page, raw trusted-run bounding box, and block
 role already available to the diff. Normalized geometry remains deferred until
 the neutral document model retains authoritative page bounds.
+The capture records 13 one-sided reviewed changes, all without truncation. The
+EDPB consultation watermark is present in 51 distinct old-side pages, and every
+occurrence is classified as a repeated-footer line; the new side is explicitly
+`not_queried`. SP 800-57 similarly exposes 157 distinct-page occurrences for
+its repeated revision branding. Outside schema version and recovery-watch
+evidence, every compact report field is byte-identical to the schema-v13
+`5ffa3e0` capture.
 Schema v13 adds bounded exact segment-pair diagnostics to recovery watches. It
 records candidate, hash-match, token-verification, uniqueness, monotonicity,
 crossing, overlap-veto, and typed stop evidence, plus the exact segment-pair
@@ -178,6 +185,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-30-5ffa3e0.json`](2026-08-30-5ffa3e0.json): schema-v13 exact adjacent-segment relation diagnostics.
 - [`2026-08-29-24a2300.json`](2026-08-29-24a2300.json): schema-v12 adjacent-unit recovery watches and the pre-segment-relation baseline.
 - [`2026-08-29-1a0675f.json`](2026-08-29-1a0675f.json): schema-v11 bounded expected-change recovery watches.
 - [`2026-08-29-1463932.json`](2026-08-29-1463932.json): schema-v10 exact-unit signature diagnostics for trusted runs.
