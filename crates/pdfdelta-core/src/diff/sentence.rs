@@ -587,6 +587,39 @@ impl RecoveryBudget {
     }
 }
 
+#[derive(Clone, Copy)]
+struct FragmentVetoBudget {
+    pair_visit_limit: usize,
+    comparison_limit: usize,
+    pair_visits: usize,
+    comparisons: usize,
+}
+
+impl FragmentVetoBudget {
+    fn new(old_tokens: usize, new_tokens: usize) -> Option<Self> {
+        let token_limit = old_tokens.checked_add(new_tokens)?;
+        let comparison_limit = token_limit.checked_mul(4)?;
+        // Fragment veto analysis is isolated so it cannot consume recovery's
+        // remaining pair/comparison budget. Each limit is no larger than the
+        // corresponding RecoveryBudget limit, so running both analyses can at
+        // most double their combined pair/comparison work.
+        Some(Self {
+            pair_visit_limit: token_limit,
+            comparison_limit,
+            pair_visits: 0,
+            comparisons: 0,
+        })
+    }
+
+    fn charge_pair_visits(&mut self, amount: usize) -> bool {
+        RecoveryBudget::charge(&mut self.pair_visits, amount, self.pair_visit_limit)
+    }
+
+    fn charge_comparisons(&mut self, amount: usize) -> bool {
+        RecoveryBudget::charge(&mut self.comparisons, amount, self.comparison_limit)
+    }
+}
+
 pub(super) fn build_sentence_recovery_plan(
     old: &Side<'_>,
     new: &Side<'_>,
@@ -600,6 +633,11 @@ pub(super) fn build_sentence_recovery_plan(
         max_tokens,
         input.min_tokens,
     ) else {
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    };
+    let Some(mut fragment_veto_budget) =
+        FragmentVetoBudget::new(old.total_tokens, new.total_tokens)
+    else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
     let Some(membership) = span_membership(alignment) else {
@@ -779,7 +817,7 @@ pub(super) fn build_sentence_recovery_plan(
         }
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
-    if veto_fragment_completed_replacements(
+    veto_fragment_completed_replacements(
         &old_occurrences,
         &new_occurrences,
         &old_candidates,
@@ -787,21 +825,8 @@ pub(super) fn build_sentence_recovery_plan(
         &old_fragments,
         &new_fragments,
         &mut relations,
-        &mut budget,
-    )
-    .is_none()
-    {
-        if plan.has_exact_matches()
-            && normalize_ranges(&mut plan.deletion_consumed)
-            && normalize_ranges(&mut plan.insertion_consumed)
-        {
-            return Ok(SentenceRecoveryBuildOutcome {
-                plan: Some(plan),
-                diagnostics,
-            });
-        }
-        return Ok(SentenceRecoveryBuildOutcome::default());
-    }
+        &mut fragment_veto_budget,
+    );
     record_vetoed_near_pairs(&mut diagnostics, &relations, near_pair_start);
     if let Some(diagnostics) = diagnostics.as_mut() {
         diagnostics.metrics.near_relation_complete = relations.complete;
@@ -2000,8 +2025,40 @@ fn veto_fragment_completed_replacements(
     old_fragments: &[SentenceFragment],
     new_fragments: &[SentenceFragment],
     relations: &mut ModifiedSentenceRelations,
-    budget: &mut RecoveryBudget,
-) -> Option<()> {
+    budget: &mut FragmentVetoBudget,
+) {
+    let mut tentative_budget = *budget;
+    let Some(vetoes) = fragment_completed_replacements(
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        old_fragments,
+        new_fragments,
+        relations,
+        &mut tentative_budget,
+    ) else {
+        veto_all_mutual_replacements(relations);
+        return;
+    };
+    if apply_fragment_vetoes(relations, &vetoes).is_none() {
+        veto_all_mutual_replacements(relations);
+        return;
+    }
+    *budget = tentative_budget;
+}
+
+#[allow(clippy::too_many_arguments)]
+fn fragment_completed_replacements(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    old_fragments: &[SentenceFragment],
+    new_fragments: &[SentenceFragment],
+    relations: &ModifiedSentenceRelations,
+    budget: &mut FragmentVetoBudget,
+) -> Option<Vec<(usize, usize)>> {
     let mut proposals = Vec::new();
     proposals.try_reserve_exact(relations.old.len()).ok()?;
     for (old_index, relation) in relations.old.iter().copied().enumerate() {
@@ -2010,12 +2067,11 @@ fn veto_fragment_completed_replacements(
         }
     }
     if proposals.is_empty() {
-        return Some(());
+        return Some(Vec::new());
     }
 
-    let mut tentative_budget = *budget;
-    let old_fragment_index = fragment_index(old_fragments, &mut tentative_budget)?;
-    let new_fragment_index = fragment_index(new_fragments, &mut tentative_budget)?;
+    let old_fragment_index = fragment_index(old_fragments, budget)?;
+    let new_fragment_index = fragment_index(new_fragments, budget)?;
     let mut vetoes = Vec::new();
     vetoes.try_reserve_exact(proposals.len()).ok()?;
     for (old_index, new_index) in proposals {
@@ -2046,24 +2102,42 @@ fn veto_fragment_completed_replacements(
                 shorter_span,
                 &shorter.tokens,
                 &longer.tokens,
-                &mut tentative_budget,
+                budget,
             )?;
         if completed {
             vetoes.push((old_index, new_index));
         }
     }
 
-    *budget = tentative_budget;
+    Some(vetoes)
+}
+
+fn apply_fragment_vetoes(
+    relations: &mut ModifiedSentenceRelations,
+    vetoes: &[(usize, usize)],
+) -> Option<()> {
     for (old_index, new_index) in vetoes {
-        relations.old.get_mut(old_index)?.veto_without_partner();
-        relations.new.get_mut(new_index)?.veto_without_partner();
+        relations.old.get_mut(*old_index)?.veto_without_partner();
+        relations.new.get_mut(*new_index)?.veto_without_partner();
     }
     Some(())
 }
 
+fn veto_all_mutual_replacements(relations: &mut ModifiedSentenceRelations) {
+    for old_index in 0..relations.old.len() {
+        let relation = relations.old[old_index];
+        let Some(new_index) = mutual_replacement_partner(old_index, relation, &relations.new)
+        else {
+            continue;
+        };
+        relations.old[old_index].veto_without_partner();
+        relations.new[new_index].veto_without_partner();
+    }
+}
+
 fn fragment_index<'a>(
     fragments: &'a [SentenceFragment],
-    budget: &mut RecoveryBudget,
+    budget: &mut FragmentVetoBudget,
 ) -> Option<FragmentIndex<'a>> {
     if !budget.charge_pair_visits(fragments.len()) {
         return None;
@@ -2098,7 +2172,7 @@ fn clean_fragment_completes(
     span_index: usize,
     shorter: &[SentenceEvidenceToken],
     longer: &[SentenceEvidenceToken],
-    budget: &mut RecoveryBudget,
+    budget: &mut FragmentVetoBudget,
 ) -> Option<bool> {
     let missing = longer.len().checked_sub(shorter.len())?;
     for fragment_len in [Some(missing), missing.checked_sub(1)]
@@ -2139,7 +2213,7 @@ fn joined_tokens_equal(
     left: &[SentenceEvidenceToken],
     right: &[SentenceEvidenceToken],
     target: &[SentenceEvidenceToken],
-    budget: &mut RecoveryBudget,
+    budget: &mut FragmentVetoBudget,
 ) -> Option<bool> {
     if !joined_length_matches(left, right, target.len()) {
         return Some(false);
@@ -3917,6 +3991,12 @@ mod tests {
             assert!(output.charge_output(1));
         }
         assert!(!output.charge_output(1));
+
+        let mut fragment = FragmentVetoBudget::new(3, 2).expect("fragment budget is valid");
+        assert!(fragment.charge_pair_visits(5));
+        assert!(!fragment.charge_pair_visits(1));
+        assert!(fragment.charge_comparisons(20));
+        assert!(!fragment.charge_comparisons(1));
     }
 
     #[test]
@@ -3952,31 +4032,25 @@ mod tests {
             new: vec![new_relation],
             complete: true,
         };
-        let mut budget = RecoveryBudget::new(
-            old.tokens.len(),
-            new.tokens.len(),
-            old.tokens.len() + new.tokens.len(),
-            1,
-        )
-        .expect("test budget is valid");
+        let mut budget = FragmentVetoBudget::new(old.tokens.len(), new.tokens.len())
+            .expect("test budget is valid");
         budget.comparison_limit = 1;
         let before = budget;
 
-        assert!(
-            veto_fragment_completed_replacements(
-                &[old],
-                &[new],
-                &old_candidates,
-                &new_candidates,
-                &[],
-                &[fragment],
-                &mut relations,
-                &mut budget,
-            )
-            .is_none()
+        veto_fragment_completed_replacements(
+            &[old],
+            &[new],
+            &old_candidates,
+            &new_candidates,
+            &[],
+            &[fragment],
+            &mut relations,
+            &mut budget,
         );
-        assert_eq!(relations.old[0].unique_partner(), Some(0));
-        assert_eq!(relations.new[0].unique_partner(), Some(0));
+        assert!(relations.old[0].vetoed());
+        assert!(relations.new[0].vetoed());
+        assert_eq!(relations.old[0].unique_partner(), None);
+        assert_eq!(relations.new[0].unique_partner(), None);
         assert_eq!(budget.pair_visits, before.pair_visits);
         assert_eq!(budget.comparisons, before.comparisons);
 
@@ -3993,13 +4067,8 @@ mod tests {
             new: vec![new_relation],
             complete: true,
         };
-        let mut budget = RecoveryBudget::new(
-            old.tokens.len(),
-            new.tokens.len(),
-            old.tokens.len() + new.tokens.len(),
-            1,
-        )
-        .expect("test budget is valid");
+        let mut budget = FragmentVetoBudget::new(old.tokens.len(), new.tokens.len())
+            .expect("test budget is valid");
         let fragments = [
             SentenceFragment {
                 tokens: tokens("誤答"),
@@ -4013,18 +4082,15 @@ mod tests {
             },
         ];
 
-        assert!(
-            veto_fragment_completed_replacements(
-                &[old],
-                &[new],
-                &old_candidates,
-                &new_candidates,
-                &[],
-                &fragments,
-                &mut relations,
-                &mut budget,
-            )
-            .is_some()
+        veto_fragment_completed_replacements(
+            &[old],
+            &[new],
+            &old_candidates,
+            &new_candidates,
+            &[],
+            &fragments,
+            &mut relations,
+            &mut budget,
         );
         assert!(relations.old[0].vetoed());
         assert!(relations.new[0].vetoed());
@@ -4035,7 +4101,7 @@ mod tests {
             font_fingerprint: 1,
             glyph_id: 1,
         };
-        let mut exact_budget = RecoveryBudget::new(3, 0, 3, 1).expect("test budget is valid");
+        let mut exact_budget = FragmentVetoBudget::new(3, 0).expect("test budget is valid");
         assert_eq!(
             joined_tokens_equal(
                 &[unmapped],
@@ -4077,24 +4143,21 @@ mod tests {
                 uncertain: true,
             })
             .collect::<Vec<_>>();
-        let mut budget = RecoveryBudget::new(10, 5, 15, 1).expect("test budget is valid");
+        let mut budget = FragmentVetoBudget::new(10, 5).expect("test budget is valid");
         let before = budget;
 
-        assert!(
-            veto_fragment_completed_replacements(
-                &[old],
-                &[new],
-                &candidates,
-                &candidates,
-                &[],
-                &fragments,
-                &mut relations,
-                &mut budget,
-            )
-            .is_none()
+        veto_fragment_completed_replacements(
+            &[old],
+            &[new],
+            &candidates,
+            &candidates,
+            &[],
+            &fragments,
+            &mut relations,
+            &mut budget,
         );
-        assert_eq!(relations.old[0].unique_partner(), Some(0));
-        assert_eq!(relations.new[0].unique_partner(), Some(0));
+        assert!(relations.old[0].vetoed());
+        assert!(relations.new[0].vetoed());
         assert_eq!(budget.pair_visits, before.pair_visits);
         assert_eq!(budget.comparisons, before.comparisons);
     }
@@ -4125,26 +4188,123 @@ mod tests {
                 uncertain: false,
             })
             .collect::<Vec<_>>();
-        let mut budget = RecoveryBudget::new(10, 5, 15, 1).expect("test budget is valid");
+        let mut budget = FragmentVetoBudget::new(10, 5).expect("test budget is valid");
         let before = budget;
 
-        assert!(
-            veto_fragment_completed_replacements(
-                &[old],
-                &[new],
-                &candidates,
-                &candidates,
-                &[],
-                &fragments,
-                &mut relations,
-                &mut budget,
-            )
-            .is_none()
+        veto_fragment_completed_replacements(
+            &[old],
+            &[new],
+            &candidates,
+            &candidates,
+            &[],
+            &fragments,
+            &mut relations,
+            &mut budget,
         );
-        assert_eq!(relations.old[0].unique_partner(), Some(0));
-        assert_eq!(relations.new[0].unique_partner(), Some(0));
+        assert!(relations.old[0].vetoed());
+        assert!(relations.new[0].vetoed());
         assert_eq!(budget.pair_visits, before.pair_visits);
         assert_eq!(budget.comparisons, before.comparisons);
+    }
+
+    #[test]
+    fn fragment_budget_fallback_vetoes_near_pair_and_keeps_one_sided_recovery() {
+        let mut old_occurrences = [
+            positioned_occurrence("near old", 1, 0, 0),
+            positioned_occurrence("deleted", 2, 1, 0),
+        ];
+        let mut new_occurrences = [
+            positioned_occurrence("near new", 3, 2, 0),
+            positioned_occurrence("inserted", 4, 3, 0),
+        ];
+        let candidates = [
+            RecoveryCandidate {
+                occurrence_index: 0,
+                span_index: 0,
+            },
+            RecoveryCandidate {
+                occurrence_index: 1,
+                span_index: 0,
+            },
+        ];
+        let mut old_near = CandidateNearRelation::default();
+        old_near.record_eligible(0, MIN_NEAR_SCORE);
+        let mut new_near = CandidateNearRelation::default();
+        new_near.record_eligible(0, MIN_NEAR_SCORE);
+        let mut relations = ModifiedSentenceRelations {
+            old: vec![old_near, CandidateNearRelation::default()],
+            new: vec![new_near, CandidateNearRelation::default()],
+            complete: true,
+        };
+        let fragments = [
+            SentenceFragment {
+                tokens: vec![SentenceEvidenceToken::Scalar('x')],
+                span_index: 1,
+                uncertain: false,
+            },
+            SentenceFragment {
+                tokens: vec![SentenceEvidenceToken::Scalar('y')],
+                span_index: 1,
+                uncertain: false,
+            },
+        ];
+        let mut fragment_budget = FragmentVetoBudget::new(1, 0).expect("test budget is valid");
+        let mut recovery_budget = RecoveryBudget::new(10, 10, 20, 1).expect("test budget is valid");
+        let recovery_before = recovery_budget;
+
+        veto_fragment_completed_replacements(
+            &old_occurrences,
+            &new_occurrences,
+            &candidates,
+            &candidates,
+            &[],
+            &fragments,
+            &mut relations,
+            &mut fragment_budget,
+        );
+
+        assert!(relations.old[0].vetoed());
+        assert!(relations.new[0].vetoed());
+        assert!(!relations.old[1].vetoed());
+        assert!(!relations.new[1].vetoed());
+        assert_eq!(recovery_budget.pair_visits, recovery_before.pair_visits);
+        assert_eq!(recovery_budget.comparisons, recovery_before.comparisons);
+
+        let mut plan = SentenceRecoveryPlan::default();
+        append_replacements(
+            &mut plan,
+            &mut old_occurrences,
+            &mut new_occurrences,
+            &candidates,
+            &candidates,
+            &relations,
+            &mut recovery_budget,
+        )
+        .expect("vetoed replacement output fits");
+        append_candidate_recoveries(
+            &mut plan.deletions,
+            &mut plan.deletion_consumed,
+            &mut old_occurrences,
+            &candidates,
+            &relations.old,
+            &mut recovery_budget,
+        )
+        .expect("one-sided deletion output fits");
+        append_candidate_recoveries(
+            &mut plan.insertions,
+            &mut plan.insertion_consumed,
+            &mut new_occurrences,
+            &candidates,
+            &relations.new,
+            &mut recovery_budget,
+        )
+        .expect("one-sided insertion output fits");
+
+        assert!(plan.replacements.is_empty());
+        assert_eq!(plan.deletions.len(), 1);
+        assert_eq!(plan.insertions.len(), 1);
+        assert_eq!(plan.deletions[0].blocks, [BlockId(2)]);
+        assert_eq!(plan.insertions[0].blocks, [BlockId(4)]);
     }
 
     #[test]
