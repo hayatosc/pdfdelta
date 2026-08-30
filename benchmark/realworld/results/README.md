@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-30
-- **Generator / engine commit**: [`a5202c8`](https://github.com/hayatosc/pdfdelta/commit/a5202c8)
+- **Generator / engine commit**: [`d045e2c`](https://github.com/hayatosc/pdfdelta/commit/d045e2c)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-30-a5202c8.json`](2026-08-30-a5202c8.json)
+  - File: [`2026-08-30-d045e2c.json`](2026-08-30-d045e2c.json)
   - Schema: v21
-  - Size: 497,667 bytes
-  - SHA-256: `914591c14e2f388aeb9defb1ee2754704f3250a99409903c794d135fb9bc9c65`
+  - Size: 497,665 bytes
+  - SHA-256: `6e9c3cd80c19236dc296892d1ffe7ea403758a785a7026ceb558b4c6bf5146ca`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-30-a5202c8.json
+  benchmark/realworld/results/2026-08-30-d045e2c.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -128,6 +128,12 @@ known-span filtering is not safe to enable. The four budget-stopped replays
 retain only 17.57% to 58.88% of considered pairs and all change exact relations;
 FIPS, SP 800-57, EDPB Right of Access, and MQTT record 16 unique-partner and
 nine reciprocal-pair mismatches in total.
+The `d045e2c` writer stops sorted word-multiset scoring once the remaining
+overlap cannot exceed the score already established by edge or Line evidence.
+All fields outside sentence-recovery diagnostics remain identical to the
+`a5202c8` capture. Seventeen pairs avoid 29,782 similarity comparisons in total;
+BIS Core Principles still reaches its comparison limit but examines 469,079
+candidate pairs instead of 467,736.
 Schema v20 divides same-or-ambiguous work into known same-span candidates,
 ambiguous-span candidates, and shared query preparation. All 11 child counters
 must sum to the schema-v19 parent for Sentence and Line units. Removing the
@@ -279,6 +285,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-30-a5202c8.json`](2026-08-30-a5202c8.json): schema-v21 known-span Sentence shadow replay before bounded word-score early termination.
 - [`2026-08-30-a7a483c.json`](2026-08-30-a7a483c.json): schema-v20 known/ambiguous near-search work attribution before known-span shadow replay.
 - [`2026-08-30-ba424d8.json`](2026-08-30-ba424d8.json): schema-v19 phase-level near-search attribution before known/ambiguous subdivision.
 - [`2026-08-30-496d128.json`](2026-08-30-496d128.json): schema-v18 Sentence/Line near-search work attribution before phase-level attribution.
