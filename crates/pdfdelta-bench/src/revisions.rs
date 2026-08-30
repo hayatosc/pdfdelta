@@ -932,6 +932,10 @@ pub struct SentenceEdgeSignatureReferenceOracleMetricsReport {
     pub legacy_sentence_edge_pairs_rejected: usize,
     pub candidate_posting_visits_examined: usize,
     pub candidate_posting_visits_attempted: usize,
+    pub edge_filter_pairs_examined: usize,
+    pub edge_filter_pairs_attempted: usize,
+    pub edge_filter_similarity_comparisons_examined: usize,
+    pub edge_filter_similarity_comparisons_attempted: usize,
     pub pair_visits_examined: usize,
     pub pair_visits_attempted: usize,
     pub similarity_comparisons_examined: usize,
@@ -964,6 +968,12 @@ impl From<SentenceEdgeSignatureReferenceOracleMetrics>
             legacy_sentence_edge_pairs_rejected: metrics.legacy_sentence_edge_pairs_rejected,
             candidate_posting_visits_examined: metrics.candidate_posting_visits_examined,
             candidate_posting_visits_attempted: metrics.candidate_posting_visits_attempted,
+            edge_filter_pairs_examined: metrics.edge_filter_pairs_examined,
+            edge_filter_pairs_attempted: metrics.edge_filter_pairs_attempted,
+            edge_filter_similarity_comparisons_examined: metrics
+                .edge_filter_similarity_comparisons_examined,
+            edge_filter_similarity_comparisons_attempted: metrics
+                .edge_filter_similarity_comparisons_attempted,
             pair_visits_examined: metrics.pair_visits_examined,
             pair_visits_attempted: metrics.pair_visits_attempted,
             similarity_comparisons_examined: metrics.similarity_comparisons_examined,
@@ -1069,6 +1079,8 @@ pub enum SentenceEdgeGateShadowStopReasonReport {
 pub enum SentenceEdgeSignatureReferenceOracleStopReasonReport {
     DirectReplayIncomplete,
     CandidatePostingVisitLimit,
+    EdgeFilterPairVisitLimit,
+    EdgeFilterSimilarityComparisonLimit,
     PairVisitLimit,
     SimilarityComparisonLimit,
     CandidateCountLimit,
@@ -1234,6 +1246,8 @@ impl From<SentenceEdgeSignatureReferenceOracleStopReason>
         match reason {
             Core::DirectReplayIncomplete => Self::DirectReplayIncomplete,
             Core::CandidatePostingVisitLimit => Self::CandidatePostingVisitLimit,
+            Core::EdgeFilterPairVisitLimit => Self::EdgeFilterPairVisitLimit,
+            Core::EdgeFilterSimilarityComparisonLimit => Self::EdgeFilterSimilarityComparisonLimit,
             Core::PairVisitLimit => Self::PairVisitLimit,
             Core::SimilarityComparisonLimit => Self::SimilarityComparisonLimit,
             Core::CandidateCountLimit => Self::CandidateCountLimit,
@@ -4741,6 +4755,16 @@ fn validate_sentence_edge_signature_reference_oracle_metrics(
             oracle.candidate_posting_visits_attempted,
         ),
         (
+            "edge-filter pairs",
+            oracle.edge_filter_pairs_examined,
+            oracle.edge_filter_pairs_attempted,
+        ),
+        (
+            "edge-filter similarity comparisons",
+            oracle.edge_filter_similarity_comparisons_examined,
+            oracle.edge_filter_similarity_comparisons_attempted,
+        ),
+        (
             "pair visits",
             oracle.pair_visits_examined,
             oracle.pair_visits_attempted,
@@ -4844,18 +4868,24 @@ fn validate_sentence_edge_signature_reference_oracle_metrics(
         Some(SentenceEdgeSignatureReferenceOracleStopReason::CandidatePostingVisitLimit) => {
             oracle.direct_complete && only_deficit(0)
         }
-        Some(SentenceEdgeSignatureReferenceOracleStopReason::PairVisitLimit) => {
+        Some(SentenceEdgeSignatureReferenceOracleStopReason::EdgeFilterPairVisitLimit) => {
             oracle.direct_complete && only_deficit(1)
         }
+        Some(
+            SentenceEdgeSignatureReferenceOracleStopReason::EdgeFilterSimilarityComparisonLimit,
+        ) => oracle.direct_complete && only_deficit(2),
+        Some(SentenceEdgeSignatureReferenceOracleStopReason::PairVisitLimit) => {
+            oracle.direct_complete && only_deficit(3)
+        }
         Some(SentenceEdgeSignatureReferenceOracleStopReason::SimilarityComparisonLimit) => {
-            oracle.direct_complete && only_deficit(2)
+            oracle.direct_complete && only_deficit(4)
         }
         Some(SentenceEdgeSignatureReferenceOracleStopReason::FragmentVetoPairVisitLimit) => {
-            oracle.direct_complete && only_deficit(3)
+            oracle.direct_complete && only_deficit(5)
         }
         Some(
             SentenceEdgeSignatureReferenceOracleStopReason::FragmentVetoSimilarityComparisonLimit,
-        ) => oracle.direct_complete && only_deficit(4),
+        ) => oracle.direct_complete && only_deficit(6),
         Some(SentenceEdgeSignatureReferenceOracleStopReason::CandidateCountLimit) => {
             oracle.direct_complete
                 && oracle.candidate_count_truncated
@@ -5626,7 +5656,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 33;
+    pub const SCHEMA_VERSION: u32 = 34;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -6890,7 +6920,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 33);
+        assert_eq!(completed["schema_version"], 34);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -6933,7 +6963,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 33);
+        assert_eq!(legacy_summary["schema_version"], 34);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -8147,7 +8177,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 33);
+        assert_eq!(json["schema_version"], 34);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -10009,6 +10039,10 @@ mod tests {
             legacy_sentence_edge_pairs_rejected: 5,
             candidate_posting_visits_examined: 3,
             candidate_posting_visits_attempted: 3,
+            edge_filter_pairs_examined: 7,
+            edge_filter_pairs_attempted: 7,
+            edge_filter_similarity_comparisons_examined: 11,
+            edge_filter_similarity_comparisons_attempted: 11,
             pair_visits_examined: 4,
             pair_visits_attempted: 4,
             similarity_comparisons_examined: 5,
@@ -10059,6 +10093,10 @@ mod tests {
                 "legacy_sentence_edge_pairs_rejected",
                 "candidate_posting_visits_examined",
                 "candidate_posting_visits_attempted",
+                "edge_filter_pairs_examined",
+                "edge_filter_pairs_attempted",
+                "edge_filter_similarity_comparisons_examined",
+                "edge_filter_similarity_comparisons_attempted",
                 "pair_visits_examined",
                 "pair_visits_attempted",
                 "similarity_comparisons_examined",
@@ -10164,6 +10202,16 @@ mod tests {
         );
         resource_stop_case!(PairVisitLimit, pair_visits_examined, pair_visits_attempted);
         resource_stop_case!(
+            EdgeFilterPairVisitLimit,
+            edge_filter_pairs_examined,
+            edge_filter_pairs_attempted
+        );
+        resource_stop_case!(
+            EdgeFilterSimilarityComparisonLimit,
+            edge_filter_similarity_comparisons_examined,
+            edge_filter_similarity_comparisons_attempted
+        );
+        resource_stop_case!(
             SimilarityComparisonLimit,
             similarity_comparisons_examined,
             similarity_comparisons_attempted
@@ -10178,6 +10226,27 @@ mod tests {
             fragment_veto_similarity_comparisons_examined,
             fragment_veto_similarity_comparisons_attempted
         );
+        let mut mixed_edge_filter_stop = valid_sentence_edge_signature_reference_oracle();
+        mixed_edge_filter_stop.complete = false;
+        mixed_edge_filter_stop.stop_reason = Some(Stop::EdgeFilterPairVisitLimit);
+        mixed_edge_filter_stop.plan_parity_evaluable = false;
+        mixed_edge_filter_stop.plan_parity = false;
+        mixed_edge_filter_stop.fingerprint_evaluable = false;
+        mixed_edge_filter_stop.edge_filter_pairs_attempted += 1;
+        mixed_edge_filter_stop.pair_visits_attempted += 1;
+        assert!(validates(mixed_edge_filter_stop).is_err());
+
+        let mut partial_edge_comparison = valid_sentence_edge_signature_reference_oracle();
+        partial_edge_comparison.complete = false;
+        partial_edge_comparison.stop_reason = Some(Stop::EdgeFilterSimilarityComparisonLimit);
+        partial_edge_comparison.plan_parity_evaluable = false;
+        partial_edge_comparison.plan_parity = false;
+        partial_edge_comparison.fingerprint_evaluable = false;
+        partial_edge_comparison.legacy_sentence_edge_pairs_attempted += 1;
+        partial_edge_comparison.edge_filter_pairs_examined += 1;
+        partial_edge_comparison.edge_filter_pairs_attempted += 1;
+        partial_edge_comparison.edge_filter_similarity_comparisons_attempted += 1;
+        assert!(validates(partial_edge_comparison).is_ok());
 
         let direct_incomplete = SentenceEdgeSignatureReferenceOracleMetrics {
             stop_reason: Some(Stop::DirectReplayIncomplete),
@@ -10260,6 +10329,14 @@ mod tests {
             (
                 Stop::CandidatePostingVisitLimit,
                 "candidate_posting_visit_limit",
+            ),
+            (
+                Stop::EdgeFilterPairVisitLimit,
+                "edge_filter_pair_visit_limit",
+            ),
+            (
+                Stop::EdgeFilterSimilarityComparisonLimit,
+                "edge_filter_similarity_comparison_limit",
             ),
             (Stop::PairVisitLimit, "pair_visit_limit"),
             (
@@ -10994,7 +11071,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 33);
+        assert_eq!(value["schema_version"], 34);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

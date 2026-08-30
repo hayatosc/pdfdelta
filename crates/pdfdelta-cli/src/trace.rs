@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 22;
+const TRACE_SCHEMA_VERSION: u8 = 23;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -1644,6 +1644,11 @@ fn pipeline_metrics(
             reference_stop_reasons!(
                 ("direct_replay_incomplete", DirectReplayIncomplete),
                 ("candidate_posting_visit_limit", CandidatePostingVisitLimit),
+                ("edge_filter_pair_visit_limit", EdgeFilterPairVisitLimit),
+                (
+                    "edge_filter_similarity_comparison_limit",
+                    EdgeFilterSimilarityComparisonLimit
+                ),
                 ("pair_visit_limit", PairVisitLimit),
                 ("similarity_comparison_limit", SimilarityComparisonLimit),
                 ("candidate_count_limit", CandidateCountLimit),
@@ -1685,6 +1690,10 @@ fn pipeline_metrics(
             reference_metrics!(
                 candidate_posting_visits_examined,
                 candidate_posting_visits_attempted,
+                edge_filter_pairs_examined,
+                edge_filter_pairs_attempted,
+                edge_filter_similarity_comparisons_examined,
+                edge_filter_similarity_comparisons_attempted,
                 pair_visits_examined,
                 pair_visits_attempted,
                 similarity_comparisons_examined,
@@ -1825,8 +1834,8 @@ mod tests {
     use super::{TRACE_SCHEMA_VERSION, bounded_message, pipeline_metrics};
 
     #[test]
-    fn trace_schema_version_covers_compact_sentence_edge_signature_storage() {
-        assert_eq!(TRACE_SCHEMA_VERSION, 22);
+    fn trace_schema_version_covers_reference_edge_filter_work() {
+        assert_eq!(TRACE_SCHEMA_VERSION, 23);
     }
 
     #[test]
@@ -2865,6 +2874,10 @@ mod tests {
         assign_reference_metrics!(
             candidate_posting_visits_examined,
             candidate_posting_visits_attempted,
+            edge_filter_pairs_examined,
+            edge_filter_pairs_attempted,
+            edge_filter_similarity_comparisons_examined,
+            edge_filter_similarity_comparisons_attempted,
             pair_visits_examined,
             pair_visits_attempted,
             similarity_comparisons_examined,
@@ -2907,6 +2920,10 @@ mod tests {
         assert_reference_metrics!(
             candidate_posting_visits_examined,
             candidate_posting_visits_attempted,
+            edge_filter_pairs_examined,
+            edge_filter_pairs_attempted,
+            edge_filter_similarity_comparisons_examined,
+            edge_filter_similarity_comparisons_attempted,
             pair_visits_examined,
             pair_visits_attempted,
             similarity_comparisons_examined,
@@ -2941,7 +2958,7 @@ mod tests {
                 .filter(|name| name
                     .starts_with("sentence_recovery_sentence_edge_signature_reference_oracle_"))
                 .count(),
-            value + 6 + 12
+            value + 6 + 14
         );
     }
 
@@ -2953,6 +2970,14 @@ mod tests {
             (
                 Stop::CandidatePostingVisitLimit,
                 "candidate_posting_visit_limit",
+            ),
+            (
+                Stop::EdgeFilterPairVisitLimit,
+                "edge_filter_pair_visit_limit",
+            ),
+            (
+                Stop::EdgeFilterSimilarityComparisonLimit,
+                "edge_filter_similarity_comparison_limit",
             ),
             (Stop::PairVisitLimit, "pair_visit_limit"),
             (

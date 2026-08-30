@@ -3427,21 +3427,20 @@ impl SentenceEdgeRetainedFingerprint {
         self.count == other.count && self.order == other.order
     }
 
-    fn record_reference_attempt(&mut self) -> Option<()> {
-        self.legacy_sentence_edge_pairs_attempted =
-            self.legacy_sentence_edge_pairs_attempted.checked_add(1)?;
+    fn record_reference_filter_progress(&mut self, budget: &RecoveryBudget) -> Option<()> {
+        self.legacy_sentence_edge_pairs_examined = budget
+            .sentence_edge_filter_pairs_retained
+            .checked_add(budget.sentence_edge_filter_pairs_rejected)?;
+        self.legacy_sentence_edge_pairs_attempted = budget.sentence_edge_filter_pairs_attempted;
+        self.legacy_sentence_edge_pairs_retained = budget.sentence_edge_filter_pairs_retained;
+        self.legacy_sentence_edge_pairs_rejected = budget.sentence_edge_filter_pairs_rejected;
         Some(())
     }
 
-    fn record_reference_result(&mut self, retained: bool) -> Option<()> {
-        self.legacy_sentence_edge_pairs_examined =
-            self.legacy_sentence_edge_pairs_examined.checked_add(1)?;
-        let counter = if retained {
-            &mut self.legacy_sentence_edge_pairs_retained
-        } else {
-            &mut self.legacy_sentence_edge_pairs_rejected
-        };
-        *counter = counter.checked_add(1)?;
+    #[cfg(test)]
+    fn record_reference_attempt(&mut self) -> Option<()> {
+        self.legacy_sentence_edge_pairs_attempted =
+            self.legacy_sentence_edge_pairs_attempted.checked_add(1)?;
         Some(())
     }
 }
@@ -4256,6 +4255,7 @@ fn record_signature_exact_retained(
     shadow: Option<&mut SentenceEdgeSignatureShadow>,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
+    budget: &RecoveryBudget,
     edge_filter: &SentenceEdgeFilterQuery,
     plausible: &[usize],
     query: &SentenceOccurrence,
@@ -4263,16 +4263,42 @@ fn record_signature_exact_retained(
     query_side: OccurrenceSide,
     query_occurrence: usize,
     scope: NearSearchScope,
-) {
+) -> Option<()> {
     let Some(shadow) = shadow.filter(|shadow| shadow.active) else {
-        return;
+        return Some(());
     };
+    if shadow.mode == SentenceEdgeSignatureFilterMode::ReferenceObserve
+        && query.kind == RecoveryUnitKind::Sentence
+    {
+        if shadow
+            .retained_fingerprint
+            .record_reference_filter_progress(budget)
+            .is_none()
+        {
+            shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
+            return finish_signature_recording_failure(
+                shadow,
+                diagnostics,
+                signature_checkpoint,
+                budget,
+            );
+        }
+        if let Some(reason) = budget.sentence_edge_filter_stop_reason {
+            shadow.stop(reference_edge_filter_shadow_stop_reason(reason));
+            return finish_signature_recording_failure(
+                shadow,
+                diagnostics,
+                signature_checkpoint,
+                budget,
+            );
+        }
+    }
     let retained = edge_filter.retained_occurrence_count();
     if shadow.mode == SentenceEdgeSignatureFilterMode::Direct {
         let Some(cross_only) = edge_filter.cross_orientation_only_count(query, candidates) else {
             shadow.stop_direct(SentenceEdgeSignatureDirectShadowStopReason::CounterOverflow);
             checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
-            return;
+            return Some(());
         };
         let Some(next) = shadow
             .direct_metrics
@@ -4281,7 +4307,7 @@ fn record_signature_exact_retained(
         else {
             shadow.stop_direct(SentenceEdgeSignatureDirectShadowStopReason::CounterOverflow);
             checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
-            return;
+            return Some(());
         };
         shadow.direct_metrics.cross_orientation_only_candidates = next;
     }
@@ -4291,15 +4317,23 @@ fn record_signature_exact_retained(
         .checked_add(retained)
     else {
         shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
-        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
-        return;
+        return finish_signature_recording_failure(
+            shadow,
+            diagnostics,
+            signature_checkpoint,
+            budget,
+        );
     };
     shadow.metrics.exact_edge_retained_pairs = next;
     for pair_index in 0..retained {
         let Some((candidate_occurrence, _)) = edge_filter.pair(plausible, pair_index) else {
             shadow.stop(SentenceEdgeSignatureShadowStopReason::DiagnosticFailure);
-            checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
-            return;
+            return finish_signature_recording_failure(
+                shadow,
+                diagnostics,
+                signature_checkpoint,
+                budget,
+            );
         };
         let (old_occurrence, new_occurrence) = match query_side {
             OccurrenceSide::Old => (query_occurrence, candidate_occurrence),
@@ -4315,92 +4349,30 @@ fn record_signature_exact_retained(
             } else {
                 shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
             }
-            checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
-            return;
+            return finish_signature_recording_failure(
+                shadow,
+                diagnostics,
+                signature_checkpoint,
+                budget,
+            );
         }
     }
     checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
-}
-
-#[allow(clippy::too_many_arguments)]
-fn record_reference_edge_attempt(
-    shadow: Option<&mut SentenceEdgeSignatureShadow>,
-    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
-    signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
-    query: &SentenceOccurrence,
-    candidate: &SentenceOccurrence,
-) -> Option<()> {
-    let Some(shadow) = shadow.filter(|shadow| {
-        shadow.active && shadow.mode == SentenceEdgeSignatureFilterMode::ReferenceObserve
-    }) else {
-        return Some(());
-    };
-    if query.kind != RecoveryUnitKind::Sentence || candidate.kind != RecoveryUnitKind::Sentence {
-        return Some(());
-    }
-    if shadow
-        .retained_fingerprint
-        .record_reference_attempt()
-        .is_none()
-    {
-        shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
-        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
-        return None;
-    }
-    checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
     Some(())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn record_reference_edge_result(
-    shadow: Option<&mut SentenceEdgeSignatureShadow>,
+fn finish_signature_recording_failure(
+    shadow: &SentenceEdgeSignatureShadow,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
-    query: &SentenceOccurrence,
-    candidate: &SentenceOccurrence,
-    score: u16,
-    query_side: OccurrenceSide,
-    query_occurrence: usize,
-    candidate_occurrence: usize,
-    scope: NearSearchScope,
+    budget: &RecoveryBudget,
 ) -> Option<()> {
-    let Some(shadow) = shadow.filter(|shadow| {
-        shadow.active && shadow.mode == SentenceEdgeSignatureFilterMode::ReferenceObserve
-    }) else {
-        return Some(());
-    };
-    if query.kind != RecoveryUnitKind::Sentence || candidate.kind != RecoveryUnitKind::Sentence {
-        return Some(());
-    }
-    let retained = score >= MIN_WORD_SCORE_EDGE_EVIDENCE;
-    if shadow
-        .retained_fingerprint
-        .record_reference_result(retained)
-        .is_none()
-    {
-        shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
-        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
-        return None;
-    }
-    if !retained {
-        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
-        return Some(());
-    }
-    let (old_occurrence, new_occurrence) = match query_side {
-        OccurrenceSide::Old => (query_occurrence, candidate_occurrence),
-        OccurrenceSide::New => (candidate_occurrence, query_occurrence),
-    };
-    if shadow
-        .retained_fingerprint
-        .record(scope, query_side, old_occurrence, new_occurrence)
-        .is_none()
-    {
-        shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
-        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
-        return None;
+    let reference_observer = shadow.mode == SentenceEdgeSignatureFilterMode::ReferenceObserve;
+    if reference_observer {
+        record_near_search_metrics(diagnostics, budget);
     }
     checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
-    Some(())
+    (!reference_observer).then_some(())
 }
 
 #[derive(Clone, Copy)]
@@ -7094,7 +7066,7 @@ fn maybe_run_sentence_edge_signature_reference_oracle(
         input,
         max_tokens,
         &[],
-        SentenceEdgeFilterMode::Legacy,
+        SentenceEdgeFilterMode::Filtered,
         SentenceEdgeSignatureFilterMode::ReferenceObserve,
         Some(limits),
     );
@@ -7170,6 +7142,25 @@ fn direct_edge_stop_reason(
         }
         SentenceEdgeFilterStopReason::CounterOverflow => {
             SentenceEdgeSignatureDirectShadowStopReason::CounterOverflow
+        }
+    }
+}
+
+fn reference_edge_filter_shadow_stop_reason(
+    reason: SentenceEdgeFilterStopReason,
+) -> SentenceEdgeSignatureShadowStopReason {
+    match reason {
+        SentenceEdgeFilterStopReason::PairVisitLimit => {
+            SentenceEdgeSignatureShadowStopReason::PairVisitLimit
+        }
+        SentenceEdgeFilterStopReason::SimilarityComparisonLimit => {
+            SentenceEdgeSignatureShadowStopReason::SimilarityComparisonLimit
+        }
+        SentenceEdgeFilterStopReason::AllocationFailure => {
+            SentenceEdgeSignatureShadowStopReason::AllocationFailure
+        }
+        SentenceEdgeFilterStopReason::CounterOverflow => {
+            SentenceEdgeSignatureShadowStopReason::CounterOverflow
         }
     }
 }
@@ -7300,6 +7291,12 @@ fn evaluate_reference_oracle(
         legacy_sentence_edge_pairs_rejected: reference_edges.legacy_sentence_edge_pairs_rejected,
         candidate_posting_visits_examined: recovery.near_candidate_posting_visits_examined,
         candidate_posting_visits_attempted: recovery.near_candidate_posting_visits_attempted,
+        edge_filter_pairs_examined: recovery.sentence_edge_filter_pairs_examined,
+        edge_filter_pairs_attempted: recovery.sentence_edge_filter_pairs_attempted,
+        edge_filter_similarity_comparisons_examined: recovery
+            .sentence_edge_filter_similarity_comparisons_examined,
+        edge_filter_similarity_comparisons_attempted: recovery
+            .sentence_edge_filter_similarity_comparisons_attempted,
         pair_visits_examined: recovery.near_pair_visits_examined,
         pair_visits_attempted: recovery.near_pair_visits_attempted,
         similarity_comparisons_examined: recovery.near_similarity_comparisons_examined,
@@ -7313,8 +7310,13 @@ fn evaluate_reference_oracle(
         ..SentenceEdgeSignatureReferenceOracleMetrics::default()
     };
     metrics.stop_reason = recovery
-        .near_relation_stop_reason
-        .map(reference_near_stop_reason);
+        .sentence_edge_filter_stop_reason
+        .map(reference_edge_stop_reason)
+        .or_else(|| {
+            recovery
+                .near_relation_stop_reason
+                .map(reference_near_stop_reason)
+        });
     if metrics.stop_reason.is_none()
         && let Some(reason) = recovery
             .sentence_edge_signature_shadow
@@ -7323,6 +7325,7 @@ fn evaluate_reference_oracle(
         metrics.stop_reason = Some(reference_observer_stop_reason(reason));
     }
     metrics.complete = reference.plan.is_some()
+        && recovery.sentence_edge_filter_complete
         && recovery.near_relation_complete
         && !recovery.near_candidate_count_truncated
         && metrics.legacy_sentence_edge_pairs_examined
@@ -7406,6 +7409,25 @@ fn reference_observer_stop_reason(
         | SentenceEdgeSignatureShadowStopReason::IndexPostingLimit
         | SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit => {
             SentenceEdgeSignatureReferenceOracleStopReason::DiagnosticFailure
+        }
+    }
+}
+
+fn reference_edge_stop_reason(
+    reason: SentenceEdgeFilterStopReason,
+) -> SentenceEdgeSignatureReferenceOracleStopReason {
+    match reason {
+        SentenceEdgeFilterStopReason::PairVisitLimit => {
+            SentenceEdgeSignatureReferenceOracleStopReason::EdgeFilterPairVisitLimit
+        }
+        SentenceEdgeFilterStopReason::SimilarityComparisonLimit => {
+            SentenceEdgeSignatureReferenceOracleStopReason::EdgeFilterSimilarityComparisonLimit
+        }
+        SentenceEdgeFilterStopReason::AllocationFailure => {
+            SentenceEdgeSignatureReferenceOracleStopReason::AllocationFailure
+        }
+        SentenceEdgeFilterStopReason::CounterOverflow => {
+            SentenceEdgeSignatureReferenceOracleStopReason::CounterOverflow
         }
     }
 }
@@ -10698,6 +10720,7 @@ fn paired_modified_sentence_relations_tracked(
             relations.edge_signature_shadow.as_mut(),
             diagnostics,
             signature_checkpoint,
+            budget,
             &edge_filter,
             &plausible,
             old_occurrence,
@@ -10705,7 +10728,7 @@ fn paired_modified_sentence_relations_tracked(
             OccurrenceSide::Old,
             old_candidate.occurrence_index,
             scope,
-        );
+        )?;
         let retained_count = edge_filter.len(&plausible);
         if !budget.charge_pair_visits_in_scope(retained_count, old_occurrence.kind, scope) {
             return None;
@@ -10714,13 +10737,6 @@ fn paired_modified_sentence_relations_tracked(
             let (new_occurrence_index, cached) = edge_filter.pair(&plausible, pair_index)?;
             let new_occurrence = new_occurrences.get(new_occurrence_index)?;
             let new_candidate_index = new_candidate_by_occurrence[new_occurrence_index];
-            record_reference_edge_attempt(
-                relations.edge_signature_shadow.as_mut(),
-                diagnostics,
-                signature_checkpoint,
-                old_occurrence,
-                new_occurrence,
-            )?;
             let score = score_and_record_sentence_edge_gate_shadow(
                 old_occurrence,
                 new_occurrence,
@@ -10732,18 +10748,6 @@ fn paired_modified_sentence_relations_tracked(
                 Some(old_candidate_index),
                 new_candidate_index,
                 cached,
-            )?;
-            record_reference_edge_result(
-                relations.edge_signature_shadow.as_mut(),
-                diagnostics,
-                signature_checkpoint,
-                old_occurrence,
-                new_occurrence,
-                score,
-                OccurrenceSide::Old,
-                old_candidate.occurrence_index,
-                new_occurrence_index,
-                scope,
             )?;
             if let Some(watch) = watch.as_mut() {
                 watch.record_near(
@@ -10853,6 +10857,7 @@ fn paired_modified_sentence_relations_tracked(
             relations.edge_signature_shadow.as_mut(),
             diagnostics,
             signature_checkpoint,
+            budget,
             &edge_filter,
             &plausible,
             new_occurrence,
@@ -10860,7 +10865,7 @@ fn paired_modified_sentence_relations_tracked(
             OccurrenceSide::New,
             new_candidate.occurrence_index,
             scope,
-        );
+        )?;
         let retained_count = edge_filter.len(&plausible);
         if !budget.charge_pair_visits_in_scope(retained_count, new_occurrence.kind, scope) {
             return None;
@@ -10868,13 +10873,6 @@ fn paired_modified_sentence_relations_tracked(
         for pair_index in 0..retained_count {
             let (old_occurrence_index, cached) = edge_filter.pair(&plausible, pair_index)?;
             let old_occurrence = old_occurrences.get(old_occurrence_index)?;
-            record_reference_edge_attempt(
-                relations.edge_signature_shadow.as_mut(),
-                diagnostics,
-                signature_checkpoint,
-                new_occurrence,
-                old_occurrence,
-            )?;
             let score = score_and_record_sentence_edge_gate_shadow(
                 old_occurrence,
                 new_occurrence,
@@ -10886,18 +10884,6 @@ fn paired_modified_sentence_relations_tracked(
                 None,
                 Some(new_candidate_index),
                 cached,
-            )?;
-            record_reference_edge_result(
-                relations.edge_signature_shadow.as_mut(),
-                diagnostics,
-                signature_checkpoint,
-                new_occurrence,
-                old_occurrence,
-                score,
-                OccurrenceSide::New,
-                new_candidate.occurrence_index,
-                old_occurrence_index,
-                scope,
             )?;
             if let Some(watch) = watch.as_mut() {
                 watch.record_near(
@@ -11139,6 +11125,7 @@ fn record_cross_interval_disqualifying_relations_tracked(
             relations.edge_signature_shadow.as_mut(),
             diagnostics,
             signature_checkpoint,
+            budget,
             &edge_filter,
             &plausible,
             old_occurrence,
@@ -11146,7 +11133,7 @@ fn record_cross_interval_disqualifying_relations_tracked(
             OccurrenceSide::Old,
             old_candidate.occurrence_index,
             scope,
-        );
+        )?;
         let retained_count = edge_filter.len(&plausible);
         if !budget.charge_pair_visits_in_scope(retained_count, old_occurrence.kind, scope) {
             return None;
@@ -11158,13 +11145,6 @@ fn record_cross_interval_disqualifying_relations_tracked(
                 .get(new_occurrence_index)
                 .copied()
                 .flatten();
-            record_reference_edge_attempt(
-                relations.edge_signature_shadow.as_mut(),
-                diagnostics,
-                signature_checkpoint,
-                old_occurrence,
-                new_occurrence,
-            )?;
             let score = score_and_record_sentence_edge_gate_shadow(
                 old_occurrence,
                 new_occurrence,
@@ -11176,18 +11156,6 @@ fn record_cross_interval_disqualifying_relations_tracked(
                 Some(old_candidate_index),
                 new_candidate_index,
                 cached,
-            )?;
-            record_reference_edge_result(
-                relations.edge_signature_shadow.as_mut(),
-                diagnostics,
-                signature_checkpoint,
-                old_occurrence,
-                new_occurrence,
-                score,
-                OccurrenceSide::Old,
-                old_candidate.occurrence_index,
-                new_occurrence_index,
-                scope,
             )?;
             if let Some(watch) = watch.as_mut() {
                 watch.record_near(
@@ -11318,6 +11286,7 @@ fn record_cross_interval_disqualifying_relations_tracked(
             relations.edge_signature_shadow.as_mut(),
             diagnostics,
             signature_checkpoint,
+            budget,
             &edge_filter,
             &plausible,
             new_occurrence,
@@ -11325,7 +11294,7 @@ fn record_cross_interval_disqualifying_relations_tracked(
             OccurrenceSide::New,
             new_candidate.occurrence_index,
             scope,
-        );
+        )?;
         let retained_count = edge_filter.len(&plausible);
         if !budget.charge_pair_visits_in_scope(retained_count, new_occurrence.kind, scope) {
             return None;
@@ -11333,13 +11302,6 @@ fn record_cross_interval_disqualifying_relations_tracked(
         for pair_index in 0..retained_count {
             let (old_occurrence_index, cached) = edge_filter.pair(&plausible, pair_index)?;
             let old_occurrence = old_occurrences.get(old_occurrence_index)?;
-            record_reference_edge_attempt(
-                relations.edge_signature_shadow.as_mut(),
-                diagnostics,
-                signature_checkpoint,
-                new_occurrence,
-                old_occurrence,
-            )?;
             let score = score_and_record_sentence_edge_gate_shadow(
                 old_occurrence,
                 new_occurrence,
@@ -11351,18 +11313,6 @@ fn record_cross_interval_disqualifying_relations_tracked(
                 None,
                 Some(new_candidate_index),
                 cached,
-            )?;
-            record_reference_edge_result(
-                relations.edge_signature_shadow.as_mut(),
-                diagnostics,
-                signature_checkpoint,
-                new_occurrence,
-                old_occurrence,
-                score,
-                OccurrenceSide::New,
-                new_candidate.occurrence_index,
-                old_occurrence_index,
-                scope,
             )?;
             if let Some(watch) = watch.as_mut() {
                 watch.record_near(
@@ -11899,6 +11849,7 @@ fn finalize_reference_observer(
     diagnostics.signature_retained_fingerprint = shadow.retained_fingerprint;
     diagnostics.signature_retained_fingerprint_valid = shadow.active
         && shadow.metrics.stop_reason.is_none()
+        && diagnostics.metrics.sentence_edge_filter_complete
         && diagnostics.metrics.near_relation_complete
         && !diagnostics.metrics.near_candidate_count_truncated
         && fragment_veto_complete;
@@ -12241,6 +12192,7 @@ fn extend_modified_sentence_relations_tracked(
             relations.edge_signature_shadow.as_mut(),
             diagnostics,
             signature_checkpoint,
+            budget,
             &edge_filter,
             &plausible,
             old_occurrence,
@@ -12248,7 +12200,7 @@ fn extend_modified_sentence_relations_tracked(
             OccurrenceSide::Old,
             old_candidate.occurrence_index,
             work_scope,
-        );
+        )?;
         let retained_count = edge_filter.len(&plausible);
         let pair_split = if work_scope == NearSearchScope::SameOrAmbiguousSpan {
             match &edge_filter {
@@ -12288,13 +12240,6 @@ fn extend_modified_sentence_relations_tracked(
             });
             let class =
                 same_or_ambiguous_work_class(old_occurrence.span_index, new_occurrence.span_index);
-            record_reference_edge_attempt(
-                relations.edge_signature_shadow.as_mut(),
-                diagnostics,
-                signature_checkpoint,
-                old_occurrence,
-                new_occurrence,
-            )?;
             let score = score_and_record_sentence_edge_gate_shadow(
                 old_occurrence,
                 new_occurrence,
@@ -12306,18 +12251,6 @@ fn extend_modified_sentence_relations_tracked(
                 Some(old_candidate_index),
                 new_candidate_index,
                 cached,
-            )?;
-            record_reference_edge_result(
-                relations.edge_signature_shadow.as_mut(),
-                diagnostics,
-                signature_checkpoint,
-                old_occurrence,
-                new_occurrence,
-                score,
-                OccurrenceSide::Old,
-                old_candidate.occurrence_index,
-                new_occurrence_index,
-                work_scope,
             )?;
             if let Some(probe) = relation_floor_probe {
                 commit_relation_floor_probe(diagnostics, probe);
@@ -12475,6 +12408,7 @@ fn extend_modified_sentence_relations_tracked(
             relations.edge_signature_shadow.as_mut(),
             diagnostics,
             signature_checkpoint,
+            budget,
             &edge_filter,
             &plausible,
             new_occurrence,
@@ -12482,7 +12416,7 @@ fn extend_modified_sentence_relations_tracked(
             OccurrenceSide::New,
             new_candidate.occurrence_index,
             work_scope,
-        );
+        )?;
         let retained_count = edge_filter.len(&plausible);
         let pair_split = if work_scope == NearSearchScope::SameOrAmbiguousSpan {
             match &edge_filter {
@@ -12521,13 +12455,6 @@ fn extend_modified_sentence_relations_tracked(
             });
             let class =
                 same_or_ambiguous_work_class(new_occurrence.span_index, old_occurrence.span_index);
-            record_reference_edge_attempt(
-                relations.edge_signature_shadow.as_mut(),
-                diagnostics,
-                signature_checkpoint,
-                new_occurrence,
-                old_occurrence,
-            )?;
             let score = score_and_record_sentence_edge_gate_shadow(
                 old_occurrence,
                 new_occurrence,
@@ -12539,18 +12466,6 @@ fn extend_modified_sentence_relations_tracked(
                 None,
                 Some(new_candidate_index),
                 cached,
-            )?;
-            record_reference_edge_result(
-                relations.edge_signature_shadow.as_mut(),
-                diagnostics,
-                signature_checkpoint,
-                new_occurrence,
-                old_occurrence,
-                score,
-                OccurrenceSide::New,
-                new_candidate.occurrence_index,
-                old_occurrence_index,
-                work_scope,
             )?;
             if let Some(probe) = relation_floor_probe {
                 commit_relation_floor_probe(diagnostics, probe);
@@ -16692,7 +16607,7 @@ mod tests {
     }
 
     #[test]
-    fn reference_observer_fingerprints_only_broad_legacy_edge_retained_pairs() {
+    fn reference_observer_filters_broad_edges_before_near_relation_work() {
         let mut old = indexed_occurrence(
             &['a', 'b', 'c', 'x', 'y'],
             RecoveryUnitKind::Sentence,
@@ -16728,7 +16643,11 @@ mod tests {
             },
         ];
         let mut budget = RecoveryBudget::new(5, 10, 15, 1).expect("budget fits");
-        budget.sentence_edge_filter_active = false;
+        budget.apply_reference_limits(ReferenceBudgetLimits {
+            pair_visits: 1,
+            comparisons: 60,
+            candidate_posting_visits: 60,
+        });
         budget.sentence_edge_signature_filter_mode =
             SentenceEdgeSignatureFilterMode::ReferenceObserve;
         let mut diagnostics = Some(SentenceRecoveryDiagnostics {
@@ -16809,6 +16728,7 @@ mod tests {
         assert_eq!(oracle.legacy_sentence_edge_pairs_examined, 2);
         assert_eq!(oracle.legacy_sentence_edge_pairs_retained, 1);
         assert_eq!(oracle.legacy_sentence_edge_pairs_rejected, 1);
+        assert_eq!(oracle.pair_visits_examined, 1);
         assert_eq!(
             oracle.legacy_sentence_edge_pairs_examined,
             oracle.legacy_sentence_edge_pairs_retained + oracle.legacy_sentence_edge_pairs_rejected
@@ -16823,11 +16743,6 @@ mod tests {
 
     #[test]
     fn reference_observer_excludes_line_pairs_from_sentence_edge_counts() {
-        let sentence = indexed_occurrence(
-            &['a', 'b', 'c'],
-            RecoveryUnitKind::Sentence,
-            Some(BlockRole::Body),
-        );
         let line = indexed_occurrence(
             &['a', 'b', 'c'],
             RecoveryUnitKind::Line,
@@ -16848,27 +16763,21 @@ mod tests {
         });
         let mut checkpoint = None;
 
-        record_reference_edge_attempt(
+        let budget = RecoveryBudget::new(3, 3, 6, 1).expect("budget fits");
+        record_signature_exact_retained(
             Some(&mut shadow),
             &mut diagnostics,
             &mut checkpoint,
-            &sentence,
+            &budget,
+            &SentenceEdgeFilterQuery::Legacy,
+            &[],
             &line,
-        )
-        .expect("line attempt is ignored");
-        record_reference_edge_result(
-            Some(&mut shadow),
-            &mut diagnostics,
-            &mut checkpoint,
-            &sentence,
-            &line,
-            MIN_WORD_SCORE_EDGE_EVIDENCE,
+            &[],
             OccurrenceSide::Old,
-            0,
             0,
             NearSearchScope::SameOrAmbiguousSpan,
         )
-        .expect("line result is ignored");
+        .expect("Line observation remains outside the Sentence edge filter");
 
         assert_eq!(
             shadow
@@ -16882,6 +16791,129 @@ mod tests {
                 .legacy_sentence_edge_pairs_examined,
             0
         );
+    }
+
+    #[test]
+    fn reference_observer_invalidates_partial_edge_filter_progress() {
+        let mut old = indexed_occurrence(
+            &['a', 'b', 'c'],
+            RecoveryUnitKind::Sentence,
+            Some(BlockRole::Body),
+        );
+        old.span_index = Some(0);
+        let mut new = indexed_occurrence(
+            &['a', 'x', 'y'],
+            RecoveryUnitKind::Sentence,
+            Some(BlockRole::Body),
+        );
+        new.span_index = Some(0);
+        let old_occurrences = [old];
+        let new_occurrences = [new];
+        let old_candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let new_candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut budget = RecoveryBudget::new(3, 3, 6, 1).expect("budget fits");
+        budget.sentence_edge_filter_comparison_limit = 1;
+        budget.sentence_edge_signature_filter_mode =
+            SentenceEdgeSignatureFilterMode::ReferenceObserve;
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+            signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+            signature_retained_fingerprint_valid: false,
+        });
+        let mut checkpoint = None;
+        begin_sentence_edge_signature_stage(
+            &mut diagnostics,
+            &mut checkpoint,
+            SentenceEdgeSignatureFilterMode::ReferenceObserve,
+        );
+        let relations = modified_sentence_relations_tracked(
+            &old_occurrences,
+            &new_occurrences,
+            &old_candidates,
+            &new_candidates,
+            &[],
+            &mut budget,
+            &mut diagnostics,
+            &mut checkpoint,
+            None,
+        );
+        assert!(relations.is_none());
+
+        let checkpoint = checkpoint.expect("failure checkpoint exists");
+        assert_eq!(
+            checkpoint
+                .metrics
+                .sentence_edge_signature_shadow
+                .expect("observer metrics exist")
+                .stop_reason,
+            Some(SentenceEdgeSignatureShadowStopReason::SimilarityComparisonLimit)
+        );
+        assert_eq!(
+            checkpoint
+                .signature_retained_fingerprint
+                .legacy_sentence_edge_pairs_attempted,
+            1
+        );
+        assert_eq!(
+            checkpoint
+                .signature_retained_fingerprint
+                .legacy_sentence_edge_pairs_examined,
+            0
+        );
+        assert!(!checkpoint.signature_retained_fingerprint_valid);
+        assert_eq!(checkpoint.metrics.near_pair_visits_attempted, 0);
+        assert_eq!(checkpoint.metrics.sentence_edge_filter_pairs_examined, 1);
+        assert_eq!(checkpoint.metrics.sentence_edge_filter_pairs_attempted, 1);
+        assert_eq!(
+            checkpoint
+                .metrics
+                .sentence_edge_filter_similarity_comparisons_examined,
+            1
+        );
+        assert_eq!(
+            checkpoint
+                .metrics
+                .sentence_edge_filter_similarity_comparisons_attempted,
+            2
+        );
+        assert_eq!(
+            checkpoint.metrics.sentence_edge_filter_stop_reason,
+            Some(SentenceEdgeFilterStopReason::SimilarityComparisonLimit)
+        );
+        let direct = reference_test_outcome(
+            SentenceRecoveryPlan::default(),
+            SentenceEdgeRetainedFingerprint::default(),
+        );
+        let reference = SentenceRecoveryBuildOutcome {
+            diagnostics: Some(checkpoint),
+            fragment_veto_complete: true,
+            ..SentenceRecoveryBuildOutcome::default()
+        };
+        let oracle = evaluate_reference_oracle(&direct, &reference);
+        assert!(!oracle.complete);
+        assert_eq!(
+            oracle.stop_reason,
+            Some(
+                SentenceEdgeSignatureReferenceOracleStopReason::EdgeFilterSimilarityComparisonLimit
+            )
+        );
+        assert_eq!(oracle.legacy_sentence_edge_pairs_attempted, 1);
+        assert_eq!(oracle.legacy_sentence_edge_pairs_examined, 0);
+        assert_eq!(oracle.edge_filter_pairs_examined, 1);
+        assert_eq!(oracle.edge_filter_pairs_attempted, 1);
+        assert_eq!(oracle.edge_filter_similarity_comparisons_examined, 1);
+        assert_eq!(oracle.edge_filter_similarity_comparisons_attempted, 2);
+        assert_eq!(oracle.pair_visits_attempted, 0);
+        assert!(!oracle.plan_parity_evaluable);
+        assert!(!oracle.fingerprint_evaluable);
     }
 
     #[test]
@@ -21540,6 +21572,7 @@ mod tests {
             diagnostics: Some(SentenceRecoveryDiagnostics {
                 metrics: SentenceRecoveryMetrics {
                     near_relation_complete: true,
+                    sentence_edge_filter_complete: true,
                     sentence_edge_signature_shadow: Some(SentenceEdgeSignatureShadowMetrics {
                         complete: true,
                         ..SentenceEdgeSignatureShadowMetrics::default()
@@ -21665,6 +21698,41 @@ mod tests {
             SentenceRecoveryPlan::default(),
             SentenceEdgeRetainedFingerprint::default(),
         );
+        for (edge_stop, expected) in [
+            (
+                SentenceEdgeFilterStopReason::PairVisitLimit,
+                SentenceEdgeSignatureReferenceOracleStopReason::EdgeFilterPairVisitLimit,
+            ),
+            (
+                SentenceEdgeFilterStopReason::SimilarityComparisonLimit,
+                SentenceEdgeSignatureReferenceOracleStopReason::EdgeFilterSimilarityComparisonLimit,
+            ),
+            (
+                SentenceEdgeFilterStopReason::AllocationFailure,
+                SentenceEdgeSignatureReferenceOracleStopReason::AllocationFailure,
+            ),
+            (
+                SentenceEdgeFilterStopReason::CounterOverflow,
+                SentenceEdgeSignatureReferenceOracleStopReason::CounterOverflow,
+            ),
+        ] {
+            let mut reference = reference_test_outcome(
+                SentenceRecoveryPlan::default(),
+                SentenceEdgeRetainedFingerprint::default(),
+            );
+            let diagnostics = reference.diagnostics.as_mut().expect("diagnostics exist");
+            diagnostics.metrics.sentence_edge_filter_complete = false;
+            diagnostics.metrics.sentence_edge_filter_stop_reason = Some(edge_stop);
+            diagnostics.metrics.near_relation_complete = false;
+            diagnostics.metrics.near_relation_stop_reason =
+                Some(NearRelationStopReason::CandidateCountLimit);
+            let metrics = evaluate_reference_oracle(&direct, &reference);
+            assert!(!metrics.complete);
+            assert_eq!(metrics.stop_reason, Some(expected));
+            assert!(!metrics.plan_parity_evaluable);
+            assert!(!metrics.fingerprint_evaluable);
+        }
+
         for (near_stop, expected) in [
             (
                 NearRelationStopReason::CandidatePostingVisitLimit,
