@@ -5626,7 +5626,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 31;
+    pub const SCHEMA_VERSION: u32 = 32;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -6890,7 +6890,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 31);
+        assert_eq!(completed["schema_version"], 32);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -6933,7 +6933,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 31);
+        assert_eq!(legacy_summary["schema_version"], 32);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -8147,7 +8147,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 31);
+        assert_eq!(json["schema_version"], 32);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -10994,7 +10994,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 31);
+        assert_eq!(value["schema_version"], 32);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

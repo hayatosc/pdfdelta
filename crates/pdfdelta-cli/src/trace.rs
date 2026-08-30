@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 20;
+const TRACE_SCHEMA_VERSION: u8 = 21;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -1826,7 +1826,7 @@ mod tests {
 
     #[test]
     fn trace_schema_version_covers_sentence_edge_signature_watch_probe_metrics() {
-        assert_eq!(TRACE_SCHEMA_VERSION, 20);
+        assert_eq!(TRACE_SCHEMA_VERSION, 21);
     }
 
     #[test]

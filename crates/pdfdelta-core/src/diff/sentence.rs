@@ -469,7 +469,7 @@ pub(super) enum RecoveryUnitKind {
     Line,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(super) enum OccurrenceRole {
     Body,
     RepeatedHeader,
