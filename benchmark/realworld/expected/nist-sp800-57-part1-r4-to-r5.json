@@ -8,8 +8,9 @@
     {
       "id": "footer-rev-branding-removed",
       "kind": "deletion",
+      "occurrence_count": 157,
       "old_quote": "NIST SP 800-57 Pt. 1 Rev. 4",
-      "note": "Running footer/header branding replaced by Rev. 5 on many pages; one representative occurrence is annotated."
+      "note": "Running footer/header branding replaced by Rev. 5 across 157 extracted occurrences."
     },
     {
       "id": "keying-material-definition-added",

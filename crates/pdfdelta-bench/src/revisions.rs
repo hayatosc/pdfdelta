@@ -7,7 +7,7 @@
 //! directory with `benchmark/realworld/fetch.sh`.
 
 use std::{
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{HashMap, HashSet, VecDeque, hash_map::Entry},
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
@@ -59,7 +59,7 @@ mod revision_diagnostics;
 #[path = "revision_scopes.rs"]
 mod revision_scopes;
 
-use revision_diagnostics::evaluate_reviewed_diagnostics;
+use revision_diagnostics::{ComparisonDiagnosticInput, evaluate_reviewed_diagnostics};
 use revision_scopes::{
     SCOPED_CHANGE_INDETERMINATE, classify_scoped_changes, evaluate_scoped_token_metrics,
     resolve_revision_scopes, validate_scoped_expected_changes,
@@ -69,6 +69,25 @@ pub const QUALITY_SKIP_RESOURCE_LIMIT: &str = "comparison stopped at a resource 
 pub const QUALITY_SKIP_INCOMPLETE_EXTRACTION: &str =
     "extraction was incomplete so reported diffs are suppressed";
 pub const QUALITY_SKIP_NO_ANNOTATIONS: &str = "no expected annotations are recorded for this pair";
+pub const QUALITY_SKIP_MATCHING_RESOURCE_LIMIT: &str =
+    "change matching exceeded benchmark resource limits";
+
+/// Matching retains at most this many expectation-to-event candidate edges.
+const MAX_MATCH_CANDIDATE_EDGES: usize = 100_000;
+/// Matching evaluates at most this many expectation-to-event pairs.
+const MAX_MATCH_EDGE_CHECKS: usize = 1_000_000;
+/// Matching accepts at most this many expected or actual semantic events.
+const MAX_MATCH_EVENTS_PER_SIDE: usize = 16_384;
+/// Human-reviewed JSON annotations accept at most this many expected changes.
+const MAX_EXPECTED_DOCUMENT_CHANGES: usize = 4_096;
+/// Matching examines at most this many residual edges across all searches.
+const MAX_MATCH_RESIDUAL_EDGE_VISITS: usize = 5_000_000;
+/// Matching performs at most this many augmentations.
+const MAX_MATCH_AUGMENTATIONS: usize = 4_096;
+/// Matching examines at most this many semantic change occurrences.
+const MAX_MATCH_OCCURRENCE_VISITS: usize = 5_000_000;
+/// Matching examines at most this many bytes of normalized occurrence text.
+const MAX_MATCH_TEXT_BYTES: usize = 256 * 1024 * 1024;
 
 /// Column order of `benchmark/realworld/manifest.tsv`.
 pub const MANIFEST_HEADER: [&str; 17] = [
@@ -188,6 +207,7 @@ pub enum ExpectedChangeFailureReason {
     DiffEditDistanceExceeded,
     DiffRejectedAsImplausible,
     WrongChangeKind { expected: String, actual: String },
+    OccurrenceCountMismatch { expected: usize, actual: usize },
     FragmentedAcrossHunks { old_hunks: usize, new_hunks: usize },
     AlignmentOrCandidate { diagnostic_limited: bool },
 }
@@ -1209,6 +1229,9 @@ pub struct ExpectedChange {
     pub kind: ExpectedKind,
     #[serde(default)]
     pub scope: Option<String>,
+    /// Exact number of occurrences expected in one semantic change event.
+    #[serde(default)]
+    pub occurrence_count: Option<usize>,
     /// Within a complete scope, this is the exact expected changed span on
     /// the old side, not surrounding context used only for identification.
     #[serde(default)]
@@ -1320,6 +1343,150 @@ struct MatchOutcome {
     kind_agreements: usize,
     claimed_actuals: HashSet<usize>,
     claimed_actual_by_expected: Vec<Option<usize>>,
+    occurrence_count_mismatch_by_expected: Vec<Option<(usize, usize)>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MatchingLimits {
+    max_candidate_edges: usize,
+    max_edge_checks: usize,
+    max_events_per_side: usize,
+    max_residual_edge_visits: usize,
+    max_augmentations: usize,
+    max_occurrence_visits: usize,
+    max_text_bytes: usize,
+}
+
+impl Default for MatchingLimits {
+    fn default() -> Self {
+        Self {
+            max_candidate_edges: MAX_MATCH_CANDIDATE_EDGES,
+            max_edge_checks: MAX_MATCH_EDGE_CHECKS,
+            max_events_per_side: MAX_MATCH_EVENTS_PER_SIDE,
+            max_residual_edge_visits: MAX_MATCH_RESIDUAL_EDGE_VISITS,
+            max_augmentations: MAX_MATCH_AUGMENTATIONS,
+            max_occurrence_visits: MAX_MATCH_OCCURRENCE_VISITS,
+            max_text_bytes: MAX_MATCH_TEXT_BYTES,
+        }
+    }
+}
+
+#[derive(Default)]
+struct MatchingScanBudget {
+    occurrence_visits: usize,
+    text_bytes: usize,
+}
+
+impl MatchingScanBudget {
+    fn charge_expected_quotes(
+        &mut self,
+        change: &ExpectedChange,
+        limits: MatchingLimits,
+    ) -> MatchingResult<()> {
+        self.charge_optional_texts(
+            change.old_quote.as_deref(),
+            change.new_quote.as_deref(),
+            limits,
+        )
+    }
+
+    fn charge_occurrence(
+        &mut self,
+        occurrence: &ActualChangeOccurrence,
+        limits: MatchingLimits,
+    ) -> MatchingResult<()> {
+        self.occurrence_visits = self
+            .occurrence_visits
+            .checked_add(1)
+            .filter(|visits| *visits <= limits.max_occurrence_visits)
+            .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+        self.charge_optional_texts(
+            occurrence.old_text.as_deref(),
+            occurrence.new_text.as_deref(),
+            limits,
+        )
+    }
+
+    fn charge_optional_texts(
+        &mut self,
+        old: Option<&str>,
+        new: Option<&str>,
+        limits: MatchingLimits,
+    ) -> MatchingResult<()> {
+        let bytes = old
+            .map_or(0, str::len)
+            .checked_add(new.map_or(0, str::len))
+            .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+        self.charge_text(bytes, limits)
+    }
+
+    fn charge_text(&mut self, bytes: usize, limits: MatchingLimits) -> MatchingResult<()> {
+        self.text_bytes = self
+            .text_bytes
+            .checked_add(bytes)
+            .filter(|total| *total <= limits.max_text_bytes)
+            .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+        Ok(())
+    }
+}
+
+struct NormalizedExpectedQuotes {
+    old: Option<String>,
+    new: Option<String>,
+}
+
+type MatchingResult<T> = std::result::Result<T, &'static str>;
+
+/// Lexicographic assignment cost: kind mismatch, unconstrained occurrence
+/// count, crossing distance, expected order, then actual order.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+struct MatchCost([i128; 5]);
+
+impl MatchCost {
+    fn add(self, other: Self) -> Self {
+        Self(std::array::from_fn(|index| self.0[index] + other.0[index]))
+    }
+
+    fn negated(self) -> Self {
+        Self(self.0.map(|value| -value))
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MatchFlowEdge {
+    to: usize,
+    reverse: usize,
+    available: bool,
+    cost: MatchCost,
+}
+
+fn add_match_flow_edge(
+    graph: &mut [Vec<MatchFlowEdge>],
+    from: usize,
+    to: usize,
+    cost: MatchCost,
+) -> MatchingResult<()> {
+    graph[from]
+        .try_reserve(1)
+        .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+    graph[to]
+        .try_reserve(1)
+        .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+    let forward_reverse = graph[to].len();
+    let reverse_reverse = graph[from].len();
+    graph[from].push(MatchFlowEdge {
+        to,
+        reverse: forward_reverse,
+        available: true,
+        cost,
+    });
+    graph[to].push(MatchFlowEdge {
+        to: from,
+        reverse: reverse_reverse,
+        available: false,
+        cost: cost.negated(),
+    });
+    Ok(())
 }
 
 pub fn parse_manifest(manifest: &str) -> Result<Vec<RevisionPair>> {
@@ -1546,10 +1713,22 @@ pub fn load_expected_document(expected_json: &str) -> Result<ExpectedDocument> {
         _ => {}
     }
     let mut seen_ids = HashSet::new();
+    if document.changes.len() > MAX_EXPECTED_DOCUMENT_CHANGES {
+        return Err(BenchError::InvalidInput(format!(
+            "expected-revision JSON has {} changes; at most {MAX_EXPECTED_DOCUMENT_CHANGES} are supported",
+            document.changes.len()
+        )));
+    }
     for change in &document.changes {
         if change.id.trim().is_empty() || !seen_ids.insert(change.id.clone()) {
             return Err(BenchError::InvalidInput(format!(
                 "expected-revision JSON change id {:?} is blank or duplicated",
+                change.id
+            )));
+        }
+        if change.occurrence_count == Some(0) {
+            return Err(BenchError::InvalidInput(format!(
+                "expected-revision JSON change {} has occurrence_count 0; a positive count is required",
                 change.id
             )));
         }
@@ -1798,6 +1977,207 @@ fn contains_needle(haystack: Option<&str>, needle: Option<&str>) -> bool {
     }
 }
 
+fn scope_matches(
+    expected: &ExpectedChange,
+    actual_index: usize,
+    actual_scopes: Option<&[Option<String>]>,
+) -> bool {
+    !expected.scope.as_deref().is_some_and(|expected_scope| {
+        actual_scopes.is_some_and(|scopes| {
+            scopes.get(actual_index).and_then(Option::as_deref) != Some(expected_scope)
+        })
+    })
+}
+
+fn occurrence_matches_quotes(
+    occurrence: &ActualChangeOccurrence,
+    needle_old: Option<&str>,
+    needle_new: Option<&str>,
+) -> bool {
+    occurrence.resolvable
+        && contains_needle(occurrence.old_text.as_deref(), needle_old)
+        && contains_needle(occurrence.new_text.as_deref(), needle_new)
+}
+
+fn normalized_expected_quotes(change: &ExpectedChange) -> NormalizedExpectedQuotes {
+    NormalizedExpectedQuotes {
+        old: change.old_quote.as_deref().map(collapse_whitespace),
+        new: change.new_quote.as_deref().map(collapse_whitespace),
+    }
+}
+
+fn actual_matches_quotes(
+    actual: &ActualChange,
+    needles: &NormalizedExpectedQuotes,
+    all: bool,
+    budget: &mut MatchingScanBudget,
+    limits: MatchingLimits,
+) -> MatchingResult<bool> {
+    if all {
+        if actual.occurrences.is_empty() {
+            return Ok(false);
+        }
+        for occurrence in &actual.occurrences {
+            budget.charge_occurrence(occurrence, limits)?;
+            if !occurrence_matches_quotes(
+                occurrence,
+                needles.old.as_deref(),
+                needles.new.as_deref(),
+            ) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    } else {
+        for occurrence in &actual.occurrences {
+            budget.charge_occurrence(occurrence, limits)?;
+            if occurrence_matches_quotes(occurrence, needles.old.as_deref(), needles.new.as_deref())
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+fn actual_matches_expected(
+    change: &ExpectedChange,
+    needles: &NormalizedExpectedQuotes,
+    actual: &ActualChange,
+    budget: &mut MatchingScanBudget,
+    limits: MatchingLimits,
+) -> MatchingResult<(bool, bool)> {
+    match change.occurrence_count {
+        Some(count) => {
+            let quotes_match = actual_matches_quotes(actual, needles, true, budget, limits)?;
+            Ok((
+                quotes_match && actual.occurrences.len() == count,
+                quotes_match,
+            ))
+        }
+        None => Ok((
+            actual_matches_quotes(actual, needles, false, budget, limits)?,
+            false,
+        )),
+    }
+}
+
+fn preferred_maximum_matching(
+    edges: &[Vec<(usize, MatchCost)>],
+    actual_count: usize,
+    limits: MatchingLimits,
+) -> MatchingResult<Vec<Option<usize>>> {
+    let source = 0;
+    let expected_start = 1;
+    let actual_start = expected_start + edges.len();
+    let sink = actual_start + actual_count;
+    let mut graph = Vec::new();
+    graph
+        .try_reserve_exact(sink + 1)
+        .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+    graph.resize_with(sink + 1, Vec::new);
+    for (expected_index, expected_edges) in edges.iter().enumerate() {
+        add_match_flow_edge(
+            &mut graph,
+            source,
+            expected_start + expected_index,
+            MatchCost::default(),
+        )?;
+        for &(actual_index, cost) in expected_edges {
+            add_match_flow_edge(
+                &mut graph,
+                expected_start + expected_index,
+                actual_start + actual_index,
+                cost,
+            )?;
+        }
+    }
+    for actual_index in 0..actual_count {
+        add_match_flow_edge(
+            &mut graph,
+            actual_start + actual_index,
+            sink,
+            MatchCost::default(),
+        )?;
+    }
+
+    let mut residual_edge_visits = 0_usize;
+    let mut augmentations = 0_usize;
+    loop {
+        let mut distances = Vec::new();
+        distances
+            .try_reserve_exact(graph.len())
+            .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+        distances.resize(graph.len(), None);
+        let mut parents = Vec::new();
+        parents
+            .try_reserve_exact(graph.len())
+            .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+        parents.resize(graph.len(), None);
+        let mut queued = Vec::new();
+        queued
+            .try_reserve_exact(graph.len())
+            .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+        queued.resize(graph.len(), false);
+        let mut queue = VecDeque::new();
+        queue
+            .try_reserve(graph.len())
+            .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+        queue.push_back(source);
+        distances[source] = Some(MatchCost::default());
+        queued[source] = true;
+        while let Some(node) = queue.pop_front() {
+            queued[node] = false;
+            let distance = distances[node].expect("queued nodes have a distance");
+            for (edge_index, edge) in graph[node].iter().enumerate() {
+                residual_edge_visits = residual_edge_visits
+                    .checked_add(1)
+                    .filter(|visits| *visits <= limits.max_residual_edge_visits)
+                    .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+                if !edge.available {
+                    continue;
+                }
+                let candidate = distance.add(edge.cost);
+                if distances[edge.to].is_none_or(|current| candidate < current) {
+                    distances[edge.to] = Some(candidate);
+                    parents[edge.to] = Some((node, edge_index));
+                    if !queued[edge.to] {
+                        queue.push_back(edge.to);
+                        queued[edge.to] = true;
+                    }
+                }
+            }
+        }
+        if distances[sink].is_none() {
+            break;
+        }
+        augmentations = augmentations
+            .checked_add(1)
+            .filter(|count| *count <= limits.max_augmentations)
+            .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+        let mut node = sink;
+        while node != source {
+            let (parent, edge_index) = parents[node].expect("reachable nodes have a parent");
+            let reverse = graph[parent][edge_index].reverse;
+            graph[parent][edge_index].available = false;
+            graph[node][reverse].available = true;
+            node = parent;
+        }
+    }
+
+    let mut matching = Vec::new();
+    matching
+        .try_reserve_exact(edges.len())
+        .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+    matching.extend((0..edges.len()).map(|expected_index| {
+        graph[expected_start + expected_index]
+            .iter()
+            .find(|edge| edge.to >= actual_start && edge.to < sink && !edge.available)
+            .map(|edge| edge.to - actual_start)
+    }));
+    Ok(matching)
+}
+
 fn match_changes(expected: &[ExpectedChange], actuals: &[ActualChange]) -> MatchOutcome {
     match_changes_with_scopes(expected, actuals, None)
 }
@@ -1807,63 +2187,148 @@ fn match_changes_with_scopes(
     actuals: &[ActualChange],
     actual_scopes: Option<&[Option<String>]>,
 ) -> MatchOutcome {
-    let mut claimed_actuals = HashSet::new();
-    let mut claimed_actual_by_expected = vec![None; expected.len()];
-    let mut kind_agreements = 0_usize;
-    let mut expected_order = (0..expected.len()).collect::<Vec<_>>();
-    if actual_scopes.is_some()
-        && expected.iter().any(|change| change.scope.is_some())
-        && expected.iter().any(|change| change.scope.is_none())
-    {
-        expected_order.sort_by_key(|index| expected[*index].scope.is_none());
+    try_match_changes_with_scopes(expected, actuals, actual_scopes)
+        .expect("test and fixture matching stays within default resource limits")
+}
+
+fn try_match_changes_with_scopes(
+    expected: &[ExpectedChange],
+    actuals: &[ActualChange],
+    actual_scopes: Option<&[Option<String>]>,
+) -> MatchingResult<MatchOutcome> {
+    match_changes_with_limits(expected, actuals, actual_scopes, MatchingLimits::default())
+}
+
+fn match_changes_with_limits(
+    expected: &[ExpectedChange],
+    actuals: &[ActualChange],
+    actual_scopes: Option<&[Option<String>]>,
+    limits: MatchingLimits,
+) -> MatchingResult<MatchOutcome> {
+    if expected.len() > limits.max_events_per_side || actuals.len() > limits.max_events_per_side {
+        return Err(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT);
     }
-    for expected_index in expected_order {
-        let change = &expected[expected_index];
-        let needle_old = change.old_quote.as_deref().map(collapse_whitespace);
-        let needle_new = change.new_quote.as_deref().map(collapse_whitespace);
-        for (index, actual) in actuals.iter().enumerate() {
-            if claimed_actuals.contains(&index) {
+    let mut edges = Vec::new();
+    edges
+        .try_reserve_exact(expected.len())
+        .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+    let mut edge_checks = 0_usize;
+    let mut candidate_edges = 0_usize;
+    let mut scan_budget = MatchingScanBudget::default();
+    let mut mismatch_candidates = Vec::new();
+    mismatch_candidates
+        .try_reserve_exact(expected.len())
+        .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+    for (expected_index, change) in expected.iter().enumerate() {
+        scan_budget.charge_expected_quotes(change, limits)?;
+        let needles = normalized_expected_quotes(change);
+        let mut expected_edges = Vec::new();
+        let mut expected_mismatches = Vec::new();
+        for (actual_index, actual) in actuals.iter().enumerate() {
+            edge_checks = edge_checks
+                .checked_add(1)
+                .filter(|checks| *checks <= limits.max_edge_checks)
+                .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+            if !scope_matches(change, actual_index, actual_scopes) {
                 continue;
             }
-            if change.scope.as_deref().is_some_and(|expected_scope| {
-                actual_scopes.is_some_and(|scopes| {
-                    scopes.get(index).and_then(Option::as_deref) != Some(expected_scope)
-                })
-            }) {
-                continue;
-            }
-            let matches_occurrence = actual.occurrences.iter().any(|occurrence| {
-                let old = occurrence.old_text.as_deref().map(collapse_whitespace);
-                let new = occurrence.new_text.as_deref().map(collapse_whitespace);
-                occurrence.resolvable
-                    && contains_needle(old.as_deref(), needle_old.as_deref())
-                    && contains_needle(new.as_deref(), needle_new.as_deref())
-            });
-            if matches_occurrence {
-                claimed_actuals.insert(index);
-                claimed_actual_by_expected[expected_index] = Some(index);
-                if change.kind.agrees_with(actuals[index].kind) {
-                    kind_agreements += 1;
-                }
-                break;
+            let (matches, quotes_match) =
+                actual_matches_expected(change, &needles, actual, &mut scan_budget, limits)?;
+            if matches {
+                candidate_edges = candidate_edges
+                    .checked_add(1)
+                    .filter(|edges| *edges <= limits.max_candidate_edges)
+                    .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+                expected_edges
+                    .try_reserve(1)
+                    .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+                expected_edges.push({
+                    let distance = expected_index.abs_diff(actual_index) as i128;
+                    (
+                        actual_index,
+                        MatchCost([
+                            i128::from(!change.kind.agrees_with(actual.kind)),
+                            i128::from(change.occurrence_count.is_none()),
+                            distance,
+                            expected_index as i128,
+                            actual_index as i128,
+                        ]),
+                    )
+                });
+            } else if quotes_match
+                && change.kind.agrees_with(actual.kind)
+                && change.occurrence_count != Some(actual.occurrences.len())
+            {
+                candidate_edges = candidate_edges
+                    .checked_add(1)
+                    .filter(|edges| *edges <= limits.max_candidate_edges)
+                    .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+                expected_mismatches
+                    .try_reserve(1)
+                    .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+                expected_mismatches.push((actual_index, actual.occurrences.len()));
             }
         }
+        edges.push(expected_edges);
+        mismatch_candidates.push(expected_mismatches);
     }
-    MatchOutcome {
+    let claimed_actual_by_expected = preferred_maximum_matching(&edges, actuals.len(), limits)?;
+    let mut claimed_actuals = HashSet::new();
+    claimed_actuals
+        .try_reserve(claimed_actual_by_expected.len())
+        .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+    claimed_actuals.extend(claimed_actual_by_expected.iter().flatten().copied());
+    let kind_agreements = claimed_actual_by_expected
+        .iter()
+        .enumerate()
+        .filter(|(expected_index, actual_index)| {
+            actual_index.is_some_and(|actual_index| {
+                expected[*expected_index]
+                    .kind
+                    .agrees_with(actuals[actual_index].kind)
+            })
+        })
+        .count();
+    let mut occurrence_count_mismatch_by_expected = Vec::new();
+    occurrence_count_mismatch_by_expected
+        .try_reserve_exact(expected.len())
+        .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+    occurrence_count_mismatch_by_expected.extend(expected.iter().zip(mismatch_candidates).map(
+        |(change, candidates)| {
+            let expected_count = change.occurrence_count?;
+            candidates
+                .into_iter()
+                .find(|(actual_index, _)| !claimed_actuals.contains(actual_index))
+                .map(|(_, actual_count)| (expected_count, actual_count))
+        },
+    ));
+    Ok(MatchOutcome {
         matched: claimed_actuals.len(),
         kind_agreements,
         claimed_actuals,
         claimed_actual_by_expected,
-    }
+        occurrence_count_mismatch_by_expected,
+    })
 }
 
+#[cfg(test)]
 fn scoped_quality(
     reviewed_scope_count: usize,
     expected: &[ExpectedChange],
     actuals: &[ActualChange],
     actual_scopes: &[Option<String>],
 ) -> (QualityMetrics, ScopedEventMetrics) {
-    let outcome = match_changes_with_scopes(expected, actuals, Some(actual_scopes));
+    try_scoped_quality(reviewed_scope_count, expected, actuals, actual_scopes)
+        .expect("test and fixture matching stays within default resource limits")
+}
+
+fn try_scoped_quality(
+    reviewed_scope_count: usize,
+    expected: &[ExpectedChange],
+    actuals: &[ActualChange],
+    actual_scopes: &[Option<String>],
+) -> MatchingResult<(QualityMetrics, ScopedEventMetrics)> {
+    let outcome = try_match_changes_with_scopes(expected, actuals, Some(actual_scopes))?;
     let mut quality =
         quality_from_match_outcome(Annotation::ScopedComplete, expected, actuals, &outcome);
     let precision = if actuals.is_empty() {
@@ -1883,7 +2348,7 @@ fn scoped_quality(
     };
     quality.precision = Some(precision);
     quality.recall = Some(recall);
-    (
+    Ok((
         quality,
         ScopedEventMetrics {
             reviewed_scope_count,
@@ -1891,7 +2356,7 @@ fn scoped_quality(
             recall,
             f1,
         },
-    )
+    ))
 }
 
 struct CompleteScopeEvaluation {
@@ -1937,12 +2402,13 @@ fn evaluate_complete_scopes(
         scoped_actuals.push(actual.clone());
         scoped_actual_scopes.push(Some(change.scope_id.clone()));
     }
-    let (quality, event_metrics) = scoped_quality(
+    let (quality, event_metrics) = try_scoped_quality(
         scopes.len(),
         &expected,
         &scoped_actuals,
         &scoped_actual_scopes,
-    );
+    )
+    .map_err(str::to_owned)?;
     Ok(CompleteScopeEvaluation {
         quality,
         event_metrics,
@@ -2310,15 +2776,19 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                     )
                 })
                 .transpose();
-            match scoped {
-                Ok(scoped) => {
-                    let match_outcome = match_changes_with_scopes(
-                        &document.changes,
-                        &actuals,
-                        scoped
-                            .as_ref()
-                            .map(|evaluation| evaluation.actual_scopes.as_slice()),
-                    );
+            let matched = scoped.and_then(|scoped| {
+                let match_outcome = try_match_changes_with_scopes(
+                    &document.changes,
+                    &actuals,
+                    scoped
+                        .as_ref()
+                        .map(|evaluation| evaluation.actual_scopes.as_slice()),
+                )
+                .map_err(str::to_owned)?;
+                Ok((scoped, match_outcome))
+            });
+            match matched {
+                Ok((scoped, match_outcome)) => {
                     record.quality = Some(quality_from_match_outcome(
                         document.annotation,
                         &document.changes,
@@ -2329,8 +2799,13 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                         &document.changes,
                         &outcome.old_blocks,
                         &outcome.new_blocks,
-                        alignment.as_ref(),
-                        &outcome.comparison,
+                        ComparisonDiagnosticInput {
+                            alignment: alignment.as_ref(),
+                            comparison: &outcome.comparison,
+                            actual_scopes: scoped
+                                .as_ref()
+                                .map(|evaluation| evaluation.actual_scopes.as_slice()),
+                        },
                         &actuals,
                         &match_outcome,
                     ) {
@@ -3163,7 +3638,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 15;
+    pub const SCHEMA_VERSION: u32 = 16;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -3316,6 +3791,7 @@ mod tests {
             id: id.to_owned(),
             kind,
             scope: None,
+            occurrence_count: None,
             old_quote: Some(format!("old {id}")),
             new_quote: Some(format!("new {id}")),
             note: String::new(),
@@ -4051,6 +4527,42 @@ mod tests {
     }
 
     #[test]
+    fn expected_documents_validate_optional_occurrence_count() {
+        let positive = r#"{"version":1,"pair":"p","reviewed_on":"x","annotation":"partial","changes":[{"id":"c","kind":"deletion","occurrence_count":2,"old_quote":"removed"}]}"#;
+        let document = load_expected_document(positive).expect("positive count is valid");
+        assert_eq!(document.changes[0].occurrence_count, Some(2));
+
+        let absent = positive.replace(",\"occurrence_count\":2", "");
+        let document = load_expected_document(&absent).expect("count remains optional");
+        assert_eq!(document.changes[0].occurrence_count, None);
+
+        let zero = positive.replace(r#""occurrence_count":2"#, r#""occurrence_count":0"#);
+        assert!(load_expected_document(&zero).is_err());
+    }
+
+    #[test]
+    fn expected_documents_bound_the_number_of_changes() {
+        let changes = (0..=MAX_EXPECTED_DOCUMENT_CHANGES)
+            .map(|index| {
+                serde_json::json!({
+                    "id": format!("change-{index}"),
+                    "kind": "deletion",
+                    "old_quote": "removed"
+                })
+            })
+            .collect::<Vec<_>>();
+        let document = serde_json::json!({
+            "version": 1,
+            "pair": "p",
+            "reviewed_on": "x",
+            "annotation": "partial",
+            "changes": changes
+        });
+
+        assert!(load_expected_document(&document.to_string()).is_err());
+    }
+
+    #[test]
     fn scoped_complete_uses_exact_tag_and_loads_valid_model() {
         assert_eq!(
             serde_json::to_string(&Annotation::ScopedComplete).expect("annotation serializes"),
@@ -4204,6 +4716,7 @@ mod tests {
             id: id.to_owned(),
             kind,
             scope: None,
+            occurrence_count: None,
             old_quote: old.map(str::to_owned),
             new_quote: new.map(str::to_owned),
             note: String::new(),
@@ -4220,12 +4733,28 @@ mod tests {
         ActualChange {
             kind,
             occurrences: vec![ActualChangeOccurrence {
-                old_text: old_text.map(str::to_owned),
-                new_text: new_text.map(str::to_owned),
+                old_text: old_text.map(collapse_whitespace),
+                new_text: new_text.map(collapse_whitespace),
                 old_comparable_len: old_len,
                 new_comparable_len: new_len,
                 resolvable: true,
             }],
+        }
+    }
+
+    fn repeated_replacement(occurrences: &[(&str, &str)]) -> ActualChange {
+        ActualChange {
+            kind: ChangeKind::Replacement,
+            occurrences: occurrences
+                .iter()
+                .map(|(old, new)| ActualChangeOccurrence {
+                    old_text: Some(collapse_whitespace(old)),
+                    new_text: Some(collapse_whitespace(new)),
+                    old_comparable_len: Some(old.chars().count()),
+                    new_comparable_len: Some(new.chars().count()),
+                    resolvable: true,
+                })
+                .collect(),
         }
     }
 
@@ -4288,6 +4817,13 @@ mod tests {
                     actual: "move".to_owned(),
                 },
                 serde_json::json!({"expected_id":"c","reason":"wrong_change_kind","expected":"replacement","actual":"move"}),
+            ),
+            (
+                ExpectedChangeFailureReason::OccurrenceCountMismatch {
+                    expected: 2,
+                    actual: 1,
+                },
+                serde_json::json!({"expected_id":"c","reason":"occurrence_count_mismatch","expected":2,"actual":1}),
             ),
             (
                 ExpectedChangeFailureReason::FragmentedAcrossHunks {
@@ -4366,7 +4902,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 15);
+        assert_eq!(completed["schema_version"], 16);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -4409,7 +4945,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 15);
+        assert_eq!(legacy_summary["schema_version"], 16);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -4491,6 +5027,331 @@ mod tests {
         assert_eq!(partial.precision, None);
         assert_eq!(partial.kind_accuracy, Some(0.5));
         assert_eq!(partial.unmatched_tiny_changes, 0);
+    }
+
+    #[test]
+    fn occurrence_count_matches_the_exact_number_of_repeated_quotes() {
+        let mut expected = expected_change(
+            "repeated",
+            ExpectedKind::Replacement,
+            Some("old quote"),
+            Some("new quote"),
+        );
+        expected.occurrence_count = Some(2);
+        let actual = repeated_replacement(&[
+            ("first old quote", "first new quote"),
+            ("second old quote", "second new quote"),
+        ]);
+
+        assert_eq!(match_changes(&[expected], &[actual]).matched, 1);
+    }
+
+    #[test]
+    fn occurrence_count_rejects_a_missing_occurrence() {
+        let mut expected = expected_change(
+            "repeated",
+            ExpectedKind::Replacement,
+            Some("old quote"),
+            Some("new quote"),
+        );
+        expected.occurrence_count = Some(2);
+        let actual = repeated_replacement(&[("old quote", "new quote")]);
+
+        assert_eq!(match_changes(&[expected], &[actual]).matched, 0);
+    }
+
+    #[test]
+    fn occurrence_count_rejects_a_surplus_occurrence() {
+        let mut expected = expected_change(
+            "repeated",
+            ExpectedKind::Replacement,
+            Some("old quote"),
+            Some("new quote"),
+        );
+        expected.occurrence_count = Some(2);
+        let actual = repeated_replacement(&[
+            ("first old quote", "first new quote"),
+            ("second old quote", "second new quote"),
+            ("third old quote", "third new quote"),
+        ]);
+
+        assert_eq!(match_changes(&[expected], &[actual]).matched, 0);
+    }
+
+    #[test]
+    fn occurrence_count_rejects_one_wrong_quote() {
+        let mut expected = expected_change(
+            "repeated",
+            ExpectedKind::Replacement,
+            Some("old quote"),
+            Some("new quote"),
+        );
+        expected.occurrence_count = Some(2);
+        let actual = repeated_replacement(&[
+            ("first old quote", "first new quote"),
+            ("second old quote", "unexpected replacement"),
+        ]);
+
+        assert_eq!(match_changes(&[expected], &[actual]).matched, 0);
+    }
+
+    #[test]
+    fn absent_occurrence_count_keeps_any_occurrence_matching() {
+        let expected = expected_change(
+            "repeated",
+            ExpectedKind::Replacement,
+            Some("old quote"),
+            Some("new quote"),
+        );
+        let actual = repeated_replacement(&[
+            ("unrelated old text", "unrelated new text"),
+            ("matching old quote", "matching new quote"),
+        ]);
+
+        assert_eq!(match_changes(&[expected], &[actual]).matched, 1);
+    }
+
+    #[test]
+    fn maximum_matching_preserves_a_repeated_event_for_the_counted_expectation() {
+        let any = expected_change(
+            "any",
+            ExpectedKind::Replacement,
+            Some("old quote"),
+            Some("new quote"),
+        );
+        let mut repeated = any.clone();
+        repeated.id = "repeated".to_owned();
+        repeated.occurrence_count = Some(2);
+        let repeated_actual = repeated_replacement(&[
+            ("first old quote", "first new quote"),
+            ("second old quote", "second new quote"),
+        ]);
+        let single_actual = repeated_replacement(&[("old quote", "new quote")]);
+
+        let outcome = match_changes(&[any, repeated], &[repeated_actual, single_actual]);
+
+        assert_eq!(outcome.claimed_actual_by_expected, [Some(1), Some(0)]);
+    }
+
+    #[test]
+    fn maximum_matching_follows_crossing_quote_edges() {
+        let broad = expected_change("broad", ExpectedKind::Replacement, Some("old"), Some("new"));
+        let specific = expected_change(
+            "specific",
+            ExpectedKind::Replacement,
+            Some("specific old"),
+            Some("specific new"),
+        );
+        let specific_actual = repeated_replacement(&[("specific old", "specific new")]);
+        let broad_actual = repeated_replacement(&[("other old", "other new")]);
+
+        let outcome = match_changes(&[broad, specific], &[specific_actual, broad_actual]);
+
+        assert_eq!(outcome.claimed_actual_by_expected, [Some(1), Some(0)]);
+    }
+
+    #[test]
+    fn duplicate_edges_use_stable_expected_and_actual_order() {
+        let expected = [
+            expected_change("first", ExpectedKind::Replacement, Some("old"), Some("new")),
+            expected_change(
+                "second",
+                ExpectedKind::Replacement,
+                Some("old"),
+                Some("new"),
+            ),
+        ];
+        let actuals = [
+            repeated_replacement(&[("old", "new")]),
+            repeated_replacement(&[("old", "new")]),
+        ];
+
+        let outcome = match_changes(&expected, &actuals);
+
+        assert_eq!(outcome.claimed_actual_by_expected, [Some(0), Some(1)]);
+    }
+
+    #[test]
+    fn equal_cardinality_prefers_counted_expectations() {
+        let any = expected_change("any", ExpectedKind::Replacement, Some("old"), Some("new"));
+        let mut counted = any.clone();
+        counted.id = "counted".to_owned();
+        counted.occurrence_count = Some(1);
+        let actual = repeated_replacement(&[("old", "new")]);
+
+        let outcome = match_changes(&[any, counted], &[actual]);
+
+        assert_eq!(outcome.claimed_actual_by_expected, [None, Some(0)]);
+    }
+
+    #[test]
+    fn equal_cardinality_prefers_kind_agreement() {
+        let replacement = expected_change(
+            "replacement",
+            ExpectedKind::Replacement,
+            Some("old"),
+            Some("new"),
+        );
+        let r#move = expected_change("move", ExpectedKind::Move, Some("old"), Some("new"));
+        let actuals = [
+            actual_change(ChangeKind::Move, Some("old"), Some("new"), Some(3), Some(3)),
+            actual_change(
+                ChangeKind::Replacement,
+                Some("old"),
+                Some("new"),
+                Some(3),
+                Some(3),
+            ),
+        ];
+
+        let outcome = match_changes(&[replacement, r#move], &actuals);
+
+        assert_eq!(outcome.claimed_actual_by_expected, [Some(1), Some(0)]);
+        assert_eq!(outcome.kind_agreements, 2);
+    }
+
+    #[test]
+    fn matching_candidate_edge_limit_returns_no_partial_outcome() {
+        let expected = [expected_change(
+            "expected",
+            ExpectedKind::Replacement,
+            Some("old"),
+            Some("new"),
+        )];
+        let actuals = [repeated_replacement(&[("old", "new")])];
+
+        let result = match_changes_with_limits(
+            &expected,
+            &actuals,
+            None,
+            MatchingLimits {
+                max_candidate_edges: 0,
+                ..MatchingLimits::default()
+            },
+        );
+
+        assert!(matches!(result, Err(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)));
+    }
+
+    #[test]
+    fn matching_occurrence_visit_limit_returns_no_partial_outcome() {
+        let mut expected = expected_change(
+            "expected",
+            ExpectedKind::Replacement,
+            Some("old"),
+            Some("new"),
+        );
+        expected.occurrence_count = Some(2);
+        let actuals = [repeated_replacement(&[("old", "new"), ("old", "new")])];
+
+        let result = match_changes_with_limits(
+            &[expected],
+            &actuals,
+            None,
+            MatchingLimits {
+                max_occurrence_visits: 1,
+                ..MatchingLimits::default()
+            },
+        );
+
+        assert!(matches!(result, Err(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)));
+    }
+
+    #[test]
+    fn repeated_mismatch_evidence_limit_returns_no_partial_outcome() {
+        let mut template =
+            expected_change("first", ExpectedKind::Replacement, Some("old"), Some("new"));
+        template.occurrence_count = Some(65);
+        let expected = (0..4)
+            .map(|index| {
+                let mut change = template.clone();
+                change.id = format!("expected-{index}");
+                change
+            })
+            .collect::<Vec<_>>();
+        let occurrences = vec![("old", "new"); 64];
+        let actuals = [repeated_replacement(&occurrences)];
+
+        let result = match_changes_with_limits(
+            &expected,
+            &actuals,
+            None,
+            MatchingLimits {
+                max_occurrence_visits: 100,
+                ..MatchingLimits::default()
+            },
+        );
+
+        assert!(matches!(result, Err(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)));
+    }
+
+    #[test]
+    fn matching_text_byte_limit_returns_no_partial_outcome() {
+        let expected = [expected_change(
+            "expected",
+            ExpectedKind::Replacement,
+            Some("old"),
+            Some("new"),
+        )];
+        let actuals = [repeated_replacement(&[("old", "new")])];
+
+        let result = match_changes_with_limits(
+            &expected,
+            &actuals,
+            None,
+            MatchingLimits {
+                max_text_bytes: "oldnew".len() * 2 - 1,
+                ..MatchingLimits::default()
+            },
+        );
+
+        assert!(matches!(result, Err(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)));
+    }
+
+    #[test]
+    fn matching_residual_visit_limit_returns_no_partial_outcome() {
+        let expected = [expected_change(
+            "expected",
+            ExpectedKind::Replacement,
+            Some("old"),
+            Some("new"),
+        )];
+        let actuals = [repeated_replacement(&[("old", "new")])];
+
+        let result = match_changes_with_limits(
+            &expected,
+            &actuals,
+            None,
+            MatchingLimits {
+                max_residual_edge_visits: 0,
+                ..MatchingLimits::default()
+            },
+        );
+
+        assert!(matches!(result, Err(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)));
+    }
+
+    #[test]
+    fn matching_augmentation_limit_returns_no_partial_outcome() {
+        let expected = [expected_change(
+            "expected",
+            ExpectedKind::Replacement,
+            Some("old"),
+            Some("new"),
+        )];
+        let actuals = [repeated_replacement(&[("old", "new")])];
+
+        let result = match_changes_with_limits(
+            &expected,
+            &actuals,
+            None,
+            MatchingLimits {
+                max_augmentations: 0,
+                ..MatchingLimits::default()
+            },
+        );
+
+        assert!(matches!(result, Err(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)));
     }
 
     #[test]
@@ -5273,7 +6134,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 15);
+        assert_eq!(json["schema_version"], 16);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -6110,7 +6971,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 15);
+        assert_eq!(value["schema_version"], 16);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

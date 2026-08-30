@@ -1276,9 +1276,10 @@ struct FailureContext<'a> {
 }
 
 #[derive(Clone, Copy)]
-struct ComparisonDiagnosticInput<'a> {
-    alignment: Option<&'a Alignment>,
-    comparison: &'a Comparison,
+pub(super) struct ComparisonDiagnosticInput<'a> {
+    pub(super) alignment: Option<&'a Alignment>,
+    pub(super) comparison: &'a Comparison,
+    pub(super) actual_scopes: Option<&'a [Option<String>]>,
 }
 
 struct AlignmentSpanIndex {
@@ -1474,7 +1475,9 @@ fn evaluate_reviewed_diagnostics_with_limits(
     let ComparisonDiagnosticInput {
         alignment,
         comparison,
+        actual_scopes,
     } = input;
+    debug_assert!(actual_scopes.is_none_or(|scopes| scopes.len() == actuals.len()));
     let processed_expected = &expected[..expected.len().min(limits.max_expected_changes)];
     let first_unprocessed = expected.get(processed_expected.len());
     let production = PipelineOptions::default();
@@ -1626,12 +1629,17 @@ fn evaluate_reviewed_diagnostics_with_limits(
                 expected: change.kind.name().to_owned(),
                 actual: change_kind_name(actuals[actual_index].kind).to_owned(),
             },
-            None => classify_expected_failure(
-                change,
-                candidate_results[index],
-                &locations[index],
-                &mut context,
-            )?,
+            None => match outcome.occurrence_count_mismatch_by_expected[index] {
+                Some((expected, actual)) => {
+                    ExpectedChangeFailureReason::OccurrenceCountMismatch { expected, actual }
+                }
+                None => classify_expected_failure(
+                    change,
+                    candidate_results[index],
+                    &locations[index],
+                    &mut context,
+                )?,
+            },
         };
         if context.budget.charge_output(limits).is_err() {
             if limits.max_output_records > 0 {
@@ -1678,8 +1686,7 @@ pub(super) fn evaluate_reviewed_diagnostics(
     expected: &[ExpectedChange],
     old_blocks: &[BlockText],
     new_blocks: &[BlockText],
-    alignment: Option<&Alignment>,
-    comparison: &Comparison,
+    input: ComparisonDiagnosticInput<'_>,
     actuals: &[ActualChange],
     outcome: &MatchOutcome,
 ) -> std::result::Result<ReviewedDiagnostics, String> {
@@ -1687,10 +1694,7 @@ pub(super) fn evaluate_reviewed_diagnostics(
         expected,
         old_blocks,
         new_blocks,
-        ComparisonDiagnosticInput {
-            alignment,
-            comparison,
-        },
+        input,
         actuals,
         outcome,
         DiagnosticLimits::default(),
@@ -1709,7 +1713,10 @@ mod tests {
         },
     };
 
-    use super::super::{Annotation, compute_quality, match_changes, quality_from_match_outcome};
+    use super::super::{
+        Annotation, compute_quality, match_changes, match_changes_with_scopes,
+        quality_from_match_outcome,
+    };
     use super::*;
 
     fn expected_change(
@@ -1722,6 +1729,7 @@ mod tests {
             id: id.to_owned(),
             kind,
             scope: None,
+            occurrence_count: None,
             old_quote: old.map(str::to_owned),
             new_quote: new.map(str::to_owned),
             note: String::new(),
@@ -1818,7 +1826,16 @@ mod tests {
     ) -> ReviewedDiagnostics {
         let outcome = match_changes(expected, actuals);
         evaluate_reviewed_diagnostics(
-            expected, old_blocks, new_blocks, None, comparison, actuals, &outcome,
+            expected,
+            old_blocks,
+            new_blocks,
+            ComparisonDiagnosticInput {
+                alignment: None,
+                comparison,
+                actual_scopes: None,
+            },
+            actuals,
+            &outcome,
         )
         .expect("diagnostics succeed")
     }
@@ -1874,8 +1891,11 @@ mod tests {
             &expected,
             &old,
             &new,
-            Some(&alignment),
-            &comparison,
+            ComparisonDiagnosticInput {
+                alignment: Some(&alignment),
+                comparison: &comparison,
+                actual_scopes: None,
+            },
             &[],
             &outcome,
         )
@@ -1960,8 +1980,11 @@ mod tests {
             &expected,
             &old,
             &new,
-            Some(&alignment),
-            &comparison,
+            ComparisonDiagnosticInput {
+                alignment: Some(&alignment),
+                comparison: &comparison,
+                actual_scopes: None,
+            },
             &[],
             &outcome,
         )
@@ -2396,6 +2419,7 @@ mod tests {
             ComparisonDiagnosticInput {
                 alignment: None,
                 comparison: &comparison,
+                actual_scopes: None,
             },
             &[],
             &outcome,
@@ -2419,6 +2443,7 @@ mod tests {
             ComparisonDiagnosticInput {
                 alignment: None,
                 comparison: &comparison,
+                actual_scopes: None,
             },
             &[],
             &outcome,
@@ -2626,6 +2651,7 @@ mod tests {
             ComparisonDiagnosticInput {
                 alignment: None,
                 comparison: &comparison,
+                actual_scopes: None,
             },
             &[],
             &outcome,
@@ -2678,8 +2704,11 @@ mod tests {
             &expected,
             &[diagnostic_block(1, "old reviewed text")],
             &[diagnostic_block(2, "new reviewed text")],
-            None,
-            &diagnostic_comparison(Vec::new(), Vec::new()),
+            ComparisonDiagnosticInput {
+                alignment: None,
+                comparison: &diagnostic_comparison(Vec::new(), Vec::new()),
+                actual_scopes: None,
+            },
             &actuals,
             &outcome,
         )
@@ -2691,6 +2720,144 @@ mod tests {
             ExpectedChangeFailureReason::WrongChangeKind {
                 expected: "replacement".to_owned(),
                 actual: "move".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn occurrence_count_mismatch_precedes_generic_failure_diagnostics() {
+        let mut expected = expected_change(
+            "repeated",
+            ExpectedKind::Replacement,
+            Some("old reviewed text"),
+            Some("new reviewed text"),
+        );
+        expected.occurrence_count = Some(2);
+        let actuals = [actual_change(
+            ChangeKind::Replacement,
+            Some("old reviewed text"),
+            Some("new reviewed text"),
+            Some(17),
+            Some(17),
+        )];
+        let diagnostics = reviewed_diagnostics(
+            &[expected],
+            &[diagnostic_block(1, "old reviewed text")],
+            &[diagnostic_block(2, "new reviewed text")],
+            &diagnostic_comparison(Vec::new(), Vec::new()),
+            &actuals,
+        );
+
+        assert_eq!(
+            diagnostics.expected_change_diagnostics.failures[0].reason,
+            ExpectedChangeFailureReason::OccurrenceCountMismatch {
+                expected: 2,
+                actual: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn occurrence_count_mismatch_requires_a_matching_scope() {
+        let mut expected = expected_change(
+            "repeated",
+            ExpectedKind::Replacement,
+            Some("old reviewed text"),
+            Some("new reviewed text"),
+        );
+        expected.scope = Some("reviewed".to_owned());
+        expected.occurrence_count = Some(2);
+        let expected = [expected];
+        let actuals = [actual_change(
+            ChangeKind::Replacement,
+            Some("old reviewed text"),
+            Some("new reviewed text"),
+            Some(17),
+            Some(17),
+        )];
+        let old = [diagnostic_block(1, "old reviewed text")];
+        let new = [diagnostic_block(2, "new reviewed text")];
+        let comparison = diagnostic_comparison(Vec::new(), Vec::new());
+        let outside_scopes = [Some("outside".to_owned())];
+        let outcome = match_changes_with_scopes(&expected, &actuals, Some(&outside_scopes));
+        let outside = evaluate_reviewed_diagnostics(
+            &expected,
+            &old,
+            &new,
+            ComparisonDiagnosticInput {
+                alignment: None,
+                comparison: &comparison,
+                actual_scopes: Some(&outside_scopes),
+            },
+            &actuals,
+            &outcome,
+        )
+        .expect("diagnostics succeed");
+        assert_ne!(
+            outside.expected_change_diagnostics.failures[0].reason,
+            ExpectedChangeFailureReason::OccurrenceCountMismatch {
+                expected: 2,
+                actual: 1,
+            }
+        );
+
+        let reviewed_scopes = [Some("reviewed".to_owned())];
+        let outcome = match_changes_with_scopes(&expected, &actuals, Some(&reviewed_scopes));
+        let reviewed = evaluate_reviewed_diagnostics(
+            &expected,
+            &old,
+            &new,
+            ComparisonDiagnosticInput {
+                alignment: None,
+                comparison: &comparison,
+                actual_scopes: Some(&reviewed_scopes),
+            },
+            &actuals,
+            &outcome,
+        )
+        .expect("diagnostics succeed");
+        assert_eq!(
+            reviewed.expected_change_diagnostics.failures[0].reason,
+            ExpectedChangeFailureReason::OccurrenceCountMismatch {
+                expected: 2,
+                actual: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn occurrence_count_mismatch_ignores_actuals_claimed_by_other_expectations() {
+        let exact = expected_change(
+            "exact",
+            ExpectedKind::Replacement,
+            Some("old reviewed text"),
+            Some("new reviewed text"),
+        );
+        let mut repeated = exact.clone();
+        repeated.id = "repeated".to_owned();
+        repeated.occurrence_count = Some(2);
+        let expected = [exact, repeated];
+        let actuals = [actual_change(
+            ChangeKind::Replacement,
+            Some("old reviewed text"),
+            Some("new reviewed text"),
+            Some(17),
+            Some(17),
+        )];
+        let diagnostics = reviewed_diagnostics(
+            &expected,
+            &[diagnostic_block(1, "old reviewed text")],
+            &[diagnostic_block(2, "new reviewed text")],
+            &diagnostic_comparison(Vec::new(), Vec::new()),
+            &actuals,
+        );
+
+        assert_eq!(diagnostics.expected_change_diagnostics.failures.len(), 1);
+        assert_ne!(
+            diagnostics.expected_change_diagnostics.failures[0].reason,
+            ExpectedChangeFailureReason::OccurrenceCountMismatch {
+                expected: 2,
+                actual: 1,
             }
         );
     }
@@ -2888,6 +3055,7 @@ mod tests {
             ComparisonDiagnosticInput {
                 alignment: None,
                 comparison: &empty_comparison,
+                actual_scopes: None,
             },
             &[],
             &outcome,
@@ -2922,6 +3090,7 @@ mod tests {
             ComparisonDiagnosticInput {
                 alignment: None,
                 comparison: &empty_comparison,
+                actual_scopes: None,
             },
             &[],
             &outcome,

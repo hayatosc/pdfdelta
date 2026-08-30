@@ -8,6 +8,7 @@
     {
       "id": "consultation-watermark-removed",
       "kind": "deletion",
+      "occurrence_count": 51,
       "old_quote": "Adopted - version for public consultation",
       "note": "The consultation watermark no longer appears on every page of the final version."
     },
