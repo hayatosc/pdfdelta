@@ -8106,6 +8106,120 @@ enum NearRelationScope {
     CrossSpan,
 }
 
+#[derive(Clone, Copy)]
+struct RelationFloorProbe {
+    ceiling: u16,
+    complete: bool,
+    can_stop: bool,
+    word_scans: usize,
+    stop_opportunities: usize,
+    potential_saved_word_comparisons: usize,
+}
+
+impl RelationFloorProbe {
+    fn new(ceiling: u16) -> Self {
+        Self {
+            ceiling,
+            complete: true,
+            can_stop: true,
+            word_scans: 0,
+            stop_opportunities: 0,
+            potential_saved_word_comparisons: 0,
+        }
+    }
+
+    fn record_word_comparison(&mut self) {
+        if self.stop_opportunities != 0 {
+            let Some(comparisons) = self.potential_saved_word_comparisons.checked_add(1) else {
+                self.complete = false;
+                return;
+            };
+            self.potential_saved_word_comparisons = comparisons;
+        }
+    }
+
+    fn record_upper_bound(&mut self, upper_bound: u16) {
+        if self.can_stop && self.stop_opportunities == 0 && upper_bound <= self.ceiling {
+            self.stop_opportunities = 1;
+        }
+    }
+}
+
+trait WordMultisetProbe {
+    fn start_word_scan(&mut self, _floor: u16) {}
+    fn record_word_comparison(&mut self) {}
+    fn record_upper_bound(&mut self, _upper_bound: u16) {}
+}
+
+impl WordMultisetProbe for () {}
+
+impl WordMultisetProbe for RelationFloorProbe {
+    fn start_word_scan(&mut self, floor: u16) {
+        self.word_scans = 1;
+        self.can_stop = floor <= self.ceiling;
+    }
+
+    fn record_word_comparison(&mut self) {
+        RelationFloorProbe::record_word_comparison(self);
+    }
+
+    fn record_upper_bound(&mut self, upper_bound: u16) {
+        RelationFloorProbe::record_upper_bound(self, upper_bound);
+    }
+}
+
+fn relation_floor_probe(
+    scope: NearRelationScope,
+    kind: RecoveryUnitKind,
+    old_relation: Option<CandidateNearRelation>,
+    new_relation: Option<CandidateNearRelation>,
+) -> Option<RelationFloorProbe> {
+    if !matches!(scope, NearRelationScope::CrossSpan) || kind != RecoveryUnitKind::Sentence {
+        return None;
+    }
+    let ceiling = match (old_relation, new_relation) {
+        (Some(old), Some(new)) => old.second_score.min(new.second_score),
+        (Some(old), None) => old.second_score,
+        (None, Some(new)) => new.second_score,
+        (None, None) => return None,
+    };
+    Some(RelationFloorProbe::new(ceiling.min(MIN_NEAR_SCORE - 1)))
+}
+
+fn commit_relation_floor_probe(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    probe: RelationFloorProbe,
+) {
+    if !probe.complete {
+        *diagnostics = None;
+        return;
+    }
+    let Some(current) = diagnostics.as_ref().map(|diagnostics| diagnostics.metrics) else {
+        return;
+    };
+    let Some(metrics) = (|| {
+        let mut metrics = current;
+        metrics.relation_floor_pairs_considered =
+            metrics.relation_floor_pairs_considered.checked_add(1)?;
+        metrics.relation_floor_word_scans = metrics
+            .relation_floor_word_scans
+            .checked_add(probe.word_scans)?;
+        metrics.relation_floor_stop_opportunities = metrics
+            .relation_floor_stop_opportunities
+            .checked_add(probe.stop_opportunities)?;
+        metrics.relation_floor_potential_saved_word_comparisons = metrics
+            .relation_floor_potential_saved_word_comparisons
+            .checked_add(probe.potential_saved_word_comparisons)?;
+        Some(metrics)
+    })() else {
+        *diagnostics = None;
+        return;
+    };
+    if let Some(diagnostics) = diagnostics.as_mut() {
+        diagnostics.metrics = metrics;
+    }
+}
+
 impl NearRelationScope {
     fn includes(self, candidate_span: Option<usize>, occurrence_span: Option<usize>) -> bool {
         match self {
@@ -8244,13 +8358,38 @@ fn extend_modified_sentence_relations(
         }
         for &new_occurrence_index in &plausible {
             let new_occurrence = new_occurrences.get(new_occurrence_index)?;
-            let score = sentence_similarity_in_scope_attributed(
-                old_occurrence,
-                new_occurrence,
-                budget,
-                work_scope,
-                same_or_ambiguous_work_class(old_occurrence.span_index, new_occurrence.span_index),
-            )?;
+            let new_candidate_index = new_candidate_by_occurrence[new_occurrence_index];
+            let mut relation_floor_probe = diagnostics.as_ref().and_then(|_| {
+                relation_floor_probe(
+                    scope,
+                    old_occurrence.kind,
+                    relations.old.get(old_candidate_index).copied(),
+                    new_candidate_index.and_then(|index| relations.new.get(index).copied()),
+                )
+            });
+            let class =
+                same_or_ambiguous_work_class(old_occurrence.span_index, new_occurrence.span_index);
+            let score = if let Some(probe) = relation_floor_probe.as_mut() {
+                sentence_similarity_in_scope_attributed_with_probe(
+                    old_occurrence,
+                    new_occurrence,
+                    budget,
+                    work_scope,
+                    class,
+                    probe,
+                )?
+            } else {
+                sentence_similarity_in_scope_attributed(
+                    old_occurrence,
+                    new_occurrence,
+                    budget,
+                    work_scope,
+                    class,
+                )?
+            };
+            if let Some(probe) = relation_floor_probe {
+                commit_relation_floor_probe(diagnostics, probe);
+            }
             if let Some(watch) = watch.as_deref_mut() {
                 watch.record_near(
                     old_candidate.occurrence_index,
@@ -8262,7 +8401,7 @@ fn extend_modified_sentence_relations(
                     },
                 );
             }
-            if let Some(new_candidate_index) = new_candidate_by_occurrence[new_occurrence_index] {
+            if let Some(new_candidate_index) = new_candidate_index {
                 relations.old[old_candidate_index].record_eligible(new_candidate_index, score);
                 relations.new[new_candidate_index].record_eligible(old_candidate_index, score);
                 record_known_span_replay_pair(
@@ -8361,13 +8500,37 @@ fn extend_modified_sentence_relations(
                 continue;
             }
             let old_occurrence = old_occurrences.get(old_occurrence_index)?;
-            let score = sentence_similarity_in_scope_attributed(
-                old_occurrence,
-                new_occurrence,
-                budget,
-                work_scope,
-                same_or_ambiguous_work_class(new_occurrence.span_index, old_occurrence.span_index),
-            )?;
+            let mut relation_floor_probe = diagnostics.as_ref().and_then(|_| {
+                relation_floor_probe(
+                    scope,
+                    old_occurrence.kind,
+                    None,
+                    relations.new.get(new_candidate_index).copied(),
+                )
+            });
+            let class =
+                same_or_ambiguous_work_class(new_occurrence.span_index, old_occurrence.span_index);
+            let score = if let Some(probe) = relation_floor_probe.as_mut() {
+                sentence_similarity_in_scope_attributed_with_probe(
+                    old_occurrence,
+                    new_occurrence,
+                    budget,
+                    work_scope,
+                    class,
+                    probe,
+                )?
+            } else {
+                sentence_similarity_in_scope_attributed(
+                    old_occurrence,
+                    new_occurrence,
+                    budget,
+                    work_scope,
+                    class,
+                )?
+            };
+            if let Some(probe) = relation_floor_probe {
+                commit_relation_floor_probe(diagnostics, probe);
+            }
             if let Some(watch) = watch.as_deref_mut() {
                 watch.record_near(
                     old_occurrence_index,
@@ -8791,6 +8954,35 @@ fn sentence_similarity_in_scope_attributed(
     scope: NearSearchScope,
     class: NearSearchWorkClass,
 ) -> Option<u16> {
+    sentence_similarity_in_scope_attributed_impl(old, new, budget, scope, class, &mut ())
+}
+
+fn sentence_similarity_in_scope_attributed_with_probe(
+    old: &SentenceOccurrence,
+    new: &SentenceOccurrence,
+    budget: &mut RecoveryBudget,
+    scope: NearSearchScope,
+    class: NearSearchWorkClass,
+    relation_floor_probe: &mut RelationFloorProbe,
+) -> Option<u16> {
+    sentence_similarity_in_scope_attributed_impl(
+        old,
+        new,
+        budget,
+        scope,
+        class,
+        relation_floor_probe,
+    )
+}
+
+fn sentence_similarity_in_scope_attributed_impl<P: WordMultisetProbe>(
+    old: &SentenceOccurrence,
+    new: &SentenceOccurrence,
+    budget: &mut RecoveryBudget,
+    scope: NearSearchScope,
+    class: NearSearchWorkClass,
+    relation_floor_probe: &mut P,
+) -> Option<u16> {
     let shorter = old.tokens.len().min(new.tokens.len());
     if shorter == 0 {
         return Some(0);
@@ -8848,7 +9040,16 @@ fn sentence_similarity_in_scope_attributed(
         return Some(exact_score);
     }
     if multiset_dice_upper_bound(old.word_ranges.len(), new.word_ranges.len())? > exact_score {
-        let word_score = word_multiset_dice(old, new, exact_score, old.kind, budget, scope, class)?;
+        let word_score = word_multiset_dice_impl(
+            old,
+            new,
+            exact_score,
+            old.kind,
+            budget,
+            scope,
+            class,
+            relation_floor_probe,
+        )?;
         exact_score = exact_score.max(word_score);
     }
     Some(exact_score)
@@ -8859,6 +9060,8 @@ fn multiset_dice_upper_bound(old_count: usize, new_count: usize) -> Option<u16> 
     basis_points(old_count.min(new_count).checked_mul(2)?, total)
 }
 
+#[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 fn word_multiset_dice(
     old: &SentenceOccurrence,
     new: &SentenceOccurrence,
@@ -8868,14 +9071,54 @@ fn word_multiset_dice(
     scope: NearSearchScope,
     class: NearSearchWorkClass,
 ) -> Option<u16> {
+    word_multiset_dice_impl(old, new, floor, kind, budget, scope, class, &mut ())
+}
+
+#[allow(clippy::too_many_arguments)]
+#[cfg(test)]
+fn word_multiset_dice_with_probe(
+    old: &SentenceOccurrence,
+    new: &SentenceOccurrence,
+    floor: u16,
+    kind: RecoveryUnitKind,
+    budget: &mut RecoveryBudget,
+    scope: NearSearchScope,
+    class: NearSearchWorkClass,
+    relation_floor_probe: &mut RelationFloorProbe,
+) -> Option<u16> {
+    word_multiset_dice_impl(
+        old,
+        new,
+        floor,
+        kind,
+        budget,
+        scope,
+        class,
+        relation_floor_probe,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn word_multiset_dice_impl<P: WordMultisetProbe>(
+    old: &SentenceOccurrence,
+    new: &SentenceOccurrence,
+    floor: u16,
+    kind: RecoveryUnitKind,
+    budget: &mut RecoveryBudget,
+    scope: NearSearchScope,
+    class: NearSearchWorkClass,
+    relation_floor_probe: &mut P,
+) -> Option<u16> {
     let total = old.word_ranges.len().checked_add(new.word_ranges.len())?;
     if total == 0 {
         return Some(floor);
     }
+    relation_floor_probe.start_word_scan(floor);
     let mut old_index = 0usize;
     let mut new_index = 0usize;
     let mut shared = 0usize;
     while old_index < old.word_ranges.len() && new_index < new.word_ranges.len() {
+        relation_floor_probe.record_word_comparison();
         if !budget.charge_comparisons_in_scope_split(1, kind, scope, class.split(1)) {
             return None;
         }
@@ -8893,7 +9136,9 @@ fn word_multiset_dice(
         let remaining_old = old.word_ranges.len().checked_sub(old_index)?;
         let remaining_new = new.word_ranges.len().checked_sub(new_index)?;
         let attainable_shared = shared.checked_add(remaining_old.min(remaining_new))?;
-        if basis_points(attainable_shared.checked_mul(2)?, total)? <= floor {
+        let upper_bound = basis_points(attainable_shared.checked_mul(2)?, total)?;
+        relation_floor_probe.record_upper_bound(upper_bound);
+        if upper_bound <= floor {
             return Some(floor);
         }
     }
@@ -12275,6 +12520,330 @@ mod tests {
             Some(NearRelationStopReason::SimilarityComparisonLimit)
         );
         assert_near_work_sums_match_aggregates(&budget);
+    }
+
+    #[test]
+    fn relation_floor_uses_current_directional_second_scores_and_safe_ceiling() {
+        let relation = |second_score| CandidateNearRelation {
+            second_score,
+            ..CandidateNearRelation::default()
+        };
+
+        let eligible = relation_floor_probe(
+            NearRelationScope::CrossSpan,
+            RecoveryUnitKind::Sentence,
+            Some(relation(6_500)),
+            Some(relation(6_200)),
+        )
+        .expect("cross-span sentence pair is measured");
+        assert_eq!(eligible.ceiling, 6_200);
+
+        let forward = relation_floor_probe(
+            NearRelationScope::CrossSpan,
+            RecoveryUnitKind::Sentence,
+            Some(relation(6_400)),
+            None,
+        )
+        .expect("forward disqualifying pair is measured");
+        assert_eq!(forward.ceiling, 6_400);
+
+        let reverse = relation_floor_probe(
+            NearRelationScope::CrossSpan,
+            RecoveryUnitKind::Sentence,
+            None,
+            Some(relation(6_300)),
+        )
+        .expect("reverse disqualifying pair is measured");
+        assert_eq!(reverse.ceiling, 6_300);
+
+        let capped = relation_floor_probe(
+            NearRelationScope::CrossSpan,
+            RecoveryUnitKind::Sentence,
+            Some(relation(7_000)),
+            Some(relation(u16::MAX)),
+        )
+        .expect("effective near threshold is capped");
+        assert_eq!(capped.ceiling, 6_999);
+        assert!(
+            relation_floor_probe(
+                NearRelationScope::SameOrAmbiguous,
+                RecoveryUnitKind::Sentence,
+                Some(relation(6_000)),
+                None,
+            )
+            .is_none()
+        );
+        assert!(
+            relation_floor_probe(
+                NearRelationScope::CrossSpan,
+                RecoveryUnitKind::Line,
+                Some(relation(6_000)),
+                None,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn relation_floor_word_probe_uses_exact_bound_and_excludes_triggering_comparison() {
+        let old = occurrence_from_word_ids(&[0; 10], RecoveryUnitKind::Sentence);
+        let new = occurrence_from_word_ids(&[1; 10], RecoveryUnitKind::Sentence);
+        let run = |floor, ceiling| {
+            let mut budget = RecoveryBudget::new(
+                old.tokens.len(),
+                new.tokens.len(),
+                old.tokens.len() + new.tokens.len(),
+                1,
+            )
+            .expect("probe budget is valid");
+            let mut probe = RelationFloorProbe::new(ceiling);
+            let score = word_multiset_dice_with_probe(
+                &old,
+                &new,
+                floor,
+                RecoveryUnitKind::Sentence,
+                &mut budget,
+                TEST_NEAR_SCOPE,
+                NearSearchWorkClass::Shared,
+                &mut probe,
+            );
+            (score, budget.comparisons, probe)
+        };
+
+        let (_, _, equality) = run(0, 9_000);
+        assert_eq!(equality.stop_opportunities, 1);
+        assert_eq!(equality.potential_saved_word_comparisons, 9);
+
+        let (_, _, one_point_lower) = run(0, 8_999);
+        assert_eq!(one_point_lower.stop_opportunities, 1);
+        assert_eq!(one_point_lower.potential_saved_word_comparisons, 8);
+
+        let (_, comparisons, exact_stop) = run(9_000, 9_000);
+        assert_eq!(comparisons, 1);
+        assert_eq!(exact_stop.stop_opportunities, 1);
+        assert_eq!(exact_stop.potential_saved_word_comparisons, 0);
+    }
+
+    #[test]
+    fn relation_floor_ignores_word_scan_when_edge_score_exceeds_ceiling() {
+        let old = occurrence_from_word_ids(&[0, 1], RecoveryUnitKind::Sentence);
+        let new = occurrence_from_word_ids(&[0, 2], RecoveryUnitKind::Sentence);
+        let mut budget = RecoveryBudget::new(
+            old.tokens.len(),
+            new.tokens.len(),
+            old.tokens.len() + new.tokens.len(),
+            1,
+        )
+        .expect("probe budget is valid");
+        let mut probe = RelationFloorProbe::new(6_000);
+
+        let score = sentence_similarity_in_scope_attributed_with_probe(
+            &old,
+            &new,
+            &mut budget,
+            TEST_NEAR_SCOPE,
+            NearSearchWorkClass::Shared,
+            &mut probe,
+        )
+        .expect("similarity completes");
+
+        assert!(score > probe.ceiling);
+        assert_eq!(probe.word_scans, 1);
+        assert_eq!(probe.stop_opportunities, 0);
+        assert_eq!(probe.potential_saved_word_comparisons, 0);
+    }
+
+    #[test]
+    fn relation_floor_probe_preserves_scores_and_budget_counters() {
+        let old = occurrence_from_word_ids(&[0; 10], RecoveryUnitKind::Sentence);
+        let new = occurrence_from_word_ids(&[1; 10], RecoveryUnitKind::Sentence);
+        let budget = RecoveryBudget::new(
+            old.tokens.len(),
+            new.tokens.len(),
+            old.tokens.len() + new.tokens.len(),
+            1,
+        )
+        .expect("probe budget is valid");
+        let mut production_budget = budget;
+        let mut diagnostic_budget = budget;
+        let production = sentence_similarity_in_scope_attributed(
+            &old,
+            &new,
+            &mut production_budget,
+            NearSearchScope::CrossSpan,
+            NearSearchWorkClass::Shared,
+        );
+        let mut probe = RelationFloorProbe::new(6_999);
+        let diagnostic = sentence_similarity_in_scope_attributed_with_probe(
+            &old,
+            &new,
+            &mut diagnostic_budget,
+            NearSearchScope::CrossSpan,
+            NearSearchWorkClass::Shared,
+            &mut probe,
+        );
+
+        assert_eq!(diagnostic, production);
+        assert_eq!(diagnostic_budget.comparisons, production_budget.comparisons);
+        assert_eq!(
+            diagnostic_budget.comparisons_attempted,
+            production_budget.comparisons_attempted
+        );
+        assert_eq!(
+            diagnostic_budget.sentence_work,
+            production_budget.sentence_work
+        );
+        assert_eq!(diagnostic_budget.line_work, production_budget.line_work);
+        assert_eq!(
+            diagnostic_budget.cross_span_work,
+            production_budget.cross_span_work
+        );
+        assert_eq!(
+            diagnostic_budget.near_relation_stop_reason,
+            production_budget.near_relation_stop_reason
+        );
+    }
+
+    #[test]
+    fn relation_floor_probe_is_not_committed_after_budget_failure() {
+        let old = occurrence_from_word_ids(&[0; 10], RecoveryUnitKind::Sentence);
+        let new = occurrence_from_word_ids(&[1; 10], RecoveryUnitKind::Sentence);
+        let mut budget = RecoveryBudget::new(
+            old.tokens.len(),
+            new.tokens.len(),
+            old.tokens.len() + new.tokens.len(),
+            1,
+        )
+        .expect("probe budget is valid");
+        budget.comparison_limit = 3;
+        let mut probe = RelationFloorProbe::new(9_000);
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+
+        let score = word_multiset_dice_with_probe(
+            &old,
+            &new,
+            0,
+            RecoveryUnitKind::Sentence,
+            &mut budget,
+            NearSearchScope::CrossSpan,
+            NearSearchWorkClass::Shared,
+            &mut probe,
+        );
+        if score.is_some() {
+            commit_relation_floor_probe(&mut diagnostics, probe);
+        }
+
+        assert_eq!(score, None);
+        assert_eq!(
+            diagnostics.map(|diagnostics| diagnostics.metrics),
+            Some(SentenceRecoveryMetrics::default())
+        );
+    }
+
+    #[test]
+    fn relation_floor_metrics_follow_cross_span_relation_traversal() {
+        fn run(
+            scope: NearRelationScope,
+            kind: RecoveryUnitKind,
+            diagnostics_enabled: bool,
+        ) -> (Option<SentenceRecoveryMetrics>, usize) {
+            let occurrence = |words: &[u8], token: char, span_index| {
+                let mut occurrence = occurrence_from_word_ids(words, kind);
+                occurrence.tokens = (0..10)
+                    .map(|index| SentenceEvidenceToken::Scalar(if index < 3 { 'x' } else { token }))
+                    .collect();
+                occurrence.span_index = Some(span_index);
+                occurrence
+            };
+            let old_occurrences = [occurrence(&[0; 10], 'a', 0), occurrence(&[2; 10], 'c', 0)];
+            let new_occurrences = [occurrence(&[1; 10], 'b', 1)];
+            let old_candidates = [RecoveryCandidate {
+                occurrence_index: 0,
+                span_index: 0,
+            }];
+            let new_candidates = [RecoveryCandidate {
+                occurrence_index: 0,
+                span_index: 1,
+            }];
+            let mut relations = empty_modified_sentence_relations(&old_candidates, &new_candidates)
+                .expect("relation allocation succeeds");
+            relations.old[0] = CandidateNearRelation {
+                best_score: 8_000,
+                second_score: 6_999,
+                best_partner: Some(0),
+            };
+            relations.new[0] = relations.old[0];
+            let mut budget = RecoveryBudget::new(20, 10, 30, 1).expect("budget is valid");
+            let mut diagnostics = diagnostics_enabled.then_some(SentenceRecoveryDiagnostics {
+                metrics: SentenceRecoveryMetrics::default(),
+                eligible_old_source_tokens: 0,
+                eligible_new_source_tokens: 0,
+            });
+
+            extend_modified_sentence_relations(
+                &old_occurrences,
+                &new_occurrences,
+                &old_candidates,
+                &new_candidates,
+                scope,
+                &mut relations,
+                &mut budget,
+                &mut diagnostics,
+                None,
+                None,
+            )
+            .expect("relation traversal completes");
+
+            (
+                diagnostics.map(|diagnostics| diagnostics.metrics),
+                budget.comparisons,
+            )
+        }
+
+        let (cross_span, diagnostic_comparisons) = run(
+            NearRelationScope::CrossSpan,
+            RecoveryUnitKind::Sentence,
+            true,
+        );
+        let cross_span = cross_span.expect("diagnostics remain available");
+        assert_eq!(cross_span.relation_floor_pairs_considered, 2);
+        assert_eq!(cross_span.relation_floor_word_scans, 2);
+        assert_eq!(cross_span.relation_floor_stop_opportunities, 2);
+        assert_eq!(
+            cross_span.relation_floor_potential_saved_word_comparisons,
+            6
+        );
+
+        let (disabled, production_comparisons) = run(
+            NearRelationScope::CrossSpan,
+            RecoveryUnitKind::Sentence,
+            false,
+        );
+        assert_eq!(disabled, None);
+        assert_eq!(production_comparisons, diagnostic_comparisons);
+
+        let (same_or_ambiguous, _) = run(
+            NearRelationScope::SameOrAmbiguous,
+            RecoveryUnitKind::Sentence,
+            true,
+        );
+        assert_eq!(
+            same_or_ambiguous
+                .expect("diagnostics remain available")
+                .relation_floor_pairs_considered,
+            0
+        );
+
+        let (line, _) = run(NearRelationScope::CrossSpan, RecoveryUnitKind::Line, true);
+        assert_eq!(
+            line.expect("diagnostics remain available")
+                .relation_floor_pairs_considered,
+            0
+        );
     }
 
     #[test]

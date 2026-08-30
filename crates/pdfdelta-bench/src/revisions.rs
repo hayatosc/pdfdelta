@@ -525,6 +525,10 @@ pub struct SentenceRecoveryMetricsReport {
     pub old_exact_one_sided_units: usize,
     pub new_exact_one_sided_units: usize,
     pub near_relation_complete: bool,
+    pub relation_floor_pairs_considered: usize,
+    pub relation_floor_word_scans: usize,
+    pub relation_floor_stop_opportunities: usize,
+    pub relation_floor_potential_saved_word_comparisons: usize,
     pub near_sentence_work: NearSearchWorkMetricsReport,
     pub near_line_work: NearSearchWorkMetricsReport,
     pub near_paired_interval_work: NearSearchScopeMetricsReport,
@@ -1068,6 +1072,11 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             old_exact_one_sided_units: metrics.old_exact_one_sided_units,
             new_exact_one_sided_units: metrics.new_exact_one_sided_units,
             near_relation_complete: metrics.near_relation_complete,
+            relation_floor_pairs_considered: metrics.relation_floor_pairs_considered,
+            relation_floor_word_scans: metrics.relation_floor_word_scans,
+            relation_floor_stop_opportunities: metrics.relation_floor_stop_opportunities,
+            relation_floor_potential_saved_word_comparisons: metrics
+                .relation_floor_potential_saved_word_comparisons,
             near_sentence_work: metrics.near_sentence_work.into(),
             near_line_work: metrics.near_line_work.into(),
             near_paired_interval_work: metrics.near_paired_interval_work.into(),
@@ -3224,6 +3233,23 @@ fn validate_sentence_recovery_metrics(
             metrics.vetoed_near_pairs, metrics.near_pair_candidates
         ));
     }
+    if metrics.relation_floor_word_scans > metrics.relation_floor_pairs_considered {
+        return Err(format!(
+            "relation-floor word scans {} exceed considered pairs {}",
+            metrics.relation_floor_word_scans, metrics.relation_floor_pairs_considered
+        ));
+    }
+    if metrics.relation_floor_stop_opportunities > metrics.relation_floor_word_scans {
+        return Err(format!(
+            "relation-floor stop opportunities {} exceed word scans {}",
+            metrics.relation_floor_stop_opportunities, metrics.relation_floor_word_scans
+        ));
+    }
+    if metrics.relation_floor_stop_opportunities == 0
+        && metrics.relation_floor_potential_saved_word_comparisons != 0
+    {
+        return Err("relation-floor saved word comparisons require a stop opportunity".to_owned());
+    }
     let recovered_old = metrics
         .recovered_exact_match_old_tokens
         .checked_add(metrics.recovered_replacement_old_tokens)
@@ -4026,7 +4052,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 22;
+    pub const SCHEMA_VERSION: u32 = 23;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -5290,7 +5316,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 22);
+        assert_eq!(completed["schema_version"], 23);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -5333,7 +5359,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 22);
+        assert_eq!(legacy_summary["schema_version"], 23);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -6522,7 +6548,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 22);
+        assert_eq!(json["schema_version"], 23);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -6620,6 +6646,10 @@ mod tests {
             near_largest_edge_posting: 12,
             near_largest_edge_query_union: 9,
             near_largest_filtered_candidate_set: 4,
+            relation_floor_pairs_considered: 4,
+            relation_floor_word_scans: 3,
+            relation_floor_stop_opportunities: 2,
+            relation_floor_potential_saved_word_comparisons: 7,
             near_pair_candidates: 2,
             vetoed_near_pairs: 1,
             recovered_replacement_old_tokens: 10,
@@ -6643,6 +6673,9 @@ mod tests {
         assert_eq!(validated.near_similarity_comparisons_attempted, 8);
         assert_eq!(validated.near_candidate_posting_visits_examined, 14);
         assert_eq!(validated.near_largest_edge_posting, 12);
+        assert_eq!(validated.relation_floor_pairs_considered, 4);
+        assert_eq!(validated.relation_floor_stop_opportunities, 2);
+        assert_eq!(validated.relation_floor_potential_saved_word_comparisons, 7);
         assert_eq!(validated.recovered_replacement_new_tokens, 12);
         assert_eq!(validated.vetoed_near_pairs, 1);
 
@@ -6752,6 +6785,28 @@ mod tests {
             ..SentenceRecoveryMetrics::default()
         };
         assert!(validate_sentence_recovery_metrics(invalid_veto).is_err());
+
+        let too_many_relation_floor_scans = SentenceRecoveryMetrics {
+            relation_floor_pairs_considered: 1,
+            relation_floor_word_scans: 2,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(too_many_relation_floor_scans).is_err());
+
+        let too_many_relation_floor_stops = SentenceRecoveryMetrics {
+            relation_floor_pairs_considered: 1,
+            relation_floor_stop_opportunities: 1,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(too_many_relation_floor_stops).is_err());
+
+        let saved_without_relation_floor_stop = SentenceRecoveryMetrics {
+            relation_floor_pairs_considered: 1,
+            relation_floor_word_scans: 1,
+            relation_floor_potential_saved_word_comparisons: 1,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(saved_without_relation_floor_stop).is_err());
 
         let invalid_recovered_total = SentenceRecoveryMetrics {
             recovered_exact_match_old_tokens: usize::MAX,
@@ -7708,7 +7763,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 22);
+        assert_eq!(value["schema_version"], 23);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -7820,6 +7875,10 @@ mod tests {
             "old_exact_one_sided_units".to_owned(),
             "new_exact_one_sided_units".to_owned(),
             "near_relation_complete".to_owned(),
+            "relation_floor_pairs_considered".to_owned(),
+            "relation_floor_word_scans".to_owned(),
+            "relation_floor_stop_opportunities".to_owned(),
+            "relation_floor_potential_saved_word_comparisons".to_owned(),
             "near_sentence_work".to_owned(),
             "near_line_work".to_owned(),
             "near_paired_interval_work".to_owned(),

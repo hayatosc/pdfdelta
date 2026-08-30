@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 11;
+const TRACE_SCHEMA_VERSION: u8 = 12;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -853,6 +853,22 @@ fn pipeline_metrics(
                 sentence.near_pair_candidates,
             ),
             (
+                "sentence_recovery_relation_floor_pairs_considered",
+                sentence.relation_floor_pairs_considered,
+            ),
+            (
+                "sentence_recovery_relation_floor_word_scans",
+                sentence.relation_floor_word_scans,
+            ),
+            (
+                "sentence_recovery_relation_floor_stop_opportunities",
+                sentence.relation_floor_stop_opportunities,
+            ),
+            (
+                "sentence_recovery_relation_floor_potential_saved_word_comparisons",
+                sentence.relation_floor_potential_saved_word_comparisons,
+            ),
+            (
                 "sentence_recovery_near_pair_visits_examined",
                 sentence.near_pair_visits_examined,
             ),
@@ -1152,7 +1168,12 @@ mod tests {
         pipeline::PipelineMetrics,
     };
 
-    use super::{bounded_message, pipeline_metrics};
+    use super::{TRACE_SCHEMA_VERSION, bounded_message, pipeline_metrics};
+
+    #[test]
+    fn trace_schema_version_covers_relation_floor_metrics() {
+        assert_eq!(TRACE_SCHEMA_VERSION, 12);
+    }
 
     #[test]
     fn bounds_error_messages_at_utf8_boundaries() {
@@ -1181,6 +1202,10 @@ mod tests {
             run_signature_candidate_pairs: 5,
             run_signature_stop_reason: Some(RunSignatureStopReason::PostingVisitLimit),
             near_relation_complete: true,
+            relation_floor_pairs_considered: 17,
+            relation_floor_word_scans: 13,
+            relation_floor_stop_opportunities: 5,
+            relation_floor_potential_saved_word_comparisons: 23,
             near_pair_visits_examined: 29,
             near_pair_visits_attempted: 31,
             near_similarity_comparisons_examined: 19,
@@ -1257,6 +1282,19 @@ mod tests {
             0
         );
         assert_eq!(metrics["sentence_recovery_near_relation_complete"], 1);
+        assert_eq!(
+            metrics["sentence_recovery_relation_floor_pairs_considered"],
+            17
+        );
+        assert_eq!(metrics["sentence_recovery_relation_floor_word_scans"], 13);
+        assert_eq!(
+            metrics["sentence_recovery_relation_floor_stop_opportunities"],
+            5
+        );
+        assert_eq!(
+            metrics["sentence_recovery_relation_floor_potential_saved_word_comparisons"],
+            23
+        );
         assert_eq!(
             metrics["sentence_recovery_known_span_sentence_shadow_pairs_considered"],
             11
