@@ -612,7 +612,7 @@ fn writes_complete_phase_trace_separately_from_the_report() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let trace = read_json(&trace);
-    assert_eq!(trace["trace_schema_version"], 5);
+    assert_eq!(trace["trace_schema_version"], 6);
     assert_eq!(trace["command"]["kind"], "compare");
     assert_eq!(trace["result"]["status"], "completed");
     assert_eq!(trace["result"]["exit_code"], 0);
@@ -638,8 +638,22 @@ fn writes_complete_phase_trace_separately_from_the_report() {
             .as_u64()
             .is_some()
     );
+    assert!(
+        exact_diff["metrics"]["sentence_recovery_near_candidate_posting_visits_examined"]
+            .as_u64()
+            .is_some()
+    );
+    assert!(
+        exact_diff["metrics"]["sentence_recovery_near_candidate_posting_visits_attempted"]
+            .as_u64()
+            .is_some()
+    );
     assert_eq!(
         exact_diff["metrics"]["sentence_recovery_near_candidate_count_truncated"],
+        0
+    );
+    assert_eq!(
+        exact_diff["metrics"]["sentence_recovery_near_relation_stop_reason_candidate_posting_visit_limit"],
         0
     );
     assert_eq!(

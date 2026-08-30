@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 5;
+const TRACE_SCHEMA_VERSION: u8 = 6;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -353,6 +353,10 @@ fn pipeline_metrics(
     .filter_map(|(name, value)| value.map(|value| (name, value)))
     .collect::<BTreeMap<_, _>>();
     if let Some(sentence) = metrics.sentence_recovery_metrics {
+        let candidate_posting_visit_limit = matches!(
+            sentence.near_relation_stop_reason,
+            Some(pdfdelta_core::diff::NearRelationStopReason::CandidatePostingVisitLimit)
+        );
         let pair_visit_limit = matches!(
             sentence.near_relation_stop_reason,
             Some(pdfdelta_core::diff::NearRelationStopReason::PairVisitLimit)
@@ -583,6 +587,14 @@ fn pipeline_metrics(
                 sentence.near_similarity_comparisons_attempted,
             ),
             (
+                "sentence_recovery_near_candidate_posting_visits_examined",
+                sentence.near_candidate_posting_visits_examined,
+            ),
+            (
+                "sentence_recovery_near_candidate_posting_visits_attempted",
+                sentence.near_candidate_posting_visits_attempted,
+            ),
+            (
                 "sentence_recovery_near_largest_edge_posting",
                 sentence.near_largest_edge_posting,
             ),
@@ -597,6 +609,10 @@ fn pipeline_metrics(
             (
                 "sentence_recovery_near_candidate_count_truncated",
                 usize::from(sentence.near_candidate_count_truncated),
+            ),
+            (
+                "sentence_recovery_near_relation_stop_reason_candidate_posting_visit_limit",
+                usize::from(candidate_posting_visit_limit),
             ),
             (
                 "sentence_recovery_near_relation_stop_reason_pair_visit_limit",
@@ -773,6 +789,8 @@ mod tests {
             near_pair_visits_attempted: 31,
             near_similarity_comparisons_examined: 19,
             near_similarity_comparisons_attempted: 23,
+            near_candidate_posting_visits_examined: 31,
+            near_candidate_posting_visits_attempted: 37,
             near_largest_edge_posting: 11,
             near_largest_edge_query_union: 13,
             near_largest_filtered_candidate_set: 7,
@@ -833,6 +851,14 @@ mod tests {
             metrics["sentence_recovery_near_similarity_comparisons_attempted"],
             23
         );
+        assert_eq!(
+            metrics["sentence_recovery_near_candidate_posting_visits_examined"],
+            31
+        );
+        assert_eq!(
+            metrics["sentence_recovery_near_candidate_posting_visits_attempted"],
+            37
+        );
         assert_eq!(metrics["sentence_recovery_near_largest_edge_posting"], 11);
         assert_eq!(
             metrics["sentence_recovery_near_largest_edge_query_union"],
@@ -845,6 +871,10 @@ mod tests {
         assert_eq!(
             metrics["sentence_recovery_near_candidate_count_truncated"],
             1
+        );
+        assert_eq!(
+            metrics["sentence_recovery_near_relation_stop_reason_candidate_posting_visit_limit"],
+            0
         );
         assert_eq!(
             metrics["sentence_recovery_near_relation_stop_reason_pair_visit_limit"],
@@ -867,6 +897,10 @@ mod tests {
     #[test]
     fn flattens_each_near_relation_stop_reason_as_one_hot() {
         let cases = [
+            (
+                NearRelationStopReason::CandidatePostingVisitLimit,
+                "sentence_recovery_near_relation_stop_reason_candidate_posting_visit_limit",
+            ),
             (
                 NearRelationStopReason::PairVisitLimit,
                 "sentence_recovery_near_relation_stop_reason_pair_visit_limit",

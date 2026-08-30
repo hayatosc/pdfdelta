@@ -408,6 +408,7 @@ pub struct RecoveryWatchDiagnostics {
 /// Resource limit that stopped near-relation discovery.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NearRelationStopReason {
+    CandidatePostingVisitLimit,
     PairVisitLimit,
     SimilarityComparisonLimit,
     CandidateCountLimit,
@@ -473,6 +474,8 @@ pub struct SentenceRecoveryMetrics {
     pub near_pair_visits_attempted: usize,
     pub near_similarity_comparisons_examined: usize,
     pub near_similarity_comparisons_attempted: usize,
+    pub near_candidate_posting_visits_examined: usize,
+    pub near_candidate_posting_visits_attempted: usize,
     pub near_largest_edge_posting: usize,
     pub near_largest_edge_query_union: usize,
     pub near_largest_filtered_candidate_set: usize,
@@ -8099,7 +8102,8 @@ mod tests {
         assert!(matches!(
             diagnostics.near_relation_stop_reason,
             Some(
-                NearRelationStopReason::PairVisitLimit
+                NearRelationStopReason::CandidatePostingVisitLimit
+                    | NearRelationStopReason::PairVisitLimit
                     | NearRelationStopReason::SimilarityComparisonLimit
             )
         ));

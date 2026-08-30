@@ -390,8 +390,39 @@ struct RecoveryCandidates {
     complete: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum CandidatePostingBucket {
+    Global,
+    Span(Option<usize>),
+    Paired(PairedInterval),
+}
+
+#[derive(Clone, Copy)]
+enum CandidatePostingIndexScope<'a> {
+    Global,
+    Span,
+    Paired(&'a [Option<PairedInterval>]),
+}
+
 struct UnitCandidateIndex {
-    edge_postings: HashMap<(RecoveryUnitKind, OccurrenceRole, SentenceEvidenceToken), Vec<usize>>,
+    edge_postings: HashMap<
+        (
+            CandidatePostingBucket,
+            RecoveryUnitKind,
+            OccurrenceRole,
+            SentenceEvidenceToken,
+        ),
+        Vec<usize>,
+    >,
+    line_trigram_postings: HashMap<
+        (
+            CandidatePostingBucket,
+            RecoveryUnitKind,
+            OccurrenceRole,
+            [SentenceEvidenceToken; LINE_NGRAM_SIZE],
+        ),
+        Vec<usize>,
+    >,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -401,19 +432,45 @@ struct UnitCandidateQueryMetrics {
 }
 
 impl UnitCandidateIndex {
-    fn new(occurrences: &[SentenceOccurrence]) -> Option<Self> {
+    fn new(
+        occurrences: &[SentenceOccurrence],
+        scope: CandidatePostingIndexScope<'_>,
+    ) -> Option<Self> {
         let mut index = Self {
             edge_postings: HashMap::new(),
+            line_trigram_postings: HashMap::new(),
         };
         for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
+            let bucket = match scope {
+                CandidatePostingIndexScope::Global => CandidatePostingBucket::Global,
+                CandidatePostingIndexScope::Span => {
+                    CandidatePostingBucket::Span(occurrence.span_index)
+                }
+                CandidatePostingIndexScope::Paired(intervals) => {
+                    let Some(interval) = intervals.get(occurrence_index).copied()? else {
+                        continue;
+                    };
+                    CandidatePostingBucket::Paired(interval)
+                }
+            };
             let Some(role) = occurrence.role.map(OccurrenceRole::from) else {
                 continue;
             };
             let first = *occurrence.tokens.first()?;
             let last = *occurrence.tokens.last()?;
-            index.push_edge_posting((occurrence.kind, role, first), occurrence_index)?;
+            index.push_edge_posting((bucket, occurrence.kind, role, first), occurrence_index)?;
             if last != first {
-                index.push_edge_posting((occurrence.kind, role, last), occurrence_index)?;
+                index.push_edge_posting((bucket, occurrence.kind, role, last), occurrence_index)?;
+            }
+            if occurrence.kind == RecoveryUnitKind::Line {
+                for window in occurrence.tokens.windows(LINE_NGRAM_SIZE) {
+                    let trigram =
+                        <[SentenceEvidenceToken; LINE_NGRAM_SIZE]>::try_from(window).ok()?;
+                    index.push_line_trigram_posting(
+                        (bucket, occurrence.kind, role, trigram),
+                        occurrence_index,
+                    )?;
+                }
             }
         }
         Some(index)
@@ -421,7 +478,12 @@ impl UnitCandidateIndex {
 
     fn push_edge_posting(
         &mut self,
-        key: (RecoveryUnitKind, OccurrenceRole, SentenceEvidenceToken),
+        key: (
+            CandidatePostingBucket,
+            RecoveryUnitKind,
+            OccurrenceRole,
+            SentenceEvidenceToken,
+        ),
         occurrence_index: usize,
     ) -> Option<()> {
         if !self.edge_postings.contains_key(&key) {
@@ -434,10 +496,38 @@ impl UnitCandidateIndex {
         Some(())
     }
 
+    fn push_line_trigram_posting(
+        &mut self,
+        key: (
+            CandidatePostingBucket,
+            RecoveryUnitKind,
+            OccurrenceRole,
+            [SentenceEvidenceToken; LINE_NGRAM_SIZE],
+        ),
+        occurrence_index: usize,
+    ) -> Option<()> {
+        if !self.line_trigram_postings.contains_key(&key) {
+            self.line_trigram_postings.try_reserve(1).ok()?;
+            self.line_trigram_postings.insert(key, Vec::new());
+        }
+        let postings = self.line_trigram_postings.get_mut(&key)?;
+        // Occurrences are indexed in order, so this suppresses repeated windows
+        // while keeping total posting entries bounded by source token windows.
+        if postings.last().copied() == Some(occurrence_index) {
+            return Some(());
+        }
+        postings.try_reserve(1).ok()?;
+        postings.push(occurrence_index);
+        Some(())
+    }
+
     fn collect_plausible_occurrences(
         &self,
         plausible: &mut Vec<usize>,
         occurrence: &SentenceOccurrence,
+        bucket: CandidatePostingBucket,
+        additional_bucket: Option<CandidatePostingBucket>,
+        budget: &mut RecoveryBudget,
     ) -> Option<UnitCandidateQueryMetrics> {
         plausible.clear();
         let Some(role) = occurrence.role.map(OccurrenceRole::from) else {
@@ -447,30 +537,95 @@ impl UnitCandidateIndex {
         let last = *occurrence.tokens.last()?;
         // A pair satisfying the prefix/suffix threshold must share at least one
         // edge token, so this index prunes work without reducing candidate recall.
-        let first_occurrences = self
-            .edge_postings
-            .get(&(occurrence.kind, role, first))
-            .map_or(&[][..], Vec::as_slice);
-        let last_occurrences = self
-            .edge_postings
-            .get(&(occurrence.kind, role, last))
-            .map_or(&[][..], Vec::as_slice);
-        plausible
-            .try_reserve(
-                first_occurrences
-                    .len()
-                    .checked_add(last_occurrences.len())?,
-            )
-            .ok()?;
-        plausible.extend_from_slice(first_occurrences);
-        if first != last {
-            plausible.extend_from_slice(last_occurrences);
+        let buckets = [Some(bucket), additional_bucket];
+        let (raw_edge_postings, largest_edge_posting) = buckets.into_iter().flatten().try_fold(
+            (0usize, 0usize),
+            |(total, largest), bucket| {
+                let first_len = self
+                    .edge_postings
+                    .get(&(bucket, occurrence.kind, role, first))
+                    .map_or(0, Vec::len);
+                let last_len = if first == last {
+                    0
+                } else {
+                    self.edge_postings
+                        .get(&(bucket, occurrence.kind, role, last))
+                        .map_or(0, Vec::len)
+                };
+                Some((
+                    total.checked_add(first_len)?.checked_add(last_len)?,
+                    largest.max(first_len).max(last_len),
+                ))
+            },
+        )?;
+        if !budget.charge_candidate_posting_visits(raw_edge_postings) {
+            return None;
+        }
+        plausible.try_reserve(raw_edge_postings).ok()?;
+        for bucket in buckets.into_iter().flatten() {
+            if let Some(postings) = self
+                .edge_postings
+                .get(&(bucket, occurrence.kind, role, first))
+            {
+                plausible.extend_from_slice(postings);
+            }
+            if first != last
+                && let Some(postings) =
+                    self.edge_postings
+                        .get(&(bucket, occurrence.kind, role, last))
+            {
+                plausible.extend_from_slice(postings);
+            }
         }
         plausible.sort_unstable();
         plausible.dedup();
+        let edge_query_union = plausible.len();
+        if occurrence.kind == RecoveryUnitKind::Line {
+            let trigram_count = ngram_count(occurrence.tokens.len(), LINE_NGRAM_SIZE)?;
+            if !budget.charge_candidate_posting_visits(trigram_count) {
+                return None;
+            }
+            let mut query_trigrams = HashSet::new();
+            query_trigrams.try_reserve(trigram_count).ok()?;
+            for window in occurrence.tokens.windows(LINE_NGRAM_SIZE) {
+                let trigram = <[SentenceEvidenceToken; LINE_NGRAM_SIZE]>::try_from(window).ok()?;
+                query_trigrams.insert(trigram);
+            }
+            // Distinct query keys visit each posting list at most once, bounding
+            // temporary entries by the already bounded index corpus.
+            let additional_postings =
+                query_trigrams.iter().try_fold(0usize, |count, trigram| {
+                    count.checked_add(
+                        self.line_trigram_postings
+                            .get(&(bucket, occurrence.kind, role, *trigram))
+                            .map_or(0, Vec::len)
+                            .checked_add(additional_bucket.map_or(0, |additional_bucket| {
+                                self.line_trigram_postings
+                                    .get(&(additional_bucket, occurrence.kind, role, *trigram))
+                                    .map_or(0, Vec::len)
+                            }))?,
+                    )
+                })?;
+            if !budget.charge_candidate_posting_visits(additional_postings) {
+                return None;
+            }
+            plausible.try_reserve(additional_postings).ok()?;
+            for trigram in query_trigrams {
+                for bucket in buckets.into_iter().flatten() {
+                    if let Some(postings) =
+                        self.line_trigram_postings
+                            .get(&(bucket, occurrence.kind, role, trigram))
+                    {
+                        plausible.extend_from_slice(postings);
+                    }
+                }
+            }
+            plausible.sort_unstable();
+            plausible.dedup();
+        }
         Some(UnitCandidateQueryMetrics {
-            largest_edge_posting: first_occurrences.len().max(last_occurrences.len()),
-            edge_query_union: plausible.len(),
+            largest_edge_posting,
+            edge_query_union,
         })
     }
 }
@@ -4297,6 +4452,7 @@ struct RecoveryBudget {
     evidence_token_limit: usize,
     key_byte_limit: usize,
     comparison_limit: usize,
+    candidate_posting_visit_limit: usize,
     output_range_limit: usize,
     occurrences: usize,
     key_bytes: usize,
@@ -4304,6 +4460,8 @@ struct RecoveryBudget {
     comparisons: usize,
     pair_visits_attempted: usize,
     comparisons_attempted: usize,
+    candidate_posting_visits: usize,
+    candidate_posting_visits_attempted: usize,
     largest_edge_posting: usize,
     largest_edge_query_union: usize,
     largest_filtered_candidate_set: usize,
@@ -4335,6 +4493,7 @@ impl RecoveryBudget {
             evidence_token_limit: max_tokens,
             key_byte_limit: scaled_limit,
             comparison_limit: scaled_limit,
+            candidate_posting_visit_limit: scaled_limit,
             output_range_limit: (token_limit / min_tokens).min(MAX_SENTENCE_RECOVERY_RANGES),
             occurrences: 0,
             key_bytes: 0,
@@ -4342,6 +4501,8 @@ impl RecoveryBudget {
             comparisons: 0,
             pair_visits_attempted: 0,
             comparisons_attempted: 0,
+            candidate_posting_visits: 0,
+            candidate_posting_visits_attempted: 0,
             largest_edge_posting: 0,
             largest_edge_query_union: 0,
             largest_filtered_candidate_set: 0,
@@ -4372,6 +4533,18 @@ impl RecoveryBudget {
             amount,
             self.token_limit,
             NearRelationStopReason::PairVisitLimit,
+            &mut self.near_relation_stop_reason,
+            &mut self.near_metrics_available,
+        )
+    }
+
+    fn charge_candidate_posting_visits(&mut self, amount: usize) -> bool {
+        Self::charge_near_search(
+            &mut self.candidate_posting_visits,
+            &mut self.candidate_posting_visits_attempted,
+            amount,
+            self.candidate_posting_visit_limit,
+            NearRelationStopReason::CandidatePostingVisitLimit,
             &mut self.near_relation_stop_reason,
             &mut self.near_metrics_available,
         )
@@ -4408,6 +4581,8 @@ impl RecoveryBudget {
     }
 
     fn commit_near_search_spend_from(&mut self, other: Self) {
+        self.candidate_posting_visits = other.candidate_posting_visits;
+        self.candidate_posting_visits_attempted = other.candidate_posting_visits_attempted;
         self.pair_visits = other.pair_visits;
         self.comparisons = other.comparisons;
         self.pair_visits_attempted = other.pair_visits_attempted;
@@ -5001,6 +5176,9 @@ fn record_near_search_metrics(
     let Some(diagnostics) = diagnostics.as_mut() else {
         return;
     };
+    diagnostics.metrics.near_candidate_posting_visits_examined = budget.candidate_posting_visits;
+    diagnostics.metrics.near_candidate_posting_visits_attempted =
+        budget.candidate_posting_visits_attempted;
     diagnostics.metrics.near_pair_visits_examined = budget.pair_visits;
     diagnostics.metrics.near_pair_visits_attempted = budget.pair_visits_attempted;
     diagnostics.metrics.near_similarity_comparisons_examined = budget.comparisons;
@@ -6734,25 +6912,33 @@ fn paired_modified_sentence_relations(
         new_pair_by_stream,
         OccurrenceSide::New,
     )?;
-    let old_index = UnitCandidateIndex::new(old_occurrences)?;
-    let new_index = UnitCandidateIndex::new(new_occurrences)?;
+    let old_index = UnitCandidateIndex::new(
+        old_occurrences,
+        CandidatePostingIndexScope::Paired(&old_intervals),
+    )?;
+    let new_index = UnitCandidateIndex::new(
+        new_occurrences,
+        CandidatePostingIndexScope::Paired(&new_intervals),
+    )?;
     let mut plausible = Vec::new();
 
     for (old_candidate_index, old_candidate) in old_candidates.recoveries.iter().enumerate() {
         let interval = *old_candidates.intervals.get(old_candidate_index)?;
         let old_occurrence = old_occurrences.get(old_candidate.occurrence_index)?;
-        let query = new_index.collect_plausible_occurrences(&mut plausible, old_occurrence)?;
+        let query = new_index.collect_plausible_occurrences(
+            &mut plausible,
+            old_occurrence,
+            CandidatePostingBucket::Paired(interval),
+            None,
+            budget,
+        )?;
         plausible.retain(|occurrence_index| {
             new_occurrences[*occurrence_index].kind == old_occurrence.kind
                 && occurrence_roles_are_compatible(
                     old_occurrence,
                     &new_occurrences[*occurrence_index],
                 )
-                && new_intervals
-                    .get(*occurrence_index)
-                    .copied()
-                    .flatten()
-                    .is_some_and(|candidate| candidate.pair_index == interval.pair_index)
+                && new_intervals.get(*occurrence_index).copied().flatten() == Some(interval)
         });
         budget.record_candidate_query(query, plausible.len());
         if !budget.charge_pair_visits(plausible.len()) {
@@ -6790,18 +6976,20 @@ fn paired_modified_sentence_relations(
     for (new_candidate_index, new_candidate) in new_candidates.recoveries.iter().enumerate() {
         let interval = *new_candidates.intervals.get(new_candidate_index)?;
         let new_occurrence = new_occurrences.get(new_candidate.occurrence_index)?;
-        let query = old_index.collect_plausible_occurrences(&mut plausible, new_occurrence)?;
+        let query = old_index.collect_plausible_occurrences(
+            &mut plausible,
+            new_occurrence,
+            CandidatePostingBucket::Paired(interval),
+            None,
+            budget,
+        )?;
         plausible.retain(|occurrence_index| {
             old_occurrences[*occurrence_index].kind == new_occurrence.kind
                 && occurrence_roles_are_compatible(
                     new_occurrence,
                     &old_occurrences[*occurrence_index],
                 )
-                && old_intervals
-                    .get(*occurrence_index)
-                    .copied()
-                    .flatten()
-                    .is_some_and(|candidate| candidate.pair_index == interval.pair_index)
+                && old_intervals.get(*occurrence_index).copied().flatten() == Some(interval)
         });
         let noncandidate_visits =
             plausible
@@ -6840,6 +7028,20 @@ fn paired_modified_sentence_relations(
             }
         }
     }
+    record_cross_interval_disqualifying_relations(
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        &old_candidate_by_occurrence,
+        &new_candidate_by_occurrence,
+        &old_intervals,
+        &new_intervals,
+        &mut relations,
+        budget,
+        diagnostics,
+        watch,
+    )?;
     relations.complete = true;
     Some(relations)
 }
@@ -6856,12 +7058,14 @@ fn paired_intervals_for_occurrences(
         let interval = occurrence.trusted_position.and_then(|position| {
             let pair_index = pair_by_stream.get(&position.stream_index).copied()?;
             let pair = pairs.get(pair_index)?;
+            // Exact anchors belong to the following interval when used as near
+            // veto evidence for the one-sided candidates after that anchor.
             let interval_index = pair.anchors.partition_point(|(old, new)| {
                 let anchor_ordinal = match side {
                     OccurrenceSide::Old => *old,
                     OccurrenceSide::New => *new,
                 };
-                anchor_ordinal < position.ordinal
+                anchor_ordinal <= position.ordinal
             });
             Some(PairedInterval {
                 pair_index,
@@ -6871,6 +7075,138 @@ fn paired_intervals_for_occurrences(
         intervals.push(interval);
     }
     Some(intervals)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_cross_interval_disqualifying_relations(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &PairedNearCandidates,
+    new_candidates: &PairedNearCandidates,
+    old_candidate_by_occurrence: &[Option<usize>],
+    new_candidate_by_occurrence: &[Option<usize>],
+    old_intervals: &[Option<PairedInterval>],
+    new_intervals: &[Option<PairedInterval>],
+    relations: &mut ModifiedSentenceRelations,
+    budget: &mut RecoveryBudget,
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    mut watch: Option<&mut RecoveryWatchState>,
+) -> Option<()> {
+    let old_index = UnitCandidateIndex::new(old_occurrences, CandidatePostingIndexScope::Global)?;
+    let new_index = UnitCandidateIndex::new(new_occurrences, CandidatePostingIndexScope::Global)?;
+    let mut plausible = Vec::new();
+
+    for (old_candidate_index, old_candidate) in old_candidates.recoveries.iter().enumerate() {
+        let interval = *old_candidates.intervals.get(old_candidate_index)?;
+        let old_occurrence = old_occurrences.get(old_candidate.occurrence_index)?;
+        let query = new_index.collect_plausible_occurrences(
+            &mut plausible,
+            old_occurrence,
+            CandidatePostingBucket::Global,
+            None,
+            budget,
+        )?;
+        plausible.retain(|occurrence_index| {
+            new_occurrences[*occurrence_index].kind == old_occurrence.kind
+                && occurrence_roles_are_compatible(
+                    old_occurrence,
+                    &new_occurrences[*occurrence_index],
+                )
+                && new_intervals
+                    .get(*occurrence_index)
+                    .copied()
+                    .flatten()
+                    .is_some_and(|candidate| {
+                        candidate.pair_index == interval.pair_index && candidate != interval
+                    })
+        });
+        budget.record_candidate_query(query, plausible.len());
+        if !budget.charge_pair_visits(plausible.len()) {
+            return None;
+        }
+        for &new_occurrence_index in &plausible {
+            let new_occurrence = new_occurrences.get(new_occurrence_index)?;
+            let score = sentence_similarity(old_occurrence, new_occurrence, budget)?;
+            if let Some(watch) = watch.as_mut() {
+                watch.record_near(
+                    old_candidate.occurrence_index,
+                    new_occurrence_index,
+                    score,
+                    RecoveryWatchNearScope::PairedStream,
+                );
+            }
+            relations
+                .old
+                .get_mut(old_candidate_index)?
+                .record_disqualifying(score);
+            if let Some(new_candidate_index) = new_candidate_by_occurrence
+                .get(new_occurrence_index)
+                .copied()
+                .flatten()
+            {
+                relations
+                    .new
+                    .get_mut(new_candidate_index)?
+                    .record_disqualifying(score);
+            }
+            if score >= MIN_NEAR_SCORE {
+                record_near_pair(diagnostics);
+            }
+        }
+    }
+
+    for (new_candidate_index, new_candidate) in new_candidates.recoveries.iter().enumerate() {
+        let interval = *new_candidates.intervals.get(new_candidate_index)?;
+        let new_occurrence = new_occurrences.get(new_candidate.occurrence_index)?;
+        let query = old_index.collect_plausible_occurrences(
+            &mut plausible,
+            new_occurrence,
+            CandidatePostingBucket::Global,
+            None,
+            budget,
+        )?;
+        plausible.retain(|occurrence_index| {
+            old_candidate_by_occurrence
+                .get(*occurrence_index)
+                .is_some_and(Option::is_none)
+                && old_occurrences[*occurrence_index].kind == new_occurrence.kind
+                && occurrence_roles_are_compatible(
+                    new_occurrence,
+                    &old_occurrences[*occurrence_index],
+                )
+                && old_intervals
+                    .get(*occurrence_index)
+                    .copied()
+                    .flatten()
+                    .is_some_and(|candidate| {
+                        candidate.pair_index == interval.pair_index && candidate != interval
+                    })
+        });
+        budget.record_candidate_query(query, plausible.len());
+        if !budget.charge_pair_visits(plausible.len()) {
+            return None;
+        }
+        for &old_occurrence_index in &plausible {
+            let old_occurrence = old_occurrences.get(old_occurrence_index)?;
+            let score = sentence_similarity(old_occurrence, new_occurrence, budget)?;
+            if let Some(watch) = watch.as_mut() {
+                watch.record_near(
+                    old_occurrence_index,
+                    new_candidate.occurrence_index,
+                    score,
+                    RecoveryWatchNearScope::PairedStream,
+                );
+            }
+            relations
+                .new
+                .get_mut(new_candidate_index)?
+                .record_disqualifying(score);
+            if score >= MIN_NEAR_SCORE {
+                record_near_pair(diagnostics);
+            }
+        }
+    }
+    Some(())
 }
 
 fn reject_crossing_paired_replacements(
@@ -6985,6 +7321,26 @@ impl NearRelationScope {
             }
         }
     }
+
+    fn posting_index_scope(self) -> CandidatePostingIndexScope<'static> {
+        match self {
+            Self::SameOrAmbiguous => CandidatePostingIndexScope::Span,
+            Self::CrossSpan => CandidatePostingIndexScope::Global,
+        }
+    }
+
+    fn posting_buckets(
+        self,
+        span_index: Option<usize>,
+    ) -> (CandidatePostingBucket, Option<CandidatePostingBucket>) {
+        match self {
+            Self::SameOrAmbiguous => (
+                CandidatePostingBucket::Span(span_index),
+                span_index.map(|_| CandidatePostingBucket::Span(None)),
+            ),
+            Self::CrossSpan => (CandidatePostingBucket::Global, None),
+        }
+    }
 }
 
 fn empty_modified_sentence_relations(
@@ -7039,13 +7395,20 @@ fn extend_modified_sentence_relations(
         candidate_index_by_occurrence(old_occurrences.len(), old_candidates)?;
     let new_candidate_by_occurrence =
         candidate_index_by_occurrence(new_occurrences.len(), new_candidates)?;
-    let old_index = UnitCandidateIndex::new(old_occurrences)?;
-    let new_index = UnitCandidateIndex::new(new_occurrences)?;
+    let old_index = UnitCandidateIndex::new(old_occurrences, scope.posting_index_scope())?;
+    let new_index = UnitCandidateIndex::new(new_occurrences, scope.posting_index_scope())?;
     let mut plausible = Vec::new();
 
     for (old_candidate_index, old_candidate) in old_candidates.iter().enumerate() {
         let old_occurrence = old_occurrences.get(old_candidate.occurrence_index)?;
-        let query = new_index.collect_plausible_occurrences(&mut plausible, old_occurrence)?;
+        let (bucket, additional_bucket) = scope.posting_buckets(old_occurrence.span_index);
+        let query = new_index.collect_plausible_occurrences(
+            &mut plausible,
+            old_occurrence,
+            bucket,
+            additional_bucket,
+            budget,
+        )?;
         plausible.retain(|occurrence_index| {
             new_occurrences[*occurrence_index].kind == old_occurrence.kind
                 && occurrence_roles_are_compatible(
@@ -7089,7 +7452,14 @@ fn extend_modified_sentence_relations(
 
     for (new_candidate_index, new_candidate) in new_candidates.iter().enumerate() {
         let new_occurrence = new_occurrences.get(new_candidate.occurrence_index)?;
-        let query = old_index.collect_plausible_occurrences(&mut plausible, new_occurrence)?;
+        let (bucket, additional_bucket) = scope.posting_buckets(new_occurrence.span_index);
+        let query = old_index.collect_plausible_occurrences(
+            &mut plausible,
+            new_occurrence,
+            bucket,
+            additional_bucket,
+            budget,
+        )?;
         plausible.retain(|occurrence_index| {
             old_occurrences[*occurrence_index].kind == new_occurrence.kind
                 && occurrence_roles_are_compatible(
@@ -9380,6 +9750,20 @@ mod tests {
         }
     }
 
+    fn paired_test_candidates(
+        occurrence_index: usize,
+        interval: PairedInterval,
+    ) -> PairedNearCandidates {
+        PairedNearCandidates {
+            recoveries: vec![RecoveryCandidate {
+                occurrence_index,
+                span_index: 0,
+            }],
+            intervals: vec![interval],
+            ordinals: vec![0],
+        }
+    }
+
     fn structural_descriptor(
         id: u64,
         page: u32,
@@ -11385,11 +11769,19 @@ mod tests {
                 Some(BlockRole::RepeatedFooter),
             ),
         ];
-        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
+        let index = UnitCandidateIndex::new(&occurrences, CandidatePostingIndexScope::Global)
+            .expect("index construction succeeds");
         let mut plausible = Vec::new();
+        let mut budget = RecoveryBudget::new(3, 1, 4, 1).expect("budget is valid");
 
         index
-            .collect_plausible_occurrences(&mut plausible, &occurrences[0])
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &occurrences[0],
+                CandidatePostingBucket::Global,
+                None,
+                &mut budget,
+            )
             .expect("query succeeds");
 
         assert_eq!(plausible, vec![0]);
@@ -11415,14 +11807,489 @@ mod tests {
             RecoveryUnitKind::Sentence,
             Some(BlockRole::Body),
         );
-        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
+        let index = UnitCandidateIndex::new(&occurrences, CandidatePostingIndexScope::Global)
+            .expect("index construction succeeds");
         let mut plausible = Vec::new();
+        let mut budget = RecoveryBudget::new(5, 2, 7, 1).expect("budget is valid");
 
         index
-            .collect_plausible_occurrences(&mut plausible, &query)
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &query,
+                CandidatePostingBucket::Global,
+                None,
+                &mut budget,
+            )
             .expect("query succeeds");
 
         assert_eq!(plausible, vec![0, 1]);
+    }
+
+    #[test]
+    fn span_candidate_index_includes_ambiguous_and_skips_unrelated_spans() {
+        let mut occurrences = [
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+        ];
+        occurrences[0].span_index = Some(0);
+        occurrences[1].span_index = Some(1);
+        let index = UnitCandidateIndex::new(&occurrences, CandidatePostingIndexScope::Span)
+            .expect("index construction succeeds");
+        let mut plausible = Vec::new();
+        let mut budget = RecoveryBudget::new(3, 1, 4, 1).expect("budget is valid");
+
+        index
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &occurrences[0],
+                CandidatePostingBucket::Span(Some(0)),
+                Some(CandidatePostingBucket::Span(None)),
+                &mut budget,
+            )
+            .expect("query succeeds");
+
+        assert_eq!(plausible, vec![0, 2]);
+        assert_eq!(budget.candidate_posting_visits, 2);
+    }
+
+    #[test]
+    fn paired_candidate_index_skips_unrelated_intervals() {
+        let occurrences = [
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+        ];
+        let first = PairedInterval {
+            pair_index: 0,
+            interval_index: 0,
+        };
+        let intervals = [
+            Some(first),
+            Some(PairedInterval {
+                pair_index: 0,
+                interval_index: 1,
+            }),
+            None,
+        ];
+        let index =
+            UnitCandidateIndex::new(&occurrences, CandidatePostingIndexScope::Paired(&intervals))
+                .expect("index construction succeeds");
+        let mut plausible = Vec::new();
+        let mut budget = RecoveryBudget::new(3, 1, 4, 1).expect("budget is valid");
+
+        index
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &occurrences[0],
+                CandidatePostingBucket::Paired(first),
+                None,
+                &mut budget,
+            )
+            .expect("query succeeds");
+
+        assert_eq!(plausible, vec![0]);
+        assert_eq!(budget.candidate_posting_visits, 1);
+    }
+
+    #[test]
+    fn cross_interval_pass_ignores_unrelated_kind_and_role() {
+        let first = PairedInterval {
+            pair_index: 0,
+            interval_index: 0,
+        };
+        let second = PairedInterval {
+            pair_index: 0,
+            interval_index: 1,
+        };
+        let old_occurrences = [indexed_occurrence(
+            &['q', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'z'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        )];
+        let new_occurrences = [
+            indexed_occurrence(
+                &['0', '1', '2', '3', '4'],
+                RecoveryUnitKind::Line,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['x', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'y'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['x', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'y'],
+                RecoveryUnitKind::Line,
+                Some(BlockRole::RepeatedFooter),
+            ),
+        ];
+        let old_candidates = paired_test_candidates(0, first);
+        let new_candidates = paired_test_candidates(0, first);
+        let old_candidate_by_occurrence = [Some(0)];
+        let new_candidate_by_occurrence = [Some(0), None, None];
+        let old_intervals = [Some(first)];
+        let new_intervals = [Some(first), Some(second), Some(second)];
+        let mut relations = empty_modified_sentence_relations(
+            &old_candidates.recoveries,
+            &new_candidates.recoveries,
+        )
+        .expect("relation allocation succeeds");
+        let mut budget = RecoveryBudget::new(10, 25, 35, 1).expect("budget is valid");
+        let mut diagnostics = None;
+
+        record_cross_interval_disqualifying_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &old_candidates,
+            &new_candidates,
+            &old_candidate_by_occurrence,
+            &new_candidate_by_occurrence,
+            &old_intervals,
+            &new_intervals,
+            &mut relations,
+            &mut budget,
+            &mut diagnostics,
+            None,
+        )
+        .expect("cross-interval evidence fits the budget");
+
+        assert!(!relations.old[0].vetoed());
+        assert!(!relations.new[0].vetoed());
+    }
+
+    #[test]
+    fn same_interval_noise_does_not_hide_compatible_cross_interval_veto() {
+        let first = PairedInterval {
+            pair_index: 0,
+            interval_index: 0,
+        };
+        let second = PairedInterval {
+            pair_index: 0,
+            interval_index: 1,
+        };
+        let old_occurrences = [indexed_occurrence(
+            &['q', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'z'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        )];
+        let new_occurrences = [
+            indexed_occurrence(
+                &['0', '1', '2', '3', '4'],
+                RecoveryUnitKind::Line,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['q', '1', '1', '1', '1', '1', '1', '1', '1', 'z'],
+                RecoveryUnitKind::Line,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['x', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'y'],
+                RecoveryUnitKind::Line,
+                Some(BlockRole::Body),
+            ),
+        ];
+        let old_candidates = paired_test_candidates(0, first);
+        let new_candidates = paired_test_candidates(0, first);
+        let old_candidate_by_occurrence = [Some(0)];
+        let new_candidate_by_occurrence = [Some(0), None, None];
+        let old_intervals = [Some(first)];
+        let new_intervals = [Some(first), Some(first), Some(second)];
+        let mut relations = empty_modified_sentence_relations(
+            &old_candidates.recoveries,
+            &new_candidates.recoveries,
+        )
+        .expect("relation allocation succeeds");
+        let mut budget = RecoveryBudget::new(10, 25, 35, 1).expect("budget is valid");
+        let mut diagnostics = None;
+
+        record_cross_interval_disqualifying_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &old_candidates,
+            &new_candidates,
+            &old_candidate_by_occurrence,
+            &new_candidate_by_occurrence,
+            &old_intervals,
+            &new_intervals,
+            &mut relations,
+            &mut budget,
+            &mut diagnostics,
+            None,
+        )
+        .expect("cross-interval evidence fits the budget");
+
+        assert!(relations.old[0].vetoed());
+        assert!(!relations.new[0].vetoed());
+    }
+
+    #[test]
+    fn compatible_cross_interval_candidates_veto_both_sides() {
+        let first = PairedInterval {
+            pair_index: 0,
+            interval_index: 0,
+        };
+        let second = PairedInterval {
+            pair_index: 0,
+            interval_index: 1,
+        };
+        let old_occurrences = [indexed_occurrence(
+            &['q', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'z'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        )];
+        let new_occurrences = [indexed_occurrence(
+            &['x', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'y'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        )];
+        let old_candidates = paired_test_candidates(0, first);
+        let new_candidates = paired_test_candidates(0, second);
+        let old_candidate_by_occurrence = [Some(0)];
+        let new_candidate_by_occurrence = [Some(0)];
+        let old_intervals = [Some(first)];
+        let new_intervals = [Some(second)];
+        let mut relations = empty_modified_sentence_relations(
+            &old_candidates.recoveries,
+            &new_candidates.recoveries,
+        )
+        .expect("relation allocation succeeds");
+        let mut budget = RecoveryBudget::new(10, 10, 20, 1).expect("budget is valid");
+        let mut diagnostics = None;
+
+        record_cross_interval_disqualifying_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &old_candidates,
+            &new_candidates,
+            &old_candidate_by_occurrence,
+            &new_candidate_by_occurrence,
+            &old_intervals,
+            &new_intervals,
+            &mut relations,
+            &mut budget,
+            &mut diagnostics,
+            None,
+        )
+        .expect("cross-interval evidence fits the budget");
+
+        assert!(relations.old[0].vetoed());
+        assert!(relations.new[0].vetoed());
+    }
+
+    #[test]
+    fn line_trigram_index_finds_near_pair_with_different_edges() {
+        let old_occurrences = [indexed_occurrence(
+            &['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        )];
+        let new_occurrences = [indexed_occurrence(
+            &['x', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'y'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        )];
+        let candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut budget = RecoveryBudget::new(10, 10, 20, 1).expect("budget is valid");
+        let mut diagnostics = None;
+
+        let relations = modified_sentence_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &candidates,
+            &candidates,
+            &mut budget,
+            &mut diagnostics,
+            None,
+        )
+        .expect("interior trigram relation fits the budget");
+
+        assert_eq!(relations.old[0].unique_partner(), Some(0));
+        assert_eq!(relations.new[0].unique_partner(), Some(0));
+    }
+
+    #[test]
+    fn line_trigram_index_excludes_cross_kind_and_cross_role_postings() {
+        let shared = ['x', 'b', 'c', 'd', 'y'];
+        let occurrences = [
+            indexed_occurrence(&shared, RecoveryUnitKind::Line, Some(BlockRole::Body)),
+            indexed_occurrence(
+                &shared,
+                RecoveryUnitKind::Line,
+                Some(BlockRole::RepeatedFooter),
+            ),
+            indexed_occurrence(&shared, RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+        ];
+        let query = indexed_occurrence(
+            &['q', 'b', 'c', 'd', 'z'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        );
+        let index = UnitCandidateIndex::new(&occurrences, CandidatePostingIndexScope::Global)
+            .expect("index construction succeeds");
+        let mut plausible = Vec::new();
+        let mut budget = RecoveryBudget::new(15, 5, 20, 1).expect("budget is valid");
+
+        index
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &query,
+                CandidatePostingBucket::Global,
+                None,
+                &mut budget,
+            )
+            .expect("query succeeds");
+
+        assert_eq!(plausible, vec![0]);
+    }
+
+    #[test]
+    fn line_trigram_index_deduplicates_repeated_windows_per_occurrence() {
+        let occurrences = [indexed_occurrence(
+            &['a', 'a', 'a', 'a', 'a', 'a'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        )];
+        let index = UnitCandidateIndex::new(&occurrences, CandidatePostingIndexScope::Global)
+            .expect("index construction succeeds");
+        let trigram = [SentenceEvidenceToken::Scalar('a'); LINE_NGRAM_SIZE];
+
+        assert_eq!(
+            index
+                .line_trigram_postings
+                .get(&(
+                    CandidatePostingBucket::Global,
+                    RecoveryUnitKind::Line,
+                    OccurrenceRole::Body,
+                    trigram,
+                ))
+                .map(Vec::as_slice),
+            Some(&[0][..])
+        );
+    }
+
+    #[test]
+    fn line_trigram_posting_work_is_topology_local_before_traversal() {
+        let mut old_occurrence = indexed_occurrence(
+            &['q', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'z'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        );
+        old_occurrence.span_index = Some(0);
+        let new_occurrences = (0..64)
+            .map(|span_index| {
+                let mut occurrence = indexed_occurrence(
+                    &['x', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'y'],
+                    RecoveryUnitKind::Line,
+                    Some(BlockRole::Body),
+                );
+                occurrence.span_index = Some(span_index);
+                occurrence
+            })
+            .collect::<Vec<_>>();
+        let old_occurrences = [old_occurrence];
+        let old_candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut relations = empty_modified_sentence_relations(&old_candidates, &[])
+            .expect("relation allocation succeeds");
+        let mut budget = RecoveryBudget::new(10, 640, 650, 1).expect("budget is valid");
+        budget.candidate_posting_visit_limit = 14;
+        let mut diagnostics = None;
+
+        extend_modified_sentence_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &old_candidates,
+            &[],
+            NearRelationScope::SameOrAmbiguous,
+            &mut relations,
+            &mut budget,
+            &mut diagnostics,
+            None,
+        )
+        .expect("the exact posting-work limit admits the query");
+
+        assert!(relations.old[0].vetoed());
+        assert_eq!(budget.candidate_posting_visits, 14);
+        assert_eq!(budget.candidate_posting_visits_attempted, 14);
+        assert_eq!(budget.pair_visits, 1);
+
+        let mut limited_relations = empty_modified_sentence_relations(&old_candidates, &[])
+            .expect("relation allocation succeeds");
+        let mut limited_budget = RecoveryBudget::new(10, 640, 650, 1).expect("budget is valid");
+        limited_budget.candidate_posting_visit_limit = 13;
+        limited_budget.record_candidate_count_limit();
+        let mut limited_diagnostics = None;
+
+        assert!(
+            extend_modified_sentence_relations(
+                &old_occurrences,
+                &new_occurrences,
+                &old_candidates,
+                &[],
+                NearRelationScope::SameOrAmbiguous,
+                &mut limited_relations,
+                &mut limited_budget,
+                &mut limited_diagnostics,
+                None,
+            )
+            .is_none()
+        );
+        assert!(!limited_relations.old[0].vetoed());
+        assert_eq!(limited_budget.candidate_posting_visits, 8);
+        assert_eq!(limited_budget.candidate_posting_visits_attempted, 14);
+        assert_eq!(limited_budget.pair_visits, 0);
+        assert_eq!(limited_budget.comparisons, 0);
+        assert!(limited_budget.candidate_count_truncated);
+        assert_eq!(
+            limited_budget.near_relation_stop_reason,
+            Some(NearRelationStopReason::CandidatePostingVisitLimit)
+        );
+    }
+
+    #[test]
+    fn line_trigram_candidate_budget_failure_aborts_relation_collection() {
+        let old_occurrences = [indexed_occurrence(
+            &['a', 'b', 'c', 'd', 'e'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        )];
+        let new_occurrences = [indexed_occurrence(
+            &['x', 'b', 'c', 'd', 'y'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        )];
+        let candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+        budget.pair_visits = budget.token_limit;
+        let mut diagnostics = None;
+
+        assert!(
+            modified_sentence_relations(
+                &old_occurrences,
+                &new_occurrences,
+                &candidates,
+                &candidates,
+                &mut budget,
+                &mut diagnostics,
+                None,
+            )
+            .is_none()
+        );
+        assert_eq!(budget.comparisons, 0);
+        assert_eq!(
+            budget.near_relation_stop_reason,
+            Some(NearRelationStopReason::PairVisitLimit)
+        );
     }
 
     #[test]
@@ -11449,12 +12316,19 @@ mod tests {
             RecoveryUnitKind::Sentence,
             Some(BlockRole::Body),
         );
-        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
+        let index = UnitCandidateIndex::new(&occurrences, CandidatePostingIndexScope::Global)
+            .expect("index construction succeeds");
         let mut plausible = Vec::new();
-        let query_metrics = index
-            .collect_plausible_occurrences(&mut plausible, &query)
-            .expect("query succeeds");
         let mut budget = RecoveryBudget::new(8, 0, 8, 1).expect("budget is valid");
+        let query_metrics = index
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &query,
+                CandidatePostingBucket::Global,
+                None,
+                &mut budget,
+            )
+            .expect("query succeeds");
         budget.record_candidate_query(query_metrics, 2);
         assert!(budget.charge_pair_visits(2));
         assert!(budget.charge_comparisons(3));
@@ -11471,6 +12345,8 @@ mod tests {
         assert_eq!(metrics.near_pair_visits_attempted, 2);
         assert_eq!(metrics.near_similarity_comparisons_examined, 3);
         assert_eq!(metrics.near_similarity_comparisons_attempted, 3);
+        assert_eq!(metrics.near_candidate_posting_visits_examined, 4);
+        assert_eq!(metrics.near_candidate_posting_visits_attempted, 4);
         assert_eq!(metrics.near_largest_edge_posting, 2);
         assert_eq!(metrics.near_largest_edge_query_union, 3);
         assert_eq!(metrics.near_largest_filtered_candidate_set, 2);
@@ -11597,6 +12473,24 @@ mod tests {
     }
 
     #[test]
+    fn candidate_posting_limit_remains_the_first_resource_stop() {
+        let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("budget is valid");
+        budget.candidate_posting_visit_limit = 0;
+
+        assert!(!budget.charge_candidate_posting_visits(1));
+        assert!(!budget.charge_pair_visits(2));
+
+        assert_eq!(budget.candidate_posting_visits, 0);
+        assert_eq!(budget.candidate_posting_visits_attempted, 1);
+        assert_eq!(budget.pair_visits, 0);
+        assert_eq!(budget.pair_visits_attempted, 2);
+        assert_eq!(
+            budget.near_relation_stop_reason,
+            Some(NearRelationStopReason::CandidatePostingVisitLimit)
+        );
+    }
+
+    #[test]
     fn near_search_counter_overflow_makes_metrics_unavailable_without_a_limit_reason() {
         let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("budget is valid");
         budget.pair_visits_attempted = usize::MAX;
@@ -11620,11 +12514,19 @@ mod tests {
             RecoveryUnitKind::Sentence,
             Some(BlockRole::Body),
         )];
-        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
+        let index = UnitCandidateIndex::new(&occurrences, CandidatePostingIndexScope::Global)
+            .expect("index construction succeeds");
         let mut plausible = Vec::new();
+        let mut budget = RecoveryBudget::new(1, 1, 2, 1).expect("budget is valid");
 
         index
-            .collect_plausible_occurrences(&mut plausible, &occurrences[0])
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &occurrences[0],
+                CandidatePostingBucket::Global,
+                None,
+                &mut budget,
+            )
             .expect("query succeeds");
 
         assert_eq!(plausible, vec![0]);
@@ -11636,7 +12538,8 @@ mod tests {
             .map(|_| indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)))
             .collect::<Vec<_>>();
 
-        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
+        let index = UnitCandidateIndex::new(&occurrences, CandidatePostingIndexScope::Global)
+            .expect("index construction succeeds");
 
         assert_eq!(index.edge_postings.len(), 1);
         assert!(index.edge_postings.capacity() < occurrences.len());
@@ -11652,16 +12555,30 @@ mod tests {
             indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, None),
             indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
         ];
-        let index = UnitCandidateIndex::new(&occurrences).expect("index construction succeeds");
+        let index = UnitCandidateIndex::new(&occurrences, CandidatePostingIndexScope::Global)
+            .expect("index construction succeeds");
         let mut plausible = Vec::new();
+        let mut budget = RecoveryBudget::new(2, 1, 3, 1).expect("budget is valid");
 
         index
-            .collect_plausible_occurrences(&mut plausible, &occurrences[1])
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &occurrences[1],
+                CandidatePostingBucket::Global,
+                None,
+                &mut budget,
+            )
             .expect("role-bearing query succeeds");
         assert_eq!(plausible, vec![1]);
 
         index
-            .collect_plausible_occurrences(&mut plausible, &occurrences[0])
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &occurrences[0],
+                CandidatePostingBucket::Global,
+                None,
+                &mut budget,
+            )
             .expect("roleless query safely has no candidates");
         assert!(plausible.is_empty());
     }
@@ -11725,6 +12642,8 @@ mod tests {
         assert_eq!(budget.pair_visits_attempted, 4);
         assert_eq!(budget.comparisons, 3);
         assert_eq!(budget.comparisons_attempted, 3);
+        assert_eq!(budget.candidate_posting_visits, 8);
+        assert_eq!(budget.candidate_posting_visits_attempted, 8);
         assert!(budget.candidate_count_truncated);
         assert_eq!(
             budget.near_relation_stop_reason,
@@ -11775,6 +12694,11 @@ mod tests {
         .expect("cross-span relations complete within budget");
 
         assert!(relations.complete);
+        assert_eq!(budget.candidate_posting_visits, 12);
+        assert_eq!(
+            budget.candidate_posting_visits,
+            budget.candidate_posting_visits_attempted
+        );
         assert_eq!(budget.pair_visits, budget.pair_visits_attempted);
         assert_eq!(budget.comparisons, budget.comparisons_attempted);
         assert!(budget.candidate_count_truncated);

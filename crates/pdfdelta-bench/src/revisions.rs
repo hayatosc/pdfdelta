@@ -529,6 +529,8 @@ pub struct SentenceRecoveryMetricsReport {
     pub near_pair_visits_attempted: usize,
     pub near_similarity_comparisons_examined: usize,
     pub near_similarity_comparisons_attempted: usize,
+    pub near_candidate_posting_visits_examined: usize,
+    pub near_candidate_posting_visits_attempted: usize,
     pub near_largest_edge_posting: usize,
     pub near_largest_edge_query_union: usize,
     pub near_largest_filtered_candidate_set: usize,
@@ -549,6 +551,7 @@ pub struct SentenceRecoveryMetricsReport {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NearRelationStopReasonReport {
+    CandidatePostingVisitLimit,
     PairVisitLimit,
     SimilarityComparisonLimit,
     CandidateCountLimit,
@@ -565,6 +568,7 @@ pub enum RunSignatureStopReasonReport {
 impl From<NearRelationStopReason> for NearRelationStopReasonReport {
     fn from(reason: NearRelationStopReason) -> Self {
         match reason {
+            NearRelationStopReason::CandidatePostingVisitLimit => Self::CandidatePostingVisitLimit,
             NearRelationStopReason::PairVisitLimit => Self::PairVisitLimit,
             NearRelationStopReason::SimilarityComparisonLimit => Self::SimilarityComparisonLimit,
             NearRelationStopReason::CandidateCountLimit => Self::CandidateCountLimit,
@@ -961,6 +965,9 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             near_pair_visits_attempted: metrics.near_pair_visits_attempted,
             near_similarity_comparisons_examined: metrics.near_similarity_comparisons_examined,
             near_similarity_comparisons_attempted: metrics.near_similarity_comparisons_attempted,
+            near_candidate_posting_visits_examined: metrics.near_candidate_posting_visits_examined,
+            near_candidate_posting_visits_attempted: metrics
+                .near_candidate_posting_visits_attempted,
             near_largest_edge_posting: metrics.near_largest_edge_posting,
             near_largest_edge_query_union: metrics.near_largest_edge_query_union,
             near_largest_filtered_candidate_set: metrics.near_largest_filtered_candidate_set,
@@ -3016,17 +3023,32 @@ fn validate_sentence_recovery_metrics(
             metrics.near_similarity_comparisons_attempted
         ));
     }
+    if metrics.near_candidate_posting_visits_examined
+        > metrics.near_candidate_posting_visits_attempted
+    {
+        return Err(format!(
+            "examined near candidate posting visits {} exceed attempted visits {}",
+            metrics.near_candidate_posting_visits_examined,
+            metrics.near_candidate_posting_visits_attempted
+        ));
+    }
     let pair_visit_deficit = metrics.near_pair_visits_examined < metrics.near_pair_visits_attempted;
     let comparison_deficit = metrics.near_similarity_comparisons_examined
         < metrics.near_similarity_comparisons_attempted;
-    if pair_visit_deficit && comparison_deficit {
+    let posting_visit_deficit = metrics.near_candidate_posting_visits_examined
+        < metrics.near_candidate_posting_visits_attempted;
+    if usize::from(pair_visit_deficit)
+        + usize::from(comparison_deficit)
+        + usize::from(posting_visit_deficit)
+        > 1
+    {
         return Err("near relation has multiple unfinished work counters".to_owned());
     }
     if metrics.near_relation_complete {
         if metrics.near_candidate_count_truncated {
             return Err("complete near relation has truncated candidates".to_owned());
         }
-        if pair_visit_deficit || comparison_deficit {
+        if pair_visit_deficit || comparison_deficit || posting_visit_deficit {
             return Err("complete near relation has unexamined work".to_owned());
         }
         if metrics.near_relation_stop_reason.is_some() {
@@ -3035,27 +3057,34 @@ fn validate_sentence_recovery_metrics(
     }
     match (
         metrics.near_relation_stop_reason,
+        posting_visit_deficit,
         pair_visit_deficit,
         comparison_deficit,
     ) {
-        (None, true, _) | (None, _, true) => {
+        (None, true, _, _) | (None, _, true, _) | (None, _, _, true) => {
             return Err(
                 "incomplete near relation has unexamined work without a stop reason".to_owned(),
             );
         }
-        (Some(NearRelationStopReason::PairVisitLimit), true, false) => {}
-        (Some(NearRelationStopReason::PairVisitLimit), _, _) => {
+        (Some(NearRelationStopReason::CandidatePostingVisitLimit), true, false, false) => {}
+        (Some(NearRelationStopReason::CandidatePostingVisitLimit), _, _, _) => {
+            return Err(
+                "candidate posting visit stop reason does not match unfinished work".to_owned(),
+            );
+        }
+        (Some(NearRelationStopReason::PairVisitLimit), false, true, false) => {}
+        (Some(NearRelationStopReason::PairVisitLimit), _, _, _) => {
             return Err("pair visit stop reason does not match unfinished work".to_owned());
         }
-        (Some(NearRelationStopReason::SimilarityComparisonLimit), false, true) => {}
-        (Some(NearRelationStopReason::SimilarityComparisonLimit), _, _) => {
+        (Some(NearRelationStopReason::SimilarityComparisonLimit), false, false, true) => {}
+        (Some(NearRelationStopReason::SimilarityComparisonLimit), _, _, _) => {
             return Err(
                 "similarity comparison stop reason does not match unfinished work".to_owned(),
             );
         }
-        (Some(NearRelationStopReason::CandidateCountLimit), false, false)
+        (Some(NearRelationStopReason::CandidateCountLimit), false, false, false)
             if metrics.near_candidate_count_truncated => {}
-        (Some(NearRelationStopReason::CandidateCountLimit), _, _) => {
+        (Some(NearRelationStopReason::CandidateCountLimit), _, _, _) => {
             return Err(
                 "candidate count stop reason requires truncation without unfinished search work"
                     .to_owned(),
@@ -3638,7 +3667,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 16;
+    pub const SCHEMA_VERSION: u32 = 17;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -4902,7 +4931,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 16);
+        assert_eq!(completed["schema_version"], 17);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -4945,7 +4974,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 16);
+        assert_eq!(legacy_summary["schema_version"], 17);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -6134,7 +6163,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 16);
+        assert_eq!(json["schema_version"], 17);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -6185,6 +6214,8 @@ mod tests {
             near_pair_visits_attempted: 20,
             near_similarity_comparisons_examined: 8,
             near_similarity_comparisons_attempted: 8,
+            near_candidate_posting_visits_examined: 14,
+            near_candidate_posting_visits_attempted: 14,
             near_largest_edge_posting: 12,
             near_largest_edge_query_union: 9,
             near_largest_filtered_candidate_set: 4,
@@ -6209,6 +6240,7 @@ mod tests {
         assert!(validated.near_relation_complete);
         assert_eq!(validated.near_pair_visits_examined, 20);
         assert_eq!(validated.near_similarity_comparisons_attempted, 8);
+        assert_eq!(validated.near_candidate_posting_visits_examined, 14);
         assert_eq!(validated.near_largest_edge_posting, 12);
         assert_eq!(validated.recovered_replacement_new_tokens, 12);
         assert_eq!(validated.vetoed_near_pairs, 1);
@@ -6343,6 +6375,13 @@ mod tests {
             validate_sentence_recovery_metrics(examined_more_comparisons_than_attempted).is_err()
         );
 
+        let examined_more_postings_than_attempted = SentenceRecoveryMetrics {
+            near_candidate_posting_visits_examined: 2,
+            near_candidate_posting_visits_attempted: 1,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(examined_more_postings_than_attempted).is_err());
+
         let pair_deficit_without_reason = SentenceRecoveryMetrics {
             near_pair_visits_attempted: 1,
             ..SentenceRecoveryMetrics::default()
@@ -6355,6 +6394,12 @@ mod tests {
         };
         assert!(validate_sentence_recovery_metrics(comparison_deficit_without_reason).is_err());
 
+        let posting_deficit_without_reason = SentenceRecoveryMetrics {
+            near_candidate_posting_visits_attempted: 1,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(posting_deficit_without_reason).is_err());
+
         let multiple_deficits = SentenceRecoveryMetrics {
             near_pair_visits_attempted: 1,
             near_similarity_comparisons_attempted: 1,
@@ -6362,6 +6407,34 @@ mod tests {
             ..SentenceRecoveryMetrics::default()
         };
         assert!(validate_sentence_recovery_metrics(multiple_deficits).is_err());
+
+        let posting_limit_without_deficit = SentenceRecoveryMetrics {
+            near_candidate_posting_visits_attempted: 1,
+            near_candidate_posting_visits_examined: 1,
+            near_relation_stop_reason: Some(NearRelationStopReason::CandidatePostingVisitLimit),
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(posting_limit_without_deficit).is_err());
+
+        let posting_limit_with_other_deficit = SentenceRecoveryMetrics {
+            near_pair_visits_attempted: 1,
+            near_relation_stop_reason: Some(NearRelationStopReason::CandidatePostingVisitLimit),
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(posting_limit_with_other_deficit).is_err());
+
+        let incomplete_posting_stop = SentenceRecoveryMetrics {
+            near_candidate_posting_visits_examined: 6,
+            near_candidate_posting_visits_attempted: 7,
+            near_relation_stop_reason: Some(NearRelationStopReason::CandidatePostingVisitLimit),
+            ..SentenceRecoveryMetrics::default()
+        };
+        let validated = validate_sentence_recovery_metrics(incomplete_posting_stop)
+            .expect("posting visit limit explains an unexamined posting visit");
+        assert_eq!(
+            validated.near_relation_stop_reason,
+            Some(NearRelationStopReasonReport::CandidatePostingVisitLimit)
+        );
 
         let mismatched_pair_reason = SentenceRecoveryMetrics {
             near_similarity_comparisons_attempted: 1,
@@ -6505,6 +6578,11 @@ mod tests {
 
     #[test]
     fn serializes_near_relation_stop_reasons_as_snake_case() {
+        assert_eq!(
+            serde_json::to_value(NearRelationStopReasonReport::CandidatePostingVisitLimit)
+                .expect("stop reason serializes"),
+            "candidate_posting_visit_limit"
+        );
         assert_eq!(
             serde_json::to_value(NearRelationStopReasonReport::PairVisitLimit)
                 .expect("stop reason serializes"),
@@ -6971,7 +7049,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 16);
+        assert_eq!(value["schema_version"], 17);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -7087,6 +7165,8 @@ mod tests {
             "near_pair_visits_attempted".to_owned(),
             "near_similarity_comparisons_examined".to_owned(),
             "near_similarity_comparisons_attempted".to_owned(),
+            "near_candidate_posting_visits_examined".to_owned(),
+            "near_candidate_posting_visits_attempted".to_owned(),
             "near_largest_edge_posting".to_owned(),
             "near_largest_edge_query_union".to_owned(),
             "near_largest_filtered_candidate_set".to_owned(),
