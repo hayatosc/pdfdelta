@@ -300,10 +300,10 @@ ended `LIMIT`/`FAIL`; low quality scores never fail a run because the dated
 captures serve as calibration evidence and current fragmentation and recall
 remain too unstable for rigid quality-gate thresholds (confidence calibration
 has landed, but broader large-document alignment quality remains ongoing work).
-Compact revision summaries use schema version 17 and include optional nested
+Compact revision summaries use schema version 18 and include optional nested
 sentence-recovery diagnostics, near-search examined and attempted work,
-candidate-posting visits and maxima, an explicit candidate-count truncation
-flag, typed
+Sentence/Line work attribution, candidate-posting visits and maxima, an
+explicit candidate-count truncation flag, typed
 near-search stop reasons, structural trusted-run profile diagnostics,
 budgeted exact-unit trusted-run signature diagnostics,
 bounded one- and two-sided expected-change recovery watches with retained
@@ -327,7 +327,7 @@ exactly one extracted block. Diagnostic caps produce an explicit incomplete
 fallback instead of a guessed cause. The unversioned full-report v1 key set
 remains unchanged. Reviewed candidate recall and expected-change failure
 diagnostics and scoped event/token metrics are available only through
-`--summary-json-output`; CLI trace schema v6 exposes sentence-recovery metrics,
+`--summary-json-output`; CLI trace schema v7 exposes sentence-recovery metrics,
 including one-hot near-search and run-signature stop reasons plus structural-run
 counters, but not those reviewed metrics.
 `--json-output` and `--summary-json-output` are published independently and
@@ -336,7 +336,7 @@ files without overwriting existing destinations). If the second publication fail
 exit code 2 is returned and the first published artifact remains in place without
 pairwise rollback across distinct paths. Dated compact evaluation summaries are
 recorded under [`benchmark/realworld/results/`](benchmark/realworld/results/README.md)
-(latest: [`2026-08-30-64a58b7.json`](benchmark/realworld/results/2026-08-30-64a58b7.json)).
+(latest: [`2026-08-30-496d128.json`](benchmark/realworld/results/2026-08-30-496d128.json)).
 
 ## License
 
@@ -405,7 +405,7 @@ Text reports are written to standard output as contextual unified-diff hunks: a 
 - The real-world revision track ([`benchmark/realworld/`](benchmark/realworld/)) records 29 genuine public pairs: 13 development and 16 holdout pairs spanning standards, regulatory publications, API and user guides, Latin/CJK prose, code, tables, forms, screenshots, generated reference manuals, multiscript examples, and image-heavy layouts. Eighteen pairs are standard targets near the intended scope and eleven are explicit stress cases; eight pairs have partial human-reviewed expected changes, one of those partial sets contains a complete review scope, and three pairs have scoped-complete review regions with event and changed-token precision.
   The dated [`2026-08-26`](benchmark/realworld/results/2026-08-26.json) artifact remains the immutable `limit_scale_hint` baseline for the original five-pair corpus. The [`2026-08-28`](benchmark/realworld/results/2026-08-28.json) capture records the expanded twelve-pair corpus at engine commit `a7b56a7`, while [`2026-08-29`](benchmark/realworld/results/2026-08-29.json) records all 29 current pairs at engine commit `ffd7600`. Same-day follow-ups record [`987020f`](benchmark/realworld/results/2026-08-29-987020f.json) uncertain-span exact and reciprocal replacement recovery, [`ca6447c`](benchmark/realworld/results/2026-08-29-ca6447c.json) monotonic exact-unit recovery inside anchored trusted runs, [`0cef530`](benchmark/realworld/results/2026-08-29-0cef530.json) short-unit recovery, weighted multiset candidate scoring, and page-local short candidates, [`c2de839`](benchmark/realworld/results/2026-08-29-c2de839.json) atomic line recovery for punctuation-free uncertain regions, [`80def43`](benchmark/realworld/results/2026-08-29-80def43.json) bounded semantic line grouping for short matched regions, [`3074d95`](benchmark/realworld/results/2026-08-29-3074d95.json) short structural-label anchors for adjacent value moves, [`de4ed4c`](benchmark/realworld/results/2026-08-29-de4ed4c.json) mixed-run word replacement grouping, [`1ed7340`](benchmark/realworld/results/2026-08-29-1ed7340.json) fail-closed fragment-completion vetoes for general uncertain-span replacements, [`556686c`](benchmark/realworld/results/2026-08-29-556686c.json) the behavior-preserving multi-occurrence change-model migration, [`27f096e`](benchmark/realworld/results/2026-08-29-27f096e.json) scoped-complete event and changed-token precision for three fully reviewed regions, [`f5406f3`](benchmark/realworld/results/2026-08-29-f5406f3.json) role-local running-matter alignment, [`4e6ae73`](benchmark/realworld/results/2026-08-29-4e6ae73.json) the safe near-search baseline, [`5145723`](benchmark/realworld/results/2026-08-29-5145723.json) behavior-neutral structural trusted-run diagnostics, [`1463932`](benchmark/realworld/results/2026-08-29-1463932.json) bounded exact-unit signature diagnostics for trusted runs, [`1a0675f`](benchmark/realworld/results/2026-08-29-1a0675f.json) bounded expected-change recovery watches, and [`24a2300`](benchmark/realworld/results/2026-08-29-24a2300.json) diagnostic-only adjacent-unit segment watches. The [`5ffa3e0`](benchmark/realworld/results/2026-08-30-5ffa3e0.json) capture records bounded exact segment-relation diagnostics without enabling segment moves, [`b1e54e3`](benchmark/realworld/results/2026-08-30-b1e54e3.json) adds bounded one-sided insertion/deletion occurrence evidence, [`2ddbb6b`](benchmark/realworld/results/2026-08-30-2ddbb6b.json) adds behavior-neutral Clause/ListItem watch diagnostics, and [`ebcb49e`](benchmark/realworld/results/2026-08-30-ebcb49e.json) validates exact occurrence counts and groups repeated running-matter changes into multi-occurrence events. Separate files keep parser, alignment, annotation, and algorithm effects auditable instead of rewriting historical metrics.
 
-  The latest [`64a58b7`](benchmark/realworld/results/2026-08-30-64a58b7.json) capture adds topology-local, multiplicity-aware Line trigram candidate indexing with explicit posting-work diagnostics.
+  The [`64a58b7`](benchmark/realworld/results/2026-08-30-64a58b7.json) capture adds topology-local, multiplicity-aware Line trigram candidate indexing with explicit posting-work diagnostics. The latest [`496d128`](benchmark/realworld/results/2026-08-30-496d128.json) capture attributes that bounded near-search work to Sentence and Line units without changing comparison behavior.
 
 ## Contributing
 
