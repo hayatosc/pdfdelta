@@ -590,6 +590,61 @@ pub struct SentenceEdgeSignatureShadowMetrics {
     pub plan_parity: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SentenceEdgeSignatureDirectShadowStopReason {
+    SignatureIndexPostingLimit,
+    SignatureQueryPostingVisitLimit,
+    DirectEdgePairVisitLimit,
+    DirectEdgeSimilarityComparisonLimit,
+    CandidatePostingVisitLimit,
+    PairVisitLimit,
+    SimilarityComparisonLimit,
+    CandidateCountLimit,
+    AllocationFailure,
+    CounterOverflow,
+    ProductionTraversalIncomplete,
+    DiagnosticFailure,
+}
+
+/// Independent replay that sources Sentence candidates from the edge-signature
+/// index before the broad first/last-token candidate union.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SentenceEdgeSignatureDirectShadowMetrics {
+    pub complete: bool,
+    pub stop_reason: Option<SentenceEdgeSignatureDirectShadowStopReason>,
+    pub signature_index_items_examined: usize,
+    pub signature_index_items_attempted: usize,
+    pub signature_query_visits_examined: usize,
+    pub signature_query_visits_attempted: usize,
+    pub direct_candidates: usize,
+    pub paired_interval_candidates: usize,
+    pub paired_cross_interval_candidates: usize,
+    pub same_known_candidates: usize,
+    pub ambiguous_candidates: usize,
+    pub cross_span_candidates: usize,
+    pub edge_filter_pairs_examined: usize,
+    pub edge_filter_pairs_attempted: usize,
+    pub edge_filter_comparisons_examined: usize,
+    pub edge_filter_comparisons_attempted: usize,
+    pub exact_edge_retained_pairs: usize,
+    pub sentence_broad_edge_postings_examined: usize,
+    pub sentence_broad_edge_postings_attempted: usize,
+    pub downstream_candidate_postings_examined: usize,
+    pub downstream_candidate_postings_attempted: usize,
+    pub downstream_pair_visits_examined: usize,
+    pub downstream_pair_visits_attempted: usize,
+    pub downstream_similarity_comparisons_examined: usize,
+    pub downstream_similarity_comparisons_attempted: usize,
+    pub candidate_count_truncated: bool,
+    pub parity_evaluable: bool,
+    pub plan_parity: bool,
+    pub verification_evaluable: bool,
+    pub retained_pair_misses: usize,
+    pub retained_pair_count_mismatches: usize,
+    pub retained_pair_set_mismatches: usize,
+    pub retained_pair_order_mismatches: usize,
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -660,6 +715,7 @@ pub struct SentenceRecoveryMetrics {
     pub known_span_sentence_shadow: Option<KnownSpanSentenceShadowMetrics>,
     pub sentence_edge_gate_shadow: Option<SentenceEdgeGateShadowMetrics>,
     pub sentence_edge_signature_shadow: Option<SentenceEdgeSignatureShadowMetrics>,
+    pub sentence_edge_signature_direct_shadow: Option<SentenceEdgeSignatureDirectShadowMetrics>,
     /// Whether the production Sentence edge filter classified every query.
     /// A false value always has [`Self::sentence_edge_filter_stop_reason`].
     pub sentence_edge_filter_complete: bool,
@@ -7997,6 +8053,11 @@ mod tests {
             .sentence_recovery_metrics
             .expect("measured metrics exist");
         assert!(baseline_metrics.sentence_edge_signature_shadow.is_none());
+        assert!(
+            baseline_metrics
+                .sentence_edge_signature_direct_shadow
+                .is_none()
+        );
         let signature = measured_metrics
             .sentence_edge_signature_shadow
             .expect("signature replay metrics exist");
@@ -8011,9 +8072,20 @@ mod tests {
                 + signature.cross_span_shared_pairs
                 > 0
         );
+        let direct = measured_metrics
+            .sentence_edge_signature_direct_shadow
+            .expect("direct signature replay metrics exist");
+        assert!(direct.complete);
+        assert!(direct.parity_evaluable);
+        assert!(direct.plan_parity);
+        assert!(direct.verification_evaluable);
+        assert_eq!(direct.retained_pair_misses, 0);
+        assert_eq!(direct.sentence_broad_edge_postings_examined, 0);
+        assert_eq!(direct.sentence_broad_edge_postings_attempted, 0);
         baseline_metrics.sentence_edge_gate_shadow = None;
         measured_metrics.sentence_edge_gate_shadow = None;
         measured_metrics.sentence_edge_signature_shadow = None;
+        measured_metrics.sentence_edge_signature_direct_shadow = None;
         assert_eq!(measured_metrics, baseline_metrics);
     }
 
