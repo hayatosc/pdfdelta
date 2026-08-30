@@ -395,6 +395,7 @@ enum CandidatePostingBucket {
     Global,
     Span(Option<usize>),
     Paired(PairedInterval),
+    PairedStream(usize),
 }
 
 #[derive(Clone, Copy)]
@@ -402,6 +403,7 @@ enum CandidatePostingIndexScope<'a> {
     Global,
     Span,
     Paired(&'a [Option<PairedInterval>]),
+    PairedStream(&'a [Option<PairedInterval>]),
 }
 
 struct UnitCandidateIndex {
@@ -451,6 +453,12 @@ impl UnitCandidateIndex {
                         continue;
                     };
                     CandidatePostingBucket::Paired(interval)
+                }
+                CandidatePostingIndexScope::PairedStream(intervals) => {
+                    let Some(interval) = intervals.get(occurrence_index).copied()? else {
+                        continue;
+                    };
+                    CandidatePostingBucket::PairedStream(interval.pair_index)
                 }
             };
             let Some(role) = occurrence.role.map(OccurrenceRole::from) else {
@@ -7092,8 +7100,14 @@ fn record_cross_interval_disqualifying_relations(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     mut watch: Option<&mut RecoveryWatchState>,
 ) -> Option<()> {
-    let old_index = UnitCandidateIndex::new(old_occurrences, CandidatePostingIndexScope::Global)?;
-    let new_index = UnitCandidateIndex::new(new_occurrences, CandidatePostingIndexScope::Global)?;
+    let old_index = UnitCandidateIndex::new(
+        old_occurrences,
+        CandidatePostingIndexScope::PairedStream(old_intervals),
+    )?;
+    let new_index = UnitCandidateIndex::new(
+        new_occurrences,
+        CandidatePostingIndexScope::PairedStream(new_intervals),
+    )?;
     let mut plausible = Vec::new();
 
     for (old_candidate_index, old_candidate) in old_candidates.recoveries.iter().enumerate() {
@@ -7102,7 +7116,7 @@ fn record_cross_interval_disqualifying_relations(
         let query = new_index.collect_plausible_occurrences(
             &mut plausible,
             old_occurrence,
-            CandidatePostingBucket::Global,
+            CandidatePostingBucket::PairedStream(interval.pair_index),
             None,
             budget,
         )?;
@@ -7161,7 +7175,7 @@ fn record_cross_interval_disqualifying_relations(
         let query = old_index.collect_plausible_occurrences(
             &mut plausible,
             new_occurrence,
-            CandidatePostingBucket::Global,
+            CandidatePostingBucket::PairedStream(interval.pair_index),
             None,
             budget,
         )?;
@@ -12169,6 +12183,77 @@ mod tests {
                 ))
                 .map(Vec::as_slice),
             Some(&[0][..])
+        );
+    }
+
+    #[test]
+    fn paired_stream_line_index_skips_unrelated_streams_before_charging_work() {
+        let query = indexed_occurrence(
+            &['q', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'z'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        );
+        let occurrences = (0..64)
+            .map(|_| {
+                indexed_occurrence(
+                    &['x', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'y'],
+                    RecoveryUnitKind::Line,
+                    Some(BlockRole::Body),
+                )
+            })
+            .collect::<Vec<_>>();
+        let intervals = (0..64)
+            .map(|occurrence_index| {
+                Some(PairedInterval {
+                    pair_index: occurrence_index,
+                    interval_index: 1,
+                })
+            })
+            .collect::<Vec<_>>();
+        let index = UnitCandidateIndex::new(
+            &occurrences,
+            CandidatePostingIndexScope::PairedStream(&intervals),
+        )
+        .expect("index construction succeeds");
+        let mut plausible = Vec::new();
+        let mut budget = RecoveryBudget::new(10, 640, 650, 1).expect("budget is valid");
+        budget.candidate_posting_visit_limit = 14;
+
+        index
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &query,
+                CandidatePostingBucket::PairedStream(0),
+                None,
+                &mut budget,
+            )
+            .expect("same-pair interior evidence fits the exact posting budget");
+
+        assert_eq!(plausible, vec![0]);
+        assert_eq!(budget.candidate_posting_visits, 14);
+        assert_eq!(budget.candidate_posting_visits_attempted, 14);
+
+        let mut limited = Vec::new();
+        let mut limited_budget = RecoveryBudget::new(10, 640, 650, 1).expect("budget is valid");
+        limited_budget.candidate_posting_visit_limit = 13;
+
+        assert!(
+            index
+                .collect_plausible_occurrences(
+                    &mut limited,
+                    &query,
+                    CandidatePostingBucket::PairedStream(0),
+                    None,
+                    &mut limited_budget,
+                )
+                .is_none()
+        );
+        assert!(limited.is_empty());
+        assert_eq!(limited_budget.candidate_posting_visits, 8);
+        assert_eq!(limited_budget.candidate_posting_visits_attempted, 14);
+        assert_eq!(
+            limited_budget.near_relation_stop_reason,
+            Some(NearRelationStopReason::CandidatePostingVisitLimit)
         );
     }
 
