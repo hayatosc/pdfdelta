@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`7ffc831`](https://github.com/hayatosc/pdfdelta/commit/7ffc831)
+- **Generator / engine commit**: [`e254b48`](https://github.com/hayatosc/pdfdelta/commit/e254b48)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-7ffc831.json`](2026-08-31-7ffc831.json)
-  - Schema: v33
-  - Size: 646,692 bytes
-  - SHA-256: `0d85c53f564b1686c24fecdaa1b5e3faf761bdc70490e082111d683860f15e0c`
+  - File: [`2026-08-31-e254b48.json`](2026-08-31-e254b48.json)
+  - Schema: v34
+  - Size: 648,533 bytes
+  - SHA-256: `d7666f867c437292a3311867c0ecc0149d16ec74fdc8dd9d3d2f21f4119e27ef`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-31-7ffc831.json
+  benchmark/realworld/results/2026-08-31-e254b48.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -39,9 +39,8 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-08-31-8128792.json \
   benchmark/realworld/results/2026-08-31-7ffc831.json \
-  --ignore-field sentence_edge_signature_direct_shadow \
+  benchmark/realworld/results/2026-08-31-e254b48.json \
   --ignore-field sentence_edge_signature_reference_oracle
 ```
 
@@ -104,6 +103,18 @@ diagnostics exactly match the schema-v24 baseline. Across 18 measured pairs,
 the filter classifies 6,990,647 Sentence pairs and rejects 6,660,144 (95.27%).
 All shadow threshold, veto, unique-partner, reciprocal, adopted-replacement,
 and insertion/deletion-veto mismatch counters remain zero.
+The schema-v34 capture makes the independent reference oracle apply the exact
+Sentence edge gate to candidates from the legacy `UnitCandidateIndex` before
+charging retained pairs to near-relation work. Seven of eight reference
+oracles now complete with identical plans and retained-pair count, set, and
+order fingerprints. LibreOffice no longer reaches the 8,000,000 near-pair cap:
+it charges only 7,993 downstream pairs after classifying 9,596,446 broad pairs.
+It instead stops fail-closed at the unchanged 32,000,000 edge-comparison cap,
+with 1,831 attempted broad pairs still unclassified. Removing the reference-
+oracle object produces exact schema-v33 parity for every comparison, quality,
+candidate-recall, direct-replay, and other diagnostic field. The next step is
+to reuse the legacy index's exact first/last-edge evidence during reference
+classification, rather than increasing this diagnostic budget.
 The schema-v33 capture replaces sorted repeated signature entries with compact
 unique-key ranges and separate occurrence arrays. All 18 available direct
 replays now complete, including LibreOffice, and all retained-pair, candidate-
@@ -260,10 +271,13 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v33)
+## Current Writer Schema (v34)
 
-The benchmark writer and latest committed capture use schema v33. Older
-captures retain their recorded schemas. Schema v33 stores signature postings as
+The benchmark writer and latest committed capture use schema v34. Older
+captures retain their recorded schemas. Schema v34 separates reference-oracle
+edge-filter pair and comparison work from downstream near-relation work and
+publishes typed edge-filter stops. CLI trace schema v23 exposes the same work
+and stop semantics. Schema v33 stores signature postings as
 compact unique-key ranges plus occurrence arrays, accounts for temporary and
 final transition capacity before every bounded allocation, and preserves typed
 progress on allocation failure. CLI trace schema v22 exposes the same storage

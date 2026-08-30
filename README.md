@@ -300,14 +300,15 @@ ended `LIMIT`/`FAIL`; low quality scores never fail a run because the dated
 captures serve as calibration evidence and current fragmentation and recall
 remain too unstable for rigid quality-gate thresholds (confidence calibration
 has landed, but broader large-document alignment quality remains ongoing work).
-Compact revision summaries use schema version 33 and include optional nested
+Compact revision summaries use schema version 34 and include optional nested
 sentence-recovery diagnostics, near-search examined and attempted work,
 Sentence/Line, search-scope, and known/ambiguous-span work attribution,
 diagnostic-only Sentence shadow relations, paired-anchor cross-span locality,
 decision parity, a behavior-neutral Sentence edge-gate shadow with typed
 stops and projected retained-pair work, and an independent exact edge-signature
 candidate replay with compact key-range storage, typed index and traversal
-stops, plus bounded production Sentence edge-
+stops, an independent legacy-candidate reference oracle with separately
+bounded edge-filter and downstream work, plus bounded production Sentence edge-
 filter work, retained/rejected pair counts, typed query-fallback reasons,
 full-build legacy fallback evidence, and separately accounted discarded near-
 relation work,
@@ -336,7 +337,7 @@ exactly one extracted block. Diagnostic caps produce an explicit incomplete
 fallback instead of a guessed cause. The unversioned full-report v1 key set
 remains unchanged. Reviewed candidate recall and expected-change failure
 diagnostics and scoped event/token metrics are available only through
-`--summary-json-output`; CLI trace schema v22 exposes sentence-recovery metrics,
+`--summary-json-output`; CLI trace schema v23 exposes sentence-recovery metrics,
 including both Sentence edge shadows and the production edge filter, one-hot
 near-search, shadow, filter, and run-signature stop reasons, plus structural-run
 counters, but not those reviewed metrics.
@@ -346,7 +347,7 @@ files without overwriting existing destinations). If the second publication fail
 exit code 2 is returned and the first published artifact remains in place without
 pairwise rollback across distinct paths. Dated compact evaluation summaries are
 recorded under [`benchmark/realworld/results/`](benchmark/realworld/results/README.md)
-(latest: [`2026-08-31-7ffc831.json`](benchmark/realworld/results/2026-08-31-7ffc831.json)).
+(latest: [`2026-08-31-e254b48.json`](benchmark/realworld/results/2026-08-31-e254b48.json)).
 
 ## License
 
@@ -418,6 +419,8 @@ Text reports are written to standard output as contextual unified-diff hunks: a 
   The [`64a58b7`](benchmark/realworld/results/2026-08-30-64a58b7.json) capture adds topology-local, multiplicity-aware Line trigram candidate indexing with explicit posting-work diagnostics. The [`496d128`](benchmark/realworld/results/2026-08-30-496d128.json) capture attributes that bounded near-search work to Sentence and Line units. The [`ba424d8`](benchmark/realworld/results/2026-08-30-ba424d8.json) capture further attributes it to four search phases. The [`a7a483c`](benchmark/realworld/results/2026-08-30-a7a483c.json) capture separates known-same-span candidates, ambiguous-span candidates, and shared query preparation without changing comparison behavior. The [`a5202c8`](benchmark/realworld/results/2026-08-30-a5202c8.json) capture replays a known-span-only Sentence search in shadow mode and shows that removing ambiguous counterparts changes relation and reciprocal-pair decisions, so the filter remains diagnostic-only. The [`d045e2c`](benchmark/realworld/results/2026-08-30-d045e2c.json) capture preserves every output and quality field while stopping word-multiset scoring when its remaining upper bound cannot improve the exact relation score. The [`d6cd66d`](benchmark/realworld/results/2026-08-30-d6cd66d.json) capture classifies cross-span Sentence work by paired-anchor topology and shows that retaining only the same paired interval changes unique and reciprocal relation decisions. The [`f0ffe19`](benchmark/realworld/results/2026-08-30-f0ffe19.json) capture begins measuring exact relation-floor early-stop opportunities in completed searches. The [`12fb039`](benchmark/realworld/results/2026-08-30-12fb039.json) capture retains completed probe observations from budget-stopped cross-span searches and shows that the exact skip would save only 0.155% of cross-span similarity comparisons, so it is not enabled. The [`ab26b3c`](benchmark/realworld/results/2026-08-30-ab26b3c.json) capture records the atomic production Sentence edge filter and its full-build legacy fallbacks. The [`edb34a2`](benchmark/realworld/results/2026-08-30-edb34a2.json) capture independently replays exact edge-signature candidates without changing any prior report field; the replay prunes 93.998% of observed pairs, while six large searches still stop in the broader candidate-posting traversal, so the signature gate remains diagnostic-only.
 
   The [`7ffc831`](benchmark/realworld/results/2026-08-31-7ffc831.json) schema-v33 capture stores Sentence edge signatures as compact unique-key ranges plus occurrence arrays. All 18 available direct replays complete, common completed-path logical bytes fall by 66.24% from schema v32, and comparison and reviewed-quality fields remain unchanged. Production activation remains deferred because the comparable candidate union is 12.04%, the exact retained lower bound is already 10.89%, and the LibreOffice reference oracle still stops at its pair-visit limit; the old sub-10% gate must be replaced by an exact-lower-bound criterion before behavior changes.
+
+  The [`e254b48`](benchmark/realworld/results/2026-08-31-e254b48.json) schema-v34 capture independently applies exact Sentence edge classification before reference near-relation work. Seven of eight reference oracles preserve plan and retained-pair fingerprint parity. LibreOffice reduces downstream near-pair work to 7,993 but stops fail-closed after 32,000,000 edge comparisons with 1,831 broad candidates unclassified. Every comparison, quality, candidate-recall, direct-replay, and other diagnostic field remains identical to schema v33 when the reference-oracle object is excluded; production activation remains deferred without raising budgets.
 
 ## Contributing
 
