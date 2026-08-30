@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`55a1f6e`](https://github.com/hayatosc/pdfdelta/commit/55a1f6e)
+- **Generator / engine commit**: [`8a04a9f`](https://github.com/hayatosc/pdfdelta/commit/8a04a9f)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-55a1f6e.json`](2026-08-31-55a1f6e.json)
-  - Schema: v29
-  - Size: 635,134 bytes
-  - SHA-256: `d65f8b3f48782e2e658700db6e6f5468c7d749dffb2e4d03fbe14bedda6a9470`
+  - File: [`2026-08-31-8a04a9f.json`](2026-08-31-8a04a9f.json)
+  - Schema: v30
+  - Size: 636,957 bytes
+  - SHA-256: `9f6efc2215b97ff10e20053eb081dcd7bbbea3475c4ef745ced9756c6da30a2d`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-31-55a1f6e.json
+  benchmark/realworld/results/2026-08-31-8a04a9f.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -39,13 +39,12 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-08-31-678e996.json \
   benchmark/realworld/results/2026-08-31-55a1f6e.json \
-  sentence_edge_signature_reference_oracle \
-  sentence_edge_signature_direct_shadow.fragment_veto_pair_visits_examined \
-  sentence_edge_signature_direct_shadow.fragment_veto_pair_visits_attempted \
-  sentence_edge_signature_direct_shadow.fragment_veto_similarity_comparisons_examined \
-  sentence_edge_signature_direct_shadow.fragment_veto_similarity_comparisons_attempted
+  benchmark/realworld/results/2026-08-31-8a04a9f.json \
+  sentence_edge_signature_reference_oracle.legacy_sentence_edge_pairs_examined \
+  sentence_edge_signature_reference_oracle.legacy_sentence_edge_pairs_attempted \
+  sentence_edge_signature_reference_oracle.legacy_sentence_edge_pairs_retained \
+  sentence_edge_signature_reference_oracle.legacy_sentence_edge_pairs_rejected
 ```
 
 When reviewed annotations changed between captures, exclude only those named
@@ -107,6 +106,19 @@ diagnostics exactly match the schema-v24 baseline. Across 18 measured pairs,
 the filter classifies 6,990,647 Sentence pairs and rejects 6,660,144 (95.27%).
 All shadow threshold, veto, unique-partner, reciprocal, adopted-replacement,
 and insertion/deletion-veto mismatch counters remain zero.
+The schema-v30 capture gives completed direct replays a comparable full legacy
+Sentence edge denominator. The ten production-complete records examine 675,285
+broad pairs and generate 56,587 direct candidates. The seven completed
+reference oracles examine another 14,481,863 broad pairs and generate 1,767,954
+direct candidates. Combined, the direct index generates 1,824,541 candidates
+from 15,157,148 broad pairs, or 12.04%. However, 1,650,014 pairs, or 10.89% of
+the broad set, actually pass the exact edge gate and therefore form a hard
+lower bound for an index required to reproduce the exact edge-gate retained
+set. The direct index adds 174,527 candidates above that lower bound: 1.15% of
+broad work and 10.58% over the exact minimum. The original sub-10% aggregate
+gate is therefore incompatible with the current exact retained-set parity
+contract. Production remains on hold until the gate is restated against this
+exact lower bound and the bounded watch/fallback contract is verified.
 The schema-v29 capture independently checks direct edge-signature results
 against a higher-limit broad legacy candidate oracle whenever the accepted
 recovery build is incomplete. Seven of eight eligible records complete the
@@ -119,9 +131,9 @@ replay is incomplete, and records `direct_replay_incomplete` instead of a
 partial parity claim. Removing the schema number, the reference-oracle object,
 and the four nested fragment-veto work counters yields exact behavior parity
 with schema v28. This strengthens the candidate-safety evidence for incomplete
-production searches, but does not change the production decision: direct
-signature candidates remain 37.47% of the broad production edge-filter pairs,
-above the 10% selectivity gate.
+production searches. Schema v29 did not expose the completed oracle's broad
+edge denominator, so its direct-to-production aggregate must not be used as a
+selectivity gate.
 The schema-v28 capture sources Sentence candidates directly from the exact
 edge-signature index before the broad first/last-token union. Seventeen of 18
 available replays complete; LibreOffice stops fail-closed at the estimated
@@ -129,7 +141,9 @@ logical-byte limit. The ten replays with complete production baselines preserve
 both the recovery plan and retained-pair fingerprint, and every mismatch counter
 is zero. Direct replay performs zero broad Sentence posting visits. Across the
 17 complete replays, however, 1,824,541 signature candidates remain versus
-4,868,816 production edge-filter pairs (37.47%), above the 10% production gate.
+4,868,816 pairs observed by the accepted production edge filter. The resulting
+37.47% was provisional: schema v30 shows that this denominator mixes completed
+direct work with partial accepted searches and is not comparable.
 Depth-four-or-greater queries account for 98.95% of those candidates;
 cross-orientation-only candidates are zero. SP 800-57 reaches 63,820,576 logical
 index bytes, while LibreOffice attempts 70,622,544 before stopping. The direct
@@ -196,10 +210,12 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v29)
+## Current Writer Schema (v30)
 
-The benchmark writer and latest committed capture use schema v29. Older
-captures retain their recorded schemas. Schema v29 adds the independent
+The benchmark writer and latest committed capture use schema v30. Older
+captures retain their recorded schemas. Schema v30 adds full legacy Sentence
+edge attempted, examined, retained, and rejected work to the completed reference
+oracle. CLI trace schema v19 exposes the same counters. Schema v29 adds the independent
 higher-limit legacy reference oracle for direct edge-signature results, typed
 oracle stops, retained-pair fingerprint parity, and fragment-veto work evidence.
 CLI trace schema v18 exposes the same metrics and one-hot stop reasons. Schema
