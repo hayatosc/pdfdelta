@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 16;
+const TRACE_SCHEMA_VERSION: u8 = 17;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -1436,6 +1436,154 @@ fn pipeline_metrics(
                 ),
             ]);
         }
+        if let Some(shadow) = sentence.sentence_edge_signature_direct_shadow {
+            use pdfdelta_core::diff::SentenceEdgeSignatureDirectShadowStopReason as Stop;
+
+            macro_rules! direct_stop_reasons {
+                ($(($name:literal, $reason:ident)),+ $(,)?) => {
+                    $(flattened.insert(
+                        concat!(
+                            "sentence_recovery_sentence_edge_signature_direct_shadow_stop_reason_",
+                            $name
+                        ),
+                        usize::from(shadow.stop_reason == Some(Stop::$reason)),
+                    );)+
+                };
+            }
+            direct_stop_reasons!(
+                ("signature_index_posting_limit", SignatureIndexPostingLimit),
+                (
+                    "signature_index_distinct_key_limit",
+                    SignatureIndexDistinctKeyLimit
+                ),
+                (
+                    "signature_index_estimated_byte_limit",
+                    SignatureIndexEstimatedByteLimit
+                ),
+                ("signature_query_count_limit", SignatureQueryCountLimit),
+                (
+                    "signature_query_posting_visit_limit",
+                    SignatureQueryPostingVisitLimit
+                ),
+                (
+                    "signature_candidate_union_limit",
+                    SignatureCandidateUnionLimit
+                ),
+                (
+                    "signature_exact_edge_recheck_limit",
+                    SignatureExactEdgeRecheckLimit
+                ),
+                ("direct_edge_pair_visit_limit", DirectEdgePairVisitLimit),
+                (
+                    "direct_edge_similarity_comparison_limit",
+                    DirectEdgeSimilarityComparisonLimit
+                ),
+                ("candidate_posting_visit_limit", CandidatePostingVisitLimit),
+                ("pair_visit_limit", PairVisitLimit),
+                ("similarity_comparison_limit", SimilarityComparisonLimit),
+                ("candidate_count_limit", CandidateCountLimit),
+                ("allocation_failure", AllocationFailure),
+                ("counter_overflow", CounterOverflow),
+                (
+                    "production_traversal_incomplete",
+                    ProductionTraversalIncomplete
+                ),
+                ("diagnostic_failure", DiagnosticFailure),
+            );
+            macro_rules! direct_metrics {
+                ($($field:ident),+ $(,)?) => {
+                    $(flattened.insert(
+                        concat!(
+                            "sentence_recovery_sentence_edge_signature_direct_shadow_",
+                            stringify!($field)
+                    ),
+                        shadow.$field,
+                    );)+
+                };
+            }
+            flattened.insert(
+                "sentence_recovery_sentence_edge_signature_direct_shadow_complete",
+                usize::from(shadow.complete),
+            );
+            direct_metrics!(
+                signature_index_items_examined,
+                signature_index_items_attempted,
+                signature_query_visits_examined,
+                signature_query_visits_attempted,
+                signature_index_own_distinct_keys,
+                signature_index_all_distinct_keys,
+                signature_index_distinct_keys_examined,
+                signature_index_distinct_keys_attempted,
+                signature_index_own_key_capacity,
+                signature_index_all_key_capacity,
+                signature_index_own_posting_items,
+                signature_index_all_posting_items,
+                signature_index_posting_capacity_items,
+                signature_index_largest_posting,
+                signature_index_estimated_logical_bytes,
+                signature_index_estimated_logical_bytes_examined,
+                signature_index_estimated_logical_bytes_attempted,
+                signature_index_depth_1_posting_items,
+                signature_index_depth_2_to_3_posting_items,
+                signature_index_depth_4_plus_posting_items,
+                signature_queries,
+                signature_queries_attempted,
+                signature_depth_1_queries,
+                signature_depth_2_to_3_queries,
+                signature_depth_4_plus_queries,
+                signature_depth_1_candidate_union,
+                signature_depth_2_to_3_candidate_union,
+                signature_depth_4_plus_candidate_union,
+                direct_candidates,
+                signature_candidate_union_attempted,
+                paired_interval_candidates,
+                paired_cross_interval_candidates,
+                same_known_candidates,
+                ambiguous_candidates,
+                cross_span_candidates,
+                edge_filter_pairs_examined,
+                edge_filter_pairs_attempted,
+                edge_filter_comparisons_examined,
+                edge_filter_comparisons_attempted,
+                exact_edge_retained_pairs,
+                exact_edge_rechecks,
+                exact_edge_rechecks_attempted,
+                exact_edge_recheck_comparisons_examined,
+                exact_edge_recheck_comparisons_attempted,
+                exact_edge_rejected_pairs,
+                cross_orientation_only_candidates,
+                sentence_broad_edge_postings_examined,
+                sentence_broad_edge_postings_attempted,
+                downstream_candidate_postings_examined,
+                downstream_candidate_postings_attempted,
+                downstream_pair_visits_examined,
+                downstream_pair_visits_attempted,
+                downstream_similarity_comparisons_examined,
+                downstream_similarity_comparisons_attempted,
+                retained_pair_misses,
+                retained_pair_count_mismatches,
+                retained_pair_set_mismatches,
+                retained_pair_order_mismatches,
+            );
+            flattened.extend([
+                (
+                    "sentence_recovery_sentence_edge_signature_direct_shadow_candidate_count_truncated",
+                    usize::from(shadow.candidate_count_truncated),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_signature_direct_shadow_parity_evaluable",
+                    usize::from(shadow.parity_evaluable),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_signature_direct_shadow_plan_parity",
+                    usize::from(shadow.plan_parity),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_signature_direct_shadow_verification_evaluable",
+                    usize::from(shadow.verification_evaluable),
+                ),
+            ]);
+        }
     }
     flattened
 }
@@ -1528,7 +1676,8 @@ mod tests {
         diff::{
             KnownSpanSentenceShadowMetrics, NearRelationStopReason, RunSignatureStopReason,
             SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
-            SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureShadowMetrics,
+            SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectShadowMetrics,
+            SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureShadowMetrics,
             SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics,
         },
         pipeline::PipelineMetrics,
@@ -1537,8 +1686,8 @@ mod tests {
     use super::{TRACE_SCHEMA_VERSION, bounded_message, pipeline_metrics};
 
     #[test]
-    fn trace_schema_version_covers_sentence_edge_filter_metrics() {
-        assert_eq!(TRACE_SCHEMA_VERSION, 16);
+    fn trace_schema_version_covers_sentence_edge_signature_direct_shadow_metrics() {
+        assert_eq!(TRACE_SCHEMA_VERSION, 17);
     }
 
     #[test]
@@ -2245,6 +2394,299 @@ mod tests {
                 name.starts_with("sentence_recovery_sentence_edge_signature_shadow_")
             })
         );
+    }
+
+    #[test]
+    fn flattens_every_sentence_edge_signature_direct_shadow_metric() {
+        let mut shadow = SentenceEdgeSignatureDirectShadowMetrics {
+            complete: true,
+            candidate_count_truncated: true,
+            parity_evaluable: true,
+            plan_parity: true,
+            verification_evaluable: true,
+            ..SentenceEdgeSignatureDirectShadowMetrics::default()
+        };
+        let mut value = 0usize;
+        macro_rules! assign_direct_metrics {
+            ($($field:ident),+ $(,)?) => {
+                $(value += 1; shadow.$field = value;)+
+            };
+        }
+        assign_direct_metrics!(
+            signature_index_items_examined,
+            signature_index_items_attempted,
+            signature_query_visits_examined,
+            signature_query_visits_attempted,
+            signature_index_own_distinct_keys,
+            signature_index_all_distinct_keys,
+            signature_index_distinct_keys_examined,
+            signature_index_distinct_keys_attempted,
+            signature_index_own_key_capacity,
+            signature_index_all_key_capacity,
+            signature_index_own_posting_items,
+            signature_index_all_posting_items,
+            signature_index_posting_capacity_items,
+            signature_index_largest_posting,
+            signature_index_estimated_logical_bytes,
+            signature_index_estimated_logical_bytes_examined,
+            signature_index_estimated_logical_bytes_attempted,
+            signature_index_depth_1_posting_items,
+            signature_index_depth_2_to_3_posting_items,
+            signature_index_depth_4_plus_posting_items,
+            signature_queries,
+            signature_queries_attempted,
+            signature_depth_1_queries,
+            signature_depth_2_to_3_queries,
+            signature_depth_4_plus_queries,
+            signature_depth_1_candidate_union,
+            signature_depth_2_to_3_candidate_union,
+            signature_depth_4_plus_candidate_union,
+            direct_candidates,
+            signature_candidate_union_attempted,
+            paired_interval_candidates,
+            paired_cross_interval_candidates,
+            same_known_candidates,
+            ambiguous_candidates,
+            cross_span_candidates,
+            edge_filter_pairs_examined,
+            edge_filter_pairs_attempted,
+            edge_filter_comparisons_examined,
+            edge_filter_comparisons_attempted,
+            exact_edge_retained_pairs,
+            exact_edge_rechecks,
+            exact_edge_rechecks_attempted,
+            exact_edge_recheck_comparisons_examined,
+            exact_edge_recheck_comparisons_attempted,
+            exact_edge_rejected_pairs,
+            cross_orientation_only_candidates,
+            sentence_broad_edge_postings_examined,
+            sentence_broad_edge_postings_attempted,
+            downstream_candidate_postings_examined,
+            downstream_candidate_postings_attempted,
+            downstream_pair_visits_examined,
+            downstream_pair_visits_attempted,
+            downstream_similarity_comparisons_examined,
+            downstream_similarity_comparisons_attempted,
+            retained_pair_misses,
+            retained_pair_count_mismatches,
+            retained_pair_set_mismatches,
+            retained_pair_order_mismatches,
+        );
+        let metrics = pipeline_metrics(
+            PipelineMetrics {
+                sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
+                    sentence_edge_signature_direct_shadow: Some(shadow),
+                    ..SentenceRecoveryMetrics::default()
+                }),
+                ..PipelineMetrics::default()
+            },
+            None,
+        );
+        let mut expected = 0usize;
+        macro_rules! assert_direct_metrics {
+            ($($field:ident),+ $(,)?) => {
+                $(expected += 1; assert_eq!(
+                    metrics[concat!(
+                        "sentence_recovery_sentence_edge_signature_direct_shadow_",
+                        stringify!($field)
+                    )],
+                    expected,
+                );)+
+            };
+        }
+        assert_direct_metrics!(
+            signature_index_items_examined,
+            signature_index_items_attempted,
+            signature_query_visits_examined,
+            signature_query_visits_attempted,
+            signature_index_own_distinct_keys,
+            signature_index_all_distinct_keys,
+            signature_index_distinct_keys_examined,
+            signature_index_distinct_keys_attempted,
+            signature_index_own_key_capacity,
+            signature_index_all_key_capacity,
+            signature_index_own_posting_items,
+            signature_index_all_posting_items,
+            signature_index_posting_capacity_items,
+            signature_index_largest_posting,
+            signature_index_estimated_logical_bytes,
+            signature_index_estimated_logical_bytes_examined,
+            signature_index_estimated_logical_bytes_attempted,
+            signature_index_depth_1_posting_items,
+            signature_index_depth_2_to_3_posting_items,
+            signature_index_depth_4_plus_posting_items,
+            signature_queries,
+            signature_queries_attempted,
+            signature_depth_1_queries,
+            signature_depth_2_to_3_queries,
+            signature_depth_4_plus_queries,
+            signature_depth_1_candidate_union,
+            signature_depth_2_to_3_candidate_union,
+            signature_depth_4_plus_candidate_union,
+            direct_candidates,
+            signature_candidate_union_attempted,
+            paired_interval_candidates,
+            paired_cross_interval_candidates,
+            same_known_candidates,
+            ambiguous_candidates,
+            cross_span_candidates,
+            edge_filter_pairs_examined,
+            edge_filter_pairs_attempted,
+            edge_filter_comparisons_examined,
+            edge_filter_comparisons_attempted,
+            exact_edge_retained_pairs,
+            exact_edge_rechecks,
+            exact_edge_rechecks_attempted,
+            exact_edge_recheck_comparisons_examined,
+            exact_edge_recheck_comparisons_attempted,
+            exact_edge_rejected_pairs,
+            cross_orientation_only_candidates,
+            sentence_broad_edge_postings_examined,
+            sentence_broad_edge_postings_attempted,
+            downstream_candidate_postings_examined,
+            downstream_candidate_postings_attempted,
+            downstream_pair_visits_examined,
+            downstream_pair_visits_attempted,
+            downstream_similarity_comparisons_examined,
+            downstream_similarity_comparisons_attempted,
+            retained_pair_misses,
+            retained_pair_count_mismatches,
+            retained_pair_set_mismatches,
+            retained_pair_order_mismatches,
+        );
+        for field in [
+            "complete",
+            "candidate_count_truncated",
+            "parity_evaluable",
+            "plan_parity",
+            "verification_evaluable",
+        ] {
+            let key = format!("sentence_recovery_sentence_edge_signature_direct_shadow_{field}");
+            assert_eq!(metrics[key.as_str()], 1);
+        }
+        assert_eq!(
+            metrics
+                .keys()
+                .filter(|name| name
+                    .starts_with("sentence_recovery_sentence_edge_signature_direct_shadow_"))
+                .count(),
+            value + 5 + 17
+        );
+    }
+
+    #[test]
+    fn flattens_each_sentence_edge_signature_direct_shadow_stop_reason_as_one_hot() {
+        use SentenceEdgeSignatureDirectShadowStopReason as Stop;
+        let cases = [
+            (
+                Stop::SignatureIndexPostingLimit,
+                "signature_index_posting_limit",
+            ),
+            (
+                Stop::SignatureIndexDistinctKeyLimit,
+                "signature_index_distinct_key_limit",
+            ),
+            (
+                Stop::SignatureIndexEstimatedByteLimit,
+                "signature_index_estimated_byte_limit",
+            ),
+            (
+                Stop::SignatureQueryCountLimit,
+                "signature_query_count_limit",
+            ),
+            (
+                Stop::SignatureQueryPostingVisitLimit,
+                "signature_query_posting_visit_limit",
+            ),
+            (
+                Stop::SignatureCandidateUnionLimit,
+                "signature_candidate_union_limit",
+            ),
+            (
+                Stop::SignatureExactEdgeRecheckLimit,
+                "signature_exact_edge_recheck_limit",
+            ),
+            (
+                Stop::DirectEdgePairVisitLimit,
+                "direct_edge_pair_visit_limit",
+            ),
+            (
+                Stop::DirectEdgeSimilarityComparisonLimit,
+                "direct_edge_similarity_comparison_limit",
+            ),
+            (
+                Stop::CandidatePostingVisitLimit,
+                "candidate_posting_visit_limit",
+            ),
+            (Stop::PairVisitLimit, "pair_visit_limit"),
+            (
+                Stop::SimilarityComparisonLimit,
+                "similarity_comparison_limit",
+            ),
+            (Stop::CandidateCountLimit, "candidate_count_limit"),
+            (Stop::AllocationFailure, "allocation_failure"),
+            (Stop::CounterOverflow, "counter_overflow"),
+            (
+                Stop::ProductionTraversalIncomplete,
+                "production_traversal_incomplete",
+            ),
+            (Stop::DiagnosticFailure, "diagnostic_failure"),
+        ];
+        for (reason, expected) in cases {
+            let metrics = pipeline_metrics(
+                PipelineMetrics {
+                    sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
+                        sentence_edge_signature_direct_shadow: Some(
+                            SentenceEdgeSignatureDirectShadowMetrics {
+                                stop_reason: Some(reason),
+                                ..SentenceEdgeSignatureDirectShadowMetrics::default()
+                            },
+                        ),
+                        ..SentenceRecoveryMetrics::default()
+                    }),
+                    ..PipelineMetrics::default()
+                },
+                None,
+            );
+            for (_, name) in cases {
+                let key = format!(
+                    "sentence_recovery_sentence_edge_signature_direct_shadow_stop_reason_{name}"
+                );
+                assert_eq!(metrics[key.as_str()], usize::from(name == expected));
+            }
+        }
+    }
+
+    #[test]
+    fn preserves_direct_shadow_zeros_and_omits_unavailable_metrics() {
+        let present = pipeline_metrics(
+            PipelineMetrics {
+                sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
+                    sentence_edge_signature_direct_shadow: Some(
+                        SentenceEdgeSignatureDirectShadowMetrics::default(),
+                    ),
+                    ..SentenceRecoveryMetrics::default()
+                }),
+                ..PipelineMetrics::default()
+            },
+            None,
+        );
+        let prefix = "sentence_recovery_sentence_edge_signature_direct_shadow_";
+        let direct = present
+            .iter()
+            .filter(|(name, _)| name.starts_with(prefix))
+            .collect::<Vec<_>>();
+        assert!(!direct.is_empty());
+        assert!(direct.iter().all(|(_, value)| **value == 0));
+
+        let absent = pipeline_metrics(
+            PipelineMetrics {
+                sentence_recovery_metrics: Some(SentenceRecoveryMetrics::default()),
+                ..PipelineMetrics::default()
+            },
+            None,
+        );
+        assert!(!absent.keys().any(|name| name.starts_with(prefix)));
     }
 
     #[test]

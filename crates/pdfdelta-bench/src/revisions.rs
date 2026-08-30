@@ -29,7 +29,8 @@ use pdfdelta_core::{
         RecoveryWatchQuery, RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
         RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
         SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
-        SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureShadowMetrics,
+        SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectShadowMetrics,
+        SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureShadowMetrics,
         SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics, TextSpan,
     },
     layout::BlockRole,
@@ -542,6 +543,8 @@ pub struct SentenceRecoveryMetricsReport {
     pub known_span_sentence_shadow: Option<KnownSpanSentenceShadowMetricsReport>,
     pub sentence_edge_gate_shadow: Option<SentenceEdgeGateShadowMetricsReport>,
     pub sentence_edge_signature_shadow: Option<SentenceEdgeSignatureShadowMetricsReport>,
+    pub sentence_edge_signature_direct_shadow:
+        Option<SentenceEdgeSignatureDirectShadowMetricsReport>,
     pub sentence_edge_filter_complete: bool,
     pub sentence_edge_filter_pairs_examined: usize,
     pub sentence_edge_filter_pairs_attempted: usize,
@@ -729,6 +732,158 @@ impl From<SentenceEdgeSignatureShadowMetrics> for SentenceEdgeSignatureShadowMet
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct SentenceEdgeSignatureDirectShadowMetricsReport {
+    pub complete: bool,
+    pub stop_reason: Option<SentenceEdgeSignatureDirectShadowStopReasonReport>,
+    pub signature_index_items_examined: usize,
+    pub signature_index_items_attempted: usize,
+    pub signature_query_visits_examined: usize,
+    pub signature_query_visits_attempted: usize,
+    pub signature_index_own_distinct_keys: usize,
+    pub signature_index_all_distinct_keys: usize,
+    pub signature_index_distinct_keys_examined: usize,
+    pub signature_index_distinct_keys_attempted: usize,
+    pub signature_index_own_key_capacity: usize,
+    pub signature_index_all_key_capacity: usize,
+    pub signature_index_own_posting_items: usize,
+    pub signature_index_all_posting_items: usize,
+    pub signature_index_posting_capacity_items: usize,
+    pub signature_index_largest_posting: usize,
+    pub signature_index_estimated_logical_bytes: usize,
+    pub signature_index_estimated_logical_bytes_examined: usize,
+    pub signature_index_estimated_logical_bytes_attempted: usize,
+    pub signature_index_depth_1_posting_items: usize,
+    pub signature_index_depth_2_to_3_posting_items: usize,
+    pub signature_index_depth_4_plus_posting_items: usize,
+    pub signature_queries: usize,
+    pub signature_queries_attempted: usize,
+    pub signature_depth_1_queries: usize,
+    pub signature_depth_2_to_3_queries: usize,
+    pub signature_depth_4_plus_queries: usize,
+    pub signature_depth_1_candidate_union: usize,
+    pub signature_depth_2_to_3_candidate_union: usize,
+    pub signature_depth_4_plus_candidate_union: usize,
+    pub direct_candidates: usize,
+    pub signature_candidate_union_attempted: usize,
+    pub paired_interval_candidates: usize,
+    pub paired_cross_interval_candidates: usize,
+    pub same_known_candidates: usize,
+    pub ambiguous_candidates: usize,
+    pub cross_span_candidates: usize,
+    pub edge_filter_pairs_examined: usize,
+    pub edge_filter_pairs_attempted: usize,
+    pub edge_filter_comparisons_examined: usize,
+    pub edge_filter_comparisons_attempted: usize,
+    pub exact_edge_retained_pairs: usize,
+    pub exact_edge_rechecks: usize,
+    pub exact_edge_rechecks_attempted: usize,
+    pub exact_edge_recheck_comparisons_examined: usize,
+    pub exact_edge_recheck_comparisons_attempted: usize,
+    pub exact_edge_rejected_pairs: usize,
+    pub cross_orientation_only_candidates: usize,
+    pub sentence_broad_edge_postings_examined: usize,
+    pub sentence_broad_edge_postings_attempted: usize,
+    pub downstream_candidate_postings_examined: usize,
+    pub downstream_candidate_postings_attempted: usize,
+    pub downstream_pair_visits_examined: usize,
+    pub downstream_pair_visits_attempted: usize,
+    pub downstream_similarity_comparisons_examined: usize,
+    pub downstream_similarity_comparisons_attempted: usize,
+    pub candidate_count_truncated: bool,
+    pub parity_evaluable: bool,
+    pub plan_parity: bool,
+    pub verification_evaluable: bool,
+    pub retained_pair_misses: usize,
+    pub retained_pair_count_mismatches: usize,
+    pub retained_pair_set_mismatches: usize,
+    pub retained_pair_order_mismatches: usize,
+}
+
+impl From<SentenceEdgeSignatureDirectShadowMetrics>
+    for SentenceEdgeSignatureDirectShadowMetricsReport
+{
+    fn from(metrics: SentenceEdgeSignatureDirectShadowMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            stop_reason: metrics.stop_reason.map(Into::into),
+            signature_index_items_examined: metrics.signature_index_items_examined,
+            signature_index_items_attempted: metrics.signature_index_items_attempted,
+            signature_query_visits_examined: metrics.signature_query_visits_examined,
+            signature_query_visits_attempted: metrics.signature_query_visits_attempted,
+            signature_index_own_distinct_keys: metrics.signature_index_own_distinct_keys,
+            signature_index_all_distinct_keys: metrics.signature_index_all_distinct_keys,
+            signature_index_distinct_keys_examined: metrics.signature_index_distinct_keys_examined,
+            signature_index_distinct_keys_attempted: metrics
+                .signature_index_distinct_keys_attempted,
+            signature_index_own_key_capacity: metrics.signature_index_own_key_capacity,
+            signature_index_all_key_capacity: metrics.signature_index_all_key_capacity,
+            signature_index_own_posting_items: metrics.signature_index_own_posting_items,
+            signature_index_all_posting_items: metrics.signature_index_all_posting_items,
+            signature_index_posting_capacity_items: metrics.signature_index_posting_capacity_items,
+            signature_index_largest_posting: metrics.signature_index_largest_posting,
+            signature_index_estimated_logical_bytes: metrics
+                .signature_index_estimated_logical_bytes,
+            signature_index_estimated_logical_bytes_examined: metrics
+                .signature_index_estimated_logical_bytes_examined,
+            signature_index_estimated_logical_bytes_attempted: metrics
+                .signature_index_estimated_logical_bytes_attempted,
+            signature_index_depth_1_posting_items: metrics.signature_index_depth_1_posting_items,
+            signature_index_depth_2_to_3_posting_items: metrics
+                .signature_index_depth_2_to_3_posting_items,
+            signature_index_depth_4_plus_posting_items: metrics
+                .signature_index_depth_4_plus_posting_items,
+            signature_queries: metrics.signature_queries,
+            signature_queries_attempted: metrics.signature_queries_attempted,
+            signature_depth_1_queries: metrics.signature_depth_1_queries,
+            signature_depth_2_to_3_queries: metrics.signature_depth_2_to_3_queries,
+            signature_depth_4_plus_queries: metrics.signature_depth_4_plus_queries,
+            signature_depth_1_candidate_union: metrics.signature_depth_1_candidate_union,
+            signature_depth_2_to_3_candidate_union: metrics.signature_depth_2_to_3_candidate_union,
+            signature_depth_4_plus_candidate_union: metrics.signature_depth_4_plus_candidate_union,
+            direct_candidates: metrics.direct_candidates,
+            signature_candidate_union_attempted: metrics.signature_candidate_union_attempted,
+            paired_interval_candidates: metrics.paired_interval_candidates,
+            paired_cross_interval_candidates: metrics.paired_cross_interval_candidates,
+            same_known_candidates: metrics.same_known_candidates,
+            ambiguous_candidates: metrics.ambiguous_candidates,
+            cross_span_candidates: metrics.cross_span_candidates,
+            edge_filter_pairs_examined: metrics.edge_filter_pairs_examined,
+            edge_filter_pairs_attempted: metrics.edge_filter_pairs_attempted,
+            edge_filter_comparisons_examined: metrics.edge_filter_comparisons_examined,
+            edge_filter_comparisons_attempted: metrics.edge_filter_comparisons_attempted,
+            exact_edge_retained_pairs: metrics.exact_edge_retained_pairs,
+            exact_edge_rechecks: metrics.exact_edge_rechecks,
+            exact_edge_rechecks_attempted: metrics.exact_edge_rechecks_attempted,
+            exact_edge_recheck_comparisons_examined: metrics
+                .exact_edge_recheck_comparisons_examined,
+            exact_edge_recheck_comparisons_attempted: metrics
+                .exact_edge_recheck_comparisons_attempted,
+            exact_edge_rejected_pairs: metrics.exact_edge_rejected_pairs,
+            cross_orientation_only_candidates: metrics.cross_orientation_only_candidates,
+            sentence_broad_edge_postings_examined: metrics.sentence_broad_edge_postings_examined,
+            sentence_broad_edge_postings_attempted: metrics.sentence_broad_edge_postings_attempted,
+            downstream_candidate_postings_examined: metrics.downstream_candidate_postings_examined,
+            downstream_candidate_postings_attempted: metrics
+                .downstream_candidate_postings_attempted,
+            downstream_pair_visits_examined: metrics.downstream_pair_visits_examined,
+            downstream_pair_visits_attempted: metrics.downstream_pair_visits_attempted,
+            downstream_similarity_comparisons_examined: metrics
+                .downstream_similarity_comparisons_examined,
+            downstream_similarity_comparisons_attempted: metrics
+                .downstream_similarity_comparisons_attempted,
+            candidate_count_truncated: metrics.candidate_count_truncated,
+            parity_evaluable: metrics.parity_evaluable,
+            plan_parity: metrics.plan_parity,
+            verification_evaluable: metrics.verification_evaluable,
+            retained_pair_misses: metrics.retained_pair_misses,
+            retained_pair_count_mismatches: metrics.retained_pair_count_mismatches,
+            retained_pair_set_mismatches: metrics.retained_pair_set_mismatches,
+            retained_pair_order_mismatches: metrics.retained_pair_order_mismatches,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct NearSearchWorkMetricsReport {
     pub edge_posting_visits_examined: usize,
     pub edge_posting_visits_attempted: usize,
@@ -823,6 +978,28 @@ pub enum SentenceEdgeSignatureShadowStopReasonReport {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
+pub enum SentenceEdgeSignatureDirectShadowStopReasonReport {
+    SignatureIndexPostingLimit,
+    SignatureIndexDistinctKeyLimit,
+    SignatureIndexEstimatedByteLimit,
+    SignatureQueryCountLimit,
+    SignatureQueryPostingVisitLimit,
+    SignatureCandidateUnionLimit,
+    SignatureExactEdgeRecheckLimit,
+    DirectEdgePairVisitLimit,
+    DirectEdgeSimilarityComparisonLimit,
+    CandidatePostingVisitLimit,
+    PairVisitLimit,
+    SimilarityComparisonLimit,
+    CandidateCountLimit,
+    AllocationFailure,
+    CounterOverflow,
+    ProductionTraversalIncomplete,
+    DiagnosticFailure,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SentenceEdgeFilterStopReasonReport {
     PairVisitLimit,
     SimilarityComparisonLimit,
@@ -882,6 +1059,33 @@ impl From<SentenceEdgeSignatureShadowStopReason> for SentenceEdgeSignatureShadow
             }
             SentenceEdgeSignatureShadowStopReason::CandidateCountLimit => Self::CandidateCountLimit,
             SentenceEdgeSignatureShadowStopReason::DiagnosticFailure => Self::DiagnosticFailure,
+        }
+    }
+}
+
+impl From<SentenceEdgeSignatureDirectShadowStopReason>
+    for SentenceEdgeSignatureDirectShadowStopReasonReport
+{
+    fn from(reason: SentenceEdgeSignatureDirectShadowStopReason) -> Self {
+        use SentenceEdgeSignatureDirectShadowStopReason as Core;
+        match reason {
+            Core::SignatureIndexPostingLimit => Self::SignatureIndexPostingLimit,
+            Core::SignatureIndexDistinctKeyLimit => Self::SignatureIndexDistinctKeyLimit,
+            Core::SignatureIndexEstimatedByteLimit => Self::SignatureIndexEstimatedByteLimit,
+            Core::SignatureQueryCountLimit => Self::SignatureQueryCountLimit,
+            Core::SignatureQueryPostingVisitLimit => Self::SignatureQueryPostingVisitLimit,
+            Core::SignatureCandidateUnionLimit => Self::SignatureCandidateUnionLimit,
+            Core::SignatureExactEdgeRecheckLimit => Self::SignatureExactEdgeRecheckLimit,
+            Core::DirectEdgePairVisitLimit => Self::DirectEdgePairVisitLimit,
+            Core::DirectEdgeSimilarityComparisonLimit => Self::DirectEdgeSimilarityComparisonLimit,
+            Core::CandidatePostingVisitLimit => Self::CandidatePostingVisitLimit,
+            Core::PairVisitLimit => Self::PairVisitLimit,
+            Core::SimilarityComparisonLimit => Self::SimilarityComparisonLimit,
+            Core::CandidateCountLimit => Self::CandidateCountLimit,
+            Core::AllocationFailure => Self::AllocationFailure,
+            Core::CounterOverflow => Self::CounterOverflow,
+            Core::ProductionTraversalIncomplete => Self::ProductionTraversalIncomplete,
+            Core::DiagnosticFailure => Self::DiagnosticFailure,
         }
     }
 }
@@ -1303,6 +1507,9 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             known_span_sentence_shadow: metrics.known_span_sentence_shadow.map(Into::into),
             sentence_edge_gate_shadow: metrics.sentence_edge_gate_shadow.map(Into::into),
             sentence_edge_signature_shadow: metrics.sentence_edge_signature_shadow.map(Into::into),
+            sentence_edge_signature_direct_shadow: metrics
+                .sentence_edge_signature_direct_shadow
+                .map(Into::into),
             sentence_edge_filter_complete: metrics.sentence_edge_filter_complete,
             sentence_edge_filter_pairs_examined: metrics.sentence_edge_filter_pairs_examined,
             sentence_edge_filter_pairs_attempted: metrics.sentence_edge_filter_pairs_attempted,
@@ -3381,6 +3588,7 @@ fn validate_sentence_recovery_metrics(
     validate_known_span_sentence_shadow_metrics(metrics)?;
     validate_sentence_edge_gate_shadow_metrics(metrics)?;
     validate_sentence_edge_signature_shadow_metrics(metrics)?;
+    validate_sentence_edge_signature_direct_shadow_metrics(metrics)?;
     validate_sentence_edge_filter_metrics(metrics)?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
@@ -3848,6 +4056,352 @@ fn validate_sentence_edge_signature_shadow_metrics(
     {
         return Err(
             "sentence-edge signature retained-pair verification contradicts production".to_owned(),
+        );
+    }
+    Ok(())
+}
+
+fn validate_sentence_edge_signature_direct_shadow_metrics(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<(), String> {
+    let Some(shadow) = metrics.sentence_edge_signature_direct_shadow else {
+        return Ok(());
+    };
+    if shadow.complete != shadow.stop_reason.is_none() {
+        return Err(
+            "sentence-edge signature direct shadow completeness contradicts stop reason".to_owned(),
+        );
+    }
+    for (kind, examined, attempted) in [
+        (
+            "index posting items",
+            shadow.signature_index_items_examined,
+            shadow.signature_index_items_attempted,
+        ),
+        (
+            "query posting visits",
+            shadow.signature_query_visits_examined,
+            shadow.signature_query_visits_attempted,
+        ),
+        (
+            "index distinct keys",
+            shadow.signature_index_distinct_keys_examined,
+            shadow.signature_index_distinct_keys_attempted,
+        ),
+        (
+            "index estimated logical bytes",
+            shadow.signature_index_estimated_logical_bytes_examined,
+            shadow.signature_index_estimated_logical_bytes_attempted,
+        ),
+        (
+            "queries",
+            shadow.signature_queries,
+            shadow.signature_queries_attempted,
+        ),
+        (
+            "candidate union",
+            shadow.direct_candidates,
+            shadow.signature_candidate_union_attempted,
+        ),
+        (
+            "edge-filter pairs",
+            shadow.edge_filter_pairs_examined,
+            shadow.edge_filter_pairs_attempted,
+        ),
+        (
+            "edge-filter comparisons",
+            shadow.edge_filter_comparisons_examined,
+            shadow.edge_filter_comparisons_attempted,
+        ),
+        (
+            "exact edge rechecks",
+            shadow.exact_edge_rechecks,
+            shadow.exact_edge_rechecks_attempted,
+        ),
+        (
+            "exact edge recheck comparisons",
+            shadow.exact_edge_recheck_comparisons_examined,
+            shadow.exact_edge_recheck_comparisons_attempted,
+        ),
+        (
+            "broad Sentence postings",
+            shadow.sentence_broad_edge_postings_examined,
+            shadow.sentence_broad_edge_postings_attempted,
+        ),
+        (
+            "downstream candidate postings",
+            shadow.downstream_candidate_postings_examined,
+            shadow.downstream_candidate_postings_attempted,
+        ),
+        (
+            "downstream pair visits",
+            shadow.downstream_pair_visits_examined,
+            shadow.downstream_pair_visits_attempted,
+        ),
+        (
+            "downstream similarity comparisons",
+            shadow.downstream_similarity_comparisons_examined,
+            shadow.downstream_similarity_comparisons_attempted,
+        ),
+    ] {
+        if examined > attempted {
+            return Err(format!(
+                "sentence-edge signature direct shadow {kind} examined {examined} exceed attempted {attempted}"
+            ));
+        }
+        if shadow.complete && examined != attempted {
+            return Err(format!(
+                "complete sentence-edge signature direct shadow {kind} examined {examined} differ from attempted {attempted}"
+            ));
+        }
+    }
+    if shadow.cross_orientation_only_candidates > shadow.exact_edge_rejected_pairs {
+        return Err(
+            "sentence-edge signature direct shadow cross-orientation candidates exceed rejected pairs"
+                .to_owned(),
+        );
+    }
+    if shadow.plan_parity && !shadow.parity_evaluable {
+        return Err(
+            "sentence-edge signature direct shadow reports plan parity without evaluation"
+                .to_owned(),
+        );
+    }
+    if shadow.verification_evaluable && !shadow.parity_evaluable {
+        return Err(
+            "sentence-edge signature direct shadow verification is evaluable without parity"
+                .to_owned(),
+        );
+    }
+    if shadow.retained_pair_count_mismatches > 1
+        || shadow.retained_pair_set_mismatches > 1
+        || shadow.retained_pair_order_mismatches > 1
+    {
+        return Err(
+            "sentence-edge signature direct shadow fingerprint mismatch flags exceed one"
+                .to_owned(),
+        );
+    }
+    if shadow.retained_pair_misses > 0
+        && (shadow.retained_pair_count_mismatches != 1
+            || shadow.retained_pair_set_mismatches != 1
+            || shadow.retained_pair_order_mismatches != 1)
+    {
+        return Err(
+            "sentence-edge signature direct shadow retained misses lack fingerprint mismatches"
+                .to_owned(),
+        );
+    }
+    if !shadow.verification_evaluable
+        && (shadow.retained_pair_misses != 0
+            || shadow.retained_pair_count_mismatches != 0
+            || shadow.retained_pair_set_mismatches != 0
+            || shadow.retained_pair_order_mismatches != 0)
+    {
+        return Err(
+            "sentence-edge signature direct shadow reports mismatches without verification"
+                .to_owned(),
+        );
+    }
+    if shadow.complete && shadow.parity_evaluable && !shadow.plan_parity {
+        return Err(
+            "complete sentence-edge signature direct shadow has a mismatching plan".to_owned(),
+        );
+    }
+    if shadow.parity_evaluable
+        && (!metrics.near_relation_complete || !metrics.sentence_edge_filter_complete)
+    {
+        return Err(
+            "sentence-edge signature direct shadow parity requires complete production relations"
+                .to_owned(),
+        );
+    }
+
+    let deficits = [
+        shadow.signature_index_items_examined < shadow.signature_index_items_attempted,
+        shadow.signature_index_distinct_keys_examined
+            < shadow.signature_index_distinct_keys_attempted,
+        shadow.signature_index_estimated_logical_bytes_examined
+            < shadow.signature_index_estimated_logical_bytes_attempted,
+        shadow.signature_queries < shadow.signature_queries_attempted,
+        shadow.signature_query_visits_examined < shadow.signature_query_visits_attempted,
+        shadow.direct_candidates < shadow.signature_candidate_union_attempted,
+        shadow.exact_edge_rechecks < shadow.exact_edge_rechecks_attempted,
+        shadow.exact_edge_recheck_comparisons_examined
+            < shadow.exact_edge_recheck_comparisons_attempted,
+        shadow.edge_filter_pairs_examined < shadow.edge_filter_pairs_attempted,
+        shadow.edge_filter_comparisons_examined < shadow.edge_filter_comparisons_attempted,
+        shadow.downstream_candidate_postings_examined
+            < shadow.downstream_candidate_postings_attempted,
+        shadow.downstream_pair_visits_examined < shadow.downstream_pair_visits_attempted,
+        shadow.downstream_similarity_comparisons_examined
+            < shadow.downstream_similarity_comparisons_attempted,
+    ];
+    let only_deficit = |indices: &[usize]| {
+        deficits
+            .iter()
+            .enumerate()
+            .all(|(index, deficit)| *deficit == indices.contains(&index))
+    };
+    let resource_stop_valid = match shadow.stop_reason {
+        Some(SentenceEdgeSignatureDirectShadowStopReason::SignatureIndexPostingLimit) => {
+            only_deficit(&[0])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::SignatureIndexDistinctKeyLimit) => {
+            only_deficit(&[1])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::SignatureIndexEstimatedByteLimit) => {
+            only_deficit(&[2])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::SignatureQueryCountLimit) => {
+            only_deficit(&[3])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::SignatureQueryPostingVisitLimit) => {
+            only_deficit(&[4])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::SignatureCandidateUnionLimit) => {
+            only_deficit(&[5])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::SignatureExactEdgeRecheckLimit) => {
+            only_deficit(&[6]) || only_deficit(&[7])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::DirectEdgePairVisitLimit) => {
+            only_deficit(&[8])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::DirectEdgeSimilarityComparisonLimit) => {
+            only_deficit(&[9])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::CandidatePostingVisitLimit) => {
+            only_deficit(&[10])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::PairVisitLimit) => only_deficit(&[11]),
+        Some(SentenceEdgeSignatureDirectShadowStopReason::SimilarityComparisonLimit) => {
+            only_deficit(&[12])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::CandidateCountLimit) => {
+            !deficits.iter().any(|deficit| *deficit) && shadow.candidate_count_truncated
+        }
+        Some(
+            SentenceEdgeSignatureDirectShadowStopReason::AllocationFailure
+            | SentenceEdgeSignatureDirectShadowStopReason::CounterOverflow
+            | SentenceEdgeSignatureDirectShadowStopReason::ProductionTraversalIncomplete
+            | SentenceEdgeSignatureDirectShadowStopReason::DiagnosticFailure,
+        )
+        | None => true,
+    };
+    if !resource_stop_valid {
+        return Err(
+            "sentence-edge signature direct shadow resource stop contradicts unfinished work"
+                .to_owned(),
+        );
+    }
+    if !shadow.complete {
+        return Ok(());
+    }
+
+    let checked_sum = |values: &[usize], label: &str| {
+        values.iter().try_fold(0usize, |sum, value| {
+            sum.checked_add(*value).ok_or_else(|| {
+                format!("sentence-edge signature direct shadow {label} counters overflow")
+            })
+        })
+    };
+    if checked_sum(
+        &[
+            shadow.signature_index_own_posting_items,
+            shadow.signature_index_all_posting_items,
+        ],
+        "index posting",
+    )? != shadow.signature_index_items_examined
+        || checked_sum(
+            &[
+                shadow.signature_index_depth_1_posting_items,
+                shadow.signature_index_depth_2_to_3_posting_items,
+                shadow.signature_index_depth_4_plus_posting_items,
+            ],
+            "posting depth",
+        )? != shadow.signature_index_items_examined
+    {
+        return Err(
+            "complete sentence-edge signature direct shadow posting counters do not sum".to_owned(),
+        );
+    }
+    if checked_sum(
+        &[
+            shadow.signature_index_own_distinct_keys,
+            shadow.signature_index_all_distinct_keys,
+        ],
+        "distinct key",
+    )? != shadow.signature_index_distinct_keys_examined
+    {
+        return Err(
+            "complete sentence-edge signature direct shadow distinct-key counters do not sum"
+                .to_owned(),
+        );
+    }
+    if shadow.signature_index_estimated_logical_bytes
+        != shadow.signature_index_estimated_logical_bytes_examined
+        || shadow.signature_index_posting_capacity_items < shadow.signature_index_items_examined
+        || shadow.signature_index_own_key_capacity < shadow.signature_index_own_distinct_keys
+        || shadow.signature_index_all_key_capacity < shadow.signature_index_all_distinct_keys
+        || shadow.signature_index_largest_posting > shadow.signature_index_items_examined
+    {
+        return Err(
+            "complete sentence-edge signature direct shadow index shape is inconsistent".to_owned(),
+        );
+    }
+    if checked_sum(
+        &[
+            shadow.signature_depth_1_queries,
+            shadow.signature_depth_2_to_3_queries,
+            shadow.signature_depth_4_plus_queries,
+        ],
+        "query depth",
+    )? != shadow.signature_queries
+        || checked_sum(
+            &[
+                shadow.signature_depth_1_candidate_union,
+                shadow.signature_depth_2_to_3_candidate_union,
+                shadow.signature_depth_4_plus_candidate_union,
+            ],
+            "candidate-union depth",
+        )? != shadow.direct_candidates
+        || checked_sum(
+            &[
+                shadow.paired_interval_candidates,
+                shadow.paired_cross_interval_candidates,
+                shadow.same_known_candidates,
+                shadow.ambiguous_candidates,
+                shadow.cross_span_candidates,
+            ],
+            "scope",
+        )? != shadow.direct_candidates
+    {
+        return Err(
+            "complete sentence-edge signature direct shadow query counters do not sum".to_owned(),
+        );
+    }
+    if shadow
+        .exact_edge_retained_pairs
+        .checked_add(shadow.exact_edge_rejected_pairs)
+        != Some(shadow.exact_edge_rechecks)
+    {
+        return Err(
+            "complete sentence-edge signature direct shadow exact recheck counters do not sum"
+                .to_owned(),
+        );
+    }
+    if shadow.sentence_broad_edge_postings_examined != 0
+        || shadow.sentence_broad_edge_postings_attempted != 0
+        || shadow.candidate_count_truncated
+        || shadow.retained_pair_misses != 0
+        || shadow.retained_pair_count_mismatches != 0
+        || shadow.retained_pair_set_mismatches != 0
+        || shadow.retained_pair_order_mismatches != 0
+    {
+        return Err(
+            "complete sentence-edge signature direct shadow reports forbidden work or mismatches"
+                .to_owned(),
         );
     }
     Ok(())
@@ -4600,7 +5154,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 27;
+    pub const SCHEMA_VERSION: u32 = 28;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -5864,7 +6418,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 27);
+        assert_eq!(completed["schema_version"], 28);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -5907,7 +6461,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 27);
+        assert_eq!(legacy_summary["schema_version"], 28);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -6905,6 +7459,15 @@ mod tests {
                     plan_parity: true,
                     ..SentenceEdgeSignatureShadowMetricsReport::default()
                 },),
+                sentence_edge_signature_direct_shadow: Some(
+                    SentenceEdgeSignatureDirectShadowMetricsReport {
+                        complete: true,
+                        parity_evaluable: true,
+                        verification_evaluable: true,
+                        plan_parity: true,
+                        ..SentenceEdgeSignatureDirectShadowMetricsReport::default()
+                    },
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetricsReport::default()
             })
@@ -7108,7 +7671,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 27);
+        assert_eq!(json["schema_version"], 28);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -8292,6 +8855,495 @@ mod tests {
         }
     }
 
+    fn valid_sentence_edge_signature_direct_shadow() -> SentenceEdgeSignatureDirectShadowMetrics {
+        SentenceEdgeSignatureDirectShadowMetrics {
+            complete: true,
+            signature_index_items_examined: 5,
+            signature_index_items_attempted: 5,
+            signature_query_visits_examined: 8,
+            signature_query_visits_attempted: 8,
+            signature_index_own_distinct_keys: 1,
+            signature_index_all_distinct_keys: 2,
+            signature_index_distinct_keys_examined: 3,
+            signature_index_distinct_keys_attempted: 3,
+            signature_index_own_key_capacity: 2,
+            signature_index_all_key_capacity: 4,
+            signature_index_own_posting_items: 2,
+            signature_index_all_posting_items: 3,
+            signature_index_posting_capacity_items: 6,
+            signature_index_largest_posting: 2,
+            signature_index_estimated_logical_bytes: 100,
+            signature_index_estimated_logical_bytes_examined: 100,
+            signature_index_estimated_logical_bytes_attempted: 100,
+            signature_index_depth_1_posting_items: 1,
+            signature_index_depth_2_to_3_posting_items: 2,
+            signature_index_depth_4_plus_posting_items: 2,
+            signature_queries: 3,
+            signature_queries_attempted: 3,
+            signature_depth_1_queries: 1,
+            signature_depth_2_to_3_queries: 1,
+            signature_depth_4_plus_queries: 1,
+            signature_depth_1_candidate_union: 1,
+            signature_depth_2_to_3_candidate_union: 2,
+            signature_depth_4_plus_candidate_union: 3,
+            direct_candidates: 6,
+            signature_candidate_union_attempted: 6,
+            paired_interval_candidates: 1,
+            paired_cross_interval_candidates: 1,
+            same_known_candidates: 1,
+            ambiguous_candidates: 1,
+            cross_span_candidates: 2,
+            edge_filter_pairs_examined: 6,
+            edge_filter_pairs_attempted: 6,
+            edge_filter_comparisons_examined: 10,
+            edge_filter_comparisons_attempted: 10,
+            exact_edge_retained_pairs: 2,
+            exact_edge_rechecks: 6,
+            exact_edge_rechecks_attempted: 6,
+            exact_edge_recheck_comparisons_examined: 10,
+            exact_edge_recheck_comparisons_attempted: 10,
+            exact_edge_rejected_pairs: 4,
+            cross_orientation_only_candidates: 1,
+            downstream_candidate_postings_examined: 7,
+            downstream_candidate_postings_attempted: 7,
+            downstream_pair_visits_examined: 2,
+            downstream_pair_visits_attempted: 2,
+            downstream_similarity_comparisons_examined: 4,
+            downstream_similarity_comparisons_attempted: 4,
+            parity_evaluable: true,
+            plan_parity: true,
+            ..SentenceEdgeSignatureDirectShadowMetrics::default()
+        }
+    }
+
+    #[test]
+    fn converts_serializes_and_validates_sentence_edge_signature_direct_shadow_metrics() {
+        let shadow = valid_sentence_edge_signature_direct_shadow();
+        let metrics = SentenceRecoveryMetrics {
+            sentence_edge_signature_direct_shadow: Some(shadow),
+            near_relation_complete: true,
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        let report = validate_sentence_recovery_metrics(metrics)
+            .expect("valid direct signature shadow metrics pass")
+            .sentence_edge_signature_direct_shadow
+            .expect("direct shadow report is present");
+        assert_eq!(report, shadow.into());
+
+        let keys = serde_json::to_value(report)
+            .expect("direct shadow report serializes")
+            .as_object()
+            .expect("direct shadow report is an object")
+            .keys()
+            .cloned()
+            .collect::<HashSet<_>>();
+        let expected = HashSet::from([
+            "complete",
+            "stop_reason",
+            "signature_index_items_examined",
+            "signature_index_items_attempted",
+            "signature_query_visits_examined",
+            "signature_query_visits_attempted",
+            "signature_index_own_distinct_keys",
+            "signature_index_all_distinct_keys",
+            "signature_index_distinct_keys_examined",
+            "signature_index_distinct_keys_attempted",
+            "signature_index_own_key_capacity",
+            "signature_index_all_key_capacity",
+            "signature_index_own_posting_items",
+            "signature_index_all_posting_items",
+            "signature_index_posting_capacity_items",
+            "signature_index_largest_posting",
+            "signature_index_estimated_logical_bytes",
+            "signature_index_estimated_logical_bytes_examined",
+            "signature_index_estimated_logical_bytes_attempted",
+            "signature_index_depth_1_posting_items",
+            "signature_index_depth_2_to_3_posting_items",
+            "signature_index_depth_4_plus_posting_items",
+            "signature_queries",
+            "signature_queries_attempted",
+            "signature_depth_1_queries",
+            "signature_depth_2_to_3_queries",
+            "signature_depth_4_plus_queries",
+            "signature_depth_1_candidate_union",
+            "signature_depth_2_to_3_candidate_union",
+            "signature_depth_4_plus_candidate_union",
+            "direct_candidates",
+            "signature_candidate_union_attempted",
+            "paired_interval_candidates",
+            "paired_cross_interval_candidates",
+            "same_known_candidates",
+            "ambiguous_candidates",
+            "cross_span_candidates",
+            "edge_filter_pairs_examined",
+            "edge_filter_pairs_attempted",
+            "edge_filter_comparisons_examined",
+            "edge_filter_comparisons_attempted",
+            "exact_edge_retained_pairs",
+            "exact_edge_rechecks",
+            "exact_edge_rechecks_attempted",
+            "exact_edge_recheck_comparisons_examined",
+            "exact_edge_recheck_comparisons_attempted",
+            "exact_edge_rejected_pairs",
+            "cross_orientation_only_candidates",
+            "sentence_broad_edge_postings_examined",
+            "sentence_broad_edge_postings_attempted",
+            "downstream_candidate_postings_examined",
+            "downstream_candidate_postings_attempted",
+            "downstream_pair_visits_examined",
+            "downstream_pair_visits_attempted",
+            "downstream_similarity_comparisons_examined",
+            "downstream_similarity_comparisons_attempted",
+            "candidate_count_truncated",
+            "parity_evaluable",
+            "plan_parity",
+            "verification_evaluable",
+            "retained_pair_misses",
+            "retained_pair_count_mismatches",
+            "retained_pair_set_mismatches",
+            "retained_pair_order_mismatches",
+        ])
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+        assert_eq!(keys, expected);
+
+        for invalid in [
+            SentenceEdgeSignatureDirectShadowMetrics {
+                complete: false,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                signature_index_items_attempted: 4,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                signature_depth_4_plus_candidate_union: 2,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                cross_orientation_only_candidates: 5,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                sentence_broad_edge_postings_examined: 1,
+                sentence_broad_edge_postings_attempted: 1,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                retained_pair_set_mismatches: 1,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                signature_index_own_key_capacity: 0,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                signature_index_all_key_capacity: 1,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                signature_index_largest_posting: 6,
+                ..shadow
+            },
+        ] {
+            assert!(
+                validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                    sentence_edge_signature_direct_shadow: Some(invalid),
+                    near_relation_complete: true,
+                    sentence_edge_filter_complete: true,
+                    ..SentenceRecoveryMetrics::default()
+                })
+                .is_err()
+            );
+        }
+
+        let incomplete = SentenceEdgeSignatureDirectShadowMetrics {
+            complete: false,
+            stop_reason: Some(
+                SentenceEdgeSignatureDirectShadowStopReason::SignatureCandidateUnionLimit,
+            ),
+            signature_candidate_union_attempted: shadow.direct_candidates + 1,
+            parity_evaluable: false,
+            plan_parity: false,
+            ..shadow
+        };
+        assert!(
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                sentence_edge_signature_direct_shadow: Some(incomplete),
+                near_relation_complete: true,
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn validates_each_direct_shadow_resource_stop_against_unfinished_work() {
+        use SentenceEdgeSignatureDirectShadowStopReason as Stop;
+
+        let validates = |shadow| {
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                sentence_edge_signature_direct_shadow: Some(shadow),
+                near_relation_complete: true,
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+        };
+        macro_rules! resource_stop_case {
+            ($reason:ident, $examined:ident, $attempted:ident) => {{
+                let mut stopped = valid_sentence_edge_signature_direct_shadow();
+                stopped.complete = false;
+                stopped.stop_reason = Some(Stop::$reason);
+                stopped.parity_evaluable = false;
+                stopped.plan_parity = false;
+                stopped.$attempted = stopped.$examined + 1;
+                assert!(validates(stopped).is_ok(), stringify!($reason));
+
+                stopped.$attempted = stopped.$examined;
+                assert!(validates(stopped).is_err(), stringify!($reason));
+            }};
+        }
+        resource_stop_case!(
+            SignatureIndexPostingLimit,
+            signature_index_items_examined,
+            signature_index_items_attempted
+        );
+        resource_stop_case!(
+            SignatureIndexDistinctKeyLimit,
+            signature_index_distinct_keys_examined,
+            signature_index_distinct_keys_attempted
+        );
+        resource_stop_case!(
+            SignatureIndexEstimatedByteLimit,
+            signature_index_estimated_logical_bytes_examined,
+            signature_index_estimated_logical_bytes_attempted
+        );
+        resource_stop_case!(
+            SignatureQueryCountLimit,
+            signature_queries,
+            signature_queries_attempted
+        );
+        resource_stop_case!(
+            SignatureQueryPostingVisitLimit,
+            signature_query_visits_examined,
+            signature_query_visits_attempted
+        );
+        resource_stop_case!(
+            SignatureCandidateUnionLimit,
+            direct_candidates,
+            signature_candidate_union_attempted
+        );
+        resource_stop_case!(
+            SignatureExactEdgeRecheckLimit,
+            exact_edge_rechecks,
+            exact_edge_rechecks_attempted
+        );
+        resource_stop_case!(
+            SignatureExactEdgeRecheckLimit,
+            exact_edge_recheck_comparisons_examined,
+            exact_edge_recheck_comparisons_attempted
+        );
+        resource_stop_case!(
+            DirectEdgePairVisitLimit,
+            edge_filter_pairs_examined,
+            edge_filter_pairs_attempted
+        );
+        resource_stop_case!(
+            DirectEdgeSimilarityComparisonLimit,
+            edge_filter_comparisons_examined,
+            edge_filter_comparisons_attempted
+        );
+        resource_stop_case!(
+            CandidatePostingVisitLimit,
+            downstream_candidate_postings_examined,
+            downstream_candidate_postings_attempted
+        );
+        resource_stop_case!(
+            PairVisitLimit,
+            downstream_pair_visits_examined,
+            downstream_pair_visits_attempted
+        );
+        resource_stop_case!(
+            SimilarityComparisonLimit,
+            downstream_similarity_comparisons_examined,
+            downstream_similarity_comparisons_attempted
+        );
+
+        let mut candidate_count = valid_sentence_edge_signature_direct_shadow();
+        candidate_count.complete = false;
+        candidate_count.stop_reason = Some(Stop::CandidateCountLimit);
+        candidate_count.candidate_count_truncated = true;
+        candidate_count.parity_evaluable = false;
+        candidate_count.plan_parity = false;
+        assert!(validates(candidate_count).is_ok());
+        candidate_count.candidate_count_truncated = false;
+        assert!(validates(candidate_count).is_err());
+
+        let mut truncated_pair_stop = valid_sentence_edge_signature_direct_shadow();
+        truncated_pair_stop.complete = false;
+        truncated_pair_stop.stop_reason = Some(Stop::PairVisitLimit);
+        truncated_pair_stop.candidate_count_truncated = true;
+        truncated_pair_stop.parity_evaluable = false;
+        truncated_pair_stop.plan_parity = false;
+        truncated_pair_stop.downstream_pair_visits_attempted += 1;
+        assert!(validates(truncated_pair_stop).is_ok());
+
+        let mut downstream_with_upstream_deficit = valid_sentence_edge_signature_direct_shadow();
+        downstream_with_upstream_deficit.complete = false;
+        downstream_with_upstream_deficit.stop_reason = Some(Stop::PairVisitLimit);
+        downstream_with_upstream_deficit.parity_evaluable = false;
+        downstream_with_upstream_deficit.plan_parity = false;
+        downstream_with_upstream_deficit.downstream_pair_visits_attempted += 1;
+        downstream_with_upstream_deficit.signature_queries_attempted += 1;
+        assert!(validates(downstream_with_upstream_deficit).is_err());
+    }
+
+    #[test]
+    fn preserves_evaluable_direct_shadow_diagnostic_mismatch_evidence() {
+        let validates = |shadow| {
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                sentence_edge_signature_direct_shadow: Some(shadow),
+                near_relation_complete: true,
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+        };
+        let plan_mismatch = SentenceEdgeSignatureDirectShadowMetrics {
+            complete: false,
+            stop_reason: Some(SentenceEdgeSignatureDirectShadowStopReason::DiagnosticFailure),
+            parity_evaluable: true,
+            plan_parity: false,
+            ..valid_sentence_edge_signature_direct_shadow()
+        };
+        assert!(validates(plan_mismatch).is_ok());
+
+        let count_deficit = SentenceEdgeSignatureDirectShadowMetrics {
+            verification_evaluable: true,
+            retained_pair_misses: 1,
+            retained_pair_count_mismatches: 1,
+            retained_pair_set_mismatches: 1,
+            retained_pair_order_mismatches: 1,
+            plan_parity: true,
+            ..plan_mismatch
+        };
+        assert!(validates(count_deficit).is_ok());
+
+        let same_count_set_order_mismatch = SentenceEdgeSignatureDirectShadowMetrics {
+            retained_pair_misses: 0,
+            retained_pair_count_mismatches: 0,
+            retained_pair_set_mismatches: 1,
+            retained_pair_order_mismatches: 1,
+            ..count_deficit
+        };
+        assert!(validates(same_count_set_order_mismatch).is_ok());
+
+        assert!(
+            validates(SentenceEdgeSignatureDirectShadowMetrics {
+                verification_evaluable: false,
+                ..same_count_set_order_mismatch
+            })
+            .is_err()
+        );
+        assert!(
+            validates(SentenceEdgeSignatureDirectShadowMetrics {
+                retained_pair_set_mismatches: 0,
+                ..count_deficit
+            })
+            .is_err()
+        );
+        macro_rules! rejects_non_boolean_mismatch {
+            ($field:ident) => {
+                assert!(
+                    validates(SentenceEdgeSignatureDirectShadowMetrics {
+                        $field: 2,
+                        ..same_count_set_order_mismatch
+                    })
+                    .is_err(),
+                    stringify!($field)
+                );
+            };
+        }
+        rejects_non_boolean_mismatch!(retained_pair_count_mismatches);
+        rejects_non_boolean_mismatch!(retained_pair_set_mismatches);
+        rejects_non_boolean_mismatch!(retained_pair_order_mismatches);
+
+        let incomplete_production = SentenceRecoveryMetrics {
+            sentence_edge_signature_direct_shadow: Some(same_count_set_order_mismatch),
+            near_relation_complete: false,
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(incomplete_production).is_err());
+    }
+
+    #[test]
+    fn serializes_sentence_edge_signature_direct_shadow_stop_reasons_as_snake_case() {
+        use SentenceEdgeSignatureDirectShadowStopReasonReport as Stop;
+        for (reason, expected) in [
+            (
+                Stop::SignatureIndexPostingLimit,
+                "signature_index_posting_limit",
+            ),
+            (
+                Stop::SignatureIndexDistinctKeyLimit,
+                "signature_index_distinct_key_limit",
+            ),
+            (
+                Stop::SignatureIndexEstimatedByteLimit,
+                "signature_index_estimated_byte_limit",
+            ),
+            (
+                Stop::SignatureQueryCountLimit,
+                "signature_query_count_limit",
+            ),
+            (
+                Stop::SignatureQueryPostingVisitLimit,
+                "signature_query_posting_visit_limit",
+            ),
+            (
+                Stop::SignatureCandidateUnionLimit,
+                "signature_candidate_union_limit",
+            ),
+            (
+                Stop::SignatureExactEdgeRecheckLimit,
+                "signature_exact_edge_recheck_limit",
+            ),
+            (
+                Stop::DirectEdgePairVisitLimit,
+                "direct_edge_pair_visit_limit",
+            ),
+            (
+                Stop::DirectEdgeSimilarityComparisonLimit,
+                "direct_edge_similarity_comparison_limit",
+            ),
+            (
+                Stop::CandidatePostingVisitLimit,
+                "candidate_posting_visit_limit",
+            ),
+            (Stop::PairVisitLimit, "pair_visit_limit"),
+            (
+                Stop::SimilarityComparisonLimit,
+                "similarity_comparison_limit",
+            ),
+            (Stop::CandidateCountLimit, "candidate_count_limit"),
+            (Stop::AllocationFailure, "allocation_failure"),
+            (Stop::CounterOverflow, "counter_overflow"),
+            (
+                Stop::ProductionTraversalIncomplete,
+                "production_traversal_incomplete",
+            ),
+            (Stop::DiagnosticFailure, "diagnostic_failure"),
+        ] {
+            assert_eq!(
+                serde_json::to_value(reason).expect("reason serializes"),
+                expected
+            );
+        }
+    }
+
     #[test]
     fn converts_and_validates_sentence_edge_filter_metrics() {
         let valid = SentenceRecoveryMetrics {
@@ -8995,7 +10047,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 27);
+        assert_eq!(value["schema_version"], 28);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -9123,6 +10175,7 @@ mod tests {
             "known_span_sentence_shadow".to_owned(),
             "sentence_edge_gate_shadow".to_owned(),
             "sentence_edge_signature_shadow".to_owned(),
+            "sentence_edge_signature_direct_shadow".to_owned(),
             "sentence_edge_filter_complete".to_owned(),
             "sentence_edge_filter_pairs_examined".to_owned(),
             "sentence_edge_filter_pairs_attempted".to_owned(),
