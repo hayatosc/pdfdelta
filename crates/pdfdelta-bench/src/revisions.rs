@@ -29,7 +29,8 @@ use pdfdelta_core::{
         RecoveryWatchQuery, RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
         RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
         SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
-        SentenceEdgeGateShadowStopReason, SentenceRecoveryMetrics, TextSpan,
+        SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureShadowMetrics,
+        SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics, TextSpan,
     },
     layout::BlockRole,
     model::Document,
@@ -540,6 +541,7 @@ pub struct SentenceRecoveryMetricsReport {
     pub near_cross_span_work: NearSearchScopeMetricsReport,
     pub known_span_sentence_shadow: Option<KnownSpanSentenceShadowMetricsReport>,
     pub sentence_edge_gate_shadow: Option<SentenceEdgeGateShadowMetricsReport>,
+    pub sentence_edge_signature_shadow: Option<SentenceEdgeSignatureShadowMetricsReport>,
     pub sentence_edge_filter_complete: bool,
     pub sentence_edge_filter_pairs_examined: usize,
     pub sentence_edge_filter_pairs_attempted: usize,
@@ -674,6 +676,59 @@ impl From<SentenceEdgeGateShadowMetrics> for SentenceEdgeGateShadowMetricsReport
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct SentenceEdgeSignatureShadowMetricsReport {
+    pub complete: bool,
+    pub stop_reason: Option<SentenceEdgeSignatureShadowStopReasonReport>,
+    pub index_posting_items_examined: usize,
+    pub index_posting_items_attempted: usize,
+    pub query_posting_visits_examined: usize,
+    pub query_posting_visits_attempted: usize,
+    pub pairs_considered: usize,
+    pub signature_candidates: usize,
+    pub projected_pairs_pruned: usize,
+    pub exact_edge_retained_pairs: usize,
+    pub verification_evaluable: bool,
+    pub retained_pair_misses: usize,
+    pub signature_not_in_edge_union: usize,
+    pub largest_signature_candidate_set: usize,
+    pub paired_interval_pairs: usize,
+    pub paired_cross_interval_pairs: usize,
+    pub same_known_pairs: usize,
+    pub ambiguous_pairs: usize,
+    pub cross_span_shared_pairs: usize,
+    pub parity_evaluable: bool,
+    pub plan_parity: bool,
+}
+
+impl From<SentenceEdgeSignatureShadowMetrics> for SentenceEdgeSignatureShadowMetricsReport {
+    fn from(metrics: SentenceEdgeSignatureShadowMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            stop_reason: metrics.stop_reason.map(Into::into),
+            index_posting_items_examined: metrics.index_posting_items_examined,
+            index_posting_items_attempted: metrics.index_posting_items_attempted,
+            query_posting_visits_examined: metrics.query_posting_visits_examined,
+            query_posting_visits_attempted: metrics.query_posting_visits_attempted,
+            pairs_considered: metrics.pairs_considered,
+            signature_candidates: metrics.signature_candidates,
+            projected_pairs_pruned: metrics.projected_pairs_pruned,
+            exact_edge_retained_pairs: metrics.exact_edge_retained_pairs,
+            verification_evaluable: metrics.verification_evaluable,
+            retained_pair_misses: metrics.retained_pair_misses,
+            signature_not_in_edge_union: metrics.signature_not_in_edge_union,
+            largest_signature_candidate_set: metrics.largest_signature_candidate_set,
+            paired_interval_pairs: metrics.paired_interval_pairs,
+            paired_cross_interval_pairs: metrics.paired_cross_interval_pairs,
+            same_known_pairs: metrics.same_known_pairs,
+            ambiguous_pairs: metrics.ambiguous_pairs,
+            cross_span_shared_pairs: metrics.cross_span_shared_pairs,
+            parity_evaluable: metrics.parity_evaluable,
+            plan_parity: metrics.plan_parity,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct NearSearchWorkMetricsReport {
     pub edge_posting_visits_examined: usize,
     pub edge_posting_visits_attempted: usize,
@@ -753,6 +808,21 @@ pub enum SentenceEdgeGateShadowStopReasonReport {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
+pub enum SentenceEdgeSignatureShadowStopReasonReport {
+    IndexPostingLimit,
+    QueryPostingVisitLimit,
+    AllocationFailure,
+    CounterOverflow,
+    ProductionTraversalIncomplete,
+    CandidatePostingVisitLimit,
+    PairVisitLimit,
+    SimilarityComparisonLimit,
+    CandidateCountLimit,
+    DiagnosticFailure,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SentenceEdgeFilterStopReasonReport {
     PairVisitLimit,
     SimilarityComparisonLimit,
@@ -787,6 +857,31 @@ impl From<SentenceEdgeGateShadowStopReason> for SentenceEdgeGateShadowStopReason
             SentenceEdgeGateShadowStopReason::AllocationFailure => Self::AllocationFailure,
             SentenceEdgeGateShadowStopReason::CounterOverflow => Self::CounterOverflow,
             SentenceEdgeGateShadowStopReason::DiagnosticFailure => Self::DiagnosticFailure,
+        }
+    }
+}
+
+impl From<SentenceEdgeSignatureShadowStopReason> for SentenceEdgeSignatureShadowStopReasonReport {
+    fn from(reason: SentenceEdgeSignatureShadowStopReason) -> Self {
+        match reason {
+            SentenceEdgeSignatureShadowStopReason::IndexPostingLimit => Self::IndexPostingLimit,
+            SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit => {
+                Self::QueryPostingVisitLimit
+            }
+            SentenceEdgeSignatureShadowStopReason::AllocationFailure => Self::AllocationFailure,
+            SentenceEdgeSignatureShadowStopReason::CounterOverflow => Self::CounterOverflow,
+            SentenceEdgeSignatureShadowStopReason::ProductionTraversalIncomplete => {
+                Self::ProductionTraversalIncomplete
+            }
+            SentenceEdgeSignatureShadowStopReason::CandidatePostingVisitLimit => {
+                Self::CandidatePostingVisitLimit
+            }
+            SentenceEdgeSignatureShadowStopReason::PairVisitLimit => Self::PairVisitLimit,
+            SentenceEdgeSignatureShadowStopReason::SimilarityComparisonLimit => {
+                Self::SimilarityComparisonLimit
+            }
+            SentenceEdgeSignatureShadowStopReason::CandidateCountLimit => Self::CandidateCountLimit,
+            SentenceEdgeSignatureShadowStopReason::DiagnosticFailure => Self::DiagnosticFailure,
         }
     }
 }
@@ -1207,6 +1302,7 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             near_cross_span_work: metrics.near_cross_span_work.into(),
             known_span_sentence_shadow: metrics.known_span_sentence_shadow.map(Into::into),
             sentence_edge_gate_shadow: metrics.sentence_edge_gate_shadow.map(Into::into),
+            sentence_edge_signature_shadow: metrics.sentence_edge_signature_shadow.map(Into::into),
             sentence_edge_filter_complete: metrics.sentence_edge_filter_complete,
             sentence_edge_filter_pairs_examined: metrics.sentence_edge_filter_pairs_examined,
             sentence_edge_filter_pairs_attempted: metrics.sentence_edge_filter_pairs_attempted,
@@ -3284,6 +3380,7 @@ fn validate_sentence_recovery_metrics(
     validate_near_search_work_metrics(metrics)?;
     validate_known_span_sentence_shadow_metrics(metrics)?;
     validate_sentence_edge_gate_shadow_metrics(metrics)?;
+    validate_sentence_edge_signature_shadow_metrics(metrics)?;
     validate_sentence_edge_filter_metrics(metrics)?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
@@ -3604,6 +3701,154 @@ fn validate_sentence_edge_gate_shadow_metrics(
     }
     if shadow.complete != shadow.stop_reason.is_none() {
         return Err("sentence-edge gate shadow completeness contradicts stop reason".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_sentence_edge_signature_shadow_metrics(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<(), String> {
+    let Some(shadow) = metrics.sentence_edge_signature_shadow else {
+        return Ok(());
+    };
+    if shadow.complete != shadow.stop_reason.is_none() {
+        return Err(
+            "sentence-edge signature shadow completeness contradicts stop reason".to_owned(),
+        );
+    }
+    for (kind, examined, attempted) in [
+        (
+            "index posting items",
+            shadow.index_posting_items_examined,
+            shadow.index_posting_items_attempted,
+        ),
+        (
+            "query posting visits",
+            shadow.query_posting_visits_examined,
+            shadow.query_posting_visits_attempted,
+        ),
+    ] {
+        if examined > attempted {
+            return Err(format!(
+                "sentence-edge signature shadow {kind} examined {examined} exceed attempted {attempted}"
+            ));
+        }
+        if shadow.complete && examined != attempted {
+            return Err(format!(
+                "complete sentence-edge signature shadow {kind} examined {examined} differ from attempted {attempted}"
+            ));
+        }
+    }
+    let index_work_incomplete =
+        shadow.index_posting_items_examined < shadow.index_posting_items_attempted;
+    let query_work_incomplete =
+        shadow.query_posting_visits_examined < shadow.query_posting_visits_attempted;
+    match shadow.stop_reason {
+        Some(SentenceEdgeSignatureShadowStopReason::IndexPostingLimit)
+            if index_work_incomplete && !query_work_incomplete => {}
+        Some(SentenceEdgeSignatureShadowStopReason::IndexPostingLimit) => {
+            return Err(
+                "sentence-edge signature index stop does not match unfinished work".to_owned(),
+            );
+        }
+        Some(SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit)
+            if !index_work_incomplete && query_work_incomplete => {}
+        Some(SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit) => {
+            return Err(
+                "sentence-edge signature query stop does not match unfinished work".to_owned(),
+            );
+        }
+        Some(SentenceEdgeSignatureShadowStopReason::AllocationFailure)
+            if index_work_incomplete ^ query_work_incomplete => {}
+        Some(SentenceEdgeSignatureShadowStopReason::AllocationFailure) => {
+            return Err(
+                "sentence-edge signature allocation stop does not match unfinished work".to_owned(),
+            );
+        }
+        Some(
+            SentenceEdgeSignatureShadowStopReason::ProductionTraversalIncomplete
+            | SentenceEdgeSignatureShadowStopReason::CandidatePostingVisitLimit
+            | SentenceEdgeSignatureShadowStopReason::PairVisitLimit
+            | SentenceEdgeSignatureShadowStopReason::SimilarityComparisonLimit
+            | SentenceEdgeSignatureShadowStopReason::CandidateCountLimit,
+        ) if index_work_incomplete || query_work_incomplete => {
+            return Err(
+                "sentence-edge signature downstream stop has unfinished index work".to_owned(),
+            );
+        }
+        _ => {}
+    }
+    if shadow.stop_reason != Some(SentenceEdgeSignatureShadowStopReason::CounterOverflow)
+        && shadow
+            .signature_candidates
+            .checked_add(shadow.projected_pairs_pruned)
+            != Some(shadow.pairs_considered)
+    {
+        return Err(
+            "sentence-edge signature shadow candidate and pruned counters do not sum".to_owned(),
+        );
+    }
+    if shadow.exact_edge_retained_pairs > shadow.signature_candidates {
+        return Err(format!(
+            "sentence-edge signature shadow exact retained pairs {} exceed signature candidates {}",
+            shadow.exact_edge_retained_pairs, shadow.signature_candidates
+        ));
+    }
+    if shadow.largest_signature_candidate_set > shadow.signature_candidates {
+        return Err(format!(
+            "sentence-edge signature shadow largest candidate set {} exceeds total signature candidates {}",
+            shadow.largest_signature_candidate_set, shadow.signature_candidates
+        ));
+    }
+    if shadow.complete
+        && shadow
+            .paired_interval_pairs
+            .checked_add(shadow.paired_cross_interval_pairs)
+            .and_then(|pairs| pairs.checked_add(shadow.same_known_pairs))
+            .and_then(|pairs| pairs.checked_add(shadow.ambiguous_pairs))
+            .and_then(|pairs| pairs.checked_add(shadow.cross_span_shared_pairs))
+            != Some(shadow.pairs_considered)
+    {
+        return Err("complete sentence-edge signature shadow scope counters do not sum".to_owned());
+    }
+    if shadow.verification_evaluable && (!shadow.complete || !shadow.parity_evaluable) {
+        return Err(
+            "sentence-edge signature shadow verification is evaluable without complete parity"
+                .to_owned(),
+        );
+    }
+    if !shadow.verification_evaluable && shadow.retained_pair_misses != 0 {
+        return Err(
+            "sentence-edge signature shadow reports retained misses without verification"
+                .to_owned(),
+        );
+    }
+    if shadow.parity_evaluable && !shadow.complete {
+        return Err(
+            "sentence-edge signature shadow parity is evaluable while incomplete".to_owned(),
+        );
+    }
+    if shadow.plan_parity && !shadow.parity_evaluable {
+        return Err(
+            "sentence-edge signature shadow reports plan parity without evaluation".to_owned(),
+        );
+    }
+    if shadow.parity_evaluable
+        && (!metrics.near_relation_complete || !metrics.sentence_edge_filter_complete)
+    {
+        return Err(
+            "sentence-edge signature parity requires complete production relations".to_owned(),
+        );
+    }
+    if shadow.verification_evaluable
+        && shadow
+            .exact_edge_retained_pairs
+            .checked_add(shadow.retained_pair_misses)
+            != Some(metrics.sentence_edge_filter_pairs_retained)
+    {
+        return Err(
+            "sentence-edge signature retained-pair verification contradicts production".to_owned(),
+        );
     }
     Ok(())
 }
@@ -4355,7 +4600,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 26;
+    pub const SCHEMA_VERSION: u32 = 27;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -5619,7 +5864,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 26);
+        assert_eq!(completed["schema_version"], 27);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -5662,7 +5907,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 26);
+        assert_eq!(legacy_summary["schema_version"], 27);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -6653,6 +6898,13 @@ mod tests {
                     complete: true,
                     ..SentenceEdgeGateShadowMetricsReport::default()
                 }),
+                sentence_edge_signature_shadow: Some(SentenceEdgeSignatureShadowMetricsReport {
+                    complete: true,
+                    parity_evaluable: true,
+                    verification_evaluable: true,
+                    plan_parity: true,
+                    ..SentenceEdgeSignatureShadowMetricsReport::default()
+                },),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetricsReport::default()
             })
@@ -6856,7 +7108,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 26);
+        assert_eq!(json["schema_version"], 27);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -7791,6 +8043,256 @@ mod tests {
     }
 
     #[test]
+    fn converts_and_validates_sentence_edge_signature_shadow_metrics() {
+        let recovery_metrics = |shadow| SentenceRecoveryMetrics {
+            sentence_edge_signature_shadow: Some(shadow),
+            near_relation_complete: true,
+            sentence_edge_filter_complete: true,
+            sentence_edge_filter_pairs_examined: 3,
+            sentence_edge_filter_pairs_attempted: 3,
+            sentence_edge_filter_pairs_retained: 3,
+            ..SentenceRecoveryMetrics::default()
+        };
+        let shadow = SentenceEdgeSignatureShadowMetrics {
+            complete: true,
+            index_posting_items_examined: 4,
+            index_posting_items_attempted: 4,
+            query_posting_visits_examined: 6,
+            query_posting_visits_attempted: 6,
+            pairs_considered: 5,
+            signature_candidates: 3,
+            projected_pairs_pruned: 2,
+            exact_edge_retained_pairs: 2,
+            verification_evaluable: true,
+            retained_pair_misses: 1,
+            signature_not_in_edge_union: 7,
+            largest_signature_candidate_set: 2,
+            paired_interval_pairs: 1,
+            paired_cross_interval_pairs: 1,
+            same_known_pairs: 1,
+            ambiguous_pairs: 1,
+            cross_span_shared_pairs: 1,
+            parity_evaluable: true,
+            plan_parity: true,
+            ..SentenceEdgeSignatureShadowMetrics::default()
+        };
+        assert_eq!(
+            SentenceEdgeSignatureShadowMetricsReport::from(shadow),
+            SentenceEdgeSignatureShadowMetricsReport {
+                complete: true,
+                index_posting_items_examined: 4,
+                index_posting_items_attempted: 4,
+                query_posting_visits_examined: 6,
+                query_posting_visits_attempted: 6,
+                pairs_considered: 5,
+                signature_candidates: 3,
+                projected_pairs_pruned: 2,
+                exact_edge_retained_pairs: 2,
+                verification_evaluable: true,
+                retained_pair_misses: 1,
+                signature_not_in_edge_union: 7,
+                largest_signature_candidate_set: 2,
+                paired_interval_pairs: 1,
+                paired_cross_interval_pairs: 1,
+                same_known_pairs: 1,
+                ambiguous_pairs: 1,
+                cross_span_shared_pairs: 1,
+                parity_evaluable: true,
+                plan_parity: true,
+                ..SentenceEdgeSignatureShadowMetricsReport::default()
+            }
+        );
+        assert!(validate_sentence_recovery_metrics(recovery_metrics(shadow)).is_ok());
+
+        let invalid = [
+            SentenceEdgeSignatureShadowMetrics {
+                complete: false,
+                ..shadow
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                stop_reason: Some(SentenceEdgeSignatureShadowStopReason::DiagnosticFailure),
+                ..shadow
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                index_posting_items_examined: 5,
+                ..shadow
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                index_posting_items_attempted: 5,
+                ..shadow
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                projected_pairs_pruned: 1,
+                ..shadow
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                exact_edge_retained_pairs: 4,
+                ..shadow
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                largest_signature_candidate_set: 4,
+                ..shadow
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                cross_span_shared_pairs: 0,
+                ..shadow
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                verification_evaluable: false,
+                ..shadow
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                parity_evaluable: false,
+                ..shadow
+            },
+        ];
+        for invalid_shadow in invalid {
+            assert!(validate_sentence_recovery_metrics(recovery_metrics(invalid_shadow)).is_err());
+        }
+
+        let mut incomplete_production = recovery_metrics(shadow);
+        incomplete_production.near_relation_complete = false;
+        assert!(validate_sentence_recovery_metrics(incomplete_production).is_err());
+        let mut retained_count_mismatch = recovery_metrics(shadow);
+        retained_count_mismatch.sentence_edge_filter_pairs_retained = 4;
+        assert!(validate_sentence_recovery_metrics(retained_count_mismatch).is_err());
+
+        let partial_overflow = recovery_metrics(SentenceEdgeSignatureShadowMetrics {
+            complete: false,
+            stop_reason: Some(SentenceEdgeSignatureShadowStopReason::CounterOverflow),
+            pairs_considered: 2,
+            signature_candidates: 1,
+            projected_pairs_pruned: 0,
+            signature_not_in_edge_union: 3,
+            ..SentenceEdgeSignatureShadowMetrics::default()
+        });
+        assert!(validate_sentence_recovery_metrics(partial_overflow).is_ok());
+
+        for valid_stop in [
+            SentenceEdgeSignatureShadowMetrics {
+                complete: false,
+                stop_reason: Some(SentenceEdgeSignatureShadowStopReason::IndexPostingLimit),
+                index_posting_items_examined: 1,
+                index_posting_items_attempted: 2,
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                complete: false,
+                stop_reason: Some(SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit),
+                index_posting_items_examined: 1,
+                index_posting_items_attempted: 1,
+                query_posting_visits_examined: 1,
+                query_posting_visits_attempted: 2,
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                complete: false,
+                stop_reason: Some(SentenceEdgeSignatureShadowStopReason::AllocationFailure),
+                query_posting_visits_examined: 1,
+                query_posting_visits_attempted: 2,
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                complete: false,
+                stop_reason: Some(SentenceEdgeSignatureShadowStopReason::PairVisitLimit),
+                index_posting_items_examined: 1,
+                index_posting_items_attempted: 1,
+                query_posting_visits_examined: 1,
+                query_posting_visits_attempted: 1,
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            },
+        ] {
+            assert!(validate_sentence_recovery_metrics(recovery_metrics(valid_stop)).is_ok());
+        }
+
+        for invalid_stop in [
+            SentenceEdgeSignatureShadowMetrics {
+                complete: false,
+                stop_reason: Some(SentenceEdgeSignatureShadowStopReason::IndexPostingLimit),
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                complete: false,
+                stop_reason: Some(SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit),
+                index_posting_items_examined: 1,
+                index_posting_items_attempted: 2,
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                complete: false,
+                stop_reason: Some(SentenceEdgeSignatureShadowStopReason::AllocationFailure),
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                complete: false,
+                stop_reason: Some(SentenceEdgeSignatureShadowStopReason::AllocationFailure),
+                index_posting_items_attempted: 1,
+                query_posting_visits_attempted: 1,
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            },
+            SentenceEdgeSignatureShadowMetrics {
+                complete: false,
+                stop_reason: Some(SentenceEdgeSignatureShadowStopReason::PairVisitLimit),
+                query_posting_visits_attempted: 1,
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            },
+        ] {
+            assert!(validate_sentence_recovery_metrics(recovery_metrics(invalid_stop)).is_err());
+        }
+    }
+
+    #[test]
+    fn serializes_sentence_edge_signature_shadow_stop_reasons_as_snake_case() {
+        for (reason, expected) in [
+            (
+                SentenceEdgeSignatureShadowStopReasonReport::IndexPostingLimit,
+                "index_posting_limit",
+            ),
+            (
+                SentenceEdgeSignatureShadowStopReasonReport::QueryPostingVisitLimit,
+                "query_posting_visit_limit",
+            ),
+            (
+                SentenceEdgeSignatureShadowStopReasonReport::AllocationFailure,
+                "allocation_failure",
+            ),
+            (
+                SentenceEdgeSignatureShadowStopReasonReport::CounterOverflow,
+                "counter_overflow",
+            ),
+            (
+                SentenceEdgeSignatureShadowStopReasonReport::ProductionTraversalIncomplete,
+                "production_traversal_incomplete",
+            ),
+            (
+                SentenceEdgeSignatureShadowStopReasonReport::CandidatePostingVisitLimit,
+                "candidate_posting_visit_limit",
+            ),
+            (
+                SentenceEdgeSignatureShadowStopReasonReport::PairVisitLimit,
+                "pair_visit_limit",
+            ),
+            (
+                SentenceEdgeSignatureShadowStopReasonReport::SimilarityComparisonLimit,
+                "similarity_comparison_limit",
+            ),
+            (
+                SentenceEdgeSignatureShadowStopReasonReport::CandidateCountLimit,
+                "candidate_count_limit",
+            ),
+            (
+                SentenceEdgeSignatureShadowStopReasonReport::DiagnosticFailure,
+                "diagnostic_failure",
+            ),
+        ] {
+            assert_eq!(
+                serde_json::to_value(reason).expect("stop reason serializes"),
+                expected
+            );
+        }
+    }
+
+    #[test]
     fn converts_and_validates_sentence_edge_filter_metrics() {
         let valid = SentenceRecoveryMetrics {
             sentence_edge_filter_complete: true,
@@ -8493,7 +8995,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 26);
+        assert_eq!(value["schema_version"], 27);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -8620,6 +9122,7 @@ mod tests {
             "near_cross_span_work".to_owned(),
             "known_span_sentence_shadow".to_owned(),
             "sentence_edge_gate_shadow".to_owned(),
+            "sentence_edge_signature_shadow".to_owned(),
             "sentence_edge_filter_complete".to_owned(),
             "sentence_edge_filter_pairs_examined".to_owned(),
             "sentence_edge_filter_pairs_attempted".to_owned(),
