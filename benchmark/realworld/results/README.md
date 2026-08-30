@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`8128792`](https://github.com/hayatosc/pdfdelta/commit/8128792)
+- **Generator / engine commit**: [`7ffc831`](https://github.com/hayatosc/pdfdelta/commit/7ffc831)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-8128792.json`](2026-08-31-8128792.json)
-  - Schema: v32
-  - Size: 646,689 bytes
-  - SHA-256: `a1e7feaed405c92f532f951f1afdfbf44bab5488ad68e256ce4bfd2a0dd38cbc`
+  - File: [`2026-08-31-7ffc831.json`](2026-08-31-7ffc831.json)
+  - Schema: v33
+  - Size: 646,692 bytes
+  - SHA-256: `0d85c53f564b1686c24fecdaa1b5e3faf761bdc70490e082111d683860f15e0c`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-31-8128792.json
+  benchmark/realworld/results/2026-08-31-7ffc831.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -39,9 +39,10 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-08-31-938f678.json \
   benchmark/realworld/results/2026-08-31-8128792.json \
-  --ignore-field sentence_edge_signature_direct_shadow
+  benchmark/realworld/results/2026-08-31-7ffc831.json \
+  --ignore-field sentence_edge_signature_direct_shadow \
+  --ignore-field sentence_edge_signature_reference_oracle
 ```
 
 When reviewed annotations changed between captures, exclude only those named
@@ -103,6 +104,32 @@ diagnostics exactly match the schema-v24 baseline. Across 18 measured pairs,
 the filter classifies 6,990,647 Sentence pairs and rejects 6,660,144 (95.27%).
 All shadow threshold, veto, unique-partner, reciprocal, adopted-replacement,
 and insertion/deletion-veto mismatch counters remain zero.
+The schema-v33 capture replaces sorted repeated signature entries with compact
+unique-key ranges and separate occurrence arrays. All 18 available direct
+replays now complete, including LibreOffice, and all retained-pair, candidate-
+order, watch-invariant, and watch-preservation mismatch counters remain zero.
+Across the 17 replays that already completed in schema v32, aggregate logical
+index bytes decrease from 286,117,632 to 96,593,256 (66.24%); every individual
+record decreases. LibreOffice completes 1,223,148 postings and 842,929 distinct
+keys in 30,017,144 logical bytes, instead of stopping after 1,033,096 postings
+at an attempted 69,960,896 bytes. The 17 common records preserve exact parity
+for every non-storage direct field. Removing the direct and reference-oracle
+objects produces exact schema-v32 parity for all comparison, quality, candidate-
+recall, and other diagnostic fields. The only additional diagnostic work is the
+LibreOffice reference oracle: direct replay now finishes, so the oracle advances
+to its existing pair-visit limit instead of stopping at `direct_replay_incomplete`.
+Its plan and fingerprint remain unevaluable.
+
+This result does not yet enable production traversal. The 17 paths with a
+complete comparable legacy denominator generate 1,824,541 direct candidates
+from 15,157,148 broad pairs (12.04%). The exact retained set itself contains
+1,650,014 pairs (10.89%), so the original sub-10% aggregate gate cannot coexist
+with exact retained-set parity. The index adds 174,527 candidates above that
+minimum, equal to 1.15% of broad work or 10.58% over the exact minimum. The
+activation gate must therefore be restated against the exact lower bound, and
+the remaining LibreOffice reference safety evidence must be resolved, before
+the diagnostic index can replace production candidate generation. Budgets and
+relation thresholds remain unchanged.
 The schema-v32 capture replaces per-key posting vectors with sorted flat
 signature entries while retaining exact contiguous-range lookup. Across the 17
 completed direct replays, aggregate logical index bytes decrease from
@@ -233,10 +260,14 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v32)
+## Current Writer Schema (v33)
 
-The benchmark writer and latest committed capture use schema v32. Older
-captures retain their recorded schemas. Schema v32 changes signature-index
+The benchmark writer and latest committed capture use schema v33. Older
+captures retain their recorded schemas. Schema v33 stores signature postings as
+compact unique-key ranges plus occurrence arrays, accounts for temporary and
+final transition capacity before every bounded allocation, and preserves typed
+progress on allocation failure. CLI trace schema v22 exposes the same storage
+and stop semantics. Schema v32 changes signature-index
 capacity and logical-byte diagnostics to the sorted flat-entry representation.
 It also enforces a tighter independent distinct-key limit through a bounded
 preflight only when the posting upper bound cannot already prove the limit.
