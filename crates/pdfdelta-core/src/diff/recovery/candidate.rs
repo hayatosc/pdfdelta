@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use super::score::{LINE_NGRAM_SIZE, line_trigram_candidate_meets_threshold, ngram_count};
+use super::score::{
+    LINE_NGRAM_SIZE, MIN_WORD_SCORE_EDGE_EVIDENCE, line_trigram_candidate_meets_threshold,
+    ngram_count,
+};
 use crate::diff::sentence::{
     OccurrenceRole, RecoveryBudget, RecoveryUnitKind, SentenceEvidenceToken, SentenceOccurrence,
 };
@@ -41,6 +44,33 @@ pub(in crate::diff) struct UnitCandidateIndex {
         Vec<LineTrigramPosting>,
     >,
     line_trigram_counts: Vec<usize>,
+}
+
+#[allow(dead_code)]
+type SentenceEdgeSignatureKey = (CandidatePostingBucket, OccurrenceRole, usize, u64);
+
+/// Diagnostic index for sentence pairs that can satisfy the edge-evidence gate.
+///
+/// This remains separate from [`UnitCandidateIndex`] so production candidate
+/// construction has no additional allocation or runtime work.
+#[allow(dead_code)]
+pub(in crate::diff) struct SentenceEdgeSignatureIndex {
+    own_depth_postings: HashMap<SentenceEdgeSignatureKey, Vec<usize>>,
+    all_depth_postings: HashMap<SentenceEdgeSignatureKey, Vec<usize>>,
+    metrics: SentenceEdgeSignatureIndexMetrics,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(in crate::diff) struct SentenceEdgeSignatureIndexMetrics {
+    pub(in crate::diff) posting_items: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(in crate::diff) struct SentenceEdgeSignatureQueryMetrics {
+    pub(in crate::diff) posting_visits: usize,
+    pub(in crate::diff) candidate_union: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -463,6 +493,319 @@ impl UnitCandidateIndex {
     }
 }
 
+#[allow(dead_code)]
+impl SentenceEdgeSignatureIndex {
+    pub(in crate::diff) fn new(
+        occurrences: &[SentenceOccurrence],
+        scope: CandidatePostingIndexScope<'_>,
+    ) -> Option<Self> {
+        Self::new_with_signature_step(occurrences, scope, sentence_edge_signature_step)
+    }
+
+    fn new_with_signature_step(
+        occurrences: &[SentenceOccurrence],
+        scope: CandidatePostingIndexScope<'_>,
+        signature_step: fn(u64, SentenceEvidenceToken) -> u64,
+    ) -> Option<Self> {
+        let mut index = Self {
+            own_depth_postings: HashMap::new(),
+            all_depth_postings: HashMap::new(),
+            metrics: SentenceEdgeSignatureIndexMetrics::default(),
+        };
+        for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
+            let Some(bucket) = candidate_posting_bucket(scope, occurrence_index, occurrence)?
+            else {
+                continue;
+            };
+            index.insert_unit(
+                bucket,
+                occurrence.kind,
+                occurrence.role.map(OccurrenceRole::from),
+                &occurrence.tokens,
+                occurrence_index,
+                signature_step,
+            )?;
+        }
+        Some(index)
+    }
+
+    pub(in crate::diff) fn metrics(&self) -> SentenceEdgeSignatureIndexMetrics {
+        self.metrics
+    }
+
+    pub(in crate::diff) fn collect_plausible_occurrences(
+        &self,
+        plausible: &mut Vec<usize>,
+        occurrence: &SentenceOccurrence,
+        bucket: CandidatePostingBucket,
+        additional_bucket: Option<CandidatePostingBucket>,
+    ) -> Option<SentenceEdgeSignatureQueryMetrics> {
+        plausible.clear();
+        if occurrence.kind != RecoveryUnitKind::Sentence {
+            return Some(SentenceEdgeSignatureQueryMetrics::default());
+        }
+        let Some(role) = occurrence.role.map(OccurrenceRole::from) else {
+            return Some(SentenceEdgeSignatureQueryMetrics::default());
+        };
+        self.collect_sentence_tokens(
+            plausible,
+            &occurrence.tokens,
+            role,
+            bucket,
+            additional_bucket,
+            sentence_edge_signature_step,
+        )
+    }
+
+    fn insert_unit(
+        &mut self,
+        bucket: CandidatePostingBucket,
+        kind: RecoveryUnitKind,
+        role: Option<OccurrenceRole>,
+        tokens: &[SentenceEvidenceToken],
+        occurrence_index: usize,
+        signature_step: fn(u64, SentenceEvidenceToken) -> u64,
+    ) -> Option<()> {
+        if kind != RecoveryUnitKind::Sentence {
+            return Some(());
+        }
+        let Some(role) = role else {
+            return Some(());
+        };
+        self.insert_sentence(bucket, role, tokens, occurrence_index, signature_step)
+    }
+
+    fn insert_sentence(
+        &mut self,
+        bucket: CandidatePostingBucket,
+        role: OccurrenceRole,
+        tokens: &[SentenceEvidenceToken],
+        occurrence_index: usize,
+        signature_step: fn(u64, SentenceEvidenceToken) -> u64,
+    ) -> Option<()> {
+        let own_depth = sentence_edge_signature_depth(tokens.len())?;
+        let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
+        let mut suffix = SENTENCE_EDGE_SIGNATURE_SEED;
+        for depth in 1..=own_depth {
+            prefix = signature_step(prefix, tokens[depth - 1]);
+            suffix = signature_step(suffix, tokens[tokens.len() - depth]);
+            let postings = if depth == own_depth {
+                &mut self.own_depth_postings
+            } else {
+                &mut self.all_depth_postings
+            };
+            push_sentence_edge_signatures(
+                postings,
+                &mut self.metrics,
+                bucket,
+                role,
+                depth,
+                prefix,
+                suffix,
+                occurrence_index,
+            )?;
+        }
+        Some(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn collect_sentence_tokens(
+        &self,
+        plausible: &mut Vec<usize>,
+        tokens: &[SentenceEvidenceToken],
+        role: OccurrenceRole,
+        bucket: CandidatePostingBucket,
+        additional_bucket: Option<CandidatePostingBucket>,
+        signature_step: fn(u64, SentenceEvidenceToken) -> u64,
+    ) -> Option<SentenceEdgeSignatureQueryMetrics> {
+        plausible.clear();
+        let query_depth = sentence_edge_signature_depth(tokens.len())?;
+        let mut posting_visits = 0usize;
+        let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
+        let mut suffix = SENTENCE_EDGE_SIGNATURE_SEED;
+        for depth in 1..=query_depth {
+            prefix = signature_step(prefix, tokens[depth - 1]);
+            suffix = signature_step(suffix, tokens[tokens.len() - depth]);
+            for candidate_bucket in [Some(bucket), additional_bucket].into_iter().flatten() {
+                collect_sentence_edge_signatures(
+                    &self.own_depth_postings,
+                    plausible,
+                    &mut posting_visits,
+                    candidate_bucket,
+                    role,
+                    depth,
+                    prefix,
+                    suffix,
+                )?;
+                if depth == query_depth {
+                    collect_sentence_edge_signatures(
+                        &self.all_depth_postings,
+                        plausible,
+                        &mut posting_visits,
+                        candidate_bucket,
+                        role,
+                        depth,
+                        prefix,
+                        suffix,
+                    )?;
+                }
+            }
+        }
+        plausible.sort_unstable();
+        plausible.dedup();
+        Some(SentenceEdgeSignatureQueryMetrics {
+            posting_visits,
+            candidate_union: plausible.len(),
+        })
+    }
+}
+
+#[allow(dead_code)]
+const SENTENCE_EDGE_SIGNATURE_SEED: u64 = 0xcbf2_9ce4_8422_2325;
+#[allow(dead_code)]
+const SENTENCE_EDGE_SIGNATURE_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+#[allow(dead_code)]
+fn sentence_edge_signature_depth(shorter_len: usize) -> Option<usize> {
+    let numerator = shorter_len.checked_mul(usize::from(MIN_WORD_SCORE_EDGE_EVIDENCE))?;
+    let required = numerator
+        .checked_div(10_000)?
+        .checked_add(usize::from(numerator % 10_000 != 0))?;
+    required
+        .checked_div(2)?
+        .checked_add(usize::from(required % 2 != 0))
+}
+
+#[allow(dead_code)]
+fn sentence_edge_signature_step(state: u64, token: SentenceEvidenceToken) -> u64 {
+    let token = match token {
+        SentenceEvidenceToken::Scalar(scalar) => u64::from(u32::from(scalar)),
+        SentenceEvidenceToken::Unmapped {
+            font_fingerprint,
+            glyph_id,
+        } => font_fingerprint.rotate_left(17) ^ u64::from(glyph_id) ^ (1_u64 << 63),
+    };
+    (state ^ token).wrapping_mul(SENTENCE_EDGE_SIGNATURE_PRIME)
+}
+
+#[allow(dead_code)]
+fn candidate_posting_bucket(
+    scope: CandidatePostingIndexScope<'_>,
+    occurrence_index: usize,
+    occurrence: &SentenceOccurrence,
+) -> Option<Option<CandidatePostingBucket>> {
+    match scope {
+        CandidatePostingIndexScope::Global => Some(Some(CandidatePostingBucket::Global)),
+        CandidatePostingIndexScope::Span => {
+            Some(Some(CandidatePostingBucket::Span(occurrence.span_index)))
+        }
+        CandidatePostingIndexScope::Paired(intervals) => Some(
+            intervals
+                .get(occurrence_index)
+                .copied()?
+                .map(CandidatePostingBucket::Paired),
+        ),
+        CandidatePostingIndexScope::PairedStream(intervals) => Some(
+            intervals
+                .get(occurrence_index)
+                .copied()?
+                .map(|interval| CandidatePostingBucket::PairedStream(interval.pair_index)),
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+#[allow(dead_code)]
+fn push_sentence_edge_signatures(
+    postings: &mut HashMap<SentenceEdgeSignatureKey, Vec<usize>>,
+    metrics: &mut SentenceEdgeSignatureIndexMetrics,
+    bucket: CandidatePostingBucket,
+    role: OccurrenceRole,
+    depth: usize,
+    prefix: u64,
+    suffix: u64,
+    occurrence_index: usize,
+) -> Option<()> {
+    push_sentence_edge_signature(
+        postings,
+        metrics,
+        (bucket, role, depth, prefix),
+        occurrence_index,
+    )?;
+    if suffix != prefix {
+        push_sentence_edge_signature(
+            postings,
+            metrics,
+            (bucket, role, depth, suffix),
+            occurrence_index,
+        )?;
+    }
+    Some(())
+}
+
+#[allow(dead_code)]
+fn push_sentence_edge_signature(
+    postings: &mut HashMap<SentenceEdgeSignatureKey, Vec<usize>>,
+    metrics: &mut SentenceEdgeSignatureIndexMetrics,
+    key: SentenceEdgeSignatureKey,
+    occurrence_index: usize,
+) -> Option<()> {
+    if !postings.contains_key(&key) {
+        postings.try_reserve(1).ok()?;
+        postings.insert(key, Vec::new());
+    }
+    let posting = postings.get_mut(&key)?;
+    posting.try_reserve(1).ok()?;
+    posting.push(occurrence_index);
+    metrics.posting_items = metrics.posting_items.checked_add(1)?;
+    Some(())
+}
+
+#[allow(clippy::too_many_arguments)]
+#[allow(dead_code)]
+fn collect_sentence_edge_signatures(
+    postings: &HashMap<SentenceEdgeSignatureKey, Vec<usize>>,
+    plausible: &mut Vec<usize>,
+    posting_visits: &mut usize,
+    bucket: CandidatePostingBucket,
+    role: OccurrenceRole,
+    depth: usize,
+    prefix: u64,
+    suffix: u64,
+) -> Option<()> {
+    collect_sentence_edge_signature(
+        postings,
+        plausible,
+        posting_visits,
+        (bucket, role, depth, prefix),
+    )?;
+    if suffix != prefix {
+        collect_sentence_edge_signature(
+            postings,
+            plausible,
+            posting_visits,
+            (bucket, role, depth, suffix),
+        )?;
+    }
+    Some(())
+}
+
+#[allow(dead_code)]
+fn collect_sentence_edge_signature(
+    postings: &HashMap<SentenceEdgeSignatureKey, Vec<usize>>,
+    plausible: &mut Vec<usize>,
+    posting_visits: &mut usize,
+    key: SentenceEdgeSignatureKey,
+) -> Option<()> {
+    let Some(posting) = postings.get(&key) else {
+        return Some(());
+    };
+    *posting_visits = posting_visits.checked_add(posting.len())?;
+    plausible.try_reserve(posting.len()).ok()?;
+    plausible.extend_from_slice(posting);
+    Some(())
+}
+
 pub(in crate::diff) fn split_query_candidates(
     candidates: &[usize],
     query_span: Option<usize>,
@@ -513,4 +856,263 @@ pub(in crate::diff) fn same_or_ambiguous_work_class(
 pub(in crate::diff) struct PairedInterval {
     pub(in crate::diff) pair_index: usize,
     pub(in crate::diff) interval_index: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn token_sequence(values: &[u8]) -> Vec<SentenceEvidenceToken> {
+        values
+            .iter()
+            .map(|value| SentenceEvidenceToken::Scalar(char::from(b'a' + value)))
+            .collect()
+    }
+
+    fn empty_signature_index() -> SentenceEdgeSignatureIndex {
+        SentenceEdgeSignatureIndex {
+            own_depth_postings: HashMap::new(),
+            all_depth_postings: HashMap::new(),
+            metrics: SentenceEdgeSignatureIndexMetrics::default(),
+        }
+    }
+
+    fn insert_body_sentence(
+        index: &mut SentenceEdgeSignatureIndex,
+        occurrence_index: usize,
+        tokens: &[SentenceEvidenceToken],
+    ) {
+        index
+            .insert_unit(
+                CandidatePostingBucket::Global,
+                RecoveryUnitKind::Sentence,
+                Some(OccurrenceRole::Body),
+                tokens,
+                occurrence_index,
+                sentence_edge_signature_step,
+            )
+            .expect("small test index fits");
+    }
+
+    fn query_body_sentence(
+        index: &SentenceEdgeSignatureIndex,
+        tokens: &[SentenceEvidenceToken],
+    ) -> (Vec<usize>, SentenceEdgeSignatureQueryMetrics) {
+        let mut candidates = Vec::new();
+        let metrics = index
+            .collect_sentence_tokens(
+                &mut candidates,
+                tokens,
+                OccurrenceRole::Body,
+                CandidatePostingBucket::Global,
+                None,
+                sentence_edge_signature_step,
+            )
+            .expect("small test query fits");
+        (candidates, metrics)
+    }
+
+    fn exact_edge_gate(left: &[SentenceEvidenceToken], right: &[SentenceEvidenceToken]) -> bool {
+        let shorter = left.len().min(right.len());
+        if shorter == 0 {
+            return false;
+        }
+        let mut prefix = 0;
+        while prefix < shorter && left[prefix] == right[prefix] {
+            prefix += 1;
+        }
+        let mut suffix = 0;
+        while suffix < shorter - prefix
+            && left[left.len() - suffix - 1] == right[right.len() - suffix - 1]
+        {
+            suffix += 1;
+        }
+        (prefix + suffix) * 10_000 / shorter >= usize::from(MIN_WORD_SCORE_EDGE_EVIDENCE)
+    }
+
+    fn all_binary_sequences(max_len: usize) -> Vec<Vec<SentenceEvidenceToken>> {
+        let mut sequences = vec![Vec::new()];
+        for len in 1..=max_len {
+            for bits in 0..(1usize << len) {
+                let values = (0..len)
+                    .map(|offset| u8::from(bits & (1 << offset) != 0))
+                    .collect::<Vec<_>>();
+                sequences.push(token_sequence(&values));
+            }
+        }
+        sequences
+    }
+
+    #[test]
+    fn sentence_edge_signature_index_never_drops_an_exact_gate_pair() {
+        assert_eq!(sentence_edge_signature_depth(0), Some(0));
+        assert_eq!(sentence_edge_signature_depth(1), Some(1));
+        assert_eq!(sentence_edge_signature_depth(7), Some(2));
+        assert_eq!(sentence_edge_signature_depth(usize::MAX), None);
+
+        let sequences = all_binary_sequences(7);
+        let mut index = empty_signature_index();
+        for (occurrence_index, tokens) in sequences.iter().enumerate() {
+            insert_body_sentence(&mut index, occurrence_index, tokens);
+        }
+
+        for query in &sequences {
+            let (candidates, metrics) = query_body_sentence(&index, query);
+            assert_eq!(metrics.candidate_union, candidates.len());
+            assert!(candidates.windows(2).all(|pair| pair[0] < pair[1]));
+            for (candidate_index, candidate) in sequences.iter().enumerate() {
+                if exact_edge_gate(query, candidate) {
+                    assert!(
+                        candidates.binary_search(&candidate_index).is_ok(),
+                        "missing query length {} and candidate length {}",
+                        query.len(),
+                        candidate.len()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn sentence_edge_signature_index_covers_prefix_suffix_and_combined_edges() {
+        let candidates = [
+            token_sequence(&[0, 1, 1, 2, 2, 2, 2, 2, 2, 2]),
+            token_sequence(&[2, 2, 2, 2, 2, 2, 2, 1, 1, 0]),
+            token_sequence(&[0, 1, 2, 2, 2, 2, 2, 2, 2, 0]),
+            token_sequence(&[0, 1, 2, 2, 2, 2, 2, 2, 2, 2]),
+            token_sequence(&[1]),
+            Vec::new(),
+        ];
+        let query = token_sequence(&[0, 1, 1, 1, 1, 1, 1, 1, 1, 0]);
+        let mut index = empty_signature_index();
+        for (occurrence_index, tokens) in candidates.iter().enumerate() {
+            insert_body_sentence(&mut index, occurrence_index, tokens);
+        }
+
+        let (found, _) = query_body_sentence(&index, &query);
+
+        assert_eq!(found, vec![0, 1, 2, 3]);
+        assert!(exact_edge_gate(&query, &candidates[0]));
+        assert!(exact_edge_gate(&query, &candidates[1]));
+        assert!(exact_edge_gate(&query, &candidates[2]));
+        assert!(!exact_edge_gate(&query, &candidates[3]));
+        assert!(query_body_sentence(&index, &[]).0.is_empty());
+        assert!(
+            query_body_sentence(&index, &token_sequence(&[1]))
+                .0
+                .contains(&4)
+        );
+    }
+
+    #[test]
+    fn sentence_edge_signature_index_isolates_buckets_roles_and_lines() {
+        let tokens = token_sequence(&[0, 1, 2, 0]);
+        let mut index = empty_signature_index();
+        index
+            .insert_unit(
+                CandidatePostingBucket::Global,
+                RecoveryUnitKind::Sentence,
+                Some(OccurrenceRole::Body),
+                &tokens,
+                0,
+                sentence_edge_signature_step,
+            )
+            .expect("global body sentence is indexed");
+        index
+            .insert_unit(
+                CandidatePostingBucket::Span(None),
+                RecoveryUnitKind::Sentence,
+                Some(OccurrenceRole::Body),
+                &tokens,
+                1,
+                sentence_edge_signature_step,
+            )
+            .expect("span body sentence is indexed");
+        index
+            .insert_unit(
+                CandidatePostingBucket::Global,
+                RecoveryUnitKind::Sentence,
+                Some(OccurrenceRole::RepeatedHeader),
+                &tokens,
+                2,
+                sentence_edge_signature_step,
+            )
+            .expect("header sentence is indexed");
+        index
+            .insert_unit(
+                CandidatePostingBucket::Global,
+                RecoveryUnitKind::Line,
+                Some(OccurrenceRole::Body),
+                &tokens,
+                3,
+                sentence_edge_signature_step,
+            )
+            .expect("line exclusion succeeds");
+
+        let (global_body, _) = query_body_sentence(&index, &tokens);
+        assert_eq!(global_body, vec![0]);
+
+        let mut both_buckets = Vec::new();
+        index
+            .collect_sentence_tokens(
+                &mut both_buckets,
+                &tokens,
+                OccurrenceRole::Body,
+                CandidatePostingBucket::Global,
+                Some(CandidatePostingBucket::Span(None)),
+                sentence_edge_signature_step,
+            )
+            .expect("two-bucket query succeeds");
+        assert_eq!(both_buckets, vec![0, 1]);
+
+        let mut header = Vec::new();
+        index
+            .collect_sentence_tokens(
+                &mut header,
+                &tokens,
+                OccurrenceRole::RepeatedHeader,
+                CandidatePostingBucket::Global,
+                None,
+                sentence_edge_signature_step,
+            )
+            .expect("header query succeeds");
+        assert_eq!(header, vec![2]);
+    }
+
+    #[test]
+    fn signature_collisions_only_add_candidates_and_work_is_reported() {
+        fn collide(_: u64, _: SentenceEvidenceToken) -> u64 {
+            0
+        }
+
+        let candidate = token_sequence(&[0, 0, 0, 0]);
+        let query = token_sequence(&[1, 1, 1, 1]);
+        let mut index = empty_signature_index();
+        index
+            .insert_sentence(
+                CandidatePostingBucket::Global,
+                OccurrenceRole::Body,
+                &candidate,
+                0,
+                collide,
+            )
+            .expect("colliding signature is indexed");
+        let mut found = Vec::new();
+        let query_metrics = index
+            .collect_sentence_tokens(
+                &mut found,
+                &query,
+                OccurrenceRole::Body,
+                CandidatePostingBucket::Global,
+                None,
+                collide,
+            )
+            .expect("colliding signature query succeeds");
+
+        assert!(!exact_edge_gate(&query, &candidate));
+        assert_eq!(found, vec![0]);
+        assert_eq!(query_metrics.candidate_union, 1);
+        assert!(query_metrics.posting_visits >= query_metrics.candidate_union);
+        assert!(index.metrics().posting_items >= query_metrics.posting_visits);
+    }
 }

@@ -30,7 +30,7 @@ use super::recovery::score::{
 };
 #[cfg(test)]
 use super::recovery::{
-    candidate::LineTrigramPosting,
+    candidate::{LineTrigramPosting, SentenceEdgeSignatureIndex},
     score::{
         LINE_NGRAM_SIZE, SentenceEdgeEvidence, line_trigram_candidate_meets_threshold,
         sentence_similarity_in_scope, sentence_similarity_in_scope_attributed,
@@ -16122,6 +16122,67 @@ mod tests {
             .expect("query succeeds");
 
         assert_eq!(plausible, vec![0]);
+    }
+
+    #[test]
+    fn sentence_edge_signature_index_maps_paired_streams_in_both_query_directions() {
+        let occurrences = [
+            indexed_occurrence(
+                &['a', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'z'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['a', 'q', 'q', 'z'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['a', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'z'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+        ];
+        let intervals = [
+            Some(PairedInterval {
+                pair_index: 7,
+                interval_index: 0,
+            }),
+            Some(PairedInterval {
+                pair_index: 7,
+                interval_index: 1,
+            }),
+            Some(PairedInterval {
+                pair_index: 8,
+                interval_index: 0,
+            }),
+        ];
+        let index = SentenceEdgeSignatureIndex::new(
+            &occurrences,
+            CandidatePostingIndexScope::PairedStream(&intervals),
+        )
+        .expect("paired-stream signature index construction succeeds");
+        let mut plausible = Vec::new();
+
+        index
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &occurrences[1],
+                CandidatePostingBucket::PairedStream(7),
+                None,
+            )
+            .expect("short-to-long paired-stream query succeeds");
+        assert_eq!(plausible, vec![0, 1]);
+
+        index
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &occurrences[0],
+                CandidatePostingBucket::PairedStream(7),
+                None,
+            )
+            .expect("long-to-short paired-stream query succeeds");
+        assert_eq!(plausible, vec![0, 1]);
     }
 
     #[test]
