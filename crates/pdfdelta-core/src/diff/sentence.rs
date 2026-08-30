@@ -439,6 +439,10 @@ struct UnitCandidateQueryMetrics {
     largest_edge_posting: usize,
     edge_query_union: usize,
     line_trigram_only_query_union: usize,
+    same_known_edge_query_union: usize,
+    ambiguous_edge_query_union: usize,
+    same_known_line_trigram_only_query_union: usize,
+    ambiguous_line_trigram_only_query_union: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -447,12 +451,57 @@ enum CandidatePostingKind {
     LineTrigram,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum NearSearchScope {
     PairedInterval,
     PairedCrossIntervalVeto,
     SameOrAmbiguousSpan,
     CrossSpan,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct NearSearchWorkSplit {
+    same_known: usize,
+    ambiguous: usize,
+    shared: usize,
+}
+
+impl NearSearchWorkSplit {
+    fn shared(amount: usize) -> Self {
+        Self {
+            shared: amount,
+            ..Self::default()
+        }
+    }
+
+    fn total(self) -> Option<usize> {
+        self.same_known
+            .checked_add(self.ambiguous)?
+            .checked_add(self.shared)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NearSearchWorkClass {
+    SameKnown,
+    Ambiguous,
+    Shared,
+}
+
+impl NearSearchWorkClass {
+    fn split(self, amount: usize) -> NearSearchWorkSplit {
+        match self {
+            Self::SameKnown => NearSearchWorkSplit {
+                same_known: amount,
+                ..NearSearchWorkSplit::default()
+            },
+            Self::Ambiguous => NearSearchWorkSplit {
+                ambiguous: amount,
+                ..NearSearchWorkSplit::default()
+            },
+            Self::Shared => NearSearchWorkSplit::shared(amount),
+        }
+    }
 }
 
 impl UnitCandidateIndex {
@@ -571,6 +620,7 @@ impl UnitCandidateIndex {
         &self,
         plausible: &mut Vec<usize>,
         occurrence: &SentenceOccurrence,
+        candidate_occurrences: &[SentenceOccurrence],
         bucket: CandidatePostingBucket,
         additional_bucket: Option<CandidatePostingBucket>,
         budget: &mut RecoveryBudget,
@@ -578,6 +628,7 @@ impl UnitCandidateIndex {
         self.collect_plausible_occurrences_in_scope(
             plausible,
             occurrence,
+            candidate_occurrences,
             bucket,
             additional_bucket,
             budget,
@@ -585,10 +636,12 @@ impl UnitCandidateIndex {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn collect_plausible_occurrences_in_scope(
         &self,
         plausible: &mut Vec<usize>,
         occurrence: &SentenceOccurrence,
+        candidate_occurrences: &[SentenceOccurrence],
         bucket: CandidatePostingBucket,
         additional_bucket: Option<CandidatePostingBucket>,
         budget: &mut RecoveryBudget,
@@ -603,31 +656,59 @@ impl UnitCandidateIndex {
         // A pair satisfying the prefix/suffix threshold must share at least one
         // edge token, so this index prunes work without reducing candidate recall.
         let buckets = [Some(bucket), additional_bucket];
-        let (raw_edge_postings, largest_edge_posting) = buckets.into_iter().flatten().try_fold(
-            (0usize, 0usize),
-            |(total, largest), bucket| {
-                let first_len = self
-                    .edge_postings
-                    .get(&(bucket, occurrence.kind, role, first))
-                    .map_or(0, Vec::len);
-                let last_len = if first == last {
-                    0
-                } else {
-                    self.edge_postings
-                        .get(&(bucket, occurrence.kind, role, last))
-                        .map_or(0, Vec::len)
-                };
-                Some((
-                    total.checked_add(first_len)?.checked_add(last_len)?,
-                    largest.max(first_len).max(last_len),
-                ))
-            },
-        )?;
-        if !budget.charge_candidate_posting_visits_in_scope(
+        let (primary_edge_postings, additional_edge_postings, largest_edge_posting) =
+            buckets.into_iter().enumerate().try_fold(
+                (0usize, 0usize, 0usize),
+                |(primary, additional, largest), (bucket_index, bucket)| {
+                    let Some(bucket) = bucket else {
+                        return Some((primary, additional, largest));
+                    };
+                    let first_len = self
+                        .edge_postings
+                        .get(&(bucket, occurrence.kind, role, first))
+                        .map_or(0, Vec::len);
+                    let last_len = if first == last {
+                        0
+                    } else {
+                        self.edge_postings
+                            .get(&(bucket, occurrence.kind, role, last))
+                            .map_or(0, Vec::len)
+                    };
+                    let amount = first_len.checked_add(last_len)?;
+                    Some(if bucket_index == 0 {
+                        (
+                            primary.checked_add(amount)?,
+                            additional,
+                            largest.max(first_len).max(last_len),
+                        )
+                    } else {
+                        (
+                            primary,
+                            additional.checked_add(amount)?,
+                            largest.max(first_len).max(last_len),
+                        )
+                    })
+                },
+            )?;
+        let raw_edge_postings = primary_edge_postings.checked_add(additional_edge_postings)?;
+        let subdivides_span_buckets = scope == NearSearchScope::SameOrAmbiguousSpan
+            && matches!(bucket, CandidatePostingBucket::Span(Some(_)))
+            && matches!(additional_bucket, Some(CandidatePostingBucket::Span(None)));
+        let edge_split = if subdivides_span_buckets {
+            NearSearchWorkSplit {
+                same_known: primary_edge_postings,
+                ambiguous: additional_edge_postings,
+                shared: 0,
+            }
+        } else {
+            NearSearchWorkSplit::shared(raw_edge_postings)
+        };
+        if !budget.charge_candidate_posting_visits_in_scope_split(
             raw_edge_postings,
             occurrence.kind,
             CandidatePostingKind::Edge,
             scope,
+            edge_split,
         ) {
             return None;
         }
@@ -650,14 +731,18 @@ impl UnitCandidateIndex {
         plausible.sort_unstable();
         plausible.dedup();
         let edge_query_union = plausible.len();
+        let edge_query_split =
+            split_query_candidates(plausible, occurrence.span_index, candidate_occurrences)?;
         let mut line_trigram_only_query_union = 0;
+        let mut final_query_split = edge_query_split;
         if occurrence.kind == RecoveryUnitKind::Line {
             let trigram_count = ngram_count(occurrence.tokens.len(), LINE_NGRAM_SIZE)?;
-            if !budget.charge_candidate_posting_visits_in_scope(
+            if !budget.charge_candidate_posting_visits_in_scope_split(
                 trigram_count,
                 occurrence.kind,
                 CandidatePostingKind::LineTrigram,
                 scope,
+                NearSearchWorkSplit::shared(trigram_count),
             ) {
                 return None;
             }
@@ -670,26 +755,42 @@ impl UnitCandidateIndex {
             }
             // Distinct query keys visit each posting list at most once, bounding
             // temporary entries by the already bounded index corpus.
-            let additional_postings =
-                query_trigrams
-                    .iter()
-                    .try_fold(0usize, |count, (trigram, _)| {
-                        count.checked_add(
+            let (primary_postings, ambiguous_postings) = query_trigrams.iter().try_fold(
+                (0usize, 0usize),
+                |(primary_count, additional_count), (trigram, _)| {
+                    Some((
+                        primary_count.checked_add(
                             self.line_trigram_postings
                                 .get(&(bucket, occurrence.kind, role, *trigram))
-                                .map_or(0, Vec::len)
-                                .checked_add(additional_bucket.map_or(0, |additional_bucket| {
-                                    self.line_trigram_postings
-                                        .get(&(additional_bucket, occurrence.kind, role, *trigram))
-                                        .map_or(0, Vec::len)
-                                }))?,
-                        )
-                    })?;
-            if !budget.charge_candidate_posting_visits_in_scope(
+                                .map_or(0, Vec::len),
+                        )?,
+                        additional_count.checked_add(additional_bucket.map_or(
+                            0,
+                            |additional_bucket| {
+                                self.line_trigram_postings
+                                    .get(&(additional_bucket, occurrence.kind, role, *trigram))
+                                    .map_or(0, Vec::len)
+                            },
+                        ))?,
+                    ))
+                },
+            )?;
+            let additional_postings = primary_postings.checked_add(ambiguous_postings)?;
+            let posting_split = if subdivides_span_buckets {
+                NearSearchWorkSplit {
+                    same_known: primary_postings,
+                    ambiguous: ambiguous_postings,
+                    shared: 0,
+                }
+            } else {
+                NearSearchWorkSplit::shared(additional_postings)
+            };
+            if !budget.charge_candidate_posting_visits_in_scope_split(
                 additional_postings,
                 occurrence.kind,
                 CandidatePostingKind::LineTrigram,
                 scope,
+                posting_split,
             ) {
                 return None;
             }
@@ -728,12 +829,68 @@ impl UnitCandidateIndex {
             plausible.sort_unstable();
             plausible.dedup();
             line_trigram_only_query_union = plausible.len().checked_sub(edge_query_union)?;
+            final_query_split =
+                split_query_candidates(plausible, occurrence.span_index, candidate_occurrences)?;
         }
         Some(UnitCandidateQueryMetrics {
             largest_edge_posting,
             edge_query_union,
             line_trigram_only_query_union,
+            same_known_edge_query_union: edge_query_split.same_known,
+            ambiguous_edge_query_union: edge_query_split.ambiguous,
+            same_known_line_trigram_only_query_union: final_query_split
+                .same_known
+                .checked_sub(edge_query_split.same_known)?,
+            ambiguous_line_trigram_only_query_union: final_query_split
+                .ambiguous
+                .checked_sub(edge_query_split.ambiguous)?,
         })
+    }
+}
+
+fn split_query_candidates(
+    candidates: &[usize],
+    query_span: Option<usize>,
+    occurrences: &[SentenceOccurrence],
+) -> Option<NearSearchWorkSplit> {
+    split_query_candidates_if(candidates, query_span, occurrences, |_| true)
+}
+
+fn split_query_candidates_if(
+    candidates: &[usize],
+    query_span: Option<usize>,
+    occurrences: &[SentenceOccurrence],
+    mut include: impl FnMut(usize) -> bool,
+) -> Option<NearSearchWorkSplit> {
+    candidates.iter().try_fold(
+        NearSearchWorkSplit::default(),
+        |mut split, occurrence_index| {
+            if !include(*occurrence_index) {
+                return Some(split);
+            }
+            let class = same_or_ambiguous_work_class(
+                query_span,
+                occurrences.get(*occurrence_index)?.span_index,
+            );
+            let count = match class {
+                NearSearchWorkClass::SameKnown => &mut split.same_known,
+                NearSearchWorkClass::Ambiguous => &mut split.ambiguous,
+                NearSearchWorkClass::Shared => &mut split.shared,
+            };
+            *count = count.checked_add(1)?;
+            Some(split)
+        },
+    )
+}
+
+fn same_or_ambiguous_work_class(
+    query_span: Option<usize>,
+    candidate_span: Option<usize>,
+) -> NearSearchWorkClass {
+    match (query_span, candidate_span) {
+        (Some(query), Some(candidate)) if query == candidate => NearSearchWorkClass::SameKnown,
+        (Some(_), None) => NearSearchWorkClass::Ambiguous,
+        _ => NearSearchWorkClass::Shared,
     }
 }
 
@@ -4574,6 +4731,9 @@ struct RecoveryBudget {
     paired_interval_work: NearSearchScopeMetrics,
     paired_cross_interval_veto_work: NearSearchScopeMetrics,
     same_or_ambiguous_span_work: NearSearchScopeMetrics,
+    same_known_span_work: NearSearchScopeMetrics,
+    ambiguous_span_work: NearSearchScopeMetrics,
+    same_or_ambiguous_shared_query_work: NearSearchScopeMetrics,
     cross_span_work: NearSearchScopeMetrics,
     largest_edge_posting: usize,
     largest_edge_query_union: usize,
@@ -4621,6 +4781,9 @@ impl RecoveryBudget {
             paired_interval_work: NearSearchScopeMetrics::default(),
             paired_cross_interval_veto_work: NearSearchScopeMetrics::default(),
             same_or_ambiguous_span_work: NearSearchScopeMetrics::default(),
+            same_known_span_work: NearSearchScopeMetrics::default(),
+            ambiguous_span_work: NearSearchScopeMetrics::default(),
+            same_or_ambiguous_shared_query_work: NearSearchScopeMetrics::default(),
             cross_span_work: NearSearchScopeMetrics::default(),
             largest_edge_posting: 0,
             largest_edge_query_union: 0,
@@ -4656,6 +4819,21 @@ impl RecoveryBudget {
         kind: RecoveryUnitKind,
         scope: NearSearchScope,
     ) -> bool {
+        self.charge_pair_visits_in_scope_split(
+            amount,
+            kind,
+            scope,
+            NearSearchWorkSplit::shared(amount),
+        )
+    }
+
+    fn charge_pair_visits_in_scope_split(
+        &mut self,
+        amount: usize,
+        kind: RecoveryUnitKind,
+        scope: NearSearchScope,
+        split: NearSearchWorkSplit,
+    ) -> bool {
         let examined = self.pair_visits;
         let attempted = self.pair_visits_attempted;
         let charged = Self::charge_near_search(
@@ -4677,7 +4855,15 @@ impl RecoveryBudget {
         let kind_recorded = Self::record_pair_work(self.work_mut(kind), examined, attempted);
         let scope_recorded =
             Self::record_pair_work(self.scope_kind_work_mut(scope, kind), examined, attempted);
-        if !kind_recorded || !scope_recorded {
+        let subdivision_recorded = self.record_same_or_ambiguous_split(
+            scope,
+            kind,
+            amount,
+            split,
+            charged,
+            Self::record_pair_work,
+        );
+        if !kind_recorded || !scope_recorded || !subdivision_recorded {
             self.near_metrics_available = false;
         }
         charged
@@ -4698,12 +4884,30 @@ impl RecoveryBudget {
         )
     }
 
+    #[cfg(test)]
     fn charge_candidate_posting_visits_in_scope(
         &mut self,
         amount: usize,
         kind: RecoveryUnitKind,
         posting_kind: CandidatePostingKind,
         scope: NearSearchScope,
+    ) -> bool {
+        self.charge_candidate_posting_visits_in_scope_split(
+            amount,
+            kind,
+            posting_kind,
+            scope,
+            NearSearchWorkSplit::shared(amount),
+        )
+    }
+
+    fn charge_candidate_posting_visits_in_scope_split(
+        &mut self,
+        amount: usize,
+        kind: RecoveryUnitKind,
+        posting_kind: CandidatePostingKind,
+        scope: NearSearchScope,
+        split: NearSearchWorkSplit,
     ) -> bool {
         let examined = self.candidate_posting_visits;
         let attempted = self.candidate_posting_visits_attempted;
@@ -4734,7 +4938,17 @@ impl RecoveryBudget {
             examined,
             attempted,
         );
-        if !kind_recorded || !scope_recorded {
+        let subdivision_recorded = self.record_same_or_ambiguous_split(
+            scope,
+            kind,
+            amount,
+            split,
+            charged,
+            |work, examined, attempted| {
+                Self::record_posting_work(work, posting_kind, examined, attempted)
+            },
+        );
+        if !kind_recorded || !scope_recorded || !subdivision_recorded {
             self.near_metrics_available = false;
         }
         charged
@@ -4745,11 +4959,27 @@ impl RecoveryBudget {
         self.charge_comparisons_in_scope(amount, kind, NearSearchScope::SameOrAmbiguousSpan)
     }
 
+    #[cfg(test)]
     fn charge_comparisons_in_scope(
         &mut self,
         amount: usize,
         kind: RecoveryUnitKind,
         scope: NearSearchScope,
+    ) -> bool {
+        self.charge_comparisons_in_scope_split(
+            amount,
+            kind,
+            scope,
+            NearSearchWorkSplit::shared(amount),
+        )
+    }
+
+    fn charge_comparisons_in_scope_split(
+        &mut self,
+        amount: usize,
+        kind: RecoveryUnitKind,
+        scope: NearSearchScope,
+        split: NearSearchWorkSplit,
     ) -> bool {
         let examined = self.comparisons;
         let attempted = self.comparisons_attempted;
@@ -4775,7 +5005,15 @@ impl RecoveryBudget {
             examined,
             attempted,
         );
-        if !kind_recorded || !scope_recorded {
+        let subdivision_recorded = self.record_same_or_ambiguous_split(
+            scope,
+            kind,
+            amount,
+            split,
+            charged,
+            Self::record_comparison_work,
+        );
+        if !kind_recorded || !scope_recorded || !subdivision_recorded {
             self.near_metrics_available = false;
         }
         charged
@@ -4810,9 +5048,101 @@ impl RecoveryBudget {
             .max(filtered_candidate_count);
         let kind_recorded = Self::record_query_work(self.work_mut(kind), query);
         let scope_recorded = Self::record_query_work(self.scope_kind_work_mut(scope, kind), query);
-        if !kind_recorded || !scope_recorded {
+        let subdivision_recorded = if scope == NearSearchScope::SameOrAmbiguousSpan {
+            let Some(classified_edge) = query
+                .same_known_edge_query_union
+                .checked_add(query.ambiguous_edge_query_union)
+            else {
+                self.near_metrics_available = false;
+                return;
+            };
+            let Some(shared_edge) = query.edge_query_union.checked_sub(classified_edge) else {
+                self.near_metrics_available = false;
+                return;
+            };
+            let Some(classified_trigram) = query
+                .same_known_line_trigram_only_query_union
+                .checked_add(query.ambiguous_line_trigram_only_query_union)
+            else {
+                self.near_metrics_available = false;
+                return;
+            };
+            let Some(shared_trigram) = query
+                .line_trigram_only_query_union
+                .checked_sub(classified_trigram)
+            else {
+                self.near_metrics_available = false;
+                return;
+            };
+            let same = UnitCandidateQueryMetrics {
+                edge_query_union: query.same_known_edge_query_union,
+                line_trigram_only_query_union: query.same_known_line_trigram_only_query_union,
+                ..UnitCandidateQueryMetrics::default()
+            };
+            let ambiguous = UnitCandidateQueryMetrics {
+                edge_query_union: query.ambiguous_edge_query_union,
+                line_trigram_only_query_union: query.ambiguous_line_trigram_only_query_union,
+                ..UnitCandidateQueryMetrics::default()
+            };
+            let shared = UnitCandidateQueryMetrics {
+                edge_query_union: shared_edge,
+                line_trigram_only_query_union: shared_trigram,
+                ..UnitCandidateQueryMetrics::default()
+            };
+            Self::record_query_work(
+                self.subdivision_kind_work_mut(kind, NearSearchWorkClass::SameKnown),
+                same,
+            ) && Self::record_query_work(
+                self.subdivision_kind_work_mut(kind, NearSearchWorkClass::Ambiguous),
+                ambiguous,
+            ) && Self::record_query_work(
+                self.subdivision_kind_work_mut(kind, NearSearchWorkClass::Shared),
+                shared,
+            )
+        } else {
+            true
+        };
+        if !kind_recorded || !scope_recorded || !subdivision_recorded {
             self.near_metrics_available = false;
         }
+    }
+
+    fn record_same_or_ambiguous_split(
+        &mut self,
+        scope: NearSearchScope,
+        kind: RecoveryUnitKind,
+        amount: usize,
+        split: NearSearchWorkSplit,
+        charged: bool,
+        mut record: impl FnMut(&mut NearSearchWorkMetrics, usize, usize) -> bool,
+    ) -> bool {
+        if scope != NearSearchScope::SameOrAmbiguousSpan {
+            return true;
+        }
+        let Some(total) = split.total().filter(|total| *total == amount) else {
+            return false;
+        };
+        if total == 0 {
+            return true;
+        }
+        for (class, amount) in [
+            (NearSearchWorkClass::SameKnown, split.same_known),
+            (NearSearchWorkClass::Ambiguous, split.ambiguous),
+            (NearSearchWorkClass::Shared, split.shared),
+        ] {
+            if amount == 0 {
+                continue;
+            }
+            let class_examined = if charged { amount } else { 0 };
+            if !record(
+                self.subdivision_kind_work_mut(kind, class),
+                class_examined,
+                amount,
+            ) {
+                return false;
+            }
+        }
+        true
     }
 
     fn record_pair_work(
@@ -4922,6 +5252,22 @@ impl RecoveryBudget {
         }
     }
 
+    fn subdivision_kind_work_mut(
+        &mut self,
+        kind: RecoveryUnitKind,
+        class: NearSearchWorkClass,
+    ) -> &mut NearSearchWorkMetrics {
+        let work = match class {
+            NearSearchWorkClass::SameKnown => &mut self.same_known_span_work,
+            NearSearchWorkClass::Ambiguous => &mut self.ambiguous_span_work,
+            NearSearchWorkClass::Shared => &mut self.same_or_ambiguous_shared_query_work,
+        };
+        match kind {
+            RecoveryUnitKind::Sentence => &mut work.sentence_work,
+            RecoveryUnitKind::Line => &mut work.line_work,
+        }
+    }
+
     fn diagnostic_delta(after: usize, before: usize, metrics_available: &mut bool) -> usize {
         let Some(delta) = after.checked_sub(before) else {
             *metrics_available = false;
@@ -4944,6 +5290,9 @@ impl RecoveryBudget {
         self.paired_interval_work = other.paired_interval_work;
         self.paired_cross_interval_veto_work = other.paired_cross_interval_veto_work;
         self.same_or_ambiguous_span_work = other.same_or_ambiguous_span_work;
+        self.same_known_span_work = other.same_known_span_work;
+        self.ambiguous_span_work = other.ambiguous_span_work;
+        self.same_or_ambiguous_shared_query_work = other.same_or_ambiguous_shared_query_work;
         self.cross_span_work = other.cross_span_work;
         self.pair_visits = other.pair_visits;
         self.comparisons = other.comparisons;
@@ -5547,6 +5896,10 @@ fn record_near_search_metrics(
     diagnostics.metrics.near_paired_cross_interval_veto_work =
         budget.paired_cross_interval_veto_work;
     diagnostics.metrics.near_same_or_ambiguous_span_work = budget.same_or_ambiguous_span_work;
+    diagnostics.metrics.near_same_known_span_work = budget.same_known_span_work;
+    diagnostics.metrics.near_ambiguous_span_work = budget.ambiguous_span_work;
+    diagnostics.metrics.near_same_or_ambiguous_shared_query_work =
+        budget.same_or_ambiguous_shared_query_work;
     diagnostics.metrics.near_cross_span_work = budget.cross_span_work;
     diagnostics.metrics.near_pair_visits_examined = budget.pair_visits;
     diagnostics.metrics.near_pair_visits_attempted = budget.pair_visits_attempted;
@@ -7298,6 +7651,7 @@ fn paired_modified_sentence_relations(
         let query = new_index.collect_plausible_occurrences_in_scope(
             &mut plausible,
             old_occurrence,
+            new_occurrences,
             CandidatePostingBucket::Paired(interval),
             None,
             budget,
@@ -7351,6 +7705,7 @@ fn paired_modified_sentence_relations(
         let query = old_index.collect_plausible_occurrences_in_scope(
             &mut plausible,
             new_occurrence,
+            old_occurrences,
             CandidatePostingBucket::Paired(interval),
             None,
             budget,
@@ -7483,6 +7838,7 @@ fn record_cross_interval_disqualifying_relations(
         let query = new_index.collect_plausible_occurrences_in_scope(
             &mut plausible,
             old_occurrence,
+            new_occurrences,
             CandidatePostingBucket::PairedStream(interval.pair_index),
             None,
             budget,
@@ -7544,6 +7900,7 @@ fn record_cross_interval_disqualifying_relations(
         let query = old_index.collect_plausible_occurrences_in_scope(
             &mut plausible,
             new_occurrence,
+            old_occurrences,
             CandidatePostingBucket::PairedStream(interval.pair_index),
             None,
             budget,
@@ -7794,6 +8151,7 @@ fn extend_modified_sentence_relations(
         let query = new_index.collect_plausible_occurrences_in_scope(
             &mut plausible,
             old_occurrence,
+            new_occurrences,
             bucket,
             additional_bucket,
             budget,
@@ -7816,13 +8174,28 @@ fn extend_modified_sentence_relations(
             plausible.len(),
             work_scope,
         );
-        if !budget.charge_pair_visits_in_scope(plausible.len(), old_occurrence.kind, work_scope) {
+        let pair_split = if work_scope == NearSearchScope::SameOrAmbiguousSpan {
+            split_query_candidates(&plausible, old_occurrence.span_index, new_occurrences)?
+        } else {
+            NearSearchWorkSplit::shared(plausible.len())
+        };
+        if !budget.charge_pair_visits_in_scope_split(
+            plausible.len(),
+            old_occurrence.kind,
+            work_scope,
+            pair_split,
+        ) {
             return None;
         }
         for &new_occurrence_index in &plausible {
             let new_occurrence = new_occurrences.get(new_occurrence_index)?;
-            let score =
-                sentence_similarity_in_scope(old_occurrence, new_occurrence, budget, work_scope)?;
+            let score = sentence_similarity_in_scope_attributed(
+                old_occurrence,
+                new_occurrence,
+                budget,
+                work_scope,
+                same_or_ambiguous_work_class(old_occurrence.span_index, new_occurrence.span_index),
+            )?;
             if let Some(watch) = watch.as_deref_mut() {
                 watch.record_near(
                     old_candidate.occurrence_index,
@@ -7852,6 +8225,7 @@ fn extend_modified_sentence_relations(
         let query = old_index.collect_plausible_occurrences_in_scope(
             &mut plausible,
             new_occurrence,
+            old_occurrences,
             bucket,
             additional_bucket,
             budget,
@@ -7887,8 +8261,22 @@ fn extend_modified_sentence_relations(
             plausible.len(),
             work_scope,
         );
-        if !budget.charge_pair_visits_in_scope(noncandidate_visits, new_occurrence.kind, work_scope)
-        {
+        let pair_split = if work_scope == NearSearchScope::SameOrAmbiguousSpan {
+            split_query_candidates_if(
+                &plausible,
+                new_occurrence.span_index,
+                old_occurrences,
+                |occurrence_index| old_candidate_by_occurrence[occurrence_index].is_none(),
+            )?
+        } else {
+            NearSearchWorkSplit::shared(noncandidate_visits)
+        };
+        if !budget.charge_pair_visits_in_scope_split(
+            noncandidate_visits,
+            new_occurrence.kind,
+            work_scope,
+            pair_split,
+        ) {
             return None;
         }
         for &old_occurrence_index in &plausible {
@@ -7896,8 +8284,13 @@ fn extend_modified_sentence_relations(
                 continue;
             }
             let old_occurrence = old_occurrences.get(old_occurrence_index)?;
-            let score =
-                sentence_similarity_in_scope(old_occurrence, new_occurrence, budget, work_scope)?;
+            let score = sentence_similarity_in_scope_attributed(
+                old_occurrence,
+                new_occurrence,
+                budget,
+                work_scope,
+                same_or_ambiguous_work_class(new_occurrence.span_index, old_occurrence.span_index),
+            )?;
             if let Some(watch) = watch.as_deref_mut() {
                 watch.record_near(
                     old_occurrence_index,
@@ -8004,6 +8397,16 @@ fn sentence_similarity_in_scope(
     budget: &mut RecoveryBudget,
     scope: NearSearchScope,
 ) -> Option<u16> {
+    sentence_similarity_in_scope_attributed(old, new, budget, scope, NearSearchWorkClass::Shared)
+}
+
+fn sentence_similarity_in_scope_attributed(
+    old: &SentenceOccurrence,
+    new: &SentenceOccurrence,
+    budget: &mut RecoveryBudget,
+    scope: NearSearchScope,
+    class: NearSearchWorkClass,
+) -> Option<u16> {
     let shorter = old.tokens.len().min(new.tokens.len());
     if shorter == 0 {
         return Some(0);
@@ -8018,7 +8421,7 @@ fn sentence_similarity_in_scope(
 
     let mut prefix = 0usize;
     while prefix < shorter {
-        if !budget.charge_comparisons_in_scope(1, old.kind, scope) {
+        if !budget.charge_comparisons_in_scope_split(1, old.kind, scope, class.split(1)) {
             return None;
         }
         if old.tokens[prefix] != new.tokens[prefix] {
@@ -8029,7 +8432,7 @@ fn sentence_similarity_in_scope(
 
     let mut suffix = 0usize;
     while suffix < shorter - prefix {
-        if !budget.charge_comparisons_in_scope(1, old.kind, scope) {
+        if !budget.charge_comparisons_in_scope_split(1, old.kind, scope, class.split(1)) {
             return None;
         }
         if old.tokens[old.tokens.len() - suffix - 1] != new.tokens[new.tokens.len() - suffix - 1] {
@@ -8052,6 +8455,7 @@ fn sentence_similarity_in_scope(
                 old.kind,
                 budget,
                 scope,
+                class,
             )?;
             exact_score = exact_score.max(line_score);
         }
@@ -8060,7 +8464,7 @@ fn sentence_similarity_in_scope(
         return Some(exact_score);
     }
     if multiset_dice_upper_bound(old.word_ranges.len(), new.word_ranges.len())? > exact_score {
-        let word_score = word_multiset_dice(old, new, old.kind, budget, scope)?;
+        let word_score = word_multiset_dice(old, new, old.kind, budget, scope, class)?;
         exact_score = exact_score.max(word_score);
     }
     Some(exact_score)
@@ -8077,6 +8481,7 @@ fn word_multiset_dice(
     kind: RecoveryUnitKind,
     budget: &mut RecoveryBudget,
     scope: NearSearchScope,
+    class: NearSearchWorkClass,
 ) -> Option<u16> {
     let total = old.word_ranges.len().checked_add(new.word_ranges.len())?;
     if total == 0 {
@@ -8086,7 +8491,7 @@ fn word_multiset_dice(
     let mut new_index = 0usize;
     let mut shared = 0usize;
     while old_index < old.word_ranges.len() && new_index < new.word_ranges.len() {
-        if !budget.charge_comparisons_in_scope(1, kind, scope) {
+        if !budget.charge_comparisons_in_scope_split(1, kind, scope, class.split(1)) {
             return None;
         }
         let old_word = old.key.get(old.word_ranges[old_index].clone())?;
@@ -8111,6 +8516,7 @@ fn token_ngram_multiset_dice(
     kind: RecoveryUnitKind,
     budget: &mut RecoveryBudget,
     scope: NearSearchScope,
+    class: NearSearchWorkClass,
 ) -> Option<u16> {
     let old_windows = ngram_count(old.len(), size)?;
     let new_windows = ngram_count(new.len(), size)?;
@@ -8118,7 +8524,7 @@ fn token_ngram_multiset_dice(
         return Some(0);
     }
     let total = old_windows.checked_add(new_windows)?;
-    if !budget.charge_comparisons_in_scope(total, kind, scope) {
+    if !budget.charge_comparisons_in_scope_split(total, kind, scope, class.split(total)) {
         return None;
     }
 
@@ -8139,7 +8545,12 @@ fn token_ngram_multiset_dice(
     } else {
         (&new_counts, &old_counts)
     };
-    if !budget.charge_comparisons_in_scope(shorter.len(), kind, scope) {
+    if !budget.charge_comparisons_in_scope_split(
+        shorter.len(),
+        kind,
+        scope,
+        class.split(shorter.len()),
+    ) {
         return None;
     }
     let shared = shorter.iter().try_fold(0usize, |shared, (ngram, count)| {
@@ -12237,6 +12648,7 @@ mod tests {
             .collect_plausible_occurrences(
                 &mut plausible,
                 &occurrences[0],
+                &occurrences,
                 CandidatePostingBucket::Global,
                 None,
                 &mut budget,
@@ -12275,6 +12687,7 @@ mod tests {
             .collect_plausible_occurrences(
                 &mut plausible,
                 &query,
+                &occurrences,
                 CandidatePostingBucket::Global,
                 None,
                 &mut budget,
@@ -12298,18 +12711,49 @@ mod tests {
         let mut plausible = Vec::new();
         let mut budget = RecoveryBudget::new(3, 1, 4, 1).expect("budget is valid");
 
-        index
+        let query = index
             .collect_plausible_occurrences(
                 &mut plausible,
                 &occurrences[0],
+                &occurrences,
                 CandidatePostingBucket::Span(Some(0)),
                 Some(CandidatePostingBucket::Span(None)),
                 &mut budget,
             )
             .expect("query succeeds");
+        budget.record_candidate_query(query, RecoveryUnitKind::Sentence, plausible.len());
 
         assert_eq!(plausible, vec![0, 2]);
         assert_eq!(budget.candidate_posting_visits, 2);
+        assert_eq!(
+            budget
+                .same_known_span_work
+                .sentence_work
+                .edge_posting_visits_examined,
+            1
+        );
+        assert_eq!(
+            budget
+                .ambiguous_span_work
+                .sentence_work
+                .edge_posting_visits_examined,
+            1
+        );
+        assert_eq!(
+            budget
+                .same_known_span_work
+                .sentence_work
+                .edge_query_union_candidates,
+            1
+        );
+        assert_eq!(
+            budget
+                .ambiguous_span_work
+                .sentence_work
+                .edge_query_union_candidates,
+            1
+        );
+        assert_near_work_sums_match_aggregates(&budget);
     }
 
     #[test]
@@ -12341,6 +12785,7 @@ mod tests {
             .collect_plausible_occurrences(
                 &mut plausible,
                 &occurrences[0],
+                &occurrences,
                 CandidatePostingBucket::Paired(first),
                 None,
                 &mut budget,
@@ -12597,6 +13042,7 @@ mod tests {
             .collect_plausible_occurrences(
                 &mut plausible,
                 &query,
+                &occurrences,
                 CandidatePostingBucket::Global,
                 None,
                 &mut budget,
@@ -12646,6 +13092,7 @@ mod tests {
             .collect_plausible_occurrences(
                 &mut plausible,
                 &query,
+                &occurrences,
                 CandidatePostingBucket::Global,
                 None,
                 &mut budget,
@@ -12739,6 +13186,7 @@ mod tests {
             .collect_plausible_occurrences(
                 &mut plausible,
                 &query,
+                &occurrences,
                 CandidatePostingBucket::PairedStream(0),
                 None,
                 &mut budget,
@@ -12748,6 +13196,28 @@ mod tests {
         assert_eq!(plausible, vec![0]);
         assert_eq!(budget.candidate_posting_visits, 14);
         assert_eq!(budget.candidate_posting_visits_attempted, 14);
+        assert_eq!(
+            budget
+                .same_or_ambiguous_shared_query_work
+                .line_work
+                .line_trigram_posting_visits_examined,
+            14
+        );
+        assert_eq!(
+            budget
+                .same_known_span_work
+                .line_work
+                .line_trigram_posting_visits_examined,
+            0
+        );
+        assert_eq!(
+            budget
+                .ambiguous_span_work
+                .line_work
+                .line_trigram_posting_visits_examined,
+            0
+        );
+        assert_near_work_sums_match_aggregates(&budget);
 
         let mut limited = Vec::new();
         let mut limited_budget = RecoveryBudget::new(10, 640, 650, 1).expect("budget is valid");
@@ -12758,6 +13228,7 @@ mod tests {
                 .collect_plausible_occurrences(
                     &mut limited,
                     &query,
+                    &occurrences,
                     CandidatePostingBucket::PairedStream(0),
                     None,
                     &mut limited_budget,
@@ -12767,6 +13238,21 @@ mod tests {
         assert!(limited.is_empty());
         assert_eq!(limited_budget.candidate_posting_visits, 8);
         assert_eq!(limited_budget.candidate_posting_visits_attempted, 14);
+        assert_eq!(
+            limited_budget
+                .same_or_ambiguous_shared_query_work
+                .line_work
+                .line_trigram_posting_visits_examined,
+            8
+        );
+        assert_eq!(
+            limited_budget
+                .same_known_span_work
+                .line_work
+                .line_trigram_posting_visits_attempted,
+            0
+        );
+        assert_near_work_sums_match_aggregates(&limited_budget);
         assert_eq!(
             limited_budget.near_relation_stop_reason,
             Some(NearRelationStopReason::CandidatePostingVisitLimit)
@@ -12820,6 +13306,32 @@ mod tests {
         assert_eq!(budget.candidate_posting_visits, 14);
         assert_eq!(budget.candidate_posting_visits_attempted, 14);
         assert_eq!(budget.pair_visits, 1);
+        assert_eq!(
+            budget
+                .same_or_ambiguous_shared_query_work
+                .line_work
+                .line_trigram_posting_visits_examined,
+            8
+        );
+        assert_eq!(
+            budget
+                .same_known_span_work
+                .line_work
+                .line_trigram_posting_visits_examined,
+            6
+        );
+        assert_eq!(
+            budget
+                .same_known_span_work
+                .line_work
+                .line_trigram_only_query_union_candidates,
+            1
+        );
+        assert_eq!(
+            budget.same_known_span_work.line_work.pair_visits_examined,
+            1
+        );
+        assert_near_work_sums_match_aggregates(&budget);
 
         let mut limited_relations = empty_modified_sentence_relations(&old_candidates, &[])
             .expect("relation allocation succeeds");
@@ -12847,6 +13359,21 @@ mod tests {
         assert_eq!(limited_budget.candidate_posting_visits_attempted, 14);
         assert_eq!(limited_budget.pair_visits, 0);
         assert_eq!(limited_budget.comparisons, 0);
+        assert_eq!(
+            limited_budget
+                .same_or_ambiguous_shared_query_work
+                .line_work
+                .line_trigram_posting_visits_examined,
+            8
+        );
+        assert_eq!(
+            limited_budget
+                .same_known_span_work
+                .line_work
+                .line_trigram_posting_visits_attempted,
+            6
+        );
+        assert_near_work_sums_match_aggregates(&limited_budget);
         assert!(limited_budget.candidate_count_truncated);
         assert_eq!(
             limited_budget.near_relation_stop_reason,
@@ -12925,6 +13452,7 @@ mod tests {
             .collect_plausible_occurrences(
                 &mut plausible,
                 &query,
+                &occurrences,
                 CandidatePostingBucket::Global,
                 None,
                 &mut budget,
@@ -12971,9 +13499,9 @@ mod tests {
             RecoveryUnitKind::Line,
             Some(BlockRole::Body),
         );
-        let index =
-            UnitCandidateIndex::new(&[trigram_only, overlap], CandidatePostingIndexScope::Global)
-                .expect("index construction succeeds");
+        let occurrences = [trigram_only, overlap];
+        let index = UnitCandidateIndex::new(&occurrences, CandidatePostingIndexScope::Global)
+            .expect("index construction succeeds");
         let mut plausible = Vec::new();
         let mut budget = RecoveryBudget::new(40, 0, 40, 1).expect("budget is valid");
 
@@ -12986,6 +13514,7 @@ mod tests {
             .collect_plausible_occurrences(
                 &mut plausible,
                 &query_occurrence,
+                &occurrences,
                 CandidatePostingBucket::Global,
                 None,
                 &mut budget,
@@ -13176,6 +13705,159 @@ mod tests {
     }
 
     #[test]
+    fn same_or_ambiguous_sentence_work_tracks_forward_and_reverse_candidates() {
+        let occurrence = |span_index| {
+            let mut occurrence = indexed_occurrence(
+                &['a', 'b'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            );
+            occurrence.span_index = span_index;
+            occurrence
+        };
+        let old_occurrences = [occurrence(Some(0)), occurrence(None)];
+        let new_occurrences = [occurrence(Some(0)), occurrence(None)];
+        let old_candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let new_candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut relations = empty_modified_sentence_relations(&old_candidates, &new_candidates)
+            .expect("relation allocation succeeds");
+        let mut budget = RecoveryBudget::new(4, 4, 8, 1).expect("budget is valid");
+        let mut diagnostics = None;
+
+        extend_modified_sentence_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &old_candidates,
+            &new_candidates,
+            NearRelationScope::SameOrAmbiguous,
+            &mut relations,
+            &mut budget,
+            &mut diagnostics,
+            None,
+        )
+        .expect("same-span and ambiguous candidates fit the budget");
+
+        assert_eq!(
+            budget
+                .same_known_span_work
+                .sentence_work
+                .pair_visits_examined,
+            1
+        );
+        assert_eq!(
+            budget
+                .ambiguous_span_work
+                .sentence_work
+                .pair_visits_examined,
+            2
+        );
+        assert_eq!(
+            budget
+                .same_known_span_work
+                .sentence_work
+                .similarity_comparisons_examined,
+            2
+        );
+        assert_eq!(
+            budget
+                .ambiguous_span_work
+                .sentence_work
+                .similarity_comparisons_examined,
+            4
+        );
+        assert_near_work_sums_match_aggregates(&budget);
+    }
+
+    #[test]
+    fn failed_combined_charges_only_attempt_each_same_or_ambiguous_subdivision() {
+        let mut budget = RecoveryBudget::new(2, 0, 2, 1).expect("budget is valid");
+        let split = NearSearchWorkSplit {
+            same_known: 1,
+            ambiguous: 2,
+            shared: 0,
+        };
+
+        assert!(!budget.charge_pair_visits_in_scope_split(
+            3,
+            RecoveryUnitKind::Sentence,
+            NearSearchScope::SameOrAmbiguousSpan,
+            split,
+        ));
+        budget.candidate_posting_visit_limit = 2;
+        assert!(!budget.charge_candidate_posting_visits_in_scope_split(
+            3,
+            RecoveryUnitKind::Sentence,
+            CandidatePostingKind::Edge,
+            NearSearchScope::SameOrAmbiguousSpan,
+            split,
+        ));
+        budget.comparison_limit = 2;
+        assert!(!budget.charge_comparisons_in_scope_split(
+            3,
+            RecoveryUnitKind::Sentence,
+            NearSearchScope::SameOrAmbiguousSpan,
+            split,
+        ));
+
+        assert_eq!(
+            budget
+                .same_known_span_work
+                .sentence_work
+                .pair_visits_examined,
+            0
+        );
+        assert_eq!(
+            budget
+                .same_known_span_work
+                .sentence_work
+                .pair_visits_attempted,
+            1
+        );
+        assert_eq!(
+            budget
+                .ambiguous_span_work
+                .sentence_work
+                .pair_visits_attempted,
+            2
+        );
+        assert_eq!(
+            budget
+                .same_known_span_work
+                .sentence_work
+                .edge_posting_visits_attempted,
+            1
+        );
+        assert_eq!(
+            budget
+                .ambiguous_span_work
+                .sentence_work
+                .edge_posting_visits_attempted,
+            2
+        );
+        assert_eq!(
+            budget
+                .same_known_span_work
+                .sentence_work
+                .similarity_comparisons_attempted,
+            1
+        );
+        assert_eq!(
+            budget
+                .ambiguous_span_work
+                .sentence_work
+                .similarity_comparisons_attempted,
+            2
+        );
+        assert_near_work_sums_match_aggregates(&budget);
+    }
+
+    #[test]
     fn near_search_work_is_attributed_to_each_active_scope_and_kind() {
         for scope in [
             NearSearchScope::PairedInterval,
@@ -13201,6 +13883,7 @@ mod tests {
                     largest_edge_posting: 0,
                     edge_query_union: 2,
                     line_trigram_only_query_union: 0,
+                    ..UnitCandidateQueryMetrics::default()
                 },
                 RecoveryUnitKind::Sentence,
                 1,
@@ -13211,6 +13894,7 @@ mod tests {
                     largest_edge_posting: 0,
                     edge_query_union: 1,
                     line_trigram_only_query_union: 1,
+                    ..UnitCandidateQueryMetrics::default()
                 },
                 RecoveryUnitKind::Line,
                 1,
@@ -13311,12 +13995,22 @@ mod tests {
 
         assert_eq!(budget.sentence_work, speculative.sentence_work);
         assert_eq!(budget.line_work, speculative.line_work);
+        assert_eq!(
+            budget.same_known_span_work,
+            speculative.same_known_span_work
+        );
+        assert_eq!(budget.ambiguous_span_work, speculative.ambiguous_span_work);
+        assert_eq!(
+            budget.same_or_ambiguous_shared_query_work,
+            speculative.same_or_ambiguous_shared_query_work
+        );
         assert_eq!(budget.cross_span_work, speculative.cross_span_work);
         assert_near_work_sums_match_aggregates(&budget);
     }
 
     fn assert_near_work_sums_match_aggregates(budget: &RecoveryBudget) {
         assert_scope_work_sums_match_kind_work(budget);
+        assert_same_or_ambiguous_subdivision_matches_parent(budget);
         assert_eq!(budget.sentence_work.line_trigram_posting_visits_examined, 0);
         assert_eq!(
             budget.sentence_work.line_trigram_posting_visits_attempted,
@@ -13370,6 +14064,50 @@ mod tests {
                 .checked_add(budget.line_work.similarity_comparisons_attempted),
             Some(budget.comparisons_attempted)
         );
+    }
+
+    fn assert_same_or_ambiguous_subdivision_matches_parent(budget: &RecoveryBudget) {
+        for (parent, children) in [
+            (
+                budget.same_or_ambiguous_span_work.sentence_work,
+                [
+                    budget.same_known_span_work.sentence_work,
+                    budget.ambiguous_span_work.sentence_work,
+                    budget.same_or_ambiguous_shared_query_work.sentence_work,
+                ],
+            ),
+            (
+                budget.same_or_ambiguous_span_work.line_work,
+                [
+                    budget.same_known_span_work.line_work,
+                    budget.ambiguous_span_work.line_work,
+                    budget.same_or_ambiguous_shared_query_work.line_work,
+                ],
+            ),
+        ] {
+            macro_rules! assert_sum {
+                ($field:ident) => {
+                    assert_eq!(
+                        children
+                            .iter()
+                            .try_fold(0usize, |total, work| total.checked_add(work.$field)),
+                        Some(parent.$field),
+                        stringify!($field)
+                    );
+                };
+            }
+            assert_sum!(edge_posting_visits_examined);
+            assert_sum!(edge_posting_visits_attempted);
+            assert_sum!(line_trigram_posting_visits_examined);
+            assert_sum!(line_trigram_posting_visits_attempted);
+            assert_sum!(edge_query_union_candidates);
+            assert_sum!(line_trigram_only_query_union_candidates);
+            assert_sum!(filtered_candidates);
+            assert_sum!(pair_visits_examined);
+            assert_sum!(pair_visits_attempted);
+            assert_sum!(similarity_comparisons_examined);
+            assert_sum!(similarity_comparisons_attempted);
+        }
     }
 
     fn assert_scope_work_sums_match_kind_work(budget: &RecoveryBudget) {
@@ -13434,6 +14172,7 @@ mod tests {
             .collect_plausible_occurrences(
                 &mut plausible,
                 &occurrences[0],
+                &occurrences,
                 CandidatePostingBucket::Global,
                 None,
                 &mut budget,
@@ -13475,6 +14214,7 @@ mod tests {
             .collect_plausible_occurrences(
                 &mut plausible,
                 &occurrences[1],
+                &occurrences,
                 CandidatePostingBucket::Global,
                 None,
                 &mut budget,
@@ -13486,6 +14226,7 @@ mod tests {
             .collect_plausible_occurrences(
                 &mut plausible,
                 &occurrences[0],
+                &occurrences,
                 CandidatePostingBucket::Global,
                 None,
                 &mut budget,

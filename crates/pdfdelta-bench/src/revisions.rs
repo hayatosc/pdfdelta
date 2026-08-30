@@ -531,6 +531,9 @@ pub struct SentenceRecoveryMetricsReport {
     pub near_paired_interval_work: NearSearchScopeMetricsReport,
     pub near_paired_cross_interval_veto_work: NearSearchScopeMetricsReport,
     pub near_same_or_ambiguous_span_work: NearSearchScopeMetricsReport,
+    pub near_same_known_span_work: NearSearchScopeMetricsReport,
+    pub near_ambiguous_span_work: NearSearchScopeMetricsReport,
+    pub near_same_or_ambiguous_shared_query_work: NearSearchScopeMetricsReport,
     pub near_cross_span_work: NearSearchScopeMetricsReport,
     pub near_pair_visits_examined: usize,
     pub near_pair_visits_attempted: usize,
@@ -1024,6 +1027,11 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
                 .near_paired_cross_interval_veto_work
                 .into(),
             near_same_or_ambiguous_span_work: metrics.near_same_or_ambiguous_span_work.into(),
+            near_same_known_span_work: metrics.near_same_known_span_work.into(),
+            near_ambiguous_span_work: metrics.near_ambiguous_span_work.into(),
+            near_same_or_ambiguous_shared_query_work: metrics
+                .near_same_or_ambiguous_shared_query_work
+                .into(),
             near_cross_span_work: metrics.near_cross_span_work.into(),
             near_pair_visits_examined: metrics.near_pair_visits_examined,
             near_pair_visits_attempted: metrics.near_pair_visits_attempted,
@@ -3211,6 +3219,34 @@ fn validate_near_search_work_metrics(
         validate_near_search_work_entry(&format!("{scope} sentence"), work.sentence_work, false)?;
         validate_near_search_work_entry(&format!("{scope} line"), work.line_work, true)?;
     }
+    let same_or_ambiguous_subscopes = [
+        ("same known span", metrics.near_same_known_span_work),
+        ("ambiguous span", metrics.near_ambiguous_span_work),
+        (
+            "same or ambiguous shared query",
+            metrics.near_same_or_ambiguous_shared_query_work,
+        ),
+    ];
+    for (scope, work) in same_or_ambiguous_subscopes {
+        validate_near_search_work_entry(&format!("{scope} sentence"), work.sentence_work, false)?;
+        validate_near_search_work_entry(&format!("{scope} line"), work.line_work, true)?;
+    }
+    let same_or_ambiguous_sentence_sum = sum_near_search_work_metrics(
+        same_or_ambiguous_subscopes.map(|(_, work)| work.sentence_work),
+        "same or ambiguous sentence subscope",
+    )?;
+    let same_or_ambiguous_line_sum = sum_near_search_work_metrics(
+        same_or_ambiguous_subscopes.map(|(_, work)| work.line_work),
+        "same or ambiguous line subscope",
+    )?;
+    if same_or_ambiguous_sentence_sum != metrics.near_same_or_ambiguous_span_work.sentence_work
+        || same_or_ambiguous_line_sum != metrics.near_same_or_ambiguous_span_work.line_work
+    {
+        return Err(
+            "near-search same-or-ambiguous subscope counters disagree with parent counters"
+                .to_owned(),
+        );
+    }
     let sentence_scope_sum =
         sum_near_search_work_metrics(scopes.map(|(_, work)| work.sentence_work), "sentence scope")?;
     let line_scope_sum =
@@ -3909,7 +3945,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 19;
+    pub const SCHEMA_VERSION: u32 = 20;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -5173,7 +5209,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 19);
+        assert_eq!(completed["schema_version"], 20);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -5216,7 +5252,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 19);
+        assert_eq!(legacy_summary["schema_version"], 20);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -6405,7 +6441,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 19);
+        assert_eq!(json["schema_version"], 20);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -6680,6 +6716,42 @@ mod tests {
             ..SentenceRecoveryMetrics::default()
         };
         assert!(validate_sentence_recovery_metrics(mismatched_scope_sum).is_err());
+
+        let mismatched_same_or_ambiguous_subscope_sum = SentenceRecoveryMetrics {
+            near_sentence_work: NearSearchWorkMetrics {
+                filtered_candidates: 1,
+                ..NearSearchWorkMetrics::default()
+            },
+            near_same_or_ambiguous_span_work: NearSearchScopeMetrics {
+                sentence_work: NearSearchWorkMetrics {
+                    filtered_candidates: 1,
+                    ..NearSearchWorkMetrics::default()
+                },
+                ..NearSearchScopeMetrics::default()
+            },
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(
+            validate_sentence_recovery_metrics(mismatched_same_or_ambiguous_subscope_sum).is_err()
+        );
+
+        let shared_query_work = NearSearchWorkMetrics {
+            edge_query_union_candidates: 2,
+            ..NearSearchWorkMetrics::default()
+        };
+        let valid_shared_query_subscope = SentenceRecoveryMetrics {
+            near_sentence_work: shared_query_work,
+            near_same_or_ambiguous_span_work: NearSearchScopeMetrics {
+                sentence_work: shared_query_work,
+                ..NearSearchScopeMetrics::default()
+            },
+            near_same_or_ambiguous_shared_query_work: NearSearchScopeMetrics {
+                sentence_work: shared_query_work,
+                ..NearSearchScopeMetrics::default()
+            },
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(valid_shared_query_subscope).is_ok());
 
         let scope_sentence_trigram_work = SentenceRecoveryMetrics {
             near_paired_interval_work: NearSearchScopeMetrics {
@@ -7473,7 +7545,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 19);
+        assert_eq!(value["schema_version"], 20);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -7590,6 +7662,9 @@ mod tests {
             "near_paired_interval_work".to_owned(),
             "near_paired_cross_interval_veto_work".to_owned(),
             "near_same_or_ambiguous_span_work".to_owned(),
+            "near_same_known_span_work".to_owned(),
+            "near_ambiguous_span_work".to_owned(),
+            "near_same_or_ambiguous_shared_query_work".to_owned(),
             "near_cross_span_work".to_owned(),
             "near_pair_visits_examined".to_owned(),
             "near_pair_visits_attempted".to_owned(),
@@ -7634,6 +7709,9 @@ mod tests {
             "near_paired_interval_work",
             "near_paired_cross_interval_veto_work",
             "near_same_or_ambiguous_span_work",
+            "near_same_known_span_work",
+            "near_ambiguous_span_work",
+            "near_same_or_ambiguous_shared_query_work",
             "near_cross_span_work",
         ] {
             assert_eq!(

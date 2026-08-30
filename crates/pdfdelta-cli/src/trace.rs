@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 8;
+const TRACE_SCHEMA_VERSION: u8 = 9;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -959,6 +959,21 @@ fn pipeline_metrics(
             flattened,
             "near_same_or_ambiguous_span_work",
             sentence.near_same_or_ambiguous_span_work
+        );
+        extend_near_scope_metrics!(
+            flattened,
+            "near_same_known_span_work",
+            sentence.near_same_known_span_work
+        );
+        extend_near_scope_metrics!(
+            flattened,
+            "near_ambiguous_span_work",
+            sentence.near_ambiguous_span_work
+        );
+        extend_near_scope_metrics!(
+            flattened,
+            "near_same_or_ambiguous_shared_query_work",
+            sentence.near_same_or_ambiguous_shared_query_work
         );
         extend_near_scope_metrics!(
             flattened,

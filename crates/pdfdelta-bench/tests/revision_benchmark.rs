@@ -773,7 +773,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 19);
+    assert_eq!(val["schema_version"], 20);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 
@@ -801,6 +801,9 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
         "near_paired_interval_work",
         "near_paired_cross_interval_veto_work",
         "near_same_or_ambiguous_span_work",
+        "near_same_known_span_work",
+        "near_ambiguous_span_work",
+        "near_same_or_ambiguous_shared_query_work",
         "near_cross_span_work",
     ] {
         assert!(rec["sentence_recovery_metrics"][scope].is_object());
