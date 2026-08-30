@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-30
-- **Generator / engine commit**: [`d045e2c`](https://github.com/hayatosc/pdfdelta/commit/d045e2c)
+- **Generator / engine commit**: [`d6cd66d`](https://github.com/hayatosc/pdfdelta/commit/d6cd66d)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-30-d045e2c.json`](2026-08-30-d045e2c.json)
-  - Schema: v21
-  - Size: 497,665 bytes
-  - SHA-256: `6e9c3cd80c19236dc296892d1ffe7ea403758a785a7026ceb558b4c6bf5146ca`
+  - File: [`2026-08-30-d6cd66d.json`](2026-08-30-d6cd66d.json)
+  - Schema: v22
+  - Size: 500,739 bytes
+  - SHA-256: `79df1b3d21cfae10142d0fb02343648db6ef9c8b01013fa35c56a90e4dd2a9f4`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-30-d045e2c.json
+  benchmark/realworld/results/2026-08-30-d6cd66d.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -114,10 +114,22 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v21)
+## Current Writer Schema (v22)
 
-The benchmark writer and latest committed capture use schema v21. Older
+The benchmark writer and latest committed capture use schema v22. Older
 captures retain their recorded schemas.
+Schema v22 classifies cross-span Sentence scoring into the same paired anchor
+interval, another interval in the same paired stream, page-only locality, and
+unclassified topology. It also replays a strict shadow that retains only the
+first class. Removing the schema number and the shadow object leaves every
+schema-v21 `d045e2c` field value unchanged. Fourteen pairs expose the replay and
+ten complete it. Those complete replays score 344,546 cross-span traversals,
+but only 138 are in the same paired anchor interval; 259 are in another interval
+of the same paired stream, 4,110 have page-only locality, and 340,039 are
+unclassified. Only three complete replays preserve exact relation parity;
+118 unique-partner and 51 reciprocal-pair decisions change in total. Paired
+anchor intervals are therefore too sparse to serve as a strict cross-span
+filter, and the result remains diagnostic-only.
 Schema v21 replays Sentence relations after excluding ambiguous-span
 counterparts from the same-or-ambiguous phase. The replay is diagnostic-only:
 removing the schema number and `known_span_sentence_shadow` leaves every
@@ -285,6 +297,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-30-d045e2c.json`](2026-08-30-d045e2c.json): schema-v21 known-span Sentence shadow replay with bounded word-score early termination before cross-span locality classification.
 - [`2026-08-30-a5202c8.json`](2026-08-30-a5202c8.json): schema-v21 known-span Sentence shadow replay before bounded word-score early termination.
 - [`2026-08-30-a7a483c.json`](2026-08-30-a7a483c.json): schema-v20 known/ambiguous near-search work attribution before known-span shadow replay.
 - [`2026-08-30-ba424d8.json`](2026-08-30-ba424d8.json): schema-v19 phase-level near-search attribution before known/ambiguous subdivision.
