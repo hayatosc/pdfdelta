@@ -593,7 +593,12 @@ pub struct SentenceEdgeSignatureShadowMetrics {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SentenceEdgeSignatureDirectShadowStopReason {
     SignatureIndexPostingLimit,
+    SignatureIndexDistinctKeyLimit,
+    SignatureIndexEstimatedByteLimit,
+    SignatureQueryCountLimit,
     SignatureQueryPostingVisitLimit,
+    SignatureCandidateUnionLimit,
+    SignatureExactEdgeRecheckLimit,
     DirectEdgePairVisitLimit,
     DirectEdgeSimilarityComparisonLimit,
     CandidatePostingVisitLimit,
@@ -616,7 +621,32 @@ pub struct SentenceEdgeSignatureDirectShadowMetrics {
     pub signature_index_items_attempted: usize,
     pub signature_query_visits_examined: usize,
     pub signature_query_visits_attempted: usize,
+    pub signature_index_own_distinct_keys: usize,
+    pub signature_index_all_distinct_keys: usize,
+    pub signature_index_distinct_keys_examined: usize,
+    pub signature_index_distinct_keys_attempted: usize,
+    pub signature_index_own_key_capacity: usize,
+    pub signature_index_all_key_capacity: usize,
+    pub signature_index_own_posting_items: usize,
+    pub signature_index_all_posting_items: usize,
+    pub signature_index_posting_capacity_items: usize,
+    pub signature_index_largest_posting: usize,
+    pub signature_index_estimated_logical_bytes: usize,
+    pub signature_index_estimated_logical_bytes_examined: usize,
+    pub signature_index_estimated_logical_bytes_attempted: usize,
+    pub signature_index_depth_1_posting_items: usize,
+    pub signature_index_depth_2_to_3_posting_items: usize,
+    pub signature_index_depth_4_plus_posting_items: usize,
+    pub signature_queries: usize,
+    pub signature_queries_attempted: usize,
+    pub signature_depth_1_queries: usize,
+    pub signature_depth_2_to_3_queries: usize,
+    pub signature_depth_4_plus_queries: usize,
+    pub signature_depth_1_candidate_union: usize,
+    pub signature_depth_2_to_3_candidate_union: usize,
+    pub signature_depth_4_plus_candidate_union: usize,
     pub direct_candidates: usize,
+    pub signature_candidate_union_attempted: usize,
     pub paired_interval_candidates: usize,
     pub paired_cross_interval_candidates: usize,
     pub same_known_candidates: usize,
@@ -627,6 +657,12 @@ pub struct SentenceEdgeSignatureDirectShadowMetrics {
     pub edge_filter_comparisons_examined: usize,
     pub edge_filter_comparisons_attempted: usize,
     pub exact_edge_retained_pairs: usize,
+    pub exact_edge_rechecks: usize,
+    pub exact_edge_rechecks_attempted: usize,
+    pub exact_edge_recheck_comparisons_examined: usize,
+    pub exact_edge_recheck_comparisons_attempted: usize,
+    pub exact_edge_rejected_pairs: usize,
+    pub cross_orientation_only_candidates: usize,
     pub sentence_broad_edge_postings_examined: usize,
     pub sentence_broad_edge_postings_attempted: usize,
     pub downstream_candidate_postings_examined: usize,
@@ -8080,6 +8116,41 @@ mod tests {
         assert!(direct.plan_parity);
         assert!(direct.verification_evaluable);
         assert_eq!(direct.retained_pair_misses, 0);
+        assert_eq!(direct.retained_pair_count_mismatches, 0);
+        assert_eq!(direct.retained_pair_set_mismatches, 0);
+        assert_eq!(direct.retained_pair_order_mismatches, 0);
+        assert_eq!(
+            direct.signature_index_own_posting_items + direct.signature_index_all_posting_items,
+            direct.signature_index_items_examined
+        );
+        assert_eq!(
+            direct.signature_index_items_attempted,
+            direct.signature_index_items_examined
+        );
+        assert_eq!(
+            direct.signature_index_distinct_keys_attempted,
+            direct.signature_index_distinct_keys_examined
+        );
+        assert_eq!(
+            direct.signature_index_estimated_logical_bytes_attempted,
+            direct.signature_index_estimated_logical_bytes_examined
+        );
+        assert_eq!(direct.signature_queries_attempted, direct.signature_queries);
+        assert_eq!(
+            direct.signature_depth_1_candidate_union
+                + direct.signature_depth_2_to_3_candidate_union
+                + direct.signature_depth_4_plus_candidate_union,
+            direct.direct_candidates
+        );
+        assert_eq!(
+            direct.signature_candidate_union_attempted,
+            direct.direct_candidates
+        );
+        assert_eq!(
+            direct.exact_edge_retained_pairs + direct.exact_edge_rejected_pairs,
+            direct.exact_edge_rechecks
+        );
+        assert!(direct.cross_orientation_only_candidates <= direct.exact_edge_rejected_pairs);
         assert_eq!(direct.sentence_broad_edge_postings_examined, 0);
         assert_eq!(direct.sentence_broad_edge_postings_attempted, 0);
         baseline_metrics.sentence_edge_gate_shadow = None;

@@ -109,9 +109,20 @@ pub(in crate::diff) struct SentenceEdgeSignatureIndexBuildLimits {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::diff) enum SentenceEdgeSignatureIndexBuildError {
-    PostingLimit { examined: usize, attempted: usize },
-    DistinctKeyLimit { examined: usize, attempted: usize },
-    EstimatedByteLimit { examined: usize, attempted: usize },
+    PostingLimit {
+        examined: usize,
+        attempted: usize,
+    },
+    DistinctKeyLimit {
+        examined: usize,
+        attempted: usize,
+        progress: SentenceEdgeSignatureIndexMetrics,
+    },
+    EstimatedByteLimit {
+        examined: usize,
+        attempted: usize,
+        progress: SentenceEdgeSignatureIndexMetrics,
+    },
     Index(SentenceEdgeSignatureIndexError),
 }
 
@@ -126,12 +137,25 @@ impl SentenceEdgeSignatureIndexBuildError {
             | Self::DistinctKeyLimit {
                 examined,
                 attempted,
+                ..
             }
             | Self::EstimatedByteLimit {
                 examined,
                 attempted,
+                ..
             } => (examined, attempted),
             Self::Index(error) => error.work(),
+        }
+    }
+}
+
+impl SentenceEdgeSignatureIndexBuildError {
+    pub(in crate::diff) fn progress(self) -> Option<SentenceEdgeSignatureIndexMetrics> {
+        match self {
+            Self::DistinctKeyLimit { progress, .. } | Self::EstimatedByteLimit { progress, .. } => {
+                Some(progress)
+            }
+            _ => None,
         }
     }
 }
@@ -1144,17 +1168,20 @@ impl SentenceEdgeSignatureIndex {
             .ok_or(SentenceEdgeSignatureIndexBuildError::DistinctKeyLimit {
                 examined: usize::MAX,
                 attempted: usize::MAX,
+                progress: self.metrics,
             })?;
         let attempted_keys = distinct_keys
             .checked_add(usize::from(!postings.contains_key(&key)))
             .ok_or(SentenceEdgeSignatureIndexBuildError::DistinctKeyLimit {
                 examined: distinct_keys,
                 attempted: usize::MAX,
+                progress: self.metrics,
             })?;
         if attempted_keys > limits.distinct_keys {
             return Err(SentenceEdgeSignatureIndexBuildError::DistinctKeyLimit {
                 examined: distinct_keys,
                 attempted: attempted_keys,
+                progress: self.metrics,
             });
         }
 
@@ -1195,6 +1222,7 @@ impl SentenceEdgeSignatureIndex {
             return Err(SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
                 examined: examined_bytes,
                 attempted: self.metrics.estimated_logical_bytes,
+                progress: self.metrics,
             });
         }
         Ok(())
@@ -1515,17 +1543,20 @@ fn validate_sentence_edge_signature_build_limits(
         .ok_or(SentenceEdgeSignatureIndexBuildError::DistinctKeyLimit {
             examined: usize::MAX,
             attempted: usize::MAX,
+            progress: metrics,
         })?;
     if distinct_keys > limits.distinct_keys {
         return Err(SentenceEdgeSignatureIndexBuildError::DistinctKeyLimit {
             examined: distinct_keys,
             attempted: distinct_keys,
+            progress: metrics,
         });
     }
     if metrics.estimated_logical_bytes > limits.estimated_logical_bytes {
         return Err(SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
             examined: metrics.estimated_logical_bytes,
             attempted: metrics.estimated_logical_bytes,
+            progress: metrics,
         });
     }
     Ok(())
@@ -2210,13 +2241,16 @@ mod tests {
                 ..exact
             },
         ));
-        assert_eq!(
+        assert!(matches!(
             key_error,
             SentenceEdgeSignatureIndexBuildError::DistinctKeyLimit {
-                examined: distinct_keys - 1,
-                attempted: distinct_keys,
-            }
-        );
+                examined,
+                attempted,
+                progress,
+            } if examined == distinct_keys - 1
+                && attempted == distinct_keys
+                && progress.own_distinct_keys + progress.all_distinct_keys == examined
+        ));
 
         let byte_error = build_error(build_body_sentences_with_limits(
             &sentences,
@@ -2228,12 +2262,14 @@ mod tests {
         let SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
             examined,
             attempted,
+            progress,
         } = byte_error
         else {
             panic!("expected an estimated-byte limit error");
         };
         assert!(examined < metrics.estimated_logical_bytes);
         assert_eq!(attempted, metrics.estimated_logical_bytes);
+        assert_eq!(progress.estimated_logical_bytes, attempted);
     }
 
     #[test]
