@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-30
-- **Generator / engine commit**: [`2ddbb6b`](https://github.com/hayatosc/pdfdelta/commit/2ddbb6b)
+- **Generator / engine commit**: [`ebcb49e`](https://github.com/hayatosc/pdfdelta/commit/ebcb49e)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-30-2ddbb6b.json`](2026-08-30-2ddbb6b.json)
-  - Schema: v15
-  - Size: 314,071 bytes
-  - SHA-256: `823d4afa42a81cfed9b1bb9592c7fa42b9b1c0a6044df549995ad7744d606e25`
+  - File: [`2026-08-30-ebcb49e.json`](2026-08-30-ebcb49e.json)
+  - Schema: v16
+  - Size: 313,914 bytes
+  - SHA-256: `21f8ce67b701665506e8c5c4842835393ea3f683d30a23f1085452ae274fcf3a`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-30-2ddbb6b.json
+  benchmark/realworld/results/2026-08-30-ebcb49e.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -43,14 +43,14 @@ their recorded review items.
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
 | `nist-fips-186-4-to-5` | dev | standard | 65.03% | 2,395 | 1,346 | 0.857 | 1.000 | 224.333 | 107 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 71.90% | 6,038 | 2,763 | 1.000 | 1.000 | 690.750 | 103 |
-| `edpb-right-of-access-v1-to-final` | holdout | standard | 86.60% | 2,252 | 697 | 0.500 | 1.000 | 348.500 | 56 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 71.90% | 6,038 | 2,440 | 1.000 | 1.000 | 690.750 | 103 |
+| `edpb-right-of-access-v1-to-final` | holdout | standard | 87.57% | 2,357 | 698 | 0.750 | 1.000 | 249.333 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 1.000 | 0 |
-| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.62% | 261 | 128 | 1.000 | 1.000 | 1.000 | 0 |
+| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.81% | 266 | 130 | 1.000 | 1.000 | 1.000 | 0 |
 | `ecma-109-ed10-to-ed11` | dev | stress | 73.27% | 369 | 78 | 0.333 | 0.000 | 78.000 | 5 |
 | `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.21% | 515 | 474 | 1.000 | 1.000 | 158.000 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
-| `bis-operational-risk-2011-to-2021` | dev | standard | 68.12% | 648 | 350 | 1.000 | 1.000 | 1.000 | 0 |
+| `bis-operational-risk-2011-to-2021` | dev | standard | 68.12% | 656 | 351 | 1.000 | 1.000 | 1.000 | 0 |
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 53.22% | 788 | 648 | 0.333 | 1.000 | 648.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
@@ -113,10 +113,26 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v15)
+## Current Writer Schema (v16)
 
-The benchmark writer and latest committed capture use schema v15. Older
+The benchmark writer and latest committed capture use schema v16. Older
 captures retain their recorded schemas.
+Schema v16 allows an expected change to require an exact occurrence count.
+Every retained occurrence must match the expected quote shape, and the
+deterministic maximum-cardinality assignment prevents competing expectations
+from claiming the same event. Matching, count-mismatch evidence, and text scans
+share explicit visit, byte, edge, and allocation budgets; exhaustion suppresses
+the whole quality result instead of publishing partial metrics.
+The comparison engine now recovers exact one-sided line units only when their
+role is a repeated header or footer, and groups equal repeated running-matter
+insertions or deletions into one semantic event with multiple provenance-rich
+occurrences. Body lines remain conservative. The EDPB consultation watermark
+is recovered as one deletion with all 51 extracted occurrences, raising its
+reviewed recall from 0.500 to 0.750. SP 800-57 retains recall and kind accuracy
+of 1.000 while its global content-event count falls from 2,763 to 2,440. The
+three pre-existing scoped-complete review sets retain their event and token
+precision, recall, F1, and span-IoU values. All 29 pairs finish without a
+resource stop or matching-budget quality skip.
 Schema v15 adds bounded Clause/ListItem recovery-watch diagnostics. Each unit
 retains its kind, byte boundaries, comparable-token count, page, role, and
 location availability. Per-side best-partner evidence records the partner
@@ -201,6 +217,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-30-2ddbb6b.json`](2026-08-30-2ddbb6b.json): schema-v15 Clause/ListItem recovery-watch diagnostics before repeated running-matter grouping.
 - [`2026-08-30-b1e54e3.json`](2026-08-30-b1e54e3.json): schema-v14 one-sided insertion/deletion occurrence evidence.
 - [`2026-08-30-5ffa3e0.json`](2026-08-30-5ffa3e0.json): schema-v13 exact adjacent-segment relation diagnostics.
 - [`2026-08-29-24a2300.json`](2026-08-29-24a2300.json): schema-v12 adjacent-unit recovery watches and the pre-segment-relation baseline.
