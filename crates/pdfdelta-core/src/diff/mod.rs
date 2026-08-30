@@ -1,4 +1,5 @@
 mod myers;
+mod recovery;
 mod sentence;
 
 /// Keeps the retained Myers frontier and trace below the internal 64 MiB
