@@ -446,13 +446,20 @@ pub struct NearSearchScopeMetrics {
 }
 
 /// Behavior-neutral comparison of production sentence relations against a
-/// shadow search that excludes ambiguous-span counterparts.
+/// shadow search with stricter sentence-locality constraints.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct KnownSpanSentenceShadowMetrics {
     pub complete: bool,
+    /// Scored sentence traversals. Candidate pairs are counted in the forward
+    /// traversal; reverse traversal counts only non-candidate evidence.
     pub pairs_considered: usize,
     pub pairs_retained: usize,
-    pub pairs_rejected_ambiguous: usize,
+    pub pairs_rejected: usize,
+    pub cross_span_pairs_considered: usize,
+    pub same_paired_anchor_interval_pairs: usize,
+    pub same_paired_stream_other_interval_pairs: usize,
+    pub same_page_only_pairs: usize,
+    pub unclassified_pairs: usize,
     pub old_relation_mismatches: usize,
     pub new_relation_mismatches: usize,
     pub best_partner_mismatches: usize,

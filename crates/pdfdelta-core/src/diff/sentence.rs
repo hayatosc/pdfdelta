@@ -3700,6 +3700,16 @@ struct ModifiedSentenceRelations {
 struct KnownSpanSentenceReplay<'a> {
     relations: &'a mut ModifiedSentenceRelations,
     metrics: &'a mut KnownSpanSentenceShadowMetrics,
+    old_intervals: &'a [Option<PairedInterval>],
+    new_intervals: &'a [Option<PairedInterval>],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SentencePairLocality {
+    SamePairedAnchorInterval,
+    SamePairedStreamOtherInterval,
+    SamePageOnly,
+    Unclassified,
 }
 
 struct StreamPlan {
@@ -5751,6 +5761,7 @@ pub(super) fn build_sentence_recovery_plan(
         &new_occurrences,
         &old_candidates,
         &new_candidates,
+        &paired_streams,
         &mut budget,
         &mut diagnostics,
         watch.as_mut(),
@@ -8005,11 +8016,13 @@ fn reject_crossing_paired_replacements(
     Some(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn modified_sentence_relations(
     old_occurrences: &[SentenceOccurrence],
     new_occurrences: &[SentenceOccurrence],
     old_candidates: &[RecoveryCandidate],
     new_candidates: &[RecoveryCandidate],
+    paired_streams: &[PairedTrustedStream],
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     mut watch: Option<&mut RecoveryWatchState>,
@@ -8063,6 +8076,7 @@ fn modified_sentence_relations(
                 new_occurrences,
                 old_candidates,
                 new_candidates,
+                paired_streams,
                 diagnostic_budget,
                 &cross_relations,
             );
@@ -8078,6 +8092,7 @@ fn modified_sentence_relations(
             new_occurrences,
             old_candidates,
             new_candidates,
+            paired_streams,
             diagnostic_budget,
             &relations,
         );
@@ -8253,6 +8268,8 @@ fn extend_modified_sentence_relations(
                 record_known_span_replay_pair(
                     shadow.as_mut(),
                     scope,
+                    old_candidate.occurrence_index,
+                    new_occurrence_index,
                     old_occurrence,
                     new_occurrence,
                     Some(old_candidate_index),
@@ -8264,6 +8281,8 @@ fn extend_modified_sentence_relations(
                 record_known_span_replay_pair(
                     shadow.as_mut(),
                     scope,
+                    old_candidate.occurrence_index,
+                    new_occurrence_index,
                     old_occurrence,
                     new_occurrence,
                     Some(old_candidate_index),
@@ -8364,6 +8383,8 @@ fn extend_modified_sentence_relations(
             record_known_span_replay_pair(
                 shadow.as_mut(),
                 scope,
+                old_occurrence_index,
+                new_candidate.occurrence_index,
                 old_occurrence,
                 new_occurrence,
                 None,
@@ -8378,9 +8399,12 @@ fn extend_modified_sentence_relations(
     Some(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn record_known_span_replay_pair(
     replay: Option<&mut KnownSpanSentenceReplay<'_>>,
     scope: NearRelationScope,
+    old_occurrence_index: usize,
+    new_occurrence_index: usize,
     old_occurrence: &SentenceOccurrence,
     new_occurrence: &SentenceOccurrence,
     old_candidate_index: Option<usize>,
@@ -8395,13 +8419,24 @@ fn record_known_span_replay_pair(
             NearRelationScope::SameOrAmbiguous => {
                 old_occurrence.span_index.is_some() && new_occurrence.span_index.is_some()
             }
-            NearRelationScope::CrossSpan => true,
+            NearRelationScope::CrossSpan => {
+                let locality = sentence_pair_locality(
+                    replay.old_intervals.get(old_occurrence_index).copied()?,
+                    replay.new_intervals.get(new_occurrence_index).copied()?,
+                    old_occurrence.page,
+                    new_occurrence.page,
+                );
+                replay.metrics.cross_span_pairs_considered =
+                    replay.metrics.cross_span_pairs_considered.checked_add(1)?;
+                record_sentence_pair_locality(replay.metrics, locality)?;
+                locality == SentencePairLocality::SamePairedAnchorInterval
+            }
         };
         replay.metrics.pairs_considered = replay.metrics.pairs_considered.checked_add(1)?;
         let counter = if retained {
             &mut replay.metrics.pairs_retained
         } else {
-            &mut replay.metrics.pairs_rejected_ambiguous
+            &mut replay.metrics.pairs_rejected
         };
         *counter = counter.checked_add(1)?;
         retained
@@ -8426,12 +8461,49 @@ fn record_known_span_replay_pair(
     Some(retained)
 }
 
+fn sentence_pair_locality(
+    old_interval: Option<PairedInterval>,
+    new_interval: Option<PairedInterval>,
+    old_page: Option<u32>,
+    new_page: Option<u32>,
+) -> SentencePairLocality {
+    match (old_interval, new_interval) {
+        (Some(old), Some(new)) if old == new => SentencePairLocality::SamePairedAnchorInterval,
+        (Some(old), Some(new)) if old.pair_index == new.pair_index => {
+            SentencePairLocality::SamePairedStreamOtherInterval
+        }
+        (Some(_), Some(_)) => SentencePairLocality::Unclassified,
+        _ if old_page.is_some() && old_page == new_page => SentencePairLocality::SamePageOnly,
+        _ => SentencePairLocality::Unclassified,
+    }
+}
+
+fn record_sentence_pair_locality(
+    metrics: &mut KnownSpanSentenceShadowMetrics,
+    locality: SentencePairLocality,
+) -> Option<()> {
+    let counter = match locality {
+        SentencePairLocality::SamePairedAnchorInterval => {
+            &mut metrics.same_paired_anchor_interval_pairs
+        }
+        SentencePairLocality::SamePairedStreamOtherInterval => {
+            &mut metrics.same_paired_stream_other_interval_pairs
+        }
+        SentencePairLocality::SamePageOnly => &mut metrics.same_page_only_pairs,
+        SentencePairLocality::Unclassified => &mut metrics.unclassified_pairs,
+    };
+    *counter = counter.checked_add(1)?;
+    Some(())
+}
+
+#[allow(clippy::too_many_arguments)]
 fn record_known_span_sentence_shadow(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     old_occurrences: &[SentenceOccurrence],
     new_occurrences: &[SentenceOccurrence],
     old_candidates: &[RecoveryCandidate],
     new_candidates: &[RecoveryCandidate],
+    paired_streams: &[PairedTrustedStream],
     diagnostic_budget: RecoveryBudget,
     production: &ModifiedSentenceRelations,
 ) {
@@ -8444,6 +8516,7 @@ fn record_known_span_sentence_shadow(
             new_occurrences,
             old_candidates,
             new_candidates,
+            paired_streams,
             diagnostic_budget,
         )
     else {
@@ -8504,12 +8577,26 @@ fn replay_known_span_sentence_shadow(
     new_occurrences: &[SentenceOccurrence],
     old_candidates: &[RecoveryCandidate],
     new_candidates: &[RecoveryCandidate],
+    paired_streams: &[PairedTrustedStream],
     mut budget: RecoveryBudget,
 ) -> Option<(
     ModifiedSentenceRelations,
     ModifiedSentenceRelations,
     KnownSpanSentenceShadowMetrics,
 )> {
+    let (old_pair_by_stream, new_pair_by_stream) = paired_stream_indices(paired_streams)?;
+    let old_intervals = paired_intervals_for_occurrences(
+        old_occurrences,
+        paired_streams,
+        &old_pair_by_stream,
+        OccurrenceSide::Old,
+    )?;
+    let new_intervals = paired_intervals_for_occurrences(
+        new_occurrences,
+        paired_streams,
+        &new_pair_by_stream,
+        OccurrenceSide::New,
+    )?;
     let mut baseline_relations = empty_modified_sentence_relations(old_candidates, new_candidates)?;
     let mut shadow_relations = empty_modified_sentence_relations(old_candidates, new_candidates)?;
     let mut metrics = KnownSpanSentenceShadowMetrics::default();
@@ -8527,6 +8614,8 @@ fn replay_known_span_sentence_shadow(
         Some(KnownSpanSentenceReplay {
             relations: &mut shadow_relations,
             metrics: &mut metrics,
+            old_intervals: &old_intervals,
+            new_intervals: &new_intervals,
         }),
     )?;
 
@@ -8547,6 +8636,8 @@ fn replay_known_span_sentence_shadow(
         Some(KnownSpanSentenceReplay {
             relations: &mut cross_shadow,
             metrics: &mut cross_metrics,
+            old_intervals: &old_intervals,
+            new_intervals: &new_intervals,
         }),
     )
     .is_some()
@@ -11858,6 +11949,7 @@ mod tests {
             &new_occurrences,
             &old_candidates,
             &[],
+            &[],
             &mut budget,
             &mut diagnostics,
             None,
@@ -12762,6 +12854,7 @@ mod tests {
             &new,
             &candidates,
             &candidates,
+            &[],
             &mut budget,
             &mut diagnostics,
             None,
@@ -12777,6 +12870,7 @@ mod tests {
             &new,
             &candidates,
             &candidates,
+            &[],
             &mut budget,
             &mut diagnostics,
             None,
@@ -13112,6 +13206,7 @@ mod tests {
             &old_occurrences,
             &new_occurrences,
             &old_candidates,
+            &[],
             &[],
             &mut budget,
             &mut diagnostics,
@@ -13503,6 +13598,7 @@ mod tests {
             &new_occurrences,
             &candidates,
             &candidates,
+            &[],
             &mut budget,
             &mut diagnostics,
             None,
@@ -13633,6 +13729,7 @@ mod tests {
             &old_occurrences,
             &new_occurrences,
             &old_candidates,
+            &[],
             &[],
             &mut budget,
             &mut diagnostics,
@@ -13906,6 +14003,7 @@ mod tests {
                 &new_occurrences,
                 &candidates,
                 &candidates,
+                &[],
                 &mut budget,
                 &mut diagnostics,
                 None,
@@ -14124,6 +14222,7 @@ mod tests {
             &new_occurrences,
             &old_candidates,
             &new_candidates,
+            &[],
             &mut budget,
             &mut diagnostics,
             None,
@@ -14304,6 +14403,7 @@ mod tests {
             &new_occurrences,
             &candidates,
             &candidates,
+            &[],
             &mut budget,
             &mut diagnostics,
             None,
@@ -14319,7 +14419,12 @@ mod tests {
         assert!(shadow.complete);
         assert_eq!(shadow.pairs_considered, 2);
         assert_eq!(shadow.pairs_retained, 1);
-        assert_eq!(shadow.pairs_rejected_ambiguous, 1);
+        assert_eq!(shadow.pairs_rejected, 1);
+        assert_eq!(shadow.cross_span_pairs_considered, 0);
+        assert_eq!(shadow.same_paired_anchor_interval_pairs, 0);
+        assert_eq!(shadow.same_paired_stream_other_interval_pairs, 0);
+        assert_eq!(shadow.same_page_only_pairs, 0);
+        assert_eq!(shadow.unclassified_pairs, 0);
         assert_eq!(shadow.best_partner_mismatches, 0);
         assert_eq!(shadow.best_score_mismatches, 0);
         assert_eq!(shadow.second_score_mismatches, 1);
@@ -14327,6 +14432,155 @@ mod tests {
         assert_eq!(shadow.unique_partner_mismatches, 0);
         assert_eq!(shadow.reciprocal_pair_mismatches, 0);
         assert!(!shadow.exact_relation_parity);
+    }
+
+    #[test]
+    fn cross_span_sentence_shadow_uses_paired_anchor_locality() {
+        fn shadow_for(
+            old_stream: Option<(usize, usize)>,
+            new_stream: Option<(usize, usize)>,
+            old_page: Option<u32>,
+            new_page: Option<u32>,
+            pairs: &[PairedTrustedStream],
+        ) -> KnownSpanSentenceShadowMetrics {
+            let mut old = [positioned_occurrence("old", 1, 0, 0)];
+            let mut new = [positioned_occurrence("new", 2, 1, 0)];
+            old[0].span_index = Some(0);
+            new[0].span_index = Some(1);
+            old[0].trusted_position =
+                old_stream.map(|(stream_index, ordinal)| TrustedStreamPosition {
+                    stream_index,
+                    ordinal,
+                });
+            new[0].trusted_position =
+                new_stream.map(|(stream_index, ordinal)| TrustedStreamPosition {
+                    stream_index,
+                    ordinal,
+                });
+            old[0].page = old_page;
+            new[0].page = new_page;
+            let candidates = [RecoveryCandidate {
+                occurrence_index: 0,
+                span_index: 0,
+            }];
+            let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+            budget.enable_known_span_sentence_shadow = true;
+            let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+                metrics: SentenceRecoveryMetrics::default(),
+                eligible_old_source_tokens: 0,
+                eligible_new_source_tokens: 0,
+            });
+
+            modified_sentence_relations(
+                &old,
+                &new,
+                &candidates,
+                &candidates,
+                pairs,
+                &mut budget,
+                &mut diagnostics,
+                None,
+            )
+            .expect("relation replay fits the budget");
+            diagnostics
+                .expect("diagnostics remain available")
+                .metrics
+                .known_span_sentence_shadow
+                .expect("shadow replay succeeds")
+        }
+
+        let pairs = [PairedTrustedStream {
+            old_stream: 0,
+            new_stream: 1,
+            anchors: vec![(5, 5)],
+        }];
+        let same_interval = shadow_for(Some((0, 0)), Some((1, 0)), None, None, &pairs);
+        assert_eq!(same_interval.pairs_retained, 1);
+        assert_eq!(same_interval.cross_span_pairs_considered, 1);
+        assert_eq!(same_interval.same_paired_anchor_interval_pairs, 1);
+
+        let other_interval = shadow_for(Some((0, 0)), Some((1, 6)), None, None, &pairs);
+        assert_eq!(other_interval.pairs_rejected, 1);
+        assert_eq!(other_interval.same_paired_stream_other_interval_pairs, 1);
+
+        let same_page = shadow_for(None, None, Some(7), Some(7), &pairs);
+        assert_eq!(same_page.pairs_rejected, 1);
+        assert_eq!(same_page.same_page_only_pairs, 1);
+
+        let unclassified = shadow_for(Some((0, 0)), None, Some(7), Some(8), &pairs);
+        assert_eq!(unclassified.pairs_rejected, 1);
+        assert_eq!(unclassified.unclassified_pairs, 1);
+    }
+
+    #[test]
+    fn sentence_pair_locality_rejects_different_paired_streams() {
+        let first = PairedInterval {
+            pair_index: 0,
+            interval_index: 1,
+        };
+        let second_pair = PairedInterval {
+            pair_index: 1,
+            interval_index: 1,
+        };
+
+        assert_eq!(
+            sentence_pair_locality(Some(first), Some(second_pair), Some(3), Some(3)),
+            SentencePairLocality::Unclassified
+        );
+        assert_eq!(
+            sentence_pair_locality(Some(first), None, Some(3), Some(3)),
+            SentencePairLocality::SamePageOnly
+        );
+        assert_eq!(
+            sentence_pair_locality(None, None, None, None),
+            SentencePairLocality::Unclassified
+        );
+    }
+
+    #[test]
+    fn cross_span_sentence_shadow_counts_reverse_disqualifying_work_once() {
+        let mut old = [positioned_occurrence("old", 1, 0, 0)];
+        let mut new = [positioned_occurrence("new", 2, 1, 0)];
+        old[0].span_index = Some(0);
+        new[0].span_index = Some(1);
+        let new_candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 1,
+        }];
+        let pairs = [PairedTrustedStream {
+            old_stream: 0,
+            new_stream: 1,
+            anchors: Vec::new(),
+        }];
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+        budget.enable_known_span_sentence_shadow = true;
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+
+        modified_sentence_relations(
+            &old,
+            &new,
+            &[],
+            &new_candidates,
+            &pairs,
+            &mut budget,
+            &mut diagnostics,
+            None,
+        )
+        .expect("reverse disqualifying replay fits the budget");
+        let shadow = diagnostics
+            .expect("diagnostics remain available")
+            .metrics
+            .known_span_sentence_shadow
+            .expect("shadow replay succeeds");
+
+        assert_eq!(shadow.pairs_considered, 1);
+        assert_eq!(shadow.pairs_retained, 1);
+        assert_eq!(shadow.cross_span_pairs_considered, 1);
+        assert_eq!(shadow.same_paired_anchor_interval_pairs, 1);
     }
 
     #[test]
@@ -14398,6 +14652,7 @@ mod tests {
             &new,
             &candidates,
             &candidates,
+            &[],
             &mut budget,
             &mut diagnostics,
             None,
@@ -14412,7 +14667,7 @@ mod tests {
         assert!(relations.complete);
         assert_eq!(shadow.pairs_considered, 1);
         assert_eq!(shadow.pairs_retained, 1);
-        assert_eq!(shadow.pairs_rejected_ambiguous, 0);
+        assert_eq!(shadow.pairs_rejected, 0);
         assert!(shadow.exact_relation_parity);
     }
 
@@ -14455,6 +14710,7 @@ mod tests {
             &new,
             &candidates,
             &candidates,
+            &[],
             &mut budget,
             &mut diagnostics,
             None,
@@ -14979,6 +15235,7 @@ mod tests {
             &new_occurrences,
             &old_candidates,
             &new_candidates,
+            &[],
             &mut baseline_budget,
             &mut baseline_diagnostics,
             None,
@@ -14998,6 +15255,7 @@ mod tests {
             &new_occurrences,
             &old_candidates,
             &new_candidates,
+            &[],
             &mut budget,
             &mut diagnostics,
             None,
@@ -15039,7 +15297,7 @@ mod tests {
         assert!(!shadow.complete);
         assert_eq!(shadow.pairs_considered, 2);
         assert_eq!(shadow.pairs_retained, 2);
-        assert_eq!(shadow.pairs_rejected_ambiguous, 0);
+        assert_eq!(shadow.pairs_rejected, 0);
         assert!(shadow.exact_relation_parity);
     }
 
@@ -15070,6 +15328,20 @@ mod tests {
                 span_index: 1,
             },
         ];
+        let mut baseline_budget = RecoveryBudget::new(8, 0, 8, 1).expect("test budget is valid");
+        baseline_budget.record_candidate_count_limit();
+        let mut baseline_diagnostics = None;
+        let baseline = modified_sentence_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &candidates,
+            &candidates,
+            &[],
+            &mut baseline_budget,
+            &mut baseline_diagnostics,
+            None,
+        )
+        .expect("baseline cross-span relations complete within budget");
         let mut budget = RecoveryBudget::new(8, 0, 8, 1).expect("test budget is valid");
         budget.record_candidate_count_limit();
         budget.enable_known_span_sentence_shadow = true;
@@ -15084,12 +15356,17 @@ mod tests {
             &new_occurrences,
             &candidates,
             &candidates,
+            &[],
             &mut budget,
             &mut diagnostics,
             None,
         )
         .expect("cross-span relations complete within budget");
 
+        assert_eq!(relations.old, baseline.old);
+        assert_eq!(relations.new, baseline.new);
+        assert_eq!(budget.comparisons, baseline_budget.comparisons);
+        assert_eq!(budget.pair_visits, baseline_budget.pair_visits);
         assert!(relations.complete);
         assert_eq!(budget.candidate_posting_visits, 12);
         assert_eq!(
@@ -15110,9 +15387,11 @@ mod tests {
             .expect("committed cross-span shadow is available");
         assert!(shadow.complete);
         assert_eq!(shadow.pairs_considered, 4);
-        assert_eq!(shadow.pairs_retained, 4);
-        assert_eq!(shadow.pairs_rejected_ambiguous, 0);
-        assert!(shadow.exact_relation_parity);
+        assert_eq!(shadow.pairs_retained, 2);
+        assert_eq!(shadow.pairs_rejected, 2);
+        assert_eq!(shadow.cross_span_pairs_considered, 2);
+        assert_eq!(shadow.unclassified_pairs, 2);
+        assert!(!shadow.exact_relation_parity);
     }
 
     #[test]

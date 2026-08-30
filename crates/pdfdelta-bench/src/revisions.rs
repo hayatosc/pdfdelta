@@ -563,7 +563,12 @@ pub struct KnownSpanSentenceShadowMetricsReport {
     pub complete: bool,
     pub pairs_considered: usize,
     pub pairs_retained: usize,
-    pub pairs_rejected_ambiguous: usize,
+    pub pairs_rejected: usize,
+    pub cross_span_pairs_considered: usize,
+    pub same_paired_anchor_interval_pairs: usize,
+    pub same_paired_stream_other_interval_pairs: usize,
+    pub same_page_only_pairs: usize,
+    pub unclassified_pairs: usize,
     pub old_relation_mismatches: usize,
     pub new_relation_mismatches: usize,
     pub best_partner_mismatches: usize,
@@ -581,7 +586,13 @@ impl From<KnownSpanSentenceShadowMetrics> for KnownSpanSentenceShadowMetricsRepo
             complete: metrics.complete,
             pairs_considered: metrics.pairs_considered,
             pairs_retained: metrics.pairs_retained,
-            pairs_rejected_ambiguous: metrics.pairs_rejected_ambiguous,
+            pairs_rejected: metrics.pairs_rejected,
+            cross_span_pairs_considered: metrics.cross_span_pairs_considered,
+            same_paired_anchor_interval_pairs: metrics.same_paired_anchor_interval_pairs,
+            same_paired_stream_other_interval_pairs: metrics
+                .same_paired_stream_other_interval_pairs,
+            same_page_only_pairs: metrics.same_page_only_pairs,
+            unclassified_pairs: metrics.unclassified_pairs,
             old_relation_mismatches: metrics.old_relation_mismatches,
             new_relation_mismatches: metrics.new_relation_mismatches,
             best_partner_mismatches: metrics.best_partner_mismatches,
@@ -3238,15 +3249,26 @@ fn validate_known_span_sentence_shadow_metrics(
     let Some(shadow) = metrics.known_span_sentence_shadow else {
         return Ok(());
     };
-    if shadow
-        .pairs_retained
-        .checked_add(shadow.pairs_rejected_ambiguous)
-        != Some(shadow.pairs_considered)
-    {
+    if shadow.pairs_retained.checked_add(shadow.pairs_rejected) != Some(shadow.pairs_considered) {
         return Err(format!(
             "known-span sentence shadow pair counters do not sum: retained {} + rejected {} != considered {}",
-            shadow.pairs_retained, shadow.pairs_rejected_ambiguous, shadow.pairs_considered
+            shadow.pairs_retained, shadow.pairs_rejected, shadow.pairs_considered
         ));
+    }
+    if shadow.cross_span_pairs_considered > shadow.pairs_considered {
+        return Err(format!(
+            "known-span sentence shadow cross-span pairs {} exceed considered pairs {}",
+            shadow.cross_span_pairs_considered, shadow.pairs_considered
+        ));
+    }
+    if shadow
+        .same_paired_anchor_interval_pairs
+        .checked_add(shadow.same_paired_stream_other_interval_pairs)
+        .and_then(|pairs| pairs.checked_add(shadow.same_page_only_pairs))
+        .and_then(|pairs| pairs.checked_add(shadow.unclassified_pairs))
+        != Some(shadow.cross_span_pairs_considered)
+    {
+        return Err("known-span sentence shadow locality counters do not sum".to_owned());
     }
     let exact_parity = shadow.old_relation_mismatches == 0 && shadow.new_relation_mismatches == 0;
     if shadow.exact_relation_parity != exact_parity {
@@ -4004,7 +4026,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 21;
+    pub const SCHEMA_VERSION: u32 = 22;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -5268,7 +5290,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 21);
+        assert_eq!(completed["schema_version"], 22);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -5311,7 +5333,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 21);
+        assert_eq!(legacy_summary["schema_version"], 22);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -6500,7 +6522,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 21);
+        assert_eq!(json["schema_version"], 22);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -7162,7 +7184,10 @@ mod tests {
                 complete: true,
                 pairs_considered: 5,
                 pairs_retained: 3,
-                pairs_rejected_ambiguous: 2,
+                pairs_rejected: 2,
+                cross_span_pairs_considered: 5,
+                same_paired_anchor_interval_pairs: 3,
+                unclassified_pairs: 2,
                 exact_relation_parity: true,
                 ..KnownSpanSentenceShadowMetrics::default()
             }),
@@ -7173,7 +7198,7 @@ mod tests {
             report
                 .known_span_sentence_shadow
                 .expect("shadow report is present")
-                .pairs_rejected_ambiguous,
+                .pairs_rejected,
             2
         );
         let json = serde_json::to_value(report).expect("shadow report serializes");
@@ -7187,13 +7212,41 @@ mod tests {
             known_span_sentence_shadow: Some(KnownSpanSentenceShadowMetrics {
                 pairs_considered: 5,
                 pairs_retained: 2,
-                pairs_rejected_ambiguous: 2,
+                pairs_rejected: 2,
+                cross_span_pairs_considered: 5,
+                unclassified_pairs: 5,
                 exact_relation_parity: true,
                 ..KnownSpanSentenceShadowMetrics::default()
             }),
             ..SentenceRecoveryMetrics::default()
         };
         assert!(validate_sentence_recovery_metrics(invalid_pair_sum).is_err());
+
+        let invalid_locality_sum = SentenceRecoveryMetrics {
+            known_span_sentence_shadow: Some(KnownSpanSentenceShadowMetrics {
+                pairs_considered: 5,
+                pairs_retained: 5,
+                cross_span_pairs_considered: 5,
+                unclassified_pairs: 4,
+                exact_relation_parity: true,
+                ..KnownSpanSentenceShadowMetrics::default()
+            }),
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(invalid_locality_sum).is_err());
+
+        let invalid_cross_span_total = SentenceRecoveryMetrics {
+            known_span_sentence_shadow: Some(KnownSpanSentenceShadowMetrics {
+                pairs_considered: 5,
+                pairs_retained: 5,
+                cross_span_pairs_considered: 6,
+                unclassified_pairs: 6,
+                exact_relation_parity: true,
+                ..KnownSpanSentenceShadowMetrics::default()
+            }),
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(invalid_cross_span_total).is_err());
 
         let invalid_parity = SentenceRecoveryMetrics {
             known_span_sentence_shadow: Some(KnownSpanSentenceShadowMetrics {
@@ -7655,7 +7708,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 21);
+        assert_eq!(value["schema_version"], 22);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

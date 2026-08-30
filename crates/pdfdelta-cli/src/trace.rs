@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 10;
+const TRACE_SCHEMA_VERSION: u8 = 11;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -995,8 +995,28 @@ fn pipeline_metrics(
                     shadow.pairs_retained,
                 ),
                 (
-                    "sentence_recovery_known_span_sentence_shadow_pairs_rejected_ambiguous",
-                    shadow.pairs_rejected_ambiguous,
+                    "sentence_recovery_known_span_sentence_shadow_pairs_rejected",
+                    shadow.pairs_rejected,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_cross_span_pairs_considered",
+                    shadow.cross_span_pairs_considered,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_same_paired_anchor_interval_pairs",
+                    shadow.same_paired_anchor_interval_pairs,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_same_paired_stream_other_interval_pairs",
+                    shadow.same_paired_stream_other_interval_pairs,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_same_page_only_pairs",
+                    shadow.same_page_only_pairs,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_unclassified_pairs",
+                    shadow.unclassified_pairs,
                 ),
                 (
                     "sentence_recovery_known_span_sentence_shadow_old_relation_mismatches",
@@ -1176,7 +1196,12 @@ mod tests {
                 complete: true,
                 pairs_considered: 11,
                 pairs_retained: 7,
-                pairs_rejected_ambiguous: 4,
+                pairs_rejected: 4,
+                cross_span_pairs_considered: 11,
+                same_paired_anchor_interval_pairs: 7,
+                same_paired_stream_other_interval_pairs: 0,
+                same_page_only_pairs: 0,
+                unclassified_pairs: 4,
                 old_relation_mismatches: 3,
                 new_relation_mismatches: 2,
                 best_partner_mismatches: 2,
@@ -1237,7 +1262,19 @@ mod tests {
             11
         );
         assert_eq!(
-            metrics["sentence_recovery_known_span_sentence_shadow_pairs_rejected_ambiguous"],
+            metrics["sentence_recovery_known_span_sentence_shadow_pairs_rejected"],
+            4
+        );
+        assert_eq!(
+            metrics["sentence_recovery_known_span_sentence_shadow_cross_span_pairs_considered"],
+            11
+        );
+        assert_eq!(
+            metrics["sentence_recovery_known_span_sentence_shadow_same_paired_anchor_interval_pairs"],
+            7
+        );
+        assert_eq!(
+            metrics["sentence_recovery_known_span_sentence_shadow_unclassified_pairs"],
             4
         );
         assert_eq!(
