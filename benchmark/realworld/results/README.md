@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-30
-- **Generator / engine commit**: [`8ea186b`](https://github.com/hayatosc/pdfdelta/commit/8ea186b)
+- **Generator / engine commit**: [`ab26b3c`](https://github.com/hayatosc/pdfdelta/commit/ab26b3c)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-30-8ea186b.json`](2026-08-30-8ea186b.json)
-  - Schema: v24
-  - Size: 518,129 bytes
-  - SHA-256: `31a082ff0d5cdda69d7137452cd46242135cccb6386531c555bc382a37c95eab`
+  - File: [`2026-08-30-ab26b3c.json`](2026-08-30-ab26b3c.json)
+  - Schema: v26
+  - Size: 536,840 bytes
+  - SHA-256: `3e9f5e23de5e0e41d0ca6f650da3b41dc8d5ce9193bcf65d88b4d6006d1ffe0d`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-30-8ea186b.json
+  benchmark/realworld/results/2026-08-30-ab26b3c.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -45,7 +45,7 @@ their recorded review items.
 | `nist-fips-186-4-to-5` | dev | standard | 65.03% | 2,395 | 1,346 | 0.857 | 1.000 | 224.333 | 107 |
 | `nist-sp800-57-part1-r4-to-r5` | dev | standard | 71.90% | 6,038 | 2,440 | 1.000 | 1.000 | 690.750 | 103 |
 | `irs-form-1040-2024-to-2025` | holdout | stress | 37.83% | 75 | 20 | 0.000 | N/A | N/A | 1 |
-| `edpb-right-of-access-v1-to-final` | holdout | standard | 87.57% | 2,357 | 698 | 0.750 | 1.000 | 249.333 | 56 |
+| `edpb-right-of-access-v1-to-final` | holdout | standard | 74.81% | 2,091 | 477 | 0.750 | 1.000 | 175.667 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 1.000 | 0 |
 | `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.81% | 266 | 130 | 1.000 | 1.000 | 1.000 | 0 |
 | `ecma-109-ed10-to-ed11` | dev | stress | 73.27% | 369 | 78 | 0.333 | 0.000 | 78.000 | 5 |
@@ -65,6 +65,13 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 
 The original arXiv, W3C, and BIS scoped-complete metrics are unchanged from
 `27f096e`.
+The production Sentence edge filter completes near-relation analysis for EDPB
+Right of Access and EDPB Dark Patterns. Six other incomplete searches use a
+full-build legacy fallback; their comparison output and recovery-watch
+diagnostics exactly match the schema-v24 baseline. Across 18 measured pairs,
+the filter classifies 6,990,647 Sentence pairs and rejects 6,660,144 (95.27%).
+All shadow threshold, veto, unique-partner, reciprocal, adopted-replacement,
+and insertion/deletion-veto mismatch counters remain zero.
 Role-local alignment raises SP 800-57 comparison coverage from 70.95% to 71.90%
 and corrects its reviewed kind accuracy from 0.750 to 1.000. NIST CSF coverage
 decreases from 53.52% to 53.22% without changing reviewed recall or kind accuracy.
@@ -116,8 +123,7 @@ occurrences have no alignment-span location.
 
 ## Current Writer Schema (v26)
 
-The benchmark writer uses schema v26. The latest committed capture remains
-schema v24 until a newer production-filter capture is published. Older
+The benchmark writer and latest committed capture use schema v26. Older
 captures retain their recorded schemas. Schema v26 records whether an
 incomplete filtered recovery build was discarded and separately reports the
 pair, similarity-comparison, and candidate-posting work spent by that discarded
@@ -138,10 +144,10 @@ overall near relation had stopped; schema v25 corrects that final consistency
 check. The nine fully completed relation shadows examine 570,375 Sentence pairs
 and reject 546,307 (95.78%) while recording zero threshold violations, veto
 mismatches, unique-partner mismatches, reciprocal-pair mismatches, adopted-
-replacement mismatches, and insertion/deletion-veto mismatches. Production
-filtering uses the proved score boundary with query-atomic fallback and separate
-bounded work accounting; the schema-v24 artifact remains unchanged as the
-original measurement record.
+replacement mismatches, and insertion/deletion-veto mismatches. The schema-v24
+artifact remains unchanged as the original shadow measurement. Production
+schema v26 uses the proved score boundary with query-atomic handling, full-build
+legacy fallback for incomplete relations, and separate bounded work accounting.
 Schema v23 measures a behavior-neutral exact relation-floor probe during
 cross-span Sentence word scoring. Removing the four probe counters leaves every
 `f0ffe19` field value unchanged. The latest writer retains pair-complete probe
