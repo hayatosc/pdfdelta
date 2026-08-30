@@ -33,6 +33,17 @@ cmp /tmp/pdfdelta-reproduced-summary.json \
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
 
+When a capture only adds sentence-recovery diagnostics, compare it with the
+preceding schema through the bounded parity task instead of maintaining an
+ad-hoc `jq` filter:
+
+```bash
+mise run bench-revisions-schema-parity -- \
+  benchmark/realworld/results/2026-08-30-ab26b3c.json \
+  benchmark/realworld/results/2026-08-30-edb34a2.json \
+  sentence_edge_signature_shadow
+```
+
 ## Reviewed-Pair Overview
 
 This capture contains three scoped-complete review sets plus one complete scope

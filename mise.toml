@@ -1,4 +1,5 @@
 [tools]
+jq = "1.8.2"
 rust = "1.98.0"
 
 [tasks.ci]
@@ -77,6 +78,10 @@ run = "cargo run -p pdfdelta-bench --locked -- revisions --cache-dir benchmark/r
 [tasks.bench-revisions-release]
 description = "Run release-mode real-world revision comparisons (usage: mise run bench-revisions-release -- <args>)"
 run = "cargo run -p pdfdelta-bench --release --locked -- revisions --cache-dir benchmark/realworld/cache"
+
+[tasks.bench-revisions-schema-parity]
+description = "Compare benchmark summaries after removing schema-only recovery metrics (usage: mise run bench-revisions-schema-parity -- <baseline.json> <candidate.json> <field>...)"
+run = "benchmark/realworld/compare-summary-parity.sh"
 
 [tasks.fuzz-build]
 description = "Build all fuzz targets, or one target passed after --"
