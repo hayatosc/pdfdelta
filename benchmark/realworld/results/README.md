@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-30
-- **Generator / engine commit**: [`12fb039`](https://github.com/hayatosc/pdfdelta/commit/12fb039)
+- **Generator / engine commit**: [`8ea186b`](https://github.com/hayatosc/pdfdelta/commit/8ea186b)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-30-12fb039.json`](2026-08-30-12fb039.json)
-  - Schema: v23
-  - Size: 504,354 bytes
-  - SHA-256: `64e944b58f9f52587d0c355f07af215573b6fe0b7414c7cb0f9b9223f61ab383`
+  - File: [`2026-08-30-8ea186b.json`](2026-08-30-8ea186b.json)
+  - Schema: v24
+  - Size: 518,129 bytes
+  - SHA-256: `31a082ff0d5cdda69d7137452cd46242135cccb6386531c555bc382a37c95eab`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-30-12fb039.json
+  benchmark/realworld/results/2026-08-30-8ea186b.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -116,13 +116,19 @@ occurrences have no alignment-span location.
 
 ## Current Writer Schema (v24)
 
-The benchmark writer uses schema v24. The latest committed capture remains
-schema v23 until a schema-v24 shadow capture is published. Older captures
-retain their recorded schemas. Schema v24 adds a behavior-neutral Sentence
-edge-gate shadow that excludes only pairs whose production edge score is below
-3,000, retains Line relations unchanged, records typed stops, and compares
-veto, unique-partner, reciprocal, and adopted-replacement decisions without
-changing comparison output.
+The benchmark writer and latest capture use schema v24. Older captures retain
+their recorded schemas. Schema v24 adds a behavior-neutral Sentence edge-gate
+shadow that excludes only pairs whose production edge score is below 3,000,
+retains Line relations unchanged, records typed stops, and compares veto,
+unique-partner, reciprocal, and adopted-replacement decisions without changing
+comparison output. Removing the schema number and the shadow object produces
+an exact match with the schema-v23 `12fb039` capture. The shadow is available
+for 18 pairs and completes for 12. Across complete shadows it rejects 562,321
+of 587,555 Sentence pairs (95.71%) while recording zero threshold violations,
+veto mismatches, unique-partner mismatches, reciprocal-pair mismatches, adopted-
+replacement mismatches, and insertion/deletion-veto mismatches. Six shadows
+remain explicitly incomplete, so production filtering still requires atomic
+fallback and separate edge-filter work accounting.
 Schema v23 measures a behavior-neutral exact relation-floor probe during
 cross-span Sentence word scoring. Removing the four probe counters leaves every
 `f0ffe19` field value unchanged. The latest writer retains pair-complete probe
