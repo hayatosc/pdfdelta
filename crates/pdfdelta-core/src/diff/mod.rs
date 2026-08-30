@@ -760,10 +760,9 @@ fn compare_aligned_inner(
         items: 0,
         bytes: 0,
     };
-    let requires_atomic_recovery = sentence_recovery
-        .plan
-        .as_ref()
-        .is_some_and(sentence::SentenceRecoveryPlan::has_cross_span_recovery);
+    let requires_atomic_recovery = sentence_recovery.plan.as_ref().is_some_and(|plan| {
+        plan.has_cross_span_recovery() || plan.has_repeated_recovery_candidates()
+    });
     let mut atomic_recovery = requires_atomic_recovery
         .then(|| {
             prepare_sentence_recovery_batch(
@@ -1105,8 +1104,390 @@ fn prepare_sentence_recovery_batch(
             prepared,
         });
     }
+    group_repeated_recovered_changes(old, new, recovery, &mut entries, &mut tentative_budget)?;
     *output_budget = tentative_budget;
     Some(PreparedSentenceRecoveryBatch { entries })
+}
+
+struct RepeatedRecoveryGroup {
+    count: usize,
+    output_index: Option<usize>,
+}
+
+#[derive(PartialEq, Eq, Hash)]
+struct RepeatedRecoveryKey {
+    deletion: bool,
+    unit_kind: sentence::RecoveryUnitKind,
+    role: sentence::OccurrenceRole,
+    tokens: Vec<ComparableToken>,
+}
+
+struct RepeatedRecoveryCandidate {
+    change_index: usize,
+    group_index: usize,
+}
+
+#[derive(PartialEq, Eq, Hash)]
+struct RepeatedRecoveryLookupKey {
+    deletion: bool,
+    blocks: Vec<BlockId>,
+    has_separator: bool,
+    space_separator: bool,
+    canonical_start: usize,
+    canonical_end: usize,
+    comparable_start: usize,
+    comparable_end: usize,
+}
+
+fn group_repeated_recovered_changes(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    recovery: &sentence::SentenceRecoveryPlan,
+    entries: &mut [PreparedSentenceRecoveryEntry],
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<()> {
+    let change_count = entries.iter().try_fold(0usize, |count, entry| {
+        count.checked_add(entry.prepared.changes.len())
+    })?;
+    let flat_bytes = change_count
+        .checked_mul(std::mem::size_of::<(usize, ChangeEvent)>())?
+        .checked_mul(2)?;
+    if !output_budget.charge_many(change_count, flat_bytes) {
+        return None;
+    }
+
+    let index_bytes = change_count
+        .checked_mul(
+            std::mem::size_of::<RepeatedRecoveryKey>()
+                .checked_add(std::mem::size_of::<usize>())?
+                .checked_add(std::mem::size_of::<RepeatedRecoveryGroup>())?
+                .checked_add(std::mem::size_of::<RepeatedRecoveryCandidate>())?,
+        )?
+        .checked_mul(2)?;
+    if !output_budget.charge_many(0, index_bytes) {
+        return None;
+    }
+    let recovery_lookup = build_repeated_recovery_lookup(recovery, output_budget)?;
+    let mut group_index = HashMap::<RepeatedRecoveryKey, usize>::new();
+    group_index.try_reserve(change_count).ok()?;
+    let mut groups = Vec::<RepeatedRecoveryGroup>::new();
+    groups.try_reserve_exact(change_count).ok()?;
+    let mut candidates = Vec::<RepeatedRecoveryCandidate>::new();
+    candidates.try_reserve_exact(change_count).ok()?;
+    let mut flat_index = 0usize;
+    for entry in entries.iter() {
+        for change in &entry.prepared.changes {
+            if let Some(recovered) =
+                repeated_recovery_for_change(&recovery_lookup, change, output_budget)?
+            {
+                let side = match change.kind {
+                    ChangeKind::Deletion => old,
+                    ChangeKind::Insertion => new,
+                    ChangeKind::Replacement | ChangeKind::Move => return None,
+                };
+                let key = RepeatedRecoveryKey {
+                    deletion: change.kind == ChangeKind::Deletion,
+                    unit_kind: recovered.kind,
+                    role: recovered.role,
+                    tokens: try_recovered_tokens(side, recovered, output_budget)?,
+                };
+                let next_group_index = groups.len();
+                let group_index = if let Some(group_index) = group_index.get(&key).copied() {
+                    group_index
+                } else {
+                    groups.push(RepeatedRecoveryGroup {
+                        count: 0,
+                        output_index: None,
+                    });
+                    group_index.insert(key, next_group_index);
+                    next_group_index
+                };
+                let group = groups.get_mut(group_index)?;
+                group.count = group.count.checked_add(1)?;
+                candidates.push(RepeatedRecoveryCandidate {
+                    change_index: flat_index,
+                    group_index,
+                });
+            }
+            flat_index = flat_index.checked_add(1)?;
+        }
+    }
+
+    for group in &groups {
+        let additional = group.count.saturating_sub(1);
+        let bytes = additional.checked_mul(std::mem::size_of::<ChangeOccurrence>())?;
+        if !output_budget.charge_many(0, bytes) {
+            return None;
+        }
+    }
+
+    let mut flat = Vec::new();
+    flat.try_reserve_exact(change_count).ok()?;
+    for (entry_index, entry) in entries.iter_mut().enumerate() {
+        flat.extend(
+            entry
+                .prepared
+                .changes
+                .drain(..)
+                .map(|change| (entry_index, change)),
+        );
+    }
+    let mut grouped = Vec::<(usize, ChangeEvent)>::new();
+    grouped.try_reserve_exact(change_count).ok()?;
+    let mut candidate_cursor = 0usize;
+    for (change_index, (entry_index, mut change)) in flat.into_iter().enumerate() {
+        let candidate = candidates
+            .get(candidate_cursor)
+            .filter(|candidate| candidate.change_index == change_index);
+        let Some(candidate) = candidate else {
+            grouped.push((entry_index, change));
+            continue;
+        };
+        candidate_cursor += 1;
+        let group = groups.get_mut(candidate.group_index)?;
+        if group.count == 1 {
+            grouped.push((entry_index, change));
+        } else if let Some(output_index) = group.output_index {
+            if change.occurrences.len() != 1 {
+                return None;
+            }
+            grouped
+                .get_mut(output_index)?
+                .1
+                .occurrences
+                .push(change.occurrences.pop()?);
+        } else {
+            change
+                .occurrences
+                .try_reserve_exact(group.count.checked_sub(1)?)
+                .ok()?;
+            group.output_index = Some(grouped.len());
+            grouped.push((entry_index, change));
+        }
+    }
+    if candidate_cursor != candidates.len() {
+        return None;
+    }
+    for (entry_index, change) in grouped {
+        entries.get_mut(entry_index)?.prepared.changes.push(change);
+    }
+    Some(())
+}
+
+fn build_repeated_recovery_lookup<'a>(
+    recovery: &'a sentence::SentenceRecoveryPlan,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<HashMap<RepeatedRecoveryLookupKey, Option<&'a sentence::RecoveredSentence>>> {
+    let recovery_count = recovery
+        .deletions
+        .iter()
+        .chain(&recovery.insertions)
+        .try_fold(0usize, |count, recovered| {
+            if recovered.role == sentence::OccurrenceRole::Body {
+                Some(count)
+            } else {
+                count.checked_add(1)
+            }
+        })?;
+    let lookup_bytes = recovery_count.checked_mul(
+        std::mem::size_of::<RepeatedRecoveryLookupKey>()
+            .checked_add(std::mem::size_of::<Option<&sentence::RecoveredSentence>>())?,
+    )?;
+    if !output_budget.charge_many(0, lookup_bytes) {
+        return None;
+    }
+    let mut lookup = HashMap::new();
+    lookup.try_reserve(recovery_count).ok()?;
+    for (deletion, recovered) in recovery
+        .deletions
+        .iter()
+        .map(|recovered| (true, recovered))
+        .chain(
+            recovery
+                .insertions
+                .iter()
+                .map(|recovered| (false, recovered)),
+        )
+    {
+        if recovered.role == sentence::OccurrenceRole::Body {
+            continue;
+        }
+        let key = repeated_recovery_lookup_key(
+            deletion,
+            &recovered.blocks,
+            recovered.separator,
+            recovered.canonical,
+            recovered.comparable,
+            output_budget,
+        )?;
+        match lookup.entry(key) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(Some(recovered));
+            }
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                entry.insert(None);
+            }
+        }
+    }
+    Some(lookup)
+}
+
+fn repeated_recovery_for_change<'a>(
+    recovery_lookup: &'a HashMap<
+        RepeatedRecoveryLookupKey,
+        Option<&'a sentence::RecoveredSentence>,
+    >,
+    change: &ChangeEvent,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<Option<&'a sentence::RecoveredSentence>> {
+    if change.occurrences.len() != 1
+        || change.confidence != Confidence::High
+        || !change.tags.is_empty()
+    {
+        return Some(None);
+    }
+    let (deletion, span) = match change.kind {
+        ChangeKind::Deletion => (true, change.occurrences.first()?.old_span.as_ref()?),
+        ChangeKind::Insertion => (false, change.occurrences.first()?.new_span.as_ref()?),
+        ChangeKind::Replacement | ChangeKind::Move => return Some(None),
+    };
+    let key = repeated_recovery_lookup_key(
+        deletion,
+        &span.blocks,
+        span.separator,
+        span.canonical_range,
+        span.comparable_range,
+        output_budget,
+    )?;
+    Some(recovery_lookup.get(&key).copied().flatten())
+}
+
+fn repeated_recovery_lookup_key(
+    deletion: bool,
+    blocks: &[BlockId],
+    separator: Option<BlockSeparator>,
+    canonical: ScalarRange,
+    comparable: TokenRange,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<RepeatedRecoveryLookupKey> {
+    let block_bytes = blocks.len().checked_mul(std::mem::size_of::<BlockId>())?;
+    if !output_budget.charge_many(0, block_bytes) {
+        return None;
+    }
+    Some(RepeatedRecoveryLookupKey {
+        deletion,
+        blocks: try_copy_slice(blocks)?,
+        has_separator: separator.is_some(),
+        space_separator: separator == Some(BlockSeparator::Space),
+        canonical_start: canonical.start,
+        canonical_end: canonical.end,
+        comparable_start: comparable.start,
+        comparable_end: comparable.end,
+    })
+}
+
+fn try_recovered_tokens(
+    side: &Side<'_>,
+    recovery: &sentence::RecoveredSentence,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<Vec<ComparableToken>> {
+    try_recovered_tokens_counted(side, recovery, output_budget).map(|(tokens, _)| tokens)
+}
+
+fn try_recovered_tokens_counted(
+    side: &Side<'_>,
+    recovery: &sentence::RecoveredSentence,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<(Vec<ComparableToken>, usize)> {
+    if recovery.comparable.start >= recovery.comparable.end {
+        return None;
+    }
+    let token_count = recovery
+        .comparable
+        .end
+        .checked_sub(recovery.comparable.start)?;
+    let single_block_tokens = match recovery.blocks.as_slice() {
+        [block] => Some(side.canonical.get(*side.index.get(block)?)?),
+        [] => return None,
+        _ => None,
+    };
+    if let Some(tokens) = single_block_tokens {
+        tokens.get(recovery.comparable.start..recovery.comparable.end)?;
+    } else if walk_recovered_group_segments(side, recovery, recovery.comparable.end, |_, _| {
+        Some(())
+    })? < recovery.comparable.end
+    {
+        return None;
+    }
+    let token_bytes = token_count.checked_mul(std::mem::size_of::<ComparableToken>())?;
+    if !output_budget.charge_many(0, token_bytes) {
+        return None;
+    }
+    let mut tokens = Vec::new();
+    tokens.try_reserve_exact(token_count).ok()?;
+    let mut copied_tokens = 0usize;
+    if let Some(block_tokens) = single_block_tokens {
+        let source = block_tokens.get(recovery.comparable.start..recovery.comparable.end)?;
+        tokens.extend_from_slice(source);
+        copied_tokens = source.len();
+    } else {
+        walk_recovered_group_segments(
+            side,
+            recovery,
+            recovery.comparable.end,
+            |start, segment| {
+                let overlap_start = recovery.comparable.start.max(start);
+                let overlap_end = recovery
+                    .comparable
+                    .end
+                    .min(start.checked_add(segment.len())?);
+                if overlap_start < overlap_end {
+                    let source = segment
+                        .get(overlap_start.checked_sub(start)?..overlap_end.checked_sub(start)?)?;
+                    tokens.extend_from_slice(source);
+                    copied_tokens = copied_tokens.checked_add(source.len())?;
+                }
+                Some(())
+            },
+        )?;
+    }
+    (tokens.len() == token_count && copied_tokens == token_count).then_some((tokens, copied_tokens))
+}
+
+fn walk_recovered_group_segments(
+    side: &Side<'_>,
+    recovery: &sentence::RecoveredSentence,
+    stop_at: usize,
+    mut visit: impl FnMut(usize, &[ComparableToken]) -> Option<()>,
+) -> Option<usize> {
+    let separator = effective_group_separator(recovery.blocks.len(), recovery.separator);
+    let mut token_index = 0usize;
+    let mut previous_is_space = None;
+    for (position, block) in recovery.blocks.iter().enumerate() {
+        let next = side.canonical.get(*side.index.get(block)?)?;
+        if position > 0
+            && separator == Some(BlockSeparator::Space)
+            && previous_is_space != Some(true)
+            && !next.first().is_some_and(is_space_token)
+        {
+            let space = ComparableToken::Scalar(' ');
+            visit(token_index, std::slice::from_ref(&space))?;
+            token_index = token_index.checked_add(1)?;
+            previous_is_space = Some(true);
+            if token_index >= stop_at {
+                return Some(token_index);
+            }
+        }
+        visit(token_index, next)?;
+        token_index = token_index.checked_add(next.len())?;
+        if token_index >= stop_at {
+            return Some(token_index);
+        }
+        if let Some(last) = next.last() {
+            previous_is_space = Some(is_space_token(last));
+        }
+    }
+    Some(token_index)
 }
 
 fn commit_prepared_sentence_recovery_batch(
@@ -4329,28 +4710,67 @@ mod tests {
     }
 
     #[test]
-    fn repeated_footer_sentences_missing_from_new_are_recovered_individually() {
+    fn repeated_footer_sentences_missing_from_new_are_grouped() {
         let old = repeated_role_blocks(
-            [1, 2],
+            [1, 2, 3],
             "Acme security standard 2024.",
             BlockRole::RepeatedFooter,
         );
         let result = compare_sentence_recovery(
             &old,
             &[],
-            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(1)); 3],
             &[],
             5,
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(result.changes.len(), 2);
-        assert!(
-            result
-                .changes
-                .iter()
-                .all(|change| change.kind == ChangeKind::Deletion)
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Deletion);
+        assert_eq!(result.changes[0].occurrences.len(), 3);
+        assert!(result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn repeated_header_sentences_inserted_into_new_are_grouped() {
+        let new = repeated_role_blocks(
+            [1, 2, 3],
+            "Acme security standard 2024.",
+            BlockRole::RepeatedHeader,
         );
+        let result = compare_sentence_recovery(
+            &[],
+            &new,
+            &[],
+            &[Some(TrustedRunId(1)); 3],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Insertion);
+        assert_eq!(result.changes[0].occurrences.len(), 3);
+        assert!(result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn repeated_footer_lines_missing_from_new_are_grouped() {
+        let mut old = repeated_role_blocks([1, 2, 3], "ACME BRAND", BlockRole::RepeatedFooter);
+        for block in &mut old {
+            block.line_breaks = Some(Vec::new());
+        }
+        let result = compare_sentence_recovery(
+            &old,
+            &[],
+            &[None; 3],
+            &[],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Deletion);
+        assert_eq!(result.changes[0].occurrences.len(), 3);
         assert!(result.unresolved_regions.is_empty());
     }
 
@@ -4371,12 +4791,11 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        let recovered = result
-            .changes
+        let recovered = result.changes[0]
+            .occurrences
             .iter()
-            .map(|change| {
-                assert_eq!(change.kind, ChangeKind::Deletion);
-                change.occurrences[0]
+            .map(|occurrence| {
+                occurrence
                     .old_span
                     .as_ref()
                     .expect("footer deletion has an old span")
@@ -4406,11 +4825,11 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        let recovered = result
-            .changes
+        let recovered = result.changes[0]
+            .occurrences
             .iter()
-            .map(|change| {
-                change.occurrences[0]
+            .map(|occurrence| {
+                occurrence
                     .old_span
                     .as_ref()
                     .expect("footer deletion has an old span")
@@ -4522,7 +4941,7 @@ mod tests {
                 .iter()
                 .filter(|change| change.kind == ChangeKind::Deletion)
                 .count(),
-            2
+            1
         );
         assert_eq!(
             result
@@ -4530,9 +4949,218 @@ mod tests {
                 .iter()
                 .filter(|change| change.kind == ChangeKind::Insertion)
                 .count(),
-            2
+            1
+        );
+        assert!(
+            result
+                .changes
+                .iter()
+                .all(|change| change.occurrences.len() == 2)
         );
         assert!(result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn repeated_running_matter_with_different_tokens_is_not_grouped() {
+        let old = vec![
+            role_block(1, "Acme security standard 2024.", BlockRole::RepeatedFooter),
+            role_block(2, "Acme security standard 2025.", BlockRole::RepeatedFooter),
+        ];
+        let result = compare_sentence_recovery(
+            &old,
+            &[],
+            &[Some(TrustedRunId(1)); 2],
+            &[],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), 2);
+        assert!(
+            result
+                .changes
+                .iter()
+                .all(|change| change.occurrences.len() == 1)
+        );
+    }
+
+    #[test]
+    fn many_distinct_repeated_running_units_remain_individual() {
+        const GROUP_COUNT: usize = 128;
+
+        let old = (0..GROUP_COUNT)
+            .map(|index| {
+                role_block(
+                    index as u64 + 1,
+                    &format!("Unique repeated footer number {index}."),
+                    BlockRole::RepeatedFooter,
+                )
+            })
+            .collect::<Vec<_>>();
+        let intervals = vec![Some(TrustedRunId(1)); GROUP_COUNT];
+        let result = compare_sentence_recovery(
+            &old,
+            &[],
+            &intervals,
+            &[],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), GROUP_COUNT);
+        assert!(
+            result
+                .changes
+                .iter()
+                .all(|change| change.occurrences.len() == 1)
+        );
+    }
+
+    #[test]
+    fn recovered_token_projection_copies_only_the_requested_large_block_slice() {
+        let text = "a".repeat(100_000);
+        let old = vec![sentence_block(1, &text)];
+        let (side, _) = inspect_sides_with_budget(&old, &[], DiffOptions::default())
+            .expect("large test side is valid");
+        let side = side.materialize().expect("large test side materializes");
+        let range = sentence::LocalSentenceRange {
+            block: BlockId(1),
+            canonical: ScalarRange {
+                start: 99_990,
+                end: 99_993,
+            },
+            comparable: TokenRange {
+                start: 99_990,
+                end: 99_993,
+            },
+        };
+        let recovery = test_recovered_sentence(range, 0);
+        let mut budget = RecoveryOutputBudget::with_limits(RecoveryOutputLimits {
+            max_items: 0,
+            max_bytes: 3 * std::mem::size_of::<ComparableToken>(),
+        });
+
+        let (tokens, copied_tokens) = try_recovered_tokens_counted(&side, &recovery, &mut budget)
+            .expect("short projection fits its exact output budget");
+
+        assert_eq!(tokens, vec![ComparableToken::Scalar('a'); 3]);
+        assert_eq!(copied_tokens, 3);
+        assert_eq!(budget.bytes, 3 * std::mem::size_of::<ComparableToken>());
+    }
+
+    #[test]
+    fn repeated_running_matter_with_different_roles_is_not_grouped() {
+        let old = vec![
+            role_block(1, "Acme security standard.", BlockRole::RepeatedHeader),
+            role_block(2, "Acme security standard.", BlockRole::RepeatedHeader),
+            role_block(3, "Acme security standard.", BlockRole::RepeatedFooter),
+            role_block(4, "Acme security standard.", BlockRole::RepeatedFooter),
+        ];
+        let result = compare_sentence_recovery(
+            &old,
+            &[],
+            &[Some(TrustedRunId(1)); 4],
+            &[],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), 2);
+        assert!(
+            result
+                .changes
+                .iter()
+                .all(|change| change.occurrences.len() == 2)
+        );
+    }
+
+    #[test]
+    fn repeated_footer_recovery_groups_across_alignment_spans() {
+        let old = repeated_role_blocks(
+            [1, 2, 3],
+            "Acme security standard 2024.",
+            BlockRole::RepeatedFooter,
+        );
+        let alignment = Alignment {
+            spans: old
+                .iter()
+                .map(|block| reading_order_unknown_span(vec![block.block], Vec::new()))
+                .collect(),
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let intervals = trusted_run_intervals(&[Some(TrustedRunId(1)); 3]);
+        let result = compare_sentence_recovery_with_intervals(
+            &old,
+            &[],
+            &alignment,
+            &intervals,
+            &[],
+            5,
+            DiffOptions::default(),
+        );
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].occurrences.len(), 3);
+        assert_eq!(
+            result.changes[0]
+                .occurrences
+                .iter()
+                .map(|occurrence| {
+                    occurrence
+                        .old_span
+                        .as_ref()
+                        .expect("deletion occurrence has an old span")
+                        .blocks[0]
+                })
+                .collect::<Vec<_>>(),
+            [BlockId(1), BlockId(2), BlockId(3)]
+        );
+        assert!(result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn repeated_recovery_budget_failure_keeps_all_span_fallbacks() {
+        let old = repeated_role_blocks(
+            [1, 2, 3],
+            "Acme security standard 2024.",
+            BlockRole::RepeatedFooter,
+        );
+        let alignment = Alignment {
+            spans: old
+                .iter()
+                .map(|block| reading_order_unknown_span(vec![block.block], Vec::new()))
+                .collect(),
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let intervals = trusted_run_intervals(&[Some(TrustedRunId(1)); 3]);
+        let outcome = compare_aligned_inner(
+            &old,
+            &[],
+            &alignment,
+            CompareAlignedConfig {
+                options: DiffOptions::default(),
+                recovery: Some(SentenceRecoveryInput {
+                    old_trusted_run_intervals: &intervals,
+                    new_trusted_run_intervals: &[],
+                    old_trusted_run_evidence: None,
+                    new_trusted_run_evidence: None,
+                    min_tokens: 5,
+                }),
+                watch_queries: None,
+                recovery_output_limits: RecoveryOutputLimits {
+                    max_items: 5,
+                    max_bytes: usize::MAX,
+                },
+                retain_atomic_edits: false,
+            },
+        )
+        .expect("budget fallback comparison succeeds");
+
+        assert!(outcome.comparison.changes.is_empty());
+        assert_eq!(outcome.comparison.unresolved_regions.len(), 3);
+        assert_eq!(outcome.comparison.old_coverage.resolved_tokens, 0);
     }
 
     #[test]
@@ -5709,6 +6337,8 @@ mod tests {
         let recovery = sentence::SentenceRecoveryPlan {
             deletions: vec![sentence::RecoveredSentence {
                 span_index: 0,
+                kind: sentence::RecoveryUnitKind::Sentence,
+                role: sentence::OccurrenceRole::Body,
                 blocks: old.iter().map(|block| block.block).collect(),
                 separator: Some(BlockSeparator::Space),
                 canonical: ScalarRange {
@@ -8001,6 +8631,8 @@ mod tests {
     ) -> sentence::RecoveredSentence {
         sentence::RecoveredSentence {
             span_index,
+            kind: sentence::RecoveryUnitKind::Sentence,
+            role: sentence::OccurrenceRole::Body,
             blocks: vec![range.block],
             separator: None,
             canonical: range.canonical,

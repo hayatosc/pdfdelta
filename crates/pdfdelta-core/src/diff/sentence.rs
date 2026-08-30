@@ -55,6 +55,8 @@ pub(super) struct LocalSentenceRange {
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct RecoveredSentence {
     pub span_index: usize,
+    pub kind: RecoveryUnitKind,
+    pub role: OccurrenceRole,
     pub blocks: Vec<BlockId>,
     pub separator: Option<BlockSeparator>,
     pub canonical: ScalarRange,
@@ -98,6 +100,24 @@ impl SentenceRecoveryPlan {
         !self.cross_span_match_old.is_empty()
             || !self.cross_span_match_new.is_empty()
             || !self.cross_span_replacement_new_spans.is_empty()
+    }
+
+    pub fn has_repeated_recovery_candidates(&self) -> bool {
+        [&self.deletions, &self.insertions]
+            .into_iter()
+            .any(|recoveries| {
+                let mut seen = [false; 4];
+                recoveries.iter().any(|recovery| {
+                    let index = match (recovery.kind, recovery.role) {
+                        (_, OccurrenceRole::Body) => return false,
+                        (RecoveryUnitKind::Sentence, OccurrenceRole::RepeatedHeader) => 0,
+                        (RecoveryUnitKind::Sentence, OccurrenceRole::RepeatedFooter) => 1,
+                        (RecoveryUnitKind::Line, OccurrenceRole::RepeatedHeader) => 2,
+                        (RecoveryUnitKind::Line, OccurrenceRole::RepeatedFooter) => 3,
+                    };
+                    std::mem::replace(&mut seen[index], true)
+                })
+            })
     }
 
     pub fn has_recovery(&self, span_index: usize) -> bool {
@@ -317,13 +337,13 @@ struct FragmentIndex<'a> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum RecoveryUnitKind {
+pub(super) enum RecoveryUnitKind {
     Sentence,
     Line,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum OccurrenceRole {
+pub(super) enum OccurrenceRole {
     Body,
     RepeatedHeader,
     RepeatedFooter,
@@ -5143,14 +5163,14 @@ fn collect_occurrences(
             let span_index =
                 sentence_span_index(side, &stream, touched_blocks.clone(), span_by_block)?;
             let location = match (span_index, role) {
-                (Some(span_index), Some(_)) if recovery_spans.get(span_index).copied()? => {
+                (Some(span_index), Some(role)) if recovery_spans.get(span_index).copied()? => {
                     sentence_location(
                         side,
                         &stream,
                         boundary,
                         touched_blocks,
                         span_index,
-                        kind,
+                        (kind, role),
                         budget,
                     )?
                 }
@@ -5520,9 +5540,10 @@ fn sentence_location(
     boundary: SentenceBoundary,
     touched_blocks: Range<usize>,
     span_index: usize,
-    kind: RecoveryUnitKind,
+    unit: (RecoveryUnitKind, BlockRole),
     budget: &mut RecoveryBudget,
 ) -> Option<Option<SentenceLocation>> {
+    let (kind, role) = unit;
     if !stream.trusted && kind != RecoveryUnitKind::Line {
         return Some(None);
     }
@@ -5609,6 +5630,8 @@ fn sentence_location(
     Some(Some(SentenceLocation {
         recovery: RecoveredSentence {
             span_index,
+            kind,
+            role: role.into(),
             separator: (block_ids.len() > 1).then_some(BlockSeparator::Space),
             blocks: block_ids,
             canonical: ScalarRange {
@@ -7567,7 +7590,12 @@ fn append_candidate_recoveries(
             continue;
         }
         let occurrence = occurrences.get(candidate.occurrence_index)?;
-        if occurrence.kind == RecoveryUnitKind::Line {
+        if occurrence.kind == RecoveryUnitKind::Line
+            && !matches!(
+                occurrence.role,
+                Some(BlockRole::RepeatedHeader | BlockRole::RepeatedFooter)
+            )
+        {
             continue;
         }
         let location = occurrence.location.as_ref()?;
@@ -7585,7 +7613,12 @@ fn append_candidate_recoveries(
             continue;
         }
         let occurrence = occurrences.get_mut(candidate.occurrence_index)?;
-        if occurrence.kind == RecoveryUnitKind::Line {
+        if occurrence.kind == RecoveryUnitKind::Line
+            && !matches!(
+                occurrence.role,
+                Some(BlockRole::RepeatedHeader | BlockRole::RepeatedFooter)
+            )
+        {
             continue;
         }
         let location = occurrence.location.take()?;
@@ -8056,6 +8089,8 @@ mod tests {
         SentenceLocation {
             recovery: RecoveredSentence {
                 span_index,
+                kind: RecoveryUnitKind::Sentence,
+                role: OccurrenceRole::Body,
                 blocks: vec![range.block],
                 separator: None,
                 canonical: range.canonical,
@@ -8882,6 +8917,8 @@ mod tests {
         let plan = SentenceRecoveryPlan {
             deletions: vec![RecoveredSentence {
                 span_index: 0,
+                kind: RecoveryUnitKind::Sentence,
+                role: OccurrenceRole::Body,
                 blocks: vec![BlockId(1)],
                 separator: None,
                 canonical: ScalarRange { start: 0, end: 1 },
@@ -11240,7 +11277,7 @@ mod tests {
                 boundary,
                 0..1,
                 0,
-                RecoveryUnitKind::Sentence,
+                (RecoveryUnitKind::Sentence, BlockRole::Body),
                 &mut budget,
             )
             .is_some_and(|location| location.is_some())
@@ -11255,7 +11292,7 @@ mod tests {
                 boundary,
                 0..1,
                 0,
-                RecoveryUnitKind::Sentence,
+                (RecoveryUnitKind::Sentence, BlockRole::Body),
                 &mut budget,
             )
             .is_none()
