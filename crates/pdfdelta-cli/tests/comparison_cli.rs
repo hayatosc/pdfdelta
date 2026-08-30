@@ -612,7 +612,7 @@ fn writes_complete_phase_trace_separately_from_the_report() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let trace = read_json(&trace);
-    assert_eq!(trace["trace_schema_version"], 13);
+    assert_eq!(trace["trace_schema_version"], 14);
     assert_eq!(trace["command"]["kind"], "compare");
     assert_eq!(trace["result"]["status"], "completed");
     assert_eq!(trace["result"]["exit_code"], 0);
@@ -649,6 +649,17 @@ fn writes_complete_phase_trace_separately_from_the_report() {
             .is_some()
     );
     for key in [
+        "sentence_recovery_sentence_edge_filter_complete",
+        "sentence_recovery_sentence_edge_filter_pairs_examined",
+        "sentence_recovery_sentence_edge_filter_pairs_attempted",
+        "sentence_recovery_sentence_edge_filter_similarity_comparisons_examined",
+        "sentence_recovery_sentence_edge_filter_similarity_comparisons_attempted",
+        "sentence_recovery_sentence_edge_filter_pairs_retained",
+        "sentence_recovery_sentence_edge_filter_pairs_rejected",
+        "sentence_recovery_sentence_edge_filter_stop_reason_pair_visit_limit",
+        "sentence_recovery_sentence_edge_filter_stop_reason_similarity_comparison_limit",
+        "sentence_recovery_sentence_edge_filter_stop_reason_allocation_failure",
+        "sentence_recovery_sentence_edge_filter_stop_reason_counter_overflow",
         "sentence_recovery_sentence_edge_gate_shadow_complete",
         "sentence_recovery_sentence_edge_gate_shadow_stop_reason_candidate_posting_visit_limit",
         "sentence_recovery_sentence_edge_gate_shadow_stop_reason_pair_visit_limit",

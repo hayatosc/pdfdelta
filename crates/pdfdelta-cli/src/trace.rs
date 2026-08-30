@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 13;
+const TRACE_SCHEMA_VERSION: u8 = 14;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -537,6 +537,8 @@ fn pipeline_metrics(
     .filter_map(|(name, value)| value.map(|value| (name, value)))
     .collect::<BTreeMap<_, _>>();
     if let Some(sentence) = metrics.sentence_recovery_metrics {
+        use pdfdelta_core::diff::SentenceEdgeFilterStopReason;
+
         let candidate_posting_visit_limit = matches!(
             sentence.near_relation_stop_reason,
             Some(pdfdelta_core::diff::NearRelationStopReason::CandidatePostingVisitLimit)
@@ -565,6 +567,15 @@ fn pipeline_metrics(
             sentence.run_signature_stop_reason,
             Some(pdfdelta_core::diff::RunSignatureStopReason::CandidatePairLimit)
         );
+        let sentence_edge_filter_stop_reasons = match sentence.sentence_edge_filter_stop_reason {
+            None => [false; 4],
+            Some(SentenceEdgeFilterStopReason::PairVisitLimit) => [true, false, false, false],
+            Some(SentenceEdgeFilterStopReason::SimilarityComparisonLimit) => {
+                [false, true, false, false]
+            }
+            Some(SentenceEdgeFilterStopReason::AllocationFailure) => [false, false, true, false],
+            Some(SentenceEdgeFilterStopReason::CounterOverflow) => [false, false, false, true],
+        };
         flattened.extend([
             (
                 "sentence_recovery_old_trusted_run_source_tokens",
@@ -923,6 +934,50 @@ fn pipeline_metrics(
             (
                 "sentence_recovery_near_relation_stop_reason_candidate_count_limit",
                 usize::from(candidate_count_limit),
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_complete",
+                usize::from(sentence.sentence_edge_filter_complete),
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_pairs_examined",
+                sentence.sentence_edge_filter_pairs_examined,
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_pairs_attempted",
+                sentence.sentence_edge_filter_pairs_attempted,
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_similarity_comparisons_examined",
+                sentence.sentence_edge_filter_similarity_comparisons_examined,
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_similarity_comparisons_attempted",
+                sentence.sentence_edge_filter_similarity_comparisons_attempted,
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_pairs_retained",
+                sentence.sentence_edge_filter_pairs_retained,
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_pairs_rejected",
+                sentence.sentence_edge_filter_pairs_rejected,
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_stop_reason_pair_visit_limit",
+                usize::from(sentence_edge_filter_stop_reasons[0]),
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_stop_reason_similarity_comparison_limit",
+                usize::from(sentence_edge_filter_stop_reasons[1]),
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_stop_reason_allocation_failure",
+                usize::from(sentence_edge_filter_stop_reasons[2]),
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_stop_reason_counter_overflow",
+                usize::from(sentence_edge_filter_stop_reasons[3]),
             ),
             (
                 "sentence_recovery_vetoed_near_pairs",
@@ -1286,8 +1341,8 @@ mod tests {
     use pdfdelta_core::{
         diff::{
             KnownSpanSentenceShadowMetrics, NearRelationStopReason, RunSignatureStopReason,
-            SentenceEdgeGateShadowMetrics, SentenceEdgeGateShadowStopReason,
-            SentenceRecoveryMetrics,
+            SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
+            SentenceEdgeGateShadowStopReason, SentenceRecoveryMetrics,
         },
         pipeline::PipelineMetrics,
     };
@@ -1295,8 +1350,8 @@ mod tests {
     use super::{TRACE_SCHEMA_VERSION, bounded_message, pipeline_metrics};
 
     #[test]
-    fn trace_schema_version_covers_sentence_edge_gate_shadow_metrics() {
-        assert_eq!(TRACE_SCHEMA_VERSION, 13);
+    fn trace_schema_version_covers_sentence_edge_filter_metrics() {
+        assert_eq!(TRACE_SCHEMA_VERSION, 14);
     }
 
     #[test]
@@ -1557,6 +1612,97 @@ mod tests {
                 PipelineMetrics {
                     sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
                         run_signature_stop_reason: Some(reason),
+                        ..SentenceRecoveryMetrics::default()
+                    }),
+                    ..PipelineMetrics::default()
+                },
+                None,
+            );
+
+            for (_, key) in cases {
+                assert_eq!(metrics[key], usize::from(key == expected));
+            }
+        }
+    }
+
+    #[test]
+    fn flattens_every_sentence_edge_filter_metric() {
+        let metrics = pipeline_metrics(
+            PipelineMetrics {
+                sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
+                    sentence_edge_filter_complete: true,
+                    sentence_edge_filter_pairs_examined: 1,
+                    sentence_edge_filter_pairs_attempted: 2,
+                    sentence_edge_filter_similarity_comparisons_examined: 3,
+                    sentence_edge_filter_similarity_comparisons_attempted: 4,
+                    sentence_edge_filter_pairs_retained: 5,
+                    sentence_edge_filter_pairs_rejected: 6,
+                    ..SentenceRecoveryMetrics::default()
+                }),
+                ..PipelineMetrics::default()
+            },
+            None,
+        );
+
+        let expected = [
+            ("complete", 1),
+            ("pairs_examined", 1),
+            ("pairs_attempted", 2),
+            ("similarity_comparisons_examined", 3),
+            ("similarity_comparisons_attempted", 4),
+            ("pairs_retained", 5),
+            ("pairs_rejected", 6),
+        ];
+        for (field, value) in expected {
+            let key = format!("sentence_recovery_sentence_edge_filter_{field}");
+            assert_eq!(metrics[key.as_str()], value, "unexpected value for {key}");
+        }
+    }
+
+    #[test]
+    fn preserves_sentence_edge_filter_zeros_and_false() {
+        let metrics = pipeline_metrics(
+            PipelineMetrics {
+                sentence_recovery_metrics: Some(SentenceRecoveryMetrics::default()),
+                ..PipelineMetrics::default()
+            },
+            None,
+        );
+        let edge_filter_metrics = metrics
+            .iter()
+            .filter(|(name, _)| name.starts_with("sentence_recovery_sentence_edge_filter_"))
+            .collect::<Vec<_>>();
+
+        assert_eq!(edge_filter_metrics.len(), 11);
+        assert!(edge_filter_metrics.iter().all(|(_, value)| **value == 0));
+    }
+
+    #[test]
+    fn flattens_each_sentence_edge_filter_stop_reason_as_one_hot() {
+        let cases = [
+            (
+                SentenceEdgeFilterStopReason::PairVisitLimit,
+                "sentence_recovery_sentence_edge_filter_stop_reason_pair_visit_limit",
+            ),
+            (
+                SentenceEdgeFilterStopReason::SimilarityComparisonLimit,
+                "sentence_recovery_sentence_edge_filter_stop_reason_similarity_comparison_limit",
+            ),
+            (
+                SentenceEdgeFilterStopReason::AllocationFailure,
+                "sentence_recovery_sentence_edge_filter_stop_reason_allocation_failure",
+            ),
+            (
+                SentenceEdgeFilterStopReason::CounterOverflow,
+                "sentence_recovery_sentence_edge_filter_stop_reason_counter_overflow",
+            ),
+        ];
+
+        for (reason, expected) in cases {
+            let metrics = pipeline_metrics(
+                PipelineMetrics {
+                    sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
+                        sentence_edge_filter_stop_reason: Some(reason),
                         ..SentenceRecoveryMetrics::default()
                     }),
                     ..PipelineMetrics::default()

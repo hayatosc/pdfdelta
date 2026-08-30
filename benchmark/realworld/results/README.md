@@ -114,21 +114,29 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v24)
+## Current Writer Schema (v25)
 
-The benchmark writer and latest capture use schema v24. Older captures retain
-their recorded schemas. Schema v24 adds a behavior-neutral Sentence edge-gate
+The benchmark writer uses schema v25. The latest committed capture remains
+schema v24 until a schema-v25 production-filter capture is published. Older
+captures retain their recorded schemas. Schema v25 reports the production
+Sentence edge filter's bounded pair and comparison work, retained and rejected
+pairs, completion state, and typed atomic-fallback reason. CLI trace schema v14
+exposes the same counters and one-hot fallback reasons.
+Schema v24 adds a behavior-neutral Sentence edge-gate
 shadow that excludes only pairs whose production edge score is below 3,000,
 retains Line relations unchanged, records typed stops, and compares veto,
 unique-partner, reciprocal, and adopted-replacement decisions without changing
 comparison output. Removing the schema number and the shadow object produces
-an exact match with the schema-v23 `12fb039` capture. The shadow is available
-for 18 pairs and completes for 12. Across complete shadows it rejects 562,321
-of 587,555 Sentence pairs (95.71%) while recording zero threshold violations,
-veto mismatches, unique-partner mismatches, reciprocal-pair mismatches, adopted-
-replacement mismatches, and insertion/deletion-veto mismatches. Six shadows
-remain explicitly incomplete, so production filtering still requires atomic
-fallback and separate edge-filter work accounting.
+an exact match with the schema-v23 `12fb039` capture. A later completion audit
+found that three stage-local shadows were marked complete even though the
+overall near relation had stopped; schema v25 corrects that final consistency
+check. The nine fully completed relation shadows examine 570,375 Sentence pairs
+and reject 546,307 (95.78%) while recording zero threshold violations, veto
+mismatches, unique-partner mismatches, reciprocal-pair mismatches, adopted-
+replacement mismatches, and insertion/deletion-veto mismatches. Production
+filtering uses the proved score boundary with query-atomic fallback and separate
+bounded work accounting; the schema-v24 artifact remains unchanged as the
+original measurement record.
 Schema v23 measures a behavior-neutral exact relation-floor probe during
 cross-span Sentence word scoring. Removing the four probe counters leaves every
 `f0ffe19` field value unchanged. The latest writer retains pair-complete probe

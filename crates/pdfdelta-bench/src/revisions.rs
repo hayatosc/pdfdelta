@@ -28,8 +28,8 @@ use pdfdelta_core::{
         RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence, RecoveryWatchPairEvidence,
         RecoveryWatchQuery, RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
         RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
-        SentenceEdgeGateShadowMetrics, SentenceEdgeGateShadowStopReason, SentenceRecoveryMetrics,
-        TextSpan,
+        SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
+        SentenceEdgeGateShadowStopReason, SentenceRecoveryMetrics, TextSpan,
     },
     layout::BlockRole,
     model::Document,
@@ -540,6 +540,14 @@ pub struct SentenceRecoveryMetricsReport {
     pub near_cross_span_work: NearSearchScopeMetricsReport,
     pub known_span_sentence_shadow: Option<KnownSpanSentenceShadowMetricsReport>,
     pub sentence_edge_gate_shadow: Option<SentenceEdgeGateShadowMetricsReport>,
+    pub sentence_edge_filter_complete: bool,
+    pub sentence_edge_filter_pairs_examined: usize,
+    pub sentence_edge_filter_pairs_attempted: usize,
+    pub sentence_edge_filter_similarity_comparisons_examined: usize,
+    pub sentence_edge_filter_similarity_comparisons_attempted: usize,
+    pub sentence_edge_filter_pairs_retained: usize,
+    pub sentence_edge_filter_pairs_rejected: usize,
+    pub sentence_edge_filter_stop_reason: Option<SentenceEdgeFilterStopReasonReport>,
     pub near_pair_visits_examined: usize,
     pub near_pair_visits_attempted: usize,
     pub near_similarity_comparisons_examined: usize,
@@ -734,6 +742,28 @@ pub enum SentenceEdgeGateShadowStopReasonReport {
     AllocationFailure,
     CounterOverflow,
     DiagnosticFailure,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SentenceEdgeFilterStopReasonReport {
+    PairVisitLimit,
+    SimilarityComparisonLimit,
+    AllocationFailure,
+    CounterOverflow,
+}
+
+impl From<SentenceEdgeFilterStopReason> for SentenceEdgeFilterStopReasonReport {
+    fn from(reason: SentenceEdgeFilterStopReason) -> Self {
+        match reason {
+            SentenceEdgeFilterStopReason::PairVisitLimit => Self::PairVisitLimit,
+            SentenceEdgeFilterStopReason::SimilarityComparisonLimit => {
+                Self::SimilarityComparisonLimit
+            }
+            SentenceEdgeFilterStopReason::AllocationFailure => Self::AllocationFailure,
+            SentenceEdgeFilterStopReason::CounterOverflow => Self::CounterOverflow,
+        }
+    }
 }
 
 impl From<SentenceEdgeGateShadowStopReason> for SentenceEdgeGateShadowStopReasonReport {
@@ -1170,6 +1200,18 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             near_cross_span_work: metrics.near_cross_span_work.into(),
             known_span_sentence_shadow: metrics.known_span_sentence_shadow.map(Into::into),
             sentence_edge_gate_shadow: metrics.sentence_edge_gate_shadow.map(Into::into),
+            sentence_edge_filter_complete: metrics.sentence_edge_filter_complete,
+            sentence_edge_filter_pairs_examined: metrics.sentence_edge_filter_pairs_examined,
+            sentence_edge_filter_pairs_attempted: metrics.sentence_edge_filter_pairs_attempted,
+            sentence_edge_filter_similarity_comparisons_examined: metrics
+                .sentence_edge_filter_similarity_comparisons_examined,
+            sentence_edge_filter_similarity_comparisons_attempted: metrics
+                .sentence_edge_filter_similarity_comparisons_attempted,
+            sentence_edge_filter_pairs_retained: metrics.sentence_edge_filter_pairs_retained,
+            sentence_edge_filter_pairs_rejected: metrics.sentence_edge_filter_pairs_rejected,
+            sentence_edge_filter_stop_reason: metrics
+                .sentence_edge_filter_stop_reason
+                .map(Into::into),
             near_pair_visits_examined: metrics.near_pair_visits_examined,
             near_pair_visits_attempted: metrics.near_pair_visits_attempted,
             near_similarity_comparisons_examined: metrics.near_similarity_comparisons_examined,
@@ -3221,6 +3263,7 @@ fn validate_sentence_recovery_metrics(
     validate_near_search_work_metrics(metrics)?;
     validate_known_span_sentence_shadow_metrics(metrics)?;
     validate_sentence_edge_gate_shadow_metrics(metrics)?;
+    validate_sentence_edge_filter_metrics(metrics)?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
             "examined near pair visits {} exceed attempted visits {}",
@@ -3347,6 +3390,93 @@ fn validate_sentence_recovery_metrics(
         .checked_add(metrics.unresolved_remainder_new_source_tokens)
         .ok_or_else(|| "new eligible source token counters overflow".to_owned())?;
     Ok(metrics.into())
+}
+
+fn validate_sentence_edge_filter_metrics(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<(), String> {
+    if metrics.sentence_edge_filter_pairs_examined > metrics.sentence_edge_filter_pairs_attempted {
+        return Err(format!(
+            "examined sentence-edge filter pairs {} exceed attempted pairs {}",
+            metrics.sentence_edge_filter_pairs_examined,
+            metrics.sentence_edge_filter_pairs_attempted
+        ));
+    }
+    if metrics.sentence_edge_filter_similarity_comparisons_examined
+        > metrics.sentence_edge_filter_similarity_comparisons_attempted
+    {
+        return Err(format!(
+            "examined sentence-edge filter similarity comparisons {} exceed attempted comparisons {}",
+            metrics.sentence_edge_filter_similarity_comparisons_examined,
+            metrics.sentence_edge_filter_similarity_comparisons_attempted
+        ));
+    }
+    let classified_pairs = metrics
+        .sentence_edge_filter_pairs_retained
+        .checked_add(metrics.sentence_edge_filter_pairs_rejected)
+        .ok_or_else(|| "sentence-edge filter classified pair counters overflow".to_owned())?;
+    if classified_pairs > metrics.sentence_edge_filter_pairs_examined {
+        return Err("sentence-edge filter classified pairs exceed examined pairs".to_owned());
+    }
+    if metrics.sentence_edge_filter_complete != metrics.sentence_edge_filter_stop_reason.is_none() {
+        return Err("sentence-edge filter completeness contradicts stop reason".to_owned());
+    }
+    if metrics.sentence_edge_filter_complete {
+        if classified_pairs != metrics.sentence_edge_filter_pairs_examined {
+            return Err("complete sentence-edge filter has unclassified examined pairs".to_owned());
+        }
+        if metrics.sentence_edge_filter_pairs_examined
+            != metrics.sentence_edge_filter_pairs_attempted
+            || metrics.sentence_edge_filter_similarity_comparisons_examined
+                != metrics.sentence_edge_filter_similarity_comparisons_attempted
+        {
+            return Err("complete sentence-edge filter has failed work attempts".to_owned());
+        }
+        return Ok(());
+    }
+    match metrics.sentence_edge_filter_stop_reason {
+        Some(SentenceEdgeFilterStopReason::PairVisitLimit) => {
+            if metrics.sentence_edge_filter_pairs_examined.checked_add(1)
+                != Some(metrics.sentence_edge_filter_pairs_attempted)
+                || metrics.sentence_edge_filter_similarity_comparisons_examined
+                    != metrics.sentence_edge_filter_similarity_comparisons_attempted
+            {
+                return Err(
+                    "sentence-edge filter pair limit does not explain attempted work".to_owned(),
+                );
+            }
+        }
+        Some(SentenceEdgeFilterStopReason::SimilarityComparisonLimit) => {
+            if metrics
+                .sentence_edge_filter_similarity_comparisons_examined
+                .checked_add(1)
+                != Some(metrics.sentence_edge_filter_similarity_comparisons_attempted)
+                || metrics.sentence_edge_filter_pairs_examined
+                    != metrics.sentence_edge_filter_pairs_attempted
+            {
+                return Err(
+                    "sentence-edge filter comparison limit does not explain attempted work"
+                        .to_owned(),
+                );
+            }
+        }
+        Some(
+            SentenceEdgeFilterStopReason::AllocationFailure
+            | SentenceEdgeFilterStopReason::CounterOverflow,
+        ) => {
+            if metrics.sentence_edge_filter_pairs_examined
+                != metrics.sentence_edge_filter_pairs_attempted
+                || metrics.sentence_edge_filter_similarity_comparisons_examined
+                    != metrics.sentence_edge_filter_similarity_comparisons_attempted
+            {
+                return Err(
+                    "sentence-edge filter non-limit stop has failed work attempts".to_owned(),
+                );
+            }
+        }
+        None => unreachable!("completeness validation requires an incomplete stop reason"),
+    }
+    Ok(())
 }
 
 fn validate_known_span_sentence_shadow_metrics(
@@ -4171,7 +4301,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 24;
+    pub const SCHEMA_VERSION: u32 = 25;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -5435,7 +5565,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 24);
+        assert_eq!(completed["schema_version"], 25);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -5478,7 +5608,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 24);
+        assert_eq!(legacy_summary["schema_version"], 25);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -6469,6 +6599,7 @@ mod tests {
                     complete: true,
                     ..SentenceEdgeGateShadowMetricsReport::default()
                 }),
+                sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetricsReport::default()
             })
         );
@@ -6671,7 +6802,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 24);
+        assert_eq!(json["schema_version"], 25);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -6680,9 +6811,16 @@ mod tests {
 
     #[test]
     fn validates_zero_and_populated_sentence_recovery_metrics() {
+        let empty = SentenceRecoveryMetrics {
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
         assert_eq!(
-            validate_sentence_recovery_metrics(SentenceRecoveryMetrics::default()),
-            Ok(SentenceRecoveryMetricsReport::default())
+            validate_sentence_recovery_metrics(empty),
+            Ok(SentenceRecoveryMetricsReport {
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetricsReport::default()
+            })
         );
 
         let populated = SentenceRecoveryMetrics {
@@ -6781,6 +6919,7 @@ mod tests {
             recovered_insertion_tokens: 6,
             unresolved_remainder_old_source_tokens: 15,
             unresolved_remainder_new_source_tokens: 22,
+            sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         };
         let validated = validate_sentence_recovery_metrics(populated)
@@ -6812,6 +6951,7 @@ mod tests {
             run_signature_token_verifications_examined: 2,
             run_signature_candidate_pairs: 1,
             run_signature_stop_reason: Some(RunSignatureStopReason::CandidatePairLimit),
+            sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         };
         let validated = validate_sentence_recovery_metrics(candidate_stop)
@@ -7008,6 +7148,7 @@ mod tests {
                 sentence_work: shared_query_work,
                 ..NearSearchScopeMetrics::default()
             },
+            sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         };
         assert!(validate_sentence_recovery_metrics(valid_shared_query_subscope).is_ok());
@@ -7105,6 +7246,7 @@ mod tests {
                 ..NearSearchScopeMetrics::default()
             },
             near_relation_stop_reason: Some(NearRelationStopReason::CandidatePostingVisitLimit),
+            sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         };
         let validated = validate_sentence_recovery_metrics(incomplete_posting_stop)
@@ -7144,6 +7286,7 @@ mod tests {
                 },
                 ..NearSearchScopeMetrics::default()
             },
+            sentence_edge_filter_complete: true,
             near_relation_stop_reason: Some(NearRelationStopReason::PairVisitLimit),
             ..SentenceRecoveryMetrics::default()
         };
@@ -7170,6 +7313,7 @@ mod tests {
                 },
                 ..NearSearchScopeMetrics::default()
             },
+            sentence_edge_filter_complete: true,
             near_relation_stop_reason: Some(NearRelationStopReason::SimilarityComparisonLimit),
             ..SentenceRecoveryMetrics::default()
         };
@@ -7202,6 +7346,7 @@ mod tests {
                 },
                 ..NearSearchScopeMetrics::default()
             },
+            sentence_edge_filter_complete: true,
             near_candidate_count_truncated: true,
             near_relation_stop_reason: Some(NearRelationStopReason::CandidateCountLimit),
             ..SentenceRecoveryMetrics::default()
@@ -7237,6 +7382,7 @@ mod tests {
                 },
                 ..NearSearchScopeMetrics::default()
             },
+            sentence_edge_filter_complete: true,
             near_relation_stop_reason: Some(NearRelationStopReason::PairVisitLimit),
             ..SentenceRecoveryMetrics::default()
         };
@@ -7265,6 +7411,7 @@ mod tests {
                 },
                 ..NearSearchScopeMetrics::default()
             },
+            sentence_edge_filter_complete: true,
             near_relation_stop_reason: Some(NearRelationStopReason::SimilarityComparisonLimit),
             ..SentenceRecoveryMetrics::default()
         };
@@ -7369,6 +7516,7 @@ mod tests {
                 exact_relation_parity: true,
                 ..KnownSpanSentenceShadowMetrics::default()
             }),
+            sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         };
         let report = validate_sentence_recovery_metrics(valid).expect("valid shadow metrics pass");
@@ -7494,6 +7642,7 @@ mod tests {
                 threshold_violations: 1,
                 ..SentenceEdgeGateShadowMetrics::default()
             }),
+            sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         };
         assert!(validate_sentence_recovery_metrics(valid).is_ok());
@@ -7542,6 +7691,7 @@ mod tests {
                 stop_reason: Some(SentenceEdgeGateShadowStopReason::CounterOverflow),
                 ..SentenceEdgeGateShadowMetrics::default()
             }),
+            sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         };
         assert!(validate_sentence_recovery_metrics(incomplete).is_ok());
@@ -7577,6 +7727,177 @@ mod tests {
             (
                 SentenceEdgeGateShadowStopReasonReport::DiagnosticFailure,
                 "diagnostic_failure",
+            ),
+        ] {
+            assert_eq!(
+                serde_json::to_value(reason).expect("stop reason serializes"),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn converts_and_validates_sentence_edge_filter_metrics() {
+        let valid = SentenceRecoveryMetrics {
+            sentence_edge_filter_complete: true,
+            sentence_edge_filter_pairs_examined: 4,
+            sentence_edge_filter_pairs_attempted: 4,
+            sentence_edge_filter_similarity_comparisons_examined: 3,
+            sentence_edge_filter_similarity_comparisons_attempted: 3,
+            sentence_edge_filter_pairs_retained: 1,
+            sentence_edge_filter_pairs_rejected: 3,
+            ..SentenceRecoveryMetrics::default()
+        };
+        let report = validate_sentence_recovery_metrics(valid).expect("filter metrics are valid");
+        assert!(report.sentence_edge_filter_complete);
+        assert_eq!(report.sentence_edge_filter_pairs_examined, 4);
+        assert_eq!(report.sentence_edge_filter_pairs_attempted, 4);
+        assert_eq!(
+            report.sentence_edge_filter_similarity_comparisons_examined,
+            3
+        );
+        assert_eq!(
+            report.sentence_edge_filter_similarity_comparisons_attempted,
+            3
+        );
+        assert_eq!(report.sentence_edge_filter_pairs_retained, 1);
+        assert_eq!(report.sentence_edge_filter_pairs_rejected, 3);
+        assert_eq!(report.sentence_edge_filter_stop_reason, None);
+
+        for incomplete in [
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_pairs_examined: 2,
+                sentence_edge_filter_pairs_attempted: 3,
+                sentence_edge_filter_similarity_comparisons_examined: 1,
+                sentence_edge_filter_similarity_comparisons_attempted: 1,
+                sentence_edge_filter_pairs_retained: 1,
+                sentence_edge_filter_stop_reason: Some(
+                    SentenceEdgeFilterStopReason::PairVisitLimit,
+                ),
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_pairs_examined: 2,
+                sentence_edge_filter_pairs_attempted: 2,
+                sentence_edge_filter_similarity_comparisons_examined: 1,
+                sentence_edge_filter_similarity_comparisons_attempted: 2,
+                sentence_edge_filter_stop_reason: Some(
+                    SentenceEdgeFilterStopReason::SimilarityComparisonLimit,
+                ),
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_pairs_examined: 2,
+                sentence_edge_filter_pairs_attempted: 2,
+                sentence_edge_filter_similarity_comparisons_examined: 1,
+                sentence_edge_filter_similarity_comparisons_attempted: 1,
+                sentence_edge_filter_pairs_retained: 1,
+                sentence_edge_filter_pairs_rejected: 1,
+                sentence_edge_filter_stop_reason: Some(
+                    SentenceEdgeFilterStopReason::AllocationFailure,
+                ),
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_stop_reason: Some(
+                    SentenceEdgeFilterStopReason::CounterOverflow,
+                ),
+                ..SentenceRecoveryMetrics::default()
+            },
+        ] {
+            assert!(validate_sentence_recovery_metrics(incomplete).is_ok());
+        }
+
+        for invalid in [
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_complete: true,
+                sentence_edge_filter_pairs_examined: 2,
+                sentence_edge_filter_pairs_attempted: 1,
+                sentence_edge_filter_pairs_retained: 2,
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_complete: true,
+                sentence_edge_filter_similarity_comparisons_examined: 2,
+                sentence_edge_filter_similarity_comparisons_attempted: 1,
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_complete: true,
+                sentence_edge_filter_pairs_examined: 2,
+                sentence_edge_filter_pairs_retained: 1,
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_complete: false,
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_complete: true,
+                sentence_edge_filter_stop_reason: Some(
+                    SentenceEdgeFilterStopReason::AllocationFailure,
+                ),
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_pairs_examined: 2,
+                sentence_edge_filter_pairs_attempted: 2,
+                sentence_edge_filter_similarity_comparisons_examined: 1,
+                sentence_edge_filter_similarity_comparisons_attempted: 2,
+                sentence_edge_filter_stop_reason: Some(
+                    SentenceEdgeFilterStopReason::PairVisitLimit,
+                ),
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_pairs_examined: 2,
+                sentence_edge_filter_pairs_attempted: 3,
+                sentence_edge_filter_similarity_comparisons_examined: 1,
+                sentence_edge_filter_similarity_comparisons_attempted: 1,
+                sentence_edge_filter_stop_reason: Some(
+                    SentenceEdgeFilterStopReason::SimilarityComparisonLimit,
+                ),
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_pairs_examined: 2,
+                sentence_edge_filter_pairs_attempted: 3,
+                sentence_edge_filter_stop_reason: Some(
+                    SentenceEdgeFilterStopReason::AllocationFailure,
+                ),
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_similarity_comparisons_examined: 1,
+                sentence_edge_filter_similarity_comparisons_attempted: 2,
+                sentence_edge_filter_stop_reason: Some(
+                    SentenceEdgeFilterStopReason::CounterOverflow,
+                ),
+                ..SentenceRecoveryMetrics::default()
+            },
+        ] {
+            assert!(validate_sentence_recovery_metrics(invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn serializes_sentence_edge_filter_stop_reasons_as_snake_case() {
+        for (reason, expected) in [
+            (
+                SentenceEdgeFilterStopReasonReport::PairVisitLimit,
+                "pair_visit_limit",
+            ),
+            (
+                SentenceEdgeFilterStopReasonReport::SimilarityComparisonLimit,
+                "similarity_comparison_limit",
+            ),
+            (
+                SentenceEdgeFilterStopReasonReport::AllocationFailure,
+                "allocation_failure",
+            ),
+            (
+                SentenceEdgeFilterStopReasonReport::CounterOverflow,
+                "counter_overflow",
             ),
         ] {
             assert_eq!(
@@ -7932,6 +8253,16 @@ mod tests {
                         rejected_max_production_score: 2_999,
                         ..SentenceEdgeGateShadowMetricsReport::default()
                     }),
+                    sentence_edge_filter_complete: false,
+                    sentence_edge_filter_pairs_examined: 2,
+                    sentence_edge_filter_pairs_attempted: 3,
+                    sentence_edge_filter_similarity_comparisons_examined: 1,
+                    sentence_edge_filter_similarity_comparisons_attempted: 2,
+                    sentence_edge_filter_pairs_retained: 1,
+                    sentence_edge_filter_pairs_rejected: 1,
+                    sentence_edge_filter_stop_reason: Some(
+                        SentenceEdgeFilterStopReasonReport::PairVisitLimit,
+                    ),
                     near_pair_candidates: 3,
                     vetoed_near_pairs: 2,
                     recovered_deletion_tokens: 18,
@@ -8046,7 +8377,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 24);
+        assert_eq!(value["schema_version"], 25);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -8173,6 +8504,14 @@ mod tests {
             "near_cross_span_work".to_owned(),
             "known_span_sentence_shadow".to_owned(),
             "sentence_edge_gate_shadow".to_owned(),
+            "sentence_edge_filter_complete".to_owned(),
+            "sentence_edge_filter_pairs_examined".to_owned(),
+            "sentence_edge_filter_pairs_attempted".to_owned(),
+            "sentence_edge_filter_similarity_comparisons_examined".to_owned(),
+            "sentence_edge_filter_similarity_comparisons_attempted".to_owned(),
+            "sentence_edge_filter_pairs_retained".to_owned(),
+            "sentence_edge_filter_pairs_rejected".to_owned(),
+            "sentence_edge_filter_stop_reason".to_owned(),
             "near_pair_visits_examined".to_owned(),
             "near_pair_visits_attempted".to_owned(),
             "near_similarity_comparisons_examined".to_owned(),
@@ -8230,6 +8569,10 @@ mod tests {
                 .cloned()
                 .collect::<HashSet<_>>();
         assert_eq!(edge_gate_shadow_keys, expected_edge_gate_shadow_keys);
+        assert_eq!(
+            records[0]["sentence_recovery_metrics"]["sentence_edge_filter_stop_reason"],
+            "pair_visit_limit"
+        );
         assert_eq!(
             records[0]["sentence_recovery_metrics"]["near_sentence_work"],
             serde_json::to_value(NearSearchWorkMetricsReport::default())

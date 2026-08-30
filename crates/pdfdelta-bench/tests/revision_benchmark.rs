@@ -773,7 +773,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 24);
+    assert_eq!(val["schema_version"], 25);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 
@@ -794,6 +794,22 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert_eq!(
         rec["sentence_recovery_metrics"]["near_relation_complete"],
         true
+    );
+    assert_eq!(
+        rec["sentence_recovery_metrics"]["sentence_edge_filter_complete"],
+        true
+    );
+    assert_eq!(
+        rec["sentence_recovery_metrics"]["sentence_edge_filter_pairs_examined"],
+        rec["sentence_recovery_metrics"]["sentence_edge_filter_pairs_attempted"]
+    );
+    assert_eq!(
+        rec["sentence_recovery_metrics"]["sentence_edge_filter_similarity_comparisons_examined"],
+        rec["sentence_recovery_metrics"]["sentence_edge_filter_similarity_comparisons_attempted"]
+    );
+    assert_eq!(
+        rec["sentence_recovery_metrics"]["sentence_edge_filter_stop_reason"],
+        serde_json::Value::Null
     );
     assert!(rec["sentence_recovery_metrics"]["near_sentence_work"].is_object());
     assert!(rec["sentence_recovery_metrics"]["near_line_work"].is_object());
