@@ -438,6 +438,13 @@ pub struct NearSearchWorkMetrics {
     pub similarity_comparisons_attempted: usize,
 }
 
+/// Constant-space near-search work attributed by recovery unit kind.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NearSearchScopeMetrics {
+    pub sentence_work: NearSearchWorkMetrics,
+    pub line_work: NearSearchWorkMetrics,
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -494,6 +501,10 @@ pub struct SentenceRecoveryMetrics {
     pub near_candidate_posting_visits_attempted: usize,
     pub near_sentence_work: NearSearchWorkMetrics,
     pub near_line_work: NearSearchWorkMetrics,
+    pub near_paired_interval_work: NearSearchScopeMetrics,
+    pub near_paired_cross_interval_veto_work: NearSearchScopeMetrics,
+    pub near_same_or_ambiguous_span_work: NearSearchScopeMetrics,
+    pub near_cross_span_work: NearSearchScopeMetrics,
     pub near_largest_edge_posting: usize,
     pub near_largest_edge_query_union: usize,
     pub near_largest_filtered_candidate_set: usize,

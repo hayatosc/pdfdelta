@@ -773,7 +773,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 18);
+    assert_eq!(val["schema_version"], 19);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 
@@ -797,6 +797,16 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     );
     assert!(rec["sentence_recovery_metrics"]["near_sentence_work"].is_object());
     assert!(rec["sentence_recovery_metrics"]["near_line_work"].is_object());
+    for scope in [
+        "near_paired_interval_work",
+        "near_paired_cross_interval_veto_work",
+        "near_same_or_ambiguous_span_work",
+        "near_cross_span_work",
+    ] {
+        assert!(rec["sentence_recovery_metrics"][scope].is_object());
+        assert!(rec["sentence_recovery_metrics"][scope]["sentence_work"].is_object());
+        assert!(rec["sentence_recovery_metrics"][scope]["line_work"].is_object());
+    }
     assert_eq!(
         rec["sentence_recovery_metrics"]["near_sentence_work"]["line_trigram_posting_visits_examined"],
         0

@@ -22,12 +22,13 @@ use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
         ChangeKind, Comparison, ExactSegmentRelation, NearRelationStopReason,
-        NearSearchWorkMetrics, RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence,
-        RecoveryWatchGranularRelation, RecoveryWatchGranularStopReason,
-        RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope, RecoveryWatchOccurrence,
-        RecoveryWatchOccurrenceEvidence, RecoveryWatchPairEvidence, RecoveryWatchQuery,
-        RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence, RecoveryWatchUnitKind,
-        RunSignatureStopReason, SegmentStopReason, SentenceRecoveryMetrics, TextSpan,
+        NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
+        RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
+        RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
+        RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence, RecoveryWatchPairEvidence,
+        RecoveryWatchQuery, RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
+        RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason, SentenceRecoveryMetrics,
+        TextSpan,
     },
     layout::BlockRole,
     model::Document,
@@ -527,6 +528,10 @@ pub struct SentenceRecoveryMetricsReport {
     pub near_relation_complete: bool,
     pub near_sentence_work: NearSearchWorkMetricsReport,
     pub near_line_work: NearSearchWorkMetricsReport,
+    pub near_paired_interval_work: NearSearchScopeMetricsReport,
+    pub near_paired_cross_interval_veto_work: NearSearchScopeMetricsReport,
+    pub near_same_or_ambiguous_span_work: NearSearchScopeMetricsReport,
+    pub near_cross_span_work: NearSearchScopeMetricsReport,
     pub near_pair_visits_examined: usize,
     pub near_pair_visits_attempted: usize,
     pub near_similarity_comparisons_examined: usize,
@@ -580,6 +585,21 @@ impl From<NearSearchWorkMetrics> for NearSearchWorkMetricsReport {
             pair_visits_attempted: metrics.pair_visits_attempted,
             similarity_comparisons_examined: metrics.similarity_comparisons_examined,
             similarity_comparisons_attempted: metrics.similarity_comparisons_attempted,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct NearSearchScopeMetricsReport {
+    pub sentence_work: NearSearchWorkMetricsReport,
+    pub line_work: NearSearchWorkMetricsReport,
+}
+
+impl From<NearSearchScopeMetrics> for NearSearchScopeMetricsReport {
+    fn from(metrics: NearSearchScopeMetrics) -> Self {
+        Self {
+            sentence_work: metrics.sentence_work.into(),
+            line_work: metrics.line_work.into(),
         }
     }
 }
@@ -999,6 +1019,12 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             near_relation_complete: metrics.near_relation_complete,
             near_sentence_work: metrics.near_sentence_work.into(),
             near_line_work: metrics.near_line_work.into(),
+            near_paired_interval_work: metrics.near_paired_interval_work.into(),
+            near_paired_cross_interval_veto_work: metrics
+                .near_paired_cross_interval_veto_work
+                .into(),
+            near_same_or_ambiguous_span_work: metrics.near_same_or_ambiguous_span_work.into(),
+            near_cross_span_work: metrics.near_cross_span_work.into(),
             near_pair_visits_examined: metrics.near_pair_visits_examined,
             near_pair_visits_attempted: metrics.near_pair_visits_attempted,
             near_similarity_comparisons_examined: metrics.near_similarity_comparisons_examined,
@@ -3162,35 +3188,36 @@ fn validate_sentence_recovery_metrics(
 fn validate_near_search_work_metrics(
     metrics: SentenceRecoveryMetrics,
 ) -> std::result::Result<(), String> {
-    for (kind, work) in [
-        ("sentence", metrics.near_sentence_work),
-        ("line", metrics.near_line_work),
+    for (kind, work, allow_line_trigram) in [
+        ("sentence", metrics.near_sentence_work, false),
+        ("line", metrics.near_line_work, true),
     ] {
-        if work.edge_posting_visits_examined > work.edge_posting_visits_attempted
-            || work.line_trigram_posting_visits_examined
-                > work.line_trigram_posting_visits_attempted
-            || work.pair_visits_examined > work.pair_visits_attempted
-            || work.similarity_comparisons_examined > work.similarity_comparisons_attempted
-        {
-            return Err(format!(
-                "{kind} near-search examined work exceeds attempted work"
-            ));
-        }
+        validate_near_search_work_entry(kind, work, allow_line_trigram)?;
     }
-    if metrics
-        .near_sentence_work
-        .line_trigram_posting_visits_examined
-        != 0
-        || metrics
-            .near_sentence_work
-            .line_trigram_posting_visits_attempted
-            != 0
-        || metrics
-            .near_sentence_work
-            .line_trigram_only_query_union_candidates
-            != 0
+
+    let scopes = [
+        ("paired interval", metrics.near_paired_interval_work),
+        (
+            "paired cross-interval veto",
+            metrics.near_paired_cross_interval_veto_work,
+        ),
+        (
+            "same or ambiguous span",
+            metrics.near_same_or_ambiguous_span_work,
+        ),
+        ("cross span", metrics.near_cross_span_work),
+    ];
+    for (scope, work) in scopes {
+        validate_near_search_work_entry(&format!("{scope} sentence"), work.sentence_work, false)?;
+        validate_near_search_work_entry(&format!("{scope} line"), work.line_work, true)?;
+    }
+    let sentence_scope_sum =
+        sum_near_search_work_metrics(scopes.map(|(_, work)| work.sentence_work), "sentence scope")?;
+    let line_scope_sum =
+        sum_near_search_work_metrics(scopes.map(|(_, work)| work.line_work), "line scope")?;
+    if sentence_scope_sum != metrics.near_sentence_work || line_scope_sum != metrics.near_line_work
     {
-        return Err("sentence near-search has line-trigram work".to_owned());
+        return Err("near-search scope counters disagree with kind counters".to_owned());
     }
 
     let sum = |values: [usize; 2], label: &str| {
@@ -3258,6 +3285,81 @@ fn validate_near_search_work_metrics(
         return Err("near-search kind counters disagree with aggregate counters".to_owned());
     }
     Ok(())
+}
+
+fn validate_near_search_work_entry(
+    label: &str,
+    work: NearSearchWorkMetrics,
+    allow_line_trigram: bool,
+) -> std::result::Result<(), String> {
+    if work.edge_posting_visits_examined > work.edge_posting_visits_attempted
+        || work.line_trigram_posting_visits_examined > work.line_trigram_posting_visits_attempted
+        || work.pair_visits_examined > work.pair_visits_attempted
+        || work.similarity_comparisons_examined > work.similarity_comparisons_attempted
+    {
+        return Err(format!(
+            "{label} near-search examined work exceeds attempted work"
+        ));
+    }
+    if !allow_line_trigram
+        && (work.line_trigram_posting_visits_examined != 0
+            || work.line_trigram_posting_visits_attempted != 0
+            || work.line_trigram_only_query_union_candidates != 0)
+    {
+        return Err(format!("{label} near-search has line-trigram work"));
+    }
+    Ok(())
+}
+
+fn sum_near_search_work_metrics<const N: usize>(
+    metrics: [NearSearchWorkMetrics; N],
+    label: &str,
+) -> std::result::Result<NearSearchWorkMetrics, String> {
+    metrics
+        .into_iter()
+        .try_fold(NearSearchWorkMetrics::default(), |sum, work| {
+            let add = |left: usize, right: usize| {
+                left.checked_add(right)
+                    .ok_or_else(|| format!("near-search {label} counters overflow"))
+            };
+            Ok(NearSearchWorkMetrics {
+                edge_posting_visits_examined: add(
+                    sum.edge_posting_visits_examined,
+                    work.edge_posting_visits_examined,
+                )?,
+                edge_posting_visits_attempted: add(
+                    sum.edge_posting_visits_attempted,
+                    work.edge_posting_visits_attempted,
+                )?,
+                line_trigram_posting_visits_examined: add(
+                    sum.line_trigram_posting_visits_examined,
+                    work.line_trigram_posting_visits_examined,
+                )?,
+                line_trigram_posting_visits_attempted: add(
+                    sum.line_trigram_posting_visits_attempted,
+                    work.line_trigram_posting_visits_attempted,
+                )?,
+                edge_query_union_candidates: add(
+                    sum.edge_query_union_candidates,
+                    work.edge_query_union_candidates,
+                )?,
+                line_trigram_only_query_union_candidates: add(
+                    sum.line_trigram_only_query_union_candidates,
+                    work.line_trigram_only_query_union_candidates,
+                )?,
+                filtered_candidates: add(sum.filtered_candidates, work.filtered_candidates)?,
+                pair_visits_examined: add(sum.pair_visits_examined, work.pair_visits_examined)?,
+                pair_visits_attempted: add(sum.pair_visits_attempted, work.pair_visits_attempted)?,
+                similarity_comparisons_examined: add(
+                    sum.similarity_comparisons_examined,
+                    work.similarity_comparisons_examined,
+                )?,
+                similarity_comparisons_attempted: add(
+                    sum.similarity_comparisons_attempted,
+                    work.similarity_comparisons_attempted,
+                )?,
+            })
+        })
 }
 
 fn validate_structural_pairing_metrics(
@@ -3807,7 +3909,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 18;
+    pub const SCHEMA_VERSION: u32 = 19;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -5071,7 +5173,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 18);
+        assert_eq!(completed["schema_version"], 19);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -5114,7 +5216,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 18);
+        assert_eq!(legacy_summary["schema_version"], 19);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -6303,7 +6405,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 18);
+        assert_eq!(json["schema_version"], 19);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -6375,6 +6477,28 @@ mod tests {
                 similarity_comparisons_examined: 5,
                 similarity_comparisons_attempted: 5,
                 ..NearSearchWorkMetrics::default()
+            },
+            near_paired_interval_work: NearSearchScopeMetrics {
+                sentence_work: NearSearchWorkMetrics {
+                    edge_posting_visits_examined: 6,
+                    edge_posting_visits_attempted: 6,
+                    pair_visits_examined: 12,
+                    pair_visits_attempted: 12,
+                    similarity_comparisons_examined: 3,
+                    similarity_comparisons_attempted: 3,
+                    ..NearSearchWorkMetrics::default()
+                },
+                line_work: NearSearchWorkMetrics {
+                    edge_posting_visits_examined: 3,
+                    edge_posting_visits_attempted: 3,
+                    line_trigram_posting_visits_examined: 5,
+                    line_trigram_posting_visits_attempted: 5,
+                    pair_visits_examined: 8,
+                    pair_visits_attempted: 8,
+                    similarity_comparisons_examined: 5,
+                    similarity_comparisons_attempted: 5,
+                    ..NearSearchWorkMetrics::default()
+                },
             },
             near_largest_edge_posting: 12,
             near_largest_edge_query_union: 9,
@@ -6548,6 +6672,27 @@ mod tests {
         };
         assert!(validate_sentence_recovery_metrics(mismatched_kind_sum).is_err());
 
+        let mismatched_scope_sum = SentenceRecoveryMetrics {
+            near_sentence_work: NearSearchWorkMetrics {
+                filtered_candidates: 1,
+                ..NearSearchWorkMetrics::default()
+            },
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(mismatched_scope_sum).is_err());
+
+        let scope_sentence_trigram_work = SentenceRecoveryMetrics {
+            near_paired_interval_work: NearSearchScopeMetrics {
+                sentence_work: NearSearchWorkMetrics {
+                    line_trigram_only_query_union_candidates: 1,
+                    ..NearSearchWorkMetrics::default()
+                },
+                ..NearSearchScopeMetrics::default()
+            },
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(scope_sentence_trigram_work).is_err());
+
         let examined_more_pairs_than_attempted = SentenceRecoveryMetrics {
             near_pair_visits_examined: 2,
             near_pair_visits_attempted: 1,
@@ -6620,6 +6765,14 @@ mod tests {
                 edge_posting_visits_attempted: 7,
                 ..NearSearchWorkMetrics::default()
             },
+            near_paired_interval_work: NearSearchScopeMetrics {
+                line_work: NearSearchWorkMetrics {
+                    edge_posting_visits_examined: 6,
+                    edge_posting_visits_attempted: 7,
+                    ..NearSearchWorkMetrics::default()
+                },
+                ..NearSearchScopeMetrics::default()
+            },
             near_relation_stop_reason: Some(NearRelationStopReason::CandidatePostingVisitLimit),
             ..SentenceRecoveryMetrics::default()
         };
@@ -6652,6 +6805,14 @@ mod tests {
                 pair_visits_attempted: 5,
                 ..NearSearchWorkMetrics::default()
             },
+            near_paired_interval_work: NearSearchScopeMetrics {
+                sentence_work: NearSearchWorkMetrics {
+                    pair_visits_examined: 4,
+                    pair_visits_attempted: 5,
+                    ..NearSearchWorkMetrics::default()
+                },
+                ..NearSearchScopeMetrics::default()
+            },
             near_relation_stop_reason: Some(NearRelationStopReason::PairVisitLimit),
             ..SentenceRecoveryMetrics::default()
         };
@@ -6669,6 +6830,14 @@ mod tests {
                 similarity_comparisons_examined: 6,
                 similarity_comparisons_attempted: 7,
                 ..NearSearchWorkMetrics::default()
+            },
+            near_paired_interval_work: NearSearchScopeMetrics {
+                sentence_work: NearSearchWorkMetrics {
+                    similarity_comparisons_examined: 6,
+                    similarity_comparisons_attempted: 7,
+                    ..NearSearchWorkMetrics::default()
+                },
+                ..NearSearchScopeMetrics::default()
             },
             near_relation_stop_reason: Some(NearRelationStopReason::SimilarityComparisonLimit),
             ..SentenceRecoveryMetrics::default()
@@ -6691,6 +6860,16 @@ mod tests {
                 similarity_comparisons_examined: 2,
                 similarity_comparisons_attempted: 2,
                 ..NearSearchWorkMetrics::default()
+            },
+            near_paired_interval_work: NearSearchScopeMetrics {
+                line_work: NearSearchWorkMetrics {
+                    pair_visits_examined: 4,
+                    pair_visits_attempted: 4,
+                    similarity_comparisons_examined: 2,
+                    similarity_comparisons_attempted: 2,
+                    ..NearSearchWorkMetrics::default()
+                },
+                ..NearSearchScopeMetrics::default()
             },
             near_candidate_count_truncated: true,
             near_relation_stop_reason: Some(NearRelationStopReason::CandidateCountLimit),
@@ -6717,6 +6896,16 @@ mod tests {
                 similarity_comparisons_attempted: 2,
                 ..NearSearchWorkMetrics::default()
             },
+            near_paired_interval_work: NearSearchScopeMetrics {
+                line_work: NearSearchWorkMetrics {
+                    pair_visits_examined: 4,
+                    pair_visits_attempted: 5,
+                    similarity_comparisons_examined: 2,
+                    similarity_comparisons_attempted: 2,
+                    ..NearSearchWorkMetrics::default()
+                },
+                ..NearSearchScopeMetrics::default()
+            },
             near_relation_stop_reason: Some(NearRelationStopReason::PairVisitLimit),
             ..SentenceRecoveryMetrics::default()
         };
@@ -6734,6 +6923,16 @@ mod tests {
                 similarity_comparisons_examined: 2,
                 similarity_comparisons_attempted: 3,
                 ..NearSearchWorkMetrics::default()
+            },
+            near_paired_interval_work: NearSearchScopeMetrics {
+                line_work: NearSearchWorkMetrics {
+                    pair_visits_examined: 4,
+                    pair_visits_attempted: 4,
+                    similarity_comparisons_examined: 2,
+                    similarity_comparisons_attempted: 3,
+                    ..NearSearchWorkMetrics::default()
+                },
+                ..NearSearchScopeMetrics::default()
             },
             near_relation_stop_reason: Some(NearRelationStopReason::SimilarityComparisonLimit),
             ..SentenceRecoveryMetrics::default()
@@ -7274,7 +7473,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 18);
+        assert_eq!(value["schema_version"], 19);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -7388,6 +7587,10 @@ mod tests {
             "near_relation_complete".to_owned(),
             "near_sentence_work".to_owned(),
             "near_line_work".to_owned(),
+            "near_paired_interval_work".to_owned(),
+            "near_paired_cross_interval_veto_work".to_owned(),
+            "near_same_or_ambiguous_span_work".to_owned(),
+            "near_cross_span_work".to_owned(),
             "near_pair_visits_examined".to_owned(),
             "near_pair_visits_attempted".to_owned(),
             "near_similarity_comparisons_examined".to_owned(),
@@ -7427,6 +7630,18 @@ mod tests {
             serde_json::to_value(NearSearchWorkMetricsReport::default())
                 .expect("near-search metrics serialize")
         );
+        for scope in [
+            "near_paired_interval_work",
+            "near_paired_cross_interval_veto_work",
+            "near_same_or_ambiguous_span_work",
+            "near_cross_span_work",
+        ] {
+            assert_eq!(
+                records[0]["sentence_recovery_metrics"][scope],
+                serde_json::to_value(NearSearchScopeMetricsReport::default())
+                    .expect("near-search scope metrics serialize")
+            );
+        }
 
         // Check truthfulness of values
         let ok_rec = &records[0];

@@ -612,7 +612,7 @@ fn writes_complete_phase_trace_separately_from_the_report() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let trace = read_json(&trace);
-    assert_eq!(trace["trace_schema_version"], 7);
+    assert_eq!(trace["trace_schema_version"], 8);
     assert_eq!(trace["command"]["kind"], "compare");
     assert_eq!(trace["result"]["status"], "completed");
     assert_eq!(trace["result"]["exit_code"], 0);
@@ -666,6 +666,48 @@ fn writes_complete_phase_trace_separately_from_the_report() {
             assert!(exact_diff["metrics"][&key].as_u64().is_some(), "{key}");
         }
     }
+    let scopes = [
+        "near_paired_interval_work",
+        "near_paired_cross_interval_veto_work",
+        "near_same_or_ambiguous_span_work",
+        "near_cross_span_work",
+    ];
+    let fields = [
+        "edge_posting_visits_examined",
+        "edge_posting_visits_attempted",
+        "line_trigram_posting_visits_examined",
+        "line_trigram_posting_visits_attempted",
+        "edge_query_union_candidates",
+        "line_trigram_only_query_union_candidates",
+        "filtered_candidates",
+        "pair_visits_examined",
+        "pair_visits_attempted",
+        "similarity_comparisons_examined",
+        "similarity_comparisons_attempted",
+    ];
+    let mut expected_scope_keys = scopes
+        .iter()
+        .flat_map(|scope| {
+            fields.iter().flat_map(move |field| {
+                ["sentence", "line"]
+                    .map(|kind| format!("sentence_recovery_{scope}_{kind}_work_{field}"))
+            })
+        })
+        .collect::<Vec<_>>();
+    expected_scope_keys.sort();
+    let mut actual_scope_keys = exact_diff["metrics"]
+        .as_object()
+        .expect("exact-diff metrics object")
+        .keys()
+        .filter(|key| {
+            scopes
+                .iter()
+                .any(|scope| key.starts_with(&format!("sentence_recovery_{scope}_")))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    actual_scope_keys.sort();
+    assert_eq!(actual_scope_keys, expected_scope_keys);
     assert_eq!(
         exact_diff["metrics"]["sentence_recovery_near_candidate_count_truncated"],
         0
