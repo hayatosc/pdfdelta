@@ -103,6 +103,7 @@ impl WordMultisetProbe for RelationFloorProbe {
     }
 }
 
+#[cfg(test)]
 pub(in crate::diff) fn sentence_similarity_in_scope(
     old: &SentenceOccurrence,
     new: &SentenceOccurrence,
@@ -112,6 +113,7 @@ pub(in crate::diff) fn sentence_similarity_in_scope(
     sentence_similarity_in_scope_attributed(old, new, budget, scope, NearSearchWorkClass::Shared)
 }
 
+#[cfg(test)]
 pub(in crate::diff) fn sentence_similarity_in_scope_attributed(
     old: &SentenceOccurrence,
     new: &SentenceOccurrence,
@@ -123,6 +125,7 @@ pub(in crate::diff) fn sentence_similarity_in_scope_attributed(
     sentence_similarity_in_scope_attributed_from_edge_evidence(evidence)
 }
 
+#[cfg(test)]
 pub(in crate::diff) fn sentence_similarity_in_scope_attributed_with_probe(
     old: &SentenceOccurrence,
     new: &SentenceOccurrence,
@@ -215,6 +218,13 @@ pub(in crate::diff) fn sentence_similarity_in_scope_attributed_from_edge_evidenc
     evidence: SentenceEdgeEvidence<'_>,
 ) -> Option<u16> {
     sentence_similarity_in_scope_attributed_from_edge_evidence_impl(evidence, &mut ())
+}
+
+pub(in crate::diff) fn sentence_similarity_in_scope_attributed_from_edge_evidence_with_probe(
+    evidence: SentenceEdgeEvidence<'_>,
+    relation_floor_probe: &mut RelationFloorProbe,
+) -> Option<u16> {
+    sentence_similarity_in_scope_attributed_from_edge_evidence_impl(evidence, relation_floor_probe)
 }
 
 fn sentence_similarity_in_scope_attributed_from_edge_evidence_impl<P: WordMultisetProbe>(

@@ -139,6 +139,7 @@ struct ComparisonInstrumentation<'a> {
     enable_sentence_recovery: bool,
     watch_queries: &'a [RecoveryWatchQuery<'a>],
     enable_known_span_sentence_shadow: bool,
+    enable_sentence_edge_gate_shadow: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -461,6 +462,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
                 enable_sentence_recovery: true,
                 watch_queries,
                 enable_known_span_sentence_shadow,
+                enable_sentence_edge_gate_shadow: enable_known_span_sentence_shadow,
             },
         )?;
         return Ok(ComparisonOutcomeWithRecoveryWatch {
@@ -498,6 +500,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
                 enable_sentence_recovery: false,
                 watch_queries,
                 enable_known_span_sentence_shadow,
+                enable_sentence_edge_gate_shadow: enable_known_span_sentence_shadow,
             },
         )?;
         if !old_complete {
@@ -585,6 +588,7 @@ fn compare_validated_glyph_documents(
             enable_sentence_recovery: true,
             watch_queries: &[],
             enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
         },
     )
     .map(|outcome| {
@@ -775,6 +779,7 @@ fn compare_validated_glyph_documents_inner(
         }),
         min_tokens: options.alignment.anchor_min_tokens,
         enable_known_span_sentence_shadow: false,
+        enable_sentence_edge_gate_shadow: instrumentation.enable_sentence_edge_gate_shadow,
     };
     let comparison_result = if instrumentation.enable_sentence_recovery
         && instrumentation.enable_known_span_sentence_shadow

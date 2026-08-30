@@ -472,6 +472,59 @@ pub struct KnownSpanSentenceShadowMetrics {
     pub exact_relation_parity: bool,
 }
 
+/// Reason sentence-edge shadow diagnostics are incomplete.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SentenceEdgeGateShadowStopReason {
+    CandidatePostingVisitLimit,
+    PairVisitLimit,
+    SimilarityComparisonLimit,
+    CandidateCountLimit,
+    AllocationFailure,
+    CounterOverflow,
+    DiagnosticFailure,
+}
+
+impl From<NearRelationStopReason> for SentenceEdgeGateShadowStopReason {
+    fn from(reason: NearRelationStopReason) -> Self {
+        match reason {
+            NearRelationStopReason::CandidatePostingVisitLimit => Self::CandidatePostingVisitLimit,
+            NearRelationStopReason::PairVisitLimit => Self::PairVisitLimit,
+            NearRelationStopReason::SimilarityComparisonLimit => Self::SimilarityComparisonLimit,
+            NearRelationStopReason::CandidateCountLimit => Self::CandidateCountLimit,
+        }
+    }
+}
+
+/// Behavior-neutral projection of sentence recovery with weak sentence-edge
+/// evidence excluded before relation construction.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SentenceEdgeGateShadowMetrics {
+    pub complete: bool,
+    pub stop_reason: Option<SentenceEdgeGateShadowStopReason>,
+    pub pairs_considered: usize,
+    pub pairs_retained: usize,
+    pub pairs_rejected: usize,
+    pub same_known_rejected: usize,
+    pub ambiguous_rejected: usize,
+    pub cross_span_rejected: usize,
+    pub unclassified_rejected: usize,
+    /// Retained Sentence relation visits after the gate. Edge-filter
+    /// examination work is excluded.
+    pub projected_pair_visits: usize,
+    /// Full production similarity comparisons for retained Sentence pairs.
+    /// Edge-filter examination work for rejected pairs is excluded.
+    pub projected_similarity_comparisons: usize,
+    pub rejected_max_production_score: u16,
+    pub threshold_violations: usize,
+    pub veto_mismatches: usize,
+    pub unique_partner_mismatches: usize,
+    pub reciprocal_pair_mismatches: usize,
+    /// Relation-level reciprocal replacements after fragment vetoes. Atomic
+    /// output-budget failure may still prevent either relation from committing.
+    pub adopted_replacement_mismatches: usize,
+    pub insertion_deletion_veto_mismatches: usize,
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -540,6 +593,7 @@ pub struct SentenceRecoveryMetrics {
     pub near_same_or_ambiguous_shared_query_work: NearSearchScopeMetrics,
     pub near_cross_span_work: NearSearchScopeMetrics,
     pub known_span_sentence_shadow: Option<KnownSpanSentenceShadowMetrics>,
+    pub sentence_edge_gate_shadow: Option<SentenceEdgeGateShadowMetrics>,
     pub near_largest_edge_posting: usize,
     pub near_largest_edge_query_union: usize,
     pub near_largest_filtered_candidate_set: usize,
@@ -649,6 +703,7 @@ pub(crate) struct SentenceRecoveryInput<'a> {
     pub(crate) new_trusted_run_evidence: Option<TrustedRunRecoveryInput<'a>>,
     pub(crate) min_tokens: usize,
     pub(crate) enable_known_span_sentence_shadow: bool,
+    pub(crate) enable_sentence_edge_gate_shadow: bool,
 }
 
 struct CompareAlignedConfig<'a> {
@@ -727,6 +782,7 @@ pub(crate) fn compare_aligned_with_sentence_recovery(
     mut recovery: SentenceRecoveryInput<'_>,
 ) -> Result<Comparison> {
     recovery.enable_known_span_sentence_shadow = false;
+    recovery.enable_sentence_edge_gate_shadow = false;
     compare_aligned_inner(
         old,
         new,
@@ -773,6 +829,7 @@ pub(crate) fn compare_aligned_with_known_span_sentence_shadow_diagnostics(
     watch_queries: &[RecoveryWatchQuery<'_>],
 ) -> Result<ComparisonWithSentenceRecoveryMetrics> {
     recovery.enable_known_span_sentence_shadow = true;
+    recovery.enable_sentence_edge_gate_shadow = true;
     compare_aligned_inner(
         old,
         new,
@@ -796,6 +853,7 @@ pub(crate) fn compare_aligned_with_recovery_watch_diagnostics(
     watch_queries: &[RecoveryWatchQuery<'_>],
 ) -> Result<ComparisonWithSentenceRecoveryMetrics> {
     recovery.enable_known_span_sentence_shadow = false;
+    recovery.enable_sentence_edge_gate_shadow = false;
     compare_aligned_inner(
         old,
         new,
@@ -5242,6 +5300,7 @@ mod tests {
                     new_trusted_run_evidence: None,
                     min_tokens: 5,
                     enable_known_span_sentence_shadow: false,
+                    enable_sentence_edge_gate_shadow: false,
                 }),
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits {
@@ -6015,6 +6074,7 @@ mod tests {
                 new_trusted_run_evidence: None,
                 min_tokens: 5,
                 enable_known_span_sentence_shadow: false,
+                enable_sentence_edge_gate_shadow: false,
             },
         )
         .expect("cross-span exact recovery succeeds");
@@ -6082,6 +6142,7 @@ mod tests {
                 new_trusted_run_evidence: None,
                 min_tokens: 1,
                 enable_known_span_sentence_shadow: false,
+                enable_sentence_edge_gate_shadow: false,
             },
         )
         .expect("exact-only fallback comparison succeeds");
@@ -6199,6 +6260,7 @@ mod tests {
                     new_trusted_run_evidence: None,
                     min_tokens: 1,
                     enable_known_span_sentence_shadow: false,
+                    enable_sentence_edge_gate_shadow: false,
                 }),
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits {
@@ -6251,6 +6313,7 @@ mod tests {
                     new_trusted_run_evidence: None,
                     min_tokens: 5,
                     enable_known_span_sentence_shadow: false,
+                    enable_sentence_edge_gate_shadow: false,
                 }),
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits {
@@ -6319,6 +6382,7 @@ mod tests {
                     new_trusted_run_evidence: None,
                     min_tokens: 5,
                     enable_known_span_sentence_shadow: false,
+                    enable_sentence_edge_gate_shadow: false,
                 }),
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits {
@@ -6384,6 +6448,7 @@ mod tests {
                     new_trusted_run_evidence: None,
                     min_tokens: 5,
                     enable_known_span_sentence_shadow: false,
+                    enable_sentence_edge_gate_shadow: false,
                 }),
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits {
@@ -6735,6 +6800,7 @@ mod tests {
             new_trusted_run_evidence: None,
             min_tokens: 5,
             enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
         };
 
         let ordinary = compare_aligned_with_sentence_recovery_metrics(
@@ -6790,6 +6856,7 @@ mod tests {
                 new_trusted_run_evidence: None,
                 min_tokens: 1,
                 enable_known_span_sentence_shadow: false,
+                enable_sentence_edge_gate_shadow: false,
             },
         )
         .expect("empty comparison succeeds");
@@ -7555,6 +7622,7 @@ mod tests {
                 new_trusted_run_evidence: None,
                 min_tokens: 1,
                 enable_known_span_sentence_shadow: false,
+                enable_sentence_edge_gate_shadow: false,
             },
         )
         .expect_err("metadata length mismatch must be rejected");
@@ -7576,6 +7644,7 @@ mod tests {
                 new_trusted_run_evidence: None,
                 min_tokens: 0,
                 enable_known_span_sentence_shadow: false,
+                enable_sentence_edge_gate_shadow: false,
             },
         )
         .expect_err("zero sentence threshold must be rejected");
@@ -7610,6 +7679,7 @@ mod tests {
                 new_trusted_run_evidence: None,
                 min_tokens: 1,
                 enable_known_span_sentence_shadow: false,
+                enable_sentence_edge_gate_shadow: false,
             },
         )
         .expect("recovery comparison succeeds");
@@ -7652,6 +7722,7 @@ mod tests {
                     new_trusted_run_evidence: None,
                     min_tokens: 1,
                     enable_known_span_sentence_shadow: false,
+                    enable_sentence_edge_gate_shadow: false,
                 }),
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits::default(),
@@ -7783,6 +7854,7 @@ mod tests {
                 new_trusted_run_evidence: None,
                 min_tokens,
                 enable_known_span_sentence_shadow: false,
+                enable_sentence_edge_gate_shadow: false,
             },
         )
         .expect("sentence recovery comparison succeeds")
@@ -7832,6 +7904,7 @@ mod tests {
                 new_trusted_run_evidence: None,
                 min_tokens,
                 enable_known_span_sentence_shadow: false,
+                enable_sentence_edge_gate_shadow: false,
             },
         )
         .expect("baseline sentence recovery succeeds");
@@ -7853,6 +7926,7 @@ mod tests {
                 }),
                 min_tokens,
                 enable_known_span_sentence_shadow: false,
+                enable_sentence_edge_gate_shadow: false,
             },
         )
         .expect("instrumented sentence recovery succeeds");
@@ -7894,6 +7968,7 @@ mod tests {
                 }),
                 min_tokens,
                 enable_known_span_sentence_shadow: false,
+                enable_sentence_edge_gate_shadow: false,
             },
             queries,
         )
@@ -8501,6 +8576,7 @@ mod tests {
                 new_trusted_run_evidence: None,
                 min_tokens,
                 enable_known_span_sentence_shadow: false,
+                enable_sentence_edge_gate_shadow: false,
             },
         )
         .expect("sentence recovery comparison succeeds")
