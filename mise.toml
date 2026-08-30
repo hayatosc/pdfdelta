@@ -80,7 +80,7 @@ description = "Run release-mode real-world revision comparisons (usage: mise run
 run = "cargo run -p pdfdelta-bench --release --locked -- revisions --cache-dir benchmark/realworld/cache"
 
 [tasks.bench-revisions-schema-parity]
-description = "Compare benchmark summaries after removing schema-only recovery metrics (usage: mise run bench-revisions-schema-parity -- <baseline.json> <candidate.json> <field>...)"
+description = "Compare benchmark summaries after removing schema-only recovery metrics (usage: mise run bench-revisions-schema-parity -- <baseline.json> <candidate.json> [--exclude-pair <pair-id>]... <field>...)"
 run = "benchmark/realworld/compare-summary-parity.sh"
 
 [tasks.fuzz-build]

@@ -4,17 +4,17 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 
 ## Latest Capture
 
-- **Capture date**: 2026-08-30
-- **Generator / engine commit**: [`edb34a2`](https://github.com/hayatosc/pdfdelta/commit/edb34a2)
+- **Capture date**: 2026-08-31
+- **Generator / engine commit**: [`678e996`](https://github.com/hayatosc/pdfdelta/commit/678e996)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-30-edb34a2.json`](2026-08-30-edb34a2.json)
-  - Schema: v27
-  - Size: 553,568 bytes
-  - SHA-256: `c17600582464e4750f2dd2d66a2509bc4b54d7ac91780704cc9d62ba147a5835`
+  - File: [`2026-08-31-678e996.json`](2026-08-31-678e996.json)
+  - Schema: v28
+  - Size: 622,057 bytes
+  - SHA-256: `a78c7bc1a52e551827fe21c4ccdb6682b4840433219a7c60f3beef0726547c56`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-30-edb34a2.json
+  benchmark/realworld/results/2026-08-31-678e996.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -44,17 +44,29 @@ mise run bench-revisions-schema-parity -- \
   sentence_edge_signature_shadow
 ```
 
+When reviewed annotations changed between captures, exclude only those named
+pairs while preserving exact parity for every other record:
+
+```bash
+mise run bench-revisions-schema-parity -- \
+  benchmark/realworld/results/2026-08-30-edb34a2.json \
+  benchmark/realworld/results/2026-08-31-678e996.json \
+  --exclude-pair nist-sp800-57-part1-r4-to-r5 \
+  --exclude-pair oasis-mqtt-311-to-50 \
+  sentence_edge_signature_direct_shadow
+```
+
 ## Reviewed-Pair Overview
 
-This capture contains three scoped-complete review sets plus one complete scope
-inside the partial FIPS review set. Precision is available only inside declared
-complete scopes; recall and kind accuracy for partial sets still apply only to
-their recorded review items.
+This capture contains four scoped-complete review sets plus three complete
+scopes inside the partial FIPS and SP 800-57 review sets. Precision is available
+only inside declared complete scopes; recall and kind accuracy for partial sets
+still apply only to their recorded review items.
 
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
 | `nist-fips-186-4-to-5` | dev | standard | 65.03% | 2,395 | 1,346 | 0.857 | 1.000 | 224.333 | 107 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 71.90% | 6,038 | 2,440 | 1.000 | 1.000 | 690.750 | 103 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 71.90% | 6,038 | 2,440 | 0.875 | 1.000 | 394.714 | 103 |
 | `irs-form-1040-2024-to-2025` | holdout | stress | 37.83% | 75 | 20 | 0.000 | N/A | N/A | 1 |
 | `edpb-right-of-access-v1-to-final` | holdout | standard | 74.81% | 2,091 | 477 | 0.750 | 1.000 | 175.667 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 1.000 | 0 |
@@ -63,6 +75,7 @@ their recorded review items.
 | `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.21% | 515 | 474 | 1.000 | 1.000 | 158.000 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
 | `bis-operational-risk-2011-to-2021` | dev | standard | 68.12% | 656 | 351 | 1.000 | 1.000 | 1.000 | 0 |
+| `oasis-mqtt-311-to-50` | dev | standard | 48.86% | 2,924 | 1,884 | 1.000 | N/A | N/A | 0 |
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 53.22% | 788 | 648 | 0.333 | 1.000 | 648.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
@@ -70,12 +83,19 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | Pair with a complete scope | Event P / R / F1 | Token P / R / F1 | Span IoU | FP tokens / 10k unchanged |
 |---|---:|---:|---:|---:|
 | `nist-fips-186-4-to-5` | 1.000 / 0.000 / 0.000 | 0.000 / 0.000 / 0.000 | 0.000 | N/A |
+| `nist-sp800-57-part1-r4-to-r5` | 0.600 / 0.750 / 0.667 | 0.093 / 0.824 / 0.167 | 0.091 | 7,881.157 |
 | `arxiv-attention-v6-to-v7` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 | `w3c-ws-policy-attach-20060927-to-20061102` | 1.000 / 1.000 / 1.000 | 0.984 / 1.000 / 0.992 | 0.984 | 68.027 |
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
+| `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 
 The original arXiv, W3C, and BIS scoped-complete metrics are unchanged from
 `27f096e`.
+The new MQTT permissions scope contains no changes and reports no false-positive
+event or token. The two SP 800-57 scopes deliberately expose current event
+fragmentation: four reviewed replacements are represented by five reported
+events, and 1,111 reported changed tokens overlap 103 of 125 reviewed changed
+tokens. These dev-only scopes are precision gates, not threshold targets.
 The production Sentence edge filter completes near-relation analysis for EDPB
 Right of Access and EDPB Dark Patterns. Six other incomplete searches use a
 full-build legacy fallback; their comparison output and recovery-watch
@@ -83,6 +103,19 @@ diagnostics exactly match the schema-v24 baseline. Across 18 measured pairs,
 the filter classifies 6,990,647 Sentence pairs and rejects 6,660,144 (95.27%).
 All shadow threshold, veto, unique-partner, reciprocal, adopted-replacement,
 and insertion/deletion-veto mismatch counters remain zero.
+The schema-v28 capture sources Sentence candidates directly from the exact
+edge-signature index before the broad first/last-token union. Seventeen of 18
+available replays complete; LibreOffice stops fail-closed at the estimated
+logical-byte limit. The ten replays with complete production baselines preserve
+both the recovery plan and retained-pair fingerprint, and every mismatch counter
+is zero. Direct replay performs zero broad Sentence posting visits. Across the
+17 complete replays, however, 1,824,541 signature candidates remain versus
+4,868,816 production edge-filter pairs (37.47%), above the 10% production gate.
+Depth-four-or-greater queries account for 98.95% of those candidates;
+cross-orientation-only candidates are zero. SP 800-57 reaches 63,820,576 logical
+index bytes, while LibreOffice attempts 70,622,544 before stopping. The direct
+index therefore remains diagnostic until candidate selectivity or index storage
+improves without weakening relation semantics.
 The schema-v27 capture independently replays Sentence candidate search through
 the exact edge-signature index without changing comparison behavior. Removing
 the schema number and the new signature-shadow field yields a byte-identical
@@ -144,10 +177,16 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v27)
+## Current Writer Schema (v28)
 
-The benchmark writer and latest committed capture use schema v27. Older
-captures retain their recorded schemas. Schema v27 adds the independent exact
+The benchmark writer and latest committed capture use schema v28. Older
+captures retain their recorded schemas. Schema v28 adds the independent direct
+edge-signature replay, bounded index shape and resource diagnostics, exact-edge
+rechecks, cross-orientation evidence, and plan/fingerprint parity. Removing the
+schema number and the direct-shadow object, while excluding the SP 800-57 and
+MQTT records whose reviewed annotations changed, yields exact behavior parity
+with schema v27. CLI trace schema v17 exposes every direct metric and one-hot
+stop reason. Schema v27 adds the independent exact
 edge-signature candidate replay, its bounded index and query work, typed stops,
 candidate reduction, retained-edge verification, and recovery-plan parity.
 Removing the schema number and this diagnostic object yields an exact match
