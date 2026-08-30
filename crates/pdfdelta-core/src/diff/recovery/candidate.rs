@@ -74,6 +74,42 @@ pub(in crate::diff) struct SentenceEdgeSignatureQueryMetrics {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::diff) enum SentenceEdgeSignatureIndexError {
+    PostingLimit { examined: usize, attempted: usize },
+    QueryVisitLimit { examined: usize, attempted: usize },
+    AllocationFailure { examined: usize, attempted: usize },
+    CounterOverflow { examined: usize, attempted: usize },
+    InvalidScope { examined: usize, attempted: usize },
+}
+
+impl SentenceEdgeSignatureIndexError {
+    pub(in crate::diff) fn work(self) -> (usize, usize) {
+        match self {
+            Self::PostingLimit {
+                examined,
+                attempted,
+            }
+            | Self::QueryVisitLimit {
+                examined,
+                attempted,
+            }
+            | Self::AllocationFailure {
+                examined,
+                attempted,
+            }
+            | Self::CounterOverflow {
+                examined,
+                attempted,
+            }
+            | Self::InvalidScope {
+                examined,
+                attempted,
+            } => (examined, attempted),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::diff) struct LineTrigramPosting {
     pub(in crate::diff) occurrence_index: usize,
     pub(in crate::diff) multiplicity: usize,
@@ -495,38 +531,127 @@ impl UnitCandidateIndex {
 
 #[allow(dead_code)]
 impl SentenceEdgeSignatureIndex {
+    pub(in crate::diff) fn posting_upper_bound(
+        occurrences: &[SentenceOccurrence],
+        scope: CandidatePostingIndexScope<'_>,
+    ) -> Result<usize, SentenceEdgeSignatureIndexError> {
+        occurrences
+            .iter()
+            .enumerate()
+            .try_fold(0usize, |total, (occurrence_index, occurrence)| {
+                if occurrence.kind != RecoveryUnitKind::Sentence || occurrence.role.is_none() {
+                    return Ok(total);
+                }
+                if candidate_posting_bucket(scope, occurrence_index, occurrence)
+                    .ok_or(SentenceEdgeSignatureIndexError::InvalidScope {
+                        examined: 0,
+                        attempted: total,
+                    })?
+                    .is_none()
+                {
+                    return Ok(total);
+                }
+                let depth = sentence_edge_signature_depth(occurrence.tokens.len()).ok_or(
+                    SentenceEdgeSignatureIndexError::CounterOverflow {
+                        examined: 0,
+                        attempted: total,
+                    },
+                )?;
+                let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
+                let mut suffix = SENTENCE_EDGE_SIGNATURE_SEED;
+                let mut postings = 0usize;
+                for current in 1..=depth {
+                    prefix = sentence_edge_signature_step(prefix, occurrence.tokens[current - 1]);
+                    suffix = sentence_edge_signature_step(
+                        suffix,
+                        occurrence.tokens[occurrence.tokens.len() - current],
+                    );
+                    postings = postings
+                        .checked_add(usize::from(prefix != suffix) + 1)
+                        .ok_or(SentenceEdgeSignatureIndexError::CounterOverflow {
+                            examined: 0,
+                            attempted: total,
+                        })?;
+                }
+                total.checked_add(postings).ok_or(
+                    SentenceEdgeSignatureIndexError::CounterOverflow {
+                        examined: 0,
+                        attempted: usize::MAX,
+                    },
+                )
+            })
+    }
+
+    pub(in crate::diff) fn new_bounded(
+        occurrences: &[SentenceOccurrence],
+        scope: CandidatePostingIndexScope<'_>,
+        posting_limit: usize,
+    ) -> Result<Self, SentenceEdgeSignatureIndexError> {
+        let attempted = Self::posting_upper_bound(occurrences, scope)?;
+        if attempted > posting_limit {
+            return Err(SentenceEdgeSignatureIndexError::PostingLimit {
+                examined: 0,
+                attempted,
+            });
+        }
+        Self::try_new_with_signature_step(occurrences, scope, sentence_edge_signature_step, None)
+    }
+
+    #[cfg(test)]
+    pub(in crate::diff) fn new_with_allocation_failure_after(
+        occurrences: &[SentenceOccurrence],
+        scope: CandidatePostingIndexScope<'_>,
+        examined_postings: usize,
+    ) -> Result<Self, SentenceEdgeSignatureIndexError> {
+        Self::try_new_with_signature_step(
+            occurrences,
+            scope,
+            sentence_edge_signature_step,
+            Some(examined_postings),
+        )
+    }
+
     pub(in crate::diff) fn new(
         occurrences: &[SentenceOccurrence],
         scope: CandidatePostingIndexScope<'_>,
     ) -> Option<Self> {
-        Self::new_with_signature_step(occurrences, scope, sentence_edge_signature_step)
+        Self::try_new_with_signature_step(occurrences, scope, sentence_edge_signature_step, None)
+            .ok()
     }
 
-    fn new_with_signature_step(
+    fn try_new_with_signature_step(
         occurrences: &[SentenceOccurrence],
         scope: CandidatePostingIndexScope<'_>,
         signature_step: fn(u64, SentenceEvidenceToken) -> u64,
-    ) -> Option<Self> {
+        allocation_failure_after: Option<usize>,
+    ) -> Result<Self, SentenceEdgeSignatureIndexError> {
         let mut index = Self {
             own_depth_postings: HashMap::new(),
             all_depth_postings: HashMap::new(),
             metrics: SentenceEdgeSignatureIndexMetrics::default(),
         };
+        let mut attempted = 0usize;
         for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
-            let Some(bucket) = candidate_posting_bucket(scope, occurrence_index, occurrence)?
+            let Some(bucket) = candidate_posting_bucket(scope, occurrence_index, occurrence)
+                .ok_or(SentenceEdgeSignatureIndexError::InvalidScope {
+                    examined: index.metrics.posting_items,
+                    attempted,
+                })?
             else {
                 continue;
             };
-            index.insert_unit(
+            index.insert_unit_bounded(
                 bucket,
                 occurrence.kind,
                 occurrence.role.map(OccurrenceRole::from),
                 &occurrence.tokens,
                 occurrence_index,
                 signature_step,
+                &mut attempted,
+                allocation_failure_after,
             )?;
         }
-        Some(index)
+        Ok(index)
     }
 
     pub(in crate::diff) fn metrics(&self) -> SentenceEdgeSignatureIndexMetrics {
@@ -557,6 +682,120 @@ impl SentenceEdgeSignatureIndex {
         )
     }
 
+    pub(in crate::diff) fn collect_plausible_occurrences_bounded(
+        &self,
+        plausible: &mut Vec<usize>,
+        occurrence: &SentenceOccurrence,
+        bucket: CandidatePostingBucket,
+        additional_bucket: Option<CandidatePostingBucket>,
+        posting_visit_limit: usize,
+    ) -> Result<SentenceEdgeSignatureQueryMetrics, SentenceEdgeSignatureIndexError> {
+        let attempted = self.query_posting_visits(occurrence, bucket, additional_bucket)?;
+        if attempted > posting_visit_limit {
+            return Err(SentenceEdgeSignatureIndexError::QueryVisitLimit {
+                examined: 0,
+                attempted,
+            });
+        }
+        if occurrence.kind != RecoveryUnitKind::Sentence {
+            plausible.clear();
+            return Ok(SentenceEdgeSignatureQueryMetrics::default());
+        }
+        let Some(role) = occurrence.role.map(OccurrenceRole::from) else {
+            plausible.clear();
+            return Ok(SentenceEdgeSignatureQueryMetrics::default());
+        };
+        self.collect_sentence_tokens_bounded(
+            plausible,
+            &occurrence.tokens,
+            role,
+            bucket,
+            additional_bucket,
+            sentence_edge_signature_step,
+            None,
+        )
+    }
+
+    #[cfg(test)]
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::diff) fn collect_with_allocation_failure_after(
+        &self,
+        plausible: &mut Vec<usize>,
+        occurrence: &SentenceOccurrence,
+        bucket: CandidatePostingBucket,
+        additional_bucket: Option<CandidatePostingBucket>,
+        examined_postings: usize,
+    ) -> Result<SentenceEdgeSignatureQueryMetrics, SentenceEdgeSignatureIndexError> {
+        let role = occurrence.role.map(OccurrenceRole::from).ok_or(
+            SentenceEdgeSignatureIndexError::InvalidScope {
+                examined: 0,
+                attempted: 0,
+            },
+        )?;
+        self.collect_sentence_tokens_bounded(
+            plausible,
+            &occurrence.tokens,
+            role,
+            bucket,
+            additional_bucket,
+            sentence_edge_signature_step,
+            Some(examined_postings),
+        )
+    }
+
+    fn query_posting_visits(
+        &self,
+        occurrence: &SentenceOccurrence,
+        bucket: CandidatePostingBucket,
+        additional_bucket: Option<CandidatePostingBucket>,
+    ) -> Result<usize, SentenceEdgeSignatureIndexError> {
+        if occurrence.kind != RecoveryUnitKind::Sentence {
+            return Ok(0);
+        }
+        let Some(role) = occurrence.role.map(OccurrenceRole::from) else {
+            return Ok(0);
+        };
+        let depth = sentence_edge_signature_depth(occurrence.tokens.len()).ok_or(
+            SentenceEdgeSignatureIndexError::CounterOverflow {
+                examined: 0,
+                attempted: 0,
+            },
+        )?;
+        let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
+        let mut suffix = SENTENCE_EDGE_SIGNATURE_SEED;
+        let mut visits = 0usize;
+        for current in 1..=depth {
+            prefix = sentence_edge_signature_step(prefix, occurrence.tokens[current - 1]);
+            suffix = sentence_edge_signature_step(
+                suffix,
+                occurrence.tokens[occurrence.tokens.len() - current],
+            );
+            for bucket in [Some(bucket), additional_bucket].into_iter().flatten() {
+                visits = count_signature_postings(
+                    &self.own_depth_postings,
+                    visits,
+                    bucket,
+                    role,
+                    current,
+                    prefix,
+                    suffix,
+                )?;
+                if current == depth {
+                    visits = count_signature_postings(
+                        &self.all_depth_postings,
+                        visits,
+                        bucket,
+                        role,
+                        current,
+                        prefix,
+                        suffix,
+                    )?;
+                }
+            }
+        }
+        Ok(visits)
+    }
+
     fn insert_unit(
         &mut self,
         bucket: CandidatePostingBucket,
@@ -566,13 +805,47 @@ impl SentenceEdgeSignatureIndex {
         occurrence_index: usize,
         signature_step: fn(u64, SentenceEvidenceToken) -> u64,
     ) -> Option<()> {
+        let mut attempted = self.metrics.posting_items;
+        self.insert_unit_bounded(
+            bucket,
+            kind,
+            role,
+            tokens,
+            occurrence_index,
+            signature_step,
+            &mut attempted,
+            None,
+        )
+        .ok()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn insert_unit_bounded(
+        &mut self,
+        bucket: CandidatePostingBucket,
+        kind: RecoveryUnitKind,
+        role: Option<OccurrenceRole>,
+        tokens: &[SentenceEvidenceToken],
+        occurrence_index: usize,
+        signature_step: fn(u64, SentenceEvidenceToken) -> u64,
+        attempted: &mut usize,
+        allocation_failure_after: Option<usize>,
+    ) -> Result<(), SentenceEdgeSignatureIndexError> {
         if kind != RecoveryUnitKind::Sentence {
-            return Some(());
+            return Ok(());
         }
         let Some(role) = role else {
-            return Some(());
+            return Ok(());
         };
-        self.insert_sentence(bucket, role, tokens, occurrence_index, signature_step)
+        self.insert_sentence_bounded(
+            bucket,
+            role,
+            tokens,
+            occurrence_index,
+            signature_step,
+            attempted,
+            allocation_failure_after,
+        )
     }
 
     fn insert_sentence(
@@ -583,7 +856,36 @@ impl SentenceEdgeSignatureIndex {
         occurrence_index: usize,
         signature_step: fn(u64, SentenceEvidenceToken) -> u64,
     ) -> Option<()> {
-        let own_depth = sentence_edge_signature_depth(tokens.len())?;
+        let mut attempted = self.metrics.posting_items;
+        self.insert_sentence_bounded(
+            bucket,
+            role,
+            tokens,
+            occurrence_index,
+            signature_step,
+            &mut attempted,
+            None,
+        )
+        .ok()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn insert_sentence_bounded(
+        &mut self,
+        bucket: CandidatePostingBucket,
+        role: OccurrenceRole,
+        tokens: &[SentenceEvidenceToken],
+        occurrence_index: usize,
+        signature_step: fn(u64, SentenceEvidenceToken) -> u64,
+        attempted: &mut usize,
+        allocation_failure_after: Option<usize>,
+    ) -> Result<(), SentenceEdgeSignatureIndexError> {
+        let own_depth = sentence_edge_signature_depth(tokens.len()).ok_or(
+            SentenceEdgeSignatureIndexError::CounterOverflow {
+                examined: self.metrics.posting_items,
+                attempted: *attempted,
+            },
+        )?;
         let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
         let mut suffix = SENTENCE_EDGE_SIGNATURE_SEED;
         for depth in 1..=own_depth {
@@ -603,9 +905,11 @@ impl SentenceEdgeSignatureIndex {
                 prefix,
                 suffix,
                 occurrence_index,
+                attempted,
+                allocation_failure_after,
             )?;
         }
-        Some(())
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -618,9 +922,38 @@ impl SentenceEdgeSignatureIndex {
         additional_bucket: Option<CandidatePostingBucket>,
         signature_step: fn(u64, SentenceEvidenceToken) -> u64,
     ) -> Option<SentenceEdgeSignatureQueryMetrics> {
+        self.collect_sentence_tokens_bounded(
+            plausible,
+            tokens,
+            role,
+            bucket,
+            additional_bucket,
+            signature_step,
+            None,
+        )
+        .ok()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn collect_sentence_tokens_bounded(
+        &self,
+        plausible: &mut Vec<usize>,
+        tokens: &[SentenceEvidenceToken],
+        role: OccurrenceRole,
+        bucket: CandidatePostingBucket,
+        additional_bucket: Option<CandidatePostingBucket>,
+        signature_step: fn(u64, SentenceEvidenceToken) -> u64,
+        allocation_failure_after: Option<usize>,
+    ) -> Result<SentenceEdgeSignatureQueryMetrics, SentenceEdgeSignatureIndexError> {
         plausible.clear();
-        let query_depth = sentence_edge_signature_depth(tokens.len())?;
+        let query_depth = sentence_edge_signature_depth(tokens.len()).ok_or(
+            SentenceEdgeSignatureIndexError::CounterOverflow {
+                examined: 0,
+                attempted: 0,
+            },
+        )?;
         let mut posting_visits = 0usize;
+        let mut attempted = 0usize;
         let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
         let mut suffix = SENTENCE_EDGE_SIGNATURE_SEED;
         for depth in 1..=query_depth {
@@ -636,6 +969,8 @@ impl SentenceEdgeSignatureIndex {
                     depth,
                     prefix,
                     suffix,
+                    &mut attempted,
+                    allocation_failure_after,
                 )?;
                 if depth == query_depth {
                     collect_sentence_edge_signatures(
@@ -647,17 +982,54 @@ impl SentenceEdgeSignatureIndex {
                         depth,
                         prefix,
                         suffix,
+                        &mut attempted,
+                        allocation_failure_after,
                     )?;
                 }
             }
         }
         plausible.sort_unstable();
         plausible.dedup();
-        Some(SentenceEdgeSignatureQueryMetrics {
+        Ok(SentenceEdgeSignatureQueryMetrics {
             posting_visits,
             candidate_union: plausible.len(),
         })
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn count_signature_postings(
+    postings: &HashMap<SentenceEdgeSignatureKey, Vec<usize>>,
+    mut count: usize,
+    bucket: CandidatePostingBucket,
+    role: OccurrenceRole,
+    depth: usize,
+    prefix: u64,
+    suffix: u64,
+) -> Result<usize, SentenceEdgeSignatureIndexError> {
+    count = count
+        .checked_add(
+            postings
+                .get(&(bucket, role, depth, prefix))
+                .map_or(0, Vec::len),
+        )
+        .ok_or(SentenceEdgeSignatureIndexError::CounterOverflow {
+            examined: 0,
+            attempted: usize::MAX,
+        })?;
+    if suffix != prefix {
+        count = count
+            .checked_add(
+                postings
+                    .get(&(bucket, role, depth, suffix))
+                    .map_or(0, Vec::len),
+            )
+            .ok_or(SentenceEdgeSignatureIndexError::CounterOverflow {
+                examined: 0,
+                attempted: usize::MAX,
+            })?;
+    }
+    Ok(count)
 }
 
 #[allow(dead_code)]
@@ -725,12 +1097,16 @@ fn push_sentence_edge_signatures(
     prefix: u64,
     suffix: u64,
     occurrence_index: usize,
-) -> Option<()> {
+    attempted: &mut usize,
+    allocation_failure_after: Option<usize>,
+) -> Result<(), SentenceEdgeSignatureIndexError> {
     push_sentence_edge_signature(
         postings,
         metrics,
         (bucket, role, depth, prefix),
         occurrence_index,
+        attempted,
+        allocation_failure_after,
     )?;
     if suffix != prefix {
         push_sentence_edge_signature(
@@ -738,9 +1114,11 @@ fn push_sentence_edge_signatures(
             metrics,
             (bucket, role, depth, suffix),
             occurrence_index,
+            attempted,
+            allocation_failure_after,
         )?;
     }
-    Some(())
+    Ok(())
 }
 
 #[allow(dead_code)]
@@ -749,16 +1127,53 @@ fn push_sentence_edge_signature(
     metrics: &mut SentenceEdgeSignatureIndexMetrics,
     key: SentenceEdgeSignatureKey,
     occurrence_index: usize,
-) -> Option<()> {
+    attempted: &mut usize,
+    allocation_failure_after: Option<usize>,
+) -> Result<(), SentenceEdgeSignatureIndexError> {
+    *attempted =
+        attempted
+            .checked_add(1)
+            .ok_or(SentenceEdgeSignatureIndexError::CounterOverflow {
+                examined: metrics.posting_items,
+                attempted: usize::MAX,
+            })?;
+    if allocation_failure_after.is_some_and(|limit| metrics.posting_items >= limit) {
+        return Err(SentenceEdgeSignatureIndexError::AllocationFailure {
+            examined: metrics.posting_items,
+            attempted: *attempted,
+        });
+    }
     if !postings.contains_key(&key) {
-        postings.try_reserve(1).ok()?;
+        postings.try_reserve(1).map_err(|_| {
+            SentenceEdgeSignatureIndexError::AllocationFailure {
+                examined: metrics.posting_items,
+                attempted: *attempted,
+            }
+        })?;
         postings.insert(key, Vec::new());
     }
-    let posting = postings.get_mut(&key)?;
-    posting.try_reserve(1).ok()?;
+    let posting =
+        postings
+            .get_mut(&key)
+            .ok_or(SentenceEdgeSignatureIndexError::CounterOverflow {
+                examined: metrics.posting_items,
+                attempted: *attempted,
+            })?;
+    posting
+        .try_reserve(1)
+        .map_err(|_| SentenceEdgeSignatureIndexError::AllocationFailure {
+            examined: metrics.posting_items,
+            attempted: *attempted,
+        })?;
+    let next = metrics.posting_items.checked_add(1).ok_or(
+        SentenceEdgeSignatureIndexError::CounterOverflow {
+            examined: metrics.posting_items,
+            attempted: *attempted,
+        },
+    )?;
     posting.push(occurrence_index);
-    metrics.posting_items = metrics.posting_items.checked_add(1)?;
-    Some(())
+    metrics.posting_items = next;
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -772,12 +1187,16 @@ fn collect_sentence_edge_signatures(
     depth: usize,
     prefix: u64,
     suffix: u64,
-) -> Option<()> {
+    attempted: &mut usize,
+    allocation_failure_after: Option<usize>,
+) -> Result<(), SentenceEdgeSignatureIndexError> {
     collect_sentence_edge_signature(
         postings,
         plausible,
         posting_visits,
         (bucket, role, depth, prefix),
+        attempted,
+        allocation_failure_after,
     )?;
     if suffix != prefix {
         collect_sentence_edge_signature(
@@ -785,9 +1204,11 @@ fn collect_sentence_edge_signatures(
             plausible,
             posting_visits,
             (bucket, role, depth, suffix),
+            attempted,
+            allocation_failure_after,
         )?;
     }
-    Some(())
+    Ok(())
 }
 
 #[allow(dead_code)]
@@ -796,14 +1217,38 @@ fn collect_sentence_edge_signature(
     plausible: &mut Vec<usize>,
     posting_visits: &mut usize,
     key: SentenceEdgeSignatureKey,
-) -> Option<()> {
+    attempted: &mut usize,
+    allocation_failure_after: Option<usize>,
+) -> Result<(), SentenceEdgeSignatureIndexError> {
     let Some(posting) = postings.get(&key) else {
-        return Some(());
+        return Ok(());
     };
-    *posting_visits = posting_visits.checked_add(posting.len())?;
-    plausible.try_reserve(posting.len()).ok()?;
+    *attempted = attempted.checked_add(posting.len()).ok_or(
+        SentenceEdgeSignatureIndexError::CounterOverflow {
+            examined: *posting_visits,
+            attempted: usize::MAX,
+        },
+    )?;
+    if allocation_failure_after.is_some_and(|limit| *posting_visits >= limit) {
+        return Err(SentenceEdgeSignatureIndexError::AllocationFailure {
+            examined: *posting_visits,
+            attempted: *attempted,
+        });
+    }
+    plausible.try_reserve(posting.len()).map_err(|_| {
+        SentenceEdgeSignatureIndexError::AllocationFailure {
+            examined: *posting_visits,
+            attempted: *attempted,
+        }
+    })?;
     plausible.extend_from_slice(posting);
-    Some(())
+    *posting_visits = posting_visits.checked_add(posting.len()).ok_or(
+        SentenceEdgeSignatureIndexError::CounterOverflow {
+            examined: *posting_visits,
+            attempted: *attempted,
+        },
+    )?;
+    Ok(())
 }
 
 pub(in crate::diff) fn split_query_candidates(

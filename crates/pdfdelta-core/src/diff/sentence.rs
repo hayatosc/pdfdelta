@@ -18,7 +18,8 @@ use crate::{
 
 use super::recovery::candidate::{
     CandidatePostingBucket, CandidatePostingIndexScope, CandidatePostingKind, NearSearchWorkSplit,
-    PairedInterval, UnitCandidateIndex, UnitCandidateQueryMetrics, same_or_ambiguous_work_class,
+    PairedInterval, SentenceEdgeSignatureIndex, SentenceEdgeSignatureIndexError,
+    UnitCandidateIndex, UnitCandidateQueryMetrics, same_or_ambiguous_work_class,
     split_query_candidates,
 };
 pub(in crate::diff) use super::recovery::candidate::{NearSearchScope, NearSearchWorkClass};
@@ -30,7 +31,7 @@ use super::recovery::score::{
 };
 #[cfg(test)]
 use super::recovery::{
-    candidate::{LineTrigramPosting, SentenceEdgeSignatureIndex},
+    candidate::LineTrigramPosting,
     score::{
         LINE_NGRAM_SIZE, SentenceEdgeEvidence, line_trigram_candidate_meets_threshold,
         sentence_similarity_in_scope, sentence_similarity_in_scope_attributed,
@@ -48,7 +49,8 @@ use super::{
     RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
     RecoveryWatchSegmentPairEvidence, RecoveryWatchUnitKind, RunSignatureStopReason,
     SegmentStopReason, SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
-    SentenceEdgeGateShadowStopReason, SentenceRecoveryCommittedTokens, SentenceRecoveryInput,
+    SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureShadowMetrics,
+    SentenceEdgeSignatureShadowStopReason, SentenceRecoveryCommittedTokens, SentenceRecoveryInput,
     SentenceRecoveryMetrics, Side, TokenRange, TrustedRunRecoveryInput,
 };
 
@@ -96,7 +98,7 @@ pub(super) struct RecoveredExactMatch {
     pub new: RecoveredSentence,
 }
 
-#[derive(Default)]
+#[derive(Default, PartialEq, Eq)]
 pub(super) struct SentenceRecoveryPlan {
     pub matches: Vec<RecoveredExactMatch>,
     pub cross_span_match_old: Vec<RecoveredSentence>,
@@ -3277,6 +3279,302 @@ struct ModifiedSentenceRelations {
     new: Vec<CandidateNearRelation>,
     complete: bool,
     edge_gate_shadow: Option<SentenceEdgeGateShadow>,
+    edge_signature_shadow: Option<SentenceEdgeSignatureShadow>,
+}
+
+#[derive(Clone, Copy)]
+struct SentenceEdgeSignatureShadow {
+    metrics: SentenceEdgeSignatureShadowMetrics,
+    posting_limit: usize,
+    query_limit: usize,
+    active: bool,
+}
+
+impl SentenceEdgeSignatureShadow {
+    fn new(token_limit: usize, metrics: SentenceEdgeSignatureShadowMetrics) -> Option<Self> {
+        let limit = token_limit.checked_mul(4)?;
+        Some(Self {
+            metrics,
+            posting_limit: limit,
+            query_limit: limit,
+            active: true,
+        })
+    }
+
+    fn stop(&mut self, reason: SentenceEdgeSignatureShadowStopReason) {
+        self.active = false;
+        self.metrics.complete = false;
+        self.metrics.stop_reason.get_or_insert(reason);
+    }
+}
+
+fn signature_stop_reason(
+    error: SentenceEdgeSignatureIndexError,
+) -> SentenceEdgeSignatureShadowStopReason {
+    match error {
+        SentenceEdgeSignatureIndexError::PostingLimit { .. } => {
+            SentenceEdgeSignatureShadowStopReason::IndexPostingLimit
+        }
+        SentenceEdgeSignatureIndexError::QueryVisitLimit { .. } => {
+            SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit
+        }
+        SentenceEdgeSignatureIndexError::AllocationFailure { .. } => {
+            SentenceEdgeSignatureShadowStopReason::AllocationFailure
+        }
+        SentenceEdgeSignatureIndexError::CounterOverflow { .. } => {
+            SentenceEdgeSignatureShadowStopReason::CounterOverflow
+        }
+        SentenceEdgeSignatureIndexError::InvalidScope { .. } => {
+            SentenceEdgeSignatureShadowStopReason::DiagnosticFailure
+        }
+    }
+}
+
+fn record_signature_index_error(
+    shadow: &mut SentenceEdgeSignatureShadow,
+    error: SentenceEdgeSignatureIndexError,
+) {
+    let (examined, attempted) = error.work();
+    let totals = shadow
+        .metrics
+        .index_posting_items_examined
+        .checked_add(examined)
+        .zip(
+            shadow
+                .metrics
+                .index_posting_items_attempted
+                .checked_add(attempted),
+        );
+    if let Some((examined, attempted)) = totals {
+        shadow.metrics.index_posting_items_examined = examined;
+        shadow.metrics.index_posting_items_attempted = attempted;
+        shadow.stop(signature_stop_reason(error));
+    } else {
+        shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
+    }
+}
+
+fn record_signature_query_error(
+    shadow: &mut SentenceEdgeSignatureShadow,
+    error: SentenceEdgeSignatureIndexError,
+) {
+    let (examined, attempted) = error.work();
+    let totals = shadow
+        .metrics
+        .query_posting_visits_examined
+        .checked_add(examined)
+        .zip(
+            shadow
+                .metrics
+                .query_posting_visits_attempted
+                .checked_add(attempted),
+        );
+    if let Some((examined, attempted)) = totals {
+        shadow.metrics.query_posting_visits_examined = examined;
+        shadow.metrics.query_posting_visits_attempted = attempted;
+        shadow.stop(signature_stop_reason(error));
+    } else {
+        shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
+    }
+}
+
+fn build_signature_index(
+    shadow: Option<&mut SentenceEdgeSignatureShadow>,
+    occurrences: &[SentenceOccurrence],
+    scope: CandidatePostingIndexScope<'_>,
+) -> Option<SentenceEdgeSignatureIndex> {
+    let shadow = shadow.filter(|shadow| shadow.active)?;
+    let remaining = shadow
+        .posting_limit
+        .checked_sub(shadow.metrics.index_posting_items_attempted)?;
+    match SentenceEdgeSignatureIndex::new_bounded(occurrences, scope, remaining) {
+        Ok(index) => {
+            let actual = index.metrics().posting_items;
+            let attempted = shadow
+                .metrics
+                .index_posting_items_attempted
+                .checked_add(actual);
+            let examined = shadow
+                .metrics
+                .index_posting_items_examined
+                .checked_add(actual);
+            match (attempted, examined) {
+                (Some(attempted), Some(examined)) => {
+                    shadow.metrics.index_posting_items_attempted = attempted;
+                    shadow.metrics.index_posting_items_examined = examined;
+                    Some(index)
+                }
+                _ => {
+                    shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
+                    None
+                }
+            }
+        }
+        Err(error) => {
+            record_signature_index_error(shadow, error);
+            None
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_signature_filter(
+    shadow: Option<&mut SentenceEdgeSignatureShadow>,
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
+    index: Option<&SentenceEdgeSignatureIndex>,
+    query: &SentenceOccurrence,
+    candidates: &[SentenceOccurrence],
+    plausible: &mut Vec<usize>,
+    bucket: CandidatePostingBucket,
+    additional_bucket: Option<CandidatePostingBucket>,
+    scope: NearSearchScope,
+    mut include: impl FnMut(usize) -> bool,
+) {
+    plausible.retain(|index| include(*index));
+    if query.kind != RecoveryUnitKind::Sentence {
+        return;
+    }
+    let Some(shadow) = shadow.filter(|shadow| shadow.active) else {
+        return;
+    };
+    let Some(index) = index else {
+        shadow.stop(SentenceEdgeSignatureShadowStopReason::DiagnosticFailure);
+        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
+        return;
+    };
+    let Some(remaining) = shadow
+        .query_limit
+        .checked_sub(shadow.metrics.query_posting_visits_attempted)
+    else {
+        shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
+        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
+        return;
+    };
+    let mut signature = Vec::new();
+    let query_metrics = match index.collect_plausible_occurrences_bounded(
+        &mut signature,
+        query,
+        bucket,
+        additional_bucket,
+        remaining,
+    ) {
+        Ok(metrics) => metrics,
+        Err(error) => {
+            record_signature_query_error(shadow, error);
+            checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
+            return;
+        }
+    };
+    let Some(visits) = shadow
+        .metrics
+        .query_posting_visits_attempted
+        .checked_add(query_metrics.posting_visits)
+    else {
+        shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
+        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
+        return;
+    };
+    shadow.metrics.query_posting_visits_attempted = visits;
+    shadow.metrics.query_posting_visits_examined = visits;
+    signature.retain(|index| include(*index));
+    signature.sort_unstable();
+    signature.dedup();
+    let outside = signature
+        .iter()
+        .filter(|index| plausible.binary_search(index).is_err())
+        .count();
+    let signature_count = plausible
+        .iter()
+        .filter(|index| signature.binary_search(index).is_ok())
+        .count();
+    let considered = plausible.len();
+    let observation = (|| {
+        shadow.metrics.pairs_considered =
+            shadow.metrics.pairs_considered.checked_add(considered)?;
+        shadow.metrics.signature_candidates = shadow
+            .metrics
+            .signature_candidates
+            .checked_add(signature_count)?;
+        shadow.metrics.projected_pairs_pruned = shadow
+            .metrics
+            .projected_pairs_pruned
+            .checked_add(considered.checked_sub(signature_count)?)?;
+        shadow.metrics.signature_not_in_edge_union = shadow
+            .metrics
+            .signature_not_in_edge_union
+            .checked_add(outside)?;
+        shadow.metrics.largest_signature_candidate_set = shadow
+            .metrics
+            .largest_signature_candidate_set
+            .max(signature_count);
+        match scope {
+            NearSearchScope::PairedInterval => {
+                shadow.metrics.paired_interval_pairs = shadow
+                    .metrics
+                    .paired_interval_pairs
+                    .checked_add(considered)?;
+            }
+            NearSearchScope::PairedCrossIntervalVeto => {
+                shadow.metrics.paired_cross_interval_pairs = shadow
+                    .metrics
+                    .paired_cross_interval_pairs
+                    .checked_add(considered)?;
+            }
+            NearSearchScope::CrossSpan => {
+                shadow.metrics.cross_span_shared_pairs = shadow
+                    .metrics
+                    .cross_span_shared_pairs
+                    .checked_add(considered)?;
+            }
+            NearSearchScope::SameOrAmbiguousSpan => {
+                for index in plausible.iter().copied() {
+                    let same_known = query.span_index.is_some()
+                        && candidates
+                            .get(index)
+                            .and_then(|candidate| candidate.span_index)
+                            == query.span_index;
+                    let counter = if same_known {
+                        &mut shadow.metrics.same_known_pairs
+                    } else {
+                        &mut shadow.metrics.ambiguous_pairs
+                    };
+                    *counter = counter.checked_add(1)?;
+                }
+            }
+        }
+        Some(())
+    })();
+    if observation.is_none() {
+        shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
+        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
+        return;
+    }
+    plausible.retain(|index| signature.binary_search(index).is_ok());
+    checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
+}
+
+fn record_signature_exact_retained(
+    shadow: Option<&mut SentenceEdgeSignatureShadow>,
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
+    edge_filter: &SentenceEdgeFilterQuery,
+) {
+    let Some(shadow) = shadow.filter(|shadow| shadow.active) else {
+        return;
+    };
+    let retained = edge_filter.retained_occurrence_count();
+    let Some(next) = shadow
+        .metrics
+        .exact_edge_retained_pairs
+        .checked_add(retained)
+    else {
+        shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
+        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
+        return;
+    };
+    shadow.metrics.exact_edge_retained_pairs = next;
+    checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
 }
 
 #[derive(Clone, Copy)]
@@ -3442,6 +3740,13 @@ impl SentenceEdgeFilterQuery {
                 let retained = retained.get(index)?;
                 Some((retained.occurrence_index, Some(retained.evidence)))
             }
+        }
+    }
+
+    fn retained_occurrence_count(&self) -> usize {
+        match self {
+            Self::Legacy => 0,
+            Self::Filtered { retained, .. } => retained.len(),
         }
     }
 
@@ -4731,6 +5036,7 @@ pub(super) struct RecoveryBudget {
     word_ranges: usize,
     enable_known_span_sentence_shadow: bool,
     enable_sentence_edge_gate_shadow: bool,
+    enable_sentence_edge_signature_filter: bool,
 }
 
 impl RecoveryBudget {
@@ -4793,6 +5099,7 @@ impl RecoveryBudget {
             word_ranges: 0,
             enable_known_span_sentence_shadow: false,
             enable_sentence_edge_gate_shadow: false,
+            enable_sentence_edge_signature_filter: false,
         })
     }
 
@@ -5504,7 +5811,7 @@ pub(super) fn build_sentence_recovery_plan(
     max_tokens: usize,
     watch_queries: &[RecoveryWatchQuery<'_>],
 ) -> Result<SentenceRecoveryBuildOutcome> {
-    build_sentence_recovery_plan_with_atomic_fallback(|edge_filter_mode| {
+    let mut accepted = build_sentence_recovery_plan_with_atomic_fallback(|edge_filter_mode| {
         build_sentence_recovery_plan_inner(
             old,
             new,
@@ -5513,8 +5820,107 @@ pub(super) fn build_sentence_recovery_plan(
             max_tokens,
             watch_queries,
             edge_filter_mode,
+            false,
         )
-    })
+    })?;
+    if input.enable_sentence_edge_gate_shadow {
+        let replay_input = SentenceRecoveryInput {
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
+            ..input
+        };
+        let replay = build_sentence_recovery_plan_inner(
+            old,
+            new,
+            alignment,
+            replay_input,
+            max_tokens,
+            &[],
+            SentenceEdgeFilterMode::Filtered,
+            true,
+        );
+        match replay {
+            Ok(replay) => record_sentence_edge_signature_replay(&mut accepted, replay),
+            Err(_) => record_sentence_edge_signature_replay_failure(&mut accepted),
+        }
+    }
+    Ok(accepted)
+}
+
+fn record_sentence_edge_signature_replay_failure(accepted: &mut SentenceRecoveryBuildOutcome) {
+    if let Some(diagnostics) = accepted.diagnostics.as_mut() {
+        diagnostics.metrics.sentence_edge_signature_shadow =
+            Some(SentenceEdgeSignatureShadowMetrics {
+                complete: false,
+                stop_reason: Some(SentenceEdgeSignatureShadowStopReason::DiagnosticFailure),
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            });
+    }
+}
+
+fn record_sentence_edge_signature_replay(
+    accepted: &mut SentenceRecoveryBuildOutcome,
+    replay: SentenceRecoveryBuildOutcome,
+) {
+    let accepted_filter = accepted.diagnostics.as_ref().map(|diagnostics| {
+        (
+            diagnostics.metrics.sentence_edge_filter_complete,
+            diagnostics.metrics.sentence_edge_filter_pairs_retained,
+        )
+    });
+    let replay_filter_complete = replay
+        .diagnostics
+        .as_ref()
+        .is_some_and(|diagnostics| diagnostics.metrics.sentence_edge_filter_complete);
+    let near_relations_complete = accepted
+        .diagnostics
+        .as_ref()
+        .is_some_and(|diagnostics| diagnostics.metrics.near_relation_complete)
+        && replay
+            .diagnostics
+            .as_ref()
+            .is_some_and(|diagnostics| diagnostics.metrics.near_relation_complete);
+    let mut metrics = replay
+        .diagnostics
+        .as_ref()
+        .and_then(|diagnostics| diagnostics.metrics.sentence_edge_signature_shadow)
+        .unwrap_or_else(|| SentenceEdgeSignatureShadowMetrics {
+            complete: false,
+            stop_reason: Some(SentenceEdgeSignatureShadowStopReason::ProductionTraversalIncomplete),
+            ..SentenceEdgeSignatureShadowMetrics::default()
+        });
+    let parity_evaluable = metrics.complete
+        && metrics.stop_reason.is_none()
+        && near_relations_complete
+        && replay_filter_complete
+        && accepted_filter.is_some_and(|(complete, _)| complete);
+    let parity = parity_evaluable
+        && sentence_recovery_plan_parity(accepted.plan.as_ref(), replay.plan.as_ref());
+    metrics.parity_evaluable = parity_evaluable;
+    metrics.plan_parity = parity;
+    if metrics.complete
+        && parity_evaluable
+        && replay_filter_complete
+        && let Some((true, accepted_retained)) = accepted_filter
+    {
+        if let Some(misses) = accepted_retained.checked_sub(metrics.exact_edge_retained_pairs) {
+            metrics.verification_evaluable = true;
+            metrics.retained_pair_misses = misses;
+        } else {
+            metrics.complete = false;
+            metrics.stop_reason = Some(SentenceEdgeSignatureShadowStopReason::DiagnosticFailure);
+        }
+    }
+    if let Some(diagnostics) = accepted.diagnostics.as_mut() {
+        diagnostics.metrics.sentence_edge_signature_shadow = Some(metrics);
+    }
+}
+
+fn sentence_recovery_plan_parity(
+    left: Option<&SentenceRecoveryPlan>,
+    right: Option<&SentenceRecoveryPlan>,
+) -> bool {
+    left == right
 }
 
 fn build_sentence_recovery_plan_with_atomic_fallback(
@@ -5561,6 +5967,56 @@ fn build_sentence_recovery_plan_inner(
     max_tokens: usize,
     watch_queries: &[RecoveryWatchQuery<'_>],
     edge_filter_mode: SentenceEdgeFilterMode,
+    signature_filter: bool,
+) -> Result<SentenceRecoveryBuildOutcome> {
+    let mut signature_checkpoint = None;
+    let outcome = build_sentence_recovery_plan_inner_impl(
+        old,
+        new,
+        alignment,
+        input,
+        max_tokens,
+        watch_queries,
+        edge_filter_mode,
+        signature_filter,
+        &mut signature_checkpoint,
+    );
+    finalize_signature_replay_outcome(outcome, signature_filter, signature_checkpoint)
+}
+
+fn finalize_signature_replay_outcome(
+    outcome: Result<SentenceRecoveryBuildOutcome>,
+    signature_filter: bool,
+    signature_checkpoint: Option<SentenceRecoveryDiagnostics>,
+) -> Result<SentenceRecoveryBuildOutcome> {
+    match outcome {
+        Ok(mut outcome) => {
+            if signature_filter && outcome.diagnostics.is_none() {
+                outcome.diagnostics = signature_checkpoint;
+            }
+            Ok(outcome)
+        }
+        Err(_) if signature_filter && signature_checkpoint.is_some() => {
+            Ok(SentenceRecoveryBuildOutcome {
+                diagnostics: signature_checkpoint,
+                ..SentenceRecoveryBuildOutcome::default()
+            })
+        }
+        Err(error) => Err(error),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_sentence_recovery_plan_inner_impl(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    alignment: &Alignment,
+    input: SentenceRecoveryInput<'_>,
+    max_tokens: usize,
+    watch_queries: &[RecoveryWatchQuery<'_>],
+    edge_filter_mode: SentenceEdgeFilterMode,
+    signature_filter: bool,
+    signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
 ) -> Result<SentenceRecoveryBuildOutcome> {
     let Some(structural_evidence) = RecoveryStructuralEvidence::new(input) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
@@ -5580,7 +6036,8 @@ fn build_sentence_recovery_plan_inner(
     };
     budget.enable_known_span_sentence_shadow = input.enable_known_span_sentence_shadow;
     budget.enable_sentence_edge_gate_shadow = input.enable_sentence_edge_gate_shadow;
-    budget.sentence_edge_filter_active = edge_filter_mode == SentenceEdgeFilterMode::Filtered;
+    budget.enable_sentence_edge_signature_filter = signature_filter;
+    budget.sentence_edge_filter_active = edge_filter_mode != SentenceEdgeFilterMode::Legacy;
     let Some(membership) = span_membership(alignment) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
@@ -5624,6 +6081,13 @@ fn build_sentence_recovery_plan_inner(
                 complete: true,
                 ..SentenceEdgeGateShadowMetrics::default()
             });
+        }
+        if signature_filter && let Some(diagnostics) = diagnostics.as_mut() {
+            diagnostics.metrics.sentence_edge_signature_shadow =
+                Some(SentenceEdgeSignatureShadowMetrics {
+                    complete: true,
+                    ..SentenceEdgeSignatureShadowMetrics::default()
+                });
         }
         return Ok(SentenceRecoveryBuildOutcome {
             plan: None,
@@ -5817,6 +6281,7 @@ fn build_sentence_recovery_plan_inner(
         input.min_tokens.min(MIN_PAIRED_STREAM_NEAR_TOKENS),
         &mut budget,
         &mut diagnostics,
+        signature_checkpoint,
         &mut paired_vetoes,
         watch.as_mut(),
         &mut paired_shadow_stop_reason,
@@ -5882,7 +6347,10 @@ fn build_sentence_recovery_plan_inner(
     let near_pair_start = diagnostics
         .as_ref()
         .map_or(0, |diagnostics| diagnostics.metrics.near_pair_candidates);
-    let Some(mut relations) = modified_sentence_relations(
+    if budget.enable_sentence_edge_signature_filter {
+        begin_sentence_edge_signature_stage(&mut diagnostics, signature_checkpoint);
+    }
+    let Some(mut relations) = modified_sentence_relations_tracked(
         &old_occurrences,
         &new_occurrences,
         &old_candidates,
@@ -5890,6 +6358,7 @@ fn build_sentence_recovery_plan_inner(
         &paired_streams,
         &mut budget,
         &mut diagnostics,
+        signature_checkpoint,
         watch.as_mut(),
     ) else {
         if let Some(watch) = watch.as_mut() {
@@ -6088,6 +6557,25 @@ fn record_near_search_metrics(
     diagnostics.metrics.near_largest_filtered_candidate_set = budget.largest_filtered_candidate_set;
     diagnostics.metrics.near_candidate_count_truncated = budget.candidate_count_truncated;
     diagnostics.metrics.near_relation_stop_reason = budget.near_relation_stop_reason;
+    if let Some(signature) = diagnostics.metrics.sentence_edge_signature_shadow.as_mut()
+        && let Some(reason) = budget.near_relation_stop_reason
+    {
+        signature.complete = false;
+        signature.stop_reason.get_or_insert(match reason {
+            NearRelationStopReason::CandidatePostingVisitLimit => {
+                SentenceEdgeSignatureShadowStopReason::CandidatePostingVisitLimit
+            }
+            NearRelationStopReason::PairVisitLimit => {
+                SentenceEdgeSignatureShadowStopReason::PairVisitLimit
+            }
+            NearRelationStopReason::SimilarityComparisonLimit => {
+                SentenceEdgeSignatureShadowStopReason::SimilarityComparisonLimit
+            }
+            NearRelationStopReason::CandidateCountLimit => {
+                SentenceEdgeSignatureShadowStopReason::CandidateCountLimit
+            }
+        });
+    }
     enforce_edge_gate_shadow_completion(&mut diagnostics.metrics);
 }
 
@@ -7324,6 +7812,7 @@ fn append_paired_stream_replacements<'a>(
     min_tokens: usize,
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
     vetoes: &mut PairedNearVetoes,
     mut watch: Option<&mut RecoveryWatchState>,
     shadow_stop_reason: &mut Option<SentenceEdgeGateShadowStopReason>,
@@ -7410,7 +7899,10 @@ fn append_paired_stream_replacements<'a>(
     let near_pair_start = diagnostics
         .as_ref()
         .map_or(0, |diagnostics| diagnostics.metrics.near_pair_candidates);
-    let Some(mut relations) = paired_modified_sentence_relations(
+    if budget.enable_sentence_edge_signature_filter {
+        begin_sentence_edge_signature_stage(diagnostics, signature_checkpoint);
+    }
+    let Some(mut relations) = paired_modified_sentence_relations_tracked(
         old_occurrences,
         new_occurrences,
         &old_candidates,
@@ -7420,6 +7912,7 @@ fn append_paired_stream_replacements<'a>(
         &new_pair_by_stream,
         budget,
         diagnostics,
+        signature_checkpoint,
         watch.as_deref_mut(),
     ) else {
         *shadow_stop_reason = Some(budget.near_relation_stop_reason.map_or(
@@ -7433,6 +7926,9 @@ fn append_paired_stream_replacements<'a>(
         shadow_stop_reason,
     )?;
     record_sentence_edge_gate_shadow(diagnostics, &relations, budget.near_relation_stop_reason);
+    if budget.enable_sentence_edge_signature_filter {
+        begin_sentence_edge_signature_stage(diagnostics, signature_checkpoint);
+    }
     record_vetoed_near_pairs(diagnostics, &relations, near_pair_start);
     if let Some(watch) = watch.as_mut()
         && watch
@@ -7503,6 +7999,7 @@ fn veto_fragment_completed_replacements(
             new: std::mem::take(&mut shadow.new),
             complete: relations.complete,
             edge_gate_shadow: None,
+            edge_signature_shadow: None,
         };
         let mut budget = shadow_budget;
         let complete = veto_fragment_completed_replacements_inner(
@@ -8013,6 +8510,7 @@ fn recovery_candidates(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 fn paired_modified_sentence_relations(
     old_occurrences: &[SentenceOccurrence],
     new_occurrences: &[SentenceOccurrence],
@@ -8023,12 +8521,50 @@ fn paired_modified_sentence_relations(
     new_pair_by_stream: &HashMap<usize, usize>,
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    watch: Option<&mut RecoveryWatchState>,
+) -> Option<ModifiedSentenceRelations> {
+    let mut checkpoint = None;
+    paired_modified_sentence_relations_tracked(
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        pairs,
+        old_pair_by_stream,
+        new_pair_by_stream,
+        budget,
+        diagnostics,
+        &mut checkpoint,
+        watch,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn paired_modified_sentence_relations_tracked(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &PairedNearCandidates,
+    new_candidates: &PairedNearCandidates,
+    pairs: &[PairedTrustedStream],
+    old_pair_by_stream: &HashMap<usize, usize>,
+    new_pair_by_stream: &HashMap<usize, usize>,
+    budget: &mut RecoveryBudget,
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
     mut watch: Option<&mut RecoveryWatchState>,
 ) -> Option<ModifiedSentenceRelations> {
     let mut relations =
         empty_modified_sentence_relations(&old_candidates.recoveries, &new_candidates.recoveries)?;
     if budget.enable_sentence_edge_gate_shadow {
         enable_sentence_edge_gate_shadow(&mut relations);
+    }
+    if budget.enable_sentence_edge_signature_filter {
+        enable_sentence_edge_signature_shadow(
+            &mut relations,
+            budget,
+            diagnostics,
+            signature_checkpoint,
+        );
     }
     let old_candidate_by_occurrence =
         candidate_index_by_occurrence(old_occurrences.len(), &old_candidates.recoveries)?;
@@ -8054,6 +8590,19 @@ fn paired_modified_sentence_relations(
         new_occurrences,
         CandidatePostingIndexScope::Paired(&new_intervals),
     )?;
+    let old_signature_index = build_signature_index(
+        relations.edge_signature_shadow.as_mut(),
+        old_occurrences,
+        CandidatePostingIndexScope::Paired(&old_intervals),
+    );
+    let new_signature_index = build_signature_index(
+        relations.edge_signature_shadow.as_mut(),
+        new_occurrences,
+        CandidatePostingIndexScope::Paired(&new_intervals),
+    );
+    if let Some(shadow) = relations.edge_signature_shadow.as_ref() {
+        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
+    }
     let mut plausible = Vec::new();
     let scope = NearSearchScope::PairedInterval;
 
@@ -8078,6 +8627,19 @@ fn paired_modified_sentence_relations(
                 && new_intervals.get(*occurrence_index).copied().flatten() == Some(interval)
         });
         budget.record_candidate_query_in_scope(query, old_occurrence.kind, plausible.len(), scope);
+        apply_signature_filter(
+            relations.edge_signature_shadow.as_mut(),
+            diagnostics,
+            signature_checkpoint,
+            new_signature_index.as_ref(),
+            old_occurrence,
+            new_occurrences,
+            &mut plausible,
+            CandidatePostingBucket::Paired(interval),
+            None,
+            scope,
+            |index| new_intervals.get(index).copied().flatten() == Some(interval),
+        );
         let edge_filter = classify_sentence_edge_filter_query(
             old_occurrence,
             new_occurrences,
@@ -8098,6 +8660,12 @@ fn paired_modified_sentence_relations(
             relations.edge_gate_shadow.as_mut(),
             watch.as_deref_mut(),
             RecoveryWatchNearScope::PairedStream,
+        );
+        record_signature_exact_retained(
+            relations.edge_signature_shadow.as_mut(),
+            diagnostics,
+            signature_checkpoint,
+            &edge_filter,
         );
         let retained_count = edge_filter.len(&plausible);
         if !budget.charge_pair_visits_in_scope(retained_count, old_occurrence.kind, scope) {
@@ -8166,6 +8734,23 @@ fn paired_modified_sentence_relations(
                 && old_intervals.get(*occurrence_index).copied().flatten() == Some(interval)
         });
         budget.record_candidate_query_in_scope(query, new_occurrence.kind, plausible.len(), scope);
+        plausible.retain(|index| old_candidate_by_occurrence[*index].is_none());
+        apply_signature_filter(
+            relations.edge_signature_shadow.as_mut(),
+            diagnostics,
+            signature_checkpoint,
+            old_signature_index.as_ref(),
+            new_occurrence,
+            old_occurrences,
+            &mut plausible,
+            CandidatePostingBucket::Paired(interval),
+            None,
+            scope,
+            |index| {
+                old_candidate_by_occurrence[index].is_none()
+                    && old_intervals.get(index).copied().flatten() == Some(interval)
+            },
+        );
         let edge_filter = classify_sentence_edge_filter_query(
             new_occurrence,
             old_occurrences,
@@ -8188,6 +8773,12 @@ fn paired_modified_sentence_relations(
             RecoveryWatchNearScope::PairedStream,
         );
         plausible.retain(|index| old_candidate_by_occurrence[*index].is_none());
+        record_signature_exact_retained(
+            relations.edge_signature_shadow.as_mut(),
+            diagnostics,
+            signature_checkpoint,
+            &edge_filter,
+        );
         let retained_count = edge_filter.len(&plausible);
         if !budget.charge_pair_visits_in_scope(retained_count, new_occurrence.kind, scope) {
             return None;
@@ -8221,7 +8812,7 @@ fn paired_modified_sentence_relations(
             }
         }
     }
-    record_cross_interval_disqualifying_relations(
+    record_cross_interval_disqualifying_relations_tracked(
         old_occurrences,
         new_occurrences,
         old_candidates,
@@ -8233,6 +8824,7 @@ fn paired_modified_sentence_relations(
         &mut relations,
         budget,
         diagnostics,
+        signature_checkpoint,
         watch,
     )?;
     relations.complete = true;
@@ -8271,6 +8863,7 @@ fn paired_intervals_for_occurrences(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 fn record_cross_interval_disqualifying_relations(
     old_occurrences: &[SentenceOccurrence],
     new_occurrences: &[SentenceOccurrence],
@@ -8283,6 +8876,40 @@ fn record_cross_interval_disqualifying_relations(
     relations: &mut ModifiedSentenceRelations,
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    watch: Option<&mut RecoveryWatchState>,
+) -> Option<()> {
+    let mut checkpoint = None;
+    record_cross_interval_disqualifying_relations_tracked(
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        old_candidate_by_occurrence,
+        new_candidate_by_occurrence,
+        old_intervals,
+        new_intervals,
+        relations,
+        budget,
+        diagnostics,
+        &mut checkpoint,
+        watch,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_cross_interval_disqualifying_relations_tracked(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &PairedNearCandidates,
+    new_candidates: &PairedNearCandidates,
+    old_candidate_by_occurrence: &[Option<usize>],
+    new_candidate_by_occurrence: &[Option<usize>],
+    old_intervals: &[Option<PairedInterval>],
+    new_intervals: &[Option<PairedInterval>],
+    relations: &mut ModifiedSentenceRelations,
+    budget: &mut RecoveryBudget,
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
     mut watch: Option<&mut RecoveryWatchState>,
 ) -> Option<()> {
     let old_index = UnitCandidateIndex::new(
@@ -8293,6 +8920,19 @@ fn record_cross_interval_disqualifying_relations(
         new_occurrences,
         CandidatePostingIndexScope::PairedStream(new_intervals),
     )?;
+    let old_signature_index = build_signature_index(
+        relations.edge_signature_shadow.as_mut(),
+        old_occurrences,
+        CandidatePostingIndexScope::PairedStream(old_intervals),
+    );
+    let new_signature_index = build_signature_index(
+        relations.edge_signature_shadow.as_mut(),
+        new_occurrences,
+        CandidatePostingIndexScope::PairedStream(new_intervals),
+    );
+    if let Some(shadow) = relations.edge_signature_shadow.as_ref() {
+        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
+    }
     let mut plausible = Vec::new();
     let scope = NearSearchScope::PairedCrossIntervalVeto;
 
@@ -8323,6 +8963,27 @@ fn record_cross_interval_disqualifying_relations(
                     })
         });
         budget.record_candidate_query_in_scope(query, old_occurrence.kind, plausible.len(), scope);
+        apply_signature_filter(
+            relations.edge_signature_shadow.as_mut(),
+            diagnostics,
+            signature_checkpoint,
+            new_signature_index.as_ref(),
+            old_occurrence,
+            new_occurrences,
+            &mut plausible,
+            CandidatePostingBucket::PairedStream(interval.pair_index),
+            None,
+            scope,
+            |index| {
+                new_intervals
+                    .get(index)
+                    .copied()
+                    .flatten()
+                    .is_some_and(|candidate| {
+                        candidate.pair_index == interval.pair_index && candidate != interval
+                    })
+            },
+        );
         let edge_filter = classify_sentence_edge_filter_query(
             old_occurrence,
             new_occurrences,
@@ -8343,6 +9004,12 @@ fn record_cross_interval_disqualifying_relations(
             relations.edge_gate_shadow.as_mut(),
             watch.as_deref_mut(),
             RecoveryWatchNearScope::PairedStream,
+        );
+        record_signature_exact_retained(
+            relations.edge_signature_shadow.as_mut(),
+            diagnostics,
+            signature_checkpoint,
+            &edge_filter,
         );
         let retained_count = edge_filter.len(&plausible);
         if !budget.charge_pair_visits_in_scope(retained_count, old_occurrence.kind, scope) {
@@ -8421,6 +9088,30 @@ fn record_cross_interval_disqualifying_relations(
                     })
         });
         budget.record_candidate_query_in_scope(query, new_occurrence.kind, plausible.len(), scope);
+        apply_signature_filter(
+            relations.edge_signature_shadow.as_mut(),
+            diagnostics,
+            signature_checkpoint,
+            old_signature_index.as_ref(),
+            new_occurrence,
+            old_occurrences,
+            &mut plausible,
+            CandidatePostingBucket::PairedStream(interval.pair_index),
+            None,
+            scope,
+            |index| {
+                old_candidate_by_occurrence
+                    .get(index)
+                    .is_some_and(Option::is_none)
+                    && old_intervals
+                        .get(index)
+                        .copied()
+                        .flatten()
+                        .is_some_and(|candidate| {
+                            candidate.pair_index == interval.pair_index && candidate != interval
+                        })
+            },
+        );
         let edge_filter = classify_sentence_edge_filter_query(
             new_occurrence,
             old_occurrences,
@@ -8441,6 +9132,12 @@ fn record_cross_interval_disqualifying_relations(
             relations.edge_gate_shadow.as_mut(),
             watch.as_deref_mut(),
             RecoveryWatchNearScope::PairedStream,
+        );
+        record_signature_exact_retained(
+            relations.edge_signature_shadow.as_mut(),
+            diagnostics,
+            signature_checkpoint,
+            &edge_filter,
         );
         let retained_count = edge_filter.len(&plausible);
         if !budget.charge_pair_visits_in_scope(retained_count, new_occurrence.kind, scope) {
@@ -8573,6 +9270,7 @@ fn reject_crossing_paired_replacements_for(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 fn modified_sentence_relations(
     old_occurrences: &[SentenceOccurrence],
     new_occurrences: &[SentenceOccurrence],
@@ -8581,6 +9279,32 @@ fn modified_sentence_relations(
     paired_streams: &[PairedTrustedStream],
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    watch: Option<&mut RecoveryWatchState>,
+) -> Option<ModifiedSentenceRelations> {
+    let mut checkpoint = None;
+    modified_sentence_relations_tracked(
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        paired_streams,
+        budget,
+        diagnostics,
+        &mut checkpoint,
+        watch,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn modified_sentence_relations_tracked(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    paired_streams: &[PairedTrustedStream],
+    budget: &mut RecoveryBudget,
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
     mut watch: Option<&mut RecoveryWatchState>,
 ) -> Option<ModifiedSentenceRelations> {
     let diagnostic_budget = budget.enable_known_span_sentence_shadow.then_some(*budget);
@@ -8588,7 +9312,15 @@ fn modified_sentence_relations(
     if budget.enable_sentence_edge_gate_shadow {
         enable_sentence_edge_gate_shadow(&mut relations);
     }
-    extend_modified_sentence_relations(
+    if budget.enable_sentence_edge_signature_filter {
+        enable_sentence_edge_signature_shadow(
+            &mut relations,
+            budget,
+            diagnostics,
+            signature_checkpoint,
+        );
+    }
+    extend_modified_sentence_relations_tracked(
         old_occurrences,
         new_occurrences,
         old_candidates,
@@ -8597,6 +9329,7 @@ fn modified_sentence_relations(
         &mut relations,
         budget,
         diagnostics,
+        signature_checkpoint,
         watch.as_deref_mut(),
         None,
     )?;
@@ -8612,7 +9345,7 @@ fn modified_sentence_relations(
     propagate_sentence_edge_gate_clone_failure(&mut relations, &cross_relations);
     let mut cross_budget = *budget;
     let mut cross_diagnostics = *diagnostics;
-    if extend_modified_sentence_relations(
+    if extend_modified_sentence_relations_tracked(
         old_occurrences,
         new_occurrences,
         old_candidates,
@@ -8621,6 +9354,7 @@ fn modified_sentence_relations(
         &mut cross_relations,
         &mut cross_budget,
         &mut cross_diagnostics,
+        signature_checkpoint,
         watch,
         None,
     )
@@ -8645,6 +9379,15 @@ fn modified_sentence_relations(
     }
 
     budget.commit_near_search_spend_from(cross_budget);
+    if budget.enable_sentence_edge_signature_filter {
+        relations.edge_signature_shadow = cross_relations.edge_signature_shadow;
+        if let (Some(diagnostics), Some(cross_diagnostics)) =
+            (diagnostics.as_mut(), cross_diagnostics.as_ref())
+        {
+            diagnostics.metrics.sentence_edge_signature_shadow =
+                cross_diagnostics.metrics.sentence_edge_signature_shadow;
+        }
+    }
     commit_relation_floor_diagnostics_from(diagnostics, cross_diagnostics);
     if let Some(diagnostic_budget) = diagnostic_budget {
         record_known_span_sentence_shadow(
@@ -8791,7 +9534,92 @@ fn empty_modified_sentence_relations(
         new,
         complete: false,
         edge_gate_shadow: None,
+        edge_signature_shadow: None,
     })
+}
+
+fn enable_sentence_edge_signature_shadow(
+    relations: &mut ModifiedSentenceRelations,
+    budget: &RecoveryBudget,
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
+) {
+    let existing = diagnostics
+        .as_ref()
+        .and_then(|diagnostics| diagnostics.metrics.sentence_edge_signature_shadow);
+    let mut metrics = existing.unwrap_or_default();
+    let resumable = existing.is_none()
+        || metrics.stop_reason
+            == Some(SentenceEdgeSignatureShadowStopReason::ProductionTraversalIncomplete)
+        || (metrics.complete && metrics.stop_reason.is_none());
+    if resumable {
+        metrics.complete = false;
+        metrics.stop_reason = None;
+    }
+    let mut shadow =
+        SentenceEdgeSignatureShadow::new(budget.token_limit, metrics).unwrap_or_else(|| {
+            let mut shadow = SentenceEdgeSignatureShadow {
+                metrics,
+                posting_limit: 0,
+                query_limit: 0,
+                active: true,
+            };
+            shadow.stop(SentenceEdgeSignatureShadowStopReason::CounterOverflow);
+            shadow
+        });
+    if !resumable {
+        shadow.active = false;
+    }
+    relations.edge_signature_shadow = Some(shadow);
+    if let Some(shadow) = relations.edge_signature_shadow.as_ref() {
+        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
+    }
+}
+
+fn begin_sentence_edge_signature_stage(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
+) {
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    let mut metrics = diagnostics
+        .metrics
+        .sentence_edge_signature_shadow
+        .unwrap_or_default();
+    metrics.complete = false;
+    metrics.parity_evaluable = false;
+    metrics.verification_evaluable = false;
+    metrics.plan_parity = false;
+    metrics.retained_pair_misses = 0;
+    if metrics.stop_reason.is_none()
+        || metrics.stop_reason
+            == Some(SentenceEdgeSignatureShadowStopReason::ProductionTraversalIncomplete)
+    {
+        metrics.stop_reason =
+            Some(SentenceEdgeSignatureShadowStopReason::ProductionTraversalIncomplete);
+    }
+    diagnostics.metrics.sentence_edge_signature_shadow = Some(metrics);
+    *signature_checkpoint = Some(*diagnostics);
+}
+
+fn checkpoint_signature_shadow(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
+    shadow: &SentenceEdgeSignatureShadow,
+) {
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    let mut metrics = shadow.metrics;
+    metrics.complete = false;
+    if shadow.active {
+        metrics
+            .stop_reason
+            .get_or_insert(SentenceEdgeSignatureShadowStopReason::ProductionTraversalIncomplete);
+    }
+    diagnostics.metrics.sentence_edge_signature_shadow = Some(metrics);
+    *signature_checkpoint = Some(*diagnostics);
 }
 
 fn enable_sentence_edge_gate_shadow(relations: &mut ModifiedSentenceRelations) {
@@ -8862,6 +9690,7 @@ fn try_clone_modified_sentence_relations(
         new,
         complete: relations.complete,
         edge_gate_shadow,
+        edge_signature_shadow: relations.edge_signature_shadow,
     })
 }
 
@@ -8931,6 +9760,36 @@ fn extend_modified_sentence_relations(
     relations: &mut ModifiedSentenceRelations,
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    watch: Option<&mut RecoveryWatchState>,
+    shadow: Option<KnownSpanSentenceReplay<'_>>,
+) -> Option<()> {
+    let mut checkpoint = None;
+    extend_modified_sentence_relations_tracked(
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        scope,
+        relations,
+        budget,
+        diagnostics,
+        &mut checkpoint,
+        watch,
+        shadow,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn extend_modified_sentence_relations_tracked(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    scope: NearRelationScope,
+    relations: &mut ModifiedSentenceRelations,
+    budget: &mut RecoveryBudget,
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
     mut watch: Option<&mut RecoveryWatchState>,
     mut shadow: Option<KnownSpanSentenceReplay<'_>>,
 ) -> Option<()> {
@@ -8943,6 +9802,19 @@ fn extend_modified_sentence_relations(
         candidate_index_by_occurrence(new_occurrences.len(), new_candidates)?;
     let old_index = UnitCandidateIndex::new(old_occurrences, scope.posting_index_scope())?;
     let new_index = UnitCandidateIndex::new(new_occurrences, scope.posting_index_scope())?;
+    let old_signature_index = build_signature_index(
+        relations.edge_signature_shadow.as_mut(),
+        old_occurrences,
+        scope.posting_index_scope(),
+    );
+    let new_signature_index = build_signature_index(
+        relations.edge_signature_shadow.as_mut(),
+        new_occurrences,
+        scope.posting_index_scope(),
+    );
+    if let Some(shadow) = relations.edge_signature_shadow.as_ref() {
+        checkpoint_signature_shadow(diagnostics, signature_checkpoint, shadow);
+    }
     let mut plausible = Vec::new();
     let work_scope = match scope {
         NearRelationScope::SameOrAmbiguous => NearSearchScope::SameOrAmbiguousSpan,
@@ -8978,6 +9850,25 @@ fn extend_modified_sentence_relations(
             plausible.len(),
             work_scope,
         );
+        apply_signature_filter(
+            relations.edge_signature_shadow.as_mut(),
+            diagnostics,
+            signature_checkpoint,
+            new_signature_index.as_ref(),
+            old_occurrence,
+            new_occurrences,
+            &mut plausible,
+            bucket,
+            additional_bucket,
+            work_scope,
+            |index| {
+                new_occurrences.get(index).is_some_and(|candidate| {
+                    candidate.kind == old_occurrence.kind
+                        && occurrence_roles_are_compatible(old_occurrence, candidate)
+                        && scope.includes(old_occurrence.span_index, candidate.span_index)
+                })
+            },
+        );
         let edge_filter = classify_sentence_edge_filter_query(
             old_occurrence,
             new_occurrences,
@@ -9001,6 +9892,12 @@ fn extend_modified_sentence_relations(
                 NearRelationScope::SameOrAmbiguous => RecoveryWatchNearScope::SameSpan,
                 NearRelationScope::CrossSpan => RecoveryWatchNearScope::CrossSpan,
             },
+        );
+        record_signature_exact_retained(
+            relations.edge_signature_shadow.as_mut(),
+            diagnostics,
+            signature_checkpoint,
+            &edge_filter,
         );
         let retained_count = edge_filter.len(&plausible);
         let pair_split = if work_scope == NearSearchScope::SameOrAmbiguousSpan {
@@ -9130,6 +10027,29 @@ fn extend_modified_sentence_relations(
             plausible.len(),
             work_scope,
         );
+        plausible.retain(|index| old_candidate_by_occurrence[*index].is_none());
+        apply_signature_filter(
+            relations.edge_signature_shadow.as_mut(),
+            diagnostics,
+            signature_checkpoint,
+            old_signature_index.as_ref(),
+            new_occurrence,
+            old_occurrences,
+            &mut plausible,
+            bucket,
+            additional_bucket,
+            work_scope,
+            |index| {
+                old_candidate_by_occurrence
+                    .get(index)
+                    .is_some_and(Option::is_none)
+                    && old_occurrences.get(index).is_some_and(|candidate| {
+                        candidate.kind == new_occurrence.kind
+                            && occurrence_roles_are_compatible(new_occurrence, candidate)
+                            && scope.includes(new_occurrence.span_index, candidate.span_index)
+                    })
+            },
+        );
         let edge_filter = classify_sentence_edge_filter_query(
             new_occurrence,
             old_occurrences,
@@ -9155,6 +10075,12 @@ fn extend_modified_sentence_relations(
             },
         );
         plausible.retain(|index| old_candidate_by_occurrence[*index].is_none());
+        record_signature_exact_retained(
+            relations.edge_signature_shadow.as_mut(),
+            diagnostics,
+            signature_checkpoint,
+            &edge_filter,
+        );
         let retained_count = edge_filter.len(&plausible);
         let pair_split = if work_scope == NearSearchScope::SameOrAmbiguousSpan {
             match &edge_filter {
@@ -9540,26 +10466,51 @@ fn record_sentence_edge_gate_shadow(
     relations: &ModifiedSentenceRelations,
     stop_reason: Option<NearRelationStopReason>,
 ) {
-    let Some(shadow) = relations.edge_gate_shadow.as_ref() else {
-        return;
-    };
     let Some(diagnostics) = diagnostics.as_mut() else {
         return;
     };
-    let mut metrics = shadow.metrics;
-    if shadow.active {
-        metrics.complete = relations.complete && stop_reason.is_none();
-        if let Some(reason) = stop_reason {
-            metrics.stop_reason = Some(reason.into());
-        } else if !relations.complete {
-            metrics.stop_reason = Some(SentenceEdgeGateShadowStopReason::DiagnosticFailure);
+    if let Some(shadow) = relations.edge_gate_shadow.as_ref() {
+        let mut metrics = shadow.metrics;
+        if shadow.active {
+            metrics.complete = relations.complete && stop_reason.is_none();
+            if let Some(reason) = stop_reason {
+                metrics.stop_reason = Some(reason.into());
+            } else if !relations.complete {
+                metrics.stop_reason = Some(SentenceEdgeGateShadowStopReason::DiagnosticFailure);
+            }
+            if let Err(reason) =
+                compare_sentence_edge_gate_decisions(relations, shadow, &mut metrics)
+            {
+                metrics.complete = false;
+                metrics.stop_reason = Some(reason);
+            }
         }
-        if let Err(reason) = compare_sentence_edge_gate_decisions(relations, shadow, &mut metrics) {
-            metrics.complete = false;
-            metrics.stop_reason = Some(reason);
-        }
+        merge_sentence_edge_gate_shadow_into(&mut diagnostics.metrics, metrics);
     }
-    merge_sentence_edge_gate_shadow_into(&mut diagnostics.metrics, metrics);
+    if let Some(shadow) = relations.edge_signature_shadow.as_ref() {
+        let mut metrics = shadow.metrics;
+        metrics.complete = shadow.active && relations.complete && stop_reason.is_none();
+        if let Some(reason) = stop_reason {
+            metrics.stop_reason.get_or_insert(match reason {
+                NearRelationStopReason::CandidatePostingVisitLimit => {
+                    SentenceEdgeSignatureShadowStopReason::CandidatePostingVisitLimit
+                }
+                NearRelationStopReason::PairVisitLimit => {
+                    SentenceEdgeSignatureShadowStopReason::PairVisitLimit
+                }
+                NearRelationStopReason::SimilarityComparisonLimit => {
+                    SentenceEdgeSignatureShadowStopReason::SimilarityComparisonLimit
+                }
+                NearRelationStopReason::CandidateCountLimit => {
+                    SentenceEdgeSignatureShadowStopReason::CandidateCountLimit
+                }
+            });
+        } else if !relations.complete && metrics.stop_reason.is_none() {
+            metrics.stop_reason =
+                Some(SentenceEdgeSignatureShadowStopReason::ProductionTraversalIncomplete);
+        }
+        diagnostics.metrics.sentence_edge_signature_shadow = Some(metrics);
+    }
 }
 
 fn compare_sentence_edge_gate_decisions(
@@ -10807,6 +11758,7 @@ mod tests {
                     new: Vec::new(),
                     complete: true,
                     edge_gate_shadow: None,
+                    edge_signature_shadow: None,
                 },
             )
             .expect("one-sided relation records");
@@ -12636,6 +13588,7 @@ mod tests {
                 metrics: SentenceEdgeGateShadowMetrics::default(),
                 active: true,
             }),
+            edge_signature_shadow: None,
         };
         let mut diagnostics = Some(SentenceRecoveryDiagnostics {
             metrics: SentenceRecoveryMetrics::default(),
@@ -12895,6 +13848,7 @@ mod tests {
             new: vec![CandidateNearRelation::default()],
             complete: false,
             edge_gate_shadow: Some(failed_shadow),
+            edge_signature_shadow: None,
         };
         propagate_sentence_edge_gate_clone_failure(&mut source, &failed_clone);
         let source_shadow = source.edge_gate_shadow.expect("shadow remains");
@@ -13048,6 +14002,7 @@ mod tests {
                 5,
                 &mut budget,
                 &mut diagnostics,
+                &mut None,
                 &mut vetoes,
                 None,
                 &mut reason,
@@ -15284,6 +16239,7 @@ mod tests {
             new: vec![new_relation],
             complete: true,
             edge_gate_shadow: None,
+            edge_signature_shadow: None,
         };
         let mut budget = FragmentVetoBudget::new(old.tokens.len(), new.tokens.len())
             .expect("test budget is valid");
@@ -15320,6 +16276,7 @@ mod tests {
             new: vec![new_relation],
             complete: true,
             edge_gate_shadow: None,
+            edge_signature_shadow: None,
         };
         let mut budget = FragmentVetoBudget::new(old.tokens.len(), new.tokens.len())
             .expect("test budget is valid");
@@ -15392,6 +16349,7 @@ mod tests {
             new: vec![new_relation],
             complete: true,
             edge_gate_shadow: None,
+            edge_signature_shadow: None,
         };
         let fragments = (0..16)
             .map(|_| SentenceFragment {
@@ -15439,6 +16397,7 @@ mod tests {
             new: vec![new_relation],
             complete: true,
             edge_gate_shadow: None,
+            edge_signature_shadow: None,
         };
         let fragments = (0..8)
             .map(|_| SentenceFragment {
@@ -15496,6 +16455,7 @@ mod tests {
             new: vec![new_near, CandidateNearRelation::default()],
             complete: true,
             edge_gate_shadow: None,
+            edge_signature_shadow: None,
         };
         let fragments = [
             SentenceFragment {
@@ -16183,6 +17143,687 @@ mod tests {
             )
             .expect("long-to-short paired-stream query succeeds");
         assert_eq!(plausible, vec![0, 1]);
+    }
+
+    #[test]
+    fn signature_replay_splits_same_known_and_ambiguous_scope_work() {
+        let mut query = indexed_occurrence(
+            &['a', 'b', 'c', 'z'],
+            RecoveryUnitKind::Sentence,
+            Some(BlockRole::Body),
+        );
+        query.span_index = Some(0);
+        let mut candidates = [
+            indexed_occurrence(
+                &['a', 'b', 'x', 'z'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['a', 'b', 'y', 'z'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+        ];
+        candidates[0].span_index = Some(0);
+        candidates[1].span_index = None;
+        let index = SentenceEdgeSignatureIndex::new_bounded(
+            &candidates,
+            CandidatePostingIndexScope::Span,
+            16,
+        )
+        .expect("bounded signature index builds");
+        let mut shadow = SentenceEdgeSignatureShadow::new(12, Default::default())
+            .expect("shadow budget computes");
+        let actual = index.metrics().posting_items;
+        shadow.metrics.index_posting_items_attempted = actual;
+        shadow.metrics.index_posting_items_examined = actual;
+        let mut plausible = vec![0, 1];
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+
+        apply_signature_filter(
+            Some(&mut shadow),
+            &mut diagnostics,
+            &mut None,
+            Some(&index),
+            &query,
+            &candidates,
+            &mut plausible,
+            CandidatePostingBucket::Span(Some(0)),
+            Some(CandidatePostingBucket::Span(None)),
+            NearSearchScope::SameOrAmbiguousSpan,
+            |_| true,
+        );
+
+        assert_eq!(shadow.metrics.pairs_considered, 2);
+        assert_eq!(shadow.metrics.same_known_pairs, 1);
+        assert_eq!(shadow.metrics.ambiguous_pairs, 1);
+        assert_eq!(
+            shadow.metrics.same_known_pairs + shadow.metrics.ambiguous_pairs,
+            shadow.metrics.pairs_considered
+        );
+        assert_eq!(
+            shadow.metrics.index_posting_items_attempted,
+            shadow.metrics.index_posting_items_examined
+        );
+    }
+
+    #[test]
+    fn signature_replay_checkpoints_typed_query_limit_stop() {
+        let query = indexed_occurrence(
+            &['a', 'b', 'c', 'z'],
+            RecoveryUnitKind::Sentence,
+            Some(BlockRole::Body),
+        );
+        let candidates = [indexed_occurrence(
+            &['a', 'b', 'x', 'z'],
+            RecoveryUnitKind::Sentence,
+            Some(BlockRole::Body),
+        )];
+        let index =
+            SentenceEdgeSignatureIndex::new(&candidates, CandidatePostingIndexScope::Global)
+                .expect("signature index builds");
+        let mut shadow = SentenceEdgeSignatureShadow::new(4, Default::default())
+            .expect("shadow budget computes");
+        shadow.query_limit = 0;
+        let mut plausible = vec![0];
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+
+        apply_signature_filter(
+            Some(&mut shadow),
+            &mut diagnostics,
+            &mut None,
+            Some(&index),
+            &query,
+            &candidates,
+            &mut plausible,
+            CandidatePostingBucket::Global,
+            None,
+            NearSearchScope::CrossSpan,
+            |_| true,
+        );
+
+        let metrics = diagnostics
+            .expect("diagnostics remain")
+            .metrics
+            .sentence_edge_signature_shadow
+            .expect("partial signature metrics remain");
+        assert!(!metrics.complete);
+        assert_eq!(
+            metrics.stop_reason,
+            Some(SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit)
+        );
+        assert!(metrics.query_posting_visits_attempted > 0);
+        assert_eq!(metrics.query_posting_visits_examined, 0);
+    }
+
+    #[test]
+    fn signature_allocation_failures_preserve_partial_work() {
+        let candidates = [
+            indexed_occurrence(
+                &['a', 'b', 'c', 'z'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['a', 'b', 'd', 'z'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+        ];
+        let index_error = match SentenceEdgeSignatureIndex::new_with_allocation_failure_after(
+            &candidates,
+            CandidatePostingIndexScope::Global,
+            1,
+        ) {
+            Ok(_) => panic!("injected index allocation failure must be reported"),
+            Err(error) => error,
+        };
+        let mut index_shadow =
+            SentenceEdgeSignatureShadow::new(8, Default::default()).expect("shadow budget fits");
+        record_signature_index_error(&mut index_shadow, index_error);
+        assert_eq!(index_shadow.metrics.index_posting_items_examined, 1);
+        assert!(
+            index_shadow.metrics.index_posting_items_attempted
+                > index_shadow.metrics.index_posting_items_examined
+        );
+        assert_eq!(
+            index_shadow.metrics.stop_reason,
+            Some(SentenceEdgeSignatureShadowStopReason::AllocationFailure)
+        );
+
+        let index =
+            SentenceEdgeSignatureIndex::new(&candidates, CandidatePostingIndexScope::Global)
+                .expect("signature index builds");
+        let mut plausible = Vec::new();
+        let query_error = index
+            .collect_with_allocation_failure_after(
+                &mut plausible,
+                &candidates[0],
+                CandidatePostingBucket::Global,
+                None,
+                1,
+            )
+            .expect_err("injected query allocation failure is reported");
+        let mut query_shadow =
+            SentenceEdgeSignatureShadow::new(8, Default::default()).expect("shadow budget fits");
+        record_signature_query_error(&mut query_shadow, query_error);
+        assert!(query_shadow.metrics.query_posting_visits_examined > 0);
+        assert!(
+            query_shadow.metrics.query_posting_visits_attempted
+                > query_shadow.metrics.query_posting_visits_examined
+        );
+        assert_eq!(
+            query_shadow.metrics.stop_reason,
+            Some(SentenceEdgeSignatureShadowStopReason::AllocationFailure)
+        );
+    }
+
+    #[test]
+    fn signature_replay_finalizer_preserves_early_return_and_error_checkpoints() {
+        let checkpoint = SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics {
+                sentence_edge_signature_shadow: Some(SentenceEdgeSignatureShadowMetrics {
+                    index_posting_items_examined: 2,
+                    index_posting_items_attempted: 3,
+                    stop_reason: Some(SentenceEdgeSignatureShadowStopReason::AllocationFailure),
+                    ..SentenceEdgeSignatureShadowMetrics::default()
+                }),
+                ..SentenceRecoveryMetrics::default()
+            },
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        };
+
+        for outcome in [
+            Ok(SentenceRecoveryBuildOutcome::default()),
+            Err(crate::Error::Unresolved(
+                "injected replay failure".to_owned(),
+            )),
+        ] {
+            let finalized = finalize_signature_replay_outcome(outcome, true, Some(checkpoint))
+                .expect("replay diagnostics are recovered");
+            let metrics = finalized
+                .diagnostics
+                .expect("checkpoint diagnostics remain")
+                .metrics
+                .sentence_edge_signature_shadow
+                .expect("signature metrics remain");
+            assert_eq!(metrics.index_posting_items_examined, 2);
+            assert_eq!(metrics.index_posting_items_attempted, 3);
+            assert_eq!(
+                metrics.stop_reason,
+                Some(SentenceEdgeSignatureShadowStopReason::AllocationFailure)
+            );
+        }
+    }
+
+    #[test]
+    fn stopped_signature_shadow_does_not_reactivate_in_the_next_stage() {
+        let stop_reason = SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit;
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics {
+                sentence_edge_signature_shadow: Some(SentenceEdgeSignatureShadowMetrics {
+                    complete: false,
+                    stop_reason: Some(stop_reason),
+                    query_posting_visits_attempted: 7,
+                    query_posting_visits_examined: 5,
+                    ..SentenceEdgeSignatureShadowMetrics::default()
+                }),
+                ..SentenceRecoveryMetrics::default()
+            },
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+        let mut checkpoint = None;
+        begin_sentence_edge_signature_stage(&mut diagnostics, &mut checkpoint);
+        let mut relations =
+            empty_modified_sentence_relations(&[], &[]).expect("empty relation buffers allocate");
+        let mut budget = RecoveryBudget::new(4, 4, 8, 1).expect("budget fits");
+        budget.enable_sentence_edge_signature_filter = true;
+
+        enable_sentence_edge_signature_shadow(
+            &mut relations,
+            &budget,
+            &mut diagnostics,
+            &mut checkpoint,
+        );
+
+        let shadow = relations
+            .edge_signature_shadow
+            .expect("stopped shadow remains represented");
+        assert!(!shadow.active);
+        assert_eq!(shadow.metrics.stop_reason, Some(stop_reason));
+        assert_eq!(shadow.metrics.query_posting_visits_attempted, 7);
+        assert_eq!(shadow.metrics.query_posting_visits_examined, 5);
+
+        let mut inconsistent_diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics {
+                sentence_edge_signature_shadow: Some(SentenceEdgeSignatureShadowMetrics {
+                    complete: true,
+                    stop_reason: Some(stop_reason),
+                    ..SentenceEdgeSignatureShadowMetrics::default()
+                }),
+                ..SentenceRecoveryMetrics::default()
+            },
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+        let mut inconsistent_relations =
+            empty_modified_sentence_relations(&[], &[]).expect("empty relation buffers allocate");
+        enable_sentence_edge_signature_shadow(
+            &mut inconsistent_relations,
+            &budget,
+            &mut inconsistent_diagnostics,
+            &mut None,
+        );
+        assert!(
+            !inconsistent_relations
+                .edge_signature_shadow
+                .expect("inconsistent stopped shadow remains represented")
+                .active
+        );
+    }
+
+    #[test]
+    fn next_signature_stage_invalidates_a_paired_only_completion() {
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics {
+                sentence_edge_signature_shadow: Some(SentenceEdgeSignatureShadowMetrics {
+                    complete: true,
+                    parity_evaluable: true,
+                    verification_evaluable: true,
+                    plan_parity: true,
+                    ..SentenceEdgeSignatureShadowMetrics::default()
+                }),
+                ..SentenceRecoveryMetrics::default()
+            },
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+        let mut checkpoint = None;
+
+        begin_sentence_edge_signature_stage(&mut diagnostics, &mut checkpoint);
+        let stage_diagnostics = diagnostics;
+        let finalized = finalize_signature_replay_outcome(
+            Ok(SentenceRecoveryBuildOutcome {
+                diagnostics: stage_diagnostics,
+                ..SentenceRecoveryBuildOutcome::default()
+            }),
+            true,
+            checkpoint,
+        )
+        .expect("stage allocation failure remains diagnostic-only");
+
+        let metrics = finalized
+            .diagnostics
+            .expect("stage checkpoint is restored")
+            .metrics
+            .sentence_edge_signature_shadow
+            .expect("signature metrics remain");
+        assert!(!metrics.complete);
+        assert_eq!(
+            metrics.stop_reason,
+            Some(SentenceEdgeSignatureShadowStopReason::ProductionTraversalIncomplete)
+        );
+        assert!(!metrics.parity_evaluable);
+        assert!(!metrics.verification_evaluable);
+        assert!(!metrics.plan_parity);
+    }
+
+    #[test]
+    fn inactive_signature_shadow_still_applies_reverse_suppression() {
+        let query = indexed_occurrence(
+            &['a', 'b', 'c', 'z'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        );
+        let candidates = [
+            indexed_occurrence(
+                &['a', 'b', 'c', 'z'],
+                RecoveryUnitKind::Line,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['a', 'b', 'c', 'z'],
+                RecoveryUnitKind::Line,
+                Some(BlockRole::Body),
+            ),
+        ];
+        let mut shadow =
+            SentenceEdgeSignatureShadow::new(8, Default::default()).expect("shadow budget fits");
+        shadow.stop(SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit);
+        let mut plausible = vec![0, 1];
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+
+        apply_signature_filter(
+            Some(&mut shadow),
+            &mut diagnostics,
+            &mut None,
+            None,
+            &query,
+            &candidates,
+            &mut plausible,
+            CandidatePostingBucket::Global,
+            None,
+            NearSearchScope::SameOrAmbiguousSpan,
+            |index| index == 1,
+        );
+
+        assert_eq!(plausible, [1]);
+        assert_eq!(
+            shadow.metrics.stop_reason,
+            Some(SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit)
+        );
+    }
+
+    #[test]
+    fn signature_metrics_preserve_the_first_stop_reason() {
+        let signature = SentenceEdgeSignatureShadowMetrics {
+            stop_reason: Some(SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit),
+            ..SentenceEdgeSignatureShadowMetrics::default()
+        };
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics {
+                sentence_edge_signature_shadow: Some(signature),
+                ..SentenceRecoveryMetrics::default()
+            },
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+        let mut budget = RecoveryBudget::new(4, 4, 8, 1).expect("budget fits");
+        budget.near_relation_stop_reason = Some(NearRelationStopReason::SimilarityComparisonLimit);
+
+        record_near_search_metrics(&mut diagnostics, &budget);
+
+        let after_near = diagnostics
+            .as_ref()
+            .expect("diagnostics remain")
+            .metrics
+            .sentence_edge_signature_shadow
+            .expect("signature metrics remain");
+        assert_eq!(after_near.stop_reason, signature.stop_reason);
+
+        let relations = ModifiedSentenceRelations {
+            old: Vec::new(),
+            new: Vec::new(),
+            complete: false,
+            edge_gate_shadow: None,
+            edge_signature_shadow: Some(SentenceEdgeSignatureShadow {
+                metrics: after_near,
+                posting_limit: 1,
+                query_limit: 1,
+                active: false,
+            }),
+        };
+        record_sentence_edge_gate_shadow(
+            &mut diagnostics,
+            &relations,
+            Some(NearRelationStopReason::PairVisitLimit),
+        );
+
+        let after_relations = diagnostics
+            .expect("diagnostics remain")
+            .metrics
+            .sentence_edge_signature_shadow
+            .expect("signature metrics remain");
+        assert_eq!(after_relations.stop_reason, signature.stop_reason);
+    }
+
+    #[test]
+    fn signature_collision_overinclude_does_not_mark_replay_incomplete() {
+        let relations = ModifiedSentenceRelations {
+            old: Vec::new(),
+            new: Vec::new(),
+            complete: true,
+            edge_gate_shadow: None,
+            edge_signature_shadow: Some(SentenceEdgeSignatureShadow {
+                metrics: SentenceEdgeSignatureShadowMetrics {
+                    signature_not_in_edge_union: 1,
+                    ..SentenceEdgeSignatureShadowMetrics::default()
+                },
+                posting_limit: 1,
+                query_limit: 1,
+                active: true,
+            }),
+        };
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+
+        record_sentence_edge_gate_shadow(&mut diagnostics, &relations, None);
+
+        let metrics = diagnostics
+            .expect("diagnostics remain")
+            .metrics
+            .sentence_edge_signature_shadow
+            .expect("signature metrics exist");
+        assert!(metrics.complete);
+        assert_eq!(metrics.stop_reason, None);
+        assert_eq!(metrics.signature_not_in_edge_union, 1);
+    }
+
+    #[test]
+    fn signature_replay_parity_requires_complete_near_relations() {
+        let mut accepted = fallback_test_outcome(true, 41, 42);
+        {
+            let metrics = &mut accepted
+                .diagnostics
+                .as_mut()
+                .expect("accepted diagnostics exist")
+                .metrics;
+            metrics.sentence_edge_filter_complete = true;
+            metrics.sentence_edge_filter_pairs_retained = 3;
+        }
+        let mut replay = fallback_test_outcome(true, 41, 0);
+        {
+            let metrics = &mut replay
+                .diagnostics
+                .as_mut()
+                .expect("replay diagnostics exist")
+                .metrics;
+            metrics.sentence_edge_filter_complete = true;
+            metrics.sentence_edge_signature_shadow = Some(SentenceEdgeSignatureShadowMetrics {
+                complete: true,
+                exact_edge_retained_pairs: 2,
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            });
+        }
+
+        record_sentence_edge_signature_replay(&mut accepted, replay);
+
+        let complete = accepted
+            .diagnostics
+            .as_ref()
+            .expect("accepted diagnostics exist")
+            .metrics
+            .sentence_edge_signature_shadow
+            .expect("signature metrics exist");
+        assert!(complete.parity_evaluable);
+        assert!(complete.verification_evaluable);
+        assert!(complete.plan_parity);
+        assert_eq!(complete.retained_pair_misses, 1);
+
+        let mut accepted = fallback_test_outcome(true, 41, 42);
+        let mut replay = fallback_test_outcome(true, 41, 0);
+        replay
+            .diagnostics
+            .as_mut()
+            .expect("replay diagnostics exist")
+            .metrics
+            .sentence_edge_signature_shadow = Some(SentenceEdgeSignatureShadowMetrics {
+            complete: true,
+            ..SentenceEdgeSignatureShadowMetrics::default()
+        });
+
+        record_sentence_edge_signature_replay(&mut accepted, replay);
+
+        let incomplete = accepted
+            .diagnostics
+            .expect("accepted diagnostics exist")
+            .metrics
+            .sentence_edge_signature_shadow
+            .expect("signature metrics exist");
+        assert!(!incomplete.parity_evaluable);
+        assert!(!incomplete.verification_evaluable);
+        assert!(!incomplete.plan_parity);
+
+        let mut accepted = fallback_test_outcome(true, 41, 42);
+        accepted
+            .diagnostics
+            .as_mut()
+            .expect("accepted diagnostics exist")
+            .metrics
+            .sentence_edge_filter_complete = true;
+        let mut replay = fallback_test_outcome(true, 41, 0);
+        {
+            let metrics = &mut replay
+                .diagnostics
+                .as_mut()
+                .expect("replay diagnostics exist")
+                .metrics;
+            metrics.sentence_edge_filter_complete = true;
+            metrics.sentence_edge_signature_shadow = Some(SentenceEdgeSignatureShadowMetrics {
+                complete: false,
+                stop_reason: Some(SentenceEdgeSignatureShadowStopReason::QueryPostingVisitLimit),
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            });
+        }
+
+        record_sentence_edge_signature_replay(&mut accepted, replay);
+
+        let stopped = accepted
+            .diagnostics
+            .expect("accepted diagnostics exist")
+            .metrics
+            .sentence_edge_signature_shadow
+            .expect("signature metrics exist");
+        assert!(!stopped.parity_evaluable);
+        assert!(!stopped.plan_parity);
+    }
+
+    #[test]
+    fn signature_replay_rejects_impossible_retained_pair_count() {
+        let mut accepted = fallback_test_outcome(true, 51, 52);
+        {
+            let metrics = &mut accepted
+                .diagnostics
+                .as_mut()
+                .expect("accepted diagnostics exist")
+                .metrics;
+            metrics.sentence_edge_filter_complete = true;
+            metrics.sentence_edge_filter_pairs_retained = 1;
+        }
+        let mut replay = fallback_test_outcome(true, 51, 0);
+        {
+            let metrics = &mut replay
+                .diagnostics
+                .as_mut()
+                .expect("replay diagnostics exist")
+                .metrics;
+            metrics.sentence_edge_filter_complete = true;
+            metrics.sentence_edge_signature_shadow = Some(SentenceEdgeSignatureShadowMetrics {
+                complete: true,
+                exact_edge_retained_pairs: 2,
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            });
+        }
+
+        record_sentence_edge_signature_replay(&mut accepted, replay);
+
+        let metrics = accepted
+            .diagnostics
+            .expect("accepted diagnostics exist")
+            .metrics
+            .sentence_edge_signature_shadow
+            .expect("signature metrics exist");
+        assert!(!metrics.complete);
+        assert!(!metrics.verification_evaluable);
+        assert_eq!(
+            metrics.stop_reason,
+            Some(SentenceEdgeSignatureShadowStopReason::DiagnosticFailure)
+        );
+    }
+
+    #[test]
+    fn signature_replay_does_not_evaluate_inconsistent_completed_stop() {
+        let mut accepted = fallback_test_outcome(true, 61, 62);
+        accepted
+            .diagnostics
+            .as_mut()
+            .expect("accepted diagnostics exist")
+            .metrics
+            .sentence_edge_filter_complete = true;
+        let mut replay = fallback_test_outcome(true, 61, 0);
+        {
+            let metrics = &mut replay
+                .diagnostics
+                .as_mut()
+                .expect("replay diagnostics exist")
+                .metrics;
+            metrics.sentence_edge_filter_complete = true;
+            metrics.sentence_edge_signature_shadow = Some(SentenceEdgeSignatureShadowMetrics {
+                complete: true,
+                stop_reason: Some(SentenceEdgeSignatureShadowStopReason::AllocationFailure),
+                ..SentenceEdgeSignatureShadowMetrics::default()
+            });
+        }
+
+        record_sentence_edge_signature_replay(&mut accepted, replay);
+
+        let metrics = accepted
+            .diagnostics
+            .expect("accepted diagnostics exist")
+            .metrics
+            .sentence_edge_signature_shadow
+            .expect("signature metrics exist");
+        assert!(!metrics.parity_evaluable);
+        assert!(!metrics.verification_evaluable);
+        assert!(!metrics.plan_parity);
+    }
+
+    #[test]
+    fn replay_failure_preserves_accepted_plan_watch_and_production_metrics() {
+        let mut accepted = fallback_test_outcome(true, 31, 32);
+        let expected = fallback_test_outcome(true, 31, 32);
+        let expected_watch = accepted.watch_diagnostics.clone();
+        let expected_pair_visits = accepted
+            .diagnostics
+            .as_ref()
+            .expect("accepted diagnostics exist")
+            .metrics
+            .near_pair_visits_examined;
+
+        record_sentence_edge_signature_replay_failure(&mut accepted);
+
+        assert!(sentence_recovery_plan_parity(
+            accepted.plan.as_ref(),
+            expected.plan.as_ref()
+        ));
+        assert_eq!(accepted.watch_diagnostics, expected_watch);
+        let metrics = accepted.diagnostics.expect("diagnostics remain").metrics;
+        assert_eq!(metrics.near_pair_visits_examined, expected_pair_visits);
+        assert_eq!(
+            metrics
+                .sentence_edge_signature_shadow
+                .expect("typed replay failure exists")
+                .stop_reason,
+            Some(SentenceEdgeSignatureShadowStopReason::DiagnosticFailure)
+        );
     }
 
     #[test]

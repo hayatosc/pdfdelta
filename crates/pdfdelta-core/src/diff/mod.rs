@@ -547,6 +547,49 @@ pub struct SentenceEdgeGateShadowMetrics {
     pub insertion_deletion_veto_mismatches: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SentenceEdgeSignatureShadowStopReason {
+    IndexPostingLimit,
+    QueryPostingVisitLimit,
+    AllocationFailure,
+    CounterOverflow,
+    ProductionTraversalIncomplete,
+    CandidatePostingVisitLimit,
+    PairVisitLimit,
+    SimilarityComparisonLimit,
+    CandidateCountLimit,
+    DiagnosticFailure,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SentenceEdgeSignatureShadowMetrics {
+    pub complete: bool,
+    pub stop_reason: Option<SentenceEdgeSignatureShadowStopReason>,
+    pub index_posting_items_examined: usize,
+    pub index_posting_items_attempted: usize,
+    pub query_posting_visits_examined: usize,
+    pub query_posting_visits_attempted: usize,
+    pub pairs_considered: usize,
+    pub signature_candidates: usize,
+    pub projected_pairs_pruned: usize,
+    pub exact_edge_retained_pairs: usize,
+    /// Evaluated only when the accepted baseline completed; primitive
+    /// exhaustive tests establish recall independently of this replay.
+    pub verification_evaluable: bool,
+    pub retained_pair_misses: usize,
+    /// Hash collisions may increase this counter without making the replay
+    /// incomplete because exact edge evidence remains authoritative.
+    pub signature_not_in_edge_union: usize,
+    pub largest_signature_candidate_set: usize,
+    pub paired_interval_pairs: usize,
+    pub paired_cross_interval_pairs: usize,
+    pub same_known_pairs: usize,
+    pub ambiguous_pairs: usize,
+    pub cross_span_shared_pairs: usize,
+    pub parity_evaluable: bool,
+    pub plan_parity: bool,
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -616,6 +659,7 @@ pub struct SentenceRecoveryMetrics {
     pub near_cross_span_work: NearSearchScopeMetrics,
     pub known_span_sentence_shadow: Option<KnownSpanSentenceShadowMetrics>,
     pub sentence_edge_gate_shadow: Option<SentenceEdgeGateShadowMetrics>,
+    pub sentence_edge_signature_shadow: Option<SentenceEdgeSignatureShadowMetrics>,
     /// Whether the production Sentence edge filter classified every query.
     /// A false value always has [`Self::sentence_edge_filter_stop_reason`].
     pub sentence_edge_filter_complete: bool,
@@ -7903,6 +7947,74 @@ mod tests {
             },
         )
         .expect("sentence recovery comparison succeeds")
+    }
+
+    #[test]
+    fn sentence_edge_signature_replay_preserves_the_accepted_comparison() {
+        let old = vec![sentence_block(
+            91_001,
+            "The reviewed clause keeps alpha and beta for every account.",
+        )];
+        let new = vec![sentence_block(
+            91_002,
+            "The reviewed clause keeps alpha and gamma for every account.",
+        )];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let old_intervals = trusted_run_intervals(&[Some(TrustedRunId(91_001))]);
+        let new_intervals = trusted_run_intervals(&[Some(TrustedRunId(91_002))]);
+        let compare = |enable_shadow| {
+            compare_aligned_with_sentence_recovery_metrics(
+                &old,
+                &new,
+                &alignment,
+                DiffOptions::default(),
+                SentenceRecoveryInput {
+                    old_trusted_run_intervals: &old_intervals,
+                    new_trusted_run_intervals: &new_intervals,
+                    old_trusted_run_evidence: None,
+                    new_trusted_run_evidence: None,
+                    min_tokens: 5,
+                    enable_known_span_sentence_shadow: false,
+                    enable_sentence_edge_gate_shadow: enable_shadow,
+                },
+            )
+            .expect("sentence recovery comparison succeeds")
+        };
+
+        let baseline = compare(false);
+        let measured = compare(true);
+
+        assert_eq!(measured.comparison, baseline.comparison);
+        assert_eq!(
+            measured.recovery_watch_diagnostics,
+            baseline.recovery_watch_diagnostics
+        );
+        let mut baseline_metrics = baseline
+            .sentence_recovery_metrics
+            .expect("baseline metrics exist");
+        let mut measured_metrics = measured
+            .sentence_recovery_metrics
+            .expect("measured metrics exist");
+        assert!(baseline_metrics.sentence_edge_signature_shadow.is_none());
+        let signature = measured_metrics
+            .sentence_edge_signature_shadow
+            .expect("signature replay metrics exist");
+        assert!(signature.complete);
+        assert!(signature.parity_evaluable);
+        assert!(signature.plan_parity);
+        assert!(
+            signature.paired_interval_pairs
+                + signature.paired_cross_interval_pairs
+                + signature.same_known_pairs
+                + signature.ambiguous_pairs
+                + signature.cross_span_shared_pairs
+                > 0
+        );
+        baseline_metrics.sentence_edge_gate_shadow = None;
+        measured_metrics.sentence_edge_gate_shadow = None;
+        measured_metrics.sentence_edge_signature_shadow = None;
+        assert_eq!(measured_metrics, baseline_metrics);
     }
 
     fn compare_run_signature_diagnostics(
