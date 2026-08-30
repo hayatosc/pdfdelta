@@ -423,8 +423,15 @@ struct UnitCandidateIndex {
             OccurrenceRole,
             [SentenceEvidenceToken; LINE_NGRAM_SIZE],
         ),
-        Vec<usize>,
+        Vec<LineTrigramPosting>,
     >,
+    line_trigram_counts: Vec<usize>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LineTrigramPosting {
+    occurrence_index: usize,
+    multiplicity: usize,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -441,7 +448,13 @@ impl UnitCandidateIndex {
         let mut index = Self {
             edge_postings: HashMap::new(),
             line_trigram_postings: HashMap::new(),
+            line_trigram_counts: Vec::new(),
         };
+        index
+            .line_trigram_counts
+            .try_reserve_exact(occurrences.len())
+            .ok()?;
+        index.line_trigram_counts.resize(occurrences.len(), 0);
         for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
             let bucket = match scope {
                 CandidatePostingIndexScope::Global => CandidatePostingBucket::Global,
@@ -471,6 +484,8 @@ impl UnitCandidateIndex {
                 index.push_edge_posting((bucket, occurrence.kind, role, last), occurrence_index)?;
             }
             if occurrence.kind == RecoveryUnitKind::Line {
+                index.line_trigram_counts[occurrence_index] =
+                    ngram_count(occurrence.tokens.len(), LINE_NGRAM_SIZE)?;
                 for window in occurrence.tokens.windows(LINE_NGRAM_SIZE) {
                     let trigram =
                         <[SentenceEvidenceToken; LINE_NGRAM_SIZE]>::try_from(window).ok()?;
@@ -519,13 +534,20 @@ impl UnitCandidateIndex {
             self.line_trigram_postings.insert(key, Vec::new());
         }
         let postings = self.line_trigram_postings.get_mut(&key)?;
-        // Occurrences are indexed in order, so this suppresses repeated windows
-        // while keeping total posting entries bounded by source token windows.
-        if postings.last().copied() == Some(occurrence_index) {
+        // Occurrences are indexed in order, so equal windows are adjacent within
+        // one posting list and can retain multiplicity without duplicate entries.
+        if let Some(posting) = postings
+            .last_mut()
+            .filter(|posting| posting.occurrence_index == occurrence_index)
+        {
+            posting.multiplicity = posting.multiplicity.checked_add(1)?;
             return Some(());
         }
         postings.try_reserve(1).ok()?;
-        postings.push(occurrence_index);
+        postings.push(LineTrigramPosting {
+            occurrence_index,
+            multiplicity: 1,
+        });
         Some(())
     }
 
@@ -593,41 +615,65 @@ impl UnitCandidateIndex {
             if !budget.charge_candidate_posting_visits(trigram_count) {
                 return None;
             }
-            let mut query_trigrams = HashSet::new();
+            let mut query_trigrams = HashMap::new();
             query_trigrams.try_reserve(trigram_count).ok()?;
             for window in occurrence.tokens.windows(LINE_NGRAM_SIZE) {
                 let trigram = <[SentenceEvidenceToken; LINE_NGRAM_SIZE]>::try_from(window).ok()?;
-                query_trigrams.insert(trigram);
+                let count = query_trigrams.entry(trigram).or_insert(0usize);
+                *count = count.checked_add(1)?;
             }
             // Distinct query keys visit each posting list at most once, bounding
             // temporary entries by the already bounded index corpus.
             let additional_postings =
-                query_trigrams.iter().try_fold(0usize, |count, trigram| {
-                    count.checked_add(
-                        self.line_trigram_postings
-                            .get(&(bucket, occurrence.kind, role, *trigram))
-                            .map_or(0, Vec::len)
-                            .checked_add(additional_bucket.map_or(0, |additional_bucket| {
-                                self.line_trigram_postings
-                                    .get(&(additional_bucket, occurrence.kind, role, *trigram))
-                                    .map_or(0, Vec::len)
-                            }))?,
-                    )
-                })?;
+                query_trigrams
+                    .iter()
+                    .try_fold(0usize, |count, (trigram, _)| {
+                        count.checked_add(
+                            self.line_trigram_postings
+                                .get(&(bucket, occurrence.kind, role, *trigram))
+                                .map_or(0, Vec::len)
+                                .checked_add(additional_bucket.map_or(0, |additional_bucket| {
+                                    self.line_trigram_postings
+                                        .get(&(additional_bucket, occurrence.kind, role, *trigram))
+                                        .map_or(0, Vec::len)
+                                }))?,
+                        )
+                    })?;
             if !budget.charge_candidate_posting_visits(additional_postings) {
                 return None;
             }
-            plausible.try_reserve(additional_postings).ok()?;
-            for trigram in query_trigrams {
+            let mut candidate_shared = HashMap::<usize, usize>::new();
+            candidate_shared.try_reserve(additional_postings).ok()?;
+            for (trigram, query_multiplicity) in query_trigrams {
                 for bucket in buckets.into_iter().flatten() {
                     if let Some(postings) =
                         self.line_trigram_postings
                             .get(&(bucket, occurrence.kind, role, trigram))
                     {
-                        plausible.extend_from_slice(postings);
+                        for posting in postings {
+                            let shared = candidate_shared
+                                .entry(posting.occurrence_index)
+                                .or_insert(0);
+                            *shared =
+                                shared.checked_add(query_multiplicity.min(posting.multiplicity))?;
+                        }
                     }
                 }
             }
+            let mut trigram_candidates = Vec::new();
+            trigram_candidates
+                .try_reserve(candidate_shared.len())
+                .ok()?;
+            for (occurrence_index, shared) in candidate_shared {
+                let candidate_ngrams = *self.line_trigram_counts.get(occurrence_index)?;
+                if line_trigram_candidate_meets_threshold(shared, trigram_count, candidate_ngrams)?
+                {
+                    trigram_candidates.push(occurrence_index);
+                }
+            }
+            trigram_candidates.sort_unstable();
+            plausible.try_reserve(trigram_candidates.len()).ok()?;
+            plausible.extend(trigram_candidates);
             plausible.sort_unstable();
             plausible.dedup();
         }
@@ -7754,6 +7800,19 @@ fn ngram_count(token_count: usize, size: usize) -> Option<usize> {
     token_count.checked_sub(size)?.checked_add(1)
 }
 
+fn line_trigram_candidate_meets_threshold(
+    shared: usize,
+    query_ngrams: usize,
+    candidate_ngrams: usize,
+) -> Option<bool> {
+    let total = query_ngrams.checked_add(candidate_ngrams)?;
+    if total == 0 {
+        return Some(false);
+    }
+    let score = shared.checked_mul(20_000)?.checked_div(total)?;
+    Some(score >= usize::from(MIN_NEAR_SCORE))
+}
+
 fn basis_points(numerator: usize, denominator: usize) -> Option<u16> {
     if denominator == 0 {
         return Some(0);
@@ -12128,7 +12187,7 @@ mod tests {
 
     #[test]
     fn line_trigram_index_excludes_cross_kind_and_cross_role_postings() {
-        let shared = ['x', 'b', 'c', 'd', 'y'];
+        let shared = ['q', 'x', 'y', 'w', 'z'];
         let occurrences = [
             indexed_occurrence(&shared, RecoveryUnitKind::Line, Some(BlockRole::Body)),
             indexed_occurrence(
@@ -12162,7 +12221,7 @@ mod tests {
     }
 
     #[test]
-    fn line_trigram_index_deduplicates_repeated_windows_per_occurrence() {
+    fn line_trigram_index_retains_repeated_window_multiplicity() {
         let occurrences = [indexed_occurrence(
             &['a', 'a', 'a', 'a', 'a', 'a'],
             RecoveryUnitKind::Line,
@@ -12182,8 +12241,79 @@ mod tests {
                     trigram,
                 ))
                 .map(Vec::as_slice),
-            Some(&[0][..])
+            Some(
+                &[LineTrigramPosting {
+                    occurrence_index: 0,
+                    multiplicity: 4,
+                }][..]
+            )
         );
+
+        let query = indexed_occurrence(
+            &['a', 'a', 'a', 'a', 'a'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        );
+        let mut plausible = Vec::new();
+        let mut budget = RecoveryBudget::new(5, 6, 11, 1).expect("budget is valid");
+        index
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &query,
+                CandidatePostingBucket::Global,
+                None,
+                &mut budget,
+            )
+            .expect("multiplicity-aware query succeeds");
+        assert_eq!(plausible, vec![0]);
+    }
+
+    #[test]
+    fn line_trigram_candidate_threshold_is_exact_at_seven_thousand() {
+        assert_eq!(
+            line_trigram_candidate_meets_threshold(6_999, 10_000, 10_000),
+            Some(false)
+        );
+        assert_eq!(
+            line_trigram_candidate_meets_threshold(7_000, 10_000, 10_000),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn one_trigram_noise_does_not_reach_pair_or_similarity_work() {
+        let old_occurrences = [indexed_occurrence(
+            &['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        )];
+        let new_occurrences = [indexed_occurrence(
+            &['x', 'a', 'b', 'c', 'y', 'z', 'u', 'v', 'w', 'q'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        )];
+        let old_candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut budget = RecoveryBudget::new(10, 10, 20, 1).expect("budget is valid");
+        let mut diagnostics = None;
+
+        let relations = modified_sentence_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &old_candidates,
+            &[],
+            &mut budget,
+            &mut diagnostics,
+            None,
+        )
+        .expect("low-overlap trigram noise is filtered");
+
+        assert!(!relations.old[0].vetoed());
+        assert_eq!(budget.candidate_posting_visits, 18);
+        assert_eq!(budget.pair_visits, 0);
+        assert_eq!(budget.comparisons, 0);
     }
 
     #[test]
@@ -12341,12 +12471,12 @@ mod tests {
     #[test]
     fn line_trigram_candidate_budget_failure_aborts_relation_collection() {
         let old_occurrences = [indexed_occurrence(
-            &['a', 'b', 'c', 'd', 'e'],
+            &['q', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'z'],
             RecoveryUnitKind::Line,
             Some(BlockRole::Body),
         )];
         let new_occurrences = [indexed_occurrence(
-            &['x', 'b', 'c', 'd', 'y'],
+            &['x', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'y'],
             RecoveryUnitKind::Line,
             Some(BlockRole::Body),
         )];
@@ -12354,7 +12484,7 @@ mod tests {
             occurrence_index: 0,
             span_index: 0,
         }];
-        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+        let mut budget = RecoveryBudget::new(10, 10, 20, 1).expect("budget is valid");
         budget.pair_visits = budget.token_limit;
         let mut diagnostics = None;
 
