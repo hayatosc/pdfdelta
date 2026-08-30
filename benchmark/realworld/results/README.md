@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-30
-- **Generator / engine commit**: [`496d128`](https://github.com/hayatosc/pdfdelta/commit/496d128)
+- **Generator / engine commit**: [`ba424d8`](https://github.com/hayatosc/pdfdelta/commit/ba424d8)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-30-496d128.json`](2026-08-30-496d128.json)
-  - Schema: v18
-  - Size: 336,636 bytes
-  - SHA-256: `612edfa308c9cbb6d277a66cb5b52118f879beedbb46c8bf80212a0b99949220`
+  - File: [`2026-08-30-ba424d8.json`](2026-08-30-ba424d8.json)
+  - Schema: v19
+  - Size: 424,251 bytes
+  - SHA-256: `fd00b9386725d957d724f754914fd96441090135c7093176efbb84f7f358ee0d`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-30-496d128.json
+  benchmark/realworld/results/2026-08-30-ba424d8.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -114,10 +114,22 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v18)
+## Current Writer Schema (v19)
 
-The benchmark writer and latest committed capture use schema v18. Older
+The benchmark writer and latest committed capture use schema v19. Older
 captures retain their recorded schemas.
+Schema v19 divides each Sentence/Line work counter among paired intervals,
+paired cross-interval vetoes, same-or-ambiguous spans, and cross spans. The
+writer validates all 11 scope counters against their unit-kind totals, and
+posting, pair-visit, and similarity totals against existing aggregates,
+including failed atomic charges. Removing the schema number and the four new
+scope objects leaves every schema-v18 `496d128` field value unchanged.
+Of the eight pairs with incomplete near-relation analysis, six spend most
+Sentence pair visits in the same-or-ambiguous phase. EDPB Right of Access and
+MQTT instead spend 69.54% and 77.82% in cross-span search. The two paired phases
+together stay below 2% for every stopped pair. Candidate-locality work should
+therefore focus on separating ambiguous-span work and bounding cross-span work,
+not on the paired phases.
 Schema v18 attributes edge-posting, Line-trigram posting, query-union,
 filtered-candidate, pair-visit, and similarity-comparison work to Sentence and
 Line recovery units. The per-kind examined and attempted counters are validated
@@ -244,6 +256,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-30-496d128.json`](2026-08-30-496d128.json): schema-v18 Sentence/Line near-search work attribution before phase-level attribution.
 - [`2026-08-30-64a58b7.json`](2026-08-30-64a58b7.json): schema-v17 Line trigram candidate indexing and posting-work diagnostics before per-kind attribution.
 - [`2026-08-30-ebcb49e.json`](2026-08-30-ebcb49e.json): schema-v16 exact occurrence validation and repeated running-matter event grouping before Line trigram candidate indexing.
 - [`2026-08-30-2ddbb6b.json`](2026-08-30-2ddbb6b.json): schema-v15 Clause/ListItem recovery-watch diagnostics before repeated running-matter grouping.
