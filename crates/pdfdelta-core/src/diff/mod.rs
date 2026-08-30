@@ -628,6 +628,16 @@ pub struct SentenceRecoveryMetrics {
     pub sentence_edge_filter_pairs_retained: usize,
     pub sentence_edge_filter_pairs_rejected: usize,
     pub sentence_edge_filter_stop_reason: Option<SentenceEdgeFilterStopReason>,
+    /// Whether an incomplete filtered recovery build was discarded and the
+    /// entire recovery analysis was rerun through the legacy relation path.
+    pub sentence_edge_filter_full_build_fallback_used: bool,
+    /// Near-relation work discarded before a full-build legacy fallback.
+    pub sentence_edge_filter_discarded_near_pair_visits_examined: usize,
+    pub sentence_edge_filter_discarded_near_pair_visits_attempted: usize,
+    pub sentence_edge_filter_discarded_near_similarity_comparisons_examined: usize,
+    pub sentence_edge_filter_discarded_near_similarity_comparisons_attempted: usize,
+    pub sentence_edge_filter_discarded_near_candidate_posting_visits_examined: usize,
+    pub sentence_edge_filter_discarded_near_candidate_posting_visits_attempted: usize,
     pub near_largest_edge_posting: usize,
     pub near_largest_edge_query_union: usize,
     pub near_largest_filtered_candidate_set: usize,

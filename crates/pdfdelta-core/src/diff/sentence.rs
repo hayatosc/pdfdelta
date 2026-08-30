@@ -161,6 +161,78 @@ pub(super) struct SentenceRecoveryBuildOutcome {
     watch_diagnostics: Option<RecoveryWatchDiagnostics>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SentenceEdgeFilterMode {
+    Filtered,
+    /// Disables only production pruning. Diagnostic shadow replay remains
+    /// controlled by [`SentenceRecoveryInput::enable_sentence_edge_gate_shadow`].
+    Legacy,
+}
+
+#[derive(Clone, Copy)]
+struct SentenceEdgeFilterAttemptMetrics {
+    complete: bool,
+    pairs_examined: usize,
+    pairs_attempted: usize,
+    comparisons_examined: usize,
+    comparisons_attempted: usize,
+    pairs_retained: usize,
+    pairs_rejected: usize,
+    stop_reason: Option<SentenceEdgeFilterStopReason>,
+    near_pair_visits_examined: usize,
+    near_pair_visits_attempted: usize,
+    near_similarity_comparisons_examined: usize,
+    near_similarity_comparisons_attempted: usize,
+    near_candidate_posting_visits_examined: usize,
+    near_candidate_posting_visits_attempted: usize,
+}
+
+impl SentenceEdgeFilterAttemptMetrics {
+    fn from_metrics(metrics: &SentenceRecoveryMetrics) -> Self {
+        Self {
+            complete: metrics.sentence_edge_filter_complete,
+            pairs_examined: metrics.sentence_edge_filter_pairs_examined,
+            pairs_attempted: metrics.sentence_edge_filter_pairs_attempted,
+            comparisons_examined: metrics.sentence_edge_filter_similarity_comparisons_examined,
+            comparisons_attempted: metrics.sentence_edge_filter_similarity_comparisons_attempted,
+            pairs_retained: metrics.sentence_edge_filter_pairs_retained,
+            pairs_rejected: metrics.sentence_edge_filter_pairs_rejected,
+            stop_reason: metrics.sentence_edge_filter_stop_reason,
+            near_pair_visits_examined: metrics.near_pair_visits_examined,
+            near_pair_visits_attempted: metrics.near_pair_visits_attempted,
+            near_similarity_comparisons_examined: metrics.near_similarity_comparisons_examined,
+            near_similarity_comparisons_attempted: metrics.near_similarity_comparisons_attempted,
+            near_candidate_posting_visits_examined: metrics.near_candidate_posting_visits_examined,
+            near_candidate_posting_visits_attempted: metrics
+                .near_candidate_posting_visits_attempted,
+        }
+    }
+
+    fn apply(self, metrics: &mut SentenceRecoveryMetrics) {
+        metrics.sentence_edge_filter_complete = self.complete;
+        metrics.sentence_edge_filter_pairs_examined = self.pairs_examined;
+        metrics.sentence_edge_filter_pairs_attempted = self.pairs_attempted;
+        metrics.sentence_edge_filter_similarity_comparisons_examined = self.comparisons_examined;
+        metrics.sentence_edge_filter_similarity_comparisons_attempted = self.comparisons_attempted;
+        metrics.sentence_edge_filter_pairs_retained = self.pairs_retained;
+        metrics.sentence_edge_filter_pairs_rejected = self.pairs_rejected;
+        metrics.sentence_edge_filter_stop_reason = self.stop_reason;
+        metrics.sentence_edge_filter_full_build_fallback_used = true;
+        metrics.sentence_edge_filter_discarded_near_pair_visits_examined =
+            self.near_pair_visits_examined;
+        metrics.sentence_edge_filter_discarded_near_pair_visits_attempted =
+            self.near_pair_visits_attempted;
+        metrics.sentence_edge_filter_discarded_near_similarity_comparisons_examined =
+            self.near_similarity_comparisons_examined;
+        metrics.sentence_edge_filter_discarded_near_similarity_comparisons_attempted =
+            self.near_similarity_comparisons_attempted;
+        metrics.sentence_edge_filter_discarded_near_candidate_posting_visits_examined =
+            self.near_candidate_posting_visits_examined;
+        metrics.sentence_edge_filter_discarded_near_candidate_posting_visits_attempted =
+            self.near_candidate_posting_visits_attempted;
+    }
+}
+
 #[derive(Clone, Copy)]
 struct SentenceRecoveryDiagnostics {
     metrics: SentenceRecoveryMetrics,
@@ -5432,6 +5504,64 @@ pub(super) fn build_sentence_recovery_plan(
     max_tokens: usize,
     watch_queries: &[RecoveryWatchQuery<'_>],
 ) -> Result<SentenceRecoveryBuildOutcome> {
+    build_sentence_recovery_plan_with_atomic_fallback(|edge_filter_mode| {
+        build_sentence_recovery_plan_inner(
+            old,
+            new,
+            alignment,
+            input,
+            max_tokens,
+            watch_queries,
+            edge_filter_mode,
+        )
+    })
+}
+
+fn build_sentence_recovery_plan_with_atomic_fallback(
+    mut build: impl FnMut(SentenceEdgeFilterMode) -> Result<SentenceRecoveryBuildOutcome>,
+) -> Result<SentenceRecoveryBuildOutcome> {
+    let filtered = build(SentenceEdgeFilterMode::Filtered)?;
+    if filtered
+        .diagnostics
+        .as_ref()
+        .is_some_and(|diagnostics| diagnostics.metrics.near_relation_complete)
+    {
+        return Ok(filtered);
+    }
+
+    let filter_attempt = filtered
+        .diagnostics
+        .as_ref()
+        .map(|diagnostics| SentenceEdgeFilterAttemptMetrics::from_metrics(&diagnostics.metrics));
+    drop(filtered);
+    // Each build retains the existing per-document limits. The fallback can
+    // therefore perform at most two independently bounded recovery builds,
+    // and the discarded build is dropped before allocating the retry.
+    let mut legacy = build(SentenceEdgeFilterMode::Legacy)?;
+    match (filter_attempt, legacy.diagnostics.as_mut()) {
+        (Some(filter_attempt), Some(diagnostics)) => {
+            filter_attempt.apply(&mut diagnostics.metrics);
+        }
+        (None, Some(_)) => {
+            // Without the first attempt's counters, publishing the disabled
+            // legacy build as a completed filter run would be misleading.
+            legacy.diagnostics = None;
+        }
+        _ => {}
+    }
+    Ok(legacy)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_sentence_recovery_plan_inner(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    alignment: &Alignment,
+    input: SentenceRecoveryInput<'_>,
+    max_tokens: usize,
+    watch_queries: &[RecoveryWatchQuery<'_>],
+    edge_filter_mode: SentenceEdgeFilterMode,
+) -> Result<SentenceRecoveryBuildOutcome> {
     let Some(structural_evidence) = RecoveryStructuralEvidence::new(input) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
@@ -5450,6 +5580,7 @@ pub(super) fn build_sentence_recovery_plan(
     };
     budget.enable_known_span_sentence_shadow = input.enable_known_span_sentence_shadow;
     budget.enable_sentence_edge_gate_shadow = input.enable_sentence_edge_gate_shadow;
+    budget.sentence_edge_filter_active = edge_filter_mode == SentenceEdgeFilterMode::Filtered;
     let Some(membership) = span_membership(alignment) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
@@ -10278,6 +10409,309 @@ mod tests {
     };
 
     const TEST_NEAR_SCOPE: NearSearchScope = NearSearchScope::SameOrAmbiguousSpan;
+
+    fn fallback_test_plan(block: u64) -> SentenceRecoveryPlan {
+        SentenceRecoveryPlan {
+            cross_span_replacement_new_spans: vec![plan_block_marker(block)],
+            deletions: vec![RecoveredSentence {
+                span_index: block as usize,
+                kind: RecoveryUnitKind::Sentence,
+                role: OccurrenceRole::Body,
+                blocks: vec![BlockId(block)],
+                separator: None,
+                canonical: ScalarRange { start: 0, end: 1 },
+                comparable: TokenRange { start: 0, end: 1 },
+                source_tokens: 1,
+            }],
+            ..SentenceRecoveryPlan::default()
+        }
+    }
+
+    fn plan_block_marker(block: u64) -> usize {
+        block as usize + 1_000
+    }
+
+    fn fallback_test_outcome(
+        near_relation_complete: bool,
+        plan_block: u64,
+        watch_segment_candidates: usize,
+    ) -> SentenceRecoveryBuildOutcome {
+        let metrics = SentenceRecoveryMetrics {
+            near_relation_complete,
+            near_pair_visits_examined: plan_block as usize,
+            near_pair_visits_attempted: plan_block as usize + 1,
+            near_similarity_comparisons_examined: plan_block as usize + 2,
+            near_similarity_comparisons_attempted: plan_block as usize + 3,
+            near_candidate_posting_visits_examined: plan_block as usize + 4,
+            near_candidate_posting_visits_attempted: plan_block as usize + 5,
+            sentence_edge_filter_pairs_examined: plan_block as usize + 6,
+            sentence_edge_filter_pairs_attempted: plan_block as usize + 7,
+            sentence_edge_filter_pairs_retained: plan_block as usize + 8,
+            sentence_edge_filter_pairs_rejected: plan_block as usize + 9,
+            ..SentenceRecoveryMetrics::default()
+        };
+        SentenceRecoveryBuildOutcome {
+            plan: Some(fallback_test_plan(plan_block)),
+            diagnostics: Some(SentenceRecoveryDiagnostics {
+                metrics,
+                eligible_old_source_tokens: 0,
+                eligible_new_source_tokens: 0,
+            }),
+            watch_diagnostics: Some(RecoveryWatchDiagnostics {
+                near_relation_complete,
+                segment_candidates: watch_segment_candidates,
+                ..RecoveryWatchDiagnostics::default()
+            }),
+        }
+    }
+
+    #[test]
+    fn complete_near_relation_does_not_rerun_when_filter_is_incomplete() {
+        let mut modes = Vec::new();
+        let outcome = build_sentence_recovery_plan_with_atomic_fallback(|mode| {
+            modes.push(mode);
+            Ok(fallback_test_outcome(true, 11, 12))
+        })
+        .expect("complete filtered build succeeds");
+
+        assert_eq!(modes, [SentenceEdgeFilterMode::Filtered]);
+        assert_eq!(
+            outcome.plan.expect("filtered plan is retained").deletions,
+            fallback_test_plan(11).deletions
+        );
+        assert_eq!(
+            outcome
+                .watch_diagnostics
+                .expect("filtered watch is retained")
+                .segment_candidates,
+            12
+        );
+        let metrics = outcome
+            .diagnostics
+            .expect("filtered metrics remain")
+            .metrics;
+        assert!(!metrics.sentence_edge_filter_complete);
+        assert!(!metrics.sentence_edge_filter_full_build_fallback_used);
+        assert_eq!(
+            metrics.sentence_edge_filter_discarded_near_pair_visits_examined,
+            0
+        );
+    }
+
+    #[test]
+    fn incomplete_near_relation_reruns_when_filter_itself_completed() {
+        let mut modes = Vec::new();
+        let outcome = build_sentence_recovery_plan_with_atomic_fallback(|mode| {
+            modes.push(mode);
+            let mut outcome = match mode {
+                SentenceEdgeFilterMode::Filtered => fallback_test_outcome(false, 61, 62),
+                SentenceEdgeFilterMode::Legacy => fallback_test_outcome(true, 71, 72),
+            };
+            outcome
+                .diagnostics
+                .as_mut()
+                .expect("metrics fixture exists")
+                .metrics
+                .sentence_edge_filter_complete = true;
+            Ok(outcome)
+        })
+        .expect("legacy fallback succeeds");
+
+        assert_eq!(
+            modes,
+            [
+                SentenceEdgeFilterMode::Filtered,
+                SentenceEdgeFilterMode::Legacy
+            ]
+        );
+        assert_eq!(
+            outcome
+                .plan
+                .expect("legacy plan is retained")
+                .cross_span_replacement_new_spans,
+            [plan_block_marker(71)]
+        );
+        assert!(
+            outcome
+                .diagnostics
+                .expect("legacy metrics remain")
+                .metrics
+                .sentence_edge_filter_full_build_fallback_used
+        );
+    }
+
+    #[test]
+    fn incomplete_filtered_build_adopts_the_entire_legacy_build() {
+        let filtered = fallback_test_outcome(false, 21, 22);
+        let legacy = fallback_test_outcome(true, 31, 32);
+        let expected_watch = legacy.watch_diagnostics.clone();
+        let mut modes = Vec::new();
+        let outcome = build_sentence_recovery_plan_with_atomic_fallback(|mode| {
+            modes.push(mode);
+            Ok(match mode {
+                SentenceEdgeFilterMode::Filtered => fallback_test_outcome(false, 21, 22),
+                SentenceEdgeFilterMode::Legacy => fallback_test_outcome(true, 31, 32),
+            })
+        })
+        .expect("legacy fallback succeeds");
+
+        assert_eq!(
+            modes,
+            [
+                SentenceEdgeFilterMode::Filtered,
+                SentenceEdgeFilterMode::Legacy
+            ]
+        );
+        assert_eq!(
+            outcome
+                .plan
+                .as_ref()
+                .expect("legacy plan is retained")
+                .deletions,
+            fallback_test_plan(31).deletions
+        );
+        assert_eq!(
+            outcome
+                .plan
+                .as_ref()
+                .expect("legacy plan is retained")
+                .cross_span_replacement_new_spans,
+            [plan_block_marker(31)]
+        );
+        assert_eq!(outcome.watch_diagnostics, expected_watch);
+        let metrics = outcome.diagnostics.expect("legacy metrics remain").metrics;
+        assert!(metrics.near_relation_complete);
+        assert_eq!(metrics.near_pair_visits_examined, 31);
+        assert_eq!(metrics.sentence_edge_filter_pairs_examined, 27);
+        assert!(metrics.sentence_edge_filter_full_build_fallback_used);
+        assert_eq!(
+            metrics.sentence_edge_filter_discarded_near_pair_visits_examined,
+            21
+        );
+        assert_eq!(
+            metrics.sentence_edge_filter_discarded_near_pair_visits_attempted,
+            22
+        );
+        assert_eq!(
+            metrics.sentence_edge_filter_discarded_near_similarity_comparisons_examined,
+            23
+        );
+        assert_eq!(
+            metrics.sentence_edge_filter_discarded_near_similarity_comparisons_attempted,
+            24
+        );
+        assert_eq!(
+            metrics.sentence_edge_filter_discarded_near_candidate_posting_visits_examined,
+            25
+        );
+        assert_eq!(
+            metrics.sentence_edge_filter_discarded_near_candidate_posting_visits_attempted,
+            26
+        );
+        assert_eq!(
+            filtered
+                .diagnostics
+                .expect("filtered fixture has metrics")
+                .metrics
+                .sentence_edge_filter_pairs_examined,
+            metrics.sentence_edge_filter_pairs_examined
+        );
+    }
+
+    #[test]
+    fn fallback_keeps_legacy_low_score_watch_diagnostics() {
+        let outcome = build_sentence_recovery_plan_with_atomic_fallback(|mode| {
+            let mut outcome = match mode {
+                SentenceEdgeFilterMode::Filtered => fallback_test_outcome(false, 41, 42),
+                SentenceEdgeFilterMode::Legacy => fallback_test_outcome(true, 51, 52),
+            };
+            let near_score = match mode {
+                SentenceEdgeFilterMode::Filtered => 2_999,
+                SentenceEdgeFilterMode::Legacy => 86,
+            };
+            outcome
+                .watch_diagnostics
+                .as_mut()
+                .expect("watch fixture exists")
+                .records
+                .push(RecoveryWatchRecord {
+                    id: "low-score".to_owned(),
+                    old: RecoveryWatchOccurrenceEvidence::NotQueried,
+                    new: RecoveryWatchOccurrenceEvidence::NotQueried,
+                    pair: Some(RecoveryWatchPairEvidence {
+                        same_span: true,
+                        exact_shared_units: 0,
+                        exact_shared_units_available: false,
+                        near_candidate_examined: true,
+                        near_score: Some(near_score),
+                        near_scope: Some(RecoveryWatchNearScope::SameSpan),
+                        old_relation: RecoveryWatchRelation {
+                            available: true,
+                            best_score: near_score,
+                            second_score: near_score.saturating_sub(1),
+                            watched_partner_is_best: true,
+                        },
+                        new_relation: RecoveryWatchRelation {
+                            available: true,
+                            best_score: near_score,
+                            second_score: near_score.saturating_sub(2),
+                            watched_partner_is_best: true,
+                        },
+                        reciprocal: false,
+                    }),
+                    segment_pair: None,
+                    granular_pair: None,
+                });
+            Ok(outcome)
+        })
+        .expect("legacy fallback succeeds");
+        let watch = outcome.watch_diagnostics.expect("legacy watch is retained");
+
+        assert!(watch.near_relation_complete);
+        assert_eq!(watch.segment_candidates, 52);
+        assert_eq!(
+            watch.records[0]
+                .pair
+                .as_ref()
+                .expect("pair evidence is retained")
+                .near_score,
+            Some(86)
+        );
+        let pair = watch.records[0]
+            .pair
+            .as_ref()
+            .expect("pair evidence is retained");
+        assert_eq!(
+            (pair.old_relation.best_score, pair.old_relation.second_score),
+            (86, 85)
+        );
+        assert_eq!(
+            (pair.new_relation.best_score, pair.new_relation.second_score),
+            (86, 84)
+        );
+    }
+
+    #[test]
+    fn fallback_adopts_an_incomplete_legacy_build_without_filtered_plan_leakage() {
+        let outcome = build_sentence_recovery_plan_with_atomic_fallback(|mode| {
+            Ok(match mode {
+                SentenceEdgeFilterMode::Filtered => fallback_test_outcome(false, 81, 82),
+                SentenceEdgeFilterMode::Legacy => fallback_test_outcome(false, 91, 92),
+            })
+        })
+        .expect("bounded incomplete legacy fallback succeeds");
+        let plan = outcome.plan.expect("legacy partial plan is retained");
+        let metrics = outcome.diagnostics.expect("legacy metrics remain").metrics;
+
+        assert_eq!(plan.deletions, fallback_test_plan(91).deletions);
+        assert_eq!(
+            plan.cross_span_replacement_new_spans,
+            [plan_block_marker(91)]
+        );
+        assert!(!metrics.near_relation_complete);
+        assert_eq!(metrics.near_pair_visits_examined, 91);
+        assert!(metrics.sentence_edge_filter_full_build_fallback_used);
+    }
 
     #[test]
     fn recovery_watch_distinguishes_candidate_generation_incomplete() {
