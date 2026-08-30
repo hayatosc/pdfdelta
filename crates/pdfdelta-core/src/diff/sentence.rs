@@ -18,11 +18,11 @@ use crate::{
 
 use super::{
     ExactSegmentRelation, MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS,
-    NearRelationStopReason, RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence,
-    RecoveryWatchGranularRelation, RecoveryWatchGranularStopReason,
-    RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope, RecoveryWatchOccurrence,
-    RecoveryWatchOccurrenceEvidence, RecoveryWatchOccurrences, RecoveryWatchPairEvidence,
-    RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
+    NearRelationStopReason, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
+    RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
+    RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
+    RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence, RecoveryWatchOccurrences,
+    RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
     RecoveryWatchSegmentPairEvidence, RecoveryWatchUnitKind, RunSignatureStopReason,
     SegmentStopReason, SentenceRecoveryCommittedTokens, SentenceRecoveryInput,
     SentenceRecoveryMetrics, Side, TokenRange, TrustedRunRecoveryInput,
@@ -438,6 +438,13 @@ struct LineTrigramPosting {
 struct UnitCandidateQueryMetrics {
     largest_edge_posting: usize,
     edge_query_union: usize,
+    line_trigram_only_query_union: usize,
+}
+
+#[derive(Clone, Copy)]
+enum CandidatePostingKind {
+    Edge,
+    LineTrigram,
 }
 
 impl UnitCandidateIndex {
@@ -588,7 +595,11 @@ impl UnitCandidateIndex {
                 ))
             },
         )?;
-        if !budget.charge_candidate_posting_visits(raw_edge_postings) {
+        if !budget.charge_candidate_posting_visits(
+            raw_edge_postings,
+            occurrence.kind,
+            CandidatePostingKind::Edge,
+        ) {
             return None;
         }
         plausible.try_reserve(raw_edge_postings).ok()?;
@@ -610,9 +621,14 @@ impl UnitCandidateIndex {
         plausible.sort_unstable();
         plausible.dedup();
         let edge_query_union = plausible.len();
+        let mut line_trigram_only_query_union = 0;
         if occurrence.kind == RecoveryUnitKind::Line {
             let trigram_count = ngram_count(occurrence.tokens.len(), LINE_NGRAM_SIZE)?;
-            if !budget.charge_candidate_posting_visits(trigram_count) {
+            if !budget.charge_candidate_posting_visits(
+                trigram_count,
+                occurrence.kind,
+                CandidatePostingKind::LineTrigram,
+            ) {
                 return None;
             }
             let mut query_trigrams = HashMap::new();
@@ -639,7 +655,11 @@ impl UnitCandidateIndex {
                                 }))?,
                         )
                     })?;
-            if !budget.charge_candidate_posting_visits(additional_postings) {
+            if !budget.charge_candidate_posting_visits(
+                additional_postings,
+                occurrence.kind,
+                CandidatePostingKind::LineTrigram,
+            ) {
                 return None;
             }
             let mut candidate_shared = HashMap::<usize, usize>::new();
@@ -676,10 +696,12 @@ impl UnitCandidateIndex {
             plausible.extend(trigram_candidates);
             plausible.sort_unstable();
             plausible.dedup();
+            line_trigram_only_query_union = plausible.len().checked_sub(edge_query_union)?;
         }
         Some(UnitCandidateQueryMetrics {
             largest_edge_posting,
             edge_query_union,
+            line_trigram_only_query_union,
         })
     }
 }
@@ -4516,6 +4538,8 @@ struct RecoveryBudget {
     comparisons_attempted: usize,
     candidate_posting_visits: usize,
     candidate_posting_visits_attempted: usize,
+    sentence_work: NearSearchWorkMetrics,
+    line_work: NearSearchWorkMetrics,
     largest_edge_posting: usize,
     largest_edge_query_union: usize,
     largest_filtered_candidate_set: usize,
@@ -4557,6 +4581,8 @@ impl RecoveryBudget {
             comparisons_attempted: 0,
             candidate_posting_visits: 0,
             candidate_posting_visits_attempted: 0,
+            sentence_work: NearSearchWorkMetrics::default(),
+            line_work: NearSearchWorkMetrics::default(),
             largest_edge_posting: 0,
             largest_edge_query_union: 0,
             largest_filtered_candidate_set: 0,
@@ -4580,8 +4606,10 @@ impl RecoveryBudget {
         Self::charge(&mut self.key_bytes, amount, self.key_byte_limit)
     }
 
-    fn charge_pair_visits(&mut self, amount: usize) -> bool {
-        Self::charge_near_search(
+    fn charge_pair_visits(&mut self, amount: usize, kind: RecoveryUnitKind) -> bool {
+        let examined = self.pair_visits;
+        let attempted = self.pair_visits_attempted;
+        let charged = Self::charge_near_search(
             &mut self.pair_visits,
             &mut self.pair_visits_attempted,
             amount,
@@ -4589,11 +4617,39 @@ impl RecoveryBudget {
             NearRelationStopReason::PairVisitLimit,
             &mut self.near_relation_stop_reason,
             &mut self.near_metrics_available,
-        )
+        );
+        let examined =
+            Self::diagnostic_delta(self.pair_visits, examined, &mut self.near_metrics_available);
+        let attempted = Self::diagnostic_delta(
+            self.pair_visits_attempted,
+            attempted,
+            &mut self.near_metrics_available,
+        );
+        let work = self.work_mut(kind);
+        if let Some(next) = work
+            .pair_visits_examined
+            .checked_add(examined)
+            .zip(work.pair_visits_attempted.checked_add(attempted))
+            .zip(work.filtered_candidates.checked_add(attempted))
+        {
+            work.pair_visits_examined = next.0.0;
+            work.pair_visits_attempted = next.0.1;
+            work.filtered_candidates = next.1;
+        } else {
+            self.near_metrics_available = false;
+        }
+        charged
     }
 
-    fn charge_candidate_posting_visits(&mut self, amount: usize) -> bool {
-        Self::charge_near_search(
+    fn charge_candidate_posting_visits(
+        &mut self,
+        amount: usize,
+        kind: RecoveryUnitKind,
+        posting_kind: CandidatePostingKind,
+    ) -> bool {
+        let examined = self.candidate_posting_visits;
+        let attempted = self.candidate_posting_visits_attempted;
+        let charged = Self::charge_near_search(
             &mut self.candidate_posting_visits,
             &mut self.candidate_posting_visits_attempted,
             amount,
@@ -4601,11 +4657,45 @@ impl RecoveryBudget {
             NearRelationStopReason::CandidatePostingVisitLimit,
             &mut self.near_relation_stop_reason,
             &mut self.near_metrics_available,
-        )
+        );
+        let examined = Self::diagnostic_delta(
+            self.candidate_posting_visits,
+            examined,
+            &mut self.near_metrics_available,
+        );
+        let attempted = Self::diagnostic_delta(
+            self.candidate_posting_visits_attempted,
+            attempted,
+            &mut self.near_metrics_available,
+        );
+        let work = self.work_mut(kind);
+        let counters = match posting_kind {
+            CandidatePostingKind::Edge => (
+                &mut work.edge_posting_visits_examined,
+                &mut work.edge_posting_visits_attempted,
+            ),
+            CandidatePostingKind::LineTrigram => (
+                &mut work.line_trigram_posting_visits_examined,
+                &mut work.line_trigram_posting_visits_attempted,
+            ),
+        };
+        if let Some((next_examined, next_attempted)) = counters
+            .0
+            .checked_add(examined)
+            .zip(counters.1.checked_add(attempted))
+        {
+            *counters.0 = next_examined;
+            *counters.1 = next_attempted;
+        } else {
+            self.near_metrics_available = false;
+        }
+        charged
     }
 
-    fn charge_comparisons(&mut self, amount: usize) -> bool {
-        Self::charge_near_search(
+    fn charge_comparisons(&mut self, amount: usize, kind: RecoveryUnitKind) -> bool {
+        let examined = self.comparisons;
+        let attempted = self.comparisons_attempted;
+        let charged = Self::charge_near_search(
             &mut self.comparisons,
             &mut self.comparisons_attempted,
             amount,
@@ -4613,12 +4703,32 @@ impl RecoveryBudget {
             NearRelationStopReason::SimilarityComparisonLimit,
             &mut self.near_relation_stop_reason,
             &mut self.near_metrics_available,
-        )
+        );
+        let examined =
+            Self::diagnostic_delta(self.comparisons, examined, &mut self.near_metrics_available);
+        let attempted = Self::diagnostic_delta(
+            self.comparisons_attempted,
+            attempted,
+            &mut self.near_metrics_available,
+        );
+        let work = self.work_mut(kind);
+        if let Some((next_examined, next_attempted)) = work
+            .similarity_comparisons_examined
+            .checked_add(examined)
+            .zip(work.similarity_comparisons_attempted.checked_add(attempted))
+        {
+            work.similarity_comparisons_examined = next_examined;
+            work.similarity_comparisons_attempted = next_attempted;
+        } else {
+            self.near_metrics_available = false;
+        }
+        charged
     }
 
     fn record_candidate_query(
         &mut self,
         query: UnitCandidateQueryMetrics,
+        kind: RecoveryUnitKind,
         filtered_candidate_count: usize,
     ) {
         self.largest_edge_posting = self.largest_edge_posting.max(query.largest_edge_posting);
@@ -4626,6 +4736,35 @@ impl RecoveryBudget {
         self.largest_filtered_candidate_set = self
             .largest_filtered_candidate_set
             .max(filtered_candidate_count);
+        let work = self.work_mut(kind);
+        if let Some((edge, trigram)) = work
+            .edge_query_union_candidates
+            .checked_add(query.edge_query_union)
+            .zip(
+                work.line_trigram_only_query_union_candidates
+                    .checked_add(query.line_trigram_only_query_union),
+            )
+        {
+            work.edge_query_union_candidates = edge;
+            work.line_trigram_only_query_union_candidates = trigram;
+        } else {
+            self.near_metrics_available = false;
+        }
+    }
+
+    fn work_mut(&mut self, kind: RecoveryUnitKind) -> &mut NearSearchWorkMetrics {
+        match kind {
+            RecoveryUnitKind::Sentence => &mut self.sentence_work,
+            RecoveryUnitKind::Line => &mut self.line_work,
+        }
+    }
+
+    fn diagnostic_delta(after: usize, before: usize, metrics_available: &mut bool) -> usize {
+        let Some(delta) = after.checked_sub(before) else {
+            *metrics_available = false;
+            return 0;
+        };
+        delta
     }
 
     fn record_candidate_count_limit(&mut self) {
@@ -4637,6 +4776,8 @@ impl RecoveryBudget {
     fn commit_near_search_spend_from(&mut self, other: Self) {
         self.candidate_posting_visits = other.candidate_posting_visits;
         self.candidate_posting_visits_attempted = other.candidate_posting_visits_attempted;
+        self.sentence_work = other.sentence_work;
+        self.line_work = other.line_work;
         self.pair_visits = other.pair_visits;
         self.comparisons = other.comparisons;
         self.pair_visits_attempted = other.pair_visits_attempted;
@@ -5233,6 +5374,8 @@ fn record_near_search_metrics(
     diagnostics.metrics.near_candidate_posting_visits_examined = budget.candidate_posting_visits;
     diagnostics.metrics.near_candidate_posting_visits_attempted =
         budget.candidate_posting_visits_attempted;
+    diagnostics.metrics.near_sentence_work = budget.sentence_work;
+    diagnostics.metrics.near_line_work = budget.line_work;
     diagnostics.metrics.near_pair_visits_examined = budget.pair_visits;
     diagnostics.metrics.near_pair_visits_attempted = budget.pair_visits_attempted;
     diagnostics.metrics.near_similarity_comparisons_examined = budget.comparisons;
@@ -6994,8 +7137,8 @@ fn paired_modified_sentence_relations(
                 )
                 && new_intervals.get(*occurrence_index).copied().flatten() == Some(interval)
         });
-        budget.record_candidate_query(query, plausible.len());
-        if !budget.charge_pair_visits(plausible.len()) {
+        budget.record_candidate_query(query, old_occurrence.kind, plausible.len());
+        if !budget.charge_pair_visits(plausible.len(), old_occurrence.kind) {
             return None;
         }
         for &new_occurrence_index in &plausible {
@@ -7058,8 +7201,8 @@ fn paired_modified_sentence_relations(
                         Some(count)
                     }
                 })?;
-        budget.record_candidate_query(query, plausible.len());
-        if !budget.charge_pair_visits(noncandidate_visits) {
+        budget.record_candidate_query(query, new_occurrence.kind, plausible.len());
+        if !budget.charge_pair_visits(noncandidate_visits, new_occurrence.kind) {
             return None;
         }
         for &old_occurrence_index in &plausible {
@@ -7180,8 +7323,8 @@ fn record_cross_interval_disqualifying_relations(
                         candidate.pair_index == interval.pair_index && candidate != interval
                     })
         });
-        budget.record_candidate_query(query, plausible.len());
-        if !budget.charge_pair_visits(plausible.len()) {
+        budget.record_candidate_query(query, old_occurrence.kind, plausible.len());
+        if !budget.charge_pair_visits(plausible.len(), old_occurrence.kind) {
             return None;
         }
         for &new_occurrence_index in &plausible {
@@ -7242,8 +7385,8 @@ fn record_cross_interval_disqualifying_relations(
                         candidate.pair_index == interval.pair_index && candidate != interval
                     })
         });
-        budget.record_candidate_query(query, plausible.len());
-        if !budget.charge_pair_visits(plausible.len()) {
+        budget.record_candidate_query(query, new_occurrence.kind, plausible.len());
+        if !budget.charge_pair_visits(plausible.len(), new_occurrence.kind) {
             return None;
         }
         for &old_occurrence_index in &plausible {
@@ -7480,8 +7623,8 @@ fn extend_modified_sentence_relations(
                     new_occurrences[*occurrence_index].span_index,
                 )
         });
-        budget.record_candidate_query(query, plausible.len());
-        if !budget.charge_pair_visits(plausible.len()) {
+        budget.record_candidate_query(query, old_occurrence.kind, plausible.len());
+        if !budget.charge_pair_visits(plausible.len(), old_occurrence.kind) {
             return None;
         }
         for &new_occurrence_index in &plausible {
@@ -7544,8 +7687,8 @@ fn extend_modified_sentence_relations(
                         Some(count)
                     }
                 })?;
-        budget.record_candidate_query(query, plausible.len());
-        if !budget.charge_pair_visits(noncandidate_visits) {
+        budget.record_candidate_query(query, new_occurrence.kind, plausible.len());
+        if !budget.charge_pair_visits(noncandidate_visits, new_occurrence.kind) {
             return None;
         }
         for &old_occurrence_index in &plausible {
@@ -7673,7 +7816,7 @@ fn sentence_similarity(
 
     let mut prefix = 0usize;
     while prefix < shorter {
-        if !budget.charge_comparisons(1) {
+        if !budget.charge_comparisons(1, old.kind) {
             return None;
         }
         if old.tokens[prefix] != new.tokens[prefix] {
@@ -7684,7 +7827,7 @@ fn sentence_similarity(
 
     let mut suffix = 0usize;
     while suffix < shorter - prefix {
-        if !budget.charge_comparisons(1) {
+        if !budget.charge_comparisons(1, old.kind) {
             return None;
         }
         if old.tokens[old.tokens.len() - suffix - 1] != new.tokens[new.tokens.len() - suffix - 1] {
@@ -7700,8 +7843,13 @@ fn sentence_similarity(
         let old_ngrams = ngram_count(old.tokens.len(), LINE_NGRAM_SIZE)?;
         let new_ngrams = ngram_count(new.tokens.len(), LINE_NGRAM_SIZE)?;
         if multiset_dice_upper_bound(old_ngrams, new_ngrams)? > exact_score {
-            let line_score =
-                token_ngram_multiset_dice(&old.tokens, &new.tokens, LINE_NGRAM_SIZE, budget)?;
+            let line_score = token_ngram_multiset_dice(
+                &old.tokens,
+                &new.tokens,
+                LINE_NGRAM_SIZE,
+                old.kind,
+                budget,
+            )?;
             exact_score = exact_score.max(line_score);
         }
     }
@@ -7709,7 +7857,7 @@ fn sentence_similarity(
         return Some(exact_score);
     }
     if multiset_dice_upper_bound(old.word_ranges.len(), new.word_ranges.len())? > exact_score {
-        let word_score = word_multiset_dice(old, new, budget)?;
+        let word_score = word_multiset_dice(old, new, old.kind, budget)?;
         exact_score = exact_score.max(word_score);
     }
     Some(exact_score)
@@ -7723,6 +7871,7 @@ fn multiset_dice_upper_bound(old_count: usize, new_count: usize) -> Option<u16> 
 fn word_multiset_dice(
     old: &SentenceOccurrence,
     new: &SentenceOccurrence,
+    kind: RecoveryUnitKind,
     budget: &mut RecoveryBudget,
 ) -> Option<u16> {
     let total = old.word_ranges.len().checked_add(new.word_ranges.len())?;
@@ -7733,7 +7882,7 @@ fn word_multiset_dice(
     let mut new_index = 0usize;
     let mut shared = 0usize;
     while old_index < old.word_ranges.len() && new_index < new.word_ranges.len() {
-        if !budget.charge_comparisons(1) {
+        if !budget.charge_comparisons(1, kind) {
             return None;
         }
         let old_word = old.key.get(old.word_ranges[old_index].clone())?;
@@ -7755,6 +7904,7 @@ fn token_ngram_multiset_dice(
     old: &[SentenceEvidenceToken],
     new: &[SentenceEvidenceToken],
     size: usize,
+    kind: RecoveryUnitKind,
     budget: &mut RecoveryBudget,
 ) -> Option<u16> {
     let old_windows = ngram_count(old.len(), size)?;
@@ -7763,7 +7913,7 @@ fn token_ngram_multiset_dice(
         return Some(0);
     }
     let total = old_windows.checked_add(new_windows)?;
-    if !budget.charge_comparisons(total) {
+    if !budget.charge_comparisons(total, kind) {
         return None;
     }
 
@@ -7784,7 +7934,7 @@ fn token_ngram_multiset_dice(
     } else {
         (&new_counts, &old_counts)
     };
-    if !budget.charge_comparisons(shorter.len()) {
+    if !budget.charge_comparisons(shorter.len(), kind) {
         return None;
     }
     let shared = shorter.iter().try_fold(0usize, |shared, (ngram, count)| {
@@ -10967,14 +11117,16 @@ mod tests {
         assert!(!budget.charge_occurrences(1));
         assert!(budget.charge_key_bytes(20));
         assert!(!budget.charge_key_bytes(1));
-        assert!(budget.charge_pair_visits(5));
-        assert!(!budget.charge_pair_visits(1));
-        assert!(budget.charge_comparisons(20));
-        assert!(!budget.charge_comparisons(1));
+        assert!(budget.charge_pair_visits(5, RecoveryUnitKind::Sentence));
+        assert!(!budget.charge_pair_visits(1, RecoveryUnitKind::Sentence));
+        assert!(budget.charge_comparisons(20, RecoveryUnitKind::Sentence));
+        assert!(!budget.charge_comparisons(1, RecoveryUnitKind::Sentence));
         assert_eq!(budget.pair_visits, 5);
         assert_eq!(budget.pair_visits_attempted, 6);
         assert_eq!(budget.comparisons, 20);
         assert_eq!(budget.comparisons_attempted, 21);
+        assert_eq!(budget.sentence_work.filtered_candidates, 6);
+        assert_near_work_sums_match_aggregates(&budget);
         assert_eq!(
             budget.near_relation_stop_reason,
             Some(NearRelationStopReason::PairVisitLimit)
@@ -12544,9 +12696,9 @@ mod tests {
                 &mut budget,
             )
             .expect("query succeeds");
-        budget.record_candidate_query(query_metrics, 2);
-        assert!(budget.charge_pair_visits(2));
-        assert!(budget.charge_comparisons(3));
+        budget.record_candidate_query(query_metrics, RecoveryUnitKind::Sentence, 2);
+        assert!(budget.charge_pair_visits(2, RecoveryUnitKind::Sentence));
+        assert!(budget.charge_comparisons(3, RecoveryUnitKind::Sentence));
         let mut diagnostics = Some(SentenceRecoveryDiagnostics {
             metrics: SentenceRecoveryMetrics::default(),
             eligible_old_source_tokens: 0,
@@ -12566,6 +12718,55 @@ mod tests {
         assert_eq!(metrics.near_largest_edge_query_union, 3);
         assert_eq!(metrics.near_largest_filtered_candidate_set, 2);
         assert_eq!(metrics.near_relation_stop_reason, None);
+        assert_eq!(metrics.near_line_work, NearSearchWorkMetrics::default());
+        assert_eq!(metrics.near_sentence_work.edge_query_union_candidates, 3);
+        assert_eq!(metrics.near_sentence_work.filtered_candidates, 2);
+        assert_near_work_sums_match_aggregates(&budget);
+    }
+
+    #[test]
+    fn line_query_separates_trigram_only_candidates_from_edge_overlap() {
+        let trigram_only = indexed_occurrence(
+            &['x', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'y'],
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        );
+        let overlap_tokens = ['q', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'z'];
+        let overlap = indexed_occurrence(
+            &overlap_tokens,
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        );
+        let index =
+            UnitCandidateIndex::new(&[trigram_only, overlap], CandidatePostingIndexScope::Global)
+                .expect("index construction succeeds");
+        let mut plausible = Vec::new();
+        let mut budget = RecoveryBudget::new(40, 0, 40, 1).expect("budget is valid");
+
+        let query_occurrence = indexed_occurrence(
+            &overlap_tokens,
+            RecoveryUnitKind::Line,
+            Some(BlockRole::Body),
+        );
+        let query = index
+            .collect_plausible_occurrences(
+                &mut plausible,
+                &query_occurrence,
+                CandidatePostingBucket::Global,
+                None,
+                &mut budget,
+            )
+            .expect("query succeeds");
+        budget.record_candidate_query(query, RecoveryUnitKind::Line, plausible.len());
+
+        assert_eq!(query.edge_query_union, 1);
+        assert_eq!(query.line_trigram_only_query_union, 1);
+        assert_eq!(plausible, [0, 1]);
+        assert_eq!(budget.sentence_work, NearSearchWorkMetrics::default());
+        assert_eq!(budget.line_work.edge_query_union_candidates, 1);
+        assert_eq!(budget.line_work.line_trigram_only_query_union_candidates, 1);
+        assert!(budget.line_work.line_trigram_posting_visits_examined > 0);
+        assert_near_work_sums_match_aggregates(&budget);
     }
 
     #[test]
@@ -12669,17 +12870,23 @@ mod tests {
 
         assert_eq!(budget.pair_visits, 3);
         assert_eq!(budget.largest_filtered_candidate_set, 3);
+        assert_eq!(budget.sentence_work.edge_query_union_candidates, 12);
+        assert_eq!(budget.sentence_work.filtered_candidates, 3);
+        assert_near_work_sums_match_aggregates(&budget);
     }
 
     #[test]
     fn comparison_limit_records_first_stop_reason_without_examining_failed_work() {
         let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("budget is valid");
         budget.record_candidate_count_limit();
-        assert!(budget.charge_comparisons(4));
-        assert!(!budget.charge_comparisons(2));
+        assert!(budget.charge_comparisons(4, RecoveryUnitKind::Sentence));
+        assert!(!budget.charge_comparisons(2, RecoveryUnitKind::Sentence));
 
         assert_eq!(budget.comparisons, 4);
         assert_eq!(budget.comparisons_attempted, 6);
+        assert_eq!(budget.sentence_work.similarity_comparisons_examined, 4);
+        assert_eq!(budget.sentence_work.similarity_comparisons_attempted, 6);
+        assert_near_work_sums_match_aggregates(&budget);
         assert!(budget.candidate_count_truncated);
         assert_eq!(
             budget.near_relation_stop_reason,
@@ -12692,13 +12899,21 @@ mod tests {
         let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("budget is valid");
         budget.candidate_posting_visit_limit = 0;
 
-        assert!(!budget.charge_candidate_posting_visits(1));
-        assert!(!budget.charge_pair_visits(2));
+        assert!(!budget.charge_candidate_posting_visits(
+            1,
+            RecoveryUnitKind::Sentence,
+            CandidatePostingKind::Edge,
+        ));
+        assert!(!budget.charge_pair_visits(2, RecoveryUnitKind::Sentence));
 
         assert_eq!(budget.candidate_posting_visits, 0);
         assert_eq!(budget.candidate_posting_visits_attempted, 1);
         assert_eq!(budget.pair_visits, 0);
         assert_eq!(budget.pair_visits_attempted, 2);
+        assert_eq!(budget.sentence_work.edge_posting_visits_examined, 0);
+        assert_eq!(budget.sentence_work.edge_posting_visits_attempted, 1);
+        assert_eq!(budget.sentence_work.filtered_candidates, 2);
+        assert_near_work_sums_match_aggregates(&budget);
         assert_eq!(
             budget.near_relation_stop_reason,
             Some(NearRelationStopReason::CandidatePostingVisitLimit)
@@ -12709,7 +12924,7 @@ mod tests {
     fn near_search_counter_overflow_makes_metrics_unavailable_without_a_limit_reason() {
         let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("budget is valid");
         budget.pair_visits_attempted = usize::MAX;
-        assert!(!budget.charge_pair_visits(1));
+        assert!(!budget.charge_pair_visits(1, RecoveryUnitKind::Sentence));
         let mut diagnostics = Some(SentenceRecoveryDiagnostics {
             metrics: SentenceRecoveryMetrics::default(),
             eligible_old_source_tokens: 0,
@@ -12720,6 +12935,77 @@ mod tests {
 
         assert!(diagnostics.is_none());
         assert_eq!(budget.near_relation_stop_reason, None);
+    }
+
+    #[test]
+    fn speculative_near_search_commit_copies_per_kind_work() {
+        let mut budget = RecoveryBudget::new(4, 4, 8, 1).expect("budget is valid");
+        assert!(budget.charge_pair_visits(1, RecoveryUnitKind::Sentence));
+        let mut speculative = budget;
+        assert!(speculative.charge_pair_visits(2, RecoveryUnitKind::Line));
+        assert!(speculative.charge_comparisons(3, RecoveryUnitKind::Line));
+
+        budget.commit_near_search_spend_from(speculative);
+
+        assert_eq!(budget.sentence_work, speculative.sentence_work);
+        assert_eq!(budget.line_work, speculative.line_work);
+        assert_near_work_sums_match_aggregates(&budget);
+    }
+
+    fn assert_near_work_sums_match_aggregates(budget: &RecoveryBudget) {
+        assert_eq!(budget.sentence_work.line_trigram_posting_visits_examined, 0);
+        assert_eq!(
+            budget.sentence_work.line_trigram_posting_visits_attempted,
+            0
+        );
+        assert_eq!(
+            budget
+                .sentence_work
+                .edge_posting_visits_examined
+                .checked_add(budget.line_work.edge_posting_visits_examined)
+                .and_then(|total| {
+                    total.checked_add(budget.line_work.line_trigram_posting_visits_examined)
+                }),
+            Some(budget.candidate_posting_visits)
+        );
+        assert_eq!(
+            budget
+                .sentence_work
+                .edge_posting_visits_attempted
+                .checked_add(budget.line_work.edge_posting_visits_attempted)
+                .and_then(|total| {
+                    total.checked_add(budget.line_work.line_trigram_posting_visits_attempted)
+                }),
+            Some(budget.candidate_posting_visits_attempted)
+        );
+        assert_eq!(
+            budget
+                .sentence_work
+                .pair_visits_examined
+                .checked_add(budget.line_work.pair_visits_examined),
+            Some(budget.pair_visits)
+        );
+        assert_eq!(
+            budget
+                .sentence_work
+                .pair_visits_attempted
+                .checked_add(budget.line_work.pair_visits_attempted),
+            Some(budget.pair_visits_attempted)
+        );
+        assert_eq!(
+            budget
+                .sentence_work
+                .similarity_comparisons_examined
+                .checked_add(budget.line_work.similarity_comparisons_examined),
+            Some(budget.comparisons)
+        );
+        assert_eq!(
+            budget
+                .sentence_work
+                .similarity_comparisons_attempted
+                .checked_add(budget.line_work.similarity_comparisons_attempted),
+            Some(budget.comparisons_attempted)
+        );
     }
 
     #[test]

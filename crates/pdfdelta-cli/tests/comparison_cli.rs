@@ -612,7 +612,7 @@ fn writes_complete_phase_trace_separately_from_the_report() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let trace = read_json(&trace);
-    assert_eq!(trace["trace_schema_version"], 6);
+    assert_eq!(trace["trace_schema_version"], 7);
     assert_eq!(trace["command"]["kind"], "compare");
     assert_eq!(trace["result"]["status"], "completed");
     assert_eq!(trace["result"]["exit_code"], 0);
@@ -648,6 +648,24 @@ fn writes_complete_phase_trace_separately_from_the_report() {
             .as_u64()
             .is_some()
     );
+    for kind in ["sentence", "line"] {
+        for field in [
+            "edge_posting_visits_examined",
+            "edge_posting_visits_attempted",
+            "line_trigram_posting_visits_examined",
+            "line_trigram_posting_visits_attempted",
+            "edge_query_union_candidates",
+            "line_trigram_only_query_union_candidates",
+            "filtered_candidates",
+            "pair_visits_examined",
+            "pair_visits_attempted",
+            "similarity_comparisons_examined",
+            "similarity_comparisons_attempted",
+        ] {
+            let key = format!("sentence_recovery_near_{kind}_work_{field}");
+            assert!(exact_diff["metrics"][&key].as_u64().is_some(), "{key}");
+        }
+    }
     assert_eq!(
         exact_diff["metrics"]["sentence_recovery_near_candidate_count_truncated"],
         0

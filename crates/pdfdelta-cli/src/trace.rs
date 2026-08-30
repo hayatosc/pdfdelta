@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 6;
+const TRACE_SCHEMA_VERSION: u8 = 7;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -565,6 +565,104 @@ fn pipeline_metrics(
             (
                 "sentence_recovery_near_relation_complete",
                 usize::from(sentence.near_relation_complete),
+            ),
+            (
+                "sentence_recovery_near_sentence_work_edge_posting_visits_examined",
+                sentence.near_sentence_work.edge_posting_visits_examined,
+            ),
+            (
+                "sentence_recovery_near_sentence_work_edge_posting_visits_attempted",
+                sentence.near_sentence_work.edge_posting_visits_attempted,
+            ),
+            (
+                "sentence_recovery_near_sentence_work_line_trigram_posting_visits_examined",
+                sentence
+                    .near_sentence_work
+                    .line_trigram_posting_visits_examined,
+            ),
+            (
+                "sentence_recovery_near_sentence_work_line_trigram_posting_visits_attempted",
+                sentence
+                    .near_sentence_work
+                    .line_trigram_posting_visits_attempted,
+            ),
+            (
+                "sentence_recovery_near_sentence_work_edge_query_union_candidates",
+                sentence.near_sentence_work.edge_query_union_candidates,
+            ),
+            (
+                "sentence_recovery_near_sentence_work_line_trigram_only_query_union_candidates",
+                sentence
+                    .near_sentence_work
+                    .line_trigram_only_query_union_candidates,
+            ),
+            (
+                "sentence_recovery_near_sentence_work_filtered_candidates",
+                sentence.near_sentence_work.filtered_candidates,
+            ),
+            (
+                "sentence_recovery_near_sentence_work_pair_visits_examined",
+                sentence.near_sentence_work.pair_visits_examined,
+            ),
+            (
+                "sentence_recovery_near_sentence_work_pair_visits_attempted",
+                sentence.near_sentence_work.pair_visits_attempted,
+            ),
+            (
+                "sentence_recovery_near_sentence_work_similarity_comparisons_examined",
+                sentence.near_sentence_work.similarity_comparisons_examined,
+            ),
+            (
+                "sentence_recovery_near_sentence_work_similarity_comparisons_attempted",
+                sentence.near_sentence_work.similarity_comparisons_attempted,
+            ),
+            (
+                "sentence_recovery_near_line_work_edge_posting_visits_examined",
+                sentence.near_line_work.edge_posting_visits_examined,
+            ),
+            (
+                "sentence_recovery_near_line_work_edge_posting_visits_attempted",
+                sentence.near_line_work.edge_posting_visits_attempted,
+            ),
+            (
+                "sentence_recovery_near_line_work_line_trigram_posting_visits_examined",
+                sentence.near_line_work.line_trigram_posting_visits_examined,
+            ),
+            (
+                "sentence_recovery_near_line_work_line_trigram_posting_visits_attempted",
+                sentence
+                    .near_line_work
+                    .line_trigram_posting_visits_attempted,
+            ),
+            (
+                "sentence_recovery_near_line_work_edge_query_union_candidates",
+                sentence.near_line_work.edge_query_union_candidates,
+            ),
+            (
+                "sentence_recovery_near_line_work_line_trigram_only_query_union_candidates",
+                sentence
+                    .near_line_work
+                    .line_trigram_only_query_union_candidates,
+            ),
+            (
+                "sentence_recovery_near_line_work_filtered_candidates",
+                sentence.near_line_work.filtered_candidates,
+            ),
+            (
+                "sentence_recovery_near_line_work_pair_visits_examined",
+                sentence.near_line_work.pair_visits_examined,
+            ),
+            (
+                "sentence_recovery_near_line_work_pair_visits_attempted",
+                sentence.near_line_work.pair_visits_attempted,
+            ),
+            (
+                "sentence_recovery_near_line_work_similarity_comparisons_examined",
+                sentence.near_line_work.similarity_comparisons_examined,
+            ),
+            (
+                "sentence_recovery_near_line_work_similarity_comparisons_attempted",
+                sentence.near_line_work.similarity_comparisons_attempted,
             ),
             (
                 "sentence_recovery_near_pair_candidates",

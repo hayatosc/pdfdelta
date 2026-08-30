@@ -424,6 +424,22 @@ pub enum RunSignatureStopReason {
 
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NearSearchWorkMetrics {
+    pub edge_posting_visits_examined: usize,
+    pub edge_posting_visits_attempted: usize,
+    pub line_trigram_posting_visits_examined: usize,
+    pub line_trigram_posting_visits_attempted: usize,
+    pub edge_query_union_candidates: usize,
+    pub line_trigram_only_query_union_candidates: usize,
+    pub filtered_candidates: usize,
+    pub pair_visits_examined: usize,
+    pub pair_visits_attempted: usize,
+    pub similarity_comparisons_examined: usize,
+    pub similarity_comparisons_attempted: usize,
+}
+
+/// Constant-space diagnostics for sentence recovery inside uncertain spans.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
     pub old_trusted_run_source_tokens: usize,
     pub new_trusted_run_source_tokens: usize,
@@ -476,6 +492,8 @@ pub struct SentenceRecoveryMetrics {
     pub near_similarity_comparisons_attempted: usize,
     pub near_candidate_posting_visits_examined: usize,
     pub near_candidate_posting_visits_attempted: usize,
+    pub near_sentence_work: NearSearchWorkMetrics,
+    pub near_line_work: NearSearchWorkMetrics,
     pub near_largest_edge_posting: usize,
     pub near_largest_edge_query_union: usize,
     pub near_largest_filtered_candidate_set: usize,
