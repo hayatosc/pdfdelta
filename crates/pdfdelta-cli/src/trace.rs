@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 9;
+const TRACE_SCHEMA_VERSION: u8 = 10;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -980,6 +980,62 @@ fn pipeline_metrics(
             "near_cross_span_work",
             sentence.near_cross_span_work
         );
+        if let Some(shadow) = sentence.known_span_sentence_shadow {
+            flattened.extend([
+                (
+                    "sentence_recovery_known_span_sentence_shadow_complete",
+                    usize::from(shadow.complete),
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_pairs_considered",
+                    shadow.pairs_considered,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_pairs_retained",
+                    shadow.pairs_retained,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_pairs_rejected_ambiguous",
+                    shadow.pairs_rejected_ambiguous,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_old_relation_mismatches",
+                    shadow.old_relation_mismatches,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_new_relation_mismatches",
+                    shadow.new_relation_mismatches,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_best_partner_mismatches",
+                    shadow.best_partner_mismatches,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_best_score_mismatches",
+                    shadow.best_score_mismatches,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_second_score_mismatches",
+                    shadow.second_score_mismatches,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_veto_mismatches",
+                    shadow.veto_mismatches,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_unique_partner_mismatches",
+                    shadow.unique_partner_mismatches,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_reciprocal_pair_mismatches",
+                    shadow.reciprocal_pair_mismatches,
+                ),
+                (
+                    "sentence_recovery_known_span_sentence_shadow_exact_relation_parity",
+                    usize::from(shadow.exact_relation_parity),
+                ),
+            ]);
+        }
     }
     flattened
 }
@@ -1069,7 +1125,10 @@ fn expected_phases() -> Vec<(&'static str, Option<TraceSide>)> {
 #[cfg(test)]
 mod tests {
     use pdfdelta_core::{
-        diff::{NearRelationStopReason, RunSignatureStopReason, SentenceRecoveryMetrics},
+        diff::{
+            KnownSpanSentenceShadowMetrics, NearRelationStopReason, RunSignatureStopReason,
+            SentenceRecoveryMetrics,
+        },
         pipeline::PipelineMetrics,
     };
 
@@ -1113,6 +1172,21 @@ mod tests {
             near_largest_filtered_candidate_set: 7,
             near_candidate_count_truncated: true,
             near_relation_stop_reason: Some(NearRelationStopReason::SimilarityComparisonLimit),
+            known_span_sentence_shadow: Some(KnownSpanSentenceShadowMetrics {
+                complete: true,
+                pairs_considered: 11,
+                pairs_retained: 7,
+                pairs_rejected_ambiguous: 4,
+                old_relation_mismatches: 3,
+                new_relation_mismatches: 2,
+                best_partner_mismatches: 2,
+                best_score_mismatches: 1,
+                second_score_mismatches: 4,
+                veto_mismatches: 1,
+                unique_partner_mismatches: 2,
+                reciprocal_pair_mismatches: 1,
+                exact_relation_parity: false,
+            }),
             recovered_deletion_tokens: 17,
             unresolved_remainder_old_source_tokens: 24,
             ..SentenceRecoveryMetrics::default()
@@ -1158,6 +1232,18 @@ mod tests {
             0
         );
         assert_eq!(metrics["sentence_recovery_near_relation_complete"], 1);
+        assert_eq!(
+            metrics["sentence_recovery_known_span_sentence_shadow_pairs_considered"],
+            11
+        );
+        assert_eq!(
+            metrics["sentence_recovery_known_span_sentence_shadow_pairs_rejected_ambiguous"],
+            4
+        );
+        assert_eq!(
+            metrics["sentence_recovery_known_span_sentence_shadow_exact_relation_parity"],
+            0
+        );
         assert_eq!(metrics["sentence_recovery_near_pair_visits_examined"], 29);
         assert_eq!(metrics["sentence_recovery_near_pair_visits_attempted"], 31);
         assert_eq!(

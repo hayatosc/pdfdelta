@@ -9,7 +9,9 @@ use crate::{
     diff::{
         Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, RecoveryWatchDiagnostics,
         RecoveryWatchQuery, SentenceRecoveryInput, SentenceRecoveryMetrics,
-        TrustedRunRecoveryInput, compare_aligned, compare_aligned_with_recovery_watch_diagnostics,
+        TrustedRunRecoveryInput, compare_aligned,
+        compare_aligned_with_known_span_sentence_shadow_diagnostics,
+        compare_aligned_with_recovery_watch_diagnostics,
         compare_aligned_with_sentence_recovery_metrics, enforce_diff_raw_token_budget,
         enforce_diff_token_budget, validate_diff_options,
     },
@@ -136,6 +138,7 @@ struct ComparisonInstrumentation<'a> {
     new_issue_boundaries: &'a [LocalizedIssueBoundary],
     enable_sentence_recovery: bool,
     watch_queries: &'a [RecoveryWatchQuery<'a>],
+    enable_known_span_sentence_shadow: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -355,8 +358,15 @@ pub fn compare_extraction_outcomes_with_alignment_diagnostics(
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
 ) -> Result<(ComparisonOutcome, Option<Alignment>)> {
-    compare_extraction_outcomes_with_recovery_watch_inner(old, new, options, diagnostics, &[])
-        .map(|outcome| (outcome.outcome, outcome.alignment))
+    compare_extraction_outcomes_with_recovery_watch_inner(
+        old,
+        new,
+        options,
+        diagnostics,
+        &[],
+        false,
+    )
+    .map(|outcome| (outcome.outcome, outcome.alignment))
 }
 
 /// Compares extracted documents and observes selected uncertain-region recovery evidence.
@@ -377,6 +387,33 @@ pub fn compare_extraction_outcomes_with_recovery_watch_diagnostics(
         options,
         diagnostics,
         watch_queries,
+        false,
+    )
+}
+
+/// Compares extracted documents and records a known-span sentence shadow diagnostic.
+///
+/// This entry point adds a bounded post-production relation replay. Ordinary
+/// comparison and recovery-watch entry points do not pay that runtime cost.
+///
+/// # Errors
+///
+/// Returns an error when configuration validation, layout reconstruction,
+/// alignment, exact diffing, or a resource limit fails.
+pub fn compare_extraction_outcomes_with_known_span_sentence_shadow_diagnostics(
+    old: ExtractionOutcome,
+    new: ExtractionOutcome,
+    options: PipelineOptions,
+    diagnostics: &mut PipelineDiagnostics,
+    watch_queries: &[RecoveryWatchQuery<'_>],
+) -> Result<ComparisonOutcomeWithRecoveryWatch> {
+    compare_extraction_outcomes_with_recovery_watch_inner(
+        old,
+        new,
+        options,
+        diagnostics,
+        watch_queries,
+        true,
     )
 }
 
@@ -386,6 +423,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
     watch_queries: &[RecoveryWatchQuery<'_>],
+    enable_known_span_sentence_shadow: bool,
 ) -> Result<ComparisonOutcomeWithRecoveryWatch> {
     diagnostics.begin();
     let options = match options.validate() {
@@ -422,6 +460,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
                 new_issue_boundaries: &[],
                 enable_sentence_recovery: true,
                 watch_queries,
+                enable_known_span_sentence_shadow,
             },
         )?;
         return Ok(ComparisonOutcomeWithRecoveryWatch {
@@ -458,6 +497,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
                 new_issue_boundaries: &new_gap_boundaries,
                 enable_sentence_recovery: false,
                 watch_queries,
+                enable_known_span_sentence_shadow,
             },
         )?;
         if !old_complete {
@@ -544,6 +584,7 @@ fn compare_validated_glyph_documents(
             new_issue_boundaries: &[],
             enable_sentence_recovery: true,
             watch_queries: &[],
+            enable_known_span_sentence_shadow: false,
         },
     )
     .map(|outcome| {
@@ -721,60 +762,68 @@ fn compare_validated_glyph_documents_inner(
             return Err(error);
         }
     };
-    let comparison_result =
-        if instrumentation.enable_sentence_recovery && !instrumentation.watch_queries.is_empty() {
-            compare_aligned_with_recovery_watch_diagnostics(
-                &old,
-                &new,
-                &alignment,
-                options.diff,
-                SentenceRecoveryInput {
-                    old_trusted_run_intervals: &old_trusted_run_intervals,
-                    new_trusted_run_intervals: &new_trusted_run_intervals,
-                    old_trusted_run_evidence: Some(TrustedRunRecoveryInput {
-                        descriptors: &old_trusted_run_descriptors,
-                        raw_region_edges: &old_trusted_region_edges,
-                    }),
-                    new_trusted_run_evidence: Some(TrustedRunRecoveryInput {
-                        descriptors: &new_trusted_run_descriptors,
-                        raw_region_edges: &new_trusted_region_edges,
-                    }),
-                    min_tokens: options.alignment.anchor_min_tokens,
-                },
-                instrumentation.watch_queries,
+    let recovery = SentenceRecoveryInput {
+        old_trusted_run_intervals: &old_trusted_run_intervals,
+        new_trusted_run_intervals: &new_trusted_run_intervals,
+        old_trusted_run_evidence: Some(TrustedRunRecoveryInput {
+            descriptors: &old_trusted_run_descriptors,
+            raw_region_edges: &old_trusted_region_edges,
+        }),
+        new_trusted_run_evidence: Some(TrustedRunRecoveryInput {
+            descriptors: &new_trusted_run_descriptors,
+            raw_region_edges: &new_trusted_region_edges,
+        }),
+        min_tokens: options.alignment.anchor_min_tokens,
+        enable_known_span_sentence_shadow: false,
+    };
+    let comparison_result = if instrumentation.enable_sentence_recovery
+        && instrumentation.enable_known_span_sentence_shadow
+    {
+        compare_aligned_with_known_span_sentence_shadow_diagnostics(
+            &old,
+            &new,
+            &alignment,
+            options.diff,
+            recovery,
+            instrumentation.watch_queries,
+        )
+        .map(|outcome| {
+            (
+                outcome.comparison,
+                outcome.sentence_recovery_metrics,
+                outcome.recovery_watch_diagnostics,
             )
-            .map(|outcome| {
-                (
-                    outcome.comparison,
-                    outcome.sentence_recovery_metrics,
-                    outcome.recovery_watch_diagnostics,
-                )
-            })
-        } else if instrumentation.enable_sentence_recovery {
-            compare_aligned_with_sentence_recovery_metrics(
-                &old,
-                &new,
-                &alignment,
-                options.diff,
-                SentenceRecoveryInput {
-                    old_trusted_run_intervals: &old_trusted_run_intervals,
-                    new_trusted_run_intervals: &new_trusted_run_intervals,
-                    old_trusted_run_evidence: Some(TrustedRunRecoveryInput {
-                        descriptors: &old_trusted_run_descriptors,
-                        raw_region_edges: &old_trusted_region_edges,
-                    }),
-                    new_trusted_run_evidence: Some(TrustedRunRecoveryInput {
-                        descriptors: &new_trusted_run_descriptors,
-                        raw_region_edges: &new_trusted_region_edges,
-                    }),
-                    min_tokens: options.alignment.anchor_min_tokens,
-                },
+        })
+    } else if instrumentation.enable_sentence_recovery && !instrumentation.watch_queries.is_empty()
+    {
+        compare_aligned_with_recovery_watch_diagnostics(
+            &old,
+            &new,
+            &alignment,
+            options.diff,
+            recovery,
+            instrumentation.watch_queries,
+        )
+        .map(|outcome| {
+            (
+                outcome.comparison,
+                outcome.sentence_recovery_metrics,
+                outcome.recovery_watch_diagnostics,
             )
-            .map(|outcome| (outcome.comparison, outcome.sentence_recovery_metrics, None))
-        } else {
-            compare_aligned(&old, &new, &alignment, options.diff)
-                .map(|comparison| (comparison, None, None))
-        };
+        })
+    } else if instrumentation.enable_sentence_recovery {
+        compare_aligned_with_sentence_recovery_metrics(
+            &old,
+            &new,
+            &alignment,
+            options.diff,
+            recovery,
+        )
+        .map(|outcome| (outcome.comparison, outcome.sentence_recovery_metrics, None))
+    } else {
+        compare_aligned(&old, &new, &alignment, options.diff)
+            .map(|comparison| (comparison, None, None))
+    };
     let (comparison, sentence_recovery_metrics, recovery_watch_diagnostics) = phase_result(
         diagnostics,
         PipelinePhase::ExactDiff,

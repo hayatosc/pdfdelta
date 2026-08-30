@@ -445,6 +445,25 @@ pub struct NearSearchScopeMetrics {
     pub line_work: NearSearchWorkMetrics,
 }
 
+/// Behavior-neutral comparison of production sentence relations against a
+/// shadow search that excludes ambiguous-span counterparts.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct KnownSpanSentenceShadowMetrics {
+    pub complete: bool,
+    pub pairs_considered: usize,
+    pub pairs_retained: usize,
+    pub pairs_rejected_ambiguous: usize,
+    pub old_relation_mismatches: usize,
+    pub new_relation_mismatches: usize,
+    pub best_partner_mismatches: usize,
+    pub best_score_mismatches: usize,
+    pub second_score_mismatches: usize,
+    pub veto_mismatches: usize,
+    pub unique_partner_mismatches: usize,
+    pub reciprocal_pair_mismatches: usize,
+    pub exact_relation_parity: bool,
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -508,6 +527,7 @@ pub struct SentenceRecoveryMetrics {
     pub near_ambiguous_span_work: NearSearchScopeMetrics,
     pub near_same_or_ambiguous_shared_query_work: NearSearchScopeMetrics,
     pub near_cross_span_work: NearSearchScopeMetrics,
+    pub known_span_sentence_shadow: Option<KnownSpanSentenceShadowMetrics>,
     pub near_largest_edge_posting: usize,
     pub near_largest_edge_query_union: usize,
     pub near_largest_filtered_candidate_set: usize,
@@ -616,6 +636,7 @@ pub(crate) struct SentenceRecoveryInput<'a> {
     pub(crate) old_trusted_run_evidence: Option<TrustedRunRecoveryInput<'a>>,
     pub(crate) new_trusted_run_evidence: Option<TrustedRunRecoveryInput<'a>>,
     pub(crate) min_tokens: usize,
+    pub(crate) enable_known_span_sentence_shadow: bool,
 }
 
 struct CompareAlignedConfig<'a> {
@@ -691,8 +712,9 @@ pub(crate) fn compare_aligned_with_sentence_recovery(
     new: &[BlockText],
     alignment: &Alignment,
     options: DiffOptions,
-    recovery: SentenceRecoveryInput<'_>,
+    mut recovery: SentenceRecoveryInput<'_>,
 ) -> Result<Comparison> {
+    recovery.enable_known_span_sentence_shadow = false;
     compare_aligned_inner(
         old,
         new,
@@ -713,8 +735,9 @@ pub(crate) fn compare_aligned_with_sentence_recovery_metrics(
     new: &[BlockText],
     alignment: &Alignment,
     options: DiffOptions,
-    recovery: SentenceRecoveryInput<'_>,
+    mut recovery: SentenceRecoveryInput<'_>,
 ) -> Result<ComparisonWithSentenceRecoveryMetrics> {
+    recovery.enable_known_span_sentence_shadow = false;
     compare_aligned_inner(
         old,
         new,
@@ -729,14 +752,38 @@ pub(crate) fn compare_aligned_with_sentence_recovery_metrics(
     )
 }
 
+pub(crate) fn compare_aligned_with_known_span_sentence_shadow_diagnostics(
+    old: &[BlockText],
+    new: &[BlockText],
+    alignment: &Alignment,
+    options: DiffOptions,
+    mut recovery: SentenceRecoveryInput<'_>,
+    watch_queries: &[RecoveryWatchQuery<'_>],
+) -> Result<ComparisonWithSentenceRecoveryMetrics> {
+    recovery.enable_known_span_sentence_shadow = true;
+    compare_aligned_inner(
+        old,
+        new,
+        alignment,
+        CompareAlignedConfig {
+            options,
+            recovery: Some(recovery),
+            watch_queries: Some(watch_queries),
+            recovery_output_limits: RecoveryOutputLimits::default(),
+            retain_atomic_edits: false,
+        },
+    )
+}
+
 pub(crate) fn compare_aligned_with_recovery_watch_diagnostics(
     old: &[BlockText],
     new: &[BlockText],
     alignment: &Alignment,
     options: DiffOptions,
-    recovery: SentenceRecoveryInput<'_>,
+    mut recovery: SentenceRecoveryInput<'_>,
     watch_queries: &[RecoveryWatchQuery<'_>],
 ) -> Result<ComparisonWithSentenceRecoveryMetrics> {
+    recovery.enable_known_span_sentence_shadow = false;
     compare_aligned_inner(
         old,
         new,
@@ -5182,6 +5229,7 @@ mod tests {
                     old_trusted_run_evidence: None,
                     new_trusted_run_evidence: None,
                     min_tokens: 5,
+                    enable_known_span_sentence_shadow: false,
                 }),
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits {
@@ -5954,6 +6002,7 @@ mod tests {
                 old_trusted_run_evidence: None,
                 new_trusted_run_evidence: None,
                 min_tokens: 5,
+                enable_known_span_sentence_shadow: false,
             },
         )
         .expect("cross-span exact recovery succeeds");
@@ -6020,6 +6069,7 @@ mod tests {
                 old_trusted_run_evidence: None,
                 new_trusted_run_evidence: None,
                 min_tokens: 1,
+                enable_known_span_sentence_shadow: false,
             },
         )
         .expect("exact-only fallback comparison succeeds");
@@ -6136,6 +6186,7 @@ mod tests {
                     old_trusted_run_evidence: None,
                     new_trusted_run_evidence: None,
                     min_tokens: 1,
+                    enable_known_span_sentence_shadow: false,
                 }),
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits {
@@ -6187,6 +6238,7 @@ mod tests {
                     old_trusted_run_evidence: None,
                     new_trusted_run_evidence: None,
                     min_tokens: 5,
+                    enable_known_span_sentence_shadow: false,
                 }),
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits {
@@ -6254,6 +6306,7 @@ mod tests {
                     old_trusted_run_evidence: None,
                     new_trusted_run_evidence: None,
                     min_tokens: 5,
+                    enable_known_span_sentence_shadow: false,
                 }),
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits {
@@ -6318,6 +6371,7 @@ mod tests {
                     old_trusted_run_evidence: None,
                     new_trusted_run_evidence: None,
                     min_tokens: 5,
+                    enable_known_span_sentence_shadow: false,
                 }),
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits {
@@ -6649,6 +6703,64 @@ mod tests {
     }
 
     #[test]
+    fn known_span_sentence_shadow_requires_dedicated_diagnostic_entry_point() {
+        let old = vec![sentence_block(
+            30,
+            "A stable sentence contains the original wording.",
+        )];
+        let new = vec![sentence_block(
+            31,
+            "A stable sentence contains the revised wording.",
+        )];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let old_intervals = trusted_run_intervals(&[Some(TrustedRunId(1))]);
+        let new_intervals = trusted_run_intervals(&[Some(TrustedRunId(2))]);
+        let recovery = SentenceRecoveryInput {
+            old_trusted_run_intervals: &old_intervals,
+            new_trusted_run_intervals: &new_intervals,
+            old_trusted_run_evidence: None,
+            new_trusted_run_evidence: None,
+            min_tokens: 5,
+            enable_known_span_sentence_shadow: false,
+        };
+
+        let ordinary = compare_aligned_with_sentence_recovery_metrics(
+            &old,
+            &new,
+            &alignment,
+            DiffOptions::default(),
+            recovery,
+        )
+        .expect("ordinary recovery succeeds");
+        let diagnostic = compare_aligned_with_known_span_sentence_shadow_diagnostics(
+            &old,
+            &new,
+            &alignment,
+            DiffOptions::default(),
+            recovery,
+            &[],
+        )
+        .expect("diagnostic recovery succeeds");
+
+        assert!(
+            ordinary
+                .sentence_recovery_metrics
+                .expect("ordinary metrics are available")
+                .known_span_sentence_shadow
+                .is_none()
+        );
+        assert!(
+            diagnostic
+                .sentence_recovery_metrics
+                .expect("diagnostic metrics are available")
+                .known_span_sentence_shadow
+                .is_some()
+        );
+        assert_eq!(ordinary.comparison, diagnostic.comparison);
+    }
+
+    #[test]
     fn completed_empty_sentence_recovery_diagnostics_are_present_as_real_zeros() {
         let outcome = compare_aligned_with_sentence_recovery_metrics(
             &[],
@@ -6665,6 +6777,7 @@ mod tests {
                 old_trusted_run_evidence: None,
                 new_trusted_run_evidence: None,
                 min_tokens: 1,
+                enable_known_span_sentence_shadow: false,
             },
         )
         .expect("empty comparison succeeds");
@@ -7429,6 +7542,7 @@ mod tests {
                 old_trusted_run_evidence: None,
                 new_trusted_run_evidence: None,
                 min_tokens: 1,
+                enable_known_span_sentence_shadow: false,
             },
         )
         .expect_err("metadata length mismatch must be rejected");
@@ -7449,6 +7563,7 @@ mod tests {
                 old_trusted_run_evidence: None,
                 new_trusted_run_evidence: None,
                 min_tokens: 0,
+                enable_known_span_sentence_shadow: false,
             },
         )
         .expect_err("zero sentence threshold must be rejected");
@@ -7482,6 +7597,7 @@ mod tests {
                 old_trusted_run_evidence: None,
                 new_trusted_run_evidence: None,
                 min_tokens: 1,
+                enable_known_span_sentence_shadow: false,
             },
         )
         .expect("recovery comparison succeeds");
@@ -7523,6 +7639,7 @@ mod tests {
                     old_trusted_run_evidence: None,
                     new_trusted_run_evidence: None,
                     min_tokens: 1,
+                    enable_known_span_sentence_shadow: false,
                 }),
                 watch_queries: None,
                 recovery_output_limits: RecoveryOutputLimits::default(),
@@ -7653,6 +7770,7 @@ mod tests {
                 old_trusted_run_evidence: None,
                 new_trusted_run_evidence: None,
                 min_tokens,
+                enable_known_span_sentence_shadow: false,
             },
         )
         .expect("sentence recovery comparison succeeds")
@@ -7701,6 +7819,7 @@ mod tests {
                 old_trusted_run_evidence: None,
                 new_trusted_run_evidence: None,
                 min_tokens,
+                enable_known_span_sentence_shadow: false,
             },
         )
         .expect("baseline sentence recovery succeeds");
@@ -7721,6 +7840,7 @@ mod tests {
                     raw_region_edges: &[],
                 }),
                 min_tokens,
+                enable_known_span_sentence_shadow: false,
             },
         )
         .expect("instrumented sentence recovery succeeds");
@@ -7761,6 +7881,7 @@ mod tests {
                     raw_region_edges: &[],
                 }),
                 min_tokens,
+                enable_known_span_sentence_shadow: false,
             },
             queries,
         )
@@ -8367,6 +8488,7 @@ mod tests {
                 old_trusted_run_evidence: None,
                 new_trusted_run_evidence: None,
                 min_tokens,
+                enable_known_span_sentence_shadow: false,
             },
         )
         .expect("sentence recovery comparison succeeds")

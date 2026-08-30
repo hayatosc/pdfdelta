@@ -21,9 +21,9 @@ use std::{
 use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
-        ChangeKind, Comparison, ExactSegmentRelation, NearRelationStopReason,
-        NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
-        RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
+        ChangeKind, Comparison, ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
+        NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
+        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
         RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
         RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence, RecoveryWatchPairEvidence,
         RecoveryWatchQuery, RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
@@ -37,8 +37,7 @@ use pdfdelta_core::{
     pdf::{LopdfParser, ParseLimits},
     pipeline::{
         PipelineDiagnostics, PipelineOptions, PipelinePhase, PipelinePhaseStatus,
-        compare_extraction_outcomes_with_alignment_diagnostics,
-        compare_extraction_outcomes_with_recovery_watch_diagnostics,
+        compare_extraction_outcomes_with_known_span_sentence_shadow_diagnostics,
         validate_limit_scale as validate_pipeline_limit_scale,
     },
     report::{self, DocumentSide, summarize},
@@ -535,6 +534,7 @@ pub struct SentenceRecoveryMetricsReport {
     pub near_ambiguous_span_work: NearSearchScopeMetricsReport,
     pub near_same_or_ambiguous_shared_query_work: NearSearchScopeMetricsReport,
     pub near_cross_span_work: NearSearchScopeMetricsReport,
+    pub known_span_sentence_shadow: Option<KnownSpanSentenceShadowMetricsReport>,
     pub near_pair_visits_examined: usize,
     pub near_pair_visits_attempted: usize,
     pub near_similarity_comparisons_examined: usize,
@@ -556,6 +556,43 @@ pub struct SentenceRecoveryMetricsReport {
     pub recovered_insertion_tokens: usize,
     pub unresolved_remainder_old_source_tokens: usize,
     pub unresolved_remainder_new_source_tokens: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct KnownSpanSentenceShadowMetricsReport {
+    pub complete: bool,
+    pub pairs_considered: usize,
+    pub pairs_retained: usize,
+    pub pairs_rejected_ambiguous: usize,
+    pub old_relation_mismatches: usize,
+    pub new_relation_mismatches: usize,
+    pub best_partner_mismatches: usize,
+    pub best_score_mismatches: usize,
+    pub second_score_mismatches: usize,
+    pub veto_mismatches: usize,
+    pub unique_partner_mismatches: usize,
+    pub reciprocal_pair_mismatches: usize,
+    pub exact_relation_parity: bool,
+}
+
+impl From<KnownSpanSentenceShadowMetrics> for KnownSpanSentenceShadowMetricsReport {
+    fn from(metrics: KnownSpanSentenceShadowMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            pairs_considered: metrics.pairs_considered,
+            pairs_retained: metrics.pairs_retained,
+            pairs_rejected_ambiguous: metrics.pairs_rejected_ambiguous,
+            old_relation_mismatches: metrics.old_relation_mismatches,
+            new_relation_mismatches: metrics.new_relation_mismatches,
+            best_partner_mismatches: metrics.best_partner_mismatches,
+            best_score_mismatches: metrics.best_score_mismatches,
+            second_score_mismatches: metrics.second_score_mismatches,
+            veto_mismatches: metrics.veto_mismatches,
+            unique_partner_mismatches: metrics.unique_partner_mismatches,
+            reciprocal_pair_mismatches: metrics.reciprocal_pair_mismatches,
+            exact_relation_parity: metrics.exact_relation_parity,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -1033,6 +1070,7 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
                 .near_same_or_ambiguous_shared_query_work
                 .into(),
             near_cross_span_work: metrics.near_cross_span_work.into(),
+            known_span_sentence_shadow: metrics.known_span_sentence_shadow.map(Into::into),
             near_pair_visits_examined: metrics.near_pair_visits_examined,
             near_pair_visits_attempted: metrics.near_pair_visits_attempted,
             near_similarity_comparisons_examined: metrics.near_similarity_comparisons_examined,
@@ -3082,6 +3120,7 @@ fn validate_sentence_recovery_metrics(
     validate_structural_pairing_metrics(metrics)?;
     validate_run_signature_metrics(metrics)?;
     validate_near_search_work_metrics(metrics)?;
+    validate_known_span_sentence_shadow_metrics(metrics)?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
             "examined near pair visits {} exceed attempted visits {}",
@@ -3191,6 +3230,31 @@ fn validate_sentence_recovery_metrics(
         .checked_add(metrics.unresolved_remainder_new_source_tokens)
         .ok_or_else(|| "new eligible source token counters overflow".to_owned())?;
     Ok(metrics.into())
+}
+
+fn validate_known_span_sentence_shadow_metrics(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<(), String> {
+    let Some(shadow) = metrics.known_span_sentence_shadow else {
+        return Ok(());
+    };
+    if shadow
+        .pairs_retained
+        .checked_add(shadow.pairs_rejected_ambiguous)
+        != Some(shadow.pairs_considered)
+    {
+        return Err(format!(
+            "known-span sentence shadow pair counters do not sum: retained {} + rejected {} != considered {}",
+            shadow.pairs_retained, shadow.pairs_rejected_ambiguous, shadow.pairs_considered
+        ));
+    }
+    let exact_parity = shadow.old_relation_mismatches == 0 && shadow.new_relation_mismatches == 0;
+    if shadow.exact_relation_parity != exact_parity {
+        return Err(
+            "known-span sentence shadow exact parity contradicts relation mismatches".to_owned(),
+        );
+    }
+    Ok(())
 }
 
 fn validate_near_search_work_metrics(
@@ -3656,19 +3720,14 @@ fn compare_outcomes_with_metrics(
         None
     };
     let mut diagnostics = PipelineDiagnostics::new();
-    let result = if recovery_watch_queries.is_empty() {
-        compare_extraction_outcomes_with_alignment_diagnostics(old, new, options, &mut diagnostics)
-            .map(|(outcome, alignment)| (outcome, alignment, None))
-    } else {
-        compare_extraction_outcomes_with_recovery_watch_diagnostics(
-            old,
-            new,
-            options,
-            &mut diagnostics,
-            recovery_watch_queries,
-        )
-        .map(|watched| (watched.outcome, watched.alignment, watched.diagnostics))
-    };
+    let result = compare_extraction_outcomes_with_known_span_sentence_shadow_diagnostics(
+        old,
+        new,
+        options,
+        &mut diagnostics,
+        recovery_watch_queries,
+    )
+    .map(|watched| (watched.outcome, watched.alignment, watched.diagnostics));
     let metrics = alignment_visit_metrics(&diagnostics).map_err(|message| {
         RevisionRunError::Other("alignment metrics contract violation", message)
     })?;
@@ -3945,7 +4004,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 20;
+    pub const SCHEMA_VERSION: u32 = 21;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -5209,7 +5268,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 20);
+        assert_eq!(completed["schema_version"], 21);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -5252,7 +5311,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 20);
+        assert_eq!(legacy_summary["schema_version"], 21);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -6441,7 +6500,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 20);
+        assert_eq!(json["schema_version"], 21);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -7097,6 +7156,57 @@ mod tests {
     }
 
     #[test]
+    fn validates_known_span_sentence_shadow_invariants() {
+        let valid = SentenceRecoveryMetrics {
+            known_span_sentence_shadow: Some(KnownSpanSentenceShadowMetrics {
+                complete: true,
+                pairs_considered: 5,
+                pairs_retained: 3,
+                pairs_rejected_ambiguous: 2,
+                exact_relation_parity: true,
+                ..KnownSpanSentenceShadowMetrics::default()
+            }),
+            ..SentenceRecoveryMetrics::default()
+        };
+        let report = validate_sentence_recovery_metrics(valid).expect("valid shadow metrics pass");
+        assert_eq!(
+            report
+                .known_span_sentence_shadow
+                .expect("shadow report is present")
+                .pairs_rejected_ambiguous,
+            2
+        );
+        let json = serde_json::to_value(report).expect("shadow report serializes");
+        assert_eq!(json["known_span_sentence_shadow"]["pairs_considered"], 5);
+        assert_eq!(
+            json["known_span_sentence_shadow"]["exact_relation_parity"],
+            true
+        );
+
+        let invalid_pair_sum = SentenceRecoveryMetrics {
+            known_span_sentence_shadow: Some(KnownSpanSentenceShadowMetrics {
+                pairs_considered: 5,
+                pairs_retained: 2,
+                pairs_rejected_ambiguous: 2,
+                exact_relation_parity: true,
+                ..KnownSpanSentenceShadowMetrics::default()
+            }),
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(invalid_pair_sum).is_err());
+
+        let invalid_parity = SentenceRecoveryMetrics {
+            known_span_sentence_shadow: Some(KnownSpanSentenceShadowMetrics {
+                old_relation_mismatches: 1,
+                exact_relation_parity: true,
+                ..KnownSpanSentenceShadowMetrics::default()
+            }),
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(invalid_parity).is_err());
+    }
+
+    #[test]
     fn validate_visit_metrics_accepts_complete_absent_and_unavailable_required() {
         let complete = VisitMetrics {
             candidate_visits: Some(42),
@@ -7545,7 +7655,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 20);
+        assert_eq!(value["schema_version"], 21);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -7666,6 +7776,7 @@ mod tests {
             "near_ambiguous_span_work".to_owned(),
             "near_same_or_ambiguous_shared_query_work".to_owned(),
             "near_cross_span_work".to_owned(),
+            "known_span_sentence_shadow".to_owned(),
             "near_pair_visits_examined".to_owned(),
             "near_pair_visits_attempted".to_owned(),
             "near_similarity_comparisons_examined".to_owned(),

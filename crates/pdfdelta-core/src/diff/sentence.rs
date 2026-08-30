@@ -17,12 +17,13 @@ use crate::{
 };
 
 use super::{
-    ExactSegmentRelation, MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS,
-    NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
-    RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
-    RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
-    RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence, RecoveryWatchOccurrences,
-    RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
+    ExactSegmentRelation, KnownSpanSentenceShadowMetrics, MAX_SENTENCE_RECOVERY_OUTPUT_BYTES,
+    MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason, NearSearchScopeMetrics,
+    NearSearchWorkMetrics, RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence,
+    RecoveryWatchGranularRelation, RecoveryWatchGranularStopReason,
+    RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope, RecoveryWatchOccurrence,
+    RecoveryWatchOccurrenceEvidence, RecoveryWatchOccurrences, RecoveryWatchPairEvidence,
+    RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
     RecoveryWatchSegmentPairEvidence, RecoveryWatchUnitKind, RunSignatureStopReason,
     SegmentStopReason, SentenceRecoveryCommittedTokens, SentenceRecoveryInput,
     SentenceRecoveryMetrics, Side, TokenRange, TrustedRunRecoveryInput,
@@ -1114,7 +1115,7 @@ impl SegmentDiagnosticBudget {
     }
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct CandidateNearRelation {
     best_score: u16,
     second_score: u16,
@@ -3696,6 +3697,11 @@ struct ModifiedSentenceRelations {
     complete: bool,
 }
 
+struct KnownSpanSentenceReplay<'a> {
+    relations: &'a mut ModifiedSentenceRelations,
+    metrics: &'a mut KnownSpanSentenceShadowMetrics,
+}
+
 struct StreamPlan {
     block_indices: Vec<usize>,
     trusted: bool,
@@ -4747,6 +4753,7 @@ struct RecoveryBudget {
     location_items: usize,
     location_bytes: usize,
     word_ranges: usize,
+    enable_known_span_sentence_shadow: bool,
 }
 
 impl RecoveryBudget {
@@ -4797,6 +4804,7 @@ impl RecoveryBudget {
             location_items: 0,
             location_bytes: 0,
             word_ranges: 0,
+            enable_known_span_sentence_shadow: false,
         })
     }
 
@@ -5464,6 +5472,7 @@ pub(super) fn build_sentence_recovery_plan(
     else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    budget.enable_known_span_sentence_shadow = input.enable_known_span_sentence_shadow;
     let Some(membership) = span_membership(alignment) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
@@ -8005,6 +8014,7 @@ fn modified_sentence_relations(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     mut watch: Option<&mut RecoveryWatchState>,
 ) -> Option<ModifiedSentenceRelations> {
+    let diagnostic_budget = budget.enable_known_span_sentence_shadow.then_some(*budget);
     let mut relations = empty_modified_sentence_relations(old_candidates, new_candidates)?;
     extend_modified_sentence_relations(
         old_occurrences,
@@ -8016,9 +8026,15 @@ fn modified_sentence_relations(
         budget,
         diagnostics,
         watch.as_deref_mut(),
+        None,
     )?;
 
     let Some(mut cross_relations) = try_clone_modified_sentence_relations(&relations) else {
+        if diagnostic_budget.is_some()
+            && let Some(diagnostics) = diagnostics.as_mut()
+        {
+            diagnostics.metrics.known_span_sentence_shadow = None;
+        }
         return Some(relations);
     };
     let mut cross_budget = *budget;
@@ -8033,16 +8049,39 @@ fn modified_sentence_relations(
         &mut cross_budget,
         &mut cross_diagnostics,
         watch,
+        None,
     )
     .is_some()
     {
         cross_relations.complete = true;
         *budget = cross_budget;
         *diagnostics = cross_diagnostics;
+        if let Some(diagnostic_budget) = diagnostic_budget {
+            record_known_span_sentence_shadow(
+                diagnostics,
+                old_occurrences,
+                new_occurrences,
+                old_candidates,
+                new_candidates,
+                diagnostic_budget,
+                &cross_relations,
+            );
+        }
         return Some(cross_relations);
     }
 
     budget.commit_near_search_spend_from(cross_budget);
+    if let Some(diagnostic_budget) = diagnostic_budget {
+        record_known_span_sentence_shadow(
+            diagnostics,
+            old_occurrences,
+            new_occurrences,
+            old_candidates,
+            new_candidates,
+            diagnostic_budget,
+            &relations,
+        );
+    }
     Some(relations)
 }
 
@@ -8129,6 +8168,7 @@ fn extend_modified_sentence_relations(
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     mut watch: Option<&mut RecoveryWatchState>,
+    mut shadow: Option<KnownSpanSentenceReplay<'_>>,
 ) -> Option<()> {
     if relations.old.len() != old_candidates.len() || relations.new.len() != new_candidates.len() {
         return None;
@@ -8210,8 +8250,26 @@ fn extend_modified_sentence_relations(
             if let Some(new_candidate_index) = new_candidate_by_occurrence[new_occurrence_index] {
                 relations.old[old_candidate_index].record_eligible(new_candidate_index, score);
                 relations.new[new_candidate_index].record_eligible(old_candidate_index, score);
+                record_known_span_replay_pair(
+                    shadow.as_mut(),
+                    scope,
+                    old_occurrence,
+                    new_occurrence,
+                    Some(old_candidate_index),
+                    Some(new_candidate_index),
+                    score,
+                )?;
             } else {
                 relations.old[old_candidate_index].record_disqualifying(score);
+                record_known_span_replay_pair(
+                    shadow.as_mut(),
+                    scope,
+                    old_occurrence,
+                    new_occurrence,
+                    Some(old_candidate_index),
+                    None,
+                    score,
+                )?;
             }
             if score >= MIN_NEAR_SCORE {
                 record_near_pair(diagnostics);
@@ -8303,12 +8361,247 @@ fn extend_modified_sentence_relations(
                 );
             }
             relations.new[new_candidate_index].record_disqualifying(score);
+            record_known_span_replay_pair(
+                shadow.as_mut(),
+                scope,
+                old_occurrence,
+                new_occurrence,
+                None,
+                Some(new_candidate_index),
+                score,
+            )?;
             if score >= MIN_NEAR_SCORE {
                 record_near_pair(diagnostics);
             }
         }
     }
     Some(())
+}
+
+fn record_known_span_replay_pair(
+    replay: Option<&mut KnownSpanSentenceReplay<'_>>,
+    scope: NearRelationScope,
+    old_occurrence: &SentenceOccurrence,
+    new_occurrence: &SentenceOccurrence,
+    old_candidate_index: Option<usize>,
+    new_candidate_index: Option<usize>,
+    score: u16,
+) -> Option<bool> {
+    let Some(replay) = replay else {
+        return Some(true);
+    };
+    let retained = if old_occurrence.kind == RecoveryUnitKind::Sentence {
+        let retained = match scope {
+            NearRelationScope::SameOrAmbiguous => {
+                old_occurrence.span_index.is_some() && new_occurrence.span_index.is_some()
+            }
+            NearRelationScope::CrossSpan => true,
+        };
+        replay.metrics.pairs_considered = replay.metrics.pairs_considered.checked_add(1)?;
+        let counter = if retained {
+            &mut replay.metrics.pairs_retained
+        } else {
+            &mut replay.metrics.pairs_rejected_ambiguous
+        };
+        *counter = counter.checked_add(1)?;
+        retained
+    } else {
+        true
+    };
+    if retained {
+        match (old_candidate_index, new_candidate_index) {
+            (Some(old_index), Some(new_index)) => {
+                replay.relations.old[old_index].record_eligible(new_index, score);
+                replay.relations.new[new_index].record_eligible(old_index, score);
+            }
+            (Some(old_index), None) => {
+                replay.relations.old[old_index].record_disqualifying(score);
+            }
+            (None, Some(new_index)) => {
+                replay.relations.new[new_index].record_disqualifying(score);
+            }
+            (None, None) => return None,
+        }
+    }
+    Some(retained)
+}
+
+fn record_known_span_sentence_shadow(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    diagnostic_budget: RecoveryBudget,
+    production: &ModifiedSentenceRelations,
+) {
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    let Some((baseline_relations, shadow_relations, mut metrics)) =
+        replay_known_span_sentence_shadow(
+            old_occurrences,
+            new_occurrences,
+            old_candidates,
+            new_candidates,
+            diagnostic_budget,
+        )
+    else {
+        diagnostics.metrics.known_span_sentence_shadow = None;
+        return;
+    };
+    if baseline_relations.complete != production.complete
+        || baseline_relations.old != production.old
+        || baseline_relations.new != production.new
+    {
+        diagnostics.metrics.known_span_sentence_shadow = None;
+        return;
+    }
+    if production.old.len() != shadow_relations.old.len()
+        || production.new.len() != shadow_relations.new.len()
+    {
+        diagnostics.metrics.known_span_sentence_shadow = None;
+        return;
+    }
+    metrics.complete &= production.complete && shadow_relations.complete;
+    for (production, shadow_relation) in production.old.iter().zip(&shadow_relations.old) {
+        if !compare_known_span_shadow_relation(production, shadow_relation, &mut metrics, true) {
+            diagnostics.metrics.known_span_sentence_shadow = None;
+            return;
+        }
+    }
+    for (production, shadow_relation) in production.new.iter().zip(&shadow_relations.new) {
+        if !compare_known_span_shadow_relation(production, shadow_relation, &mut metrics, false) {
+            diagnostics.metrics.known_span_sentence_shadow = None;
+            return;
+        }
+    }
+    for (old_index, production_relation) in production.old.iter().copied().enumerate() {
+        let production_partner =
+            mutual_replacement_partner(old_index, production_relation, &production.new);
+        let Some(shadow_relation) = shadow_relations.old.get(old_index).copied() else {
+            diagnostics.metrics.known_span_sentence_shadow = None;
+            return;
+        };
+        let shadow_partner =
+            mutual_replacement_partner(old_index, shadow_relation, &shadow_relations.new);
+        let Some(next) = metrics
+            .reciprocal_pair_mismatches
+            .checked_add(usize::from(production_partner != shadow_partner))
+        else {
+            diagnostics.metrics.known_span_sentence_shadow = None;
+            return;
+        };
+        metrics.reciprocal_pair_mismatches = next;
+    }
+    metrics.exact_relation_parity =
+        metrics.old_relation_mismatches == 0 && metrics.new_relation_mismatches == 0;
+    diagnostics.metrics.known_span_sentence_shadow = Some(metrics);
+}
+
+fn replay_known_span_sentence_shadow(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    mut budget: RecoveryBudget,
+) -> Option<(
+    ModifiedSentenceRelations,
+    ModifiedSentenceRelations,
+    KnownSpanSentenceShadowMetrics,
+)> {
+    let mut baseline_relations = empty_modified_sentence_relations(old_candidates, new_candidates)?;
+    let mut shadow_relations = empty_modified_sentence_relations(old_candidates, new_candidates)?;
+    let mut metrics = KnownSpanSentenceShadowMetrics::default();
+    let mut diagnostics = None;
+    extend_modified_sentence_relations(
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        NearRelationScope::SameOrAmbiguous,
+        &mut baseline_relations,
+        &mut budget,
+        &mut diagnostics,
+        None,
+        Some(KnownSpanSentenceReplay {
+            relations: &mut shadow_relations,
+            metrics: &mut metrics,
+        }),
+    )?;
+
+    let mut cross_baseline = try_clone_modified_sentence_relations(&baseline_relations)?;
+    let mut cross_shadow = try_clone_modified_sentence_relations(&shadow_relations)?;
+    let mut cross_metrics = metrics;
+    let mut cross_budget = budget;
+    if extend_modified_sentence_relations(
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        NearRelationScope::CrossSpan,
+        &mut cross_baseline,
+        &mut cross_budget,
+        &mut diagnostics,
+        None,
+        Some(KnownSpanSentenceReplay {
+            relations: &mut cross_shadow,
+            metrics: &mut cross_metrics,
+        }),
+    )
+    .is_some()
+    {
+        cross_baseline.complete = true;
+        cross_shadow.complete = true;
+        cross_metrics.complete = true;
+        return Some((cross_baseline, cross_shadow, cross_metrics));
+    }
+
+    metrics.complete = false;
+    Some((baseline_relations, shadow_relations, metrics))
+}
+
+fn compare_known_span_shadow_relation(
+    production: &CandidateNearRelation,
+    shadow: &CandidateNearRelation,
+    metrics: &mut KnownSpanSentenceShadowMetrics,
+    old_side: bool,
+) -> bool {
+    if production != shadow {
+        let relation_mismatches = if old_side {
+            &mut metrics.old_relation_mismatches
+        } else {
+            &mut metrics.new_relation_mismatches
+        };
+        let Some(next) = relation_mismatches.checked_add(1) else {
+            return false;
+        };
+        *relation_mismatches = next;
+    }
+    increment_shadow_mismatch(
+        &mut metrics.best_partner_mismatches,
+        production.best_partner != shadow.best_partner,
+    ) && increment_shadow_mismatch(
+        &mut metrics.best_score_mismatches,
+        production.best_score != shadow.best_score,
+    ) && increment_shadow_mismatch(
+        &mut metrics.second_score_mismatches,
+        production.second_score != shadow.second_score,
+    ) && increment_shadow_mismatch(
+        &mut metrics.veto_mismatches,
+        production.vetoed() != shadow.vetoed(),
+    ) && increment_shadow_mismatch(
+        &mut metrics.unique_partner_mismatches,
+        production.unique_partner() != shadow.unique_partner(),
+    )
+}
+
+fn increment_shadow_mismatch(counter: &mut usize, differs: bool) -> bool {
+    let Some(next) = counter.checked_add(usize::from(differs)) else {
+        return false;
+    };
+    *counter = next;
+    true
 }
 
 fn occurrence_roles_are_compatible(left: &SentenceOccurrence, right: &SentenceOccurrence) -> bool {
@@ -10903,6 +11196,7 @@ mod tests {
             old_trusted_run_evidence: Some(old_input),
             new_trusted_run_evidence: Some(new_input),
             min_tokens: 1,
+            enable_known_span_sentence_shadow: false,
         })
         .expect("descriptor evidence should index");
 
@@ -13299,6 +13593,7 @@ mod tests {
             &mut budget,
             &mut diagnostics,
             None,
+            None,
         )
         .expect("the exact posting-work limit admits the query");
 
@@ -13350,6 +13645,7 @@ mod tests {
                 &mut limited_relations,
                 &mut limited_budget,
                 &mut limited_diagnostics,
+                None,
                 None,
             )
             .is_none()
@@ -13740,6 +14036,7 @@ mod tests {
             &mut budget,
             &mut diagnostics,
             None,
+            None,
         )
         .expect("same-span and ambiguous candidates fit the budget");
 
@@ -13772,6 +14069,205 @@ mod tests {
             4
         );
         assert_near_work_sums_match_aggregates(&budget);
+    }
+
+    #[test]
+    fn known_span_sentence_shadow_reports_ambiguous_second_score_effects() {
+        let occurrence = |tokens: &[char], span_index| {
+            let mut occurrence =
+                indexed_occurrence(tokens, RecoveryUnitKind::Sentence, Some(BlockRole::Body));
+            occurrence.span_index = span_index;
+            occurrence
+        };
+        let old_occurrences = [occurrence(&['a', 'b'], Some(0))];
+        let new_occurrences = [
+            occurrence(&['a', 'b'], Some(0)),
+            occurrence(&['a', 'x'], None),
+        ];
+        let candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut budget = RecoveryBudget::new(2, 4, 6, 1).expect("budget is valid");
+        budget.enable_known_span_sentence_shadow = true;
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+
+        let relations = modified_sentence_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &candidates,
+            &candidates,
+            &mut budget,
+            &mut diagnostics,
+            None,
+        )
+        .expect("shadow relation fits within the production budget");
+        let shadow = diagnostics
+            .expect("diagnostics remain available")
+            .metrics
+            .known_span_sentence_shadow
+            .expect("sentence shadow is available");
+
+        assert!(relations.complete);
+        assert!(shadow.complete);
+        assert_eq!(shadow.pairs_considered, 2);
+        assert_eq!(shadow.pairs_retained, 1);
+        assert_eq!(shadow.pairs_rejected_ambiguous, 1);
+        assert_eq!(shadow.best_partner_mismatches, 0);
+        assert_eq!(shadow.best_score_mismatches, 0);
+        assert_eq!(shadow.second_score_mismatches, 1);
+        assert_eq!(shadow.veto_mismatches, 0);
+        assert_eq!(shadow.unique_partner_mismatches, 0);
+        assert_eq!(shadow.reciprocal_pair_mismatches, 0);
+        assert!(!shadow.exact_relation_parity);
+    }
+
+    #[test]
+    fn known_span_sentence_shadow_distinguishes_relation_mismatch_classes() {
+        let mut production = CandidateNearRelation::default();
+        production.record_eligible(1, MIN_NEAR_SCORE + MIN_NEAR_SCORE_MARGIN);
+        let mut shadow = CandidateNearRelation::default();
+        shadow.record_disqualifying(MIN_NEAR_SCORE + 1);
+        let mut metrics = KnownSpanSentenceShadowMetrics::default();
+
+        assert!(compare_known_span_shadow_relation(
+            &production,
+            &shadow,
+            &mut metrics,
+            true,
+        ));
+        assert_eq!(metrics.old_relation_mismatches, 1);
+        assert_eq!(metrics.best_partner_mismatches, 1);
+        assert_eq!(metrics.best_score_mismatches, 1);
+        assert_eq!(metrics.second_score_mismatches, 0);
+        assert_eq!(metrics.veto_mismatches, 0);
+        assert_eq!(metrics.unique_partner_mismatches, 1);
+
+        assert!(compare_known_span_shadow_relation(
+            &CandidateNearRelation::default(),
+            &production,
+            &mut metrics,
+            false,
+        ));
+        assert_eq!(metrics.new_relation_mismatches, 1);
+        assert_eq!(metrics.veto_mismatches, 1);
+    }
+
+    #[test]
+    fn known_span_sentence_shadow_passes_lines_without_counting_them() {
+        let occurrence = |kind| {
+            let mut occurrence = indexed_occurrence(&['a', 'b'], kind, Some(BlockRole::Body));
+            occurrence.span_index = Some(0);
+            occurrence
+        };
+        let old = [
+            occurrence(RecoveryUnitKind::Sentence),
+            occurrence(RecoveryUnitKind::Line),
+        ];
+        let new = [
+            occurrence(RecoveryUnitKind::Sentence),
+            occurrence(RecoveryUnitKind::Line),
+        ];
+        let candidates = [
+            RecoveryCandidate {
+                occurrence_index: 0,
+                span_index: 0,
+            },
+            RecoveryCandidate {
+                occurrence_index: 1,
+                span_index: 0,
+            },
+        ];
+        let mut budget = RecoveryBudget::new(4, 4, 8, 1).expect("budget is valid");
+        budget.enable_known_span_sentence_shadow = true;
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+
+        let relations = modified_sentence_relations(
+            &old,
+            &new,
+            &candidates,
+            &candidates,
+            &mut budget,
+            &mut diagnostics,
+            None,
+        )
+        .expect("mixed relations fit within budget");
+        let shadow = diagnostics
+            .expect("diagnostics remain available")
+            .metrics
+            .known_span_sentence_shadow
+            .expect("shadow replay succeeds");
+
+        assert!(relations.complete);
+        assert_eq!(shadow.pairs_considered, 1);
+        assert_eq!(shadow.pairs_retained, 1);
+        assert_eq!(shadow.pairs_rejected_ambiguous, 0);
+        assert!(shadow.exact_relation_parity);
+    }
+
+    #[test]
+    fn known_span_sentence_shadow_respects_line_work_before_sentence_budget_stop() {
+        let occurrence = |kind, span_index| {
+            let mut occurrence = indexed_occurrence(&['a', 'b'], kind, Some(BlockRole::Body));
+            occurrence.span_index = Some(span_index);
+            occurrence
+        };
+        let old = [
+            occurrence(RecoveryUnitKind::Line, 0),
+            occurrence(RecoveryUnitKind::Line, 1),
+            occurrence(RecoveryUnitKind::Sentence, 0),
+            occurrence(RecoveryUnitKind::Sentence, 1),
+        ];
+        let new = [
+            occurrence(RecoveryUnitKind::Line, 0),
+            occurrence(RecoveryUnitKind::Line, 1),
+            occurrence(RecoveryUnitKind::Sentence, 0),
+            occurrence(RecoveryUnitKind::Sentence, 1),
+        ];
+        let candidates = (0..4)
+            .map(|occurrence_index| RecoveryCandidate {
+                occurrence_index,
+                span_index: occurrence_index % 2,
+            })
+            .collect::<Vec<_>>();
+        let mut budget = RecoveryBudget::new(8, 8, 16, 1).expect("budget is valid");
+        budget.token_limit = 5;
+        budget.enable_known_span_sentence_shadow = true;
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
+
+        let relations = modified_sentence_relations(
+            &old,
+            &new,
+            &candidates,
+            &candidates,
+            &mut budget,
+            &mut diagnostics,
+            None,
+        )
+        .expect("same-span relations survive the cross-span budget stop");
+        let shadow = diagnostics
+            .expect("diagnostics remain available")
+            .metrics
+            .known_span_sentence_shadow
+            .expect("baseline replay matches production");
+
+        assert!(!relations.complete);
+        assert_eq!(budget.pair_visits, 5);
+        assert_eq!(shadow.pairs_considered, 2);
+        assert_eq!(shadow.pairs_retained, 2);
+        assert!(shadow.exact_relation_parity);
     }
 
     #[test]
@@ -14272,9 +14768,27 @@ mod tests {
                 span_index: 1,
             },
         ];
+        let mut baseline_budget = RecoveryBudget::new(3, 0, 3, 1).expect("test budget is valid");
+        baseline_budget.record_candidate_count_limit();
+        let mut baseline_diagnostics = None;
+        let baseline = modified_sentence_relations(
+            &old_occurrences,
+            &new_occurrences,
+            &old_candidates,
+            &new_candidates,
+            &mut baseline_budget,
+            &mut baseline_diagnostics,
+            None,
+        )
+        .expect("baseline same-span relations survive optional cross-span exhaustion");
         let mut budget = RecoveryBudget::new(3, 0, 3, 1).expect("test budget is valid");
         budget.record_candidate_count_limit();
-        let mut diagnostics = None;
+        budget.enable_known_span_sentence_shadow = true;
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
 
         let relations = modified_sentence_relations(
             &old_occurrences,
@@ -14287,6 +14801,19 @@ mod tests {
         )
         .expect("same-span relations survive optional cross-span exhaustion");
 
+        assert_eq!(relations.old, baseline.old);
+        assert_eq!(relations.new, baseline.new);
+        assert_eq!(relations.complete, baseline.complete);
+        assert_eq!(budget.pair_visits, baseline_budget.pair_visits);
+        assert_eq!(
+            budget.pair_visits_attempted,
+            baseline_budget.pair_visits_attempted
+        );
+        assert_eq!(budget.comparisons, baseline_budget.comparisons);
+        assert_eq!(
+            budget.comparisons_attempted,
+            baseline_budget.comparisons_attempted
+        );
         assert!(!relations.complete);
         assert_eq!(relations.old[0].unique_partner(), Some(0));
         assert_eq!(relations.old[1].unique_partner(), Some(1));
@@ -14301,6 +14828,16 @@ mod tests {
             budget.near_relation_stop_reason,
             Some(NearRelationStopReason::PairVisitLimit)
         );
+        let shadow = diagnostics
+            .expect("diagnostics remain available")
+            .metrics
+            .known_span_sentence_shadow
+            .expect("same-phase shadow snapshot remains available");
+        assert!(!shadow.complete);
+        assert_eq!(shadow.pairs_considered, 2);
+        assert_eq!(shadow.pairs_retained, 2);
+        assert_eq!(shadow.pairs_rejected_ambiguous, 0);
+        assert!(shadow.exact_relation_parity);
     }
 
     #[test]
@@ -14332,7 +14869,12 @@ mod tests {
         ];
         let mut budget = RecoveryBudget::new(8, 0, 8, 1).expect("test budget is valid");
         budget.record_candidate_count_limit();
-        let mut diagnostics = None;
+        budget.enable_known_span_sentence_shadow = true;
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+        });
 
         let relations = modified_sentence_relations(
             &old_occurrences,
@@ -14358,6 +14900,16 @@ mod tests {
             budget.near_relation_stop_reason,
             Some(NearRelationStopReason::CandidateCountLimit)
         );
+        let shadow = diagnostics
+            .expect("diagnostics remain available")
+            .metrics
+            .known_span_sentence_shadow
+            .expect("committed cross-span shadow is available");
+        assert!(shadow.complete);
+        assert_eq!(shadow.pairs_considered, 4);
+        assert_eq!(shadow.pairs_retained, 4);
+        assert_eq!(shadow.pairs_rejected_ambiguous, 0);
+        assert!(shadow.exact_relation_parity);
     }
 
     #[test]
