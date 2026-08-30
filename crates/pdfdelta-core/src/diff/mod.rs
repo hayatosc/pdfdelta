@@ -711,6 +711,10 @@ pub struct SentenceEdgeSignatureReferenceOracleMetrics {
     pub complete: bool,
     pub stop_reason: Option<SentenceEdgeSignatureReferenceOracleStopReason>,
     pub direct_complete: bool,
+    pub legacy_sentence_edge_pairs_examined: usize,
+    pub legacy_sentence_edge_pairs_attempted: usize,
+    pub legacy_sentence_edge_pairs_retained: usize,
+    pub legacy_sentence_edge_pairs_rejected: usize,
     pub candidate_posting_visits_examined: usize,
     pub candidate_posting_visits_attempted: usize,
     pub pair_visits_examined: usize,
@@ -8284,6 +8288,22 @@ mod tests {
             .expect("accepted fragment stop triggers reference oracle");
         assert!(oracle.direct_complete);
         assert!(oracle.complete);
+        assert_eq!(
+            oracle.legacy_sentence_edge_pairs_examined,
+            measured_metrics.sentence_edge_filter_pairs_examined
+        );
+        assert_eq!(
+            oracle.legacy_sentence_edge_pairs_attempted,
+            measured_metrics.sentence_edge_filter_pairs_attempted
+        );
+        assert_eq!(
+            oracle.legacy_sentence_edge_pairs_retained,
+            measured_metrics.sentence_edge_filter_pairs_retained
+        );
+        assert_eq!(
+            oracle.legacy_sentence_edge_pairs_rejected,
+            measured_metrics.sentence_edge_filter_pairs_rejected
+        );
         assert!(oracle.plan_parity_evaluable);
         assert!(oracle.plan_parity);
         assert!(oracle.fingerprint_evaluable);

@@ -901,6 +901,10 @@ pub struct SentenceEdgeSignatureReferenceOracleMetricsReport {
     pub complete: bool,
     pub stop_reason: Option<SentenceEdgeSignatureReferenceOracleStopReasonReport>,
     pub direct_complete: bool,
+    pub legacy_sentence_edge_pairs_examined: usize,
+    pub legacy_sentence_edge_pairs_attempted: usize,
+    pub legacy_sentence_edge_pairs_retained: usize,
+    pub legacy_sentence_edge_pairs_rejected: usize,
     pub candidate_posting_visits_examined: usize,
     pub candidate_posting_visits_attempted: usize,
     pub pair_visits_examined: usize,
@@ -929,6 +933,10 @@ impl From<SentenceEdgeSignatureReferenceOracleMetrics>
             complete: metrics.complete,
             stop_reason: metrics.stop_reason.map(Into::into),
             direct_complete: metrics.direct_complete,
+            legacy_sentence_edge_pairs_examined: metrics.legacy_sentence_edge_pairs_examined,
+            legacy_sentence_edge_pairs_attempted: metrics.legacy_sentence_edge_pairs_attempted,
+            legacy_sentence_edge_pairs_retained: metrics.legacy_sentence_edge_pairs_retained,
+            legacy_sentence_edge_pairs_rejected: metrics.legacy_sentence_edge_pairs_rejected,
             candidate_posting_visits_examined: metrics.candidate_posting_visits_examined,
             candidate_posting_visits_attempted: metrics.candidate_posting_visits_attempted,
             pair_visits_examined: metrics.pair_visits_examined,
@@ -4564,6 +4572,39 @@ fn validate_sentence_edge_signature_reference_oracle_metrics(
                 .to_owned(),
         );
     }
+    if oracle.legacy_sentence_edge_pairs_examined > oracle.legacy_sentence_edge_pairs_attempted {
+        return Err(format!(
+            "sentence-edge signature reference oracle legacy sentence edge pairs examined {} exceed attempted {}",
+            oracle.legacy_sentence_edge_pairs_examined, oracle.legacy_sentence_edge_pairs_attempted
+        ));
+    }
+    let classified_sentence_edge_pairs = oracle
+        .legacy_sentence_edge_pairs_retained
+        .checked_add(oracle.legacy_sentence_edge_pairs_rejected)
+        .ok_or_else(|| {
+            "sentence-edge signature reference oracle legacy sentence edge pair classifications overflow"
+                .to_owned()
+        })?;
+    if classified_sentence_edge_pairs > oracle.legacy_sentence_edge_pairs_examined {
+        return Err(
+            "sentence-edge signature reference oracle classifies more legacy sentence edge pairs than it examined"
+                .to_owned(),
+        );
+    }
+    if classified_sentence_edge_pairs != oracle.legacy_sentence_edge_pairs_examined {
+        return Err(
+            "sentence-edge signature reference oracle legacy sentence edge pair classifications do not match examined work"
+                .to_owned(),
+        );
+    }
+    if oracle.complete
+        && oracle.legacy_sentence_edge_pairs_examined != oracle.legacy_sentence_edge_pairs_attempted
+    {
+        return Err(
+            "complete sentence-edge signature reference oracle legacy sentence edge pair work is incomplete"
+                .to_owned(),
+        );
+    }
     let work = [
         (
             "candidate posting visits",
@@ -5456,7 +5497,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 29;
+    pub const SCHEMA_VERSION: u32 = 30;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -6720,7 +6761,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 29);
+        assert_eq!(completed["schema_version"], 30);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -6763,7 +6804,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 29);
+        assert_eq!(legacy_summary["schema_version"], 30);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -7973,7 +8014,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 29);
+        assert_eq!(json["schema_version"], 30);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -9681,6 +9722,10 @@ mod tests {
         SentenceEdgeSignatureReferenceOracleMetrics {
             complete: true,
             direct_complete: true,
+            legacy_sentence_edge_pairs_examined: 7,
+            legacy_sentence_edge_pairs_attempted: 7,
+            legacy_sentence_edge_pairs_retained: 2,
+            legacy_sentence_edge_pairs_rejected: 5,
             candidate_posting_visits_examined: 3,
             candidate_posting_visits_attempted: 3,
             pair_visits_examined: 4,
@@ -9710,8 +9755,12 @@ mod tests {
         .sentence_edge_signature_reference_oracle
         .expect("reference oracle report exists");
         assert_eq!(report, oracle.into());
-        let keys = serde_json::to_value(report)
-            .expect("reference oracle serializes")
+        let serialized = serde_json::to_value(report).expect("reference oracle serializes");
+        assert_eq!(serialized["legacy_sentence_edge_pairs_examined"], 7);
+        assert_eq!(serialized["legacy_sentence_edge_pairs_attempted"], 7);
+        assert_eq!(serialized["legacy_sentence_edge_pairs_retained"], 2);
+        assert_eq!(serialized["legacy_sentence_edge_pairs_rejected"], 5);
+        let keys = serialized
             .as_object()
             .expect("reference oracle is an object")
             .keys()
@@ -9723,6 +9772,10 @@ mod tests {
                 "complete",
                 "stop_reason",
                 "direct_complete",
+                "legacy_sentence_edge_pairs_examined",
+                "legacy_sentence_edge_pairs_attempted",
+                "legacy_sentence_edge_pairs_retained",
+                "legacy_sentence_edge_pairs_rejected",
                 "candidate_posting_visits_examined",
                 "candidate_posting_visits_attempted",
                 "pair_visits_examined",
@@ -9772,6 +9825,14 @@ mod tests {
             },
             SentenceEdgeSignatureReferenceOracleMetrics {
                 pair_visits_attempted: 5,
+                ..oracle
+            },
+            SentenceEdgeSignatureReferenceOracleMetrics {
+                legacy_sentence_edge_pairs_attempted: 8,
+                ..oracle
+            },
+            SentenceEdgeSignatureReferenceOracleMetrics {
+                legacy_sentence_edge_pairs_retained: 3,
                 ..oracle
             },
             SentenceEdgeSignatureReferenceOracleMetrics {
@@ -9848,6 +9909,66 @@ mod tests {
             ..direct_incomplete
         };
         assert!(validates(authoritative_partial).is_err());
+
+        let partial_legacy_edge_work = SentenceEdgeSignatureReferenceOracleMetrics {
+            complete: false,
+            stop_reason: Some(Stop::PairVisitLimit),
+            direct_complete: true,
+            legacy_sentence_edge_pairs_examined: 4,
+            legacy_sentence_edge_pairs_attempted: 5,
+            legacy_sentence_edge_pairs_retained: 1,
+            legacy_sentence_edge_pairs_rejected: 3,
+            pair_visits_examined: 2,
+            pair_visits_attempted: 3,
+            ..SentenceEdgeSignatureReferenceOracleMetrics::default()
+        };
+        assert!(validates(partial_legacy_edge_work).is_ok());
+        assert!(
+            validates(SentenceEdgeSignatureReferenceOracleMetrics {
+                legacy_sentence_edge_pairs_examined: 3,
+                ..partial_legacy_edge_work
+            })
+            .is_err()
+        );
+        assert!(
+            validates(SentenceEdgeSignatureReferenceOracleMetrics {
+                legacy_sentence_edge_pairs_rejected: 2,
+                ..partial_legacy_edge_work
+            })
+            .is_err()
+        );
+        assert!(
+            validates(SentenceEdgeSignatureReferenceOracleMetrics {
+                stop_reason: Some(Stop::CounterOverflow),
+                legacy_sentence_edge_pairs_examined: usize::MAX,
+                legacy_sentence_edge_pairs_attempted: usize::MAX,
+                legacy_sentence_edge_pairs_retained: usize::MAX,
+                legacy_sentence_edge_pairs_rejected: 1,
+                pair_visits_examined: 2,
+                pair_visits_attempted: 2,
+                ..partial_legacy_edge_work
+            })
+            .is_err()
+        );
+
+        let counter_overflow = SentenceEdgeSignatureReferenceOracleMetrics {
+            complete: false,
+            stop_reason: Some(Stop::CounterOverflow),
+            direct_complete: true,
+            legacy_sentence_edge_pairs_examined: 4,
+            legacy_sentence_edge_pairs_attempted: 5,
+            legacy_sentence_edge_pairs_retained: 1,
+            legacy_sentence_edge_pairs_rejected: 3,
+            ..SentenceEdgeSignatureReferenceOracleMetrics::default()
+        };
+        assert!(validates(counter_overflow).is_ok());
+        assert!(
+            validates(SentenceEdgeSignatureReferenceOracleMetrics {
+                legacy_sentence_edge_pairs_rejected: 2,
+                ..counter_overflow
+            })
+            .is_err()
+        );
     }
 
     #[test]
@@ -10592,7 +10713,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 29);
+        assert_eq!(value["schema_version"], 30);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

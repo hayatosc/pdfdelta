@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 18;
+const TRACE_SCHEMA_VERSION: u8 = 19;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -1656,6 +1656,10 @@ fn pipeline_metrics(
                 pair_visits_attempted,
                 similarity_comparisons_examined,
                 similarity_comparisons_attempted,
+                legacy_sentence_edge_pairs_examined,
+                legacy_sentence_edge_pairs_attempted,
+                legacy_sentence_edge_pairs_retained,
+                legacy_sentence_edge_pairs_rejected,
                 fragment_veto_pair_visits_examined,
                 fragment_veto_pair_visits_attempted,
                 fragment_veto_similarity_comparisons_examined,
@@ -1789,7 +1793,7 @@ mod tests {
 
     #[test]
     fn trace_schema_version_covers_sentence_edge_signature_reference_oracle_metrics() {
-        assert_eq!(TRACE_SCHEMA_VERSION, 18);
+        assert_eq!(TRACE_SCHEMA_VERSION, 19);
     }
 
     #[test]
@@ -2800,6 +2804,10 @@ mod tests {
             pair_visits_attempted,
             similarity_comparisons_examined,
             similarity_comparisons_attempted,
+            legacy_sentence_edge_pairs_examined,
+            legacy_sentence_edge_pairs_attempted,
+            legacy_sentence_edge_pairs_retained,
+            legacy_sentence_edge_pairs_rejected,
             fragment_veto_pair_visits_examined,
             fragment_veto_pair_visits_attempted,
             fragment_veto_similarity_comparisons_examined,
@@ -2838,6 +2846,10 @@ mod tests {
             pair_visits_attempted,
             similarity_comparisons_examined,
             similarity_comparisons_attempted,
+            legacy_sentence_edge_pairs_examined,
+            legacy_sentence_edge_pairs_attempted,
+            legacy_sentence_edge_pairs_retained,
+            legacy_sentence_edge_pairs_rejected,
             fragment_veto_pair_visits_examined,
             fragment_veto_pair_visits_attempted,
             fragment_veto_similarity_comparisons_examined,
@@ -2907,6 +2919,10 @@ mod tests {
                         sentence_edge_signature_reference_oracle: Some(
                             SentenceEdgeSignatureReferenceOracleMetrics {
                                 stop_reason: Some(reason),
+                                legacy_sentence_edge_pairs_examined: 41,
+                                legacy_sentence_edge_pairs_attempted: 43,
+                                legacy_sentence_edge_pairs_retained: 17,
+                                legacy_sentence_edge_pairs_rejected: 24,
                                 ..SentenceEdgeSignatureReferenceOracleMetrics::default()
                             },
                         ),
@@ -2921,6 +2937,16 @@ mod tests {
                     "sentence_recovery_sentence_edge_signature_reference_oracle_stop_reason_{name}"
                 );
                 assert_eq!(metrics[key.as_str()], usize::from(name == expected));
+            }
+            for (field, value) in [
+                ("legacy_sentence_edge_pairs_examined", 41),
+                ("legacy_sentence_edge_pairs_attempted", 43),
+                ("legacy_sentence_edge_pairs_retained", 17),
+                ("legacy_sentence_edge_pairs_rejected", 24),
+            ] {
+                let key =
+                    format!("sentence_recovery_sentence_edge_signature_reference_oracle_{field}");
+                assert_eq!(metrics[key.as_str()], value);
             }
         }
     }
