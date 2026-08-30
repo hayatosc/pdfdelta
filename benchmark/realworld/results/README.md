@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`938f678`](https://github.com/hayatosc/pdfdelta/commit/938f678)
+- **Generator / engine commit**: [`8128792`](https://github.com/hayatosc/pdfdelta/commit/8128792)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-938f678.json`](2026-08-31-938f678.json)
-  - Schema: v31
-  - Size: 646,661 bytes
-  - SHA-256: `1938030b72e4b5fc1be76e2b35246ea37b20a53b2d894e18844fc92a8247d2b9`
+  - File: [`2026-08-31-8128792.json`](2026-08-31-8128792.json)
+  - Schema: v32
+  - Size: 646,689 bytes
+  - SHA-256: `a1e7feaed405c92f532f951f1afdfbf44bab5488ad68e256ce4bfd2a0dd38cbc`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-31-938f678.json
+  benchmark/realworld/results/2026-08-31-8128792.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -39,19 +39,9 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-08-31-8a04a9f.json \
   benchmark/realworld/results/2026-08-31-938f678.json \
-  sentence_edge_signature_direct_shadow.watch_probe_pairs_examined \
-  sentence_edge_signature_direct_shadow.watch_probe_pairs_attempted \
-  sentence_edge_signature_direct_shadow.watch_probe_similarity_comparisons_examined \
-  sentence_edge_signature_direct_shadow.watch_probe_similarity_comparisons_attempted \
-  sentence_edge_signature_direct_shadow.watch_probe_missing_signature_candidates \
-  sentence_edge_signature_direct_shadow.watch_probe_invariant_violations \
-  sentence_edge_signature_direct_shadow.watch_preservation_evaluable \
-  sentence_edge_signature_direct_shadow.watch_evidence_preserved \
-  sentence_edge_signature_direct_shadow.watch_preservation_mismatches \
-  sentence_edge_signature_direct_shadow.watch_exact_parity_evaluable \
-  sentence_edge_signature_direct_shadow.watch_exact_parity
+  benchmark/realworld/results/2026-08-31-8128792.json \
+  --ignore-field sentence_edge_signature_direct_shadow
 ```
 
 When reviewed annotations changed between captures, exclude only those named
@@ -113,6 +103,20 @@ diagnostics exactly match the schema-v24 baseline. Across 18 measured pairs,
 the filter classifies 6,990,647 Sentence pairs and rejects 6,660,144 (95.27%).
 All shadow threshold, veto, unique-partner, reciprocal, adopted-replacement,
 and insertion/deletion-veto mismatch counters remain zero.
+The schema-v32 capture replaces per-key posting vectors with sorted flat
+signature entries while retaining exact contiguous-range lookup. Across the 17
+completed direct replays, aggregate logical index bytes decrease from
+372,771,728 to 286,117,632 (23.25%), and aggregate posting capacity decreases
+from 11,916,680 to 5,108,896 slots. All non-storage direct-replay fields for
+those records retain exact schema-v31 parity, including candidate order,
+retained fingerprints, and watch evidence. LibreOffice advances from 622,349
+to 1,033,096 indexed items and from 1,470 to 4,279 queries before the same typed
+estimated-byte stop, but still does not complete: repeated keys in flat entries
+remain too expensive under the cumulative recovery allocation ceiling. This
+result motivates a compact key-range table with a separate occurrence array;
+it does not justify increasing the budget or enabling production traversal.
+Removing the schema number and the direct-shadow object yields exact behavior
+parity with schema v31.
 The schema-v31 capture verifies that direct edge-signature replay preserves
 reviewed-change watch evidence without affecting comparison behavior. Seventeen
 of 18 available direct replays complete and all 17 preserve the deterministic
@@ -229,10 +233,14 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v31)
+## Current Writer Schema (v32)
 
-The benchmark writer and latest committed capture use schema v31. Older
-captures retain their recorded schemas. Schema v31 adds bounded probes for
+The benchmark writer and latest committed capture use schema v32. Older
+captures retain their recorded schemas. Schema v32 changes signature-index
+capacity and logical-byte diagnostics to the sorted flat-entry representation.
+It also enforces a tighter independent distinct-key limit through a bounded
+preflight only when the posting upper bound cannot already prove the limit.
+CLI trace schema v21 exposes the same storage semantics. Schema v31 adds bounded probes for
 watched legacy Sentence candidates omitted by direct signature traversal,
 typed probe stops and invariant failures, behavior-neutral watch-preservation
 evidence, and exact watch parity when the accepted recovery build is complete.

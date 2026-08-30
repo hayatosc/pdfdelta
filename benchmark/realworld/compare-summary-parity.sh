@@ -7,10 +7,10 @@ candidate_tmp=""
 
 usage() {
     printf '%s\n' \
-        'Usage: benchmark/realworld/compare-summary-parity.sh <baseline.json> <candidate.json> [--exclude-pair <pair-id>]... <field-path>...' \
+        'Usage: benchmark/realworld/compare-summary-parity.sh <baseline.json> <candidate.json> [--exclude-pair <pair-id>]... [--ignore-field <field-path>]... [<candidate-only-field-path>...]' \
         '' \
-        'Removes schema_version from both summaries and the named recovery-relative' \
-        'field paths from each candidate record before comparison.' \
+        'Removes schema_version from both summaries, --ignore-field recovery paths' \
+        'from both sides, and candidate-only recovery paths from the candidate.' \
         'Explicitly excluded pairs must occur exactly once in both summaries.'
 }
 
@@ -24,7 +24,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     usage
     exit 0
 fi
-if [[ "$#" -lt 3 ]]; then
+if [[ "$#" -lt 2 ]]; then
     usage >&2
     exit 2
 fi
@@ -33,6 +33,7 @@ baseline="$1"
 candidate="$2"
 shift 2
 exclude_pairs=()
+ignored_fields=()
 fields=()
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -48,6 +49,20 @@ while [[ "$#" -gt 0 ]]; do
                 fi
             done
             exclude_pairs+=("$2")
+            shift 2
+            ;;
+        --ignore-field)
+            if [[ "$#" -lt 2 ]]; then
+                printf 'FAIL: --ignore-field requires a recovery metric field path\n' >&2
+                exit 2
+            fi
+            for existing in "${ignored_fields[@]}"; do
+                if [[ "${existing}" == "$2" ]]; then
+                    printf 'FAIL: duplicate ignored recovery metric field path: %s\n' "$2" >&2
+                    exit 2
+                fi
+            done
+            ignored_fields+=("$2")
             shift 2
             ;;
         --*)
@@ -66,7 +81,7 @@ while [[ "$#" -gt 0 ]]; do
             ;;
     esac
 done
-if [[ "${#fields[@]}" -eq 0 ]]; then
+if [[ "${#fields[@]}" -eq 0 && "${#ignored_fields[@]}" -eq 0 ]]; then
     usage >&2
     exit 2
 fi
@@ -100,6 +115,41 @@ for pair in "${exclude_pairs[@]}"; do
             [.records[] | select(.pair_id == $pair)] | length == 1
         ' "${input}" >/dev/null; then
             printf 'FAIL: excluded pair must occur exactly once in %s: %s\n' "${input}" "${pair}" >&2
+            exit 2
+        fi
+    done
+done
+
+for field_path in "${ignored_fields[@]}"; do
+    if [[ ! "${field_path}" =~ ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$ ]]; then
+        printf 'FAIL: invalid ignored recovery metric field path: %s\n' "${field_path}" >&2
+        exit 2
+    fi
+    for input in "${baseline}" "${candidate}"; do
+        if ! jq -e --arg field_path "${field_path}" '
+            def has_path($path):
+                reduce $path[] as $key (
+                    {found: true, value: .};
+                    if .found
+                        and (.value | type) == "object"
+                        and (.value | has($key))
+                    then
+                        {found: true, value: .value[$key]}
+                    else
+                        {found: false, value: null}
+                    end
+                )
+                | .found;
+
+            ($field_path | split(".")) as $path
+            |
+            any(
+                .records[];
+                ((.sentence_recovery_metrics? // {}) | has_path($path))
+            )
+        ' "${input}" >/dev/null; then
+            printf 'FAIL: ignored recovery metric field path is absent from %s: %s\n' \
+                "${input}" "${field_path}" >&2
             exit 2
         fi
     done
@@ -163,24 +213,33 @@ for field_path in "${fields[@]}"; do
 done
 
 fields_json="$(jq -cn '$ARGS.positional | map(split("."))' --args -- "${fields[@]}")"
+ignored_fields_json="$(jq -cn '$ARGS.positional | map(split("."))' --args -- "${ignored_fields[@]}")"
 exclude_pairs_json="$(jq -cn '$ARGS.positional' --args -- "${exclude_pairs[@]}")"
 baseline_tmp="$(mktemp)"
 candidate_tmp="$(mktemp)"
 
-jq -S -c --argjson excluded "${exclude_pairs_json}" '
-    del(.schema_version)
-    | .records |= map(
-        . as $record
-        | select(($excluded | index($record.pair_id)) == null)
-    )
-' "${baseline}" >"${baseline_tmp}"
-jq -S -c --argjson field_paths "${fields_json}" --argjson excluded "${exclude_pairs_json}" '
+jq -S -c --argjson field_paths "${ignored_fields_json}" --argjson excluded "${exclude_pairs_json}" '
     del(.schema_version)
     | .records |= map(
         . as $record
         | select(($excluded | index($record.pair_id)) == null)
         | if (.sentence_recovery_metrics? | type) == "object" then
               .sentence_recovery_metrics |= delpaths($field_paths)
+          else
+              .
+          end
+    )
+' "${baseline}" >"${baseline_tmp}"
+jq -S -c \
+    --argjson field_paths "${fields_json}" \
+    --argjson ignored_field_paths "${ignored_fields_json}" \
+    --argjson excluded "${exclude_pairs_json}" '
+    del(.schema_version)
+    | .records |= map(
+        . as $record
+        | select(($excluded | index($record.pair_id)) == null)
+        | if (.sentence_recovery_metrics? | type) == "object" then
+              .sentence_recovery_metrics |= delpaths($field_paths + $ignored_field_paths)
           else
               .
           end
