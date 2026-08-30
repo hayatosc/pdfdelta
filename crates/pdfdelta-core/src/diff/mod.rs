@@ -484,6 +484,28 @@ pub enum SentenceEdgeGateShadowStopReason {
     DiagnosticFailure,
 }
 
+/// Reason production sentence-edge filtering fell back to legacy scoring.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SentenceEdgeFilterStopReason {
+    PairVisitLimit,
+    SimilarityComparisonLimit,
+    AllocationFailure,
+    CounterOverflow,
+}
+
+impl From<SentenceEdgeFilterStopReason> for SentenceEdgeGateShadowStopReason {
+    fn from(reason: SentenceEdgeFilterStopReason) -> Self {
+        match reason {
+            SentenceEdgeFilterStopReason::PairVisitLimit => Self::PairVisitLimit,
+            SentenceEdgeFilterStopReason::SimilarityComparisonLimit => {
+                Self::SimilarityComparisonLimit
+            }
+            SentenceEdgeFilterStopReason::AllocationFailure => Self::AllocationFailure,
+            SentenceEdgeFilterStopReason::CounterOverflow => Self::CounterOverflow,
+        }
+    }
+}
+
 impl From<NearRelationStopReason> for SentenceEdgeGateShadowStopReason {
     fn from(reason: NearRelationStopReason) -> Self {
         match reason {
@@ -594,6 +616,18 @@ pub struct SentenceRecoveryMetrics {
     pub near_cross_span_work: NearSearchScopeMetrics,
     pub known_span_sentence_shadow: Option<KnownSpanSentenceShadowMetrics>,
     pub sentence_edge_gate_shadow: Option<SentenceEdgeGateShadowMetrics>,
+    /// Whether the production Sentence edge filter classified every query.
+    /// A false value always has [`Self::sentence_edge_filter_stop_reason`].
+    pub sentence_edge_filter_complete: bool,
+    /// Sentence pairs examined within the filter's isolated bounded budget.
+    pub sentence_edge_filter_pairs_examined: usize,
+    pub sentence_edge_filter_pairs_attempted: usize,
+    /// Token comparisons examined while producing detached edge evidence.
+    pub sentence_edge_filter_similarity_comparisons_examined: usize,
+    pub sentence_edge_filter_similarity_comparisons_attempted: usize,
+    pub sentence_edge_filter_pairs_retained: usize,
+    pub sentence_edge_filter_pairs_rejected: usize,
+    pub sentence_edge_filter_stop_reason: Option<SentenceEdgeFilterStopReason>,
     pub near_largest_edge_posting: usize,
     pub near_largest_edge_query_union: usize,
     pub near_largest_filtered_candidate_set: usize,
@@ -6865,6 +6899,7 @@ mod tests {
             outcome.sentence_recovery_metrics,
             Some(SentenceRecoveryMetrics {
                 near_relation_complete: true,
+                sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
         );

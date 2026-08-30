@@ -22,6 +22,25 @@ pub(in crate::diff) struct SentenceEdgeEvidence<'a> {
     edge_score: u16,
 }
 
+#[derive(Clone, Copy)]
+pub(in crate::diff) struct CachedSentenceEdgeEvidence {
+    prefix_tokens: usize,
+    suffix_tokens: usize,
+    shorter_tokens: usize,
+    edge_score: u16,
+    comparisons: usize,
+}
+
+impl CachedSentenceEdgeEvidence {
+    pub(in crate::diff) fn edge_score(self) -> u16 {
+        self.edge_score
+    }
+
+    pub(in crate::diff) fn comparisons(self) -> usize {
+        self.comparisons
+    }
+}
+
 #[cfg_attr(not(test), allow(dead_code))]
 impl SentenceEdgeEvidence<'_> {
     pub(in crate::diff) fn prefix_tokens(&self) -> usize {
@@ -211,6 +230,83 @@ pub(in crate::diff) fn sentence_edge_evidence<'a>(
         suffix_tokens: suffix,
         shorter_tokens: shorter,
         edge_score,
+    })
+}
+
+pub(in crate::diff) fn cached_sentence_edge_evidence(
+    old: &SentenceOccurrence,
+    new: &SentenceOccurrence,
+    mut charge_comparison: impl FnMut() -> bool,
+) -> Option<CachedSentenceEdgeEvidence> {
+    let shorter = old.tokens.len().min(new.tokens.len());
+    if shorter == 0 {
+        return Some(CachedSentenceEdgeEvidence {
+            prefix_tokens: 0,
+            suffix_tokens: 0,
+            shorter_tokens: 0,
+            edge_score: 0,
+            comparisons: 0,
+        });
+    }
+
+    let mut comparisons = 0usize;
+    let mut prefix = 0usize;
+    while prefix < shorter {
+        if !charge_comparison() {
+            return None;
+        }
+        comparisons = comparisons.checked_add(1)?;
+        if old.tokens[prefix] != new.tokens[prefix] {
+            break;
+        }
+        prefix += 1;
+    }
+
+    let mut suffix = 0usize;
+    while suffix < shorter - prefix {
+        if !charge_comparison() {
+            return None;
+        }
+        comparisons = comparisons.checked_add(1)?;
+        if old.tokens[old.tokens.len() - suffix - 1] != new.tokens[new.tokens.len() - suffix - 1] {
+            break;
+        }
+        suffix += 1;
+    }
+
+    let shared = prefix.checked_add(suffix)?;
+    Some(CachedSentenceEdgeEvidence {
+        prefix_tokens: prefix,
+        suffix_tokens: suffix,
+        shorter_tokens: shorter,
+        edge_score: basis_points(shared, shorter)?,
+        comparisons,
+    })
+}
+
+pub(in crate::diff) fn sentence_edge_evidence_from_cache<'a>(
+    old: &'a SentenceOccurrence,
+    new: &'a SentenceOccurrence,
+    budget: &'a mut RecoveryBudget,
+    scope: NearSearchScope,
+    class: NearSearchWorkClass,
+    cached: CachedSentenceEdgeEvidence,
+) -> Option<SentenceEdgeEvidence<'a>> {
+    for _ in 0..cached.comparisons() {
+        if !budget.charge_comparisons_in_scope_split(1, old.kind, scope, class.split(1)) {
+            return None;
+        }
+    }
+    Some(SentenceEdgeEvidence {
+        old,
+        new,
+        budget,
+        scope,
+        class,
+        prefix_tokens: cached.prefix_tokens,
+        suffix_tokens: cached.suffix_tokens,
+        shorter_tokens: cached.shorter_tokens,
+        edge_score: cached.edge_score,
     })
 }
 
