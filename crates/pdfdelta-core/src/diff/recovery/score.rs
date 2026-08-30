@@ -10,6 +10,37 @@ pub(in crate::diff) const MIN_WORD_SCORE_EDGE_EVIDENCE: u16 = 3_000;
 pub(in crate::diff) const LINE_NGRAM_SIZE: usize = 3;
 const MAX_LINE_NEAR_LENGTH_RATIO: usize = 3;
 
+pub(in crate::diff) struct SentenceEdgeEvidence<'a> {
+    old: &'a SentenceOccurrence,
+    new: &'a SentenceOccurrence,
+    budget: &'a mut RecoveryBudget,
+    scope: NearSearchScope,
+    class: NearSearchWorkClass,
+    prefix_tokens: usize,
+    suffix_tokens: usize,
+    shorter_tokens: usize,
+    edge_score: u16,
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+impl SentenceEdgeEvidence<'_> {
+    pub(in crate::diff) fn prefix_tokens(&self) -> usize {
+        self.prefix_tokens
+    }
+
+    pub(in crate::diff) fn suffix_tokens(&self) -> usize {
+        self.suffix_tokens
+    }
+
+    pub(in crate::diff) fn shorter_tokens(&self) -> usize {
+        self.shorter_tokens
+    }
+
+    pub(in crate::diff) fn edge_score(&self) -> u16 {
+        self.edge_score
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(in crate::diff) struct RelationFloorProbe {
     pub(in crate::diff) ceiling: u16,
@@ -88,7 +119,8 @@ pub(in crate::diff) fn sentence_similarity_in_scope_attributed(
     scope: NearSearchScope,
     class: NearSearchWorkClass,
 ) -> Option<u16> {
-    sentence_similarity_in_scope_attributed_impl(old, new, budget, scope, class, &mut ())
+    let evidence = sentence_edge_evidence(old, new, budget, scope, class)?;
+    sentence_similarity_in_scope_attributed_from_edge_evidence(evidence)
 }
 
 pub(in crate::diff) fn sentence_similarity_in_scope_attributed_with_probe(
@@ -99,34 +131,47 @@ pub(in crate::diff) fn sentence_similarity_in_scope_attributed_with_probe(
     class: NearSearchWorkClass,
     relation_floor_probe: &mut RelationFloorProbe,
 ) -> Option<u16> {
-    sentence_similarity_in_scope_attributed_impl(
-        old,
-        new,
-        budget,
-        scope,
-        class,
-        relation_floor_probe,
-    )
+    let evidence = sentence_edge_evidence(old, new, budget, scope, class)?;
+    sentence_similarity_in_scope_attributed_from_edge_evidence_impl(evidence, relation_floor_probe)
 }
 
-fn sentence_similarity_in_scope_attributed_impl<P: WordMultisetProbe>(
-    old: &SentenceOccurrence,
-    new: &SentenceOccurrence,
-    budget: &mut RecoveryBudget,
+pub(in crate::diff) fn sentence_edge_evidence<'a>(
+    old: &'a SentenceOccurrence,
+    new: &'a SentenceOccurrence,
+    budget: &'a mut RecoveryBudget,
     scope: NearSearchScope,
     class: NearSearchWorkClass,
-    relation_floor_probe: &mut P,
-) -> Option<u16> {
+) -> Option<SentenceEdgeEvidence<'a>> {
     let shorter = old.tokens.len().min(new.tokens.len());
     if shorter == 0 {
-        return Some(0);
+        return Some(SentenceEdgeEvidence {
+            old,
+            new,
+            budget,
+            scope,
+            class,
+            prefix_tokens: 0,
+            suffix_tokens: 0,
+            shorter_tokens: 0,
+            edge_score: 0,
+        });
     }
     if old.kind == RecoveryUnitKind::Line
         && new.kind == RecoveryUnitKind::Line
         && old.tokens.len().max(new.tokens.len())
             > shorter.checked_mul(MAX_LINE_NEAR_LENGTH_RATIO)?
     {
-        return Some(0);
+        return Some(SentenceEdgeEvidence {
+            old,
+            new,
+            budget,
+            scope,
+            class,
+            prefix_tokens: 0,
+            suffix_tokens: 0,
+            shorter_tokens: shorter,
+            edge_score: 0,
+        });
     }
 
     let mut prefix = 0usize;
@@ -153,6 +198,50 @@ fn sentence_similarity_in_scope_attributed_impl<P: WordMultisetProbe>(
 
     let shared = prefix.checked_add(suffix)?;
     let edge_score = basis_points(shared, shorter)?;
+    Some(SentenceEdgeEvidence {
+        old,
+        new,
+        budget,
+        scope,
+        class,
+        prefix_tokens: prefix,
+        suffix_tokens: suffix,
+        shorter_tokens: shorter,
+        edge_score,
+    })
+}
+
+pub(in crate::diff) fn sentence_similarity_in_scope_attributed_from_edge_evidence(
+    evidence: SentenceEdgeEvidence<'_>,
+) -> Option<u16> {
+    sentence_similarity_in_scope_attributed_from_edge_evidence_impl(evidence, &mut ())
+}
+
+fn sentence_similarity_in_scope_attributed_from_edge_evidence_impl<P: WordMultisetProbe>(
+    evidence: SentenceEdgeEvidence<'_>,
+    relation_floor_probe: &mut P,
+) -> Option<u16> {
+    let SentenceEdgeEvidence {
+        old,
+        new,
+        budget,
+        scope,
+        class,
+        shorter_tokens,
+        edge_score,
+        ..
+    } = evidence;
+    if shorter_tokens == 0 {
+        return Some(0);
+    }
+    if old.kind == RecoveryUnitKind::Line
+        && new.kind == RecoveryUnitKind::Line
+        && old.tokens.len().max(new.tokens.len())
+            > shorter_tokens.checked_mul(MAX_LINE_NEAR_LENGTH_RATIO)?
+    {
+        return Some(0);
+    }
+
     let mut exact_score = edge_score;
     if old.kind == RecoveryUnitKind::Line && new.kind == RecoveryUnitKind::Line {
         let old_ngrams = ngram_count(old.tokens.len(), LINE_NGRAM_SIZE)?;

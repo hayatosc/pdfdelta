@@ -31,8 +31,9 @@ use super::recovery::score::{
 use super::recovery::{
     candidate::LineTrigramPosting,
     score::{
-        LINE_NGRAM_SIZE, line_trigram_candidate_meets_threshold, word_multiset_dice,
-        word_multiset_dice_with_probe,
+        LINE_NGRAM_SIZE, SentenceEdgeEvidence, line_trigram_candidate_meets_threshold,
+        sentence_edge_evidence, sentence_similarity_in_scope_attributed_from_edge_evidence,
+        word_multiset_dice, word_multiset_dice_with_probe,
     },
 };
 use super::{
@@ -11439,6 +11440,225 @@ mod tests {
         assert_eq!(
             sentence_similarity_in_scope(&old, &tiny, &mut budget, TEST_NEAR_SCOPE),
             Some(0)
+        );
+    }
+
+    #[test]
+    fn sentence_edge_evidence_reports_prefix_suffix_and_score() {
+        let old = similarity_occurrence(
+            "old",
+            "abcdef"
+                .chars()
+                .map(SentenceEvidenceToken::Scalar)
+                .collect(),
+            RecoveryUnitKind::Sentence,
+        );
+        let new = similarity_occurrence(
+            "new",
+            "abcxef"
+                .chars()
+                .map(SentenceEvidenceToken::Scalar)
+                .collect(),
+            RecoveryUnitKind::Sentence,
+        );
+        let mut budget = RecoveryBudget::new(6, 6, 12, 1).expect("valid evidence budget");
+
+        {
+            let evidence = sentence_edge_evidence(
+                &old,
+                &new,
+                &mut budget,
+                TEST_NEAR_SCOPE,
+                NearSearchWorkClass::Shared,
+            )
+            .expect("edge evidence fits the budget");
+
+            assert_eq!(evidence.prefix_tokens(), 3);
+            assert_eq!(evidence.suffix_tokens(), 2);
+            assert_eq!(evidence.shorter_tokens(), 6);
+            assert_eq!(evidence.edge_score(), 8_333);
+        }
+        assert_eq!(budget.comparisons, 7);
+        assert_eq!(budget.comparisons_attempted, 7);
+    }
+
+    #[test]
+    fn sentence_edge_evidence_does_not_rescan_an_equal_suffix() {
+        let old = similarity_occurrence(
+            "same",
+            "same".chars().map(SentenceEvidenceToken::Scalar).collect(),
+            RecoveryUnitKind::Sentence,
+        );
+        let new = similarity_occurrence("same", old.tokens.clone(), RecoveryUnitKind::Sentence);
+        let mut budget = RecoveryBudget::new(4, 4, 8, 1).expect("valid equality budget");
+
+        let evidence = sentence_edge_evidence(
+            &old,
+            &new,
+            &mut budget,
+            TEST_NEAR_SCOPE,
+            NearSearchWorkClass::Shared,
+        )
+        .expect("equal edge evidence fits the budget");
+        assert_eq!(evidence.prefix_tokens(), 4);
+        assert_eq!(evidence.suffix_tokens(), 0);
+
+        assert_eq!(
+            sentence_similarity_in_scope_attributed_from_edge_evidence(evidence),
+            Some(10_000)
+        );
+        assert_eq!(budget.comparisons, 4);
+    }
+
+    #[test]
+    fn sentence_edge_evidence_preserves_prefix_and_suffix_budget_failures() {
+        let occurrence = |text: &str| {
+            similarity_occurrence(
+                text,
+                text.chars().map(SentenceEvidenceToken::Scalar).collect(),
+                RecoveryUnitKind::Sentence,
+            )
+        };
+        let old = occurrence("ab");
+        let new = occurrence("xb");
+
+        let mut prefix_budget = RecoveryBudget::new(2, 2, 4, 1).expect("valid prefix budget");
+        prefix_budget.comparison_limit = 0;
+        assert!(
+            sentence_edge_evidence(
+                &old,
+                &new,
+                &mut prefix_budget,
+                TEST_NEAR_SCOPE,
+                NearSearchWorkClass::Shared,
+            )
+            .is_none()
+        );
+        assert_eq!(prefix_budget.comparisons, 0);
+        assert_eq!(prefix_budget.comparisons_attempted, 1);
+
+        let mut suffix_budget = RecoveryBudget::new(2, 2, 4, 1).expect("valid suffix budget");
+        suffix_budget.comparison_limit = 1;
+        assert!(
+            sentence_edge_evidence(
+                &old,
+                &new,
+                &mut suffix_budget,
+                TEST_NEAR_SCOPE,
+                NearSearchWorkClass::Shared,
+            )
+            .is_none()
+        );
+        assert_eq!(suffix_budget.comparisons, 1);
+        assert_eq!(suffix_budget.comparisons_attempted, 2);
+    }
+
+    #[test]
+    fn sentence_edge_evidence_handles_empty_input_without_charges() {
+        let empty = similarity_occurrence("", Vec::new(), RecoveryUnitKind::Sentence);
+        let nonempty = similarity_occurrence(
+            "a",
+            vec![SentenceEvidenceToken::Scalar('a')],
+            RecoveryUnitKind::Sentence,
+        );
+        let mut budget = RecoveryBudget::new(0, 1, 1, 1).expect("valid empty-input budget");
+
+        {
+            let evidence = sentence_edge_evidence(
+                &empty,
+                &nonempty,
+                &mut budget,
+                TEST_NEAR_SCOPE,
+                NearSearchWorkClass::Shared,
+            )
+            .expect("empty evidence has a score");
+
+            assert_eq!(evidence.prefix_tokens(), 0);
+            assert_eq!(evidence.suffix_tokens(), 0);
+            assert_eq!(evidence.shorter_tokens(), 0);
+            assert_eq!(evidence.edge_score(), 0);
+        }
+        assert_eq!(budget.comparisons, 0);
+        assert_eq!(budget.comparisons_attempted, 0);
+    }
+
+    #[test]
+    fn sentence_edge_evidence_preserves_the_line_length_ratio_guard() {
+        let old = similarity_occurrence(
+            "abcd",
+            "abcd".chars().map(SentenceEvidenceToken::Scalar).collect(),
+            RecoveryUnitKind::Line,
+        );
+        let new = similarity_occurrence(
+            "a",
+            vec![SentenceEvidenceToken::Scalar('a')],
+            RecoveryUnitKind::Line,
+        );
+        let mut budget = RecoveryBudget::new(4, 1, 5, 1).expect("valid line budget");
+
+        let evidence = sentence_edge_evidence(
+            &old,
+            &new,
+            &mut budget,
+            TEST_NEAR_SCOPE,
+            NearSearchWorkClass::Shared,
+        )
+        .expect("guarded line evidence has a score");
+
+        assert_eq!(evidence.shorter_tokens(), 1);
+        assert_eq!(evidence.edge_score(), 0);
+        assert_eq!(
+            sentence_similarity_in_scope_attributed_from_edge_evidence(evidence),
+            Some(0)
+        );
+        assert_eq!(budget.comparisons, 0);
+    }
+
+    #[test]
+    fn sentence_similarity_consumer_uses_only_evidence_and_matches_the_wrapper() {
+        let old = similarity_occurrence(
+            "alpha beta",
+            "alpha beta"
+                .chars()
+                .map(SentenceEvidenceToken::Scalar)
+                .collect(),
+            RecoveryUnitKind::Sentence,
+        );
+        let new = similarity_occurrence(
+            "alpha zeta",
+            "alpha zeta"
+                .chars()
+                .map(SentenceEvidenceToken::Scalar)
+                .collect(),
+            RecoveryUnitKind::Sentence,
+        );
+        let mut wrapper_budget = RecoveryBudget::new(10, 10, 20, 1).expect("valid wrapper budget");
+        let mut explicit_budget = wrapper_budget;
+
+        let wrapper_score = sentence_similarity_in_scope_attributed(
+            &old,
+            &new,
+            &mut wrapper_budget,
+            TEST_NEAR_SCOPE,
+            NearSearchWorkClass::Shared,
+        );
+        let evidence = sentence_edge_evidence(
+            &old,
+            &new,
+            &mut explicit_budget,
+            TEST_NEAR_SCOPE,
+            NearSearchWorkClass::Shared,
+        )
+        .expect("explicit edge evidence fits the budget");
+        let consume: for<'a> fn(SentenceEdgeEvidence<'a>) -> Option<u16> =
+            sentence_similarity_in_scope_attributed_from_edge_evidence;
+        let explicit_score = consume(evidence);
+
+        assert_eq!(explicit_score, wrapper_score);
+        assert_eq!(explicit_budget.comparisons, wrapper_budget.comparisons);
+        assert_eq!(
+            explicit_budget.comparisons_attempted,
+            wrapper_budget.comparisons_attempted
         );
     }
 
