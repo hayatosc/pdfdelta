@@ -366,6 +366,7 @@ pub fn compare_extraction_outcomes_with_alignment_diagnostics(
         diagnostics,
         &[],
         false,
+        false,
     )
     .map(|outcome| (outcome.outcome, outcome.alignment))
 }
@@ -389,7 +390,35 @@ pub fn compare_extraction_outcomes_with_recovery_watch_diagnostics(
         diagnostics,
         watch_queries,
         false,
+        false,
     )
+}
+
+/// Compares extracted documents and records the Sentence edge-gate shadow.
+///
+/// This entry point is intended for execution traces. It reuses production
+/// scores and does not enable the separate known-span replay.
+///
+/// # Errors
+///
+/// Returns an error when configuration validation, layout reconstruction,
+/// alignment, exact diffing, or a resource limit fails.
+pub fn compare_extraction_outcomes_with_sentence_edge_gate_shadow_diagnostics(
+    old: ExtractionOutcome,
+    new: ExtractionOutcome,
+    options: PipelineOptions,
+    diagnostics: &mut PipelineDiagnostics,
+) -> Result<ComparisonOutcome> {
+    compare_extraction_outcomes_with_recovery_watch_inner(
+        old,
+        new,
+        options,
+        diagnostics,
+        &[],
+        false,
+        true,
+    )
+    .map(|outcome| outcome.outcome)
 }
 
 /// Compares extracted documents and records a known-span sentence shadow diagnostic.
@@ -415,6 +444,7 @@ pub fn compare_extraction_outcomes_with_known_span_sentence_shadow_diagnostics(
         diagnostics,
         watch_queries,
         true,
+        true,
     )
 }
 
@@ -425,6 +455,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
     diagnostics: &mut PipelineDiagnostics,
     watch_queries: &[RecoveryWatchQuery<'_>],
     enable_known_span_sentence_shadow: bool,
+    enable_sentence_edge_gate_shadow: bool,
 ) -> Result<ComparisonOutcomeWithRecoveryWatch> {
     diagnostics.begin();
     let options = match options.validate() {
@@ -462,7 +493,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
                 enable_sentence_recovery: true,
                 watch_queries,
                 enable_known_span_sentence_shadow,
-                enable_sentence_edge_gate_shadow: enable_known_span_sentence_shadow,
+                enable_sentence_edge_gate_shadow,
             },
         )?;
         return Ok(ComparisonOutcomeWithRecoveryWatch {
@@ -500,7 +531,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
                 enable_sentence_recovery: false,
                 watch_queries,
                 enable_known_span_sentence_shadow,
-                enable_sentence_edge_gate_shadow: enable_known_span_sentence_shadow,
+                enable_sentence_edge_gate_shadow,
             },
         )?;
         if !old_complete {

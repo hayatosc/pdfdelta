@@ -114,10 +114,15 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v23)
+## Current Writer Schema (v24)
 
-The benchmark writer and latest committed capture use schema v23. Older
-captures retain their recorded schemas.
+The benchmark writer uses schema v24. The latest committed capture remains
+schema v23 until a schema-v24 shadow capture is published. Older captures
+retain their recorded schemas. Schema v24 adds a behavior-neutral Sentence
+edge-gate shadow that excludes only pairs whose production edge score is below
+3,000, retains Line relations unchanged, records typed stops, and compares
+veto, unique-partner, reciprocal, and adopted-replacement decisions without
+changing comparison output.
 Schema v23 measures a behavior-neutral exact relation-floor probe during
 cross-span Sentence word scoring. Removing the four probe counters leaves every
 `f0ffe19` field value unchanged. The latest writer retains pair-complete probe

@@ -5187,6 +5187,14 @@ pub(super) fn build_sentence_recovery_plan(
     });
     record_structural_pairing_plan(&mut diagnostics, structural_pairing.as_ref());
     if !membership.recovery_spans.iter().any(|eligible| *eligible) {
+        if input.enable_sentence_edge_gate_shadow
+            && let Some(diagnostics) = diagnostics.as_mut()
+        {
+            diagnostics.metrics.sentence_edge_gate_shadow = Some(SentenceEdgeGateShadowMetrics {
+                complete: true,
+                ..SentenceEdgeGateShadowMetrics::default()
+            });
+        }
         return Ok(SentenceRecoveryBuildOutcome {
             plan: None,
             diagnostics,

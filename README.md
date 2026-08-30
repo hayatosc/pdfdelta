@@ -300,11 +300,12 @@ ended `LIMIT`/`FAIL`; low quality scores never fail a run because the dated
 captures serve as calibration evidence and current fragmentation and recall
 remain too unstable for rigid quality-gate thresholds (confidence calibration
 has landed, but broader large-document alignment quality remains ongoing work).
-Compact revision summaries use schema version 23 and include optional nested
+Compact revision summaries use schema version 24 and include optional nested
 sentence-recovery diagnostics, near-search examined and attempted work,
 Sentence/Line, search-scope, and known/ambiguous-span work attribution,
 diagnostic-only Sentence shadow relations, paired-anchor cross-span locality,
-and decision parity,
+decision parity, and a behavior-neutral Sentence edge-gate shadow with typed
+stops and projected retained-pair work,
 candidate-posting visits and maxima, an explicit candidate-count truncation
 flag, typed
 near-search stop reasons, structural trusted-run profile diagnostics,
@@ -330,9 +331,10 @@ exactly one extracted block. Diagnostic caps produce an explicit incomplete
 fallback instead of a guessed cause. The unversioned full-report v1 key set
 remains unchanged. Reviewed candidate recall and expected-change failure
 diagnostics and scoped event/token metrics are available only through
-`--summary-json-output`; CLI trace schema v12 exposes sentence-recovery metrics,
-including one-hot near-search and run-signature stop reasons plus structural-run
-counters, but not those reviewed metrics.
+`--summary-json-output`; CLI trace schema v13 exposes sentence-recovery metrics,
+including the Sentence edge-gate shadow, one-hot near-search, edge-gate, and
+run-signature stop reasons, plus structural-run counters, but not those reviewed
+metrics.
 `--json-output` and `--summary-json-output` are published independently and
 atomically (each serializing in memory and publishing via same-directory temporary
 files without overwriting existing destinations). If the second publication fails,

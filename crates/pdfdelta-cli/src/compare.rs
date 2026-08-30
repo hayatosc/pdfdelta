@@ -8,7 +8,8 @@ use pdfdelta_core::{
     model::Document,
     pdf::ParseLimits,
     pipeline::{
-        PipelineDiagnostics, PipelineOptions, compare_extraction_outcomes_with_diagnostics,
+        PipelineDiagnostics, PipelineOptions,
+        compare_extraction_outcomes_with_sentence_edge_gate_shadow_diagnostics,
     },
     report::{TextReportOptions, exit_status, render_text, summarize},
     source::{
@@ -193,7 +194,7 @@ pub fn compare_documents_traced<W: Write>(
     )?;
     report_extraction_issues(diagnostics, "new", new_input.path, new.issues())?;
     let mut pipeline_diagnostics = PipelineDiagnostics::new();
-    let outcome_result = compare_extraction_outcomes_with_diagnostics(
+    let outcome_result = compare_extraction_outcomes_with_sentence_edge_gate_shadow_diagnostics(
         old,
         new,
         pipeline_options,

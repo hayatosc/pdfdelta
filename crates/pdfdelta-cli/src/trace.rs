@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 12;
+const TRACE_SCHEMA_VERSION: u8 = 13;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -1072,6 +1072,129 @@ fn pipeline_metrics(
                 ),
             ]);
         }
+        if let Some(shadow) = sentence.sentence_edge_gate_shadow {
+            use pdfdelta_core::diff::SentenceEdgeGateShadowStopReason;
+
+            flattened.extend([
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_complete",
+                    usize::from(shadow.complete),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_stop_reason_candidate_posting_visit_limit",
+                    usize::from(matches!(
+                        shadow.stop_reason,
+                        Some(SentenceEdgeGateShadowStopReason::CandidatePostingVisitLimit)
+                    )),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_stop_reason_pair_visit_limit",
+                    usize::from(matches!(
+                        shadow.stop_reason,
+                        Some(SentenceEdgeGateShadowStopReason::PairVisitLimit)
+                    )),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_stop_reason_similarity_comparison_limit",
+                    usize::from(matches!(
+                        shadow.stop_reason,
+                        Some(SentenceEdgeGateShadowStopReason::SimilarityComparisonLimit)
+                    )),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_stop_reason_candidate_count_limit",
+                    usize::from(matches!(
+                        shadow.stop_reason,
+                        Some(SentenceEdgeGateShadowStopReason::CandidateCountLimit)
+                    )),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_stop_reason_allocation_failure",
+                    usize::from(matches!(
+                        shadow.stop_reason,
+                        Some(SentenceEdgeGateShadowStopReason::AllocationFailure)
+                    )),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_stop_reason_counter_overflow",
+                    usize::from(matches!(
+                        shadow.stop_reason,
+                        Some(SentenceEdgeGateShadowStopReason::CounterOverflow)
+                    )),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_stop_reason_diagnostic_failure",
+                    usize::from(matches!(
+                        shadow.stop_reason,
+                        Some(SentenceEdgeGateShadowStopReason::DiagnosticFailure)
+                    )),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_pairs_considered",
+                    shadow.pairs_considered,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_pairs_retained",
+                    shadow.pairs_retained,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_pairs_rejected",
+                    shadow.pairs_rejected,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_same_known_rejected",
+                    shadow.same_known_rejected,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_ambiguous_rejected",
+                    shadow.ambiguous_rejected,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_cross_span_rejected",
+                    shadow.cross_span_rejected,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_unclassified_rejected",
+                    shadow.unclassified_rejected,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_projected_pair_visits",
+                    shadow.projected_pair_visits,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_projected_similarity_comparisons",
+                    shadow.projected_similarity_comparisons,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_rejected_max_production_score",
+                    usize::from(shadow.rejected_max_production_score),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_threshold_violations",
+                    shadow.threshold_violations,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_veto_mismatches",
+                    shadow.veto_mismatches,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_unique_partner_mismatches",
+                    shadow.unique_partner_mismatches,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_reciprocal_pair_mismatches",
+                    shadow.reciprocal_pair_mismatches,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_adopted_replacement_mismatches",
+                    shadow.adopted_replacement_mismatches,
+                ),
+                (
+                    "sentence_recovery_sentence_edge_gate_shadow_insertion_deletion_veto_mismatches",
+                    shadow.insertion_deletion_veto_mismatches,
+                ),
+            ]);
+        }
     }
     flattened
 }
@@ -1163,6 +1286,7 @@ mod tests {
     use pdfdelta_core::{
         diff::{
             KnownSpanSentenceShadowMetrics, NearRelationStopReason, RunSignatureStopReason,
+            SentenceEdgeGateShadowMetrics, SentenceEdgeGateShadowStopReason,
             SentenceRecoveryMetrics,
         },
         pipeline::PipelineMetrics,
@@ -1171,8 +1295,8 @@ mod tests {
     use super::{TRACE_SCHEMA_VERSION, bounded_message, pipeline_metrics};
 
     #[test]
-    fn trace_schema_version_covers_relation_floor_metrics() {
-        assert_eq!(TRACE_SCHEMA_VERSION, 12);
+    fn trace_schema_version_covers_sentence_edge_gate_shadow_metrics() {
+        assert_eq!(TRACE_SCHEMA_VERSION, 13);
     }
 
     #[test]
@@ -1444,6 +1568,156 @@ mod tests {
                 assert_eq!(metrics[key], usize::from(key == expected));
             }
         }
+    }
+
+    #[test]
+    fn flattens_every_sentence_edge_gate_shadow_metric() {
+        let shadow = SentenceEdgeGateShadowMetrics {
+            complete: true,
+            stop_reason: None,
+            pairs_considered: 1,
+            pairs_retained: 2,
+            pairs_rejected: 3,
+            same_known_rejected: 4,
+            ambiguous_rejected: 5,
+            cross_span_rejected: 6,
+            unclassified_rejected: 7,
+            projected_pair_visits: 8,
+            projected_similarity_comparisons: 9,
+            rejected_max_production_score: 10,
+            threshold_violations: 11,
+            veto_mismatches: 12,
+            unique_partner_mismatches: 13,
+            reciprocal_pair_mismatches: 14,
+            adopted_replacement_mismatches: 15,
+            insertion_deletion_veto_mismatches: 16,
+        };
+        let metrics = pipeline_metrics(
+            PipelineMetrics {
+                sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
+                    sentence_edge_gate_shadow: Some(shadow),
+                    ..SentenceRecoveryMetrics::default()
+                }),
+                ..PipelineMetrics::default()
+            },
+            None,
+        );
+
+        let expected = [
+            ("complete", 1),
+            ("pairs_considered", 1),
+            ("pairs_retained", 2),
+            ("pairs_rejected", 3),
+            ("same_known_rejected", 4),
+            ("ambiguous_rejected", 5),
+            ("cross_span_rejected", 6),
+            ("unclassified_rejected", 7),
+            ("projected_pair_visits", 8),
+            ("projected_similarity_comparisons", 9),
+            ("rejected_max_production_score", 10),
+            ("threshold_violations", 11),
+            ("veto_mismatches", 12),
+            ("unique_partner_mismatches", 13),
+            ("reciprocal_pair_mismatches", 14),
+            ("adopted_replacement_mismatches", 15),
+            ("insertion_deletion_veto_mismatches", 16),
+        ];
+        for (field, value) in expected {
+            let key = format!("sentence_recovery_sentence_edge_gate_shadow_{field}");
+            assert_eq!(metrics[key.as_str()], value, "unexpected value for {key}");
+        }
+    }
+
+    #[test]
+    fn preserves_sentence_edge_gate_shadow_zeros_and_false() {
+        let metrics = pipeline_metrics(
+            PipelineMetrics {
+                sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
+                    sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetrics::default()),
+                    ..SentenceRecoveryMetrics::default()
+                }),
+                ..PipelineMetrics::default()
+            },
+            None,
+        );
+        let shadow_metrics = metrics
+            .iter()
+            .filter(|(name, _)| name.starts_with("sentence_recovery_sentence_edge_gate_shadow_"))
+            .collect::<Vec<_>>();
+
+        assert_eq!(shadow_metrics.len(), 24);
+        assert!(shadow_metrics.iter().all(|(_, value)| **value == 0));
+    }
+
+    #[test]
+    fn flattens_each_sentence_edge_gate_shadow_stop_reason_as_one_hot() {
+        let cases = [
+            (
+                SentenceEdgeGateShadowStopReason::CandidatePostingVisitLimit,
+                "sentence_recovery_sentence_edge_gate_shadow_stop_reason_candidate_posting_visit_limit",
+            ),
+            (
+                SentenceEdgeGateShadowStopReason::PairVisitLimit,
+                "sentence_recovery_sentence_edge_gate_shadow_stop_reason_pair_visit_limit",
+            ),
+            (
+                SentenceEdgeGateShadowStopReason::SimilarityComparisonLimit,
+                "sentence_recovery_sentence_edge_gate_shadow_stop_reason_similarity_comparison_limit",
+            ),
+            (
+                SentenceEdgeGateShadowStopReason::CandidateCountLimit,
+                "sentence_recovery_sentence_edge_gate_shadow_stop_reason_candidate_count_limit",
+            ),
+            (
+                SentenceEdgeGateShadowStopReason::AllocationFailure,
+                "sentence_recovery_sentence_edge_gate_shadow_stop_reason_allocation_failure",
+            ),
+            (
+                SentenceEdgeGateShadowStopReason::CounterOverflow,
+                "sentence_recovery_sentence_edge_gate_shadow_stop_reason_counter_overflow",
+            ),
+            (
+                SentenceEdgeGateShadowStopReason::DiagnosticFailure,
+                "sentence_recovery_sentence_edge_gate_shadow_stop_reason_diagnostic_failure",
+            ),
+        ];
+
+        for (reason, expected) in cases {
+            let metrics = pipeline_metrics(
+                PipelineMetrics {
+                    sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
+                        sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetrics {
+                            stop_reason: Some(reason),
+                            ..SentenceEdgeGateShadowMetrics::default()
+                        }),
+                        ..SentenceRecoveryMetrics::default()
+                    }),
+                    ..PipelineMetrics::default()
+                },
+                None,
+            );
+
+            for (_, key) in cases {
+                assert_eq!(metrics[key], usize::from(key == expected));
+            }
+        }
+    }
+
+    #[test]
+    fn omits_sentence_edge_gate_shadow_metrics_when_unavailable() {
+        let metrics = pipeline_metrics(
+            PipelineMetrics {
+                sentence_recovery_metrics: Some(SentenceRecoveryMetrics::default()),
+                ..PipelineMetrics::default()
+            },
+            None,
+        );
+
+        assert!(
+            !metrics
+                .keys()
+                .any(|name| { name.starts_with("sentence_recovery_sentence_edge_gate_shadow_") })
+        );
     }
 
     #[test]

@@ -612,7 +612,7 @@ fn writes_complete_phase_trace_separately_from_the_report() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let trace = read_json(&trace);
-    assert_eq!(trace["trace_schema_version"], 12);
+    assert_eq!(trace["trace_schema_version"], 13);
     assert_eq!(trace["command"]["kind"], "compare");
     assert_eq!(trace["result"]["status"], "completed");
     assert_eq!(trace["result"]["exit_code"], 0);
@@ -648,6 +648,23 @@ fn writes_complete_phase_trace_separately_from_the_report() {
             .as_u64()
             .is_some()
     );
+    for key in [
+        "sentence_recovery_sentence_edge_gate_shadow_complete",
+        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_candidate_posting_visit_limit",
+        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_pair_visit_limit",
+        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_similarity_comparison_limit",
+        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_candidate_count_limit",
+        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_allocation_failure",
+        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_counter_overflow",
+        "sentence_recovery_sentence_edge_gate_shadow_stop_reason_diagnostic_failure",
+        "sentence_recovery_sentence_edge_gate_shadow_pairs_considered",
+        "sentence_recovery_sentence_edge_gate_shadow_pairs_rejected",
+    ] {
+        assert!(
+            exact_diff["metrics"][key].as_u64().is_some(),
+            "missing edge-gate trace metric {key}"
+        );
+    }
     for kind in ["sentence", "line"] {
         for field in [
             "edge_posting_visits_examined",

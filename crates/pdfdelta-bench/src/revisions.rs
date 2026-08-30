@@ -27,7 +27,8 @@ use pdfdelta_core::{
         RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
         RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence, RecoveryWatchPairEvidence,
         RecoveryWatchQuery, RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
-        RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason, SentenceRecoveryMetrics,
+        RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
+        SentenceEdgeGateShadowMetrics, SentenceEdgeGateShadowStopReason, SentenceRecoveryMetrics,
         TextSpan,
     },
     layout::BlockRole,
@@ -88,7 +89,6 @@ const MAX_MATCH_AUGMENTATIONS: usize = 4_096;
 const MAX_MATCH_OCCURRENCE_VISITS: usize = 5_000_000;
 /// Matching examines at most this many bytes of normalized occurrence text.
 const MAX_MATCH_TEXT_BYTES: usize = 256 * 1024 * 1024;
-
 /// Column order of `benchmark/realworld/manifest.tsv`.
 pub const MANIFEST_HEADER: [&str; 17] = [
     "pair_id",
@@ -539,6 +539,7 @@ pub struct SentenceRecoveryMetricsReport {
     pub near_same_or_ambiguous_shared_query_work: NearSearchScopeMetricsReport,
     pub near_cross_span_work: NearSearchScopeMetricsReport,
     pub known_span_sentence_shadow: Option<KnownSpanSentenceShadowMetricsReport>,
+    pub sentence_edge_gate_shadow: Option<SentenceEdgeGateShadowMetricsReport>,
     pub near_pair_visits_examined: usize,
     pub near_pair_visits_attempted: usize,
     pub near_similarity_comparisons_examined: usize,
@@ -611,6 +612,53 @@ impl From<KnownSpanSentenceShadowMetrics> for KnownSpanSentenceShadowMetricsRepo
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct SentenceEdgeGateShadowMetricsReport {
+    pub complete: bool,
+    pub stop_reason: Option<SentenceEdgeGateShadowStopReasonReport>,
+    pub pairs_considered: usize,
+    pub pairs_retained: usize,
+    pub pairs_rejected: usize,
+    pub same_known_rejected: usize,
+    pub ambiguous_rejected: usize,
+    pub cross_span_rejected: usize,
+    pub unclassified_rejected: usize,
+    pub projected_pair_visits: usize,
+    pub projected_similarity_comparisons: usize,
+    pub rejected_max_production_score: u16,
+    pub threshold_violations: usize,
+    pub veto_mismatches: usize,
+    pub unique_partner_mismatches: usize,
+    pub reciprocal_pair_mismatches: usize,
+    pub adopted_replacement_mismatches: usize,
+    pub insertion_deletion_veto_mismatches: usize,
+}
+
+impl From<SentenceEdgeGateShadowMetrics> for SentenceEdgeGateShadowMetricsReport {
+    fn from(metrics: SentenceEdgeGateShadowMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            stop_reason: metrics.stop_reason.map(Into::into),
+            pairs_considered: metrics.pairs_considered,
+            pairs_retained: metrics.pairs_retained,
+            pairs_rejected: metrics.pairs_rejected,
+            same_known_rejected: metrics.same_known_rejected,
+            ambiguous_rejected: metrics.ambiguous_rejected,
+            cross_span_rejected: metrics.cross_span_rejected,
+            unclassified_rejected: metrics.unclassified_rejected,
+            projected_pair_visits: metrics.projected_pair_visits,
+            projected_similarity_comparisons: metrics.projected_similarity_comparisons,
+            rejected_max_production_score: metrics.rejected_max_production_score,
+            threshold_violations: metrics.threshold_violations,
+            veto_mismatches: metrics.veto_mismatches,
+            unique_partner_mismatches: metrics.unique_partner_mismatches,
+            reciprocal_pair_mismatches: metrics.reciprocal_pair_mismatches,
+            adopted_replacement_mismatches: metrics.adopted_replacement_mismatches,
+            insertion_deletion_veto_mismatches: metrics.insertion_deletion_veto_mismatches,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct NearSearchWorkMetricsReport {
     pub edge_posting_visits_examined: usize,
     pub edge_posting_visits_attempted: usize,
@@ -674,6 +722,36 @@ pub enum RunSignatureStopReasonReport {
     PostingVisitLimit,
     TokenVerificationLimit,
     CandidatePairLimit,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SentenceEdgeGateShadowStopReasonReport {
+    CandidatePostingVisitLimit,
+    PairVisitLimit,
+    SimilarityComparisonLimit,
+    CandidateCountLimit,
+    AllocationFailure,
+    CounterOverflow,
+    DiagnosticFailure,
+}
+
+impl From<SentenceEdgeGateShadowStopReason> for SentenceEdgeGateShadowStopReasonReport {
+    fn from(reason: SentenceEdgeGateShadowStopReason) -> Self {
+        match reason {
+            SentenceEdgeGateShadowStopReason::CandidatePostingVisitLimit => {
+                Self::CandidatePostingVisitLimit
+            }
+            SentenceEdgeGateShadowStopReason::PairVisitLimit => Self::PairVisitLimit,
+            SentenceEdgeGateShadowStopReason::SimilarityComparisonLimit => {
+                Self::SimilarityComparisonLimit
+            }
+            SentenceEdgeGateShadowStopReason::CandidateCountLimit => Self::CandidateCountLimit,
+            SentenceEdgeGateShadowStopReason::AllocationFailure => Self::AllocationFailure,
+            SentenceEdgeGateShadowStopReason::CounterOverflow => Self::CounterOverflow,
+            SentenceEdgeGateShadowStopReason::DiagnosticFailure => Self::DiagnosticFailure,
+        }
+    }
 }
 
 impl From<NearRelationStopReason> for NearRelationStopReasonReport {
@@ -1091,6 +1169,7 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
                 .into(),
             near_cross_span_work: metrics.near_cross_span_work.into(),
             known_span_sentence_shadow: metrics.known_span_sentence_shadow.map(Into::into),
+            sentence_edge_gate_shadow: metrics.sentence_edge_gate_shadow.map(Into::into),
             near_pair_visits_examined: metrics.near_pair_visits_examined,
             near_pair_visits_attempted: metrics.near_pair_visits_attempted,
             near_similarity_comparisons_examined: metrics.near_similarity_comparisons_examined,
@@ -3141,6 +3220,7 @@ fn validate_sentence_recovery_metrics(
     validate_run_signature_metrics(metrics)?;
     validate_near_search_work_metrics(metrics)?;
     validate_known_span_sentence_shadow_metrics(metrics)?;
+    validate_sentence_edge_gate_shadow_metrics(metrics)?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
             "examined near pair visits {} exceed attempted visits {}",
@@ -3301,6 +3381,45 @@ fn validate_known_span_sentence_shadow_metrics(
         return Err(
             "known-span sentence shadow exact parity contradicts relation mismatches".to_owned(),
         );
+    }
+    Ok(())
+}
+
+fn validate_sentence_edge_gate_shadow_metrics(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<(), String> {
+    let Some(shadow) = metrics.sentence_edge_gate_shadow else {
+        return Ok(());
+    };
+    if shadow.pairs_retained.checked_add(shadow.pairs_rejected) != Some(shadow.pairs_considered) {
+        return Err(format!(
+            "sentence-edge gate shadow pair counters do not sum: retained {} + rejected {} != considered {}",
+            shadow.pairs_retained, shadow.pairs_rejected, shadow.pairs_considered
+        ));
+    }
+    if shadow
+        .same_known_rejected
+        .checked_add(shadow.ambiguous_rejected)
+        .and_then(|count| count.checked_add(shadow.cross_span_rejected))
+        .and_then(|count| count.checked_add(shadow.unclassified_rejected))
+        != Some(shadow.pairs_rejected)
+    {
+        return Err("sentence-edge gate shadow rejection counters do not sum".to_owned());
+    }
+    if shadow.projected_pair_visits != shadow.pairs_retained {
+        return Err(format!(
+            "sentence-edge gate shadow projected pair visits {} differ from retained pairs {}",
+            shadow.projected_pair_visits, shadow.pairs_retained
+        ));
+    }
+    if shadow.projected_similarity_comparisons > metrics.near_similarity_comparisons_examined {
+        return Err(format!(
+            "sentence-edge gate shadow projected similarity comparisons {} exceed examined comparisons {}",
+            shadow.projected_similarity_comparisons, metrics.near_similarity_comparisons_examined
+        ));
+    }
+    if shadow.complete != shadow.stop_reason.is_none() {
+        return Err("sentence-edge gate shadow completeness contradicts stop reason".to_owned());
     }
     Ok(())
 }
@@ -4052,7 +4171,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 23;
+    pub const SCHEMA_VERSION: u32 = 24;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -5316,7 +5435,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 23);
+        assert_eq!(completed["schema_version"], 24);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -5359,7 +5478,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 23);
+        assert_eq!(legacy_summary["schema_version"], 24);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -6346,6 +6465,10 @@ mod tests {
             Some(SentenceRecoveryMetricsReport {
                 structural_pairing_available: true,
                 near_relation_complete: true,
+                sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetricsReport {
+                    complete: true,
+                    ..SentenceEdgeGateShadowMetricsReport::default()
+                }),
                 ..SentenceRecoveryMetricsReport::default()
             })
         );
@@ -6548,7 +6671,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 23);
+        assert_eq!(json["schema_version"], 24);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -7315,6 +7438,155 @@ mod tests {
     }
 
     #[test]
+    fn converts_and_validates_sentence_edge_gate_shadow_metrics() {
+        let shadow = SentenceEdgeGateShadowMetrics {
+            complete: false,
+            stop_reason: Some(SentenceEdgeGateShadowStopReason::AllocationFailure),
+            pairs_considered: 4,
+            pairs_retained: 1,
+            pairs_rejected: 3,
+            same_known_rejected: 1,
+            ambiguous_rejected: 1,
+            cross_span_rejected: 1,
+            projected_pair_visits: 1,
+            projected_similarity_comparisons: 2,
+            rejected_max_production_score: 3_000,
+            threshold_violations: 2,
+            veto_mismatches: 3,
+            unique_partner_mismatches: 4,
+            reciprocal_pair_mismatches: 5,
+            adopted_replacement_mismatches: 6,
+            insertion_deletion_veto_mismatches: 7,
+            ..SentenceEdgeGateShadowMetrics::default()
+        };
+        assert_eq!(
+            SentenceEdgeGateShadowMetricsReport::from(shadow),
+            SentenceEdgeGateShadowMetricsReport {
+                complete: false,
+                stop_reason: Some(SentenceEdgeGateShadowStopReasonReport::AllocationFailure),
+                pairs_considered: 4,
+                pairs_retained: 1,
+                pairs_rejected: 3,
+                same_known_rejected: 1,
+                ambiguous_rejected: 1,
+                cross_span_rejected: 1,
+                projected_pair_visits: 1,
+                projected_similarity_comparisons: 2,
+                rejected_max_production_score: 3_000,
+                threshold_violations: 2,
+                veto_mismatches: 3,
+                unique_partner_mismatches: 4,
+                reciprocal_pair_mismatches: 5,
+                adopted_replacement_mismatches: 6,
+                insertion_deletion_veto_mismatches: 7,
+                ..SentenceEdgeGateShadowMetricsReport::default()
+            }
+        );
+
+        let valid = SentenceRecoveryMetrics {
+            sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetrics {
+                complete: true,
+                pairs_considered: 2,
+                pairs_rejected: 2,
+                same_known_rejected: 1,
+                ambiguous_rejected: 1,
+                rejected_max_production_score: 3_000,
+                threshold_violations: 1,
+                ..SentenceEdgeGateShadowMetrics::default()
+            }),
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(valid).is_ok());
+
+        let invalid = [
+            SentenceEdgeGateShadowMetrics {
+                pairs_considered: 2,
+                pairs_rejected: 1,
+                ..valid.sentence_edge_gate_shadow.expect("shadow is present")
+            },
+            SentenceEdgeGateShadowMetrics {
+                same_known_rejected: 0,
+                ..valid.sentence_edge_gate_shadow.expect("shadow is present")
+            },
+            SentenceEdgeGateShadowMetrics {
+                pairs_retained: 1,
+                pairs_rejected: 1,
+                projected_pair_visits: 0,
+                ..valid.sentence_edge_gate_shadow.expect("shadow is present")
+            },
+            SentenceEdgeGateShadowMetrics {
+                projected_similarity_comparisons: 1,
+                ..valid.sentence_edge_gate_shadow.expect("shadow is present")
+            },
+            SentenceEdgeGateShadowMetrics {
+                complete: false,
+                ..valid.sentence_edge_gate_shadow.expect("shadow is present")
+            },
+            SentenceEdgeGateShadowMetrics {
+                stop_reason: Some(SentenceEdgeGateShadowStopReason::DiagnosticFailure),
+                ..valid.sentence_edge_gate_shadow.expect("shadow is present")
+            },
+        ];
+        for shadow in invalid {
+            assert!(
+                validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                    sentence_edge_gate_shadow: Some(shadow),
+                    ..SentenceRecoveryMetrics::default()
+                })
+                .is_err()
+            );
+        }
+        let incomplete = SentenceRecoveryMetrics {
+            sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetrics {
+                complete: false,
+                stop_reason: Some(SentenceEdgeGateShadowStopReason::CounterOverflow),
+                ..SentenceEdgeGateShadowMetrics::default()
+            }),
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(incomplete).is_ok());
+    }
+
+    #[test]
+    fn serializes_sentence_edge_gate_shadow_stop_reasons_as_snake_case() {
+        for (reason, expected) in [
+            (
+                SentenceEdgeGateShadowStopReasonReport::CandidatePostingVisitLimit,
+                "candidate_posting_visit_limit",
+            ),
+            (
+                SentenceEdgeGateShadowStopReasonReport::PairVisitLimit,
+                "pair_visit_limit",
+            ),
+            (
+                SentenceEdgeGateShadowStopReasonReport::SimilarityComparisonLimit,
+                "similarity_comparison_limit",
+            ),
+            (
+                SentenceEdgeGateShadowStopReasonReport::CandidateCountLimit,
+                "candidate_count_limit",
+            ),
+            (
+                SentenceEdgeGateShadowStopReasonReport::AllocationFailure,
+                "allocation_failure",
+            ),
+            (
+                SentenceEdgeGateShadowStopReasonReport::CounterOverflow,
+                "counter_overflow",
+            ),
+            (
+                SentenceEdgeGateShadowStopReasonReport::DiagnosticFailure,
+                "diagnostic_failure",
+            ),
+        ] {
+            assert_eq!(
+                serde_json::to_value(reason).expect("stop reason serializes"),
+                expected
+            );
+        }
+    }
+
+    #[test]
     fn validate_visit_metrics_accepts_complete_absent_and_unavailable_required() {
         let complete = VisitMetrics {
             candidate_visits: Some(42),
@@ -7649,6 +7921,17 @@ mod tests {
                 sentence_recovery_metrics: Some(SentenceRecoveryMetricsReport {
                     old_trusted_run_source_tokens: 42,
                     near_relation_complete: true,
+                    sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetricsReport {
+                        complete: true,
+                        pairs_considered: 2,
+                        pairs_retained: 1,
+                        pairs_rejected: 1,
+                        same_known_rejected: 1,
+                        projected_pair_visits: 1,
+                        projected_similarity_comparisons: 1,
+                        rejected_max_production_score: 2_999,
+                        ..SentenceEdgeGateShadowMetricsReport::default()
+                    }),
                     near_pair_candidates: 3,
                     vetoed_near_pairs: 2,
                     recovered_deletion_tokens: 18,
@@ -7763,7 +8046,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 23);
+        assert_eq!(value["schema_version"], 24);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -7889,6 +8172,7 @@ mod tests {
             "near_same_or_ambiguous_shared_query_work".to_owned(),
             "near_cross_span_work".to_owned(),
             "known_span_sentence_shadow".to_owned(),
+            "sentence_edge_gate_shadow".to_owned(),
             "near_pair_visits_examined".to_owned(),
             "near_pair_visits_attempted".to_owned(),
             "near_similarity_comparisons_examined".to_owned(),
@@ -7918,6 +8202,34 @@ mod tests {
             .cloned()
             .collect::<HashSet<_>>();
         assert_eq!(sentence_recovery_keys, expected_sentence_recovery_keys);
+        let expected_edge_gate_shadow_keys = HashSet::from([
+            "complete".to_owned(),
+            "stop_reason".to_owned(),
+            "pairs_considered".to_owned(),
+            "pairs_retained".to_owned(),
+            "pairs_rejected".to_owned(),
+            "same_known_rejected".to_owned(),
+            "ambiguous_rejected".to_owned(),
+            "cross_span_rejected".to_owned(),
+            "unclassified_rejected".to_owned(),
+            "projected_pair_visits".to_owned(),
+            "projected_similarity_comparisons".to_owned(),
+            "rejected_max_production_score".to_owned(),
+            "threshold_violations".to_owned(),
+            "veto_mismatches".to_owned(),
+            "unique_partner_mismatches".to_owned(),
+            "reciprocal_pair_mismatches".to_owned(),
+            "adopted_replacement_mismatches".to_owned(),
+            "insertion_deletion_veto_mismatches".to_owned(),
+        ]);
+        let edge_gate_shadow_keys =
+            records[0]["sentence_recovery_metrics"]["sentence_edge_gate_shadow"]
+                .as_object()
+                .expect("sentence edge gate shadow object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>();
+        assert_eq!(edge_gate_shadow_keys, expected_edge_gate_shadow_keys);
         assert_eq!(
             records[0]["sentence_recovery_metrics"]["near_sentence_work"],
             serde_json::to_value(NearSearchWorkMetricsReport::default())
