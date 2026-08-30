@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-30
-- **Generator / engine commit**: [`ab26b3c`](https://github.com/hayatosc/pdfdelta/commit/ab26b3c)
+- **Generator / engine commit**: [`edb34a2`](https://github.com/hayatosc/pdfdelta/commit/edb34a2)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-30-ab26b3c.json`](2026-08-30-ab26b3c.json)
-  - Schema: v26
-  - Size: 536,840 bytes
-  - SHA-256: `3e9f5e23de5e0e41d0ca6f650da3b41dc8d5ce9193bcf65d88b4d6006d1ffe0d`
+  - File: [`2026-08-30-edb34a2.json`](2026-08-30-edb34a2.json)
+  - Schema: v27
+  - Size: 553,568 bytes
+  - SHA-256: `c17600582464e4750f2dd2d66a2509bc4b54d7ac91780704cc9d62ba147a5835`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-30-ab26b3c.json
+  benchmark/realworld/results/2026-08-30-edb34a2.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -72,6 +72,18 @@ diagnostics exactly match the schema-v24 baseline. Across 18 measured pairs,
 the filter classifies 6,990,647 Sentence pairs and rejects 6,660,144 (95.27%).
 All shadow threshold, veto, unique-partner, reciprocal, adopted-replacement,
 and insertion/deletion-veto mismatch counters remain zero.
+The schema-v27 capture independently replays Sentence candidate search through
+the exact edge-signature index without changing comparison behavior. Removing
+the schema number and the new signature-shadow field yields a byte-identical
+canonical JSON representation of the schema-v26 capture. Across 18 available
+records, the replay considers 16,208,932 pairs and retains 972,807, pruning
+93.998%. Twelve replays complete. All ten replays whose production baseline is
+also complete preserve the recovery plan and miss no retained edge-gate pair.
+The remaining six replays stop at the existing candidate-posting visit limit
+before the signature filter can finish, despite pruning 94.956% of the pairs
+observed before those stops. The signature gate therefore remains diagnostic;
+the next candidate-search change must avoid constructing the broader Sentence
+edge union before consulting this index.
 Role-local alignment raises SP 800-57 comparison coverage from 70.95% to 71.90%
 and corrects its reviewed kind accuracy from 0.750 to 1.000. NIST CSF coverage
 decreases from 53.52% to 53.22% without changing reviewed recall or kind accuracy.
@@ -121,14 +133,19 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v26)
+## Current Writer Schema (v27)
 
-The benchmark writer and latest committed capture use schema v26. Older
-captures retain their recorded schemas. Schema v26 records whether an
+The benchmark writer and latest committed capture use schema v27. Older
+captures retain their recorded schemas. Schema v27 adds the independent exact
+edge-signature candidate replay, its bounded index and query work, typed stops,
+candidate reduction, retained-edge verification, and recovery-plan parity.
+Removing the schema number and this diagnostic object yields an exact match
+with the schema-v26 `ab26b3c` capture. CLI trace schema v16 exposes the same
+metrics and one-hot stop reasons. Schema v26 records whether an
 incomplete filtered recovery build was discarded and separately reports the
 pair, similarity-comparison, and candidate-posting work spent by that discarded
 build. These counters never include work adopted by the fallback result.
-CLI trace schema v15 exposes the same fallback and discarded-work evidence.
+CLI trace schema v15 exposed the same fallback and discarded-work evidence.
 Schema v25 reports the production
 Sentence edge filter's bounded pair and comparison work, retained and rejected
 pairs, completion state, and typed query-fallback reason. CLI trace schema v14
