@@ -8757,7 +8757,7 @@ fn sentence_similarity_in_scope_attributed(
         return Some(exact_score);
     }
     if multiset_dice_upper_bound(old.word_ranges.len(), new.word_ranges.len())? > exact_score {
-        let word_score = word_multiset_dice(old, new, old.kind, budget, scope, class)?;
+        let word_score = word_multiset_dice(old, new, exact_score, old.kind, budget, scope, class)?;
         exact_score = exact_score.max(word_score);
     }
     Some(exact_score)
@@ -8771,6 +8771,7 @@ fn multiset_dice_upper_bound(old_count: usize, new_count: usize) -> Option<u16> 
 fn word_multiset_dice(
     old: &SentenceOccurrence,
     new: &SentenceOccurrence,
+    floor: u16,
     kind: RecoveryUnitKind,
     budget: &mut RecoveryBudget,
     scope: NearSearchScope,
@@ -8778,7 +8779,7 @@ fn word_multiset_dice(
 ) -> Option<u16> {
     let total = old.word_ranges.len().checked_add(new.word_ranges.len())?;
     if total == 0 {
-        return Some(0);
+        return Some(floor);
     }
     let mut old_index = 0usize;
     let mut new_index = 0usize;
@@ -8798,8 +8799,14 @@ fn word_multiset_dice(
                 new_index += 1;
             }
         }
+        let remaining_old = old.word_ranges.len().checked_sub(old_index)?;
+        let remaining_new = new.word_ranges.len().checked_sub(new_index)?;
+        let attainable_shared = shared.checked_add(remaining_old.min(remaining_new))?;
+        if basis_points(attainable_shared.checked_mul(2)?, total)? <= floor {
+            return Some(floor);
+        }
     }
-    basis_points(shared.checked_mul(2)?, total)
+    Some(floor.max(basis_points(shared.checked_mul(2)?, total)?))
 }
 
 fn token_ngram_multiset_dice(
@@ -11010,6 +11017,34 @@ mod tests {
         }
     }
 
+    fn word_multiset_reference(old: &[u8], new: &[u8]) -> u16 {
+        let mut old_index = 0usize;
+        let mut new_index = 0usize;
+        let mut shared = 0usize;
+        while old_index < old.len() && new_index < new.len() {
+            match old[old_index].cmp(&new[new_index]) {
+                std::cmp::Ordering::Less => old_index += 1,
+                std::cmp::Ordering::Greater => new_index += 1,
+                std::cmp::Ordering::Equal => {
+                    shared += 1;
+                    old_index += 1;
+                    new_index += 1;
+                }
+            }
+        }
+        basis_points(shared * 2, old.len() + new.len()).expect("small multiset score fits")
+    }
+
+    fn occurrence_from_word_ids(words: &[u8], kind: RecoveryUnitKind) -> SentenceOccurrence {
+        let key = words
+            .iter()
+            .map(|word| char::from(b'a' + *word).to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let tokens = key.chars().map(SentenceEvidenceToken::Scalar).collect();
+        similarity_occurrence(&key, tokens, kind)
+    }
+
     fn extend_test_paired_exact_matches(
         old: &[SentenceOccurrence],
         new: &[SentenceOccurrence],
@@ -11980,6 +12015,174 @@ mod tests {
             Some(10_000)
         );
         assert_eq!(budget.comparisons, 10_002);
+    }
+
+    #[test]
+    fn word_multiset_early_stop_preserves_reference_scores_with_duplicates() {
+        fn enumerate_sorted(values: &mut Vec<u8>, next: u8, output: &mut Vec<Vec<u8>>) {
+            output.push(values.clone());
+            if values.len() == 4 {
+                return;
+            }
+            for value in next..3 {
+                values.push(value);
+                enumerate_sorted(values, value, output);
+                values.pop();
+            }
+        }
+
+        let mut multisets = Vec::new();
+        enumerate_sorted(&mut Vec::new(), 0, &mut multisets);
+        for old_words in &multisets {
+            for new_words in &multisets {
+                let old = occurrence_from_word_ids(old_words, RecoveryUnitKind::Sentence);
+                let new = occurrence_from_word_ids(new_words, RecoveryUnitKind::Sentence);
+                let actual = word_multiset_reference(old_words, new_words);
+                for floor in [0, 2_500, 5_000, 9_999, 10_000] {
+                    let token_count = old.tokens.len() + new.tokens.len();
+                    let mut budget =
+                        RecoveryBudget::new(old.tokens.len(), new.tokens.len(), token_count, 1)
+                            .expect("small multiset budget is valid");
+                    assert_eq!(
+                        word_multiset_dice(
+                            &old,
+                            &new,
+                            floor,
+                            RecoveryUnitKind::Sentence,
+                            &mut budget,
+                            TEST_NEAR_SCOPE,
+                            NearSearchWorkClass::Shared,
+                        ),
+                        Some(floor.max(actual)),
+                        "old={old_words:?}, new={new_words:?}, floor={floor}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn word_multiset_early_stop_respects_rounded_floor_boundaries() {
+        let old = occurrence_from_word_ids(&[0; 10], RecoveryUnitKind::Sentence);
+        let new = occurrence_from_word_ids(&[1; 10], RecoveryUnitKind::Sentence);
+
+        let mut equality_budget = RecoveryBudget::new(
+            old.tokens.len(),
+            new.tokens.len(),
+            old.tokens.len() + new.tokens.len(),
+            1,
+        )
+        .expect("equality boundary budget is valid");
+        assert_eq!(
+            word_multiset_dice(
+                &old,
+                &new,
+                9_000,
+                RecoveryUnitKind::Sentence,
+                &mut equality_budget,
+                TEST_NEAR_SCOPE,
+                NearSearchWorkClass::Shared,
+            ),
+            Some(9_000)
+        );
+        assert_eq!(equality_budget.comparisons, 1);
+
+        let mut above_budget = RecoveryBudget::new(
+            old.tokens.len(),
+            new.tokens.len(),
+            old.tokens.len() + new.tokens.len(),
+            1,
+        )
+        .expect("one-point boundary budget is valid");
+        assert_eq!(
+            word_multiset_dice(
+                &old,
+                &new,
+                8_999,
+                RecoveryUnitKind::Sentence,
+                &mut above_budget,
+                TEST_NEAR_SCOPE,
+                NearSearchWorkClass::Shared,
+            ),
+            Some(8_999)
+        );
+        assert_eq!(above_budget.comparisons, 2);
+    }
+
+    #[test]
+    fn word_multiset_early_stop_reduces_work_and_preserves_line_counters() {
+        let old = occurrence_from_word_ids(&[0; 100], RecoveryUnitKind::Line);
+        let new = occurrence_from_word_ids(&[1; 100], RecoveryUnitKind::Line);
+        let mut budget = RecoveryBudget::new(
+            old.tokens.len(),
+            new.tokens.len(),
+            old.tokens.len() + new.tokens.len(),
+            1,
+        )
+        .expect("line multiset budget is valid");
+
+        assert_eq!(
+            word_multiset_dice(
+                &old,
+                &new,
+                5_000,
+                RecoveryUnitKind::Line,
+                &mut budget,
+                NearSearchScope::CrossSpan,
+                NearSearchWorkClass::Shared,
+            ),
+            Some(5_000)
+        );
+        assert_eq!(budget.comparisons, 50);
+        assert_eq!(budget.comparisons_attempted, 50);
+        assert_eq!(budget.line_work.similarity_comparisons_examined, 50);
+        assert_eq!(budget.line_work.similarity_comparisons_attempted, 50);
+        assert_eq!(budget.sentence_work.similarity_comparisons_examined, 0);
+        assert_eq!(
+            budget
+                .cross_span_work
+                .line_work
+                .similarity_comparisons_examined,
+            50
+        );
+        assert_eq!(budget.near_relation_stop_reason, None);
+        assert_near_work_sums_match_aggregates(&budget);
+    }
+
+    #[test]
+    fn word_multiset_budget_failure_keeps_atomic_comparison_counters() {
+        let old = occurrence_from_word_ids(&[0; 10], RecoveryUnitKind::Sentence);
+        let new = occurrence_from_word_ids(&[0; 10], RecoveryUnitKind::Sentence);
+        let mut budget = RecoveryBudget::new(
+            old.tokens.len(),
+            new.tokens.len(),
+            old.tokens.len() + new.tokens.len(),
+            1,
+        )
+        .expect("multiset budget is valid");
+        budget.comparison_limit = 3;
+
+        assert_eq!(
+            word_multiset_dice(
+                &old,
+                &new,
+                0,
+                RecoveryUnitKind::Sentence,
+                &mut budget,
+                TEST_NEAR_SCOPE,
+                NearSearchWorkClass::Shared,
+            ),
+            None
+        );
+        assert_eq!(budget.comparisons, 3);
+        assert_eq!(budget.comparisons_attempted, 4);
+        assert_eq!(budget.sentence_work.similarity_comparisons_examined, 3);
+        assert_eq!(budget.sentence_work.similarity_comparisons_attempted, 4);
+        assert_eq!(
+            budget.near_relation_stop_reason,
+            Some(NearRelationStopReason::SimilarityComparisonLimit)
+        );
+        assert_near_work_sums_match_aggregates(&budget);
     }
 
     #[test]
