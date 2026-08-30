@@ -114,13 +114,18 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v25)
+## Current Writer Schema (v26)
 
-The benchmark writer uses schema v25. The latest committed capture remains
-schema v24 until a schema-v25 production-filter capture is published. Older
-captures retain their recorded schemas. Schema v25 reports the production
+The benchmark writer uses schema v26. The latest committed capture remains
+schema v24 until a newer production-filter capture is published. Older
+captures retain their recorded schemas. Schema v26 records whether an
+incomplete filtered recovery build was discarded and separately reports the
+pair, similarity-comparison, and candidate-posting work spent by that discarded
+build. These counters never include work adopted by the fallback result.
+CLI trace schema v15 exposes the same fallback and discarded-work evidence.
+Schema v25 reports the production
 Sentence edge filter's bounded pair and comparison work, retained and rejected
-pairs, completion state, and typed atomic-fallback reason. CLI trace schema v14
+pairs, completion state, and typed query-fallback reason. CLI trace schema v14
 exposes the same counters and one-hot fallback reasons.
 Schema v24 adds a behavior-neutral Sentence edge-gate
 shadow that excludes only pairs whose production edge score is below 3,000,

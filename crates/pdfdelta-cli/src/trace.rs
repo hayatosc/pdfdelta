@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 14;
+const TRACE_SCHEMA_VERSION: u8 = 15;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -980,6 +980,34 @@ fn pipeline_metrics(
                 usize::from(sentence_edge_filter_stop_reasons[3]),
             ),
             (
+                "sentence_recovery_sentence_edge_filter_full_build_fallback_used",
+                usize::from(sentence.sentence_edge_filter_full_build_fallback_used),
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_discarded_near_pair_visits_examined",
+                sentence.sentence_edge_filter_discarded_near_pair_visits_examined,
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_discarded_near_pair_visits_attempted",
+                sentence.sentence_edge_filter_discarded_near_pair_visits_attempted,
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_discarded_near_similarity_comparisons_examined",
+                sentence.sentence_edge_filter_discarded_near_similarity_comparisons_examined,
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_discarded_near_similarity_comparisons_attempted",
+                sentence.sentence_edge_filter_discarded_near_similarity_comparisons_attempted,
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_discarded_near_candidate_posting_visits_examined",
+                sentence.sentence_edge_filter_discarded_near_candidate_posting_visits_examined,
+            ),
+            (
+                "sentence_recovery_sentence_edge_filter_discarded_near_candidate_posting_visits_attempted",
+                sentence.sentence_edge_filter_discarded_near_candidate_posting_visits_attempted,
+            ),
+            (
                 "sentence_recovery_vetoed_near_pairs",
                 sentence.vetoed_near_pairs,
             ),
@@ -1351,7 +1379,7 @@ mod tests {
 
     #[test]
     fn trace_schema_version_covers_sentence_edge_filter_metrics() {
-        assert_eq!(TRACE_SCHEMA_VERSION, 14);
+        assert_eq!(TRACE_SCHEMA_VERSION, 15);
     }
 
     #[test]
@@ -1637,6 +1665,13 @@ mod tests {
                     sentence_edge_filter_similarity_comparisons_attempted: 4,
                     sentence_edge_filter_pairs_retained: 5,
                     sentence_edge_filter_pairs_rejected: 6,
+                    sentence_edge_filter_full_build_fallback_used: true,
+                    sentence_edge_filter_discarded_near_pair_visits_examined: 7,
+                    sentence_edge_filter_discarded_near_pair_visits_attempted: 8,
+                    sentence_edge_filter_discarded_near_similarity_comparisons_examined: 9,
+                    sentence_edge_filter_discarded_near_similarity_comparisons_attempted: 10,
+                    sentence_edge_filter_discarded_near_candidate_posting_visits_examined: 11,
+                    sentence_edge_filter_discarded_near_candidate_posting_visits_attempted: 12,
                     ..SentenceRecoveryMetrics::default()
                 }),
                 ..PipelineMetrics::default()
@@ -1652,6 +1687,13 @@ mod tests {
             ("similarity_comparisons_attempted", 4),
             ("pairs_retained", 5),
             ("pairs_rejected", 6),
+            ("full_build_fallback_used", 1),
+            ("discarded_near_pair_visits_examined", 7),
+            ("discarded_near_pair_visits_attempted", 8),
+            ("discarded_near_similarity_comparisons_examined", 9),
+            ("discarded_near_similarity_comparisons_attempted", 10),
+            ("discarded_near_candidate_posting_visits_examined", 11),
+            ("discarded_near_candidate_posting_visits_attempted", 12),
         ];
         for (field, value) in expected {
             let key = format!("sentence_recovery_sentence_edge_filter_{field}");
@@ -1673,7 +1715,7 @@ mod tests {
             .filter(|(name, _)| name.starts_with("sentence_recovery_sentence_edge_filter_"))
             .collect::<Vec<_>>();
 
-        assert_eq!(edge_filter_metrics.len(), 11);
+        assert_eq!(edge_filter_metrics.len(), 18);
         assert!(edge_filter_metrics.iter().all(|(_, value)| **value == 0));
     }
 

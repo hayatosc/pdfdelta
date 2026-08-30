@@ -548,6 +548,13 @@ pub struct SentenceRecoveryMetricsReport {
     pub sentence_edge_filter_pairs_retained: usize,
     pub sentence_edge_filter_pairs_rejected: usize,
     pub sentence_edge_filter_stop_reason: Option<SentenceEdgeFilterStopReasonReport>,
+    pub sentence_edge_filter_full_build_fallback_used: bool,
+    pub sentence_edge_filter_discarded_near_pair_visits_examined: usize,
+    pub sentence_edge_filter_discarded_near_pair_visits_attempted: usize,
+    pub sentence_edge_filter_discarded_near_similarity_comparisons_examined: usize,
+    pub sentence_edge_filter_discarded_near_similarity_comparisons_attempted: usize,
+    pub sentence_edge_filter_discarded_near_candidate_posting_visits_examined: usize,
+    pub sentence_edge_filter_discarded_near_candidate_posting_visits_attempted: usize,
     pub near_pair_visits_examined: usize,
     pub near_pair_visits_attempted: usize,
     pub near_similarity_comparisons_examined: usize,
@@ -1212,6 +1219,20 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             sentence_edge_filter_stop_reason: metrics
                 .sentence_edge_filter_stop_reason
                 .map(Into::into),
+            sentence_edge_filter_full_build_fallback_used: metrics
+                .sentence_edge_filter_full_build_fallback_used,
+            sentence_edge_filter_discarded_near_pair_visits_examined: metrics
+                .sentence_edge_filter_discarded_near_pair_visits_examined,
+            sentence_edge_filter_discarded_near_pair_visits_attempted: metrics
+                .sentence_edge_filter_discarded_near_pair_visits_attempted,
+            sentence_edge_filter_discarded_near_similarity_comparisons_examined: metrics
+                .sentence_edge_filter_discarded_near_similarity_comparisons_examined,
+            sentence_edge_filter_discarded_near_similarity_comparisons_attempted: metrics
+                .sentence_edge_filter_discarded_near_similarity_comparisons_attempted,
+            sentence_edge_filter_discarded_near_candidate_posting_visits_examined: metrics
+                .sentence_edge_filter_discarded_near_candidate_posting_visits_examined,
+            sentence_edge_filter_discarded_near_candidate_posting_visits_attempted: metrics
+                .sentence_edge_filter_discarded_near_candidate_posting_visits_attempted,
             near_pair_visits_examined: metrics.near_pair_visits_examined,
             near_pair_visits_attempted: metrics.near_pair_visits_attempted,
             near_similarity_comparisons_examined: metrics.near_similarity_comparisons_examined,
@@ -3395,6 +3416,39 @@ fn validate_sentence_recovery_metrics(
 fn validate_sentence_edge_filter_metrics(
     metrics: SentenceRecoveryMetrics,
 ) -> std::result::Result<(), String> {
+    let discarded_work = [
+        (
+            "pair visits",
+            metrics.sentence_edge_filter_discarded_near_pair_visits_examined,
+            metrics.sentence_edge_filter_discarded_near_pair_visits_attempted,
+        ),
+        (
+            "similarity comparisons",
+            metrics.sentence_edge_filter_discarded_near_similarity_comparisons_examined,
+            metrics.sentence_edge_filter_discarded_near_similarity_comparisons_attempted,
+        ),
+        (
+            "candidate posting visits",
+            metrics.sentence_edge_filter_discarded_near_candidate_posting_visits_examined,
+            metrics.sentence_edge_filter_discarded_near_candidate_posting_visits_attempted,
+        ),
+    ];
+    if !metrics.sentence_edge_filter_full_build_fallback_used
+        && discarded_work
+            .iter()
+            .any(|(_, examined, attempted)| *examined != 0 || *attempted != 0)
+    {
+        return Err("discarded near work requires a sentence-edge full-build fallback".to_owned());
+    }
+    if metrics.sentence_edge_filter_full_build_fallback_used {
+        for (kind, examined, attempted) in discarded_work {
+            if examined > attempted {
+                return Err(format!(
+                    "discarded near {kind} examined {examined} exceed attempted {attempted}"
+                ));
+            }
+        }
+    }
     if metrics.sentence_edge_filter_pairs_examined > metrics.sentence_edge_filter_pairs_attempted {
         return Err(format!(
             "examined sentence-edge filter pairs {} exceed attempted pairs {}",
@@ -4301,7 +4355,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 25;
+    pub const SCHEMA_VERSION: u32 = 26;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -5565,7 +5619,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 25);
+        assert_eq!(completed["schema_version"], 26);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -5608,7 +5662,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 25);
+        assert_eq!(legacy_summary["schema_version"], 26);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -6802,7 +6856,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 25);
+        assert_eq!(json["schema_version"], 26);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -7881,6 +7935,68 @@ mod tests {
     }
 
     #[test]
+    fn validates_and_keeps_discarded_fallback_work_separate() {
+        for sentence_edge_filter_complete in [false, true] {
+            let metrics = SentenceRecoveryMetrics {
+                sentence_edge_filter_complete,
+                sentence_edge_filter_stop_reason: (!sentence_edge_filter_complete)
+                    .then_some(SentenceEdgeFilterStopReason::CounterOverflow),
+                sentence_edge_filter_full_build_fallback_used: true,
+                sentence_edge_filter_discarded_near_pair_visits_examined: 2,
+                sentence_edge_filter_discarded_near_pair_visits_attempted: 3,
+                sentence_edge_filter_discarded_near_similarity_comparisons_examined: 4,
+                sentence_edge_filter_discarded_near_similarity_comparisons_attempted: 5,
+                sentence_edge_filter_discarded_near_candidate_posting_visits_examined: 6,
+                sentence_edge_filter_discarded_near_candidate_posting_visits_attempted: 7,
+                ..SentenceRecoveryMetrics::default()
+            };
+
+            let report = validate_sentence_recovery_metrics(metrics)
+                .expect("fallback work is valid for either filter completion state");
+            assert_eq!(report.near_pair_visits_examined, 0);
+            assert_eq!(
+                report.sentence_edge_filter_discarded_near_pair_visits_examined,
+                2
+            );
+            assert_eq!(
+                report.sentence_edge_filter_discarded_near_candidate_posting_visits_attempted,
+                7
+            );
+        }
+
+        for invalid in [
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_complete: true,
+                sentence_edge_filter_discarded_near_pair_visits_attempted: 1,
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_complete: true,
+                sentence_edge_filter_full_build_fallback_used: true,
+                sentence_edge_filter_discarded_near_pair_visits_examined: 2,
+                sentence_edge_filter_discarded_near_pair_visits_attempted: 1,
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_complete: true,
+                sentence_edge_filter_full_build_fallback_used: true,
+                sentence_edge_filter_discarded_near_similarity_comparisons_examined: 2,
+                sentence_edge_filter_discarded_near_similarity_comparisons_attempted: 1,
+                ..SentenceRecoveryMetrics::default()
+            },
+            SentenceRecoveryMetrics {
+                sentence_edge_filter_complete: true,
+                sentence_edge_filter_full_build_fallback_used: true,
+                sentence_edge_filter_discarded_near_candidate_posting_visits_examined: 2,
+                sentence_edge_filter_discarded_near_candidate_posting_visits_attempted: 1,
+                ..SentenceRecoveryMetrics::default()
+            },
+        ] {
+            assert!(validate_sentence_recovery_metrics(invalid).is_err());
+        }
+    }
+
+    #[test]
     fn serializes_sentence_edge_filter_stop_reasons_as_snake_case() {
         for (reason, expected) in [
             (
@@ -8377,7 +8493,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 25);
+        assert_eq!(value["schema_version"], 26);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -8512,6 +8628,13 @@ mod tests {
             "sentence_edge_filter_pairs_retained".to_owned(),
             "sentence_edge_filter_pairs_rejected".to_owned(),
             "sentence_edge_filter_stop_reason".to_owned(),
+            "sentence_edge_filter_full_build_fallback_used".to_owned(),
+            "sentence_edge_filter_discarded_near_pair_visits_examined".to_owned(),
+            "sentence_edge_filter_discarded_near_pair_visits_attempted".to_owned(),
+            "sentence_edge_filter_discarded_near_similarity_comparisons_examined".to_owned(),
+            "sentence_edge_filter_discarded_near_similarity_comparisons_attempted".to_owned(),
+            "sentence_edge_filter_discarded_near_candidate_posting_visits_examined".to_owned(),
+            "sentence_edge_filter_discarded_near_candidate_posting_visits_attempted".to_owned(),
             "near_pair_visits_examined".to_owned(),
             "near_pair_visits_attempted".to_owned(),
             "near_similarity_comparisons_examined".to_owned(),
