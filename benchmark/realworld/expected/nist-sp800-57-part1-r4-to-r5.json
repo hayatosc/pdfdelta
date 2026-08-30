@@ -1,9 +1,35 @@
 {
   "version": 1,
   "pair": "nist-sp800-57-part1-r4-to-r5",
-  "reviewed_on": "2026-08-24",
+  "reviewed_on": "2026-08-31",
   "annotation": "partial",
-  "notes": "Representative human-reviewed subset of the SP 800-57 Part 1 Rev. 4 (2016) -> Rev. 5 (2020) revision. Rev. 5 refreshes key-management terminology and recommendations; the sampled changes below were reviewed directly against the extracted text of both PDFs. This pair needs a large --limit-scale today: candidate generation exhausts the default alignment budget long before completion, which is itself a recorded benchmark finding.",
+  "notes": "Mixed review annotation: the document-wide change list remains a representative partial review, while the introduction and glossary scopes are fully human-reviewed development scopes. The scopes measure precision for adjacent punctuation and reference edits without treating changes elsewhere in the documents as false positives.",
+  "scopes": [
+    {
+      "id": "introduction-adjacent-replacements",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "Since 1977, NIST has developed a cryptographic “toolkit” of NIST standards1 that form a basis for the implementation of approved cryptography.",
+        "end_quote": "This Recommendation references many of those standards, and provides guidance on how they may be properly used to protect sensitive information."
+      },
+      "new": {
+        "start_quote": "Since 1977, NIST has developed a cryptographic “toolkit” of NIST standards11 that form a basis for the implementation of approved cryptography.",
+        "end_quote": "This Recommendation references many of those standards and provides guidance on how they may be properly used to protect sensitive information."
+      }
+    },
+    {
+      "id": "glossary-adjacent-replacements",
+      "completeness": "complete",
+      "old": {
+        "start_quote": "An algorithm or technique that is either 1) specified in a FIPS or NIST Recommendation, or 2) specified elsewhere and adopted by reference in a FIPS or NIST Recommendation.",
+        "end_quote": "For example, a key is associated with the application or process for which it will be used."
+      },
+      "new": {
+        "start_quote": "Approved that is either 1) specified in a FIPS or NIST Recommendation or 2) specified elsewhere and adopted by reference in a FIPS or NIST Recommendation.",
+        "end_quote": "Association with the application or process for which it will be used."
+      }
+    }
+  ],
   "changes": [
     {
       "id": "footer-rev-branding-removed",
@@ -29,6 +55,38 @@
       "kind": "insertion",
       "new_quote": "Inputs on their security are welcome at any point, including during the creation of the initial requirements",
       "note": "Rev. 5 broadens the public-review statement."
+    },
+    {
+      "id": "toolkit-footnote-renumbered",
+      "kind": "replacement",
+      "scope": "introduction-adjacent-replacements",
+      "old_quote": "standards1",
+      "new_quote": "standards11",
+      "note": "The toolkit footnote reference changes from 1 to 11."
+    },
+    {
+      "id": "standards-reference-comma-removed",
+      "kind": "replacement",
+      "scope": "introduction-adjacent-replacements",
+      "old_quote": "standards, and",
+      "new_quote": "standards and",
+      "note": "The revised sentence removes the comma before the coordinated predicate."
+    },
+    {
+      "id": "approved-definition-comma-removed",
+      "kind": "replacement",
+      "scope": "glossary-adjacent-replacements",
+      "old_quote": "Recommendation, or",
+      "new_quote": "Recommendation or",
+      "note": "The revised Approved definition removes the comma between alternatives."
+    },
+    {
+      "id": "association-definition-punctuation",
+      "kind": "replacement",
+      "scope": "glossary-adjacent-replacements",
+      "old_quote": "purpose. For example,",
+      "new_quote": "purpose; for example,",
+      "note": "The revised Association definition joins the example with a semicolon."
     }
   ]
 }

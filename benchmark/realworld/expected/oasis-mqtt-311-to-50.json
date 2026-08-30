@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "pair": "oasis-mqtt-311-to-50",
+  "reviewed_on": "2026-08-31",
+  "annotation": "scoped_complete",
+  "notes": "The entire declared permissions scope was human-reviewed. Its raw extracted text is identical in both revisions, and the comparison reports no changes within the scope.",
+  "scopes": [
+    {
+      "id": "notices-unchanged-permissions",
+      "old": {
+        "start_quote": "This document and translations of it may be copied and furnished to others, and derivative works that comment on or otherwise explain it or assist in its implementation may be prepared, copied, published, and distributed, in whole or in part, without restriction of any kind, provided that the above copyright notice and this section are included on all such copies and derivative works.",
+        "end_quote": "The limited permissions granted above are perpetual and will not be revoked by OASIS or its successors or assigns."
+      },
+      "new": {
+        "start_quote": "This document and translations of it may be copied and furnished to others, and derivative works that comment on or otherwise explain it or assist in its implementation may be prepared, copied, published, and distributed, in whole or in part, without restriction of any kind, provided that the above copyright notice and this section are included on all such copies and derivative works.",
+        "end_quote": "The limited permissions granted above are perpetual and will not be revoked by OASIS or its successors or assigns."
+      }
+    }
+  ],
+  "changes": []
+}
