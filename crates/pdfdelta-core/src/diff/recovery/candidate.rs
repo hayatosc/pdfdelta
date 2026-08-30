@@ -283,6 +283,34 @@ impl NearSearchWorkClass {
 }
 
 impl UnitCandidateIndex {
+    pub(in crate::diff) fn contains_sentence_edge_candidate(
+        &self,
+        query: &SentenceOccurrence,
+        candidate_index: usize,
+        bucket: CandidatePostingBucket,
+        additional_bucket: Option<CandidatePostingBucket>,
+    ) -> bool {
+        if query.kind != RecoveryUnitKind::Sentence {
+            return false;
+        }
+        let Some(role) = query.role.map(OccurrenceRole::from) else {
+            return false;
+        };
+        let (Some(&first), Some(&last)) = (query.tokens.first(), query.tokens.last()) else {
+            return false;
+        };
+        [Some(bucket), additional_bucket]
+            .into_iter()
+            .flatten()
+            .any(|bucket| {
+                [first, last].into_iter().any(|edge| {
+                    self.edge_postings
+                        .get(&(bucket, query.kind, role, edge))
+                        .is_some_and(|postings| postings.binary_search(&candidate_index).is_ok())
+                })
+            })
+    }
+
     pub(in crate::diff) fn new(
         occurrences: &[SentenceOccurrence],
         scope: CandidatePostingIndexScope<'_>,

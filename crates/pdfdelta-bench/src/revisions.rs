@@ -796,6 +796,17 @@ pub struct SentenceEdgeSignatureDirectShadowMetricsReport {
     pub fragment_veto_pair_visits_attempted: usize,
     pub fragment_veto_similarity_comparisons_examined: usize,
     pub fragment_veto_similarity_comparisons_attempted: usize,
+    pub watch_probe_pairs_examined: usize,
+    pub watch_probe_pairs_attempted: usize,
+    pub watch_probe_similarity_comparisons_examined: usize,
+    pub watch_probe_similarity_comparisons_attempted: usize,
+    pub watch_probe_missing_signature_candidates: usize,
+    pub watch_probe_invariant_violations: usize,
+    pub watch_preservation_evaluable: bool,
+    pub watch_evidence_preserved: bool,
+    pub watch_preservation_mismatches: usize,
+    pub watch_exact_parity_evaluable: bool,
+    pub watch_exact_parity: bool,
     pub candidate_count_truncated: bool,
     pub parity_evaluable: bool,
     pub plan_parity: bool,
@@ -884,6 +895,20 @@ impl From<SentenceEdgeSignatureDirectShadowMetrics>
                 .fragment_veto_similarity_comparisons_examined,
             fragment_veto_similarity_comparisons_attempted: metrics
                 .fragment_veto_similarity_comparisons_attempted,
+            watch_probe_pairs_examined: metrics.watch_probe_pairs_examined,
+            watch_probe_pairs_attempted: metrics.watch_probe_pairs_attempted,
+            watch_probe_similarity_comparisons_examined: metrics
+                .watch_probe_similarity_comparisons_examined,
+            watch_probe_similarity_comparisons_attempted: metrics
+                .watch_probe_similarity_comparisons_attempted,
+            watch_probe_missing_signature_candidates: metrics
+                .watch_probe_missing_signature_candidates,
+            watch_probe_invariant_violations: metrics.watch_probe_invariant_violations,
+            watch_preservation_evaluable: metrics.watch_preservation_evaluable,
+            watch_evidence_preserved: metrics.watch_evidence_preserved,
+            watch_preservation_mismatches: metrics.watch_preservation_mismatches,
+            watch_exact_parity_evaluable: metrics.watch_exact_parity_evaluable,
+            watch_exact_parity: metrics.watch_exact_parity,
             candidate_count_truncated: metrics.candidate_count_truncated,
             parity_evaluable: metrics.parity_evaluable,
             plan_parity: metrics.plan_parity,
@@ -1090,6 +1115,10 @@ pub enum SentenceEdgeSignatureDirectShadowStopReasonReport {
     FragmentVetoPairVisitLimit,
     FragmentVetoSimilarityComparisonLimit,
     FragmentVetoIncomplete,
+    WatchProbePairLimit,
+    WatchProbeSimilarityComparisonLimit,
+    WatchProbeInvariantViolation,
+    WatchDiagnosticsMismatch,
     AllocationFailure,
     CounterOverflow,
     ProductionTraversalIncomplete,
@@ -1185,6 +1214,10 @@ impl From<SentenceEdgeSignatureDirectShadowStopReason>
                 Self::FragmentVetoSimilarityComparisonLimit
             }
             Core::FragmentVetoIncomplete => Self::FragmentVetoIncomplete,
+            Core::WatchProbePairLimit => Self::WatchProbePairLimit,
+            Core::WatchProbeSimilarityComparisonLimit => Self::WatchProbeSimilarityComparisonLimit,
+            Core::WatchProbeInvariantViolation => Self::WatchProbeInvariantViolation,
+            Core::WatchDiagnosticsMismatch => Self::WatchDiagnosticsMismatch,
             Core::AllocationFailure => Self::AllocationFailure,
             Core::CounterOverflow => Self::CounterOverflow,
             Core::ProductionTraversalIncomplete => Self::ProductionTraversalIncomplete,
@@ -4284,6 +4317,16 @@ fn validate_sentence_edge_signature_direct_shadow_metrics(
             shadow.fragment_veto_similarity_comparisons_examined,
             shadow.fragment_veto_similarity_comparisons_attempted,
         ),
+        (
+            "watch-probe pairs",
+            shadow.watch_probe_pairs_examined,
+            shadow.watch_probe_pairs_attempted,
+        ),
+        (
+            "watch-probe similarity comparisons",
+            shadow.watch_probe_similarity_comparisons_examined,
+            shadow.watch_probe_similarity_comparisons_attempted,
+        ),
     ] {
         if examined > attempted {
             return Err(format!(
@@ -4349,6 +4392,74 @@ fn validate_sentence_edge_signature_direct_shadow_metrics(
             "complete sentence-edge signature direct shadow has a mismatching plan".to_owned(),
         );
     }
+    if shadow.watch_probe_missing_signature_candidates != shadow.watch_probe_pairs_examined {
+        return Err(
+            "sentence-edge signature direct shadow watch-probe missing candidates differ from examined pairs"
+                .to_owned(),
+        );
+    }
+    if shadow.watch_probe_invariant_violations > shadow.watch_probe_missing_signature_candidates {
+        return Err(
+            "sentence-edge signature direct shadow watch-probe invariant violations exceed missing candidates"
+                .to_owned(),
+        );
+    }
+    if shadow.complete && shadow.watch_probe_invariant_violations != 0 {
+        return Err(
+            "complete sentence-edge signature direct shadow has watch-probe invariant violations"
+                .to_owned(),
+        );
+    }
+    if shadow.watch_evidence_preserved && !shadow.watch_preservation_evaluable {
+        return Err(
+            "sentence-edge signature direct shadow reports watch preservation without evaluation"
+                .to_owned(),
+        );
+    }
+    if !matches!(
+        (
+            shadow.watch_preservation_evaluable,
+            shadow.watch_evidence_preserved,
+            shadow.watch_preservation_mismatches,
+        ),
+        (false, false, 0) | (true, true, 0) | (true, false, 1)
+    ) {
+        return Err(
+            "sentence-edge signature direct shadow watch preservation fields are inconsistent"
+                .to_owned(),
+        );
+    }
+    if shadow.watch_exact_parity && !shadow.watch_exact_parity_evaluable {
+        return Err(
+            "sentence-edge signature direct shadow reports exact watch parity without evaluation"
+                .to_owned(),
+        );
+    }
+    if shadow.watch_exact_parity_evaluable && !shadow.parity_evaluable {
+        return Err(
+            "sentence-edge signature direct shadow exact watch parity requires plan parity evaluation"
+                .to_owned(),
+        );
+    }
+    if shadow.watch_exact_parity && !shadow.watch_evidence_preserved {
+        return Err(
+            "sentence-edge signature direct shadow exact watch parity lacks preserved evidence"
+                .to_owned(),
+        );
+    }
+    if shadow.complete && (!shadow.watch_preservation_evaluable || !shadow.watch_evidence_preserved)
+    {
+        return Err(
+            "complete sentence-edge signature direct shadow did not preserve watch evidence"
+                .to_owned(),
+        );
+    }
+    if shadow.complete && shadow.watch_exact_parity_evaluable && !shadow.watch_exact_parity {
+        return Err(
+            "complete sentence-edge signature direct shadow has mismatching exact watch diagnostics"
+                .to_owned(),
+        );
+    }
     if shadow.parity_evaluable
         && (!metrics.near_relation_complete || !metrics.sentence_edge_filter_complete)
     {
@@ -4380,6 +4491,9 @@ fn validate_sentence_edge_signature_direct_shadow_metrics(
         shadow.fragment_veto_pair_visits_examined < shadow.fragment_veto_pair_visits_attempted,
         shadow.fragment_veto_similarity_comparisons_examined
             < shadow.fragment_veto_similarity_comparisons_attempted,
+        shadow.watch_probe_pairs_examined < shadow.watch_probe_pairs_attempted,
+        shadow.watch_probe_similarity_comparisons_examined
+            < shadow.watch_probe_similarity_comparisons_attempted,
     ];
     let only_deficit = |indices: &[usize]| {
         deficits
@@ -4430,6 +4544,21 @@ fn validate_sentence_edge_signature_direct_shadow_metrics(
         ) => only_deficit(&[14]),
         Some(SentenceEdgeSignatureDirectShadowStopReason::FragmentVetoIncomplete) => {
             only_deficit(&[])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::WatchProbePairLimit) => {
+            only_deficit(&[15])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::WatchProbeSimilarityComparisonLimit) => {
+            only_deficit(&[16])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::WatchProbeInvariantViolation) => {
+            only_deficit(&[]) && shadow.watch_probe_invariant_violations > 0
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::WatchDiagnosticsMismatch) => {
+            only_deficit(&[])
+                && shadow.watch_preservation_evaluable
+                && !shadow.watch_evidence_preserved
+                && shadow.watch_preservation_mismatches == 1
         }
         Some(SentenceEdgeSignatureDirectShadowStopReason::CandidateCountLimit) => {
             !deficits.iter().any(|deficit| *deficit) && shadow.candidate_count_truncated
@@ -5497,7 +5626,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 30;
+    pub const SCHEMA_VERSION: u32 = 31;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -6761,7 +6890,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 30);
+        assert_eq!(completed["schema_version"], 31);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -6804,7 +6933,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 30);
+        assert_eq!(legacy_summary["schema_version"], 31);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -7808,6 +7937,10 @@ mod tests {
                         parity_evaluable: true,
                         verification_evaluable: true,
                         plan_parity: true,
+                        watch_preservation_evaluable: true,
+                        watch_evidence_preserved: true,
+                        watch_exact_parity_evaluable: true,
+                        watch_exact_parity: true,
                         ..SentenceEdgeSignatureDirectShadowMetricsReport::default()
                     },
                 ),
@@ -8014,7 +8147,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 30);
+        assert_eq!(json["schema_version"], 31);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -9253,6 +9386,15 @@ mod tests {
             downstream_pair_visits_attempted: 2,
             downstream_similarity_comparisons_examined: 4,
             downstream_similarity_comparisons_attempted: 4,
+            watch_probe_pairs_examined: 2,
+            watch_probe_pairs_attempted: 2,
+            watch_probe_similarity_comparisons_examined: 4,
+            watch_probe_similarity_comparisons_attempted: 4,
+            watch_probe_missing_signature_candidates: 2,
+            watch_preservation_evaluable: true,
+            watch_evidence_preserved: true,
+            watch_exact_parity_evaluable: true,
+            watch_exact_parity: true,
             parity_evaluable: true,
             plan_parity: true,
             ..SentenceEdgeSignatureDirectShadowMetrics::default()
@@ -9342,6 +9484,17 @@ mod tests {
             "fragment_veto_pair_visits_attempted",
             "fragment_veto_similarity_comparisons_examined",
             "fragment_veto_similarity_comparisons_attempted",
+            "watch_probe_pairs_examined",
+            "watch_probe_pairs_attempted",
+            "watch_probe_similarity_comparisons_examined",
+            "watch_probe_similarity_comparisons_attempted",
+            "watch_probe_missing_signature_candidates",
+            "watch_probe_invariant_violations",
+            "watch_preservation_evaluable",
+            "watch_evidence_preserved",
+            "watch_preservation_mismatches",
+            "watch_exact_parity_evaluable",
+            "watch_exact_parity",
             "candidate_count_truncated",
             "parity_evaluable",
             "plan_parity",
@@ -9394,6 +9547,46 @@ mod tests {
                 signature_index_largest_posting: 6,
                 ..shadow
             },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                watch_probe_missing_signature_candidates: 1,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                watch_probe_invariant_violations: 3,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                watch_probe_invariant_violations: 1,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                watch_preservation_evaluable: false,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                parity_evaluable: false,
+                plan_parity: false,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                watch_evidence_preserved: false,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                watch_preservation_mismatches: 2,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                watch_exact_parity_evaluable: false,
+                ..shadow
+            },
+            SentenceEdgeSignatureDirectShadowMetrics {
+                watch_preservation_evaluable: false,
+                watch_evidence_preserved: false,
+                watch_exact_parity_evaluable: false,
+                watch_exact_parity: false,
+                ..shadow
+            },
         ] {
             assert!(
                 validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
@@ -9414,12 +9607,33 @@ mod tests {
             signature_candidate_union_attempted: shadow.direct_candidates + 1,
             parity_evaluable: false,
             plan_parity: false,
+            watch_preservation_evaluable: false,
+            watch_evidence_preserved: false,
+            watch_exact_parity_evaluable: false,
+            watch_exact_parity: false,
             ..shadow
         };
         assert!(
             validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
                 sentence_edge_signature_direct_shadow: Some(incomplete),
                 near_relation_complete: true,
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .is_ok()
+        );
+
+        let preserved_legacy_incomplete = SentenceEdgeSignatureDirectShadowMetrics {
+            parity_evaluable: false,
+            plan_parity: false,
+            watch_exact_parity_evaluable: false,
+            watch_exact_parity: false,
+            ..shadow
+        };
+        assert!(
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                sentence_edge_signature_direct_shadow: Some(preserved_legacy_incomplete),
+                near_relation_complete: false,
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -9446,6 +9660,10 @@ mod tests {
                 stopped.stop_reason = Some(Stop::$reason);
                 stopped.parity_evaluable = false;
                 stopped.plan_parity = false;
+                stopped.watch_preservation_evaluable = false;
+                stopped.watch_evidence_preserved = false;
+                stopped.watch_exact_parity_evaluable = false;
+                stopped.watch_exact_parity = false;
                 stopped.$attempted = stopped.$examined + 1;
                 assert!(validates(stopped).is_ok(), stringify!($reason));
 
@@ -9528,13 +9746,54 @@ mod tests {
             fragment_veto_similarity_comparisons_examined,
             fragment_veto_similarity_comparisons_attempted
         );
+        resource_stop_case!(
+            WatchProbePairLimit,
+            watch_probe_pairs_examined,
+            watch_probe_pairs_attempted
+        );
+        resource_stop_case!(
+            WatchProbeSimilarityComparisonLimit,
+            watch_probe_similarity_comparisons_examined,
+            watch_probe_similarity_comparisons_attempted
+        );
 
         let mut fragment_incomplete = valid_sentence_edge_signature_direct_shadow();
         fragment_incomplete.complete = false;
         fragment_incomplete.stop_reason = Some(Stop::FragmentVetoIncomplete);
         fragment_incomplete.parity_evaluable = false;
         fragment_incomplete.plan_parity = false;
+        fragment_incomplete.watch_preservation_evaluable = false;
+        fragment_incomplete.watch_evidence_preserved = false;
+        fragment_incomplete.watch_exact_parity_evaluable = false;
+        fragment_incomplete.watch_exact_parity = false;
         assert!(validates(fragment_incomplete).is_ok());
+
+        let mut watch_invariant = valid_sentence_edge_signature_direct_shadow();
+        watch_invariant.complete = false;
+        watch_invariant.stop_reason = Some(Stop::WatchProbeInvariantViolation);
+        watch_invariant.watch_probe_invariant_violations = 1;
+        watch_invariant.parity_evaluable = false;
+        watch_invariant.plan_parity = false;
+        watch_invariant.watch_preservation_evaluable = false;
+        watch_invariant.watch_evidence_preserved = false;
+        watch_invariant.watch_exact_parity_evaluable = false;
+        watch_invariant.watch_exact_parity = false;
+        assert!(validates(watch_invariant).is_ok());
+        watch_invariant.watch_probe_invariant_violations = 0;
+        assert!(validates(watch_invariant).is_err());
+
+        let mut watch_mismatch = valid_sentence_edge_signature_direct_shadow();
+        watch_mismatch.complete = false;
+        watch_mismatch.stop_reason = Some(Stop::WatchDiagnosticsMismatch);
+        watch_mismatch.parity_evaluable = false;
+        watch_mismatch.plan_parity = false;
+        watch_mismatch.watch_evidence_preserved = false;
+        watch_mismatch.watch_preservation_mismatches = 1;
+        watch_mismatch.watch_exact_parity_evaluable = false;
+        watch_mismatch.watch_exact_parity = false;
+        assert!(validates(watch_mismatch).is_ok());
+        watch_mismatch.watch_preservation_evaluable = false;
+        assert!(validates(watch_mismatch).is_err());
 
         let mut candidate_count = valid_sentence_edge_signature_direct_shadow();
         candidate_count.complete = false;
@@ -9542,6 +9801,10 @@ mod tests {
         candidate_count.candidate_count_truncated = true;
         candidate_count.parity_evaluable = false;
         candidate_count.plan_parity = false;
+        candidate_count.watch_preservation_evaluable = false;
+        candidate_count.watch_evidence_preserved = false;
+        candidate_count.watch_exact_parity_evaluable = false;
+        candidate_count.watch_exact_parity = false;
         assert!(validates(candidate_count).is_ok());
         candidate_count.candidate_count_truncated = false;
         assert!(validates(candidate_count).is_err());
@@ -9552,6 +9815,10 @@ mod tests {
         truncated_pair_stop.candidate_count_truncated = true;
         truncated_pair_stop.parity_evaluable = false;
         truncated_pair_stop.plan_parity = false;
+        truncated_pair_stop.watch_preservation_evaluable = false;
+        truncated_pair_stop.watch_evidence_preserved = false;
+        truncated_pair_stop.watch_exact_parity_evaluable = false;
+        truncated_pair_stop.watch_exact_parity = false;
         truncated_pair_stop.downstream_pair_visits_attempted += 1;
         assert!(validates(truncated_pair_stop).is_ok());
 
@@ -9560,6 +9827,10 @@ mod tests {
         downstream_with_upstream_deficit.stop_reason = Some(Stop::PairVisitLimit);
         downstream_with_upstream_deficit.parity_evaluable = false;
         downstream_with_upstream_deficit.plan_parity = false;
+        downstream_with_upstream_deficit.watch_preservation_evaluable = false;
+        downstream_with_upstream_deficit.watch_evidence_preserved = false;
+        downstream_with_upstream_deficit.watch_exact_parity_evaluable = false;
+        downstream_with_upstream_deficit.watch_exact_parity = false;
         downstream_with_upstream_deficit.downstream_pair_visits_attempted += 1;
         downstream_with_upstream_deficit.signature_queries_attempted += 1;
         assert!(validates(downstream_with_upstream_deficit).is_err());
@@ -9702,6 +9973,16 @@ mod tests {
                 "fragment_veto_similarity_comparison_limit",
             ),
             (Stop::FragmentVetoIncomplete, "fragment_veto_incomplete"),
+            (Stop::WatchProbePairLimit, "watch_probe_pair_limit"),
+            (
+                Stop::WatchProbeSimilarityComparisonLimit,
+                "watch_probe_similarity_comparison_limit",
+            ),
+            (
+                Stop::WatchProbeInvariantViolation,
+                "watch_probe_invariant_violation",
+            ),
+            (Stop::WatchDiagnosticsMismatch, "watch_diagnostics_mismatch"),
             (Stop::AllocationFailure, "allocation_failure"),
             (Stop::CounterOverflow, "counter_overflow"),
             (
@@ -10713,7 +10994,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 30);
+        assert_eq!(value["schema_version"], 31);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

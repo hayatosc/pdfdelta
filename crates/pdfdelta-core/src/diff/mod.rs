@@ -608,6 +608,10 @@ pub enum SentenceEdgeSignatureDirectShadowStopReason {
     FragmentVetoPairVisitLimit,
     FragmentVetoSimilarityComparisonLimit,
     FragmentVetoIncomplete,
+    WatchProbePairLimit,
+    WatchProbeSimilarityComparisonLimit,
+    WatchProbeInvariantViolation,
+    WatchDiagnosticsMismatch,
     AllocationFailure,
     CounterOverflow,
     ProductionTraversalIncomplete,
@@ -678,6 +682,23 @@ pub struct SentenceEdgeSignatureDirectShadowMetrics {
     pub fragment_veto_pair_visits_attempted: usize,
     pub fragment_veto_similarity_comparisons_examined: usize,
     pub fragment_veto_similarity_comparisons_attempted: usize,
+    pub watch_probe_pairs_examined: usize,
+    pub watch_probe_pairs_attempted: usize,
+    pub watch_probe_similarity_comparisons_examined: usize,
+    pub watch_probe_similarity_comparisons_attempted: usize,
+    pub watch_probe_missing_signature_candidates: usize,
+    pub watch_probe_invariant_violations: usize,
+    /// Whether the Direct replay completed enough work to prove that it kept
+    /// every fixed watch observation from the accepted recovery.
+    pub watch_preservation_evaluable: bool,
+    /// Whether Direct retained all fixed evidence. Incomplete accepted
+    /// diagnostics may gain new near evidence without failing preservation.
+    pub watch_evidence_preserved: bool,
+    pub watch_preservation_mismatches: usize,
+    /// Whether the accepted recovery was complete enough to require identical
+    /// watch diagnostics instead of fixed-evidence containment.
+    pub watch_exact_parity_evaluable: bool,
+    pub watch_exact_parity: bool,
     pub candidate_count_truncated: bool,
     pub parity_evaluable: bool,
     pub plan_parity: bool,

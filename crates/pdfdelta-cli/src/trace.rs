@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 19;
+const TRACE_SCHEMA_VERSION: u8 = 20;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -1488,6 +1488,16 @@ fn pipeline_metrics(
                     FragmentVetoSimilarityComparisonLimit
                 ),
                 ("fragment_veto_incomplete", FragmentVetoIncomplete),
+                ("watch_probe_pair_limit", WatchProbePairLimit),
+                (
+                    "watch_probe_similarity_comparison_limit",
+                    WatchProbeSimilarityComparisonLimit
+                ),
+                (
+                    "watch_probe_invariant_violation",
+                    WatchProbeInvariantViolation
+                ),
+                ("watch_diagnostics_mismatch", WatchDiagnosticsMismatch),
                 ("allocation_failure", AllocationFailure),
                 ("counter_overflow", CounterOverflow),
                 (
@@ -1570,6 +1580,13 @@ fn pipeline_metrics(
                 fragment_veto_pair_visits_attempted,
                 fragment_veto_similarity_comparisons_examined,
                 fragment_veto_similarity_comparisons_attempted,
+                watch_probe_pairs_examined,
+                watch_probe_pairs_attempted,
+                watch_probe_similarity_comparisons_examined,
+                watch_probe_similarity_comparisons_attempted,
+                watch_probe_missing_signature_candidates,
+                watch_probe_invariant_violations,
+                watch_preservation_mismatches,
                 retained_pair_misses,
                 retained_pair_count_mismatches,
                 retained_pair_set_mismatches,
@@ -1591,6 +1608,22 @@ fn pipeline_metrics(
                 (
                     "sentence_recovery_sentence_edge_signature_direct_shadow_verification_evaluable",
                     usize::from(shadow.verification_evaluable),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_signature_direct_shadow_watch_preservation_evaluable",
+                    usize::from(shadow.watch_preservation_evaluable),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_signature_direct_shadow_watch_evidence_preserved",
+                    usize::from(shadow.watch_evidence_preserved),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_signature_direct_shadow_watch_exact_parity_evaluable",
+                    usize::from(shadow.watch_exact_parity_evaluable),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_signature_direct_shadow_watch_exact_parity",
+                    usize::from(shadow.watch_exact_parity),
                 ),
             ]);
         }
@@ -1792,8 +1825,8 @@ mod tests {
     use super::{TRACE_SCHEMA_VERSION, bounded_message, pipeline_metrics};
 
     #[test]
-    fn trace_schema_version_covers_sentence_edge_signature_reference_oracle_metrics() {
-        assert_eq!(TRACE_SCHEMA_VERSION, 19);
+    fn trace_schema_version_covers_sentence_edge_signature_watch_probe_metrics() {
+        assert_eq!(TRACE_SCHEMA_VERSION, 20);
     }
 
     #[test]
@@ -2510,6 +2543,10 @@ mod tests {
             parity_evaluable: true,
             plan_parity: true,
             verification_evaluable: true,
+            watch_preservation_evaluable: true,
+            watch_evidence_preserved: true,
+            watch_exact_parity_evaluable: true,
+            watch_exact_parity: true,
             ..SentenceEdgeSignatureDirectShadowMetrics::default()
         };
         let mut value = 0usize;
@@ -2577,6 +2614,13 @@ mod tests {
             fragment_veto_pair_visits_attempted,
             fragment_veto_similarity_comparisons_examined,
             fragment_veto_similarity_comparisons_attempted,
+            watch_probe_pairs_examined,
+            watch_probe_pairs_attempted,
+            watch_probe_similarity_comparisons_examined,
+            watch_probe_similarity_comparisons_attempted,
+            watch_probe_missing_signature_candidates,
+            watch_probe_invariant_violations,
+            watch_preservation_mismatches,
             retained_pair_misses,
             retained_pair_count_mismatches,
             retained_pair_set_mismatches,
@@ -2663,6 +2707,13 @@ mod tests {
             fragment_veto_pair_visits_attempted,
             fragment_veto_similarity_comparisons_examined,
             fragment_veto_similarity_comparisons_attempted,
+            watch_probe_pairs_examined,
+            watch_probe_pairs_attempted,
+            watch_probe_similarity_comparisons_examined,
+            watch_probe_similarity_comparisons_attempted,
+            watch_probe_missing_signature_candidates,
+            watch_probe_invariant_violations,
+            watch_preservation_mismatches,
             retained_pair_misses,
             retained_pair_count_mismatches,
             retained_pair_set_mismatches,
@@ -2674,6 +2725,10 @@ mod tests {
             "parity_evaluable",
             "plan_parity",
             "verification_evaluable",
+            "watch_preservation_evaluable",
+            "watch_evidence_preserved",
+            "watch_exact_parity_evaluable",
+            "watch_exact_parity",
         ] {
             let key = format!("sentence_recovery_sentence_edge_signature_direct_shadow_{field}");
             assert_eq!(metrics[key.as_str()], 1);
@@ -2684,7 +2739,7 @@ mod tests {
                 .filter(|name| name
                     .starts_with("sentence_recovery_sentence_edge_signature_direct_shadow_"))
                 .count(),
-            value + 5 + 20
+            value + 9 + 24
         );
     }
 
@@ -2747,6 +2802,16 @@ mod tests {
                 "fragment_veto_similarity_comparison_limit",
             ),
             (Stop::FragmentVetoIncomplete, "fragment_veto_incomplete"),
+            (Stop::WatchProbePairLimit, "watch_probe_pair_limit"),
+            (
+                Stop::WatchProbeSimilarityComparisonLimit,
+                "watch_probe_similarity_comparison_limit",
+            ),
+            (
+                Stop::WatchProbeInvariantViolation,
+                "watch_probe_invariant_violation",
+            ),
+            (Stop::WatchDiagnosticsMismatch, "watch_diagnostics_mismatch"),
             (Stop::AllocationFailure, "allocation_failure"),
             (Stop::CounterOverflow, "counter_overflow"),
             (
@@ -3013,6 +3078,43 @@ mod tests {
         assert!(!absent.keys().any(|name| {
             name.starts_with("sentence_recovery_sentence_edge_signature_reference_oracle_")
         }));
+    }
+
+    #[test]
+    fn preserves_direct_watch_probe_counter_deficits() {
+        let metrics = pipeline_metrics(
+            PipelineMetrics {
+                sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
+                    sentence_edge_signature_direct_shadow: Some(
+                        SentenceEdgeSignatureDirectShadowMetrics {
+                            watch_probe_pairs_examined: 3,
+                            watch_probe_pairs_attempted: 5,
+                            watch_probe_similarity_comparisons_examined: 7,
+                            watch_probe_similarity_comparisons_attempted: 11,
+                            watch_probe_missing_signature_candidates: 13,
+                            watch_probe_invariant_violations: 17,
+                            watch_preservation_mismatches: 19,
+                            ..SentenceEdgeSignatureDirectShadowMetrics::default()
+                        },
+                    ),
+                    ..SentenceRecoveryMetrics::default()
+                }),
+                ..PipelineMetrics::default()
+            },
+            None,
+        );
+        let prefix = "sentence_recovery_sentence_edge_signature_direct_shadow_";
+        for (field, expected) in [
+            ("watch_probe_pairs_examined", 3),
+            ("watch_probe_pairs_attempted", 5),
+            ("watch_probe_similarity_comparisons_examined", 7),
+            ("watch_probe_similarity_comparisons_attempted", 11),
+            ("watch_probe_missing_signature_candidates", 13),
+            ("watch_probe_invariant_violations", 17),
+            ("watch_preservation_mismatches", 19),
+        ] {
+            assert_eq!(metrics[format!("{prefix}{field}").as_str()], expected);
+        }
     }
 
     #[test]

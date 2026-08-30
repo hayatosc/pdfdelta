@@ -753,6 +753,8 @@ struct RecoveryWatchState {
     granular_stop_reason: Option<RecoveryWatchGranularStopReason>,
     records: Vec<RecoveryWatchStateRecord>,
     pair_by_occurrences: HashMap<(usize, usize), Vec<usize>>,
+    old_pair_partners: HashMap<usize, Vec<usize>>,
+    new_pair_partners: HashMap<usize, Vec<usize>>,
     scan_work: usize,
     scan_limit: usize,
     retained_one_sided_occurrences: usize,
@@ -771,6 +773,19 @@ struct RecoveryWatchLookup {
     occurrence_index: Option<usize>,
     span_index: Option<usize>,
     segment_key: Option<RecoverySegmentKey>,
+}
+
+fn push_unique_watch_partner(
+    partners: &mut HashMap<usize, Vec<usize>>,
+    occurrence: usize,
+    partner: usize,
+) -> Option<()> {
+    let values = partners.entry(occurrence).or_default();
+    if !values.contains(&partner) {
+        values.try_reserve(1).ok()?;
+        values.push(partner);
+    }
+    Some(())
 }
 
 impl RecoveryWatchLookup {
@@ -2331,6 +2346,8 @@ impl RecoveryWatchState {
             granular_stop_reason: None,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
+            old_pair_partners: HashMap::new(),
+            new_pair_partners: HashMap::new(),
             scan_work: 0,
             scan_limit: context.max_tokens.checked_mul(16)?,
             retained_one_sided_occurrences: 0,
@@ -2338,6 +2355,8 @@ impl RecoveryWatchState {
         let mut granular_budget = GranularDiagnosticBudget::default();
         state.records.try_reserve_exact(processed).ok()?;
         state.pair_by_occurrences.try_reserve(processed).ok()?;
+        state.old_pair_partners.try_reserve(processed).ok()?;
+        state.new_pair_partners.try_reserve(processed).ok()?;
         for query in queries.iter().take(processed) {
             let paired = query.old_quote.is_some() && query.new_quote.is_some();
             let valid = query.old_quote.is_some() || query.new_quote.is_some();
@@ -2510,6 +2529,8 @@ impl RecoveryWatchState {
                 let indices = state.pair_by_occurrences.entry((old, new)).or_default();
                 indices.try_reserve(1).ok()?;
                 indices.push(index);
+                push_unique_watch_partner(&mut state.old_pair_partners, old, new)?;
+                push_unique_watch_partner(&mut state.new_pair_partners, new, old)?;
             }
         }
         Some(state)
@@ -3055,6 +3076,27 @@ impl RecoveryWatchState {
             pair.near_score = Some(score);
             pair.near_scope = Some(scope);
         }
+    }
+
+    fn partners(&self, side: OccurrenceSide, occurrence: usize) -> &[usize] {
+        match side {
+            OccurrenceSide::Old => self.old_pair_partners.get(&occurrence),
+            OccurrenceSide::New => self.new_pair_partners.get(&occurrence),
+        }
+        .map_or(&[], Vec::as_slice)
+    }
+
+    fn near_was_examined(&self, old_occurrence: usize, new_occurrence: usize) -> bool {
+        self.pair_by_occurrences
+            .get(&(old_occurrence, new_occurrence))
+            .into_iter()
+            .flatten()
+            .any(|index| {
+                self.records
+                    .get(*index)
+                    .and_then(|record| record.output.pair.as_ref())
+                    .is_some_and(|pair| pair.near_candidate_examined)
+            })
     }
 
     fn record_relations(
@@ -4110,6 +4152,95 @@ fn collect_unit_candidates_unless_direct(
         budget,
         scope,
     )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn probe_direct_watch_pairs(
+    watch: Option<&mut RecoveryWatchState>,
+    budget: &mut RecoveryBudget,
+    legacy_index: &UnitCandidateIndex,
+    query_side: OccurrenceSide,
+    query_occurrence_index: usize,
+    query: &SentenceOccurrence,
+    candidates: &[SentenceOccurrence],
+    signature_candidates: &[usize],
+    bucket: CandidatePostingBucket,
+    additional_bucket: Option<CandidatePostingBucket>,
+    near_scope: RecoveryWatchNearScope,
+    mut include: impl FnMut(usize) -> bool,
+) -> Option<()> {
+    if budget.sentence_edge_signature_filter_mode != SentenceEdgeSignatureFilterMode::Direct
+        || query.kind != RecoveryUnitKind::Sentence
+    {
+        return Some(());
+    }
+    let Some(watch) = watch else {
+        return Some(());
+    };
+    let mut partners = Vec::new();
+    let watched = watch.partners(query_side, query_occurrence_index);
+    if partners.try_reserve_exact(watched.len()).is_err() {
+        budget
+            .watch_probe_stop_reason
+            .get_or_insert(SentenceEdgeSignatureDirectShadowStopReason::AllocationFailure);
+        return None;
+    }
+    partners.extend_from_slice(watched);
+    for candidate_index in partners {
+        let (old_occurrence_index, new_occurrence_index) = match query_side {
+            OccurrenceSide::Old => (query_occurrence_index, candidate_index),
+            OccurrenceSide::New => (candidate_index, query_occurrence_index),
+        };
+        if signature_candidates.binary_search(&candidate_index).is_ok()
+            || watch.near_was_examined(old_occurrence_index, new_occurrence_index)
+            || !include(candidate_index)
+            || !legacy_index.contains_sentence_edge_candidate(
+                query,
+                candidate_index,
+                bucket,
+                additional_bucket,
+            )
+        {
+            continue;
+        }
+        if !budget.charge_watch_probe_pair() {
+            return None;
+        }
+        let Some(missing) = budget
+            .watch_probe_missing_signature_candidates
+            .checked_add(1)
+        else {
+            budget
+                .watch_probe_stop_reason
+                .get_or_insert(SentenceEdgeSignatureDirectShadowStopReason::CounterOverflow);
+            return None;
+        };
+        budget.watch_probe_missing_signature_candidates = missing;
+        let candidate = candidates.get(candidate_index)?;
+        let evidence = cached_sentence_edge_evidence(query, candidate, || {
+            budget.charge_watch_probe_comparison()
+        })?;
+        if evidence.edge_score() >= MIN_WORD_SCORE_EDGE_EVIDENCE {
+            let Some(violations) = budget.watch_probe_invariant_violations.checked_add(1) else {
+                budget
+                    .watch_probe_stop_reason
+                    .get_or_insert(SentenceEdgeSignatureDirectShadowStopReason::CounterOverflow);
+                return None;
+            };
+            budget.watch_probe_invariant_violations = violations;
+            budget.watch_probe_stop_reason.get_or_insert(
+                SentenceEdgeSignatureDirectShadowStopReason::WatchProbeInvariantViolation,
+            );
+            return None;
+        }
+        watch.record_near(
+            old_occurrence_index,
+            new_occurrence_index,
+            evidence.edge_score(),
+            near_scope,
+        );
+    }
+    Some(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -5721,6 +5852,15 @@ pub(super) struct RecoveryBudget {
     signature_exact_recheck_limit: usize,
     signature_exact_recheck_comparison_limit: usize,
     signature_exact_recheck_stop_reason: Option<SentenceEdgeSignatureDirectShadowStopReason>,
+    watch_probe_pairs: usize,
+    watch_probe_pairs_attempted: usize,
+    watch_probe_comparisons: usize,
+    watch_probe_comparisons_attempted: usize,
+    watch_probe_pair_limit: usize,
+    watch_probe_comparison_limit: usize,
+    watch_probe_missing_signature_candidates: usize,
+    watch_probe_invariant_violations: usize,
+    watch_probe_stop_reason: Option<SentenceEdgeSignatureDirectShadowStopReason>,
     candidate_posting_visits: usize,
     candidate_posting_visits_attempted: usize,
     sentence_work: NearSearchWorkMetrics,
@@ -5793,6 +5933,15 @@ impl RecoveryBudget {
             signature_exact_recheck_limit: scaled_limit,
             signature_exact_recheck_comparison_limit: scaled_limit,
             signature_exact_recheck_stop_reason: None,
+            watch_probe_pairs: 0,
+            watch_probe_pairs_attempted: 0,
+            watch_probe_comparisons: 0,
+            watch_probe_comparisons_attempted: 0,
+            watch_probe_pair_limit: MAX_RECOVERY_WATCH_QUERIES,
+            watch_probe_comparison_limit: scaled_limit,
+            watch_probe_missing_signature_candidates: 0,
+            watch_probe_invariant_violations: 0,
+            watch_probe_stop_reason: None,
             candidate_posting_visits: 0,
             candidate_posting_visits_attempted: 0,
             sentence_work: NearSearchWorkMetrics::default(),
@@ -5840,6 +5989,50 @@ impl RecoveryBudget {
             return false;
         }
         self.charge_sentence_edge_filter_work(true, SentenceEdgeFilterStopReason::PairVisitLimit)
+    }
+
+    fn charge_watch_probe_pair(&mut self) -> bool {
+        Self::charge_direct_watch_probe(
+            &mut self.watch_probe_pairs,
+            &mut self.watch_probe_pairs_attempted,
+            self.watch_probe_pair_limit,
+            &mut self.watch_probe_stop_reason,
+            SentenceEdgeSignatureDirectShadowStopReason::WatchProbePairLimit,
+        )
+    }
+
+    fn charge_watch_probe_comparison(&mut self) -> bool {
+        Self::charge_direct_watch_probe(
+            &mut self.watch_probe_comparisons,
+            &mut self.watch_probe_comparisons_attempted,
+            self.watch_probe_comparison_limit,
+            &mut self.watch_probe_stop_reason,
+            SentenceEdgeSignatureDirectShadowStopReason::WatchProbeSimilarityComparisonLimit,
+        )
+    }
+
+    fn charge_direct_watch_probe(
+        examined: &mut usize,
+        attempted: &mut usize,
+        limit: usize,
+        stop_reason: &mut Option<SentenceEdgeSignatureDirectShadowStopReason>,
+        limit_reason: SentenceEdgeSignatureDirectShadowStopReason,
+    ) -> bool {
+        let Some(next_attempted) = attempted.checked_add(1) else {
+            stop_reason.get_or_insert(SentenceEdgeSignatureDirectShadowStopReason::CounterOverflow);
+            return false;
+        };
+        *attempted = next_attempted;
+        let Some(next_examined) = examined.checked_add(1) else {
+            stop_reason.get_or_insert(SentenceEdgeSignatureDirectShadowStopReason::CounterOverflow);
+            return false;
+        };
+        if next_examined > limit {
+            stop_reason.get_or_insert(limit_reason);
+            return false;
+        }
+        *examined = next_examined;
+        true
     }
 
     fn charge_sentence_edge_filter_comparison(&mut self) -> bool {
@@ -6452,6 +6645,16 @@ impl RecoveryBudget {
         if self.signature_exact_recheck_stop_reason.is_none() {
             self.signature_exact_recheck_stop_reason = other.signature_exact_recheck_stop_reason;
         }
+        self.watch_probe_pairs = other.watch_probe_pairs;
+        self.watch_probe_pairs_attempted = other.watch_probe_pairs_attempted;
+        self.watch_probe_comparisons = other.watch_probe_comparisons;
+        self.watch_probe_comparisons_attempted = other.watch_probe_comparisons_attempted;
+        self.watch_probe_missing_signature_candidates =
+            other.watch_probe_missing_signature_candidates;
+        self.watch_probe_invariant_violations = other.watch_probe_invariant_violations;
+        if self.watch_probe_stop_reason.is_none() {
+            self.watch_probe_stop_reason = other.watch_probe_stop_reason;
+        }
         self.largest_edge_posting = other.largest_edge_posting;
         self.largest_edge_query_union = other.largest_edge_query_union;
         self.largest_filtered_candidate_set = other.largest_filtered_candidate_set;
@@ -6780,7 +6983,7 @@ pub(super) fn build_sentence_recovery_plan(
             alignment,
             replay_input,
             max_tokens,
-            &[],
+            watch_queries,
             SentenceEdgeFilterMode::Filtered,
             SentenceEdgeSignatureFilterMode::Direct,
             None,
@@ -7251,6 +7454,128 @@ fn direct_signature_metrics_are_consistent(
         && metrics.signature_candidate_union_attempted == metrics.direct_candidates
         && rechecks == Some(metrics.exact_edge_rechecks)
         && metrics.cross_orientation_only_candidates <= metrics.exact_edge_rejected_pairs
+        && metrics.watch_probe_pairs_examined == metrics.watch_probe_pairs_attempted
+        && metrics.watch_probe_similarity_comparisons_examined
+            == metrics.watch_probe_similarity_comparisons_attempted
+        && metrics.watch_probe_missing_signature_candidates == metrics.watch_probe_pairs_examined
+        && metrics.watch_probe_invariant_violations == 0
+}
+
+fn compare_direct_watch_diagnostics(
+    metrics: &mut SentenceEdgeSignatureDirectShadowMetrics,
+    accepted: Option<&RecoveryWatchDiagnostics>,
+    replay: Option<&RecoveryWatchDiagnostics>,
+    direct_internally_complete: bool,
+    accepted_recovery_complete: bool,
+) {
+    if !direct_internally_complete {
+        return;
+    }
+    metrics.watch_preservation_evaluable = true;
+    if accepted_recovery_complete {
+        metrics.watch_exact_parity_evaluable = true;
+        metrics.watch_exact_parity = accepted == replay;
+        metrics.watch_evidence_preserved = metrics.watch_exact_parity;
+    } else {
+        metrics.watch_evidence_preserved = match (accepted, replay) {
+            (None, None) => true,
+            (Some(accepted), Some(replay)) => watch_fixed_evidence_is_preserved(accepted, replay),
+            _ => false,
+        };
+    }
+    metrics.watch_preservation_mismatches = usize::from(!metrics.watch_evidence_preserved);
+    if !metrics.watch_evidence_preserved {
+        metrics.complete = false;
+        metrics
+            .stop_reason
+            .get_or_insert(SentenceEdgeSignatureDirectShadowStopReason::WatchDiagnosticsMismatch);
+    }
+}
+
+fn watch_fixed_evidence_is_preserved(
+    accepted: &RecoveryWatchDiagnostics,
+    direct: &RecoveryWatchDiagnostics,
+) -> bool {
+    accepted.candidate_generation_complete == direct.candidate_generation_complete
+        && direct.near_relation_complete
+        && direct.near_relation_stop_reason.is_none()
+        && accepted.segment_candidates == direct.segment_candidates
+        && accepted.segment_hash_matches == direct.segment_hash_matches
+        && accepted.segment_token_verified_matches == direct.segment_token_verified_matches
+        && accepted.segment_unique_pairs == direct.segment_unique_pairs
+        && accepted.segment_duplicate_pairs == direct.segment_duplicate_pairs
+        && accepted.segment_monotone_pairs == direct.segment_monotone_pairs
+        && accepted.segment_crossing_pairs == direct.segment_crossing_pairs
+        && accepted.segment_stop_reason == direct.segment_stop_reason
+        && accepted.granular_complete == direct.granular_complete
+        && accepted.granular_old_units == direct.granular_old_units
+        && accepted.granular_new_units == direct.granular_new_units
+        && accepted.granular_pair_comparisons == direct.granular_pair_comparisons
+        && accepted.granular_stop_reason == direct.granular_stop_reason
+        && accepted.records.len() == direct.records.len()
+        && accepted
+            .records
+            .iter()
+            .zip(&direct.records)
+            .all(|(accepted, direct)| watch_record_fixed_evidence_is_preserved(accepted, direct))
+}
+
+fn watch_record_fixed_evidence_is_preserved(
+    accepted: &RecoveryWatchRecord,
+    direct: &RecoveryWatchRecord,
+) -> bool {
+    accepted.id == direct.id
+        && accepted.old == direct.old
+        && accepted.new == direct.new
+        && watch_pair_fixed_evidence_is_preserved(accepted.pair.as_ref(), direct.pair.as_ref())
+        && watch_segment_fixed_evidence_is_preserved(
+            accepted.segment_pair.as_ref(),
+            direct.segment_pair.as_ref(),
+        )
+        && accepted.granular_pair == direct.granular_pair
+}
+
+fn watch_pair_fixed_evidence_is_preserved(
+    accepted: Option<&RecoveryWatchPairEvidence>,
+    direct: Option<&RecoveryWatchPairEvidence>,
+) -> bool {
+    match (accepted, direct) {
+        (None, None) => true,
+        (Some(accepted), Some(direct)) => {
+            accepted.same_span == direct.same_span
+                && accepted.exact_shared_units == direct.exact_shared_units
+                && accepted.exact_shared_units_available == direct.exact_shared_units_available
+                && (!accepted.near_candidate_examined
+                    || (direct.near_candidate_examined && accepted.near_score == direct.near_score))
+        }
+        _ => false,
+    }
+}
+
+fn watch_segment_fixed_evidence_is_preserved(
+    accepted: Option<&RecoveryWatchSegmentPairEvidence>,
+    direct: Option<&RecoveryWatchSegmentPairEvidence>,
+) -> bool {
+    match (accepted, direct) {
+        (None, None) => true,
+        (Some(accepted), Some(direct)) => {
+            accepted.old_start_ordinal == direct.old_start_ordinal
+                && accepted.old_end_ordinal == direct.old_end_ordinal
+                && accepted.new_start_ordinal == direct.new_start_ordinal
+                && accepted.new_end_ordinal == direct.new_end_ordinal
+                && accepted.old_unit_count == direct.old_unit_count
+                && accepted.new_unit_count == direct.new_unit_count
+                && accepted.old_token_count == direct.old_token_count
+                && accepted.new_token_count == direct.new_token_count
+                && accepted.exact == direct.exact
+                && accepted.old_occurrence_count == direct.old_occurrence_count
+                && accepted.new_occurrence_count == direct.new_occurrence_count
+                && accepted.role_compatible == direct.role_compatible
+                && accepted.crossing_anchor_count == direct.crossing_anchor_count
+                && accepted.relation == direct.relation
+        }
+        _ => false,
+    }
 }
 
 fn compare_direct_retained_fingerprints(
@@ -7349,6 +7674,7 @@ fn record_sentence_edge_signature_direct_replay(
         && recovery.near_relation_complete
         && !recovery.near_candidate_count_truncated
         && replay.fragment_veto_complete;
+    let direct_internally_complete = metrics.complete;
     if !metrics.complete && metrics.stop_reason.is_none() {
         metrics.stop_reason = Some(if recovery.near_candidate_count_truncated {
             SentenceEdgeSignatureDirectShadowStopReason::CandidateCountLimit
@@ -7383,6 +7709,24 @@ fn record_sentence_edge_signature_direct_replay(
     if decision_mismatch || fingerprint_mismatch {
         metrics.complete = false;
         metrics.stop_reason = Some(SentenceEdgeSignatureDirectShadowStopReason::DiagnosticFailure);
+    }
+    compare_direct_watch_diagnostics(
+        &mut metrics,
+        accepted.watch_diagnostics.as_ref(),
+        replay.watch_diagnostics.as_ref(),
+        direct_internally_complete,
+        accepted_complete,
+    );
+    if metrics.complete
+        && (!metrics.watch_preservation_evaluable
+            || !metrics.watch_evidence_preserved
+            || (accepted_complete
+                && (!metrics.watch_exact_parity_evaluable || !metrics.watch_exact_parity)))
+    {
+        metrics.complete = false;
+        metrics
+            .stop_reason
+            .get_or_insert(SentenceEdgeSignatureDirectShadowStopReason::DiagnosticFailure);
     }
     if let Some(diagnostics) = accepted.diagnostics.as_mut() {
         diagnostics.metrics.sentence_edge_signature_direct_shadow = Some(metrics);
@@ -7887,9 +8231,14 @@ fn build_sentence_recovery_plan_inner_impl(
             });
         }
         if watch.is_some() {
+            if signature_filter_mode == SentenceEdgeSignatureFilterMode::Direct {
+                record_near_search_metrics(&mut diagnostics, &budget);
+            }
             return Ok(SentenceRecoveryBuildOutcome {
                 plan: None,
-                diagnostics: None,
+                diagnostics: (signature_filter_mode == SentenceEdgeSignatureFilterMode::Direct)
+                    .then_some(diagnostics)
+                    .flatten(),
                 watch_diagnostics: watch.map(|watch| watch.finish(None)),
                 ..SentenceRecoveryBuildOutcome::default()
             });
@@ -7956,9 +8305,14 @@ fn build_sentence_recovery_plan_inner_impl(
             });
         }
         if watch.is_some() {
+            if signature_filter_mode == SentenceEdgeSignatureFilterMode::Direct {
+                record_near_search_metrics(&mut diagnostics, &budget);
+            }
             return Ok(SentenceRecoveryBuildOutcome {
                 plan: None,
-                diagnostics: None,
+                diagnostics: (signature_filter_mode == SentenceEdgeSignatureFilterMode::Direct)
+                    .then_some(diagnostics)
+                    .flatten(),
                 watch_diagnostics: watch.map(|watch| watch.finish(None)),
                 ..SentenceRecoveryBuildOutcome::default()
             });
@@ -8159,7 +8513,19 @@ fn record_near_search_metrics(
             budget.signature_exact_recheck_comparisons_attempted;
         direct.exact_edge_retained_pairs = budget.sentence_edge_filter_pairs_retained;
         direct.exact_edge_rejected_pairs = budget.sentence_edge_filter_pairs_rejected;
+        direct.watch_probe_pairs_examined = budget.watch_probe_pairs;
+        direct.watch_probe_pairs_attempted = budget.watch_probe_pairs_attempted;
+        direct.watch_probe_similarity_comparisons_examined = budget.watch_probe_comparisons;
+        direct.watch_probe_similarity_comparisons_attempted =
+            budget.watch_probe_comparisons_attempted;
+        direct.watch_probe_missing_signature_candidates =
+            budget.watch_probe_missing_signature_candidates;
+        direct.watch_probe_invariant_violations = budget.watch_probe_invariant_violations;
         if let Some(reason) = budget.signature_exact_recheck_stop_reason {
+            direct.complete = false;
+            direct.stop_reason.get_or_insert(reason);
+        }
+        if let Some(reason) = budget.watch_probe_stop_reason {
             direct.complete = false;
             direct.stop_reason.get_or_insert(reason);
         }
@@ -10285,6 +10651,20 @@ fn paired_modified_sentence_relations_tracked(
             scope,
             |index| new_intervals.get(index).copied().flatten() == Some(interval),
         )?;
+        probe_direct_watch_pairs(
+            watch.as_deref_mut(),
+            budget,
+            &new_index,
+            OccurrenceSide::Old,
+            old_candidate.occurrence_index,
+            old_occurrence,
+            new_occurrences,
+            &plausible,
+            CandidatePostingBucket::Paired(interval),
+            None,
+            RecoveryWatchNearScope::PairedStream,
+            |index| new_intervals.get(index).copied().flatten() == Some(interval),
+        )?;
         let edge_filter = classify_sentence_edge_filter_query(
             old_occurrence,
             new_occurrences,
@@ -10417,6 +10797,23 @@ fn paired_modified_sentence_relations_tracked(
             CandidatePostingBucket::Paired(interval),
             None,
             scope,
+            |index| {
+                old_candidate_by_occurrence[index].is_none()
+                    && old_intervals.get(index).copied().flatten() == Some(interval)
+            },
+        )?;
+        probe_direct_watch_pairs(
+            watch.as_deref_mut(),
+            budget,
+            &old_index,
+            OccurrenceSide::New,
+            new_candidate.occurrence_index,
+            new_occurrence,
+            old_occurrences,
+            &plausible,
+            CandidatePostingBucket::Paired(interval),
+            None,
+            RecoveryWatchNearScope::PairedStream,
             |index| {
                 old_candidate_by_occurrence[index].is_none()
                     && old_intervals.get(index).copied().flatten() == Some(interval)
@@ -10687,6 +11084,28 @@ fn record_cross_interval_disqualifying_relations_tracked(
                     })
             },
         )?;
+        probe_direct_watch_pairs(
+            watch.as_deref_mut(),
+            budget,
+            &new_index,
+            OccurrenceSide::Old,
+            old_candidate.occurrence_index,
+            old_occurrence,
+            new_occurrences,
+            &plausible,
+            CandidatePostingBucket::PairedStream(interval.pair_index),
+            None,
+            RecoveryWatchNearScope::PairedStream,
+            |index| {
+                new_intervals
+                    .get(index)
+                    .copied()
+                    .flatten()
+                    .is_some_and(|candidate| {
+                        candidate.pair_index == interval.pair_index && candidate != interval
+                    })
+            },
+        )?;
         let edge_filter = classify_sentence_edge_filter_query(
             old_occurrence,
             new_occurrences,
@@ -10828,6 +11247,31 @@ fn record_cross_interval_disqualifying_relations_tracked(
             CandidatePostingBucket::PairedStream(interval.pair_index),
             None,
             scope,
+            |index| {
+                old_candidate_by_occurrence
+                    .get(index)
+                    .is_some_and(Option::is_none)
+                    && old_intervals
+                        .get(index)
+                        .copied()
+                        .flatten()
+                        .is_some_and(|candidate| {
+                            candidate.pair_index == interval.pair_index && candidate != interval
+                        })
+            },
+        )?;
+        probe_direct_watch_pairs(
+            watch.as_deref_mut(),
+            budget,
+            &old_index,
+            OccurrenceSide::New,
+            new_candidate.occurrence_index,
+            new_occurrence,
+            old_occurrences,
+            &plausible,
+            CandidatePostingBucket::PairedStream(interval.pair_index),
+            None,
+            RecoveryWatchNearScope::PairedStream,
             |index| {
                 old_candidate_by_occurrence
                     .get(index)
@@ -11738,6 +12182,29 @@ fn extend_modified_sentence_relations_tracked(
                 })
             },
         )?;
+        probe_direct_watch_pairs(
+            watch.as_deref_mut(),
+            budget,
+            &new_index,
+            OccurrenceSide::Old,
+            old_candidate.occurrence_index,
+            old_occurrence,
+            new_occurrences,
+            &plausible,
+            bucket,
+            additional_bucket,
+            match scope {
+                NearRelationScope::SameOrAmbiguous => RecoveryWatchNearScope::SameSpan,
+                NearRelationScope::CrossSpan => RecoveryWatchNearScope::CrossSpan,
+            },
+            |index| {
+                new_occurrences.get(index).is_some_and(|candidate| {
+                    candidate.kind == old_occurrence.kind
+                        && occurrence_roles_are_compatible(old_occurrence, candidate)
+                        && scope.includes(old_occurrence.span_index, candidate.span_index)
+                })
+            },
+        )?;
         let edge_filter = classify_sentence_edge_filter_query(
             old_occurrence,
             new_occurrences,
@@ -11934,6 +12401,32 @@ fn extend_modified_sentence_relations_tracked(
             bucket,
             additional_bucket,
             work_scope,
+            |index| {
+                old_candidate_by_occurrence
+                    .get(index)
+                    .is_some_and(Option::is_none)
+                    && old_occurrences.get(index).is_some_and(|candidate| {
+                        candidate.kind == new_occurrence.kind
+                            && occurrence_roles_are_compatible(new_occurrence, candidate)
+                            && scope.includes(new_occurrence.span_index, candidate.span_index)
+                    })
+            },
+        )?;
+        probe_direct_watch_pairs(
+            watch.as_deref_mut(),
+            budget,
+            &old_index,
+            OccurrenceSide::New,
+            new_candidate.occurrence_index,
+            new_occurrence,
+            old_occurrences,
+            &plausible,
+            bucket,
+            additional_bucket,
+            match scope {
+                NearRelationScope::SameOrAmbiguous => RecoveryWatchNearScope::SameSpan,
+                NearRelationScope::CrossSpan => RecoveryWatchNearScope::CrossSpan,
+            },
             |index| {
                 old_candidate_by_occurrence
                     .get(index)
@@ -13605,6 +14098,8 @@ mod tests {
             granular_stop_reason: None,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
+            old_pair_partners: HashMap::new(),
+            new_pair_partners: HashMap::new(),
             scan_work: 0,
             scan_limit: 0,
             retained_one_sided_occurrences: 0,
@@ -13666,6 +14161,8 @@ mod tests {
                 new_segment: None,
             }],
             pair_by_occurrences: HashMap::new(),
+            old_pair_partners: HashMap::new(),
+            new_pair_partners: HashMap::new(),
             scan_work: 0,
             scan_limit: 0,
             retained_one_sided_occurrences: 0,
@@ -13795,10 +14292,399 @@ mod tests {
             granular_stop_reason: None,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
+            old_pair_partners: HashMap::new(),
+            new_pair_partners: HashMap::new(),
             scan_work: 0,
             scan_limit: 100_000,
             retained_one_sided_occurrences: 0,
         }
+    }
+
+    fn watch_state_for_pair() -> RecoveryWatchState {
+        let mut watch = watch_state();
+        watch.records.push(RecoveryWatchStateRecord {
+            output: RecoveryWatchRecord {
+                id: "pair".to_owned(),
+                old: RecoveryWatchOccurrenceEvidence::Unfound,
+                new: RecoveryWatchOccurrenceEvidence::Unfound,
+                pair: Some(RecoveryWatchPairEvidence {
+                    same_span: true,
+                    exact_shared_units: 0,
+                    exact_shared_units_available: false,
+                    near_candidate_examined: false,
+                    near_score: None,
+                    near_scope: None,
+                    old_relation: RecoveryWatchRelation::default(),
+                    new_relation: RecoveryWatchRelation::default(),
+                    reciprocal: false,
+                }),
+                segment_pair: None,
+                granular_pair: None,
+            },
+            old_occurrence: Some(0),
+            new_occurrence: Some(0),
+            old_segment: None,
+            new_segment: None,
+        });
+        watch.pair_by_occurrences.insert((0, 0), vec![0]);
+        watch.old_pair_partners.insert(0, vec![0]);
+        watch.new_pair_partners.insert(0, vec![0]);
+        watch
+    }
+
+    fn edge_probe_occurrence(tokens: &str) -> SentenceOccurrence {
+        let mut occurrence = positioned_occurrence(tokens, 1, 0, 0);
+        occurrence.tokens = tokens.chars().map(SentenceEvidenceToken::Scalar).collect();
+        occurrence
+    }
+
+    #[test]
+    fn direct_watch_probe_restores_legacy_low_edge_evidence() {
+        let old = [edge_probe_occurrence("abcdefghij")];
+        let new = [edge_probe_occurrence("aklmnopqrs")];
+        let index = UnitCandidateIndex::new(&new, CandidatePostingIndexScope::Global)
+            .expect("candidate index builds");
+        let mut watch = watch_state_for_pair();
+        let mut budget = RecoveryBudget::new(100, 100, 1_000, 1).expect("budget builds");
+        budget.sentence_edge_signature_filter_mode = SentenceEdgeSignatureFilterMode::Direct;
+
+        probe_direct_watch_pairs(
+            Some(&mut watch),
+            &mut budget,
+            &index,
+            OccurrenceSide::Old,
+            0,
+            &old[0],
+            &new,
+            &[],
+            CandidatePostingBucket::Global,
+            None,
+            RecoveryWatchNearScope::CrossSpan,
+            |_| true,
+        )
+        .expect("low-score probe succeeds");
+
+        let pair = watch.records[0]
+            .output
+            .pair
+            .as_ref()
+            .expect("pair evidence exists");
+        assert!(pair.near_candidate_examined);
+        assert_eq!(pair.near_score, Some(1_000));
+        assert_eq!(pair.near_scope, Some(RecoveryWatchNearScope::CrossSpan));
+        assert_eq!(budget.watch_probe_pairs, 1);
+        assert_eq!(budget.watch_probe_missing_signature_candidates, 1);
+    }
+
+    #[test]
+    fn direct_watch_probe_rejects_missing_retained_signature_candidate() {
+        let old = [edge_probe_occurrence("abcdefghij")];
+        let new = [edge_probe_occurrence("abcklmnopq")];
+        let index = UnitCandidateIndex::new(&new, CandidatePostingIndexScope::Global)
+            .expect("candidate index builds");
+        let mut watch = watch_state_for_pair();
+        let mut budget = RecoveryBudget::new(100, 100, 1_000, 1).expect("budget builds");
+        budget.sentence_edge_signature_filter_mode = SentenceEdgeSignatureFilterMode::Direct;
+
+        assert!(
+            probe_direct_watch_pairs(
+                Some(&mut watch),
+                &mut budget,
+                &index,
+                OccurrenceSide::Old,
+                0,
+                &old[0],
+                &new,
+                &[],
+                CandidatePostingBucket::Global,
+                None,
+                RecoveryWatchNearScope::SameSpan,
+                |_| true,
+            )
+            .is_none()
+        );
+        assert_eq!(budget.watch_probe_invariant_violations, 1);
+        assert_eq!(
+            budget.watch_probe_stop_reason,
+            Some(SentenceEdgeSignatureDirectShadowStopReason::WatchProbeInvariantViolation)
+        );
+        assert!(
+            !watch.records[0]
+                .output
+                .pair
+                .as_ref()
+                .expect("pair evidence exists")
+                .near_candidate_examined
+        );
+    }
+
+    #[test]
+    fn direct_watch_probe_reports_pair_budget_stop() {
+        let old = [edge_probe_occurrence("abcdefghij")];
+        let new = [edge_probe_occurrence("aklmnopqrs")];
+        let index = UnitCandidateIndex::new(&new, CandidatePostingIndexScope::Global)
+            .expect("candidate index builds");
+        let mut watch = watch_state_for_pair();
+        let mut budget = RecoveryBudget::new(100, 100, 1_000, 1).expect("budget builds");
+        budget.sentence_edge_signature_filter_mode = SentenceEdgeSignatureFilterMode::Direct;
+        budget.watch_probe_pair_limit = 0;
+
+        assert!(
+            probe_direct_watch_pairs(
+                Some(&mut watch),
+                &mut budget,
+                &index,
+                OccurrenceSide::Old,
+                0,
+                &old[0],
+                &new,
+                &[],
+                CandidatePostingBucket::Global,
+                None,
+                RecoveryWatchNearScope::SameSpan,
+                |_| true,
+            )
+            .is_none()
+        );
+        assert_eq!(budget.watch_probe_pairs, 0);
+        assert_eq!(budget.watch_probe_pairs_attempted, 1);
+        assert_eq!(
+            budget.watch_probe_stop_reason,
+            Some(SentenceEdgeSignatureDirectShadowStopReason::WatchProbePairLimit)
+        );
+    }
+
+    #[test]
+    fn direct_watch_probe_reports_comparison_budget_stop() {
+        let old = [edge_probe_occurrence("abcdefghij")];
+        let new = [edge_probe_occurrence("aklmnopqrs")];
+        let index = UnitCandidateIndex::new(&new, CandidatePostingIndexScope::Global)
+            .expect("candidate index builds");
+        let mut watch = watch_state_for_pair();
+        let mut budget = RecoveryBudget::new(100, 100, 1_000, 1).expect("budget builds");
+        budget.sentence_edge_signature_filter_mode = SentenceEdgeSignatureFilterMode::Direct;
+        budget.watch_probe_comparison_limit = 0;
+
+        assert!(
+            probe_direct_watch_pairs(
+                Some(&mut watch),
+                &mut budget,
+                &index,
+                OccurrenceSide::Old,
+                0,
+                &old[0],
+                &new,
+                &[],
+                CandidatePostingBucket::Global,
+                None,
+                RecoveryWatchNearScope::SameSpan,
+                |_| true,
+            )
+            .is_none()
+        );
+        assert_eq!(budget.watch_probe_comparisons, 0);
+        assert_eq!(budget.watch_probe_comparisons_attempted, 1);
+        assert_eq!(
+            budget.watch_probe_stop_reason,
+            Some(SentenceEdgeSignatureDirectShadowStopReason::WatchProbeSimilarityComparisonLimit)
+        );
+    }
+
+    fn incomplete_watch_pair_diagnostics() -> RecoveryWatchDiagnostics {
+        let mut diagnostics = watch_state_for_pair().finish(None);
+        diagnostics.candidate_generation_complete = true;
+        diagnostics.records[0].segment_pair = Some(RecoveryWatchSegmentPairEvidence {
+            old_start_ordinal: 0,
+            old_end_ordinal: 2,
+            new_start_ordinal: 3,
+            new_end_ordinal: 5,
+            old_unit_count: 2,
+            new_unit_count: 2,
+            old_token_count: 10,
+            new_token_count: 10,
+            exact: true,
+            old_occurrence_count: 1,
+            new_occurrence_count: 1,
+            role_compatible: true,
+            overlaps_existing_recovery: false,
+            crossing_anchor_count: 0,
+            relation: ExactSegmentRelation::ExactUniqueTopologyUnknown,
+        });
+        diagnostics
+    }
+
+    fn complete_direct_watch(accepted: &RecoveryWatchDiagnostics) -> RecoveryWatchDiagnostics {
+        let mut direct = accepted.clone();
+        direct.candidate_generation_complete = true;
+        direct.near_relation_complete = true;
+        direct.near_relation_stop_reason = None;
+        direct
+    }
+
+    #[test]
+    fn direct_watch_preservation_allows_new_dynamic_evidence() {
+        let accepted = incomplete_watch_pair_diagnostics();
+        let mut direct = complete_direct_watch(&accepted);
+        direct.segment_overlap_vetoes = 1;
+        let segment = direct.records[0]
+            .segment_pair
+            .as_mut()
+            .expect("segment evidence exists");
+        segment.overlaps_existing_recovery = true;
+        let pair = direct.records[0]
+            .pair
+            .as_mut()
+            .expect("pair evidence exists");
+        pair.near_candidate_examined = true;
+        pair.near_score = Some(1_000);
+        pair.near_scope = Some(RecoveryWatchNearScope::CrossSpan);
+        pair.old_relation.best_score = 8_000;
+        pair.reciprocal = true;
+        let mut metrics = SentenceEdgeSignatureDirectShadowMetrics {
+            complete: true,
+            ..SentenceEdgeSignatureDirectShadowMetrics::default()
+        };
+
+        compare_direct_watch_diagnostics(&mut metrics, Some(&accepted), Some(&direct), true, false);
+
+        assert!(metrics.watch_preservation_evaluable);
+        assert!(metrics.watch_evidence_preserved);
+        assert_eq!(metrics.watch_preservation_mismatches, 0);
+        assert!(!metrics.watch_exact_parity_evaluable);
+        assert!(metrics.complete);
+        assert!(metrics.stop_reason.is_none());
+    }
+
+    #[test]
+    fn direct_watch_preservation_rejects_observed_score_drop() {
+        let mut accepted = incomplete_watch_pair_diagnostics();
+        let accepted_pair = accepted.records[0]
+            .pair
+            .as_mut()
+            .expect("pair evidence exists");
+        accepted_pair.near_candidate_examined = true;
+        accepted_pair.near_score = Some(1_000);
+        let direct = complete_direct_watch(&incomplete_watch_pair_diagnostics());
+        let mut metrics = SentenceEdgeSignatureDirectShadowMetrics {
+            complete: true,
+            ..SentenceEdgeSignatureDirectShadowMetrics::default()
+        };
+
+        compare_direct_watch_diagnostics(&mut metrics, Some(&accepted), Some(&direct), true, false);
+
+        assert!(metrics.watch_preservation_evaluable);
+        assert!(!metrics.watch_evidence_preserved);
+        assert_eq!(metrics.watch_preservation_mismatches, 1);
+        assert!(!metrics.complete);
+        assert_eq!(
+            metrics.stop_reason,
+            Some(SentenceEdgeSignatureDirectShadowStopReason::WatchDiagnosticsMismatch)
+        );
+    }
+
+    #[test]
+    fn direct_watch_preservation_rejects_static_evidence_mutations() {
+        let accepted = incomplete_watch_pair_diagnostics();
+        let mutations = [
+            |direct: &mut RecoveryWatchDiagnostics| {
+                direct.candidate_generation_complete = false;
+            },
+            |direct: &mut RecoveryWatchDiagnostics| {
+                direct.records[0].old = RecoveryWatchOccurrenceEvidence::Unavailable;
+            },
+            |direct: &mut RecoveryWatchDiagnostics| {
+                direct.records[0]
+                    .pair
+                    .as_mut()
+                    .expect("pair evidence exists")
+                    .exact_shared_units = 1;
+            },
+            |direct: &mut RecoveryWatchDiagnostics| {
+                direct.records[0]
+                    .segment_pair
+                    .as_mut()
+                    .expect("segment evidence exists")
+                    .old_token_count += 1;
+            },
+            |direct: &mut RecoveryWatchDiagnostics| {
+                direct.granular_old_units += 1;
+            },
+        ];
+        for mutate in mutations {
+            let mut direct = complete_direct_watch(&accepted);
+            mutate(&mut direct);
+            assert!(!watch_fixed_evidence_is_preserved(&accepted, &direct));
+        }
+    }
+
+    #[test]
+    fn direct_watch_preservation_requires_complete_near_replay() {
+        let accepted = incomplete_watch_pair_diagnostics();
+        let direct = accepted.clone();
+        assert!(!watch_fixed_evidence_is_preserved(&accepted, &direct));
+    }
+
+    #[test]
+    fn complete_accepted_watch_requires_exact_parity() {
+        let accepted = complete_direct_watch(&incomplete_watch_pair_diagnostics());
+        let mut metrics = SentenceEdgeSignatureDirectShadowMetrics {
+            complete: true,
+            ..SentenceEdgeSignatureDirectShadowMetrics::default()
+        };
+        compare_direct_watch_diagnostics(
+            &mut metrics,
+            Some(&accepted),
+            Some(&accepted),
+            true,
+            true,
+        );
+        assert!(metrics.watch_exact_parity_evaluable);
+        assert!(metrics.watch_exact_parity);
+        assert!(metrics.watch_evidence_preserved);
+
+        let mut changed = accepted.clone();
+        changed.records[0]
+            .pair
+            .as_mut()
+            .expect("pair evidence exists")
+            .near_scope = Some(RecoveryWatchNearScope::CrossSpan);
+        let mut mismatch = SentenceEdgeSignatureDirectShadowMetrics {
+            complete: true,
+            ..SentenceEdgeSignatureDirectShadowMetrics::default()
+        };
+        compare_direct_watch_diagnostics(
+            &mut mismatch,
+            Some(&accepted),
+            Some(&changed),
+            true,
+            true,
+        );
+        assert!(!mismatch.watch_exact_parity);
+        assert!(!mismatch.watch_evidence_preserved);
+    }
+
+    #[test]
+    fn direct_watch_parity_accepts_no_watch_and_rejects_presence_mismatch() {
+        let mut no_watch = SentenceEdgeSignatureDirectShadowMetrics {
+            complete: true,
+            parity_evaluable: true,
+            ..SentenceEdgeSignatureDirectShadowMetrics::default()
+        };
+        compare_direct_watch_diagnostics(&mut no_watch, None, None, true, false);
+        assert!(no_watch.watch_preservation_evaluable);
+        assert!(no_watch.watch_evidence_preserved);
+        assert!(no_watch.complete);
+
+        let incomplete = RecoveryWatchDiagnostics::default();
+        let mut mismatch = SentenceEdgeSignatureDirectShadowMetrics {
+            complete: true,
+            parity_evaluable: true,
+            ..SentenceEdgeSignatureDirectShadowMetrics::default()
+        };
+        compare_direct_watch_diagnostics(&mut mismatch, Some(&incomplete), None, true, false);
+        assert!(!mismatch.watch_evidence_preserved);
+        assert_eq!(mismatch.watch_preservation_mismatches, 1);
+        assert!(!mismatch.complete);
     }
 
     fn granular_occurrence(text: &str, kind: RecoveryUnitKind) -> SentenceOccurrence {
@@ -14585,6 +15471,8 @@ mod tests {
             granular_stop_reason: None,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
+            old_pair_partners: HashMap::new(),
+            new_pair_partners: HashMap::new(),
             scan_work: 0,
             scan_limit: 0,
             retained_one_sided_occurrences: 0,
