@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-30
-- **Generator / engine commit**: [`f0ffe19`](https://github.com/hayatosc/pdfdelta/commit/f0ffe19)
+- **Generator / engine commit**: [`12fb039`](https://github.com/hayatosc/pdfdelta/commit/12fb039)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-30-f0ffe19.json`](2026-08-30-f0ffe19.json)
+  - File: [`2026-08-30-12fb039.json`](2026-08-30-12fb039.json)
   - Schema: v23
-  - Size: 504,313 bytes
-  - SHA-256: `0cd9c7c695a1c5ac4f8b1861ebdd5d7fe4f69ef3f4b7264c47db8cb1ef678d1d`
+  - Size: 504,354 bytes
+  - SHA-256: `64e944b58f9f52587d0c355f07af215573b6fe0b7414c7cb0f9b9223f61ab383`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-30-f0ffe19.json
+  benchmark/realworld/results/2026-08-30-12fb039.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -119,16 +119,14 @@ occurrences have no alignment-span location.
 The benchmark writer and latest committed capture use schema v23. Older
 captures retain their recorded schemas.
 Schema v23 measures a behavior-neutral exact relation-floor probe during
-cross-span Sentence word scoring. Removing the schema number and the four probe
-counters leaves every schema-v22 `d6cd66d` field value unchanged. Ten records
-complete near-relation analysis, and seven of them commit 344,546 probed pairs;
-14,061 enter word-multiset scoring, 219 reach the safe stop condition, and
-stopping there would save 952 word comparisons. That is 0.062% of the 1,528,606
-cross-span Sentence similarity comparisons and 0.033% of all 2,872,116
-near-search comparisons in completed searches. Four budget-stopped records also
-reach cross-span scoring, but their atomic probe observations are discarded.
-The capture therefore does not quantify opportunities in those heavier searches,
-and the optimization remains diagnostic-only.
+cross-span Sentence word scoring. Removing the four probe counters leaves every
+`f0ffe19` field value unchanged. The latest writer retains pair-complete probe
+observations when a speculative cross-span search later exhausts its budget,
+without retaining the speculative relations. Eleven records commit 1,341,314
+probed pairs; 17,715 enter word-multiset scoring, 3,656 reach the safe stop
+condition, and stopping there would save 7,660 word comparisons. That is 0.155%
+of all 4,946,629 cross-span Sentence similarity comparisons and 0.034% of all
+22,564,695 near-search comparisons. The optimization is therefore not enabled.
 Schema v22 classifies cross-span Sentence scoring into the same paired anchor
 interval, another interval in the same paired stream, page-only locality, and
 unclassified topology. It also replays a strict shadow that retains only the
@@ -308,6 +306,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-30-f0ffe19.json`](2026-08-30-f0ffe19.json): schema-v23 relation-floor probe before retaining pair-complete observations from budget-stopped cross-span searches.
 - [`2026-08-30-d6cd66d.json`](2026-08-30-d6cd66d.json): schema-v22 paired-anchor cross-span Sentence locality and strict-shadow diagnostics before relation-floor probing.
 - [`2026-08-30-d045e2c.json`](2026-08-30-d045e2c.json): schema-v21 known-span Sentence shadow replay with bounded word-score early termination before cross-span locality classification.
 - [`2026-08-30-a5202c8.json`](2026-08-30-a5202c8.json): schema-v21 known-span Sentence shadow replay before bounded word-score early termination.
