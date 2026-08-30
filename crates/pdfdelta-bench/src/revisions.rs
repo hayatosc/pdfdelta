@@ -30,7 +30,8 @@ use pdfdelta_core::{
         RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
         SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
         SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectShadowMetrics,
-        SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureShadowMetrics,
+        SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureReferenceOracleMetrics,
+        SentenceEdgeSignatureReferenceOracleStopReason, SentenceEdgeSignatureShadowMetrics,
         SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics, TextSpan,
     },
     layout::BlockRole,
@@ -545,6 +546,8 @@ pub struct SentenceRecoveryMetricsReport {
     pub sentence_edge_signature_shadow: Option<SentenceEdgeSignatureShadowMetricsReport>,
     pub sentence_edge_signature_direct_shadow:
         Option<SentenceEdgeSignatureDirectShadowMetricsReport>,
+    pub sentence_edge_signature_reference_oracle:
+        Option<SentenceEdgeSignatureReferenceOracleMetricsReport>,
     pub sentence_edge_filter_complete: bool,
     pub sentence_edge_filter_pairs_examined: usize,
     pub sentence_edge_filter_pairs_attempted: usize,
@@ -789,6 +792,10 @@ pub struct SentenceEdgeSignatureDirectShadowMetricsReport {
     pub downstream_pair_visits_attempted: usize,
     pub downstream_similarity_comparisons_examined: usize,
     pub downstream_similarity_comparisons_attempted: usize,
+    pub fragment_veto_pair_visits_examined: usize,
+    pub fragment_veto_pair_visits_attempted: usize,
+    pub fragment_veto_similarity_comparisons_examined: usize,
+    pub fragment_veto_similarity_comparisons_attempted: usize,
     pub candidate_count_truncated: bool,
     pub parity_evaluable: bool,
     pub plan_parity: bool,
@@ -871,10 +878,73 @@ impl From<SentenceEdgeSignatureDirectShadowMetrics>
                 .downstream_similarity_comparisons_examined,
             downstream_similarity_comparisons_attempted: metrics
                 .downstream_similarity_comparisons_attempted,
+            fragment_veto_pair_visits_examined: metrics.fragment_veto_pair_visits_examined,
+            fragment_veto_pair_visits_attempted: metrics.fragment_veto_pair_visits_attempted,
+            fragment_veto_similarity_comparisons_examined: metrics
+                .fragment_veto_similarity_comparisons_examined,
+            fragment_veto_similarity_comparisons_attempted: metrics
+                .fragment_veto_similarity_comparisons_attempted,
             candidate_count_truncated: metrics.candidate_count_truncated,
             parity_evaluable: metrics.parity_evaluable,
             plan_parity: metrics.plan_parity,
             verification_evaluable: metrics.verification_evaluable,
+            retained_pair_misses: metrics.retained_pair_misses,
+            retained_pair_count_mismatches: metrics.retained_pair_count_mismatches,
+            retained_pair_set_mismatches: metrics.retained_pair_set_mismatches,
+            retained_pair_order_mismatches: metrics.retained_pair_order_mismatches,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct SentenceEdgeSignatureReferenceOracleMetricsReport {
+    pub complete: bool,
+    pub stop_reason: Option<SentenceEdgeSignatureReferenceOracleStopReasonReport>,
+    pub direct_complete: bool,
+    pub candidate_posting_visits_examined: usize,
+    pub candidate_posting_visits_attempted: usize,
+    pub pair_visits_examined: usize,
+    pub pair_visits_attempted: usize,
+    pub similarity_comparisons_examined: usize,
+    pub similarity_comparisons_attempted: usize,
+    pub fragment_veto_pair_visits_examined: usize,
+    pub fragment_veto_pair_visits_attempted: usize,
+    pub fragment_veto_similarity_comparisons_examined: usize,
+    pub fragment_veto_similarity_comparisons_attempted: usize,
+    pub candidate_count_truncated: bool,
+    pub plan_parity_evaluable: bool,
+    pub plan_parity: bool,
+    pub fingerprint_evaluable: bool,
+    pub retained_pair_misses: usize,
+    pub retained_pair_count_mismatches: usize,
+    pub retained_pair_set_mismatches: usize,
+    pub retained_pair_order_mismatches: usize,
+}
+
+impl From<SentenceEdgeSignatureReferenceOracleMetrics>
+    for SentenceEdgeSignatureReferenceOracleMetricsReport
+{
+    fn from(metrics: SentenceEdgeSignatureReferenceOracleMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            stop_reason: metrics.stop_reason.map(Into::into),
+            direct_complete: metrics.direct_complete,
+            candidate_posting_visits_examined: metrics.candidate_posting_visits_examined,
+            candidate_posting_visits_attempted: metrics.candidate_posting_visits_attempted,
+            pair_visits_examined: metrics.pair_visits_examined,
+            pair_visits_attempted: metrics.pair_visits_attempted,
+            similarity_comparisons_examined: metrics.similarity_comparisons_examined,
+            similarity_comparisons_attempted: metrics.similarity_comparisons_attempted,
+            fragment_veto_pair_visits_examined: metrics.fragment_veto_pair_visits_examined,
+            fragment_veto_pair_visits_attempted: metrics.fragment_veto_pair_visits_attempted,
+            fragment_veto_similarity_comparisons_examined: metrics
+                .fragment_veto_similarity_comparisons_examined,
+            fragment_veto_similarity_comparisons_attempted: metrics
+                .fragment_veto_similarity_comparisons_attempted,
+            candidate_count_truncated: metrics.candidate_count_truncated,
+            plan_parity_evaluable: metrics.plan_parity_evaluable,
+            plan_parity: metrics.plan_parity,
+            fingerprint_evaluable: metrics.fingerprint_evaluable,
             retained_pair_misses: metrics.retained_pair_misses,
             retained_pair_count_mismatches: metrics.retained_pair_count_mismatches,
             retained_pair_set_mismatches: metrics.retained_pair_set_mismatches,
@@ -963,6 +1033,23 @@ pub enum SentenceEdgeGateShadowStopReasonReport {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
+pub enum SentenceEdgeSignatureReferenceOracleStopReasonReport {
+    DirectReplayIncomplete,
+    CandidatePostingVisitLimit,
+    PairVisitLimit,
+    SimilarityComparisonLimit,
+    CandidateCountLimit,
+    FragmentVetoPairVisitLimit,
+    FragmentVetoSimilarityComparisonLimit,
+    FragmentVetoIncomplete,
+    AllocationFailure,
+    CounterOverflow,
+    ProductionTraversalIncomplete,
+    DiagnosticFailure,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SentenceEdgeSignatureShadowStopReasonReport {
     IndexPostingLimit,
     QueryPostingVisitLimit,
@@ -992,6 +1079,9 @@ pub enum SentenceEdgeSignatureDirectShadowStopReasonReport {
     PairVisitLimit,
     SimilarityComparisonLimit,
     CandidateCountLimit,
+    FragmentVetoPairVisitLimit,
+    FragmentVetoSimilarityComparisonLimit,
+    FragmentVetoIncomplete,
     AllocationFailure,
     CounterOverflow,
     ProductionTraversalIncomplete,
@@ -1082,6 +1172,35 @@ impl From<SentenceEdgeSignatureDirectShadowStopReason>
             Core::PairVisitLimit => Self::PairVisitLimit,
             Core::SimilarityComparisonLimit => Self::SimilarityComparisonLimit,
             Core::CandidateCountLimit => Self::CandidateCountLimit,
+            Core::FragmentVetoPairVisitLimit => Self::FragmentVetoPairVisitLimit,
+            Core::FragmentVetoSimilarityComparisonLimit => {
+                Self::FragmentVetoSimilarityComparisonLimit
+            }
+            Core::FragmentVetoIncomplete => Self::FragmentVetoIncomplete,
+            Core::AllocationFailure => Self::AllocationFailure,
+            Core::CounterOverflow => Self::CounterOverflow,
+            Core::ProductionTraversalIncomplete => Self::ProductionTraversalIncomplete,
+            Core::DiagnosticFailure => Self::DiagnosticFailure,
+        }
+    }
+}
+
+impl From<SentenceEdgeSignatureReferenceOracleStopReason>
+    for SentenceEdgeSignatureReferenceOracleStopReasonReport
+{
+    fn from(reason: SentenceEdgeSignatureReferenceOracleStopReason) -> Self {
+        use SentenceEdgeSignatureReferenceOracleStopReason as Core;
+        match reason {
+            Core::DirectReplayIncomplete => Self::DirectReplayIncomplete,
+            Core::CandidatePostingVisitLimit => Self::CandidatePostingVisitLimit,
+            Core::PairVisitLimit => Self::PairVisitLimit,
+            Core::SimilarityComparisonLimit => Self::SimilarityComparisonLimit,
+            Core::CandidateCountLimit => Self::CandidateCountLimit,
+            Core::FragmentVetoPairVisitLimit => Self::FragmentVetoPairVisitLimit,
+            Core::FragmentVetoSimilarityComparisonLimit => {
+                Self::FragmentVetoSimilarityComparisonLimit
+            }
+            Core::FragmentVetoIncomplete => Self::FragmentVetoIncomplete,
             Core::AllocationFailure => Self::AllocationFailure,
             Core::CounterOverflow => Self::CounterOverflow,
             Core::ProductionTraversalIncomplete => Self::ProductionTraversalIncomplete,
@@ -1509,6 +1628,9 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             sentence_edge_signature_shadow: metrics.sentence_edge_signature_shadow.map(Into::into),
             sentence_edge_signature_direct_shadow: metrics
                 .sentence_edge_signature_direct_shadow
+                .map(Into::into),
+            sentence_edge_signature_reference_oracle: metrics
+                .sentence_edge_signature_reference_oracle
                 .map(Into::into),
             sentence_edge_filter_complete: metrics.sentence_edge_filter_complete,
             sentence_edge_filter_pairs_examined: metrics.sentence_edge_filter_pairs_examined,
@@ -3589,6 +3711,7 @@ fn validate_sentence_recovery_metrics(
     validate_sentence_edge_gate_shadow_metrics(metrics)?;
     validate_sentence_edge_signature_shadow_metrics(metrics)?;
     validate_sentence_edge_signature_direct_shadow_metrics(metrics)?;
+    validate_sentence_edge_signature_reference_oracle_metrics(metrics)?;
     validate_sentence_edge_filter_metrics(metrics)?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
@@ -4143,6 +4266,16 @@ fn validate_sentence_edge_signature_direct_shadow_metrics(
             shadow.downstream_similarity_comparisons_examined,
             shadow.downstream_similarity_comparisons_attempted,
         ),
+        (
+            "fragment-veto pair visits",
+            shadow.fragment_veto_pair_visits_examined,
+            shadow.fragment_veto_pair_visits_attempted,
+        ),
+        (
+            "fragment-veto similarity comparisons",
+            shadow.fragment_veto_similarity_comparisons_examined,
+            shadow.fragment_veto_similarity_comparisons_attempted,
+        ),
     ] {
         if examined > attempted {
             return Err(format!(
@@ -4236,6 +4369,9 @@ fn validate_sentence_edge_signature_direct_shadow_metrics(
         shadow.downstream_pair_visits_examined < shadow.downstream_pair_visits_attempted,
         shadow.downstream_similarity_comparisons_examined
             < shadow.downstream_similarity_comparisons_attempted,
+        shadow.fragment_veto_pair_visits_examined < shadow.fragment_veto_pair_visits_attempted,
+        shadow.fragment_veto_similarity_comparisons_examined
+            < shadow.fragment_veto_similarity_comparisons_attempted,
     ];
     let only_deficit = |indices: &[usize]| {
         deficits
@@ -4277,6 +4413,15 @@ fn validate_sentence_edge_signature_direct_shadow_metrics(
         Some(SentenceEdgeSignatureDirectShadowStopReason::PairVisitLimit) => only_deficit(&[11]),
         Some(SentenceEdgeSignatureDirectShadowStopReason::SimilarityComparisonLimit) => {
             only_deficit(&[12])
+        }
+        Some(SentenceEdgeSignatureDirectShadowStopReason::FragmentVetoPairVisitLimit) => {
+            only_deficit(&[13])
+        }
+        Some(
+            SentenceEdgeSignatureDirectShadowStopReason::FragmentVetoSimilarityComparisonLimit,
+        ) => only_deficit(&[14]),
+        Some(SentenceEdgeSignatureDirectShadowStopReason::FragmentVetoIncomplete) => {
+            only_deficit(&[])
         }
         Some(SentenceEdgeSignatureDirectShadowStopReason::CandidateCountLimit) => {
             !deficits.iter().any(|deficit| *deficit) && shadow.candidate_count_truncated
@@ -4401,6 +4546,163 @@ fn validate_sentence_edge_signature_direct_shadow_metrics(
     {
         return Err(
             "complete sentence-edge signature direct shadow reports forbidden work or mismatches"
+                .to_owned(),
+        );
+    }
+    Ok(())
+}
+
+fn validate_sentence_edge_signature_reference_oracle_metrics(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<(), String> {
+    let Some(oracle) = metrics.sentence_edge_signature_reference_oracle else {
+        return Ok(());
+    };
+    if oracle.complete != oracle.stop_reason.is_none() {
+        return Err(
+            "sentence-edge signature reference oracle completeness contradicts stop reason"
+                .to_owned(),
+        );
+    }
+    let work = [
+        (
+            "candidate posting visits",
+            oracle.candidate_posting_visits_examined,
+            oracle.candidate_posting_visits_attempted,
+        ),
+        (
+            "pair visits",
+            oracle.pair_visits_examined,
+            oracle.pair_visits_attempted,
+        ),
+        (
+            "similarity comparisons",
+            oracle.similarity_comparisons_examined,
+            oracle.similarity_comparisons_attempted,
+        ),
+        (
+            "fragment-veto pair visits",
+            oracle.fragment_veto_pair_visits_examined,
+            oracle.fragment_veto_pair_visits_attempted,
+        ),
+        (
+            "fragment-veto similarity comparisons",
+            oracle.fragment_veto_similarity_comparisons_examined,
+            oracle.fragment_veto_similarity_comparisons_attempted,
+        ),
+    ];
+    for &(kind, examined, attempted) in &work {
+        if examined > attempted {
+            return Err(format!(
+                "sentence-edge signature reference oracle {kind} examined {examined} exceed attempted {attempted}"
+            ));
+        }
+        if oracle.complete && examined != attempted {
+            return Err(format!(
+                "complete sentence-edge signature reference oracle {kind} examined {examined} differ from attempted {attempted}"
+            ));
+        }
+    }
+    if oracle.plan_parity && !oracle.plan_parity_evaluable {
+        return Err(
+            "sentence-edge signature reference oracle reports plan parity without evaluation"
+                .to_owned(),
+        );
+    }
+    if oracle.retained_pair_count_mismatches > 1
+        || oracle.retained_pair_set_mismatches > 1
+        || oracle.retained_pair_order_mismatches > 1
+    {
+        return Err(
+            "sentence-edge signature reference oracle fingerprint mismatch flags exceed one"
+                .to_owned(),
+        );
+    }
+    if oracle.retained_pair_misses > 0
+        && (oracle.retained_pair_count_mismatches != 1
+            || oracle.retained_pair_set_mismatches != 1
+            || oracle.retained_pair_order_mismatches != 1)
+    {
+        return Err(
+            "sentence-edge signature reference oracle retained misses lack fingerprint mismatches"
+                .to_owned(),
+        );
+    }
+    if !oracle.fingerprint_evaluable
+        && (oracle.retained_pair_misses != 0
+            || oracle.retained_pair_count_mismatches != 0
+            || oracle.retained_pair_set_mismatches != 0
+            || oracle.retained_pair_order_mismatches != 0)
+    {
+        return Err(
+            "sentence-edge signature reference oracle reports mismatches without verification"
+                .to_owned(),
+        );
+    }
+    if oracle.complete {
+        if !oracle.direct_complete || !oracle.plan_parity_evaluable || !oracle.fingerprint_evaluable
+        {
+            return Err(
+                "complete sentence-edge signature reference oracle lacks evaluable evidence"
+                    .to_owned(),
+            );
+        }
+    } else if oracle.plan_parity_evaluable
+        || oracle.plan_parity
+        || oracle.fingerprint_evaluable
+        || oracle.retained_pair_misses != 0
+        || oracle.retained_pair_count_mismatches != 0
+        || oracle.retained_pair_set_mismatches != 0
+        || oracle.retained_pair_order_mismatches != 0
+    {
+        return Err(
+            "incomplete sentence-edge signature reference oracle reports authoritative parity"
+                .to_owned(),
+        );
+    }
+    let deficits = work.map(|(_, examined, attempted)| examined < attempted);
+    let only_deficit = |index| {
+        deficits
+            .iter()
+            .enumerate()
+            .all(|(candidate, deficit)| *deficit == (candidate == index))
+    };
+    let stop_valid = match oracle.stop_reason {
+        Some(SentenceEdgeSignatureReferenceOracleStopReason::DirectReplayIncomplete) => {
+            !oracle.direct_complete && !deficits.iter().any(|deficit| *deficit)
+        }
+        Some(SentenceEdgeSignatureReferenceOracleStopReason::CandidatePostingVisitLimit) => {
+            oracle.direct_complete && only_deficit(0)
+        }
+        Some(SentenceEdgeSignatureReferenceOracleStopReason::PairVisitLimit) => {
+            oracle.direct_complete && only_deficit(1)
+        }
+        Some(SentenceEdgeSignatureReferenceOracleStopReason::SimilarityComparisonLimit) => {
+            oracle.direct_complete && only_deficit(2)
+        }
+        Some(SentenceEdgeSignatureReferenceOracleStopReason::FragmentVetoPairVisitLimit) => {
+            oracle.direct_complete && only_deficit(3)
+        }
+        Some(
+            SentenceEdgeSignatureReferenceOracleStopReason::FragmentVetoSimilarityComparisonLimit,
+        ) => oracle.direct_complete && only_deficit(4),
+        Some(SentenceEdgeSignatureReferenceOracleStopReason::CandidateCountLimit) => {
+            oracle.direct_complete
+                && oracle.candidate_count_truncated
+                && !deficits.iter().any(|deficit| *deficit)
+        }
+        Some(
+            SentenceEdgeSignatureReferenceOracleStopReason::FragmentVetoIncomplete
+            | SentenceEdgeSignatureReferenceOracleStopReason::AllocationFailure
+            | SentenceEdgeSignatureReferenceOracleStopReason::CounterOverflow
+            | SentenceEdgeSignatureReferenceOracleStopReason::ProductionTraversalIncomplete
+            | SentenceEdgeSignatureReferenceOracleStopReason::DiagnosticFailure,
+        ) => oracle.direct_complete,
+        None => true,
+    };
+    if !stop_valid {
+        return Err(
+            "sentence-edge signature reference oracle stop contradicts resource evidence"
                 .to_owned(),
         );
     }
@@ -5154,7 +5456,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 28;
+    pub const SCHEMA_VERSION: u32 = 29;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -6418,7 +6720,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 28);
+        assert_eq!(completed["schema_version"], 29);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -6461,7 +6763,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 28);
+        assert_eq!(legacy_summary["schema_version"], 29);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -7671,7 +7973,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 28);
+        assert_eq!(json["schema_version"], 29);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -8995,6 +9297,10 @@ mod tests {
             "downstream_pair_visits_attempted",
             "downstream_similarity_comparisons_examined",
             "downstream_similarity_comparisons_attempted",
+            "fragment_veto_pair_visits_examined",
+            "fragment_veto_pair_visits_attempted",
+            "fragment_veto_similarity_comparisons_examined",
+            "fragment_veto_similarity_comparisons_attempted",
             "candidate_count_truncated",
             "parity_evaluable",
             "plan_parity",
@@ -9171,6 +9477,23 @@ mod tests {
             downstream_similarity_comparisons_examined,
             downstream_similarity_comparisons_attempted
         );
+        resource_stop_case!(
+            FragmentVetoPairVisitLimit,
+            fragment_veto_pair_visits_examined,
+            fragment_veto_pair_visits_attempted
+        );
+        resource_stop_case!(
+            FragmentVetoSimilarityComparisonLimit,
+            fragment_veto_similarity_comparisons_examined,
+            fragment_veto_similarity_comparisons_attempted
+        );
+
+        let mut fragment_incomplete = valid_sentence_edge_signature_direct_shadow();
+        fragment_incomplete.complete = false;
+        fragment_incomplete.stop_reason = Some(Stop::FragmentVetoIncomplete);
+        fragment_incomplete.parity_evaluable = false;
+        fragment_incomplete.plan_parity = false;
+        assert!(validates(fragment_incomplete).is_ok());
 
         let mut candidate_count = valid_sentence_edge_signature_direct_shadow();
         candidate_count.complete = false;
@@ -9329,6 +9652,228 @@ mod tests {
                 "similarity_comparison_limit",
             ),
             (Stop::CandidateCountLimit, "candidate_count_limit"),
+            (
+                Stop::FragmentVetoPairVisitLimit,
+                "fragment_veto_pair_visit_limit",
+            ),
+            (
+                Stop::FragmentVetoSimilarityComparisonLimit,
+                "fragment_veto_similarity_comparison_limit",
+            ),
+            (Stop::FragmentVetoIncomplete, "fragment_veto_incomplete"),
+            (Stop::AllocationFailure, "allocation_failure"),
+            (Stop::CounterOverflow, "counter_overflow"),
+            (
+                Stop::ProductionTraversalIncomplete,
+                "production_traversal_incomplete",
+            ),
+            (Stop::DiagnosticFailure, "diagnostic_failure"),
+        ] {
+            assert_eq!(
+                serde_json::to_value(reason).expect("reason serializes"),
+                expected
+            );
+        }
+    }
+
+    fn valid_sentence_edge_signature_reference_oracle()
+    -> SentenceEdgeSignatureReferenceOracleMetrics {
+        SentenceEdgeSignatureReferenceOracleMetrics {
+            complete: true,
+            direct_complete: true,
+            candidate_posting_visits_examined: 3,
+            candidate_posting_visits_attempted: 3,
+            pair_visits_examined: 4,
+            pair_visits_attempted: 4,
+            similarity_comparisons_examined: 5,
+            similarity_comparisons_attempted: 5,
+            fragment_veto_pair_visits_examined: 2,
+            fragment_veto_pair_visits_attempted: 2,
+            fragment_veto_similarity_comparisons_examined: 6,
+            fragment_veto_similarity_comparisons_attempted: 6,
+            plan_parity_evaluable: true,
+            plan_parity: true,
+            fingerprint_evaluable: true,
+            ..SentenceEdgeSignatureReferenceOracleMetrics::default()
+        }
+    }
+
+    #[test]
+    fn converts_serializes_and_validates_sentence_edge_signature_reference_oracle() {
+        let oracle = valid_sentence_edge_signature_reference_oracle();
+        let report = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+            sentence_edge_signature_reference_oracle: Some(oracle),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        })
+        .expect("valid reference oracle passes")
+        .sentence_edge_signature_reference_oracle
+        .expect("reference oracle report exists");
+        assert_eq!(report, oracle.into());
+        let keys = serde_json::to_value(report)
+            .expect("reference oracle serializes")
+            .as_object()
+            .expect("reference oracle is an object")
+            .keys()
+            .cloned()
+            .collect::<HashSet<_>>();
+        assert_eq!(
+            keys,
+            HashSet::from([
+                "complete",
+                "stop_reason",
+                "direct_complete",
+                "candidate_posting_visits_examined",
+                "candidate_posting_visits_attempted",
+                "pair_visits_examined",
+                "pair_visits_attempted",
+                "similarity_comparisons_examined",
+                "similarity_comparisons_attempted",
+                "fragment_veto_pair_visits_examined",
+                "fragment_veto_pair_visits_attempted",
+                "fragment_veto_similarity_comparisons_examined",
+                "fragment_veto_similarity_comparisons_attempted",
+                "candidate_count_truncated",
+                "plan_parity_evaluable",
+                "plan_parity",
+                "fingerprint_evaluable",
+                "retained_pair_misses",
+                "retained_pair_count_mismatches",
+                "retained_pair_set_mismatches",
+                "retained_pair_order_mismatches",
+            ])
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+        );
+
+        let mismatch = SentenceEdgeSignatureReferenceOracleMetrics {
+            plan_parity: false,
+            retained_pair_set_mismatches: 1,
+            retained_pair_order_mismatches: 1,
+            ..oracle
+        };
+        assert!(
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                sentence_edge_signature_reference_oracle: Some(mismatch),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .is_ok()
+        );
+        for invalid in [
+            SentenceEdgeSignatureReferenceOracleMetrics {
+                complete: false,
+                ..oracle
+            },
+            SentenceEdgeSignatureReferenceOracleMetrics {
+                direct_complete: false,
+                ..oracle
+            },
+            SentenceEdgeSignatureReferenceOracleMetrics {
+                pair_visits_attempted: 5,
+                ..oracle
+            },
+            SentenceEdgeSignatureReferenceOracleMetrics {
+                fingerprint_evaluable: false,
+                retained_pair_set_mismatches: 1,
+                ..oracle
+            },
+        ] {
+            assert!(
+                validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                    sentence_edge_signature_reference_oracle: Some(invalid),
+                    sentence_edge_filter_complete: true,
+                    ..SentenceRecoveryMetrics::default()
+                })
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn validates_reference_oracle_typed_stops_and_partial_evidence() {
+        use SentenceEdgeSignatureReferenceOracleStopReason as Stop;
+        let validates = |oracle| {
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                sentence_edge_signature_reference_oracle: Some(oracle),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+        };
+        macro_rules! resource_stop_case {
+            ($reason:ident, $examined:ident, $attempted:ident) => {{
+                let mut stopped = valid_sentence_edge_signature_reference_oracle();
+                stopped.complete = false;
+                stopped.stop_reason = Some(Stop::$reason);
+                stopped.plan_parity_evaluable = false;
+                stopped.plan_parity = false;
+                stopped.fingerprint_evaluable = false;
+                stopped.$attempted = stopped.$examined + 1;
+                assert!(validates(stopped).is_ok(), stringify!($reason));
+                stopped.$attempted = stopped.$examined;
+                assert!(validates(stopped).is_err(), stringify!($reason));
+            }};
+        }
+        resource_stop_case!(
+            CandidatePostingVisitLimit,
+            candidate_posting_visits_examined,
+            candidate_posting_visits_attempted
+        );
+        resource_stop_case!(PairVisitLimit, pair_visits_examined, pair_visits_attempted);
+        resource_stop_case!(
+            SimilarityComparisonLimit,
+            similarity_comparisons_examined,
+            similarity_comparisons_attempted
+        );
+        resource_stop_case!(
+            FragmentVetoPairVisitLimit,
+            fragment_veto_pair_visits_examined,
+            fragment_veto_pair_visits_attempted
+        );
+        resource_stop_case!(
+            FragmentVetoSimilarityComparisonLimit,
+            fragment_veto_similarity_comparisons_examined,
+            fragment_veto_similarity_comparisons_attempted
+        );
+
+        let direct_incomplete = SentenceEdgeSignatureReferenceOracleMetrics {
+            stop_reason: Some(Stop::DirectReplayIncomplete),
+            ..SentenceEdgeSignatureReferenceOracleMetrics::default()
+        };
+        assert!(validates(direct_incomplete).is_ok());
+        let authoritative_partial = SentenceEdgeSignatureReferenceOracleMetrics {
+            plan_parity_evaluable: true,
+            plan_parity: true,
+            ..direct_incomplete
+        };
+        assert!(validates(authoritative_partial).is_err());
+    }
+
+    #[test]
+    fn serializes_sentence_edge_signature_reference_oracle_stop_reasons_as_snake_case() {
+        use SentenceEdgeSignatureReferenceOracleStopReasonReport as Stop;
+        for (reason, expected) in [
+            (Stop::DirectReplayIncomplete, "direct_replay_incomplete"),
+            (
+                Stop::CandidatePostingVisitLimit,
+                "candidate_posting_visit_limit",
+            ),
+            (Stop::PairVisitLimit, "pair_visit_limit"),
+            (
+                Stop::SimilarityComparisonLimit,
+                "similarity_comparison_limit",
+            ),
+            (Stop::CandidateCountLimit, "candidate_count_limit"),
+            (
+                Stop::FragmentVetoPairVisitLimit,
+                "fragment_veto_pair_visit_limit",
+            ),
+            (
+                Stop::FragmentVetoSimilarityComparisonLimit,
+                "fragment_veto_similarity_comparison_limit",
+            ),
+            (Stop::FragmentVetoIncomplete, "fragment_veto_incomplete"),
             (Stop::AllocationFailure, "allocation_failure"),
             (Stop::CounterOverflow, "counter_overflow"),
             (
@@ -10047,7 +10592,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 28);
+        assert_eq!(value["schema_version"], 29);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -10176,6 +10721,7 @@ mod tests {
             "sentence_edge_gate_shadow".to_owned(),
             "sentence_edge_signature_shadow".to_owned(),
             "sentence_edge_signature_direct_shadow".to_owned(),
+            "sentence_edge_signature_reference_oracle".to_owned(),
             "sentence_edge_filter_complete".to_owned(),
             "sentence_edge_filter_pairs_examined".to_owned(),
             "sentence_edge_filter_pairs_attempted".to_owned(),

@@ -605,6 +605,9 @@ pub enum SentenceEdgeSignatureDirectShadowStopReason {
     PairVisitLimit,
     SimilarityComparisonLimit,
     CandidateCountLimit,
+    FragmentVetoPairVisitLimit,
+    FragmentVetoSimilarityComparisonLimit,
+    FragmentVetoIncomplete,
     AllocationFailure,
     CounterOverflow,
     ProductionTraversalIncomplete,
@@ -671,10 +674,57 @@ pub struct SentenceEdgeSignatureDirectShadowMetrics {
     pub downstream_pair_visits_attempted: usize,
     pub downstream_similarity_comparisons_examined: usize,
     pub downstream_similarity_comparisons_attempted: usize,
+    pub fragment_veto_pair_visits_examined: usize,
+    pub fragment_veto_pair_visits_attempted: usize,
+    pub fragment_veto_similarity_comparisons_examined: usize,
+    pub fragment_veto_similarity_comparisons_attempted: usize,
     pub candidate_count_truncated: bool,
     pub parity_evaluable: bool,
     pub plan_parity: bool,
     pub verification_evaluable: bool,
+    pub retained_pair_misses: usize,
+    pub retained_pair_count_mismatches: usize,
+    pub retained_pair_set_mismatches: usize,
+    pub retained_pair_order_mismatches: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SentenceEdgeSignatureReferenceOracleStopReason {
+    DirectReplayIncomplete,
+    CandidatePostingVisitLimit,
+    PairVisitLimit,
+    SimilarityComparisonLimit,
+    CandidateCountLimit,
+    FragmentVetoPairVisitLimit,
+    FragmentVetoSimilarityComparisonLimit,
+    FragmentVetoIncomplete,
+    AllocationFailure,
+    CounterOverflow,
+    ProductionTraversalIncomplete,
+    DiagnosticFailure,
+}
+
+/// High-limit behavior-neutral reference replay used only when the accepted
+/// recovery build is incomplete.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SentenceEdgeSignatureReferenceOracleMetrics {
+    pub complete: bool,
+    pub stop_reason: Option<SentenceEdgeSignatureReferenceOracleStopReason>,
+    pub direct_complete: bool,
+    pub candidate_posting_visits_examined: usize,
+    pub candidate_posting_visits_attempted: usize,
+    pub pair_visits_examined: usize,
+    pub pair_visits_attempted: usize,
+    pub similarity_comparisons_examined: usize,
+    pub similarity_comparisons_attempted: usize,
+    pub fragment_veto_pair_visits_examined: usize,
+    pub fragment_veto_pair_visits_attempted: usize,
+    pub fragment_veto_similarity_comparisons_examined: usize,
+    pub fragment_veto_similarity_comparisons_attempted: usize,
+    pub candidate_count_truncated: bool,
+    pub plan_parity_evaluable: bool,
+    pub plan_parity: bool,
+    pub fingerprint_evaluable: bool,
     pub retained_pair_misses: usize,
     pub retained_pair_count_mismatches: usize,
     pub retained_pair_set_mismatches: usize,
@@ -752,6 +802,8 @@ pub struct SentenceRecoveryMetrics {
     pub sentence_edge_gate_shadow: Option<SentenceEdgeGateShadowMetrics>,
     pub sentence_edge_signature_shadow: Option<SentenceEdgeSignatureShadowMetrics>,
     pub sentence_edge_signature_direct_shadow: Option<SentenceEdgeSignatureDirectShadowMetrics>,
+    pub sentence_edge_signature_reference_oracle:
+        Option<SentenceEdgeSignatureReferenceOracleMetrics>,
     /// Whether the production Sentence edge filter classified every query.
     /// A false value always has [`Self::sentence_edge_filter_stop_reason`].
     pub sentence_edge_filter_complete: bool,
@@ -8158,6 +8210,87 @@ mod tests {
         measured_metrics.sentence_edge_signature_shadow = None;
         measured_metrics.sentence_edge_signature_direct_shadow = None;
         assert_eq!(measured_metrics, baseline_metrics);
+    }
+
+    #[test]
+    fn accepted_fragment_stop_runs_complete_reference_oracle_without_replacing_output() {
+        let prefix = "As a result, information has";
+        let suffix = "to be provided about all personal data covered by the request.";
+        let full = format!("{prefix} {suffix}");
+        let old = vec![sentence_block(92_001, &full)];
+        let new = vec![
+            sentence_block(92_101, prefix),
+            line_block(92_102, "17 Adopted"),
+            sentence_block(92_103, prefix),
+            sentence_block(92_104, suffix),
+        ];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let old_intervals = [trusted_interval(1, 0, 1)];
+        let new_intervals = vec![
+            trusted_interval(3, 0, 1),
+            None,
+            trusted_interval(4, 0, 1),
+            trusted_interval(2, 0, 1),
+        ];
+        let compare = || {
+            compare_aligned_with_sentence_recovery_metrics(
+                &old,
+                &new,
+                &alignment,
+                DiffOptions::default(),
+                SentenceRecoveryInput {
+                    old_trusted_run_intervals: &old_intervals,
+                    new_trusted_run_intervals: &new_intervals,
+                    old_trusted_run_evidence: None,
+                    new_trusted_run_evidence: None,
+                    min_tokens: 16,
+                    enable_known_span_sentence_shadow: false,
+                    enable_sentence_edge_gate_shadow: true,
+                },
+            )
+            .expect("sentence recovery comparison succeeds")
+        };
+        let baseline = compare();
+        let measured = sentence::with_next_fragment_veto_test_limits(
+            sentence::FragmentVetoTestLimits {
+                pair_visits: 0,
+                comparisons: usize::MAX,
+            },
+            compare,
+        );
+
+        assert_eq!(measured.comparison, baseline.comparison);
+        assert_eq!(
+            measured.recovery_watch_diagnostics,
+            baseline.recovery_watch_diagnostics
+        );
+        let measured_metrics = measured
+            .sentence_recovery_metrics
+            .expect("measured diagnostics exist");
+        assert!(measured_metrics.near_relation_complete);
+        assert!(measured_metrics.sentence_edge_filter_complete);
+        let direct = measured_metrics
+            .sentence_edge_signature_direct_shadow
+            .expect("direct replay diagnostics exist");
+        assert!(direct.complete);
+        assert!(!direct.parity_evaluable);
+        assert_eq!(
+            direct.fragment_veto_pair_visits_examined,
+            direct.fragment_veto_pair_visits_attempted
+        );
+        let oracle = measured_metrics
+            .sentence_edge_signature_reference_oracle
+            .expect("accepted fragment stop triggers reference oracle");
+        assert!(oracle.direct_complete);
+        assert!(oracle.complete);
+        assert!(oracle.plan_parity_evaluable);
+        assert!(oracle.plan_parity);
+        assert!(oracle.fingerprint_evaluable);
+        assert_eq!(oracle.retained_pair_misses, 0);
+        assert_eq!(oracle.retained_pair_count_mismatches, 0);
+        assert_eq!(oracle.retained_pair_set_mismatches, 0);
+        assert_eq!(oracle.retained_pair_order_mismatches, 0);
     }
 
     fn compare_run_signature_diagnostics(
