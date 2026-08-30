@@ -3593,6 +3593,11 @@ fn record_direct_signature_build_error(
             examined,
             attempted,
             ..
+        }
+        | SentenceEdgeSignatureIndexBuildError::AllocationFailure {
+            examined,
+            attempted,
+            ..
         } => Some((examined, attempted)),
         _ => None,
     };
@@ -3622,6 +3627,9 @@ fn record_direct_signature_build_error(
         }
         SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit { .. } => {
             SentenceEdgeSignatureDirectShadowStopReason::SignatureIndexEstimatedByteLimit
+        }
+        SentenceEdgeSignatureIndexBuildError::AllocationFailure { .. } => {
+            SentenceEdgeSignatureDirectShadowStopReason::AllocationFailure
         }
         SentenceEdgeSignatureIndexBuildError::Index(error) => match error {
             SentenceEdgeSignatureIndexError::AllocationFailure { .. } => {
@@ -21082,6 +21090,14 @@ mod tests {
                 SentenceEdgeSignatureDirectShadowStopReason::SignatureIndexEstimatedByteLimit,
             ),
             (
+                SentenceEdgeSignatureIndexBuildError::AllocationFailure {
+                    examined: 2,
+                    attempted: 3,
+                    progress: SentenceEdgeSignatureIndexMetrics::default(),
+                },
+                SentenceEdgeSignatureDirectShadowStopReason::AllocationFailure,
+            ),
+            (
                 SentenceEdgeSignatureIndexBuildError::Index(
                     SentenceEdgeSignatureIndexError::InvalidScope {
                         examined: 0,
@@ -21181,6 +21197,119 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn signature_index_build_limits_use_the_public_build_path() {
+        let occurrences = [
+            indexed_occurrence(
+                &['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &[
+                    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p',
+                    'q', 'r', 's', 't', 'u',
+                ],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+        ];
+        let unlimited = SentenceEdgeSignatureIndexBuildLimits {
+            posting_items: usize::MAX,
+            distinct_keys: usize::MAX,
+            estimated_logical_bytes: usize::MAX,
+        };
+        let baseline = SentenceEdgeSignatureIndex::new_with_limits(
+            &occurrences,
+            CandidatePostingIndexScope::Global,
+            unlimited,
+        )
+        .expect("baseline signature index fits");
+        let metrics = baseline.metrics();
+        let distinct_keys = metrics.own_distinct_keys + metrics.all_distinct_keys;
+        let probe = match SentenceEdgeSignatureIndex::new_with_limits(
+            &occurrences,
+            CandidatePostingIndexScope::Global,
+            SentenceEdgeSignatureIndexBuildLimits {
+                posting_items: metrics.posting_items,
+                distinct_keys,
+                estimated_logical_bytes: metrics.estimated_logical_bytes,
+            },
+        ) {
+            Ok(_) => panic!("completed bytes exclude the transition peak"),
+            Err(error) => error,
+        };
+        let SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
+            attempted: transition_peak,
+            ..
+        } = probe
+        else {
+            panic!("expected transition peak limit");
+        };
+        let exact = SentenceEdgeSignatureIndexBuildLimits {
+            posting_items: metrics.posting_items,
+            distinct_keys,
+            estimated_logical_bytes: transition_peak,
+        };
+        let exact_index = SentenceEdgeSignatureIndex::new_with_limits(
+            &occurrences,
+            CandidatePostingIndexScope::Global,
+            exact,
+        )
+        .expect("exact limits admit the index");
+        assert_eq!(exact_index.metrics(), metrics);
+
+        assert!(matches!(
+            SentenceEdgeSignatureIndex::new_with_limits(
+                &occurrences,
+                CandidatePostingIndexScope::Global,
+                SentenceEdgeSignatureIndexBuildLimits {
+                    posting_items: metrics.posting_items - 1,
+                    ..exact
+                },
+            ),
+            Err(SentenceEdgeSignatureIndexBuildError::PostingLimit {
+                examined: 0,
+                attempted,
+            }) if attempted == metrics.posting_items
+        ));
+        assert!(matches!(
+            SentenceEdgeSignatureIndex::new_with_limits(
+                &occurrences,
+                CandidatePostingIndexScope::Global,
+                SentenceEdgeSignatureIndexBuildLimits {
+                    distinct_keys: distinct_keys - 1,
+                    estimated_logical_bytes: usize::MAX,
+                    ..exact
+                },
+            ),
+            Err(SentenceEdgeSignatureIndexBuildError::DistinctKeyLimit {
+                examined,
+                attempted,
+                progress,
+            }) if examined == distinct_keys - 1
+                && attempted == distinct_keys
+                && progress.own_distinct_keys + progress.all_distinct_keys == distinct_keys
+        ));
+        assert!(matches!(
+            SentenceEdgeSignatureIndex::new_with_limits(
+                &occurrences,
+                CandidatePostingIndexScope::Global,
+                SentenceEdgeSignatureIndexBuildLimits {
+                    estimated_logical_bytes: transition_peak - 1,
+                    ..exact
+                },
+            ),
+            Err(SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
+                examined,
+                attempted,
+                progress,
+            }) if examined == progress.estimated_logical_bytes
+                && attempted == transition_peak
+                && examined < attempted
+        ));
     }
 
     #[test]

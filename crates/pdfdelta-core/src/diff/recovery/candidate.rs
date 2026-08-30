@@ -1,7 +1,7 @@
-use std::{
-    collections::{HashMap, HashSet},
-    mem::size_of,
-};
+use std::{collections::HashMap, mem::size_of};
+
+#[cfg(test)]
+use std::collections::HashSet;
 
 use super::score::{
     LINE_NGRAM_SIZE, MIN_WORD_SCORE_EDGE_EVIDENCE, line_trigram_candidate_meets_threshold,
@@ -49,13 +49,651 @@ pub(in crate::diff) struct UnitCandidateIndex {
     line_trigram_counts: Vec<usize>,
 }
 
-#[allow(dead_code)]
-type SentenceEdgeSignatureKey = (CandidatePostingBucket, OccurrenceRole, usize, u64);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SentenceEdgeSignatureScope {
+    Global,
+    Span,
+    Paired,
+    PairedStream,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+struct SentenceEdgeSignatureKey {
+    group: usize,
+    signature: u64,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct SentenceEdgeSignatureEntry {
+struct SentenceEdgeSignatureBuildEntry {
     key: SentenceEdgeSignatureKey,
     occurrence_index: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct SentenceEdgeSignatureRange {
+    key: SentenceEdgeSignatureKey,
+    start: usize,
+}
+
+#[derive(Default)]
+struct SentenceEdgeSignaturePostings {
+    ranges: Vec<SentenceEdgeSignatureRange>,
+    occurrences: Vec<usize>,
+}
+
+struct SentenceEdgeSignatureBuild {
+    scope: SentenceEdgeSignatureScope,
+    own: Vec<SentenceEdgeSignatureBuildEntry>,
+    all: Vec<SentenceEdgeSignatureBuildEntry>,
+    posting_items: usize,
+    depth_1_posting_items: usize,
+    depth_2_to_3_posting_items: usize,
+    depth_4_plus_posting_items: usize,
+}
+
+impl SentenceEdgeSignatureBuild {
+    fn empty(scope: SentenceEdgeSignatureScope) -> Self {
+        Self {
+            scope,
+            own: Vec::new(),
+            all: Vec::new(),
+            posting_items: 0,
+            depth_1_posting_items: 0,
+            depth_2_to_3_posting_items: 0,
+            depth_4_plus_posting_items: 0,
+        }
+    }
+
+    fn active_metrics(
+        &self,
+    ) -> Result<SentenceEdgeSignatureIndexMetrics, SentenceEdgeSignatureIndexError> {
+        let estimated_logical_bytes = size_of::<SentenceEdgeSignatureIndex>()
+            .checked_add(
+                self.own
+                    .capacity()
+                    .checked_add(self.all.capacity())
+                    .and_then(|capacity| {
+                        capacity.checked_mul(size_of::<SentenceEdgeSignatureBuildEntry>())
+                    })
+                    .ok_or_else(signature_metric_overflow)?,
+            )
+            .ok_or_else(signature_metric_overflow)?;
+        Ok(SentenceEdgeSignatureIndexMetrics {
+            posting_items: self.posting_items,
+            own_key_capacity: self.own.capacity(),
+            all_key_capacity: self.all.capacity(),
+            own_posting_items: self.own.len(),
+            all_posting_items: self.all.len(),
+            depth_1_posting_items: self.depth_1_posting_items,
+            depth_2_to_3_posting_items: self.depth_2_to_3_posting_items,
+            depth_4_plus_posting_items: self.depth_4_plus_posting_items,
+            estimated_logical_bytes,
+            ..SentenceEdgeSignatureIndexMetrics::default()
+        })
+    }
+}
+
+fn sentence_edge_signature_temp_bytes(
+    own_capacity: usize,
+    all_capacity: usize,
+) -> Result<usize, SentenceEdgeSignatureIndexError> {
+    size_of::<SentenceEdgeSignatureIndex>()
+        .checked_add(
+            own_capacity
+                .checked_add(all_capacity)
+                .and_then(|capacity| {
+                    capacity.checked_mul(size_of::<SentenceEdgeSignatureBuildEntry>())
+                })
+                .ok_or_else(signature_metric_overflow)?,
+        )
+        .ok_or_else(signature_metric_overflow)
+}
+
+fn reserve_sentence_edge_signature_build(
+    build: &mut SentenceEdgeSignatureBuild,
+    own: usize,
+    all: usize,
+) -> Result<(), SentenceEdgeSignatureIndexError> {
+    build.own.try_reserve_exact(own).map_err(|_| {
+        SentenceEdgeSignatureIndexError::AllocationFailure {
+            examined: 0,
+            attempted: own,
+        }
+    })?;
+    build.all.try_reserve_exact(all).map_err(|_| {
+        SentenceEdgeSignatureIndexError::AllocationFailure {
+            examined: build.own.capacity(),
+            attempted: own.saturating_add(all),
+        }
+    })
+}
+
+fn reserve_sentence_edge_signature_build_with_limits(
+    build: &mut SentenceEdgeSignatureBuild,
+    own: usize,
+    all: usize,
+    limits: SentenceEdgeSignatureIndexBuildLimits,
+) -> Result<(), SentenceEdgeSignatureIndexBuildError> {
+    build.own.try_reserve_exact(own).map_err(|_| {
+        SentenceEdgeSignatureIndexBuildError::Index(
+            SentenceEdgeSignatureIndexError::AllocationFailure {
+                examined: 0,
+                attempted: own,
+            },
+        )
+    })?;
+    let active = build
+        .active_metrics()
+        .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    let own_actual_peak = sentence_edge_signature_temp_bytes(build.own.capacity(), all)
+        .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    if own_actual_peak > limits.estimated_logical_bytes {
+        return Err(SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
+            examined: active.estimated_logical_bytes,
+            attempted: own_actual_peak,
+            progress: active,
+        });
+    }
+
+    build.all.try_reserve_exact(all).map_err(|_| {
+        SentenceEdgeSignatureIndexBuildError::Index(
+            SentenceEdgeSignatureIndexError::AllocationFailure {
+                examined: build.own.capacity(),
+                attempted: own.saturating_add(all),
+            },
+        )
+    })?;
+    let active = build
+        .active_metrics()
+        .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    if active.estimated_logical_bytes > limits.estimated_logical_bytes {
+        return Err(SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
+            examined: own_actual_peak,
+            attempted: active.estimated_logical_bytes,
+            progress: active,
+        });
+    }
+    Ok(())
+}
+
+fn collect_sentence_edge_signature_build(
+    build: &mut SentenceEdgeSignatureBuild,
+    occurrences: &[SentenceOccurrence],
+    scope: CandidatePostingIndexScope<'_>,
+    signature_step: fn(u64, SentenceEvidenceToken) -> u64,
+    allocation_failure_after: Option<usize>,
+) -> Result<(), SentenceEdgeSignatureIndexError> {
+    for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
+        if occurrence.kind != RecoveryUnitKind::Sentence {
+            continue;
+        }
+        let Some(role) = occurrence.role.map(OccurrenceRole::from) else {
+            continue;
+        };
+        let Some(bucket) = candidate_posting_bucket(scope, occurrence_index, occurrence).ok_or(
+            SentenceEdgeSignatureIndexError::InvalidScope {
+                examined: build.posting_items,
+                attempted: build.posting_items,
+            },
+        )?
+        else {
+            continue;
+        };
+        collect_sentence_edge_signature_unit(
+            build,
+            bucket,
+            role,
+            &occurrence.tokens,
+            occurrence_index,
+            signature_step,
+            allocation_failure_after,
+        )?;
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_sentence_edge_signature_unit(
+    build: &mut SentenceEdgeSignatureBuild,
+    bucket: CandidatePostingBucket,
+    role: OccurrenceRole,
+    tokens: &[SentenceEvidenceToken],
+    occurrence_index: usize,
+    signature_step: fn(u64, SentenceEvidenceToken) -> u64,
+    allocation_failure_after: Option<usize>,
+) -> Result<(), SentenceEdgeSignatureIndexError> {
+    let own_depth = sentence_edge_signature_depth(tokens.len()).ok_or(
+        SentenceEdgeSignatureIndexError::CounterOverflow {
+            examined: build.posting_items,
+            attempted: build.posting_items,
+        },
+    )?;
+    let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
+    let mut suffix = SENTENCE_EDGE_SIGNATURE_SEED;
+    for depth in 1..=own_depth {
+        prefix = signature_step(prefix, tokens[depth - 1]);
+        suffix = signature_step(suffix, tokens[tokens.len() - depth]);
+        push_sentence_edge_signature_build_entry(
+            build,
+            depth == own_depth,
+            bucket,
+            role,
+            depth,
+            prefix,
+            occurrence_index,
+            allocation_failure_after,
+        )?;
+        if suffix != prefix {
+            push_sentence_edge_signature_build_entry(
+                build,
+                depth == own_depth,
+                bucket,
+                role,
+                depth,
+                suffix,
+                occurrence_index,
+                allocation_failure_after,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_sentence_edge_signature_build_entry(
+    build: &mut SentenceEdgeSignatureBuild,
+    own: bool,
+    bucket: CandidatePostingBucket,
+    role: OccurrenceRole,
+    depth: usize,
+    signature: u64,
+    occurrence_index: usize,
+    allocation_failure_after: Option<usize>,
+) -> Result<(), SentenceEdgeSignatureIndexError> {
+    let attempted = build.posting_items.checked_add(1).ok_or(
+        SentenceEdgeSignatureIndexError::CounterOverflow {
+            examined: build.posting_items,
+            attempted: usize::MAX,
+        },
+    )?;
+    if allocation_failure_after.is_some_and(|limit| build.posting_items >= limit) {
+        return Err(SentenceEdgeSignatureIndexError::AllocationFailure {
+            examined: build.posting_items,
+            attempted,
+        });
+    }
+    let key = sentence_edge_signature_key(
+        build.scope,
+        bucket,
+        role,
+        depth,
+        signature,
+        build.posting_items,
+        attempted,
+    )?;
+    let entries = if own { &mut build.own } else { &mut build.all };
+    if entries.len() == entries.capacity() {
+        return Err(SentenceEdgeSignatureIndexError::AllocationFailure {
+            examined: build.posting_items,
+            attempted,
+        });
+    }
+    entries.push(SentenceEdgeSignatureBuildEntry {
+        key,
+        occurrence_index,
+    });
+    let depth_items = match sentence_edge_signature_depth_band(depth) {
+        Some(SentenceEdgeSignatureDepthBand::One) => &mut build.depth_1_posting_items,
+        Some(SentenceEdgeSignatureDepthBand::TwoToThree) => &mut build.depth_2_to_3_posting_items,
+        Some(SentenceEdgeSignatureDepthBand::FourOrMore) => &mut build.depth_4_plus_posting_items,
+        None => return Err(signature_metric_overflow()),
+    };
+    *depth_items = depth_items
+        .checked_add(1)
+        .ok_or_else(signature_metric_overflow)?;
+    build.posting_items = attempted;
+    Ok(())
+}
+
+fn count_distinct_signature_build_keys(entries: &[SentenceEdgeSignatureBuildEntry]) -> usize {
+    entries
+        .iter()
+        .enumerate()
+        .filter(|(index, entry)| *index == 0 || entries[*index - 1].key != entry.key)
+        .count()
+}
+
+fn sentence_edge_signature_transition_bytes(
+    build: &SentenceEdgeSignatureBuild,
+    own_range_capacity: usize,
+    all_range_capacity: usize,
+    posting_capacity: usize,
+) -> Result<usize, SentenceEdgeSignatureIndexError> {
+    build
+        .active_metrics()?
+        .estimated_logical_bytes
+        .checked_add(
+            own_range_capacity
+                .checked_add(all_range_capacity)
+                .and_then(|capacity| capacity.checked_mul(size_of::<SentenceEdgeSignatureRange>()))
+                .ok_or_else(signature_metric_overflow)?,
+        )
+        .and_then(|bytes| {
+            posting_capacity
+                .checked_mul(size_of::<usize>())
+                .and_then(|posting_bytes| bytes.checked_add(posting_bytes))
+        })
+        .ok_or_else(signature_metric_overflow)
+}
+
+fn sentence_edge_signature_transition_progress(
+    build: &SentenceEdgeSignatureBuild,
+    own_range_capacity: usize,
+    all_range_capacity: usize,
+    own_occurrence_capacity: usize,
+    all_occurrence_capacity: usize,
+    own_distinct: usize,
+    all_distinct: usize,
+) -> Result<SentenceEdgeSignatureIndexMetrics, SentenceEdgeSignatureIndexError> {
+    let mut progress = build.active_metrics()?;
+    progress.own_distinct_keys = own_distinct;
+    progress.all_distinct_keys = all_distinct;
+    progress.own_key_capacity = progress
+        .own_key_capacity
+        .checked_add(own_range_capacity)
+        .ok_or_else(signature_metric_overflow)?;
+    progress.all_key_capacity = progress
+        .all_key_capacity
+        .checked_add(all_range_capacity)
+        .ok_or_else(signature_metric_overflow)?;
+    progress.posting_capacity_items = own_occurrence_capacity
+        .checked_add(all_occurrence_capacity)
+        .ok_or_else(signature_metric_overflow)?;
+    progress.estimated_logical_bytes = sentence_edge_signature_transition_bytes(
+        build,
+        own_range_capacity,
+        all_range_capacity,
+        progress.posting_capacity_items,
+    )?;
+    Ok(progress)
+}
+
+fn validate_sentence_edge_signature_transition_peak(
+    build: &SentenceEdgeSignatureBuild,
+    progress: SentenceEdgeSignatureIndexMetrics,
+    attempted_own_range_capacity: usize,
+    attempted_all_range_capacity: usize,
+    attempted_posting_capacity: usize,
+    limits: Option<SentenceEdgeSignatureIndexBuildLimits>,
+) -> Result<(), SentenceEdgeSignatureIndexBuildError> {
+    let attempted = sentence_edge_signature_transition_bytes(
+        build,
+        attempted_own_range_capacity,
+        attempted_all_range_capacity,
+        attempted_posting_capacity,
+    )
+    .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    if limits.is_some_and(|limits| attempted > limits.estimated_logical_bytes) {
+        return Err(SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
+            examined: progress.estimated_logical_bytes,
+            attempted,
+            progress,
+        });
+    }
+    Ok(())
+}
+
+fn finalize_sentence_edge_signature_build(
+    mut build: SentenceEdgeSignatureBuild,
+    limits: Option<SentenceEdgeSignatureIndexBuildLimits>,
+) -> Result<SentenceEdgeSignatureIndex, SentenceEdgeSignatureIndexBuildError> {
+    build.own.sort_unstable();
+    build.all.sort_unstable();
+    let own_distinct = count_distinct_signature_build_keys(&build.own);
+    let all_distinct = count_distinct_signature_build_keys(&build.all);
+    let mut progress = build
+        .active_metrics()
+        .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    progress.own_distinct_keys = own_distinct;
+    progress.all_distinct_keys = all_distinct;
+    let distinct_keys = own_distinct.checked_add(all_distinct).ok_or(
+        SentenceEdgeSignatureIndexBuildError::DistinctKeyLimit {
+            examined: usize::MAX,
+            attempted: usize::MAX,
+            progress,
+        },
+    )?;
+    if let Some(limits) = limits.filter(|limits| distinct_keys > limits.distinct_keys) {
+        return Err(SentenceEdgeSignatureIndexBuildError::DistinctKeyLimit {
+            examined: limits.distinct_keys,
+            attempted: distinct_keys,
+            progress,
+        });
+    }
+    validate_sentence_edge_signature_transition_peak(
+        &build,
+        progress,
+        own_distinct,
+        all_distinct,
+        build.posting_items,
+        limits,
+    )?;
+
+    let mut own = SentenceEdgeSignaturePostings::default();
+    let mut all = SentenceEdgeSignaturePostings::default();
+    let attempted = sentence_edge_signature_transition_bytes(&build, own_distinct, 0, 0)
+        .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    reserve_final_sentence_edge_signature_ranges(&mut own, own_distinct, build.posting_items)
+        .map_err(
+            |_| SentenceEdgeSignatureIndexBuildError::AllocationFailure {
+                examined: progress.estimated_logical_bytes,
+                attempted,
+                progress,
+            },
+        )?;
+    progress = sentence_edge_signature_transition_progress(
+        &build,
+        own.ranges.capacity(),
+        0,
+        0,
+        0,
+        own_distinct,
+        all_distinct,
+    )
+    .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    validate_sentence_edge_signature_transition_peak(
+        &build,
+        progress,
+        own.ranges.capacity(),
+        all_distinct,
+        build.posting_items,
+        limits,
+    )?;
+    let attempted =
+        sentence_edge_signature_transition_bytes(&build, own.ranges.capacity(), all_distinct, 0)
+            .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    reserve_final_sentence_edge_signature_ranges(&mut all, all_distinct, build.posting_items)
+        .map_err(
+            |_| SentenceEdgeSignatureIndexBuildError::AllocationFailure {
+                examined: progress.estimated_logical_bytes,
+                attempted,
+                progress,
+            },
+        )?;
+    progress = sentence_edge_signature_transition_progress(
+        &build,
+        own.ranges.capacity(),
+        all.ranges.capacity(),
+        0,
+        0,
+        own_distinct,
+        all_distinct,
+    )
+    .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    validate_sentence_edge_signature_transition_peak(
+        &build,
+        progress,
+        own.ranges.capacity(),
+        all.ranges.capacity(),
+        build.posting_items,
+        limits,
+    )?;
+    let attempted = sentence_edge_signature_transition_bytes(
+        &build,
+        own.ranges.capacity(),
+        all.ranges.capacity(),
+        build.own.len(),
+    )
+    .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    reserve_final_sentence_edge_signature_occurrences(
+        &mut own,
+        build.own.len(),
+        build.posting_items,
+    )
+    .map_err(
+        |_| SentenceEdgeSignatureIndexBuildError::AllocationFailure {
+            examined: progress.estimated_logical_bytes,
+            attempted,
+            progress,
+        },
+    )?;
+    progress = sentence_edge_signature_transition_progress(
+        &build,
+        own.ranges.capacity(),
+        all.ranges.capacity(),
+        own.occurrences.capacity(),
+        0,
+        own_distinct,
+        all_distinct,
+    )
+    .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    let remaining_occurrences = own
+        .occurrences
+        .capacity()
+        .checked_add(build.all.len())
+        .ok_or_else(|| SentenceEdgeSignatureIndexBuildError::Index(signature_metric_overflow()))?;
+    validate_sentence_edge_signature_transition_peak(
+        &build,
+        progress,
+        own.ranges.capacity(),
+        all.ranges.capacity(),
+        remaining_occurrences,
+        limits,
+    )?;
+    let attempted = sentence_edge_signature_transition_bytes(
+        &build,
+        own.ranges.capacity(),
+        all.ranges.capacity(),
+        remaining_occurrences,
+    )
+    .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    reserve_final_sentence_edge_signature_occurrences(
+        &mut all,
+        build.all.len(),
+        build.posting_items,
+    )
+    .map_err(
+        |_| SentenceEdgeSignatureIndexBuildError::AllocationFailure {
+            examined: progress.estimated_logical_bytes,
+            attempted,
+            progress,
+        },
+    )?;
+    progress = sentence_edge_signature_transition_progress(
+        &build,
+        own.ranges.capacity(),
+        all.ranges.capacity(),
+        own.occurrences.capacity(),
+        all.occurrences.capacity(),
+        own_distinct,
+        all_distinct,
+    )
+    .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    validate_sentence_edge_signature_transition_peak(
+        &build,
+        progress,
+        own.ranges.capacity(),
+        all.ranges.capacity(),
+        own.occurrences
+            .capacity()
+            .checked_add(all.occurrences.capacity())
+            .ok_or_else(|| {
+                SentenceEdgeSignatureIndexBuildError::Index(signature_metric_overflow())
+            })?,
+        limits,
+    )?;
+    fill_final_sentence_edge_signature_postings(&build.own, &mut own);
+    fill_final_sentence_edge_signature_postings(&build.all, &mut all);
+    let mut index = SentenceEdgeSignatureIndex {
+        scope: build.scope,
+        own_depth_postings: own,
+        all_depth_postings: all,
+        metrics: SentenceEdgeSignatureIndexMetrics {
+            posting_items: build.posting_items,
+            own_distinct_keys: own_distinct,
+            all_distinct_keys: all_distinct,
+            own_posting_items: build.own.len(),
+            all_posting_items: build.all.len(),
+            depth_1_posting_items: build.depth_1_posting_items,
+            depth_2_to_3_posting_items: build.depth_2_to_3_posting_items,
+            depth_4_plus_posting_items: build.depth_4_plus_posting_items,
+            ..SentenceEdgeSignatureIndexMetrics::default()
+        },
+    };
+    index
+        .refresh_capacity_metrics()
+        .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    let shape = sentence_edge_signature_range_metrics(&index.own_depth_postings)
+        .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    let all_shape = sentence_edge_signature_range_metrics(&index.all_depth_postings)
+        .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+    index.metrics.largest_posting = shape.largest_posting.max(all_shape.largest_posting);
+    if let Some(limits) = limits {
+        validate_sentence_edge_signature_build_limits(index.metrics, limits)?;
+    }
+    Ok(index)
+}
+
+fn reserve_final_sentence_edge_signature_ranges(
+    postings: &mut SentenceEdgeSignaturePostings,
+    ranges: usize,
+    attempted: usize,
+) -> Result<(), SentenceEdgeSignatureIndexError> {
+    postings.ranges.try_reserve_exact(ranges).map_err(|_| {
+        SentenceEdgeSignatureIndexError::AllocationFailure {
+            examined: 0,
+            attempted,
+        }
+    })
+}
+
+fn reserve_final_sentence_edge_signature_occurrences(
+    postings: &mut SentenceEdgeSignaturePostings,
+    occurrences: usize,
+    attempted: usize,
+) -> Result<(), SentenceEdgeSignatureIndexError> {
+    postings
+        .occurrences
+        .try_reserve_exact(occurrences)
+        .map_err(|_| SentenceEdgeSignatureIndexError::AllocationFailure {
+            examined: 0,
+            attempted,
+        })
+}
+
+fn fill_final_sentence_edge_signature_postings(
+    source: &[SentenceEdgeSignatureBuildEntry],
+    target: &mut SentenceEdgeSignaturePostings,
+) {
+    for (offset, entry) in source.iter().enumerate() {
+        if offset == 0 || source[offset - 1].key != entry.key {
+            target.ranges.push(SentenceEdgeSignatureRange {
+                key: entry.key,
+                start: offset,
+            });
+        }
+        target.occurrences.push(entry.occurrence_index);
+    }
 }
 
 /// Diagnostic index for sentence pairs that can satisfy the edge-evidence gate.
@@ -64,8 +702,9 @@ struct SentenceEdgeSignatureEntry {
 /// construction has no additional allocation or runtime work.
 #[allow(dead_code)]
 pub(in crate::diff) struct SentenceEdgeSignatureIndex {
-    own_depth_postings: Vec<SentenceEdgeSignatureEntry>,
-    all_depth_postings: Vec<SentenceEdgeSignatureEntry>,
+    scope: SentenceEdgeSignatureScope,
+    own_depth_postings: SentenceEdgeSignaturePostings,
+    all_depth_postings: SentenceEdgeSignaturePostings,
     metrics: SentenceEdgeSignatureIndexMetrics,
 }
 
@@ -77,17 +716,19 @@ pub(in crate::diff) struct SentenceEdgeSignatureIndexMetrics {
     pub(in crate::diff) all_distinct_keys: usize,
     /// Reserved own-depth key slots in the active build representation.
     ///
-    /// Completed indexes report flat-entry capacity. A stopped distinct-key
-    /// preflight reports its temporary key-set capacity instead.
+    /// Completed indexes report compact range capacity. Stopped builds report
+    /// temporary-entry capacity plus any compact range capacity already
+    /// allocated during the final transition.
     pub(in crate::diff) own_key_capacity: usize,
     /// Reserved all-depth key slots in the active build representation.
     ///
-    /// Completed indexes report flat-entry capacity. A stopped distinct-key
-    /// preflight reports its temporary key-set capacity instead.
+    /// Completed indexes report compact range capacity. Stopped builds report
+    /// temporary-entry capacity plus any compact range capacity already
+    /// allocated during the final transition.
     pub(in crate::diff) all_key_capacity: usize,
     pub(in crate::diff) own_posting_items: usize,
     pub(in crate::diff) all_posting_items: usize,
-    /// Reserved occurrence-index slots across both flat entry vectors.
+    /// Reserved occurrence-index slots across both posting arrays.
     pub(in crate::diff) posting_capacity_items: usize,
     pub(in crate::diff) largest_posting: usize,
     pub(in crate::diff) depth_1_posting_items: usize,
@@ -95,12 +736,12 @@ pub(in crate::diff) struct SentenceEdgeSignatureIndexMetrics {
     pub(in crate::diff) depth_4_plus_posting_items: usize,
     /// Logical bytes derived from the active index-build representation.
     ///
-    /// Completed indexes count `size_of::<SentenceEdgeSignatureIndex>()`, one
-    /// key slot, and one occurrence-index slot per flat-entry capacity slot.
-    /// Stopped distinct-key preflights count the same fixed owner size plus one
-    /// key per temporary key-set capacity slot. Allocator and hash-table control
-    /// metadata are intentionally excluded because the standard library does
-    /// not expose them.
+    /// Completed indexes count `size_of::<SentenceEdgeSignatureIndex>()`, the
+    /// retained capacity of both compact range tables, and both occurrence
+    /// arrays. Build progress includes the same capacities, so construction
+    /// peaks are not hidden.
+    /// Allocator metadata is intentionally excluded because the standard
+    /// library does not expose it.
     pub(in crate::diff) estimated_logical_bytes: usize,
 }
 
@@ -142,6 +783,11 @@ pub(in crate::diff) enum SentenceEdgeSignatureIndexBuildError {
         attempted: usize,
         progress: SentenceEdgeSignatureIndexMetrics,
     },
+    AllocationFailure {
+        examined: usize,
+        attempted: usize,
+        progress: SentenceEdgeSignatureIndexMetrics,
+    },
     Index(SentenceEdgeSignatureIndexError),
 }
 
@@ -162,6 +808,11 @@ impl SentenceEdgeSignatureIndexBuildError {
                 examined,
                 attempted,
                 ..
+            }
+            | Self::AllocationFailure {
+                examined,
+                attempted,
+                ..
             } => (examined, attempted),
             Self::Index(error) => error.work(),
         }
@@ -169,20 +820,17 @@ impl SentenceEdgeSignatureIndexBuildError {
 }
 
 #[derive(Default)]
-struct SentenceEdgeSignatureFlatMetrics {
+struct SentenceEdgeSignatureRangeMetrics {
     distinct_keys: usize,
     largest_posting: usize,
-    depth_1_posting_items: usize,
-    depth_2_to_3_posting_items: usize,
-    depth_4_plus_posting_items: usize,
 }
 
 impl SentenceEdgeSignatureIndexBuildError {
     pub(in crate::diff) fn progress(self) -> Option<SentenceEdgeSignatureIndexMetrics> {
         match self {
-            Self::DistinctKeyLimit { progress, .. } | Self::EstimatedByteLimit { progress, .. } => {
-                Some(progress)
-            }
+            Self::DistinctKeyLimit { progress, .. }
+            | Self::EstimatedByteLimit { progress, .. }
+            | Self::AllocationFailure { progress, .. } => Some(progress),
             _ => None,
         }
     }
@@ -678,26 +1326,43 @@ impl SentenceEdgeSignatureIndex {
         occurrences: &[SentenceOccurrence],
         scope: CandidatePostingIndexScope<'_>,
     ) -> Result<usize, SentenceEdgeSignatureIndexError> {
-        occurrences
-            .iter()
-            .enumerate()
-            .try_fold(0usize, |total, (occurrence_index, occurrence)| {
+        let (own, all) = Self::posting_upper_bounds(occurrences, scope)?;
+        own.checked_add(all)
+            .ok_or(SentenceEdgeSignatureIndexError::CounterOverflow {
+                examined: 0,
+                attempted: usize::MAX,
+            })
+    }
+
+    fn posting_upper_bounds(
+        occurrences: &[SentenceOccurrence],
+        scope: CandidatePostingIndexScope<'_>,
+    ) -> Result<(usize, usize), SentenceEdgeSignatureIndexError> {
+        let scope_kind = sentence_edge_signature_scope(scope);
+        occurrences.iter().enumerate().try_fold(
+            (0usize, 0usize),
+            |(own, all), (occurrence_index, occurrence)| {
                 if occurrence.kind != RecoveryUnitKind::Sentence || occurrence.role.is_none() {
-                    return Ok(total);
+                    return Ok((own, all));
                 }
-                if candidate_posting_bucket(scope, occurrence_index, occurrence)
+                let Some(bucket) = candidate_posting_bucket(scope, occurrence_index, occurrence)
                     .ok_or(SentenceEdgeSignatureIndexError::InvalidScope {
                         examined: 0,
-                        attempted: total,
+                        attempted: own.saturating_add(all),
                     })?
-                    .is_none()
-                {
-                    return Ok(total);
-                }
+                else {
+                    return Ok((own, all));
+                };
+                compact_sentence_edge_signature_bucket(
+                    scope_kind,
+                    bucket,
+                    0,
+                    own.saturating_add(all),
+                )?;
                 let depth = sentence_edge_signature_depth(occurrence.tokens.len()).ok_or(
                     SentenceEdgeSignatureIndexError::CounterOverflow {
                         examined: 0,
-                        attempted: total,
+                        attempted: own.saturating_add(all),
                     },
                 )?;
                 let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
@@ -713,16 +1378,23 @@ impl SentenceEdgeSignatureIndex {
                         .checked_add(usize::from(prefix != suffix) + 1)
                         .ok_or(SentenceEdgeSignatureIndexError::CounterOverflow {
                             examined: 0,
-                            attempted: total,
+                            attempted: own.saturating_add(all),
                         })?;
                 }
-                total.checked_add(postings).ok_or(
-                    SentenceEdgeSignatureIndexError::CounterOverflow {
-                        examined: 0,
-                        attempted: usize::MAX,
-                    },
-                )
-            })
+                let own_postings = usize::from(depth > 0)
+                    .checked_mul(usize::from(prefix != suffix) + 1)
+                    .ok_or_else(signature_metric_overflow)?;
+                let all_postings = postings
+                    .checked_sub(own_postings)
+                    .ok_or_else(signature_metric_overflow)?;
+                Ok((
+                    own.checked_add(own_postings)
+                        .ok_or_else(signature_metric_overflow)?,
+                    all.checked_add(all_postings)
+                        .ok_or_else(signature_metric_overflow)?,
+                ))
+            },
+        )
     }
 
     pub(in crate::diff) fn new_bounded(
@@ -753,59 +1425,37 @@ impl SentenceEdgeSignatureIndex {
                 attempted,
             });
         }
-        let mut index = Self {
-            own_depth_postings: Vec::new(),
-            all_depth_postings: Vec::new(),
-            metrics: SentenceEdgeSignatureIndexMetrics::default(),
-        };
-        index
-            .refresh_shape_metrics()
+        let (own_upper_bound, all_upper_bound) = Self::posting_upper_bounds(occurrences, scope)
             .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
-        validate_sentence_edge_signature_build_limits(index.metrics, limits)?;
-        if attempted > limits.distinct_keys {
-            preflight_sentence_edge_signature_distinct_keys(occurrences, scope, limits, None)?;
+        let scope_kind = sentence_edge_signature_scope(scope);
+        let mut build = SentenceEdgeSignatureBuild::empty(scope_kind);
+        let minimum_temp_bytes =
+            sentence_edge_signature_temp_bytes(own_upper_bound, all_upper_bound)
+                .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+        if minimum_temp_bytes > limits.estimated_logical_bytes {
+            return Err(SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
+                examined: size_of::<SentenceEdgeSignatureIndex>(),
+                attempted: minimum_temp_bytes,
+                progress: build
+                    .active_metrics()
+                    .map_err(SentenceEdgeSignatureIndexBuildError::Index)?,
+            });
         }
-        let mut attempted = 0;
-        for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
-            let Some(bucket) = candidate_posting_bucket(scope, occurrence_index, occurrence)
-                .ok_or(SentenceEdgeSignatureIndexBuildError::Index(
-                    SentenceEdgeSignatureIndexError::InvalidScope {
-                        examined: index.metrics.posting_items,
-                        attempted,
-                    },
-                ))?
-            else {
-                continue;
-            };
-            let insertion = index.insert_unit_with_limits(
-                bucket,
-                occurrence.kind,
-                occurrence.role.map(OccurrenceRole::from),
-                &occurrence.tokens,
-                occurrence_index,
-                sentence_edge_signature_step,
-                &mut attempted,
-                limits,
-            );
-            if let Err(SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
-                examined,
-                attempted,
-                ..
-            }) = insertion
-            {
-                index
-                    .finalize()
-                    .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
-                return Err(SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
-                    examined,
-                    attempted,
-                    progress: index.metrics,
-                });
-            }
-            insertion?;
-        }
-        index.finalize_with_limits(limits)?;
-        Ok(index)
+        reserve_sentence_edge_signature_build_with_limits(
+            &mut build,
+            own_upper_bound,
+            all_upper_bound,
+            limits,
+        )?;
+        collect_sentence_edge_signature_build(
+            &mut build,
+            occurrences,
+            scope,
+            sentence_edge_signature_step,
+            None,
+        )
+        .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
+        finalize_sentence_edge_signature_build(build, Some(limits))
     }
 
     #[cfg(test)]
@@ -836,34 +1486,29 @@ impl SentenceEdgeSignatureIndex {
         signature_step: fn(u64, SentenceEvidenceToken) -> u64,
         allocation_failure_after: Option<usize>,
     ) -> Result<Self, SentenceEdgeSignatureIndexError> {
-        let mut index = Self {
-            own_depth_postings: Vec::new(),
-            all_depth_postings: Vec::new(),
+        let (own_upper_bound, all_upper_bound) = Self::posting_upper_bounds(occurrences, scope)?;
+        let mut build = SentenceEdgeSignatureBuild::empty(sentence_edge_signature_scope(scope));
+        reserve_sentence_edge_signature_build(&mut build, own_upper_bound, all_upper_bound)?;
+        collect_sentence_edge_signature_build(
+            &mut build,
+            occurrences,
+            scope,
+            signature_step,
+            allocation_failure_after,
+        )?;
+        finalize_sentence_edge_signature_build(build, None).map_err(|error| match error {
+            SentenceEdgeSignatureIndexBuildError::Index(error) => error,
+            _ => signature_metric_overflow(),
+        })
+    }
+
+    fn empty(scope: SentenceEdgeSignatureScope) -> Self {
+        Self {
+            scope,
+            own_depth_postings: SentenceEdgeSignaturePostings::default(),
+            all_depth_postings: SentenceEdgeSignaturePostings::default(),
             metrics: SentenceEdgeSignatureIndexMetrics::default(),
-        };
-        let mut attempted = 0usize;
-        for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
-            let Some(bucket) = candidate_posting_bucket(scope, occurrence_index, occurrence)
-                .ok_or(SentenceEdgeSignatureIndexError::InvalidScope {
-                    examined: index.metrics.posting_items,
-                    attempted,
-                })?
-            else {
-                continue;
-            };
-            index.insert_unit_bounded(
-                bucket,
-                occurrence.kind,
-                occurrence.role.map(OccurrenceRole::from),
-                &occurrence.tokens,
-                occurrence_index,
-                signature_step,
-                &mut attempted,
-                allocation_failure_after,
-            )?;
         }
-        index.finalize()?;
-        Ok(index)
     }
 
     pub(in crate::diff) fn metrics(&self) -> SentenceEdgeSignatureIndexMetrics {
@@ -976,13 +1621,14 @@ impl SentenceEdgeSignatureIndex {
         let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
         let mut suffix = SENTENCE_EDGE_SIGNATURE_SEED;
         let mut visits = 0usize;
+        let buckets = self.compact_query_buckets(bucket, additional_bucket, 0, 0)?;
         for current in 1..=depth {
             prefix = sentence_edge_signature_step(prefix, occurrence.tokens[current - 1]);
             suffix = sentence_edge_signature_step(
                 suffix,
                 occurrence.tokens[occurrence.tokens.len() - current],
             );
-            for bucket in [Some(bucket), additional_bucket].into_iter().flatten() {
+            for bucket in buckets.into_iter().flatten() {
                 visits = count_signature_postings(
                     &self.own_depth_postings,
                     visits,
@@ -1006,247 +1652,6 @@ impl SentenceEdgeSignatureIndex {
             }
         }
         Ok(visits)
-    }
-
-    fn insert_unit(
-        &mut self,
-        bucket: CandidatePostingBucket,
-        kind: RecoveryUnitKind,
-        role: Option<OccurrenceRole>,
-        tokens: &[SentenceEvidenceToken],
-        occurrence_index: usize,
-        signature_step: fn(u64, SentenceEvidenceToken) -> u64,
-    ) -> Option<()> {
-        let mut attempted = self.metrics.posting_items;
-        self.insert_unit_bounded(
-            bucket,
-            kind,
-            role,
-            tokens,
-            occurrence_index,
-            signature_step,
-            &mut attempted,
-            None,
-        )
-        .and_then(|()| self.finalize())
-        .ok()
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn insert_unit_bounded(
-        &mut self,
-        bucket: CandidatePostingBucket,
-        kind: RecoveryUnitKind,
-        role: Option<OccurrenceRole>,
-        tokens: &[SentenceEvidenceToken],
-        occurrence_index: usize,
-        signature_step: fn(u64, SentenceEvidenceToken) -> u64,
-        attempted: &mut usize,
-        allocation_failure_after: Option<usize>,
-    ) -> Result<(), SentenceEdgeSignatureIndexError> {
-        if kind != RecoveryUnitKind::Sentence {
-            return Ok(());
-        }
-        let Some(role) = role else {
-            return Ok(());
-        };
-        self.insert_sentence_bounded(
-            bucket,
-            role,
-            tokens,
-            occurrence_index,
-            signature_step,
-            attempted,
-            allocation_failure_after,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn insert_unit_with_limits(
-        &mut self,
-        bucket: CandidatePostingBucket,
-        kind: RecoveryUnitKind,
-        role: Option<OccurrenceRole>,
-        tokens: &[SentenceEvidenceToken],
-        occurrence_index: usize,
-        signature_step: fn(u64, SentenceEvidenceToken) -> u64,
-        attempted: &mut usize,
-        limits: SentenceEdgeSignatureIndexBuildLimits,
-    ) -> Result<(), SentenceEdgeSignatureIndexBuildError> {
-        if kind != RecoveryUnitKind::Sentence {
-            return Ok(());
-        }
-        let Some(role) = role else {
-            return Ok(());
-        };
-        self.insert_sentence_with_limits(
-            bucket,
-            role,
-            tokens,
-            occurrence_index,
-            signature_step,
-            attempted,
-            limits,
-        )
-    }
-
-    fn insert_sentence(
-        &mut self,
-        bucket: CandidatePostingBucket,
-        role: OccurrenceRole,
-        tokens: &[SentenceEvidenceToken],
-        occurrence_index: usize,
-        signature_step: fn(u64, SentenceEvidenceToken) -> u64,
-    ) -> Option<()> {
-        let mut attempted = self.metrics.posting_items;
-        self.insert_sentence_bounded(
-            bucket,
-            role,
-            tokens,
-            occurrence_index,
-            signature_step,
-            &mut attempted,
-            None,
-        )
-        .and_then(|()| self.finalize())
-        .ok()
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn insert_sentence_bounded(
-        &mut self,
-        bucket: CandidatePostingBucket,
-        role: OccurrenceRole,
-        tokens: &[SentenceEvidenceToken],
-        occurrence_index: usize,
-        signature_step: fn(u64, SentenceEvidenceToken) -> u64,
-        attempted: &mut usize,
-        allocation_failure_after: Option<usize>,
-    ) -> Result<(), SentenceEdgeSignatureIndexError> {
-        let own_depth = sentence_edge_signature_depth(tokens.len()).ok_or(
-            SentenceEdgeSignatureIndexError::CounterOverflow {
-                examined: self.metrics.posting_items,
-                attempted: *attempted,
-            },
-        )?;
-        let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
-        let mut suffix = SENTENCE_EDGE_SIGNATURE_SEED;
-        for depth in 1..=own_depth {
-            prefix = signature_step(prefix, tokens[depth - 1]);
-            suffix = signature_step(suffix, tokens[tokens.len() - depth]);
-            let postings = if depth == own_depth {
-                &mut self.own_depth_postings
-            } else {
-                &mut self.all_depth_postings
-            };
-            push_sentence_edge_signatures(
-                postings,
-                &mut self.metrics,
-                bucket,
-                role,
-                depth,
-                prefix,
-                suffix,
-                occurrence_index,
-                attempted,
-                allocation_failure_after,
-            )?;
-        }
-        Ok(())
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn insert_sentence_with_limits(
-        &mut self,
-        bucket: CandidatePostingBucket,
-        role: OccurrenceRole,
-        tokens: &[SentenceEvidenceToken],
-        occurrence_index: usize,
-        signature_step: fn(u64, SentenceEvidenceToken) -> u64,
-        attempted: &mut usize,
-        limits: SentenceEdgeSignatureIndexBuildLimits,
-    ) -> Result<(), SentenceEdgeSignatureIndexBuildError> {
-        let own_depth = sentence_edge_signature_depth(tokens.len()).ok_or(
-            SentenceEdgeSignatureIndexBuildError::Index(
-                SentenceEdgeSignatureIndexError::CounterOverflow {
-                    examined: self.metrics.posting_items,
-                    attempted: *attempted,
-                },
-            ),
-        )?;
-        let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
-        let mut suffix = SENTENCE_EDGE_SIGNATURE_SEED;
-        for depth in 1..=own_depth {
-            prefix = signature_step(prefix, tokens[depth - 1]);
-            suffix = signature_step(suffix, tokens[tokens.len() - depth]);
-            self.push_sentence_edge_signature_with_limits(
-                depth == own_depth,
-                (bucket, role, depth, prefix),
-                occurrence_index,
-                attempted,
-                limits,
-            )?;
-            if suffix != prefix {
-                self.push_sentence_edge_signature_with_limits(
-                    depth == own_depth,
-                    (bucket, role, depth, suffix),
-                    occurrence_index,
-                    attempted,
-                    limits,
-                )?;
-            }
-        }
-        Ok(())
-    }
-
-    fn push_sentence_edge_signature_with_limits(
-        &mut self,
-        own_depth: bool,
-        key: SentenceEdgeSignatureKey,
-        occurrence_index: usize,
-        attempted: &mut usize,
-        limits: SentenceEdgeSignatureIndexBuildLimits,
-    ) -> Result<(), SentenceEdgeSignatureIndexBuildError> {
-        let attempted_postings = self.metrics.posting_items.checked_add(1).ok_or(
-            SentenceEdgeSignatureIndexBuildError::Index(
-                SentenceEdgeSignatureIndexError::CounterOverflow {
-                    examined: self.metrics.posting_items,
-                    attempted: usize::MAX,
-                },
-            ),
-        )?;
-        if attempted_postings > limits.posting_items {
-            return Err(SentenceEdgeSignatureIndexBuildError::PostingLimit {
-                examined: self.metrics.posting_items,
-                attempted: attempted_postings,
-            });
-        }
-
-        let examined_bytes = self.metrics.estimated_logical_bytes;
-        let postings = if own_depth {
-            &mut self.own_depth_postings
-        } else {
-            &mut self.all_depth_postings
-        };
-        push_sentence_edge_signature(
-            postings,
-            &mut self.metrics,
-            key,
-            occurrence_index,
-            attempted,
-            None,
-        )
-        .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
-        self.refresh_capacity_metrics()
-            .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
-        if self.metrics.estimated_logical_bytes > limits.estimated_logical_bytes {
-            return Err(SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
-                examined: examined_bytes,
-                attempted: self.metrics.estimated_logical_bytes,
-                progress: self.metrics,
-            });
-        }
-        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1293,10 +1698,11 @@ impl SentenceEdgeSignatureIndex {
         let mut attempted = 0usize;
         let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
         let mut suffix = SENTENCE_EDGE_SIGNATURE_SEED;
+        let buckets = self.compact_query_buckets(bucket, additional_bucket, 0, 0)?;
         for depth in 1..=query_depth {
             prefix = signature_step(prefix, tokens[depth - 1]);
             suffix = signature_step(suffix, tokens[tokens.len() - depth]);
-            for candidate_bucket in [Some(bucket), additional_bucket].into_iter().flatten() {
+            for candidate_bucket in buckets.into_iter().flatten() {
                 collect_sentence_edge_signatures(
                     &self.own_depth_postings,
                     plausible,
@@ -1334,26 +1740,33 @@ impl SentenceEdgeSignatureIndex {
         })
     }
 
-    fn finalize(&mut self) -> Result<(), SentenceEdgeSignatureIndexError> {
-        self.own_depth_postings.sort_unstable();
-        self.all_depth_postings.sort_unstable();
-        self.refresh_shape_metrics()
-    }
-
-    fn finalize_with_limits(
-        &mut self,
-        limits: SentenceEdgeSignatureIndexBuildLimits,
-    ) -> Result<(), SentenceEdgeSignatureIndexBuildError> {
-        self.finalize()
-            .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
-        validate_sentence_edge_signature_build_limits(self.metrics, limits)
+    fn compact_query_buckets(
+        &self,
+        bucket: CandidatePostingBucket,
+        additional_bucket: Option<CandidatePostingBucket>,
+        examined: usize,
+        attempted: usize,
+    ) -> Result<[Option<usize>; 2], SentenceEdgeSignatureIndexError> {
+        Ok([
+            Some(compact_sentence_edge_signature_bucket(
+                self.scope, bucket, examined, attempted,
+            )?),
+            additional_bucket
+                .map(|bucket| {
+                    compact_sentence_edge_signature_bucket(self.scope, bucket, examined, attempted)
+                })
+                .transpose()?,
+        ])
     }
 
     fn refresh_capacity_metrics(&mut self) -> Result<(), SentenceEdgeSignatureIndexError> {
-        let own_key_capacity = self.own_depth_postings.capacity();
-        let all_key_capacity = self.all_depth_postings.capacity();
-        let posting_capacity_items = own_key_capacity
-            .checked_add(all_key_capacity)
+        let own_key_capacity = self.own_depth_postings.ranges.capacity();
+        let all_key_capacity = self.all_depth_postings.ranges.capacity();
+        let posting_capacity_items = self
+            .own_depth_postings
+            .occurrences
+            .capacity()
+            .checked_add(self.all_depth_postings.occurrences.capacity())
             .ok_or_else(signature_metric_overflow)?;
         let estimated_logical_bytes = sentence_edge_signature_estimated_logical_bytes(
             own_key_capacity,
@@ -1366,63 +1779,39 @@ impl SentenceEdgeSignatureIndex {
         self.metrics.estimated_logical_bytes = estimated_logical_bytes;
         Ok(())
     }
-
-    fn refresh_shape_metrics(&mut self) -> Result<(), SentenceEdgeSignatureIndexError> {
-        let own = sentence_edge_signature_flat_metrics(&self.own_depth_postings)?;
-        let all = sentence_edge_signature_flat_metrics(&self.all_depth_postings)?;
-        let posting_items = self
-            .own_depth_postings
-            .len()
-            .checked_add(self.all_depth_postings.len())
-            .ok_or_else(signature_metric_overflow)?;
-        self.refresh_capacity_metrics()?;
-        self.metrics = SentenceEdgeSignatureIndexMetrics {
-            posting_items,
-            own_distinct_keys: own.distinct_keys,
-            all_distinct_keys: all.distinct_keys,
-            own_key_capacity: self.metrics.own_key_capacity,
-            all_key_capacity: self.metrics.all_key_capacity,
-            own_posting_items: self.own_depth_postings.len(),
-            all_posting_items: self.all_depth_postings.len(),
-            posting_capacity_items: self.metrics.posting_capacity_items,
-            largest_posting: own.largest_posting.max(all.largest_posting),
-            depth_1_posting_items: own
-                .depth_1_posting_items
-                .checked_add(all.depth_1_posting_items)
-                .ok_or_else(signature_metric_overflow)?,
-            depth_2_to_3_posting_items: own
-                .depth_2_to_3_posting_items
-                .checked_add(all.depth_2_to_3_posting_items)
-                .ok_or_else(signature_metric_overflow)?,
-            depth_4_plus_posting_items: own
-                .depth_4_plus_posting_items
-                .checked_add(all.depth_4_plus_posting_items)
-                .ok_or_else(signature_metric_overflow)?,
-            estimated_logical_bytes: self.metrics.estimated_logical_bytes,
-        };
-        Ok(())
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
 fn count_signature_postings(
-    postings: &[SentenceEdgeSignatureEntry],
+    postings: &SentenceEdgeSignaturePostings,
     mut count: usize,
-    bucket: CandidatePostingBucket,
+    bucket: usize,
     role: OccurrenceRole,
     depth: usize,
     prefix: u64,
     suffix: u64,
 ) -> Result<usize, SentenceEdgeSignatureIndexError> {
     count = count
-        .checked_add(signature_posting(postings, (bucket, role, depth, prefix)).len())
+        .checked_add(
+            signature_posting(
+                postings,
+                sentence_edge_signature_key_from_bucket(bucket, role, depth, prefix, 0, 0)?,
+            )
+            .len(),
+        )
         .ok_or(SentenceEdgeSignatureIndexError::CounterOverflow {
             examined: 0,
             attempted: usize::MAX,
         })?;
     if suffix != prefix {
         count = count
-            .checked_add(signature_posting(postings, (bucket, role, depth, suffix)).len())
+            .checked_add(
+                signature_posting(
+                    postings,
+                    sentence_edge_signature_key_from_bucket(bucket, role, depth, suffix, 0, 0)?,
+                )
+                .len(),
+            )
             .ok_or(SentenceEdgeSignatureIndexError::CounterOverflow {
                 examined: 0,
                 attempted: usize::MAX,
@@ -1441,43 +1830,37 @@ fn sentence_edge_signature_depth_band(depth: usize) -> Option<SentenceEdgeSignat
 }
 
 fn signature_posting(
-    postings: &[SentenceEdgeSignatureEntry],
+    postings: &SentenceEdgeSignaturePostings,
     key: SentenceEdgeSignatureKey,
-) -> &[SentenceEdgeSignatureEntry] {
-    let start = postings.partition_point(|entry| entry.key < key);
-    let end = postings[start..].partition_point(|entry| entry.key == key) + start;
-    &postings[start..end]
+) -> &[usize] {
+    let index = postings.ranges.partition_point(|entry| entry.key < key);
+    let Some(range) = postings.ranges.get(index).filter(|entry| entry.key == key) else {
+        return &[];
+    };
+    let end = postings
+        .ranges
+        .get(index + 1)
+        .map_or(postings.occurrences.len(), |entry| entry.start);
+    postings.occurrences.get(range.start..end).unwrap_or(&[])
 }
 
-fn sentence_edge_signature_flat_metrics(
-    postings: &[SentenceEdgeSignatureEntry],
-) -> Result<SentenceEdgeSignatureFlatMetrics, SentenceEdgeSignatureIndexError> {
-    let mut metrics = SentenceEdgeSignatureFlatMetrics::default();
-    let mut start = 0;
-    while start < postings.len() {
-        let key = postings[start].key;
-        let posting_len = postings[start..].partition_point(|entry| entry.key == key);
+fn sentence_edge_signature_range_metrics(
+    postings: &SentenceEdgeSignaturePostings,
+) -> Result<SentenceEdgeSignatureRangeMetrics, SentenceEdgeSignatureIndexError> {
+    let mut metrics = SentenceEdgeSignatureRangeMetrics::default();
+    for (index, range) in postings.ranges.iter().enumerate() {
+        let end = postings
+            .ranges
+            .get(index + 1)
+            .map_or(postings.occurrences.len(), |entry| entry.start);
+        let posting_len = end
+            .checked_sub(range.start)
+            .ok_or_else(signature_metric_overflow)?;
         metrics.distinct_keys = metrics
             .distinct_keys
             .checked_add(1)
             .ok_or_else(signature_metric_overflow)?;
         metrics.largest_posting = metrics.largest_posting.max(posting_len);
-        let depth_items = match sentence_edge_signature_depth_band(key.2) {
-            Some(SentenceEdgeSignatureDepthBand::One) => &mut metrics.depth_1_posting_items,
-            Some(SentenceEdgeSignatureDepthBand::TwoToThree) => {
-                &mut metrics.depth_2_to_3_posting_items
-            }
-            Some(SentenceEdgeSignatureDepthBand::FourOrMore) => {
-                &mut metrics.depth_4_plus_posting_items
-            }
-            None => return Err(signature_metric_overflow()),
-        };
-        *depth_items = depth_items
-            .checked_add(posting_len)
-            .ok_or_else(signature_metric_overflow)?;
-        start = start
-            .checked_add(posting_len)
-            .ok_or_else(signature_metric_overflow)?;
     }
     Ok(metrics)
 }
@@ -1491,7 +1874,7 @@ fn sentence_edge_signature_estimated_logical_bytes(
         .checked_add(all_key_capacity)
         .ok_or_else(signature_metric_overflow)?;
     let key_bytes = key_capacity
-        .checked_mul(size_of::<SentenceEdgeSignatureKey>())
+        .checked_mul(size_of::<SentenceEdgeSignatureRange>())
         .ok_or_else(signature_metric_overflow)?;
     let posting_bytes = posting_capacity_items
         .checked_mul(size_of::<usize>())
@@ -1598,242 +1981,121 @@ fn candidate_posting_bucket(
     }
 }
 
-fn preflight_sentence_edge_signature_distinct_keys(
-    occurrences: &[SentenceOccurrence],
+fn sentence_edge_signature_scope(
     scope: CandidatePostingIndexScope<'_>,
-    limits: SentenceEdgeSignatureIndexBuildLimits,
-    allocation_failure_after: Option<usize>,
-) -> Result<(), SentenceEdgeSignatureIndexBuildError> {
-    let mut own = HashSet::new();
-    let mut all = HashSet::new();
-    for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
-        if occurrence.kind != RecoveryUnitKind::Sentence || occurrence.role.is_none() {
-            continue;
-        }
-        let examined = own.len().checked_add(all.len()).ok_or_else(|| {
-            SentenceEdgeSignatureIndexBuildError::Index(signature_metric_overflow())
-        })?;
-        let Some(bucket) = candidate_posting_bucket(scope, occurrence_index, occurrence).ok_or(
-            SentenceEdgeSignatureIndexBuildError::Index(
-                SentenceEdgeSignatureIndexError::InvalidScope {
-                    examined,
-                    attempted: examined,
-                },
-            ),
-        )?
-        else {
-            continue;
-        };
-        let role = occurrence.role.map(OccurrenceRole::from).ok_or(
-            SentenceEdgeSignatureIndexBuildError::Index(
-                SentenceEdgeSignatureIndexError::InvalidScope {
-                    examined,
-                    attempted: examined,
-                },
-            ),
-        )?;
-        let own_depth = sentence_edge_signature_depth(occurrence.tokens.len()).ok_or(
-            SentenceEdgeSignatureIndexBuildError::Index(signature_metric_overflow()),
-        )?;
-        let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
-        let mut suffix = SENTENCE_EDGE_SIGNATURE_SEED;
-        for depth in 1..=own_depth {
-            prefix = sentence_edge_signature_step(prefix, occurrence.tokens[depth - 1]);
-            suffix = sentence_edge_signature_step(
-                suffix,
-                occurrence.tokens[occurrence.tokens.len() - depth],
-            );
-            let keys = if prefix == suffix {
-                [(bucket, role, depth, prefix), (bucket, role, depth, prefix)]
-            } else {
-                [(bucket, role, depth, prefix), (bucket, role, depth, suffix)]
-            };
-            for (offset, key) in keys.into_iter().enumerate() {
-                if offset == 1 && prefix == suffix {
-                    break;
-                }
-                preflight_sentence_edge_signature_key(
-                    &mut own,
-                    &mut all,
-                    depth == own_depth,
-                    key,
-                    limits,
-                    allocation_failure_after,
-                )?;
-            }
-        }
+) -> SentenceEdgeSignatureScope {
+    match scope {
+        CandidatePostingIndexScope::Global => SentenceEdgeSignatureScope::Global,
+        CandidatePostingIndexScope::Span => SentenceEdgeSignatureScope::Span,
+        CandidatePostingIndexScope::Paired(_) => SentenceEdgeSignatureScope::Paired,
+        CandidatePostingIndexScope::PairedStream(_) => SentenceEdgeSignatureScope::PairedStream,
     }
-    Ok(())
 }
 
-fn preflight_sentence_edge_signature_key(
-    own: &mut HashSet<SentenceEdgeSignatureKey>,
-    all: &mut HashSet<SentenceEdgeSignatureKey>,
-    own_namespace: bool,
-    key: SentenceEdgeSignatureKey,
-    limits: SentenceEdgeSignatureIndexBuildLimits,
-    allocation_failure_after: Option<usize>,
-) -> Result<(), SentenceEdgeSignatureIndexBuildError> {
-    if if own_namespace {
-        own.contains(&key)
-    } else {
-        all.contains(&key)
-    } {
-        return Ok(());
+fn compact_sentence_edge_signature_bucket(
+    scope: SentenceEdgeSignatureScope,
+    bucket: CandidatePostingBucket,
+    examined: usize,
+    attempted: usize,
+) -> Result<usize, SentenceEdgeSignatureIndexError> {
+    let invalid = || SentenceEdgeSignatureIndexError::InvalidScope {
+        examined,
+        attempted,
+    };
+    match (scope, bucket) {
+        (SentenceEdgeSignatureScope::Global, CandidatePostingBucket::Global) => Ok(0),
+        (SentenceEdgeSignatureScope::Span, CandidatePostingBucket::Span(None)) => Ok(0),
+        (SentenceEdgeSignatureScope::Span, CandidatePostingBucket::Span(Some(span))) => span
+            .checked_add(1)
+            .ok_or(SentenceEdgeSignatureIndexError::CounterOverflow {
+                examined,
+                attempted,
+            }),
+        (
+            SentenceEdgeSignatureScope::Paired,
+            CandidatePostingBucket::Paired(PairedInterval {
+                pair_index,
+                interval_index,
+            }),
+        ) => checked_sentence_edge_signature_pair(pair_index, interval_index, examined, attempted),
+        (
+            SentenceEdgeSignatureScope::PairedStream,
+            CandidatePostingBucket::PairedStream(stream),
+        ) => Ok(stream),
+        _ => Err(invalid()),
     }
-    let examined = own
-        .len()
-        .checked_add(all.len())
-        .ok_or_else(|| SentenceEdgeSignatureIndexBuildError::Index(signature_metric_overflow()))?;
-    let attempted = examined
-        .checked_add(1)
-        .ok_or_else(|| SentenceEdgeSignatureIndexBuildError::Index(signature_metric_overflow()))?;
-    let progress = sentence_edge_signature_preflight_metrics(own, all)?;
-    if attempted > limits.distinct_keys {
-        return Err(SentenceEdgeSignatureIndexBuildError::DistinctKeyLimit {
+}
+
+fn checked_sentence_edge_signature_pair(
+    left: usize,
+    right: usize,
+    examined: usize,
+    attempted: usize,
+) -> Result<usize, SentenceEdgeSignatureIndexError> {
+    let overflow = || SentenceEdgeSignatureIndexError::CounterOverflow {
+        examined,
+        attempted,
+    };
+    let diagonal = left.checked_add(right).ok_or_else(overflow)?;
+    let next = diagonal.checked_add(1).ok_or_else(overflow)?;
+    let (factor_left, factor_right) = if diagonal % 2 == 0 {
+        (diagonal / 2, next)
+    } else {
+        (diagonal, next / 2)
+    };
+    factor_left
+        .checked_mul(factor_right)
+        .and_then(|value| value.checked_add(right))
+        .ok_or_else(overflow)
+}
+
+fn sentence_edge_signature_key(
+    scope: SentenceEdgeSignatureScope,
+    bucket: CandidatePostingBucket,
+    role: OccurrenceRole,
+    depth: usize,
+    signature: u64,
+    examined: usize,
+    attempted: usize,
+) -> Result<SentenceEdgeSignatureKey, SentenceEdgeSignatureIndexError> {
+    let bucket = compact_sentence_edge_signature_bucket(scope, bucket, examined, attempted)?;
+    sentence_edge_signature_key_from_bucket(bucket, role, depth, signature, examined, attempted)
+}
+
+fn sentence_edge_signature_key_from_bucket(
+    bucket: usize,
+    role: OccurrenceRole,
+    depth: usize,
+    signature: u64,
+    examined: usize,
+    attempted: usize,
+) -> Result<SentenceEdgeSignatureKey, SentenceEdgeSignatureIndexError> {
+    const ROLE_COUNT: usize = 3;
+    let role = match role {
+        OccurrenceRole::Body => 0,
+        OccurrenceRole::RepeatedHeader => 1,
+        OccurrenceRole::RepeatedFooter => 2,
+    };
+    let depth_role = depth
+        .checked_mul(ROLE_COUNT)
+        .and_then(|value| value.checked_add(role))
+        .ok_or(SentenceEdgeSignatureIndexError::CounterOverflow {
             examined,
             attempted,
-            progress,
-        });
-    }
-    if allocation_failure_after.is_some_and(|limit| examined >= limit) {
-        return Err(SentenceEdgeSignatureIndexBuildError::Index(
-            SentenceEdgeSignatureIndexError::AllocationFailure {
-                examined,
-                attempted,
-            },
-        ));
-    }
-    let examined_bytes = progress.estimated_logical_bytes;
-    let target = if own_namespace { &mut *own } else { &mut *all };
-    target.try_reserve(1).map_err(|_| {
-        SentenceEdgeSignatureIndexBuildError::Index(
-            SentenceEdgeSignatureIndexError::AllocationFailure {
-                examined,
-                attempted,
-            },
-        )
-    })?;
-    target.insert(key);
-    let progress = sentence_edge_signature_preflight_metrics(own, all)?;
-    if progress.estimated_logical_bytes > limits.estimated_logical_bytes {
-        return Err(SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
-            examined: examined_bytes,
-            attempted: progress.estimated_logical_bytes,
-            progress,
-        });
-    }
-    Ok(())
-}
-
-fn sentence_edge_signature_preflight_metrics(
-    own: &HashSet<SentenceEdgeSignatureKey>,
-    all: &HashSet<SentenceEdgeSignatureKey>,
-) -> Result<SentenceEdgeSignatureIndexMetrics, SentenceEdgeSignatureIndexBuildError> {
-    let estimated_logical_bytes = size_of::<SentenceEdgeSignatureIndex>()
-        .checked_add(
-            own.capacity()
-                .checked_add(all.capacity())
-                .and_then(|capacity| capacity.checked_mul(size_of::<SentenceEdgeSignatureKey>()))
-                .ok_or_else(|| {
-                    SentenceEdgeSignatureIndexBuildError::Index(signature_metric_overflow())
-                })?,
-        )
-        .ok_or_else(|| SentenceEdgeSignatureIndexBuildError::Index(signature_metric_overflow()))?;
-    Ok(SentenceEdgeSignatureIndexMetrics {
-        own_distinct_keys: own.len(),
-        all_distinct_keys: all.len(),
-        own_key_capacity: own.capacity(),
-        all_key_capacity: all.capacity(),
-        estimated_logical_bytes,
-        ..SentenceEdgeSignatureIndexMetrics::default()
+        })?;
+    Ok(SentenceEdgeSignatureKey {
+        group: checked_sentence_edge_signature_pair(bucket, depth_role, examined, attempted)?,
+        signature,
     })
 }
 
 #[allow(clippy::too_many_arguments)]
 #[allow(dead_code)]
-fn push_sentence_edge_signatures(
-    postings: &mut Vec<SentenceEdgeSignatureEntry>,
-    metrics: &mut SentenceEdgeSignatureIndexMetrics,
-    bucket: CandidatePostingBucket,
-    role: OccurrenceRole,
-    depth: usize,
-    prefix: u64,
-    suffix: u64,
-    occurrence_index: usize,
-    attempted: &mut usize,
-    allocation_failure_after: Option<usize>,
-) -> Result<(), SentenceEdgeSignatureIndexError> {
-    push_sentence_edge_signature(
-        postings,
-        metrics,
-        (bucket, role, depth, prefix),
-        occurrence_index,
-        attempted,
-        allocation_failure_after,
-    )?;
-    if suffix != prefix {
-        push_sentence_edge_signature(
-            postings,
-            metrics,
-            (bucket, role, depth, suffix),
-            occurrence_index,
-            attempted,
-            allocation_failure_after,
-        )?;
-    }
-    Ok(())
-}
-
-#[allow(dead_code)]
-fn push_sentence_edge_signature(
-    postings: &mut Vec<SentenceEdgeSignatureEntry>,
-    metrics: &mut SentenceEdgeSignatureIndexMetrics,
-    key: SentenceEdgeSignatureKey,
-    occurrence_index: usize,
-    attempted: &mut usize,
-    allocation_failure_after: Option<usize>,
-) -> Result<(), SentenceEdgeSignatureIndexError> {
-    *attempted =
-        attempted
-            .checked_add(1)
-            .ok_or(SentenceEdgeSignatureIndexError::CounterOverflow {
-                examined: metrics.posting_items,
-                attempted: usize::MAX,
-            })?;
-    if allocation_failure_after.is_some_and(|limit| metrics.posting_items >= limit) {
-        return Err(SentenceEdgeSignatureIndexError::AllocationFailure {
-            examined: metrics.posting_items,
-            attempted: *attempted,
-        });
-    }
-    postings
-        .try_reserve(1)
-        .map_err(|_| SentenceEdgeSignatureIndexError::AllocationFailure {
-            examined: metrics.posting_items,
-            attempted: *attempted,
-        })?;
-    let next = metrics.posting_items.checked_add(1).ok_or(
-        SentenceEdgeSignatureIndexError::CounterOverflow {
-            examined: metrics.posting_items,
-            attempted: *attempted,
-        },
-    )?;
-    postings.push(SentenceEdgeSignatureEntry {
-        key,
-        occurrence_index,
-    });
-    metrics.posting_items = next;
-    Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-#[allow(dead_code)]
 fn collect_sentence_edge_signatures(
-    postings: &[SentenceEdgeSignatureEntry],
+    postings: &SentenceEdgeSignaturePostings,
     plausible: &mut Vec<usize>,
     posting_visits: &mut usize,
-    bucket: CandidatePostingBucket,
+    bucket: usize,
     role: OccurrenceRole,
     depth: usize,
     prefix: u64,
@@ -1845,7 +2107,14 @@ fn collect_sentence_edge_signatures(
         postings,
         plausible,
         posting_visits,
-        (bucket, role, depth, prefix),
+        sentence_edge_signature_key_from_bucket(
+            bucket,
+            role,
+            depth,
+            prefix,
+            *posting_visits,
+            *attempted,
+        )?,
         attempted,
         allocation_failure_after,
     )?;
@@ -1854,7 +2123,14 @@ fn collect_sentence_edge_signatures(
             postings,
             plausible,
             posting_visits,
-            (bucket, role, depth, suffix),
+            sentence_edge_signature_key_from_bucket(
+                bucket,
+                role,
+                depth,
+                suffix,
+                *posting_visits,
+                *attempted,
+            )?,
             attempted,
             allocation_failure_after,
         )?;
@@ -1864,7 +2140,7 @@ fn collect_sentence_edge_signatures(
 
 #[allow(dead_code)]
 fn collect_sentence_edge_signature(
-    postings: &[SentenceEdgeSignatureEntry],
+    postings: &SentenceEdgeSignaturePostings,
     plausible: &mut Vec<usize>,
     posting_visits: &mut usize,
     key: SentenceEdgeSignatureKey,
@@ -1893,7 +2169,7 @@ fn collect_sentence_edge_signature(
             attempted: *attempted,
         }
     })?;
-    plausible.extend(posting.iter().map(|entry| entry.occurrence_index));
+    plausible.extend_from_slice(posting);
     *posting_visits = posting_visits.checked_add(posting.len()).ok_or(
         SentenceEdgeSignatureIndexError::CounterOverflow {
             examined: *posting_visits,
@@ -1967,61 +2243,52 @@ mod tests {
     }
 
     fn empty_signature_index() -> SentenceEdgeSignatureIndex {
-        SentenceEdgeSignatureIndex {
-            own_depth_postings: Vec::new(),
-            all_depth_postings: Vec::new(),
-            metrics: SentenceEdgeSignatureIndexMetrics::default(),
-        }
+        SentenceEdgeSignatureIndex::empty(SentenceEdgeSignatureScope::Global)
     }
 
-    fn unlimited_signature_build_limits() -> SentenceEdgeSignatureIndexBuildLimits {
-        SentenceEdgeSignatureIndexBuildLimits {
-            posting_items: usize::MAX,
-            distinct_keys: usize::MAX,
-            estimated_logical_bytes: usize::MAX,
-        }
+    fn signature_key(depth: usize, signature: u64) -> SentenceEdgeSignatureKey {
+        sentence_edge_signature_key_from_bucket(0, OccurrenceRole::Body, depth, signature, 0, 0)
+            .expect("small signature key fits")
     }
 
-    fn build_body_sentences_with_limits(
+    fn build_body_sentences(
         sentences: &[Vec<SentenceEvidenceToken>],
-        limits: SentenceEdgeSignatureIndexBuildLimits,
-    ) -> Result<SentenceEdgeSignatureIndex, SentenceEdgeSignatureIndexBuildError> {
-        let mut index = empty_signature_index();
-        index
-            .refresh_shape_metrics()
-            .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
-        validate_sentence_edge_signature_build_limits(index.metrics, limits)?;
-        let mut attempted = 0;
+    ) -> SentenceEdgeSignatureIndex {
+        let mut build = SentenceEdgeSignatureBuild::empty(SentenceEdgeSignatureScope::Global);
+        let (own_postings, all_postings) = sentences
+            .iter()
+            .try_fold((0usize, 0usize), |(own, all), tokens| {
+                let depth = sentence_edge_signature_depth(tokens.len())?;
+                let mut prefix = SENTENCE_EDGE_SIGNATURE_SEED;
+                let mut suffix = SENTENCE_EDGE_SIGNATURE_SEED;
+                let mut count = 0usize;
+                for current in 1..=depth {
+                    prefix = sentence_edge_signature_step(prefix, tokens[current - 1]);
+                    suffix = sentence_edge_signature_step(suffix, tokens[tokens.len() - current]);
+                    count = count.checked_add(usize::from(prefix != suffix) + 1)?;
+                }
+                let own_count = usize::from(depth > 0) * (usize::from(prefix != suffix) + 1);
+                Some((
+                    own.checked_add(own_count)?,
+                    all.checked_add(count.checked_sub(own_count)?)?,
+                ))
+            })
+            .expect("small posting bounds fit");
+        reserve_sentence_edge_signature_build(&mut build, own_postings, all_postings)
+            .expect("small test build reserves");
         for (occurrence_index, tokens) in sentences.iter().enumerate() {
-            let insertion = index.insert_unit_with_limits(
+            collect_sentence_edge_signature_unit(
+                &mut build,
                 CandidatePostingBucket::Global,
-                RecoveryUnitKind::Sentence,
-                Some(OccurrenceRole::Body),
+                OccurrenceRole::Body,
                 tokens,
                 occurrence_index,
                 sentence_edge_signature_step,
-                &mut attempted,
-                limits,
-            );
-            if let Err(SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
-                examined,
-                attempted,
-                ..
-            }) = insertion
-            {
-                index
-                    .finalize()
-                    .map_err(SentenceEdgeSignatureIndexBuildError::Index)?;
-                return Err(SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
-                    examined,
-                    attempted,
-                    progress: index.metrics,
-                });
-            }
-            insertion?;
+                None,
+            )
+            .expect("small test sentence collects");
         }
-        index.finalize_with_limits(limits)?;
-        Ok(index)
+        finalize_sentence_edge_signature_build(build, None).expect("small test index finalizes")
     }
 
     fn edge_distinct_tokens(len: usize) -> Vec<SentenceEvidenceToken> {
@@ -2030,32 +2297,6 @@ mod tests {
             *last = SentenceEvidenceToken::Scalar('b');
         }
         tokens
-    }
-
-    fn build_error(
-        result: Result<SentenceEdgeSignatureIndex, SentenceEdgeSignatureIndexBuildError>,
-    ) -> SentenceEdgeSignatureIndexBuildError {
-        match result {
-            Ok(_) => panic!("expected signature-index construction to fail"),
-            Err(error) => error,
-        }
-    }
-
-    fn insert_body_sentence(
-        index: &mut SentenceEdgeSignatureIndex,
-        occurrence_index: usize,
-        tokens: &[SentenceEvidenceToken],
-    ) {
-        index
-            .insert_unit(
-                CandidatePostingBucket::Global,
-                RecoveryUnitKind::Sentence,
-                Some(OccurrenceRole::Body),
-                tokens,
-                occurrence_index,
-                sentence_edge_signature_step,
-            )
-            .expect("small test index fits");
     }
 
     fn query_body_sentence(
@@ -2115,10 +2356,7 @@ mod tests {
         assert_eq!(sentence_edge_signature_depth(usize::MAX), None);
 
         let sequences = all_binary_sequences(7);
-        let mut index = empty_signature_index();
-        for (occurrence_index, tokens) in sequences.iter().enumerate() {
-            insert_body_sentence(&mut index, occurrence_index, tokens);
-        }
+        let index = build_body_sentences(&sequences);
 
         for query in &sequences {
             let (candidates, metrics) = query_body_sentence(&index, query);
@@ -2148,10 +2386,7 @@ mod tests {
             Vec::new(),
         ];
         let query = token_sequence(&[0, 1, 1, 1, 1, 1, 1, 1, 1, 0]);
-        let mut index = empty_signature_index();
-        for (occurrence_index, tokens) in candidates.iter().enumerate() {
-            insert_body_sentence(&mut index, occurrence_index, tokens);
-        }
+        let index = build_body_sentences(&candidates);
 
         let (found, _) = query_body_sentence(&index, &query);
 
@@ -2171,50 +2406,47 @@ mod tests {
     #[test]
     fn sentence_edge_signature_index_isolates_buckets_roles_and_lines() {
         let tokens = token_sequence(&[0, 1, 2, 0]);
-        let mut index = empty_signature_index();
-        index
-            .insert_unit(
-                CandidatePostingBucket::Global,
-                RecoveryUnitKind::Sentence,
-                Some(OccurrenceRole::Body),
-                &tokens,
-                0,
-                sentence_edge_signature_step,
-            )
-            .expect("global body sentence is indexed");
-        index
-            .insert_unit(
-                CandidatePostingBucket::Span(None),
-                RecoveryUnitKind::Sentence,
-                Some(OccurrenceRole::Body),
-                &tokens,
+        let mut build = SentenceEdgeSignatureBuild::empty(SentenceEdgeSignatureScope::Span);
+        reserve_sentence_edge_signature_build(&mut build, 3, 0).expect("test build reserves");
+        for (bucket, role, occurrence_index) in [
+            (CandidatePostingBucket::Span(None), OccurrenceRole::Body, 0),
+            (
+                CandidatePostingBucket::Span(Some(0)),
+                OccurrenceRole::Body,
                 1,
-                sentence_edge_signature_step,
-            )
-            .expect("span body sentence is indexed");
-        index
-            .insert_unit(
-                CandidatePostingBucket::Global,
-                RecoveryUnitKind::Sentence,
-                Some(OccurrenceRole::RepeatedHeader),
-                &tokens,
+            ),
+            (
+                CandidatePostingBucket::Span(None),
+                OccurrenceRole::RepeatedHeader,
                 2,
-                sentence_edge_signature_step,
-            )
-            .expect("header sentence is indexed");
-        index
-            .insert_unit(
-                CandidatePostingBucket::Global,
-                RecoveryUnitKind::Line,
-                Some(OccurrenceRole::Body),
+            ),
+        ] {
+            collect_sentence_edge_signature_unit(
+                &mut build,
+                bucket,
+                role,
                 &tokens,
-                3,
+                occurrence_index,
+                sentence_edge_signature_step,
+                None,
+            )
+            .expect("test sentence collects");
+        }
+        let index =
+            finalize_sentence_edge_signature_build(build, None).expect("test index finalizes");
+
+        let mut ambiguous_body = Vec::new();
+        index
+            .collect_sentence_tokens(
+                &mut ambiguous_body,
+                &tokens,
+                OccurrenceRole::Body,
+                CandidatePostingBucket::Span(None),
+                None,
                 sentence_edge_signature_step,
             )
-            .expect("line exclusion succeeds");
-
-        let (global_body, _) = query_body_sentence(&index, &tokens);
-        assert_eq!(global_body, vec![0]);
+            .expect("ambiguous-span query succeeds");
+        assert_eq!(ambiguous_body, vec![0]);
 
         let mut both_buckets = Vec::new();
         index
@@ -2222,8 +2454,8 @@ mod tests {
                 &mut both_buckets,
                 &tokens,
                 OccurrenceRole::Body,
-                CandidatePostingBucket::Global,
-                Some(CandidatePostingBucket::Span(None)),
+                CandidatePostingBucket::Span(None),
+                Some(CandidatePostingBucket::Span(Some(0))),
                 sentence_edge_signature_step,
             )
             .expect("two-bucket query succeeds");
@@ -2235,7 +2467,7 @@ mod tests {
                 &mut header,
                 &tokens,
                 OccurrenceRole::RepeatedHeader,
-                CandidatePostingBucket::Global,
+                CandidatePostingBucket::Span(None),
                 None,
                 sentence_edge_signature_step,
             )
@@ -2251,15 +2483,19 @@ mod tests {
 
         let candidate = token_sequence(&[0, 0, 0, 0]);
         let query = token_sequence(&[1, 1, 1, 1]);
-        let mut index = empty_signature_index();
-        index
-            .insert_sentence(
-                CandidatePostingBucket::Global,
-                OccurrenceRole::Body,
-                &candidate,
-                0,
-                collide,
-            )
+        let mut build = SentenceEdgeSignatureBuild::empty(SentenceEdgeSignatureScope::Global);
+        reserve_sentence_edge_signature_build(&mut build, 1, 0).expect("test build reserves");
+        collect_sentence_edge_signature_unit(
+            &mut build,
+            CandidatePostingBucket::Global,
+            OccurrenceRole::Body,
+            &candidate,
+            0,
+            collide,
+            None,
+        )
+        .expect("colliding signature is collected");
+        let index = finalize_sentence_edge_signature_build(build, None)
             .expect("colliding signature is indexed");
         let mut found = Vec::new();
         let query_metrics = index
@@ -2288,9 +2524,7 @@ mod tests {
             edge_distinct_tokens(20),
             edge_distinct_tokens(21),
         ];
-        let index =
-            build_body_sentences_with_limits(&sentences, unlimited_signature_build_limits())
-                .expect("small shape-metric index fits");
+        let index = build_body_sentences(&sentences);
         let metrics = index.metrics();
 
         assert_eq!(metrics.own_posting_items, 7);
@@ -2305,22 +2539,31 @@ mod tests {
                 + metrics.depth_4_plus_posting_items,
             metrics.posting_items
         );
-        assert!(metrics.own_distinct_keys <= index.own_depth_postings.len());
-        assert!(metrics.all_distinct_keys <= index.all_depth_postings.len());
+        assert_eq!(
+            metrics.own_distinct_keys,
+            index.own_depth_postings.ranges.len()
+        );
+        assert_eq!(
+            metrics.all_distinct_keys,
+            index.all_depth_postings.ranges.len()
+        );
         assert_eq!(
             metrics.own_key_capacity,
-            index.own_depth_postings.capacity()
+            index.own_depth_postings.ranges.capacity()
         );
         assert_eq!(
             metrics.all_key_capacity,
-            index.all_depth_postings.capacity()
+            index.all_depth_postings.ranges.capacity()
         );
         assert_eq!(metrics.largest_posting, 3);
         assert!(metrics.posting_capacity_items >= metrics.posting_items);
+        assert!(
+            metrics.own_key_capacity + metrics.all_key_capacity < metrics.posting_capacity_items
+        );
 
         let expected_bytes = size_of::<SentenceEdgeSignatureIndex>()
             + (metrics.own_key_capacity + metrics.all_key_capacity)
-                * size_of::<SentenceEdgeSignatureKey>()
+                * size_of::<SentenceEdgeSignatureRange>()
             + metrics.posting_capacity_items * size_of::<usize>();
         assert_eq!(metrics.estimated_logical_bytes, expected_bytes);
     }
@@ -2328,9 +2571,7 @@ mod tests {
     #[test]
     fn equal_prefix_suffix_signature_is_stored_once() {
         let palindrome = token_sequence(&[0, 1, 0, 1, 0, 1, 0]);
-        let index =
-            build_body_sentences_with_limits(&[palindrome], unlimited_signature_build_limits())
-                .expect("palindrome index fits");
+        let index = build_body_sentences(&[palindrome]);
         let metrics = index.metrics();
 
         assert_eq!(metrics.posting_items, 2);
@@ -2341,95 +2582,49 @@ mod tests {
     }
 
     #[test]
-    fn signature_build_limits_accept_exact_boundaries_and_reject_one_below() {
-        let sentences = [edge_distinct_tokens(7), edge_distinct_tokens(21)];
-        let baseline =
-            build_body_sentences_with_limits(&sentences, unlimited_signature_build_limits())
-                .expect("baseline index fits");
-        let metrics = baseline.metrics();
-        let distinct_keys = metrics.own_distinct_keys + metrics.all_distinct_keys;
-        let exact = SentenceEdgeSignatureIndexBuildLimits {
-            posting_items: metrics.posting_items,
-            distinct_keys,
-            estimated_logical_bytes: metrics.estimated_logical_bytes,
-        };
-
-        let exact_index = build_body_sentences_with_limits(&sentences, exact)
-            .expect("all exact limits admit the index");
-        assert_eq!(exact_index.metrics(), metrics);
-
-        let posting_error = build_error(build_body_sentences_with_limits(
-            &sentences,
+    fn bounded_temp_reserve_stops_before_allocating_all_namespace() {
+        let own = 3;
+        let all = 5;
+        let minimum =
+            sentence_edge_signature_temp_bytes(own, all).expect("small temporary allocation fits");
+        let mut build = SentenceEdgeSignatureBuild::empty(SentenceEdgeSignatureScope::Global);
+        let error = reserve_sentence_edge_signature_build_with_limits(
+            &mut build,
+            own,
+            all,
             SentenceEdgeSignatureIndexBuildLimits {
-                posting_items: metrics.posting_items - 1,
-                ..exact
+                posting_items: usize::MAX,
+                distinct_keys: usize::MAX,
+                estimated_logical_bytes: minimum - 1,
             },
-        ));
-        assert_eq!(
-            posting_error,
-            SentenceEdgeSignatureIndexBuildError::PostingLimit {
-                examined: metrics.posting_items - 1,
-                attempted: metrics.posting_items,
-            }
-        );
+        )
+        .expect_err("one byte below the projected temporary allocation stops");
 
-        let key_error = build_error(build_body_sentences_with_limits(
-            &sentences,
-            SentenceEdgeSignatureIndexBuildLimits {
-                distinct_keys: distinct_keys - 1,
-                estimated_logical_bytes: usize::MAX,
-                ..exact
-            },
+        assert_eq!(build.all.capacity(), 0);
+        assert!(build.own.capacity() >= own);
+        assert!(matches!(
+            error,
+            SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
+                examined,
+                attempted,
+                progress,
+            } if examined == progress.estimated_logical_bytes
+                && attempted >= minimum
+                && attempted > examined
+                && progress.all_key_capacity == 0
         ));
-        assert!(
-            matches!(
-                key_error,
-                SentenceEdgeSignatureIndexBuildError::DistinctKeyLimit {
-                    examined,
-                    attempted,
-                    progress,
-                } if examined == distinct_keys
-                    && attempted == distinct_keys
-                    && progress.own_distinct_keys + progress.all_distinct_keys == distinct_keys
-            ),
-            "{key_error:?}"
-        );
-
-        let byte_error = build_error(build_body_sentences_with_limits(
-            &sentences,
-            SentenceEdgeSignatureIndexBuildLimits {
-                estimated_logical_bytes: metrics.estimated_logical_bytes - 1,
-                ..exact
-            },
-        ));
-        let SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
-            examined,
-            attempted,
-            progress,
-        } = byte_error
-        else {
-            panic!("expected an estimated-byte limit error");
-        };
-        assert!(examined < metrics.estimated_logical_bytes);
-        assert_eq!(attempted, metrics.estimated_logical_bytes);
-        assert_eq!(progress.estimated_logical_bytes, attempted);
     }
 
     #[test]
     fn empty_and_one_token_sentences_have_bounded_metrics() {
-        let empty = build_body_sentences_with_limits(&[], unlimited_signature_build_limits())
-            .expect("empty index fits");
+        let empty = build_body_sentences(&[]);
         assert_eq!(empty.metrics().posting_items, 0);
         assert_eq!(
             empty.metrics().estimated_logical_bytes,
             size_of::<SentenceEdgeSignatureIndex>()
         );
 
-        let one = build_body_sentences_with_limits(
-            &[token_sequence(&[0])],
-            unlimited_signature_build_limits(),
-        )
-        .expect("one-token index fits");
+        let one = build_body_sentences(&[token_sequence(&[0])]);
         assert_eq!(one.metrics().posting_items, 1);
         assert_eq!(one.metrics().depth_1_posting_items, 1);
         assert_eq!(one.metrics().largest_posting, 1);
@@ -2440,19 +2635,18 @@ mod tests {
     #[test]
     fn signature_insertion_reports_allocation_and_counter_failures() {
         let tokens = token_sequence(&[0, 1, 2, 3]);
-        let mut index = empty_signature_index();
-        let mut attempted = 0;
-        let allocation = index
-            .insert_sentence_bounded(
-                CandidatePostingBucket::Global,
-                OccurrenceRole::Body,
-                &tokens,
-                0,
-                sentence_edge_signature_step,
-                &mut attempted,
-                Some(0),
-            )
-            .expect_err("injected allocation failure must stop insertion");
+        let mut build = SentenceEdgeSignatureBuild::empty(SentenceEdgeSignatureScope::Global);
+        reserve_sentence_edge_signature_build(&mut build, 2, 0).expect("test build reserves");
+        let allocation = collect_sentence_edge_signature_unit(
+            &mut build,
+            CandidatePostingBucket::Global,
+            OccurrenceRole::Body,
+            &tokens,
+            0,
+            sentence_edge_signature_step,
+            Some(0),
+        )
+        .expect_err("injected allocation failure must stop insertion");
         assert_eq!(
             allocation,
             SentenceEdgeSignatureIndexError::AllocationFailure {
@@ -2461,22 +2655,21 @@ mod tests {
             }
         );
 
-        let mut attempted = usize::MAX;
-        let overflow = index
-            .insert_sentence_bounded(
-                CandidatePostingBucket::Global,
-                OccurrenceRole::Body,
-                &tokens,
-                0,
-                sentence_edge_signature_step,
-                &mut attempted,
-                None,
-            )
-            .expect_err("counter overflow must stop insertion");
+        build.posting_items = usize::MAX;
+        let overflow = collect_sentence_edge_signature_unit(
+            &mut build,
+            CandidatePostingBucket::Global,
+            OccurrenceRole::Body,
+            &tokens,
+            0,
+            sentence_edge_signature_step,
+            None,
+        )
+        .expect_err("counter overflow must stop insertion");
         assert_eq!(
             overflow,
             SentenceEdgeSignatureIndexError::CounterOverflow {
-                examined: 0,
+                examined: usize::MAX,
                 attempted: usize::MAX,
             }
         );
@@ -2485,148 +2678,220 @@ mod tests {
     #[test]
     fn signature_query_deduplicates_and_sorts_candidate_indices() {
         let tokens = token_sequence(&[0, 1, 2, 0]);
-        let mut index = empty_signature_index();
+        let mut build = SentenceEdgeSignatureBuild::empty(SentenceEdgeSignatureScope::Global);
+        reserve_sentence_edge_signature_build(&mut build, 3, 0).expect("test build reserves");
         for occurrence_index in [3, 1, 2] {
-            insert_body_sentence(&mut index, occurrence_index, &tokens);
+            collect_sentence_edge_signature_unit(
+                &mut build,
+                CandidatePostingBucket::Global,
+                OccurrenceRole::Body,
+                &tokens,
+                occurrence_index,
+                sentence_edge_signature_step,
+                None,
+            )
+            .expect("test sentence collects");
         }
+        let index =
+            finalize_sentence_edge_signature_build(build, None).expect("test index finalizes");
 
         assert_eq!(query_body_sentence(&index, &tokens).0, vec![1, 2, 3]);
     }
 
     #[test]
-    fn flat_signature_posting_ranges_preserve_key_boundaries_and_order() {
-        let low = (CandidatePostingBucket::Global, OccurrenceRole::Body, 1, 10);
-        let middle = (CandidatePostingBucket::Global, OccurrenceRole::Body, 1, 20);
-        let high = (CandidatePostingBucket::Global, OccurrenceRole::Body, 2, 10);
-        let mut entries = vec![
-            SentenceEdgeSignatureEntry {
+    fn compact_signature_posting_ranges_preserve_key_boundaries_and_order() {
+        let low = signature_key(1, 10);
+        let middle = signature_key(1, 20);
+        let high = signature_key(2, 10);
+        let mut source = vec![
+            SentenceEdgeSignatureBuildEntry {
                 key: middle,
                 occurrence_index: 4,
             },
-            SentenceEdgeSignatureEntry {
+            SentenceEdgeSignatureBuildEntry {
                 key: low,
                 occurrence_index: 3,
             },
-            SentenceEdgeSignatureEntry {
+            SentenceEdgeSignatureBuildEntry {
                 key: high,
                 occurrence_index: 1,
             },
-            SentenceEdgeSignatureEntry {
+            SentenceEdgeSignatureBuildEntry {
                 key: middle,
                 occurrence_index: 2,
             },
         ];
-        entries.sort_unstable();
+        source.sort_unstable();
+        let mut entries = SentenceEdgeSignaturePostings::default();
+        reserve_final_sentence_edge_signature_ranges(&mut entries, 3, 4)
+            .expect("posting ranges reserve");
+        reserve_final_sentence_edge_signature_occurrences(&mut entries, 4, 4)
+            .expect("posting occurrences reserve");
+        fill_final_sentence_edge_signature_postings(&source, &mut entries);
 
-        assert_eq!(
-            signature_posting(&entries, low)
-                .iter()
-                .map(|entry| entry.occurrence_index)
-                .collect::<Vec<_>>(),
-            vec![3]
-        );
-        assert_eq!(
-            signature_posting(&entries, middle)
-                .iter()
-                .map(|entry| entry.occurrence_index)
-                .collect::<Vec<_>>(),
-            vec![2, 4]
-        );
-        assert_eq!(
-            signature_posting(&entries, high)
-                .iter()
-                .map(|entry| entry.occurrence_index)
-                .collect::<Vec<_>>(),
-            vec![1]
-        );
-        assert!(
-            signature_posting(
-                &entries,
-                (CandidatePostingBucket::Global, OccurrenceRole::Body, 1, 15,),
-            )
-            .is_empty()
-        );
+        assert_eq!(signature_posting(&entries, low), [3]);
+        assert_eq!(signature_posting(&entries, middle), [2, 4]);
+        assert_eq!(signature_posting(&entries, high), [1]);
+        assert!(signature_posting(&entries, signature_key(1, 15)).is_empty());
     }
 
     #[test]
-    fn distinct_key_preflight_fails_before_the_over_limit_key_is_allocated() {
-        let mut own = HashSet::new();
-        let mut all = HashSet::new();
-        let limits = SentenceEdgeSignatureIndexBuildLimits {
-            posting_items: usize::MAX,
-            distinct_keys: 1,
-            estimated_logical_bytes: usize::MAX,
-        };
-        let first = (CandidatePostingBucket::Global, OccurrenceRole::Body, 1, 10);
-        let second = (CandidatePostingBucket::Global, OccurrenceRole::Body, 1, 20);
-        preflight_sentence_edge_signature_key(&mut own, &mut all, true, first, limits, None)
-            .expect("first distinct key fits");
-
-        let error =
-            preflight_sentence_edge_signature_key(&mut own, &mut all, false, second, limits, None)
-                .expect_err("second namespace key exceeds the shared distinct limit");
+    fn compact_signature_keys_keep_full_values_and_scope_local_buckets() {
+        assert_eq!(size_of::<SentenceEdgeSignatureKey>(), 16);
+        assert_eq!(size_of::<SentenceEdgeSignatureBuildEntry>(), 24);
+        assert_eq!(size_of::<SentenceEdgeSignatureRange>(), 24);
+        assert_eq!(
+            compact_sentence_edge_signature_bucket(
+                SentenceEdgeSignatureScope::Global,
+                CandidatePostingBucket::Global,
+                0,
+                0,
+            ),
+            Ok(0)
+        );
+        assert_eq!(
+            compact_sentence_edge_signature_bucket(
+                SentenceEdgeSignatureScope::Span,
+                CandidatePostingBucket::Span(None),
+                0,
+                0,
+            ),
+            Ok(0)
+        );
+        assert_eq!(
+            compact_sentence_edge_signature_bucket(
+                SentenceEdgeSignatureScope::Span,
+                CandidatePostingBucket::Span(Some(0)),
+                0,
+                0,
+            ),
+            Ok(1)
+        );
+        assert_eq!(
+            compact_sentence_edge_signature_bucket(
+                SentenceEdgeSignatureScope::PairedStream,
+                CandidatePostingBucket::PairedStream(usize::MAX),
+                0,
+                0,
+            ),
+            Ok(usize::MAX)
+        );
         assert!(matches!(
-            error,
-            SentenceEdgeSignatureIndexBuildError::DistinctKeyLimit {
-                examined: 1,
-                attempted: 2,
-                progress,
-            } if progress.own_distinct_keys == 1
-                && progress.all_distinct_keys == 0
-                && all.is_empty()
+            compact_sentence_edge_signature_bucket(
+                SentenceEdgeSignatureScope::Global,
+                CandidatePostingBucket::Span(None),
+                7,
+                9,
+            ),
+            Err(SentenceEdgeSignatureIndexError::InvalidScope {
+                examined: 7,
+                attempted: 9,
+            })
+        ));
+        assert!(matches!(
+            compact_sentence_edge_signature_bucket(
+                SentenceEdgeSignatureScope::Span,
+                CandidatePostingBucket::Span(Some(usize::MAX)),
+                7,
+                9,
+            ),
+            Err(SentenceEdgeSignatureIndexError::CounterOverflow {
+                examined: 7,
+                attempted: 9,
+            })
         ));
     }
 
     #[test]
-    fn distinct_key_preflight_bounds_allocation_and_actual_capacity_bytes() {
-        let key = (CandidatePostingBucket::Global, OccurrenceRole::Body, 1, 10);
-        let unlimited = unlimited_signature_build_limits();
-        let mut own = HashSet::new();
-        let mut all = HashSet::new();
-        let allocation = preflight_sentence_edge_signature_key(
-            &mut own,
-            &mut all,
-            true,
-            key,
-            unlimited,
-            Some(0),
-        )
-        .expect_err("injected preflight allocation failure must fail closed");
-        assert_eq!(
-            allocation,
-            SentenceEdgeSignatureIndexBuildError::Index(
-                SentenceEdgeSignatureIndexError::AllocationFailure {
-                    examined: 0,
-                    attempted: 1,
-                },
-            )
-        );
-
-        let empty_bytes = sentence_edge_signature_preflight_metrics(&own, &all)
-            .expect("empty preflight metrics fit")
-            .estimated_logical_bytes;
-        let byte_error = preflight_sentence_edge_signature_key(
-            &mut own,
-            &mut all,
-            true,
-            key,
-            SentenceEdgeSignatureIndexBuildLimits {
-                estimated_logical_bytes: empty_bytes,
-                ..unlimited
-            },
-            None,
-        )
-        .expect_err("actual key-set growth exceeds the exact empty byte limit");
+    fn paired_scope_bucket_encoding_is_collision_free() {
+        let mut encoded = HashSet::new();
+        for pair_index in 0..64 {
+            for interval_index in 0..64 {
+                let bucket = compact_sentence_edge_signature_bucket(
+                    SentenceEdgeSignatureScope::Paired,
+                    CandidatePostingBucket::Paired(PairedInterval {
+                        pair_index,
+                        interval_index,
+                    }),
+                    0,
+                    0,
+                )
+                .expect("small paired bucket fits");
+                assert!(encoded.insert(bucket));
+            }
+        }
         assert!(matches!(
-            byte_error,
-            SentenceEdgeSignatureIndexBuildError::EstimatedByteLimit {
-                examined,
-                attempted,
-                progress,
-            } if examined == empty_bytes
-                && attempted > examined
-                && progress.own_distinct_keys == 1
-                && progress.own_key_capacity == own.capacity()
+            compact_sentence_edge_signature_bucket(
+                SentenceEdgeSignatureScope::Paired,
+                CandidatePostingBucket::Paired(PairedInterval {
+                    pair_index: usize::MAX,
+                    interval_index: 1,
+                }),
+                0,
+                0,
+            ),
+            Err(SentenceEdgeSignatureIndexError::CounterOverflow { .. })
+        ));
+    }
+
+    #[test]
+    fn compact_signature_group_encoding_is_collision_free() {
+        let mut encoded = HashSet::new();
+        for bucket in 0..32 {
+            for role in [
+                OccurrenceRole::Body,
+                OccurrenceRole::RepeatedHeader,
+                OccurrenceRole::RepeatedFooter,
+            ] {
+                for depth in 1..32 {
+                    let key = sentence_edge_signature_key(
+                        SentenceEdgeSignatureScope::PairedStream,
+                        CandidatePostingBucket::PairedStream(bucket),
+                        role,
+                        depth,
+                        7,
+                        0,
+                        0,
+                    )
+                    .expect("small compact group fits");
+                    assert!(encoded.insert(key.group));
+                }
+            }
+        }
+        assert!(matches!(
+            sentence_edge_signature_key_from_bucket(
+                usize::MAX,
+                OccurrenceRole::RepeatedFooter,
+                usize::MAX,
+                7,
+                4,
+                5,
+            ),
+            Err(SentenceEdgeSignatureIndexError::CounterOverflow {
+                examined: 4,
+                attempted: 5,
+            })
+        ));
+    }
+
+    #[test]
+    fn signature_query_rejects_bucket_from_another_scope() {
+        let index = empty_signature_index();
+        let mut candidates = Vec::new();
+        let error = index
+            .collect_sentence_tokens_bounded(
+                &mut candidates,
+                &token_sequence(&[0, 1, 2, 0]),
+                OccurrenceRole::Body,
+                CandidatePostingBucket::Span(None),
+                None,
+                sentence_edge_signature_step,
+                None,
+            )
+            .expect_err("scope mismatch fails closed");
+        assert!(matches!(
+            error,
+            SentenceEdgeSignatureIndexError::InvalidScope { .. }
         ));
     }
 }
