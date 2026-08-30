@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-30
-- **Generator / engine commit**: [`ebcb49e`](https://github.com/hayatosc/pdfdelta/commit/ebcb49e)
+- **Generator / engine commit**: [`64a58b7`](https://github.com/hayatosc/pdfdelta/commit/64a58b7)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-30-ebcb49e.json`](2026-08-30-ebcb49e.json)
-  - Schema: v16
-  - Size: 313,914 bytes
-  - SHA-256: `21f8ce67b701665506e8c5c4842835393ea3f683d30a23f1085452ae274fcf3a`
+  - File: [`2026-08-30-64a58b7.json`](2026-08-30-64a58b7.json)
+  - Schema: v17
+  - Size: 315,998 bytes
+  - SHA-256: `3bb6f1169dc56e69ddcc26ff5971f279d501c955dbaa3d108697138e2390e9f1`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-30-ebcb49e.json
+  benchmark/realworld/results/2026-08-30-64a58b7.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -44,6 +44,7 @@ their recorded review items.
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
 | `nist-fips-186-4-to-5` | dev | standard | 65.03% | 2,395 | 1,346 | 0.857 | 1.000 | 224.333 | 107 |
 | `nist-sp800-57-part1-r4-to-r5` | dev | standard | 71.90% | 6,038 | 2,440 | 1.000 | 1.000 | 690.750 | 103 |
+| `irs-form-1040-2024-to-2025` | holdout | stress | 37.83% | 75 | 20 | 0.000 | N/A | N/A | 1 |
 | `edpb-right-of-access-v1-to-final` | holdout | standard | 87.57% | 2,357 | 698 | 0.750 | 1.000 | 249.333 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 1.000 | 0 |
 | `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.81% | 266 | 130 | 1.000 | 1.000 | 1.000 | 0 |
@@ -113,10 +114,26 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v16)
+## Current Writer Schema (v17)
 
-The benchmark writer and latest committed capture use schema v16. Older
+The benchmark writer and latest committed capture use schema v17. Older
 captures retain their recorded schemas.
+Schema v17 records candidate-posting work separately from candidate-pair and
+full-similarity work, including examined and attempted visits and a typed
+posting-limit stop. Line candidate lookup now combines edge evidence with
+role- and kind-local interior trigrams. Trigram postings retain multiplicity,
+and only candidates that can meet the existing 7,000-basis-point multiset-Dice
+threshold reach full similarity. Paired-stream crossing checks use pair-local
+posting buckets, so unrelated trusted-stream pairs are excluded before query
+work is charged.
+All 29 pairs finish without a resource stop. Ten of the 18 pairs with available
+sentence-recovery diagnostics complete near-relation analysis; seven retain the
+existing pair-visit stop and BIS Core Principles retains its
+similarity-comparison stop. No pair reaches the candidate-posting limit.
+Every reviewed recall, kind, and complete-scope precision metric is unchanged
+from schema v16. IRS Form 1040 gains one threshold-qualified Line replacement,
+raising comparison coverage from 36.80% to 37.83%; the other 28 pairs preserve
+their comparison and quality fields.
 Schema v16 allows an expected change to require an exact occurrence count.
 Every retained occurrence must match the expected quote shape, and the
 deterministic maximum-cardinality assignment prevents competing expectations
@@ -141,9 +158,8 @@ aggregate fields expose unit and comparison counts, completion, and a typed
 stop reason. This evidence is diagnostic-only and does not alter comparison,
 coverage, quality, or candidate-recall behavior.
 All eight pairs with recovery watches complete granular diagnostics without a
-typed stop. NIST CSF
-exposes nine old-side and 16 new-side Clause/ListItem units across its two
-watched replacements. The function-list evidence isolates reciprocal item
+typed stop. NIST CSF exposes nine old-side and 16 new-side Clause/ListItem units
+across its two watched replacements. The function-list evidence isolates reciprocal item
 relations and preserves tied best relations for the ambiguous final items;
 the all-sector evidence isolates two old and seven new units. These diagnostics
 do not justify a behavior change. Outside schema version and recovery-watch
@@ -217,6 +233,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-30-ebcb49e.json`](2026-08-30-ebcb49e.json): schema-v16 exact occurrence validation and repeated running-matter event grouping before Line trigram candidate indexing.
 - [`2026-08-30-2ddbb6b.json`](2026-08-30-2ddbb6b.json): schema-v15 Clause/ListItem recovery-watch diagnostics before repeated running-matter grouping.
 - [`2026-08-30-b1e54e3.json`](2026-08-30-b1e54e3.json): schema-v14 one-sided insertion/deletion occurrence evidence.
 - [`2026-08-30-5ffa3e0.json`](2026-08-30-5ffa3e0.json): schema-v13 exact adjacent-segment relation diagnostics.
