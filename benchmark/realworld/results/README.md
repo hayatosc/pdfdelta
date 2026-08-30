@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-30
-- **Generator / engine commit**: [`a7a483c`](https://github.com/hayatosc/pdfdelta/commit/a7a483c)
+- **Generator / engine commit**: [`a5202c8`](https://github.com/hayatosc/pdfdelta/commit/a5202c8)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-30-a7a483c.json`](2026-08-30-a7a483c.json)
-  - Schema: v20
-  - Size: 489,752 bytes
-  - SHA-256: `2bb317e560c4917d335bada2f1f5d1b32d5516274962cc915ec4ace69f055511`
+  - File: [`2026-08-30-a5202c8.json`](2026-08-30-a5202c8.json)
+  - Schema: v21
+  - Size: 497,667 bytes
+  - SHA-256: `914591c14e2f388aeb9defb1ee2754704f3250a99409903c794d135fb9bc9c65`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-30-a7a483c.json
+  benchmark/realworld/results/2026-08-30-a5202c8.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -114,10 +114,20 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v20)
+## Current Writer Schema (v21)
 
-The benchmark writer and latest committed capture use schema v20. Older
+The benchmark writer and latest committed capture use schema v21. Older
 captures retain their recorded schemas.
+Schema v21 replays Sentence relations after excluding ambiguous-span
+counterparts from the same-or-ambiguous phase. The replay is diagnostic-only:
+removing the schema number and `known_span_sentence_shadow` leaves every
+schema-v20 `a7a483c` field value unchanged. Fourteen pairs expose a replay, ten
+complete it, and five preserve exact relation parity. Even among complete
+replays, four unique-partner decisions and two reciprocal pairs change, so
+known-span filtering is not safe to enable. The four budget-stopped replays
+retain only 17.57% to 58.88% of considered pairs and all change exact relations;
+FIPS, SP 800-57, EDPB Right of Access, and MQTT record 16 unique-partner and
+nine reciprocal-pair mismatches in total.
 Schema v20 divides same-or-ambiguous work into known same-span candidates,
 ambiguous-span candidates, and shared query preparation. All 11 child counters
 must sum to the schema-v19 parent for Sentence and Line units. Removing the
@@ -269,6 +279,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-30-a7a483c.json`](2026-08-30-a7a483c.json): schema-v20 known/ambiguous near-search work attribution before known-span shadow replay.
 - [`2026-08-30-ba424d8.json`](2026-08-30-ba424d8.json): schema-v19 phase-level near-search attribution before known/ambiguous subdivision.
 - [`2026-08-30-496d128.json`](2026-08-30-496d128.json): schema-v18 Sentence/Line near-search work attribution before phase-level attribution.
 - [`2026-08-30-64a58b7.json`](2026-08-30-64a58b7.json): schema-v17 Line trigram candidate indexing and posting-work diagnostics before per-kind attribution.
