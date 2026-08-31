@@ -31,6 +31,12 @@ pub(in crate::diff) struct CachedSentenceEdgeEvidence {
     comparisons: usize,
 }
 
+#[derive(Clone, Copy)]
+enum AlignedEdgeKnowledge {
+    Unknown,
+    Known(bool),
+}
+
 impl CachedSentenceEdgeEvidence {
     pub(in crate::diff) fn edge_score(self) -> u16 {
         self.edge_score
@@ -38,6 +44,21 @@ impl CachedSentenceEdgeEvidence {
 
     pub(in crate::diff) fn comparisons(self) -> usize {
         self.comparisons
+    }
+
+    #[cfg(test)]
+    pub(in crate::diff) fn prefix_tokens(self) -> usize {
+        self.prefix_tokens
+    }
+
+    #[cfg(test)]
+    pub(in crate::diff) fn suffix_tokens(self) -> usize {
+        self.suffix_tokens
+    }
+
+    #[cfg(test)]
+    pub(in crate::diff) fn shorter_tokens(self) -> usize {
+        self.shorter_tokens
     }
 }
 
@@ -236,6 +257,38 @@ pub(in crate::diff) fn sentence_edge_evidence<'a>(
 pub(in crate::diff) fn cached_sentence_edge_evidence(
     old: &SentenceOccurrence,
     new: &SentenceOccurrence,
+    charge_comparison: impl FnMut() -> bool,
+) -> Option<CachedSentenceEdgeEvidence> {
+    cached_sentence_edge_evidence_with_knowledge(
+        old,
+        new,
+        AlignedEdgeKnowledge::Unknown,
+        AlignedEdgeKnowledge::Unknown,
+        charge_comparison,
+    )
+}
+
+pub(in crate::diff) fn cached_sentence_edge_evidence_from_aligned_facts(
+    old: &SentenceOccurrence,
+    new: &SentenceOccurrence,
+    prefix_equal: bool,
+    suffix_equal: bool,
+    charge_comparison: impl FnMut() -> bool,
+) -> Option<CachedSentenceEdgeEvidence> {
+    cached_sentence_edge_evidence_with_knowledge(
+        old,
+        new,
+        AlignedEdgeKnowledge::Known(prefix_equal),
+        AlignedEdgeKnowledge::Known(suffix_equal),
+        charge_comparison,
+    )
+}
+
+fn cached_sentence_edge_evidence_with_knowledge(
+    old: &SentenceOccurrence,
+    new: &SentenceOccurrence,
+    prefix_knowledge: AlignedEdgeKnowledge,
+    suffix_knowledge: AlignedEdgeKnowledge,
     mut charge_comparison: impl FnMut() -> bool,
 ) -> Option<CachedSentenceEdgeEvidence> {
     let shorter = old.tokens.len().min(new.tokens.len());
@@ -250,28 +303,43 @@ pub(in crate::diff) fn cached_sentence_edge_evidence(
     }
 
     let mut comparisons = 0usize;
-    let mut prefix = 0usize;
-    while prefix < shorter {
-        if !charge_comparison() {
-            return None;
+    let (mut prefix, scan_prefix) = match prefix_knowledge {
+        AlignedEdgeKnowledge::Unknown => (0, true),
+        AlignedEdgeKnowledge::Known(true) => (1, true),
+        AlignedEdgeKnowledge::Known(false) => (0, false),
+    };
+    if scan_prefix {
+        while prefix < shorter {
+            if !charge_comparison() {
+                return None;
+            }
+            comparisons = comparisons.checked_add(1)?;
+            if old.tokens[prefix] != new.tokens[prefix] {
+                break;
+            }
+            prefix += 1;
         }
-        comparisons = comparisons.checked_add(1)?;
-        if old.tokens[prefix] != new.tokens[prefix] {
-            break;
-        }
-        prefix += 1;
     }
 
-    let mut suffix = 0usize;
-    while suffix < shorter - prefix {
-        if !charge_comparison() {
-            return None;
+    let remaining = shorter.checked_sub(prefix)?;
+    let (mut suffix, scan_suffix) = match suffix_knowledge {
+        AlignedEdgeKnowledge::Unknown => (0, true),
+        AlignedEdgeKnowledge::Known(true) if remaining != 0 => (1, true),
+        AlignedEdgeKnowledge::Known(_) => (0, false),
+    };
+    if scan_suffix {
+        while suffix < remaining {
+            if !charge_comparison() {
+                return None;
+            }
+            comparisons = comparisons.checked_add(1)?;
+            if old.tokens[old.tokens.len() - suffix - 1]
+                != new.tokens[new.tokens.len() - suffix - 1]
+            {
+                break;
+            }
+            suffix += 1;
         }
-        comparisons = comparisons.checked_add(1)?;
-        if old.tokens[old.tokens.len() - suffix - 1] != new.tokens[new.tokens.len() - suffix - 1] {
-            break;
-        }
-        suffix += 1;
     }
 
     let shared = prefix.checked_add(suffix)?;

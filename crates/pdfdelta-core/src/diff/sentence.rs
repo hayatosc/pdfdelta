@@ -28,8 +28,9 @@ use super::recovery::candidate::{
 pub(in crate::diff) use super::recovery::candidate::{NearSearchScope, NearSearchWorkClass};
 use super::recovery::score::{
     CachedSentenceEdgeEvidence, MIN_NEAR_SCORE, MIN_WORD_SCORE_EDGE_EVIDENCE, RelationFloorProbe,
-    basis_points, cached_sentence_edge_evidence, sentence_edge_evidence,
-    sentence_edge_evidence_from_cache, sentence_similarity_in_scope_attributed_from_edge_evidence,
+    basis_points, cached_sentence_edge_evidence, cached_sentence_edge_evidence_from_aligned_facts,
+    sentence_edge_evidence, sentence_edge_evidence_from_cache,
+    sentence_similarity_in_scope_attributed_from_edge_evidence,
     sentence_similarity_in_scope_attributed_from_edge_evidence_with_probe,
 };
 #[cfg(test)]
@@ -4638,11 +4639,35 @@ fn mark_edge_gate_shadow_for_filter_stop(
     }
 }
 
+#[cfg(test)]
 fn classify_sentence_edge_filter_query(
     query: &SentenceOccurrence,
     occurrences: &[SentenceOccurrence],
     plausible: &[usize],
     budget: &mut RecoveryBudget,
+    relevant: impl FnMut(usize) -> bool,
+) -> SentenceEdgeFilterQuery {
+    classify_sentence_edge_filter_query_with_index(
+        query,
+        occurrences,
+        plausible,
+        budget,
+        None,
+        relevant,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn classify_sentence_edge_filter_query_with_index(
+    query: &SentenceOccurrence,
+    occurrences: &[SentenceOccurrence],
+    plausible: &[usize],
+    budget: &mut RecoveryBudget,
+    candidate_index: Option<(
+        &UnitCandidateIndex,
+        CandidatePostingBucket,
+        Option<CandidatePostingBucket>,
+    )>,
     mut relevant: impl FnMut(usize) -> bool,
 ) -> SentenceEdgeFilterQuery {
     if query.kind != RecoveryUnitKind::Sentence || !budget.sentence_edge_filter_active {
@@ -4669,9 +4694,31 @@ fn classify_sentence_edge_filter_query(
             budget.disable_sentence_edge_filter(SentenceEdgeFilterStopReason::CounterOverflow);
             return SentenceEdgeFilterQuery::Legacy;
         };
-        let Some(evidence) = cached_sentence_edge_evidence(query, occurrence, || {
-            budget.charge_sentence_edge_filter_comparison()
-        }) else {
+        let aligned_facts = (budget.sentence_edge_signature_filter_mode
+            == SentenceEdgeSignatureFilterMode::ReferenceObserve)
+            .then(|| {
+                let (index, bucket, additional_bucket) = candidate_index?;
+                index.aligned_sentence_edge_facts(
+                    query,
+                    occurrence_index,
+                    bucket,
+                    additional_bucket,
+                )
+            })
+            .flatten();
+        let evidence = match aligned_facts {
+            Some(facts) => cached_sentence_edge_evidence_from_aligned_facts(
+                query,
+                occurrence,
+                facts.prefix_equal(),
+                facts.suffix_equal(),
+                || budget.charge_sentence_edge_filter_comparison(),
+            ),
+            None => cached_sentence_edge_evidence(query, occurrence, || {
+                budget.charge_sentence_edge_filter_comparison()
+            }),
+        };
+        let Some(evidence) = evidence else {
             if budget.sentence_edge_filter_active {
                 budget.disable_sentence_edge_filter(SentenceEdgeFilterStopReason::CounterOverflow);
             }
@@ -10695,11 +10742,12 @@ fn paired_modified_sentence_relations_tracked(
             RecoveryWatchNearScope::PairedStream,
             |index| new_intervals.get(index).copied().flatten() == Some(interval),
         )?;
-        let edge_filter = classify_sentence_edge_filter_query(
+        let edge_filter = classify_sentence_edge_filter_query_with_index(
             old_occurrence,
             new_occurrences,
             &plausible,
             budget,
+            Some((&new_index, CandidatePostingBucket::Paired(interval), None)),
             |_| true,
         );
         mark_edge_gate_shadow_for_filter_stop(
@@ -10831,11 +10879,12 @@ fn paired_modified_sentence_relations_tracked(
                     && old_intervals.get(index).copied().flatten() == Some(interval)
             },
         )?;
-        let edge_filter = classify_sentence_edge_filter_query(
+        let edge_filter = classify_sentence_edge_filter_query_with_index(
             new_occurrence,
             old_occurrences,
             &plausible,
             budget,
+            Some((&old_index, CandidatePostingBucket::Paired(interval), None)),
             |index| old_candidate_by_occurrence[index].is_none(),
         );
         mark_edge_gate_shadow_for_filter_stop(
@@ -11100,11 +11149,16 @@ fn record_cross_interval_disqualifying_relations_tracked(
                     })
             },
         )?;
-        let edge_filter = classify_sentence_edge_filter_query(
+        let edge_filter = classify_sentence_edge_filter_query_with_index(
             old_occurrence,
             new_occurrences,
             &plausible,
             budget,
+            Some((
+                &new_index,
+                CandidatePostingBucket::PairedStream(interval.pair_index),
+                None,
+            )),
             |_| true,
         );
         mark_edge_gate_shadow_for_filter_stop(
@@ -11261,11 +11315,16 @@ fn record_cross_interval_disqualifying_relations_tracked(
                         })
             },
         )?;
-        let edge_filter = classify_sentence_edge_filter_query(
+        let edge_filter = classify_sentence_edge_filter_query_with_index(
             new_occurrence,
             old_occurrences,
             &plausible,
             budget,
+            Some((
+                &old_index,
+                CandidatePostingBucket::PairedStream(interval.pair_index),
+                None,
+            )),
             |_| true,
         );
         mark_edge_gate_shadow_for_filter_stop(
@@ -12164,11 +12223,12 @@ fn extend_modified_sentence_relations_tracked(
                 })
             },
         )?;
-        let edge_filter = classify_sentence_edge_filter_query(
+        let edge_filter = classify_sentence_edge_filter_query_with_index(
             old_occurrence,
             new_occurrences,
             &plausible,
             budget,
+            Some((&new_index, bucket, additional_bucket)),
             |_| true,
         );
         mark_edge_gate_shadow_for_filter_stop(
@@ -12379,11 +12439,12 @@ fn extend_modified_sentence_relations_tracked(
                     })
             },
         )?;
-        let edge_filter = classify_sentence_edge_filter_query(
+        let edge_filter = classify_sentence_edge_filter_query_with_index(
             new_occurrence,
             old_occurrences,
             &plausible,
             budget,
+            Some((&old_index, bucket, additional_bucket)),
             |index| old_candidate_by_occurrence[index].is_none(),
         );
         mark_edge_gate_shadow_for_filter_stop(
@@ -16796,13 +16857,13 @@ mod tests {
     #[test]
     fn reference_observer_invalidates_partial_edge_filter_progress() {
         let mut old = indexed_occurrence(
-            &['a', 'b', 'c'],
+            &['a', 'b', 'c', 'd'],
             RecoveryUnitKind::Sentence,
             Some(BlockRole::Body),
         );
         old.span_index = Some(0);
         let mut new = indexed_occurrence(
-            &['a', 'x', 'y'],
+            &['a', 'b', 'x', 'y'],
             RecoveryUnitKind::Sentence,
             Some(BlockRole::Body),
         );
@@ -16817,7 +16878,7 @@ mod tests {
             occurrence_index: 0,
             span_index: 0,
         }];
-        let mut budget = RecoveryBudget::new(3, 3, 6, 1).expect("budget fits");
+        let mut budget = RecoveryBudget::new(4, 4, 8, 1).expect("budget fits");
         budget.sentence_edge_filter_comparison_limit = 1;
         budget.sentence_edge_signature_filter_mode =
             SentenceEdgeSignatureFilterMode::ReferenceObserve;
@@ -18313,6 +18374,65 @@ mod tests {
             Some(10_000)
         );
         assert_eq!(budget.comparisons, 4);
+    }
+
+    #[test]
+    fn aligned_edge_facts_preserve_exhaustive_binary_sentence_evidence() {
+        let occurrences = (0usize..=7)
+            .flat_map(|length| {
+                (0usize..(1usize << length)).map(move |bits| {
+                    let tokens = (0..length)
+                        .map(|index| {
+                            SentenceEvidenceToken::Scalar(if bits & (1usize << index) == 0 {
+                                'a'
+                            } else {
+                                'b'
+                            })
+                        })
+                        .collect();
+                    similarity_occurrence("binary", tokens, RecoveryUnitKind::Sentence)
+                })
+            })
+            .collect::<Vec<_>>();
+
+        for old in &occurrences {
+            for new in &occurrences {
+                let mut baseline_comparisons = 0usize;
+                let baseline = cached_sentence_edge_evidence(old, new, || {
+                    baseline_comparisons += 1;
+                    true
+                })
+                .expect("baseline edge evidence computes");
+                let nonempty = !old.tokens.is_empty() && !new.tokens.is_empty();
+                let prefix_equal = nonempty && old.tokens.first() == new.tokens.first();
+                let suffix_equal = nonempty && old.tokens.last() == new.tokens.last();
+                let mut seeded_comparisons = 0usize;
+                let seeded = cached_sentence_edge_evidence_from_aligned_facts(
+                    old,
+                    new,
+                    prefix_equal,
+                    suffix_equal,
+                    || {
+                        seeded_comparisons += 1;
+                        true
+                    },
+                )
+                .expect("seeded edge evidence computes");
+
+                assert_eq!(seeded.prefix_tokens(), baseline.prefix_tokens());
+                assert_eq!(seeded.suffix_tokens(), baseline.suffix_tokens());
+                assert_eq!(seeded.shorter_tokens(), baseline.shorter_tokens());
+                assert_eq!(seeded.edge_score(), baseline.edge_score());
+                assert_eq!(baseline_comparisons, baseline.comparisons());
+                assert_eq!(seeded_comparisons, seeded.comparisons());
+                let saved = usize::from(baseline.shorter_tokens() != 0)
+                    + usize::from(baseline.prefix_tokens() < baseline.shorter_tokens());
+                assert_eq!(
+                    seeded_comparisons.checked_add(saved),
+                    Some(baseline_comparisons)
+                );
+            }
+        }
     }
 
     #[test]
@@ -24381,6 +24501,58 @@ mod tests {
             .expect("query succeeds");
 
         assert_eq!(plausible, vec![0]);
+    }
+
+    #[test]
+    fn unit_candidate_index_constructor_preserves_aligned_edge_facts() {
+        let occurrences = [
+            indexed_occurrence(&['a'], RecoveryUnitKind::Sentence, Some(BlockRole::Body)),
+            indexed_occurrence(
+                &['a', 'z'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['z', 'a'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['x', 'z'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+            indexed_occurrence(
+                &['y', 'x'],
+                RecoveryUnitKind::Sentence,
+                Some(BlockRole::Body),
+            ),
+        ];
+        let index = UnitCandidateIndex::new(&occurrences, CandidatePostingIndexScope::Global)
+            .expect("index construction succeeds");
+        let query = &occurrences[1];
+        let facts = |candidate_index| {
+            index.aligned_sentence_edge_facts(
+                query,
+                candidate_index,
+                CandidatePostingBucket::Global,
+                None,
+            )
+        };
+
+        let one_token = facts(0).expect("one-token candidate shares the prefix");
+        assert!(one_token.prefix_equal());
+        assert!(!one_token.suffix_equal());
+        let aligned = facts(1).expect("aligned candidate shares both edges");
+        assert!(aligned.prefix_equal());
+        assert!(aligned.suffix_equal());
+        let crossing = facts(2).expect("cross-orientation candidate remains in the broad union");
+        assert!(!crossing.prefix_equal());
+        assert!(!crossing.suffix_equal());
+        let suffix = facts(3).expect("suffix candidate shares the aligned suffix");
+        assert!(!suffix.prefix_equal());
+        assert!(suffix.suffix_equal());
+        assert!(facts(4).is_none());
     }
 
     #[test]

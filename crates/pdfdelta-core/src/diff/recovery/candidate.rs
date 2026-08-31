@@ -35,7 +35,7 @@ pub(in crate::diff) struct UnitCandidateIndex {
             OccurrenceRole,
             SentenceEvidenceToken,
         ),
-        Vec<usize>,
+        Vec<EdgePosting>,
     >,
     pub(in crate::diff) line_trigram_postings: HashMap<
         (
@@ -47,6 +47,68 @@ pub(in crate::diff) struct UnitCandidateIndex {
         Vec<LineTrigramPosting>,
     >,
     line_trigram_counts: Vec<usize>,
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::diff) struct EdgePosting(usize);
+
+impl EdgePosting {
+    const SIDE_BITS: u32 = 2;
+    const SIDE_MASK: usize = (1 << Self::SIDE_BITS) - 1;
+
+    fn new(occurrence_index: usize, sides: EdgePostingSides) -> Option<Self> {
+        if occurrence_index > usize::MAX >> Self::SIDE_BITS {
+            return None;
+        }
+        Some(Self(
+            (occurrence_index << Self::SIDE_BITS) | usize::from(sides.0),
+        ))
+    }
+
+    fn occurrence_index(self) -> usize {
+        self.0 >> Self::SIDE_BITS
+    }
+
+    fn sides(self) -> EdgePostingSides {
+        EdgePostingSides((self.0 & Self::SIDE_MASK) as u8)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct EdgePostingSides(u8);
+
+impl EdgePostingSides {
+    const FIRST: Self = Self(1);
+    const LAST: Self = Self(2);
+    const BOTH: Self = Self(Self::FIRST.0 | Self::LAST.0);
+
+    fn contains(self, side: Self) -> bool {
+        self.0 & side.0 != 0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(in crate::diff) struct AlignedSentenceEdgeFacts {
+    prefix_equal: bool,
+    suffix_equal: bool,
+}
+
+fn edge_posting(postings: &[EdgePosting], occurrence_index: usize) -> Option<&EdgePosting> {
+    postings
+        .binary_search_by_key(&occurrence_index, |posting| posting.occurrence_index())
+        .ok()
+        .and_then(|index| postings.get(index))
+}
+
+impl AlignedSentenceEdgeFacts {
+    pub(in crate::diff) fn prefix_equal(self) -> bool {
+        self.prefix_equal
+    }
+
+    pub(in crate::diff) fn suffix_equal(self) -> bool {
+        self.suffix_equal
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -972,9 +1034,73 @@ impl UnitCandidateIndex {
                 [first, last].into_iter().any(|edge| {
                     self.edge_postings
                         .get(&(bucket, query.kind, role, edge))
-                        .is_some_and(|postings| postings.binary_search(&candidate_index).is_ok())
+                        .is_some_and(|postings| edge_posting(postings, candidate_index).is_some())
                 })
             })
+    }
+
+    /// Returns exact aligned-edge equality facts for an indexed sentence candidate.
+    ///
+    /// `false` proves inequality because facts are returned only when the
+    /// candidate occurs in the complete exact-token posting union for the
+    /// requested buckets. Candidates known only through another index return
+    /// `None` instead.
+    pub(in crate::diff) fn aligned_sentence_edge_facts(
+        &self,
+        query: &SentenceOccurrence,
+        candidate_index: usize,
+        bucket: CandidatePostingBucket,
+        additional_bucket: Option<CandidatePostingBucket>,
+    ) -> Option<AlignedSentenceEdgeFacts> {
+        let role = query.role.map(OccurrenceRole::from)?;
+        let first = *query.tokens.first()?;
+        let last = *query.tokens.last()?;
+        self.aligned_sentence_edge_facts_for_edges(
+            query.kind,
+            role,
+            first,
+            last,
+            candidate_index,
+            bucket,
+            additional_bucket,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn aligned_sentence_edge_facts_for_edges(
+        &self,
+        kind: RecoveryUnitKind,
+        role: OccurrenceRole,
+        first: SentenceEvidenceToken,
+        last: SentenceEvidenceToken,
+        candidate_index: usize,
+        bucket: CandidatePostingBucket,
+        additional_bucket: Option<CandidatePostingBucket>,
+    ) -> Option<AlignedSentenceEdgeFacts> {
+        if kind != RecoveryUnitKind::Sentence {
+            return None;
+        }
+        let mut indexed = false;
+        let mut facts = AlignedSentenceEdgeFacts::default();
+        for bucket in [Some(bucket), additional_bucket].into_iter().flatten() {
+            if let Some(posting) = self
+                .edge_postings
+                .get(&(bucket, kind, role, first))
+                .and_then(|postings| edge_posting(postings, candidate_index))
+            {
+                indexed = true;
+                facts.prefix_equal |= posting.sides().contains(EdgePostingSides::FIRST);
+            }
+            if let Some(posting) = self
+                .edge_postings
+                .get(&(bucket, kind, role, last))
+                .and_then(|postings| edge_posting(postings, candidate_index))
+            {
+                indexed = true;
+                facts.suffix_equal |= posting.sides().contains(EdgePostingSides::LAST);
+            }
+        }
+        indexed.then_some(facts)
     }
 
     pub(in crate::diff) fn new(
@@ -1013,12 +1139,13 @@ impl UnitCandidateIndex {
             let Some(role) = occurrence.role.map(OccurrenceRole::from) else {
                 continue;
             };
-            let first = *occurrence.tokens.first()?;
-            let last = *occurrence.tokens.last()?;
-            index.push_edge_posting((bucket, occurrence.kind, role, first), occurrence_index)?;
-            if last != first {
-                index.push_edge_posting((bucket, occurrence.kind, role, last), occurrence_index)?;
-            }
+            index.push_occurrence_edges(
+                bucket,
+                occurrence.kind,
+                role,
+                &occurrence.tokens,
+                occurrence_index,
+            )?;
             if occurrence.kind == RecoveryUnitKind::Line {
                 index.line_trigram_counts[occurrence_index] =
                     ngram_count(occurrence.tokens.len(), LINE_NGRAM_SIZE)?;
@@ -1035,6 +1162,32 @@ impl UnitCandidateIndex {
         Some(index)
     }
 
+    fn push_occurrence_edges(
+        &mut self,
+        bucket: CandidatePostingBucket,
+        kind: RecoveryUnitKind,
+        role: OccurrenceRole,
+        tokens: &[SentenceEvidenceToken],
+        occurrence_index: usize,
+    ) -> Option<()> {
+        let first = *tokens.first()?;
+        let last = *tokens.last()?;
+        let first_sides = if last == first {
+            EdgePostingSides::BOTH
+        } else {
+            EdgePostingSides::FIRST
+        };
+        self.push_edge_posting((bucket, kind, role, first), occurrence_index, first_sides)?;
+        if last != first {
+            self.push_edge_posting(
+                (bucket, kind, role, last),
+                occurrence_index,
+                EdgePostingSides::LAST,
+            )?;
+        }
+        Some(())
+    }
+
     fn push_edge_posting(
         &mut self,
         key: (
@@ -1044,14 +1197,16 @@ impl UnitCandidateIndex {
             SentenceEvidenceToken,
         ),
         occurrence_index: usize,
+        sides: EdgePostingSides,
     ) -> Option<()> {
+        let posting = EdgePosting::new(occurrence_index, sides)?;
         if !self.edge_postings.contains_key(&key) {
             self.edge_postings.try_reserve(1).ok()?;
             self.edge_postings.insert(key, Vec::new());
         }
         let postings = self.edge_postings.get_mut(&key)?;
         postings.try_reserve(1).ok()?;
-        postings.push(occurrence_index);
+        postings.push(posting);
         Some(())
     }
 
@@ -1190,14 +1345,14 @@ impl UnitCandidateIndex {
                 .edge_postings
                 .get(&(bucket, occurrence.kind, role, first))
             {
-                plausible.extend_from_slice(postings);
+                plausible.extend(postings.iter().map(|posting| posting.occurrence_index()));
             }
             if first != last
                 && let Some(postings) =
                     self.edge_postings
                         .get(&(bucket, occurrence.kind, role, last))
             {
-                plausible.extend_from_slice(postings);
+                plausible.extend(postings.iter().map(|posting| posting.occurrence_index()));
             }
         }
         plausible.sort_unstable();
@@ -2240,6 +2395,255 @@ mod tests {
             .iter()
             .map(|value| SentenceEvidenceToken::Scalar(char::from(b'a' + value)))
             .collect()
+    }
+
+    fn scalar(value: char) -> SentenceEvidenceToken {
+        SentenceEvidenceToken::Scalar(value)
+    }
+
+    fn empty_unit_candidate_index() -> UnitCandidateIndex {
+        UnitCandidateIndex {
+            edge_postings: HashMap::new(),
+            line_trigram_postings: HashMap::new(),
+            line_trigram_counts: Vec::new(),
+        }
+    }
+
+    fn push_test_edges(
+        index: &mut UnitCandidateIndex,
+        bucket: CandidatePostingBucket,
+        kind: RecoveryUnitKind,
+        role: OccurrenceRole,
+        occurrence_index: usize,
+        first: SentenceEvidenceToken,
+        last: SentenceEvidenceToken,
+    ) {
+        index
+            .push_occurrence_edges(bucket, kind, role, &[first, last], occurrence_index)
+            .expect("test edge postings fit");
+    }
+
+    fn test_aligned_facts(
+        index: &UnitCandidateIndex,
+        first: char,
+        last: char,
+        occurrence_index: usize,
+        bucket: CandidatePostingBucket,
+        additional_bucket: Option<CandidatePostingBucket>,
+    ) -> Option<AlignedSentenceEdgeFacts> {
+        index.aligned_sentence_edge_facts_for_edges(
+            RecoveryUnitKind::Sentence,
+            OccurrenceRole::Body,
+            scalar(first),
+            scalar(last),
+            occurrence_index,
+            bucket,
+            additional_bucket,
+        )
+    }
+
+    #[test]
+    fn exact_edge_postings_report_aligned_and_cross_orientation_facts() {
+        let bucket = CandidatePostingBucket::Global;
+        let mut index = empty_unit_candidate_index();
+        for (occurrence_index, first, last) in [
+            (0, 'a', 'x'),
+            (1, 'y', 'z'),
+            (2, 'a', 'z'),
+            (3, 'z', 'a'),
+            (4, 'a', 'a'),
+        ] {
+            push_test_edges(
+                &mut index,
+                bucket,
+                RecoveryUnitKind::Sentence,
+                OccurrenceRole::Body,
+                occurrence_index,
+                scalar(first),
+                scalar(last),
+            );
+        }
+
+        for (occurrence_index, prefix_equal, suffix_equal) in [
+            (0, true, false),
+            (1, false, true),
+            (2, true, true),
+            (3, false, false),
+        ] {
+            assert_eq!(
+                test_aligned_facts(&index, 'a', 'z', occurrence_index, bucket, None),
+                Some(AlignedSentenceEdgeFacts {
+                    prefix_equal,
+                    suffix_equal,
+                })
+            );
+        }
+        assert_eq!(
+            test_aligned_facts(&index, 'a', 'a', 4, bucket, None),
+            Some(AlignedSentenceEdgeFacts {
+                prefix_equal: true,
+                suffix_equal: true,
+            })
+        );
+        assert_eq!(index.edge_postings.values().map(Vec::len).sum::<usize>(), 9);
+        assert_eq!(
+            index
+                .edge_postings
+                .get(&(
+                    bucket,
+                    RecoveryUnitKind::Sentence,
+                    OccurrenceRole::Body,
+                    scalar('a'),
+                ))
+                .expect("shared edge posting exists")
+                .iter()
+                .filter(|posting| posting.occurrence_index() == 4)
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn edge_posting_packs_one_word_and_rejects_index_overflow() {
+        assert_eq!(size_of::<EdgePosting>(), size_of::<usize>());
+        let largest = usize::MAX >> EdgePosting::SIDE_BITS;
+        let posting =
+            EdgePosting::new(largest, EdgePostingSides::BOTH).expect("largest packed index fits");
+        assert_eq!(posting.occurrence_index(), largest);
+        assert_eq!(posting.sides(), EdgePostingSides::BOTH);
+        assert!(EdgePosting::new(largest + 1, EdgePostingSides::FIRST).is_none());
+
+        let mut index = empty_unit_candidate_index();
+        assert!(
+            index
+                .push_edge_posting(
+                    (
+                        CandidatePostingBucket::Global,
+                        RecoveryUnitKind::Sentence,
+                        OccurrenceRole::Body,
+                        scalar('a'),
+                    ),
+                    largest + 1,
+                    EdgePostingSides::FIRST,
+                )
+                .is_none()
+        );
+        assert!(index.edge_postings.is_empty());
+    }
+
+    #[test]
+    fn exact_edge_facts_or_buckets_and_preserve_posting_order() {
+        let primary = CandidatePostingBucket::Span(Some(0));
+        let additional = CandidatePostingBucket::Span(None);
+        let mut index = empty_unit_candidate_index();
+        for occurrence_index in [0, 1, 2, 3] {
+            index
+                .push_edge_posting(
+                    (
+                        primary,
+                        RecoveryUnitKind::Sentence,
+                        OccurrenceRole::Body,
+                        scalar('a'),
+                    ),
+                    occurrence_index,
+                    EdgePostingSides::FIRST,
+                )
+                .expect("ordered posting fits");
+        }
+        index
+            .push_edge_posting(
+                (
+                    additional,
+                    RecoveryUnitKind::Sentence,
+                    OccurrenceRole::Body,
+                    scalar('z'),
+                ),
+                2,
+                EdgePostingSides::LAST,
+            )
+            .expect("additional posting fits");
+        let postings = index
+            .edge_postings
+            .get(&(
+                primary,
+                RecoveryUnitKind::Sentence,
+                OccurrenceRole::Body,
+                scalar('a'),
+            ))
+            .expect("primary postings exist");
+        assert_eq!(
+            postings
+                .iter()
+                .map(|posting| posting.occurrence_index())
+                .collect::<Vec<_>>(),
+            [0, 1, 2, 3]
+        );
+        let mut union = postings
+            .iter()
+            .map(|posting| posting.occurrence_index())
+            .collect::<Vec<_>>();
+        union.extend(
+            index
+                .edge_postings
+                .get(&(
+                    additional,
+                    RecoveryUnitKind::Sentence,
+                    OccurrenceRole::Body,
+                    scalar('z'),
+                ))
+                .expect("additional postings exist")
+                .iter()
+                .map(|posting| posting.occurrence_index()),
+        );
+        assert_eq!(union.len(), 5);
+        union.sort_unstable();
+        union.dedup();
+        assert_eq!(union, [0, 1, 2, 3]);
+        assert_eq!(
+            test_aligned_facts(&index, 'a', 'z', 2, primary, Some(additional)),
+            Some(AlignedSentenceEdgeFacts {
+                prefix_equal: true,
+                suffix_equal: true,
+            })
+        );
+    }
+
+    #[test]
+    fn exact_edge_facts_require_matching_sentence_role_and_kind() {
+        let bucket = CandidatePostingBucket::Global;
+        let mut index = empty_unit_candidate_index();
+        push_test_edges(
+            &mut index,
+            bucket,
+            RecoveryUnitKind::Sentence,
+            OccurrenceRole::RepeatedHeader,
+            0,
+            scalar('a'),
+            scalar('z'),
+        );
+        push_test_edges(
+            &mut index,
+            bucket,
+            RecoveryUnitKind::Line,
+            OccurrenceRole::Body,
+            1,
+            scalar('a'),
+            scalar('z'),
+        );
+
+        assert_eq!(test_aligned_facts(&index, 'a', 'z', 0, bucket, None), None);
+        assert_eq!(
+            index.aligned_sentence_edge_facts_for_edges(
+                RecoveryUnitKind::Line,
+                OccurrenceRole::Body,
+                scalar('a'),
+                scalar('z'),
+                1,
+                bucket,
+                None,
+            ),
+            None
+        );
     }
 
     fn empty_signature_index() -> SentenceEdgeSignatureIndex {
