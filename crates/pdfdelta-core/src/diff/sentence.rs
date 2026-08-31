@@ -4522,7 +4522,8 @@ enum SentenceEdgeFilterQuery {
     Legacy,
     Filtered {
         retained: Vec<ClassifiedSentenceEdgeFilter>,
-        rejected: Vec<ClassifiedSentenceEdgeFilter>,
+        rejected: Option<Vec<ClassifiedSentenceEdgeFilter>>,
+        cross_orientation_only: usize,
     },
 }
 
@@ -4560,8 +4561,16 @@ impl SentenceEdgeFilterQuery {
         query: &SentenceOccurrence,
         occurrences: &[SentenceOccurrence],
     ) -> Option<usize> {
-        let Self::Filtered { rejected, .. } = self else {
+        let Self::Filtered {
+            rejected,
+            cross_orientation_only,
+            ..
+        } = self
+        else {
             return Some(0);
+        };
+        let Some(rejected) = rejected else {
+            return Some(*cross_orientation_only);
         };
         rejected.iter().try_fold(0usize, |count, rejected| {
             let occurrence = occurrences.get(rejected.occurrence_index)?;
@@ -4581,7 +4590,11 @@ impl SentenceEdgeFilterQuery {
         mut watch: Option<&mut RecoveryWatchState>,
         watch_scope: RecoveryWatchNearScope,
     ) {
-        let Self::Filtered { rejected, .. } = self else {
+        let Self::Filtered {
+            rejected: Some(rejected),
+            ..
+        } = self
+        else {
             return;
         };
         let mut shadow = shadow;
@@ -4636,6 +4649,74 @@ impl SentenceEdgeFilterQuery {
     }
 }
 
+struct SentenceEdgeRejectionObserver<'a> {
+    query_occurrence_index: usize,
+    query_side: OccurrenceSide,
+    scope: NearSearchScope,
+    shadow: Option<&'a mut SentenceEdgeGateShadow>,
+    watch: Option<&'a mut RecoveryWatchState>,
+    watch_scope: RecoveryWatchNearScope,
+}
+
+impl SentenceEdgeRejectionObserver<'_> {
+    fn record(
+        &mut self,
+        query: &SentenceOccurrence,
+        occurrence_index: usize,
+        occurrence: &SentenceOccurrence,
+        evidence: CachedSentenceEdgeEvidence,
+        budget: &mut RecoveryBudget,
+    ) -> Option<()> {
+        if let Some(shadow) = self.shadow.as_deref_mut().filter(|shadow| shadow.active) {
+            let observation = (|| {
+                shadow.metrics.pairs_considered = shadow
+                    .metrics
+                    .pairs_considered
+                    .checked_add(1)
+                    .ok_or(SentenceEdgeGateShadowStopReason::CounterOverflow)?;
+                shadow.metrics.pairs_rejected = shadow
+                    .metrics
+                    .pairs_rejected
+                    .checked_add(1)
+                    .ok_or(SentenceEdgeGateShadowStopReason::CounterOverflow)?;
+                record_sentence_edge_gate_rejection(
+                    &mut shadow.metrics,
+                    self.scope,
+                    query,
+                    occurrence,
+                    evidence.edge_score(),
+                )
+            })();
+            if let Err(reason) = observation {
+                shadow.disable(reason);
+                budget.record_watch_diagnostic_failure();
+                return None;
+            }
+        }
+        if let Some(watch) = self.watch.as_deref_mut() {
+            if !watch.complete {
+                budget.record_watch_diagnostic_failure();
+                return None;
+            }
+            let (old_index, new_index) = match self.query_side {
+                OccurrenceSide::Old => (self.query_occurrence_index, occurrence_index),
+                OccurrenceSide::New => (occurrence_index, self.query_occurrence_index),
+            };
+            watch.record_near(
+                old_index,
+                new_index,
+                evidence.edge_score(),
+                self.watch_scope,
+            );
+            if !watch.complete {
+                budget.record_watch_diagnostic_failure();
+                return None;
+            }
+        }
+        Some(())
+    }
+}
+
 fn mark_edge_gate_shadow_for_filter_stop(
     shadow: Option<&mut SentenceEdgeGateShadow>,
     reason: Option<SentenceEdgeFilterStopReason>,
@@ -4659,6 +4740,7 @@ fn classify_sentence_edge_filter_query(
         plausible,
         budget,
         None,
+        None,
         relevant,
     )
 }
@@ -4674,21 +4756,27 @@ fn classify_sentence_edge_filter_query_with_index(
         CandidatePostingBucket,
         Option<CandidatePostingBucket>,
     )>,
+    mut rejection_observer: Option<SentenceEdgeRejectionObserver<'_>>,
     mut relevant: impl FnMut(usize) -> bool,
 ) -> SentenceEdgeFilterQuery {
     if query.kind != RecoveryUnitKind::Sentence || !budget.sentence_edge_filter_active {
         return SentenceEdgeFilterQuery::Legacy;
     }
     let mut retained = Vec::new();
-    let mut rejected = Vec::new();
+    let direct =
+        budget.sentence_edge_signature_filter_mode == SentenceEdgeSignatureFilterMode::Direct;
+    let mut rejected = (!direct).then(Vec::new);
     if retained.try_reserve_exact(plausible.len()).is_err()
-        || rejected.try_reserve_exact(plausible.len()).is_err()
+        || rejected
+            .as_mut()
+            .is_some_and(|rejected| rejected.try_reserve_exact(plausible.len()).is_err())
     {
         budget.disable_sentence_edge_filter(SentenceEdgeFilterStopReason::AllocationFailure);
         return SentenceEdgeFilterQuery::Legacy;
     }
     let mut retained_count = 0usize;
     let mut rejected_count = 0usize;
+    let mut cross_orientation_only = 0usize;
     for &occurrence_index in plausible {
         if !relevant(occurrence_index) {
             continue;
@@ -4746,10 +4834,29 @@ fn classify_sentence_edge_filter_query_with_index(
                 return SentenceEdgeFilterQuery::Legacy;
             };
             rejected_count = next;
-            rejected.push(ClassifiedSentenceEdgeFilter {
-                occurrence_index,
-                evidence,
-            });
+            if direct {
+                let Some(next) =
+                    is_cross_orientation_only(query, occurrence).and_then(|cross_only| {
+                        cross_orientation_only.checked_add(usize::from(cross_only))
+                    })
+                else {
+                    budget.record_watch_diagnostic_failure();
+                    return SentenceEdgeFilterQuery::Legacy;
+                };
+                cross_orientation_only = next;
+                if rejection_observer.as_mut().is_some_and(|observer| {
+                    observer
+                        .record(query, occurrence_index, occurrence, evidence, budget)
+                        .is_none()
+                }) {
+                    return SentenceEdgeFilterQuery::Legacy;
+                }
+            } else if let Some(rejected) = rejected.as_mut() {
+                rejected.push(ClassifiedSentenceEdgeFilter {
+                    occurrence_index,
+                    evidence,
+                });
+            }
         }
     }
     let Some(next_retained) = budget
@@ -4768,7 +4875,11 @@ fn classify_sentence_edge_filter_query_with_index(
     };
     budget.sentence_edge_filter_pairs_retained = next_retained;
     budget.sentence_edge_filter_pairs_rejected = next_rejected;
-    SentenceEdgeFilterQuery::Filtered { retained, rejected }
+    SentenceEdgeFilterQuery::Filtered {
+        retained,
+        rejected,
+        cross_orientation_only,
+    }
 }
 
 fn split_retained_sentence_edge_filters(
@@ -10789,6 +10900,14 @@ fn paired_modified_sentence_relations_tracked(
             &plausible,
             budget,
             Some((&new_index, CandidatePostingBucket::Paired(interval), None)),
+            Some(SentenceEdgeRejectionObserver {
+                query_occurrence_index: old_candidate.occurrence_index,
+                query_side: OccurrenceSide::Old,
+                scope,
+                shadow: relations.edge_gate_shadow.as_mut(),
+                watch: watch.as_deref_mut(),
+                watch_scope: RecoveryWatchNearScope::PairedStream,
+            }),
             |_| true,
         );
         mark_edge_gate_shadow_for_filter_stop(
@@ -10926,6 +11045,14 @@ fn paired_modified_sentence_relations_tracked(
             &plausible,
             budget,
             Some((&old_index, CandidatePostingBucket::Paired(interval), None)),
+            Some(SentenceEdgeRejectionObserver {
+                query_occurrence_index: new_candidate.occurrence_index,
+                query_side: OccurrenceSide::New,
+                scope,
+                shadow: relations.edge_gate_shadow.as_mut(),
+                watch: watch.as_deref_mut(),
+                watch_scope: RecoveryWatchNearScope::PairedStream,
+            }),
             |index| old_candidate_by_occurrence[index].is_none(),
         );
         mark_edge_gate_shadow_for_filter_stop(
@@ -11200,6 +11327,14 @@ fn record_cross_interval_disqualifying_relations_tracked(
                 CandidatePostingBucket::PairedStream(interval.pair_index),
                 None,
             )),
+            Some(SentenceEdgeRejectionObserver {
+                query_occurrence_index: old_candidate.occurrence_index,
+                query_side: OccurrenceSide::Old,
+                scope,
+                shadow: relations.edge_gate_shadow.as_mut(),
+                watch: watch.as_deref_mut(),
+                watch_scope: RecoveryWatchNearScope::PairedStream,
+            }),
             |_| true,
         );
         mark_edge_gate_shadow_for_filter_stop(
@@ -11366,6 +11501,14 @@ fn record_cross_interval_disqualifying_relations_tracked(
                 CandidatePostingBucket::PairedStream(interval.pair_index),
                 None,
             )),
+            Some(SentenceEdgeRejectionObserver {
+                query_occurrence_index: new_candidate.occurrence_index,
+                query_side: OccurrenceSide::New,
+                scope,
+                shadow: relations.edge_gate_shadow.as_mut(),
+                watch: watch.as_deref_mut(),
+                watch_scope: RecoveryWatchNearScope::PairedStream,
+            }),
             |_| true,
         );
         mark_edge_gate_shadow_for_filter_stop(
@@ -12274,6 +12417,17 @@ fn extend_modified_sentence_relations_tracked(
             &plausible,
             budget,
             Some((&new_index, bucket, additional_bucket)),
+            Some(SentenceEdgeRejectionObserver {
+                query_occurrence_index: old_candidate.occurrence_index,
+                query_side: OccurrenceSide::Old,
+                scope: work_scope,
+                shadow: relations.edge_gate_shadow.as_mut(),
+                watch: watch.as_deref_mut(),
+                watch_scope: match scope {
+                    NearRelationScope::SameOrAmbiguous => RecoveryWatchNearScope::SameSpan,
+                    NearRelationScope::CrossSpan => RecoveryWatchNearScope::CrossSpan,
+                },
+            }),
             |_| true,
         );
         mark_edge_gate_shadow_for_filter_stop(
@@ -12490,6 +12644,17 @@ fn extend_modified_sentence_relations_tracked(
             &plausible,
             budget,
             Some((&old_index, bucket, additional_bucket)),
+            Some(SentenceEdgeRejectionObserver {
+                query_occurrence_index: new_candidate.occurrence_index,
+                query_side: OccurrenceSide::New,
+                scope: work_scope,
+                shadow: relations.edge_gate_shadow.as_mut(),
+                watch: watch.as_deref_mut(),
+                watch_scope: match scope {
+                    NearRelationScope::SameOrAmbiguous => RecoveryWatchNearScope::SameSpan,
+                    NearRelationScope::CrossSpan => RecoveryWatchNearScope::CrossSpan,
+                },
+            }),
             |index| old_candidate_by_occurrence[index].is_none(),
         );
         mark_edge_gate_shadow_for_filter_stop(
@@ -16503,6 +16668,13 @@ mod tests {
                 classify_sentence_edge_filter_query(query, occurrences, &[0], &mut budget, |_| {
                     true
                 });
+            assert!(matches!(
+                filtered,
+                SentenceEdgeFilterQuery::Filtered {
+                    rejected: Some(_),
+                    ..
+                }
+            ));
             filtered.record_rejections(
                 0,
                 query_side,
@@ -16525,6 +16697,80 @@ mod tests {
             assert_eq!(budget.pair_visits, 0);
             assert_eq!(budget.comparisons, 0);
         }
+    }
+
+    #[test]
+    fn direct_sentence_edge_filter_streams_rejected_watch_without_storing_it() {
+        let old = [edge_probe_occurrence("abcdefghij")];
+        let new = [edge_probe_occurrence("aklmnopqrs")];
+        let mut watch = watch_state_for_pair();
+        let mut budget = RecoveryBudget::new(10, 10, 20, 1).expect("budget builds");
+        budget.sentence_edge_signature_filter_mode = SentenceEdgeSignatureFilterMode::Direct;
+
+        let filtered = classify_sentence_edge_filter_query_with_index(
+            &old[0],
+            &new,
+            &[0],
+            &mut budget,
+            None,
+            Some(SentenceEdgeRejectionObserver {
+                query_occurrence_index: 0,
+                query_side: OccurrenceSide::Old,
+                scope: NearSearchScope::CrossSpan,
+                shadow: None,
+                watch: Some(&mut watch),
+                watch_scope: RecoveryWatchNearScope::CrossSpan,
+            }),
+            |_| true,
+        );
+
+        assert!(matches!(
+            filtered,
+            SentenceEdgeFilterQuery::Filtered { rejected: None, .. }
+        ));
+        let pair = watch.records[0]
+            .output
+            .pair
+            .as_ref()
+            .expect("pair diagnostics exist");
+        assert!(pair.near_candidate_examined);
+        assert_eq!(pair.near_score, Some(1_000));
+        assert_eq!(pair.near_scope, Some(RecoveryWatchNearScope::CrossSpan));
+    }
+
+    #[test]
+    fn direct_sentence_edge_rejection_observer_failure_stops_the_build() {
+        let old = [edge_probe_occurrence("abcdefghij")];
+        let new = [edge_probe_occurrence("aklmnopqrs")];
+        let mut watch = watch_state_for_pair();
+        watch.complete = false;
+        let mut budget = RecoveryBudget::new(10, 10, 20, 1).expect("budget builds");
+        budget.sentence_edge_signature_filter_mode = SentenceEdgeSignatureFilterMode::Direct;
+
+        let filtered = classify_sentence_edge_filter_query_with_index(
+            &old[0],
+            &new,
+            &[0],
+            &mut budget,
+            None,
+            Some(SentenceEdgeRejectionObserver {
+                query_occurrence_index: 0,
+                query_side: OccurrenceSide::Old,
+                scope: NearSearchScope::CrossSpan,
+                shadow: None,
+                watch: Some(&mut watch),
+                watch_scope: RecoveryWatchNearScope::CrossSpan,
+            }),
+            |_| true,
+        );
+
+        assert!(matches!(filtered, SentenceEdgeFilterQuery::Legacy));
+        assert_eq!(
+            budget.watch_probe_stop_reason,
+            Some(SentenceEdgeSignatureDirectShadowStopReason::DiagnosticFailure)
+        );
+        assert_eq!(budget.sentence_edge_filter_pairs_retained, 0);
+        assert_eq!(budget.sentence_edge_filter_pairs_rejected, 0);
     }
 
     #[test]
@@ -21541,6 +21787,10 @@ mod tests {
             &mut budget,
             |_| true,
         );
+        assert!(matches!(
+            edge_filter,
+            SentenceEdgeFilterQuery::Filtered { rejected: None, .. }
+        ));
         assert_eq!(
             edge_filter.cross_orientation_only_count(&query, &candidates),
             Some(1)
