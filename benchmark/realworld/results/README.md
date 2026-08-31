@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`447927d`](https://github.com/hayatosc/pdfdelta/commit/447927d)
+- **Generator / engine commit**: [`08cc0c6`](https://github.com/hayatosc/pdfdelta/commit/08cc0c6)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-447927d.json`](2026-08-31-447927d.json)
-  - Schema: v34
-  - Size: 648,492 bytes
-  - SHA-256: `01086e37fdbc0627c0fe58dc16a6f6279a1659a77e9585591a507097d0b60341`
+  - File: [`2026-08-31-08cc0c6.json`](2026-08-31-08cc0c6.json)
+  - Schema: v35
+  - Size: 633,643 bytes
+  - SHA-256: `8c157d449fc6f80e4e1b13e300c46e9385c00d3580702ae94a1e2a77847dc988`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -27,7 +27,7 @@ mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
   /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-31-447927d.json
+  benchmark/realworld/results/2026-08-31-08cc0c6.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -64,8 +64,8 @@ still apply only to their recorded review items.
 
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `nist-fips-186-4-to-5` | dev | standard | 65.03% | 2,395 | 1,346 | 0.857 | 1.000 | 224.333 | 107 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 71.90% | 6,038 | 2,440 | 0.875 | 1.000 | 394.714 | 103 |
+| `nist-fips-186-4-to-5` | dev | standard | 51.20% | 2,014 | 1,003 | 0.857 | 1.000 | 167.167 | 107 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.72% | 5,108 | 1,566 | 0.750 | 1.000 | 314.833 | 103 |
 | `irs-form-1040-2024-to-2025` | holdout | stress | 37.83% | 75 | 20 | 0.000 | N/A | N/A | 1 |
 | `edpb-right-of-access-v1-to-final` | holdout | standard | 74.81% | 2,091 | 477 | 0.750 | 1.000 | 175.667 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 1.000 | 0 |
@@ -74,7 +74,7 @@ still apply only to their recorded review items.
 | `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.21% | 515 | 474 | 1.000 | 1.000 | 158.000 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
 | `bis-operational-risk-2011-to-2021` | dev | standard | 68.12% | 656 | 351 | 1.000 | 1.000 | 1.000 | 0 |
-| `oasis-mqtt-311-to-50` | dev | standard | 48.86% | 2,924 | 1,884 | 1.000 | N/A | N/A | 0 |
+| `oasis-mqtt-311-to-50` | dev | standard | 30.45% | 2,307 | 1,134 | 1.000 | N/A | N/A | 0 |
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 53.22% | 788 | 648 | 0.333 | 1.000 | 648.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
@@ -82,7 +82,7 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | Pair with a complete scope | Event P / R / F1 | Token P / R / F1 | Span IoU | FP tokens / 10k unchanged |
 |---|---:|---:|---:|---:|
 | `nist-fips-186-4-to-5` | 1.000 / 0.000 / 0.000 | 0.000 / 0.000 / 0.000 | 0.000 | N/A |
-| `nist-sp800-57-part1-r4-to-r5` | 0.600 / 0.750 / 0.667 | 0.093 / 0.824 / 0.167 | 0.091 | 7,881.157 |
+| `nist-sp800-57-part1-r4-to-r5` | 1.000 / 0.750 / 0.857 | 0.092 / 0.664 / 0.162 | 0.088 | 6,372.166 |
 | `arxiv-attention-v6-to-v7` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 | `w3c-ws-policy-attach-20060927-to-20061102` | 1.000 / 1.000 / 1.000 | 0.984 / 1.000 / 0.992 | 0.984 | 68.027 |
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
@@ -91,30 +91,42 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 The original arXiv, W3C, and BIS scoped-complete metrics are unchanged from
 `27f096e`.
 The new MQTT permissions scope contains no changes and reports no false-positive
-event or token. The two SP 800-57 scopes deliberately expose current event
-fragmentation: four reviewed replacements are represented by five reported
-events, and 1,111 reported changed tokens overlap 103 of 125 reviewed changed
-tokens. These dev-only scopes are precision gates, not threshold targets.
-The production Sentence edge filter completes near-relation analysis for EDPB
-Right of Access and EDPB Dark Patterns. Six other incomplete searches use a
-full-build legacy fallback; their comparison output and recovery-watch
-diagnostics exactly match the schema-v24 baseline. Across 18 measured pairs,
-the filter classifies 6,990,647 Sentence pairs and rejects 6,660,144 (95.27%).
-All shadow threshold, veto, unique-partner, reciprocal, adopted-replacement,
-and insertion/deletion-veto mismatch counters remain zero.
-The `447927d` schema-v34 capture preserves candidate keys, posting counts, and
-ordering while packing exact FIRST/LAST provenance into each existing posting
-word. The independent reference oracle reuses those aligned-edge facts instead
-of comparing boundary tokens again. All eight reference oracles now complete
-within their existing budgets with identical plans and retained-pair count,
-set, and order fingerprints. LibreOffice classifies all 18,853,226 broad pairs
-with 24,943,792 edge comparisons under the unchanged 32,000,000 cap, then
-charges 16,576 downstream near pairs. Removing the reference-oracle object
-produces exact `e254b48` parity for every comparison, quality, candidate-recall,
-direct-replay, and other diagnostic field. Posting elements remain one `usize`
-wide, so the evidence does not increase the legacy candidate index element
-size. Production activation remains deferred pending a revised candidate-
-overhead gate and full-build fallback design.
+event or token. Direct signature traversal is accepted and complete for all 18
+available recovery builds. It performs zero broad Sentence posting visits and
+eliminates all six former full-build legacy fallbacks. On those six paths, the
+completed schema-v34 reference oracles classified 31,842,858 broad candidates;
+production Direct generates 1,633,897 candidates, a 94.87% reduction. The 12
+paths that were already complete preserve their comparison and quality fields.
+
+Completing the other six paths changes coverage and content-event counts in
+both directions:
+
+| Pair | Coverage | Content events |
+|---|---:|---:|
+| `nist-fips-186-4-to-5` | 65.03% -> 51.20% | 1,346 -> 1,003 |
+| `nist-sp800-57-part1-r4-to-r5` | 71.90% -> 52.72% | 2,440 -> 1,566 |
+| `nist-sp800-171-r2-to-r3` | 4.45% -> 47.97% | 46 -> 1,399 |
+| `bis-core-principles-2012-to-2024` | 11.23% -> 74.93% | 78 -> 1,214 |
+| `oasis-mqtt-311-to-50` | 48.86% -> 30.45% | 1,884 -> 1,134 |
+| `libreoffice-getting-started-74-to-75` | 36.50% -> 39.42% | 863 -> 2,028 |
+
+This is production-traversal evidence, not a passed quality gate. SP 800-57
+global reviewed recall regresses from 0.875 to 0.750 because
+`toolkit-footnote-removed` becomes reading-order unresolved. Its scoped event
+precision improves from 0.600 to 1.000, while scoped token recall falls from
+0.824 to 0.664. The next investigation is one-sided veto diagnostics; thresholds
+and margins remain unchanged.
+
+The `447927d` schema-v34 capture remains the historical reference-oracle proof.
+It preserves candidate keys, posting counts, and ordering while packing exact
+FIRST/LAST provenance into each existing posting word. All eight reference
+oracles complete within their existing budgets with identical plans and
+retained-pair count, set, and order fingerprints.
+LibreOffice classifies all 18,853,226 broad pairs with 24,943,792 edge
+comparisons under the unchanged 32,000,000 cap, then charges 16,576 downstream
+near pairs. Removing the reference-oracle object produces exact `e254b48`
+parity for every comparison, quality, candidate-recall, direct-replay, and other
+diagnostic field. Posting elements remain one `usize` wide.
 
 The `e254b48` schema-v34 capture made the independent reference oracle apply
 the exact Sentence edge gate to candidates from the legacy
@@ -285,12 +297,19 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v34)
+## Current Writer Schema (v35)
 
-The benchmark writer and latest committed capture use schema v34. Older
-captures retain their recorded schemas. Schema v34 separates reference-oracle
+The benchmark writer and latest committed capture use schema v35. Older
+captures retain their recorded schemas. Schema v35 records whether direct
+edge-signature work is a diagnostic shadow replay, an accepted production
+result, or discarded production work followed by the atomic legacy fallback.
+The associated direct metrics are present only with this execution provenance;
+accepted production requires a complete direct result without fallback, while
+discarded production requires fallback. CLI trace schema v24 exposes the same
+three states as one-hot counters. Schema v34 remains the historical
+reference-oracle schema: it separates reference-oracle
 edge-filter pair and comparison work from downstream near-relation work and
-publishes typed edge-filter stops. CLI trace schema v23 exposes the same work
+publishes typed edge-filter stops. CLI trace schema v23 exposed the same work
 and stop semantics. Schema v33 stores signature postings as
 compact unique-key ranges plus occurrence arrays, accounts for temporary and
 final transition capacity before every bounded allocation, and preserves typed
@@ -533,6 +552,8 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-31-08cc0c6.json`](2026-08-31-08cc0c6.json): schema-v35 production Direct traversal; all 18 available builds are accepted and complete, while SP 800-57 exposes a reviewed-recall regression that keeps this capture below the quality gate.
+- [`2026-08-31-447927d.json`](2026-08-31-447927d.json): schema-v34 completed reference-oracle evidence before production Direct activation.
 - [`2026-08-30-f0ffe19.json`](2026-08-30-f0ffe19.json): schema-v23 relation-floor probe before retaining pair-complete observations from budget-stopped cross-span searches.
 - [`2026-08-30-d6cd66d.json`](2026-08-30-d6cd66d.json): schema-v22 paired-anchor cross-span Sentence locality and strict-shadow diagnostics before relation-floor probing.
 - [`2026-08-30-d045e2c.json`](2026-08-30-d045e2c.json): schema-v21 known-span Sentence shadow replay with bounded word-score early termination before cross-span locality classification.
