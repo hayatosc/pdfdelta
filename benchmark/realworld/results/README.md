@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`1dbac7f`](https://github.com/hayatosc/pdfdelta/commit/1dbac7f)
+- **Generator / engine commit**: [`2585c57`](https://github.com/hayatosc/pdfdelta/commit/2585c57)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-1dbac7f.json`](2026-08-31-1dbac7f.json)
-  - Schema: v43
-  - Size: 1,683,230 bytes
-  - SHA-256: `389bcb2a95f7506e6542df9790b112946009c70a937c90dcb4eb13bdeeabaf80`
+  - File: [`2026-08-31-2585c57.json`](2026-08-31-2585c57.json)
+  - Schema: v44
+  - Size: 1,725,819 bytes
+  - SHA-256: `b0f509e943fa96151cfa96a2609a0439f3b7e393b20556f37fc8f0a069fe69a5`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -27,7 +27,7 @@ mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
   /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-31-1dbac7f.json
+  benchmark/realworld/results/2026-08-31-2585c57.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -38,9 +38,9 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-08-31-426f0a5.json \
   benchmark/realworld/results/2026-08-31-1dbac7f.json \
-  local_fragment_global_length_aware_shadow
+  benchmark/realworld/results/2026-08-31-2585c57.json \
+  local_fragment_recheck_reuse_shadow
 ```
 
 When reviewed annotations changed between captures, exclude only those named
@@ -87,6 +87,45 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | `w3c-ws-policy-attach-20060927-to-20061102` | 1.000 / 1.000 / 1.000 | 0.984 / 1.000 / 0.992 | 0.984 | 68.027 |
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
+
+Schema v44 is behavior-neutral relative to schema v43. Removing only
+`sentence_recovery_metrics.local_fragment_recheck_reuse_shadow` and
+`schema_version` produces exact parity for every prior comparison, quality,
+candidate, recovery-diagnostic, and scoped metric field.
+
+The recheck-reuse shadow merges the sorted fixed-depth and length-aware
+candidate sets for each old fragment. Every unique old/new pair receives one
+exact token-edge recheck, and the result is routed back to each source stream
+without assuming that either candidate set is a subset of the other. This
+preserves collision safety, candidate order, retained order, and atomic stop
+behavior while measuring the duplicated work avoided by reuse.
+
+The shadow is present on all 18 recovery builds. Five complete: arXiv and
+Korean W-4 have no eligible fragments, IRS 1040 remains the directly comparable
+non-empty baseline, and the QGIS English and Spanish documentation pairs now
+complete under the unchanged limits. The other 13 stop atomically at the exact
+edge-recheck comparison limit, down from 15 in the schema-v43 global shadow.
+
+Across the three non-empty complete builds, the legacy two-pass projection is
+21,064 rechecks and 1,671,477 token comparisons. Merge-union reuse performs
+12,219 rechecks and 849,004 comparisons, avoiding 8,845 rechecks (41.99%) and
+822,473 comparisons (49.21%). No complete build has a length-aware-only
+candidate, retained-set mismatch, order mismatch, or available sibling
+fingerprint mismatch.
+
+IRS 1040 provides the exact schema-v43 comparison: 3,714 unique pairs are
+rechecked once, 2,293 duplicate rechecks are avoided, and token comparisons
+fall from 123,765 to 68,505, a 44.65% reduction. Both streams still retain the
+same 1,725 pairs in the same order, and all four canonical fingerprints match.
+The QGIS English and Spanish builds avoid 49.57% and 49.58% of projected token
+comparisons respectively; their schema-v43 siblings stopped before publishing
+fingerprints, so they are new completion evidence rather than direct sibling
+parity claims.
+
+This is still behavior-neutral diagnostic evidence. It justifies folding the
+merge-union recheck primitive into the global fragment analysis, but not using
+fragment relations in recovery output. The remaining 13 stops show that exact
+edge comparison is still the limiting stage for larger builds.
 
 Schema v43 is behavior-neutral relative to schema v42. Removing only
 `sentence_recovery_metrics.local_fragment_global_length_aware_shadow` and
@@ -692,6 +731,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-31-1dbac7f.json`](2026-08-31-1dbac7f.json): schema-v43 global local-fragment traversal before sharing exact rechecks across fixed-depth and length-aware candidates.
 - [`2026-08-31-426f0a5.json`](2026-08-31-426f0a5.json): schema-v42 parent-scoped length-aware local-fragment signatures; one non-empty build completes with exact fixed-depth parity.
 - [`2026-08-31-7d34d52.json`](2026-08-31-7d34d52.json): schema-v41 exact local-fragment recheck attribution before length-aware signatures.
 - [`2026-08-31-40f8e19.json`](2026-08-31-40f8e19.json): schema-v40 fixed-depth boundary indexing before comparison-stage attribution.
