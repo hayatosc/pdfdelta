@@ -13284,6 +13284,20 @@ struct ExactClassRecord {
     fragment: u32,
 }
 
+impl LocalFragmentFlatExactBoundaryShadowMetrics {
+    /// Returns the logical scratch bytes reserved for flat exact-boundary classification.
+    ///
+    /// The diagnostic retains two reusable radix buffers and one active-fragment index buffer.
+    /// `None` indicates that the platform-sized byte calculation overflowed.
+    #[doc(hidden)]
+    pub fn expected_radix_scratch_bytes(fragment_count: usize) -> Option<usize> {
+        let bytes_per_fragment = std::mem::size_of::<ExactClassRecord>()
+            .checked_mul(2)?
+            .checked_add(std::mem::size_of::<usize>())?;
+        fragment_count.checked_mul(bytes_per_fragment)
+    }
+}
+
 impl ExactClassRecord {
     fn key_byte(self, pass: usize) -> u8 {
         match pass {
@@ -13433,14 +13447,9 @@ fn build_flat_exact_boundary_classes(
         .checked_add(class_slots)
         .and_then(|items| items.checked_mul(std::mem::size_of::<u32>()))
         .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
-    let radix_scratch_bytes = fragment_count
-        .checked_mul(
-            std::mem::size_of::<ExactClassRecord>()
-                .checked_mul(2)
-                .and_then(|bytes| bytes.checked_add(std::mem::size_of::<usize>()))
-                .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?,
-        )
-        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+    let radix_scratch_bytes =
+        LocalFragmentFlatExactBoundaryShadowMetrics::expected_radix_scratch_bytes(fragment_count)
+            .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
     budget
         .common
         .charge(
@@ -34917,6 +34926,24 @@ mod tests {
         assert_eq!(flat.work.class_ids_examined, flat.class_slots);
         assert!(flat.radix_scratch_bytes > 0);
         assert!(flat.active_fragment_visits > 0);
+    }
+
+    #[test]
+    fn flat_exact_boundary_scratch_byte_helper_is_checked() {
+        assert_eq!(
+            LocalFragmentFlatExactBoundaryShadowMetrics::expected_radix_scratch_bytes(0),
+            Some(0)
+        );
+        let bytes_per_fragment =
+            std::mem::size_of::<ExactClassRecord>() * 2 + std::mem::size_of::<usize>();
+        assert_eq!(
+            LocalFragmentFlatExactBoundaryShadowMetrics::expected_radix_scratch_bytes(3),
+            Some(bytes_per_fragment * 3)
+        );
+        assert_eq!(
+            LocalFragmentFlatExactBoundaryShadowMetrics::expected_radix_scratch_bytes(usize::MAX),
+            None
+        );
     }
 
     #[test]

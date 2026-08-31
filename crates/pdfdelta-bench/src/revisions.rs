@@ -22,11 +22,12 @@ use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
         ChangeKind, Comparison, ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
-        LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentGlobalLengthAwareShadowMetrics,
-        LocalFragmentLengthAwareRecheckShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
-        LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
-        LocalFragmentLengthOnlyCandidateShadowMetrics, LocalFragmentLocationEvidence,
-        LocalFragmentOrientation, LocalFragmentPairEvidence,
+        LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentFlatExactBoundaryShadowMetrics,
+        LocalFragmentFlatExactBoundaryStopReason, LocalFragmentFlatExactBoundaryWorkMetrics,
+        LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
+        LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
+        LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLengthOnlyCandidateShadowMetrics,
+        LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
         LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
         LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
         LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, NearRelationStopReason,
@@ -685,6 +686,8 @@ pub struct SentenceRecoveryMetricsReport {
         Option<LocalFragmentLengthOnlyCandidateShadowMetricsReport>,
     pub local_fragment_exact_boundary_trie_shadow:
         Option<LocalFragmentExactBoundaryTrieShadowMetricsReport>,
+    pub local_fragment_flat_exact_boundary_shadow:
+        Option<LocalFragmentFlatExactBoundaryShadowMetricsReport>,
     pub sentence_edge_filter_complete: bool,
     pub sentence_edge_filter_pairs_examined: usize,
     pub sentence_edge_filter_pairs_attempted: usize,
@@ -878,6 +881,59 @@ pub struct LocalFragmentExactBoundaryTrieShadowMetricsReport {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LocalFragmentFlatExactBoundaryShadowMetricsReport {
+    pub complete: bool,
+    pub stop_reason: Option<LocalFragmentFlatExactBoundaryStopReasonReport>,
+    pub work: LocalFragmentFlatExactBoundaryWorkMetricsReport,
+    pub min_tokens: usize,
+    pub fixed_depth: usize,
+    pub old_fragments: usize,
+    pub new_fragments: usize,
+    pub parent_admission_queries: usize,
+    pub global_queries: usize,
+    pub compared_queries: usize,
+    pub offset_items: usize,
+    pub class_slots: usize,
+    pub class_storage_bytes: usize,
+    pub radix_scratch_bytes: usize,
+    pub max_depth: usize,
+    pub peak_radix_records: usize,
+    pub radix_passes: usize,
+    pub radix_work: usize,
+    pub active_fragment_visits: usize,
+    pub prefix_distinct_classes: usize,
+    pub suffix_distinct_classes: usize,
+    pub hash_candidates: usize,
+    pub exact_certified_candidates: usize,
+    pub hash_collision_only_candidates: usize,
+    pub prefix_only_candidates: usize,
+    pub suffix_only_candidates: usize,
+    pub both_candidates: usize,
+    pub certified_tokens_credited: usize,
+    pub recheck_pairs_started: usize,
+    pub recheck_pairs_completed: usize,
+    pub recheck_comparisons: usize,
+    pub projected_avoided_comparisons: usize,
+    pub retained_pairs: usize,
+    pub depth_1_candidates: usize,
+    pub depth_2_to_3_candidates: usize,
+    pub depth_4_plus_candidates: usize,
+    pub v49_parity_available: bool,
+    pub hash_candidate_count_mismatches: usize,
+    pub exact_certified_count_mismatches: usize,
+    pub hash_collision_count_mismatches: usize,
+    pub orientation_count_mismatches: usize,
+    pub recheck_comparison_mismatches: usize,
+    pub avoided_comparison_mismatches: usize,
+    pub credited_token_mismatches: usize,
+    pub retained_count_mismatches: usize,
+    pub retained_order_mismatches: usize,
+    pub recheck_pair_count_mismatches: usize,
+    pub certification_fingerprint_mismatches: usize,
+    pub retained_fingerprint_mismatches: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct LocalFragmentGlobalLengthAwareShadowMetricsReport {
     pub complete: bool,
     pub stop_reason: Option<LocalFragmentLengthAwareShadowStopReasonReport>,
@@ -999,6 +1055,31 @@ pub enum LocalFragmentLengthAwareShadowStopReasonReport {
     DiagnosticFailure,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LocalFragmentFlatExactBoundaryStopReasonReport {
+    EnumerationLimit,
+    SignatureTokenStepLimit,
+    IndexPostingLimit,
+    DistinctKeyLimit,
+    EstimatedByteLimit,
+    QueryLimit,
+    PostingVisitLimit,
+    CandidateUnionLimit,
+    ExactRecheckPairLimit,
+    ExactRecheckComparisonLimit,
+    OffsetItemLimit,
+    ClassSlotLimit,
+    RadixRecordLimit,
+    ActiveFragmentVisitLimit,
+    RadixWorkLimit,
+    ClassIdLimit,
+    CandidateGenerationIncomplete,
+    AllocationFailure,
+    CounterOverflow,
+    DiagnosticFailure,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct LocalFragmentLengthAwareShadowWorkMetricsReport {
     pub enumeration_examined: usize,
@@ -1021,6 +1102,23 @@ pub struct LocalFragmentLengthAwareShadowWorkMetricsReport {
     pub exact_recheck_pairs_attempted: usize,
     pub exact_recheck_comparisons_examined: usize,
     pub exact_recheck_comparisons_attempted: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LocalFragmentFlatExactBoundaryWorkMetricsReport {
+    pub common: LocalFragmentLengthAwareShadowWorkMetricsReport,
+    pub offset_items_examined: usize,
+    pub offset_items_attempted: usize,
+    pub class_slots_examined: usize,
+    pub class_slots_attempted: usize,
+    pub radix_records_examined: usize,
+    pub radix_records_attempted: usize,
+    pub active_fragment_visits_examined: usize,
+    pub active_fragment_visits_attempted: usize,
+    pub radix_work_examined: usize,
+    pub radix_work_attempted: usize,
+    pub class_ids_examined: usize,
+    pub class_ids_attempted: usize,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -2553,6 +2651,64 @@ impl From<LocalFragmentExactBoundaryTrieShadowMetrics>
     }
 }
 
+impl From<LocalFragmentFlatExactBoundaryShadowMetrics>
+    for LocalFragmentFlatExactBoundaryShadowMetricsReport
+{
+    fn from(metrics: LocalFragmentFlatExactBoundaryShadowMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            stop_reason: metrics.stop_reason.map(Into::into),
+            work: metrics.work.into(),
+            min_tokens: metrics.min_tokens,
+            fixed_depth: metrics.fixed_depth,
+            old_fragments: metrics.old_fragments,
+            new_fragments: metrics.new_fragments,
+            parent_admission_queries: metrics.parent_admission_queries,
+            global_queries: metrics.global_queries,
+            compared_queries: metrics.compared_queries,
+            offset_items: metrics.offset_items,
+            class_slots: metrics.class_slots,
+            class_storage_bytes: metrics.class_storage_bytes,
+            radix_scratch_bytes: metrics.radix_scratch_bytes,
+            max_depth: metrics.max_depth,
+            peak_radix_records: metrics.peak_radix_records,
+            radix_passes: metrics.radix_passes,
+            radix_work: metrics.radix_work,
+            active_fragment_visits: metrics.active_fragment_visits,
+            prefix_distinct_classes: metrics.prefix_distinct_classes,
+            suffix_distinct_classes: metrics.suffix_distinct_classes,
+            hash_candidates: metrics.hash_candidates,
+            exact_certified_candidates: metrics.exact_certified_candidates,
+            hash_collision_only_candidates: metrics.hash_collision_only_candidates,
+            prefix_only_candidates: metrics.prefix_only_candidates,
+            suffix_only_candidates: metrics.suffix_only_candidates,
+            both_candidates: metrics.both_candidates,
+            certified_tokens_credited: metrics.certified_tokens_credited,
+            recheck_pairs_started: metrics.recheck_pairs_started,
+            recheck_pairs_completed: metrics.recheck_pairs_completed,
+            recheck_comparisons: metrics.recheck_comparisons,
+            projected_avoided_comparisons: metrics.projected_avoided_comparisons,
+            retained_pairs: metrics.retained_pairs,
+            depth_1_candidates: metrics.depth_1_candidates,
+            depth_2_to_3_candidates: metrics.depth_2_to_3_candidates,
+            depth_4_plus_candidates: metrics.depth_4_plus_candidates,
+            v49_parity_available: metrics.v49_parity_available,
+            hash_candidate_count_mismatches: metrics.hash_candidate_count_mismatches,
+            exact_certified_count_mismatches: metrics.exact_certified_count_mismatches,
+            hash_collision_count_mismatches: metrics.hash_collision_count_mismatches,
+            orientation_count_mismatches: metrics.orientation_count_mismatches,
+            recheck_comparison_mismatches: metrics.recheck_comparison_mismatches,
+            avoided_comparison_mismatches: metrics.avoided_comparison_mismatches,
+            credited_token_mismatches: metrics.credited_token_mismatches,
+            retained_count_mismatches: metrics.retained_count_mismatches,
+            retained_order_mismatches: metrics.retained_order_mismatches,
+            recheck_pair_count_mismatches: metrics.recheck_pair_count_mismatches,
+            certification_fingerprint_mismatches: metrics.certification_fingerprint_mismatches,
+            retained_fingerprint_mismatches: metrics.retained_fingerprint_mismatches,
+        }
+    }
+}
+
 impl From<LocalFragmentGlobalLengthAwareShadowMetrics>
     for LocalFragmentGlobalLengthAwareShadowMetricsReport
 {
@@ -2702,6 +2858,49 @@ impl From<LocalFragmentLengthAwareShadowStopReason>
     }
 }
 
+impl From<LocalFragmentFlatExactBoundaryStopReason>
+    for LocalFragmentFlatExactBoundaryStopReasonReport
+{
+    fn from(reason: LocalFragmentFlatExactBoundaryStopReason) -> Self {
+        match reason {
+            LocalFragmentFlatExactBoundaryStopReason::EnumerationLimit => Self::EnumerationLimit,
+            LocalFragmentFlatExactBoundaryStopReason::SignatureTokenStepLimit => {
+                Self::SignatureTokenStepLimit
+            }
+            LocalFragmentFlatExactBoundaryStopReason::IndexPostingLimit => Self::IndexPostingLimit,
+            LocalFragmentFlatExactBoundaryStopReason::DistinctKeyLimit => Self::DistinctKeyLimit,
+            LocalFragmentFlatExactBoundaryStopReason::EstimatedByteLimit => {
+                Self::EstimatedByteLimit
+            }
+            LocalFragmentFlatExactBoundaryStopReason::QueryLimit => Self::QueryLimit,
+            LocalFragmentFlatExactBoundaryStopReason::PostingVisitLimit => Self::PostingVisitLimit,
+            LocalFragmentFlatExactBoundaryStopReason::CandidateUnionLimit => {
+                Self::CandidateUnionLimit
+            }
+            LocalFragmentFlatExactBoundaryStopReason::ExactRecheckPairLimit => {
+                Self::ExactRecheckPairLimit
+            }
+            LocalFragmentFlatExactBoundaryStopReason::ExactRecheckComparisonLimit => {
+                Self::ExactRecheckComparisonLimit
+            }
+            LocalFragmentFlatExactBoundaryStopReason::OffsetItemLimit => Self::OffsetItemLimit,
+            LocalFragmentFlatExactBoundaryStopReason::ClassSlotLimit => Self::ClassSlotLimit,
+            LocalFragmentFlatExactBoundaryStopReason::RadixRecordLimit => Self::RadixRecordLimit,
+            LocalFragmentFlatExactBoundaryStopReason::ActiveFragmentVisitLimit => {
+                Self::ActiveFragmentVisitLimit
+            }
+            LocalFragmentFlatExactBoundaryStopReason::RadixWorkLimit => Self::RadixWorkLimit,
+            LocalFragmentFlatExactBoundaryStopReason::ClassIdLimit => Self::ClassIdLimit,
+            LocalFragmentFlatExactBoundaryStopReason::CandidateGenerationIncomplete => {
+                Self::CandidateGenerationIncomplete
+            }
+            LocalFragmentFlatExactBoundaryStopReason::AllocationFailure => Self::AllocationFailure,
+            LocalFragmentFlatExactBoundaryStopReason::CounterOverflow => Self::CounterOverflow,
+            LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure => Self::DiagnosticFailure,
+        }
+    }
+}
+
 impl From<LocalFragmentLengthAwareShadowWorkMetrics>
     for LocalFragmentLengthAwareShadowWorkMetricsReport
 {
@@ -2727,6 +2926,28 @@ impl From<LocalFragmentLengthAwareShadowWorkMetrics>
             exact_recheck_pairs_attempted: work.exact_recheck_pairs_attempted,
             exact_recheck_comparisons_examined: work.exact_recheck_comparisons_examined,
             exact_recheck_comparisons_attempted: work.exact_recheck_comparisons_attempted,
+        }
+    }
+}
+
+impl From<LocalFragmentFlatExactBoundaryWorkMetrics>
+    for LocalFragmentFlatExactBoundaryWorkMetricsReport
+{
+    fn from(work: LocalFragmentFlatExactBoundaryWorkMetrics) -> Self {
+        Self {
+            common: work.common.into(),
+            offset_items_examined: work.offset_items_examined,
+            offset_items_attempted: work.offset_items_attempted,
+            class_slots_examined: work.class_slots_examined,
+            class_slots_attempted: work.class_slots_attempted,
+            radix_records_examined: work.radix_records_examined,
+            radix_records_attempted: work.radix_records_attempted,
+            active_fragment_visits_examined: work.active_fragment_visits_examined,
+            active_fragment_visits_attempted: work.active_fragment_visits_attempted,
+            radix_work_examined: work.radix_work_examined,
+            radix_work_attempted: work.radix_work_attempted,
+            class_ids_examined: work.class_ids_examined,
+            class_ids_attempted: work.class_ids_attempted,
         }
     }
 }
@@ -3008,6 +3229,9 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
                 .map(Into::into),
             local_fragment_exact_boundary_trie_shadow: metrics
                 .local_fragment_exact_boundary_trie_shadow
+                .map(Into::into),
+            local_fragment_flat_exact_boundary_shadow: metrics
+                .local_fragment_flat_exact_boundary_shadow
                 .map(Into::into),
             sentence_edge_filter_complete: metrics.sentence_edge_filter_complete,
             sentence_edge_filter_pairs_examined: metrics.sentence_edge_filter_pairs_examined,
@@ -5109,6 +5333,9 @@ fn validate_sentence_recovery_metrics(
     validate_local_fragment_exact_boundary_trie_shadow_metrics(
         metrics.local_fragment_exact_boundary_trie_shadow,
     )?;
+    validate_local_fragment_flat_exact_boundary_shadow_metrics(
+        metrics.local_fragment_flat_exact_boundary_shadow,
+    )?;
     validate_local_fragment_sibling_parity(
         metrics.local_fragment_length_aware_shadow,
         metrics.local_fragment_global_length_aware_shadow,
@@ -5128,6 +5355,10 @@ fn validate_sentence_recovery_metrics(
     validate_local_fragment_exact_boundary_trie_sibling_parity(
         metrics.local_fragment_length_only_candidate_shadow,
         metrics.local_fragment_exact_boundary_trie_shadow,
+    )?;
+    validate_local_fragment_flat_exact_boundary_sibling_parity(
+        metrics.local_fragment_exact_boundary_trie_shadow,
+        metrics.local_fragment_flat_exact_boundary_shadow,
     )?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
@@ -5443,6 +5674,191 @@ fn validate_local_fragment_exact_boundary_trie_shadow_metrics(
         || metrics.projected_avoided_comparisons != metrics.certified_tokens_credited
     {
         return Err("local-fragment exact-boundary trie accounting is inconsistent".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_local_fragment_flat_exact_boundary_shadow_metrics(
+    metrics: Option<LocalFragmentFlatExactBoundaryShadowMetrics>,
+) -> std::result::Result<(), String> {
+    let Some(metrics) = metrics else {
+        return Ok(());
+    };
+    if metrics.complete != metrics.stop_reason.is_none() {
+        return Err(
+            "local-fragment flat exact-boundary completion and stop reason disagree".to_owned(),
+        );
+    }
+    let expected_fixed_depth = local_fragment_signature_depth(metrics.min_tokens)
+        .ok_or_else(|| "local-fragment flat exact-boundary depth overflows".to_owned())?;
+    if metrics.min_tokens == 0
+        || metrics.fixed_depth == 0
+        || metrics.fixed_depth != expected_fixed_depth
+    {
+        return Err("local-fragment flat exact-boundary depth is inconsistent".to_owned());
+    }
+    validate_local_fragment_flat_exact_boundary_work(
+        metrics.work,
+        metrics.complete,
+        metrics.stop_reason,
+    )?;
+    if !metrics.complete {
+        let expected = LocalFragmentFlatExactBoundaryShadowMetrics {
+            complete: false,
+            stop_reason: metrics.stop_reason,
+            work: metrics.work,
+            min_tokens: metrics.min_tokens,
+            fixed_depth: metrics.fixed_depth,
+            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+        };
+        if metrics != expected {
+            return Err("stopped flat exact-boundary shadow exposes partial metrics".to_owned());
+        }
+        return Ok(());
+    }
+
+    let fragment_total = metrics
+        .old_fragments
+        .checked_add(metrics.new_fragments)
+        .ok_or_else(|| "flat exact-boundary fragment counters overflow".to_owned())?;
+    let query_total = metrics
+        .parent_admission_queries
+        .checked_add(metrics.global_queries)
+        .ok_or_else(|| "flat exact-boundary query counters overflow".to_owned())?;
+    let candidate_partition = metrics
+        .exact_certified_candidates
+        .checked_add(metrics.hash_collision_only_candidates)
+        .ok_or_else(|| "flat exact-boundary candidate counters overflow".to_owned())?;
+    let orientation_partition = metrics
+        .prefix_only_candidates
+        .checked_add(metrics.suffix_only_candidates)
+        .and_then(|value| value.checked_add(metrics.both_candidates))
+        .ok_or_else(|| "flat exact-boundary orientation counters overflow".to_owned())?;
+    let depth_partition = metrics
+        .depth_1_candidates
+        .checked_add(metrics.depth_2_to_3_candidates)
+        .and_then(|value| value.checked_add(metrics.depth_4_plus_candidates))
+        .ok_or_else(|| "flat exact-boundary depth counters overflow".to_owned())?;
+    let expected_offsets = if fragment_total == 0 {
+        0
+    } else {
+        fragment_total
+            .checked_add(1)
+            .ok_or_else(|| "flat exact-boundary offset count overflows".to_owned())?
+    };
+    let expected_storage_bytes = metrics
+        .offset_items
+        .checked_add(metrics.class_slots)
+        .and_then(|items| items.checked_mul(std::mem::size_of::<u32>()))
+        .ok_or_else(|| "flat exact-boundary storage bytes overflow".to_owned())?;
+    let expected_radix_scratch_bytes =
+        LocalFragmentFlatExactBoundaryShadowMetrics::expected_radix_scratch_bytes(fragment_total)
+            .ok_or_else(|| "flat exact-boundary radix scratch bytes overflow".to_owned())?;
+    let expected_radix_passes = metrics
+        .max_depth
+        .checked_mul(30)
+        .ok_or_else(|| "flat exact-boundary radix passes overflow".to_owned())?;
+    let expected_radix_work = metrics
+        .class_slots
+        .checked_mul(30)
+        .ok_or_else(|| "flat exact-boundary radix work overflows".to_owned())?;
+    let minimum_active_fragment_visits = metrics.class_slots / 2;
+    let maximum_active_fragment_visits = if fragment_total == 0 {
+        0
+    } else {
+        minimum_active_fragment_visits
+            .checked_add(fragment_total - 1)
+            .ok_or_else(|| "flat exact-boundary active visits overflow".to_owned())?
+    };
+    let minimum_class_slots = fragment_total
+        .checked_mul(metrics.fixed_depth)
+        .and_then(|slots| slots.checked_mul(2))
+        .ok_or_else(|| "flat exact-boundary minimum class slots overflow".to_owned())?;
+    let estimated_class_bytes = metrics
+        .class_storage_bytes
+        .checked_add(metrics.radix_scratch_bytes)
+        .ok_or_else(|| "flat exact-boundary class bytes overflow".to_owned())?;
+    let empty_record_has_counters = fragment_total == 0
+        && (metrics.work != LocalFragmentFlatExactBoundaryWorkMetrics::default()
+            || [
+                metrics.parent_admission_queries,
+                metrics.global_queries,
+                metrics.compared_queries,
+                metrics.offset_items,
+                metrics.class_slots,
+                metrics.class_storage_bytes,
+                metrics.radix_scratch_bytes,
+                metrics.max_depth,
+                metrics.peak_radix_records,
+                metrics.radix_passes,
+                metrics.radix_work,
+                metrics.active_fragment_visits,
+                metrics.prefix_distinct_classes,
+                metrics.suffix_distinct_classes,
+                metrics.hash_candidates,
+                metrics.exact_certified_candidates,
+                metrics.hash_collision_only_candidates,
+                metrics.prefix_only_candidates,
+                metrics.suffix_only_candidates,
+                metrics.both_candidates,
+                metrics.certified_tokens_credited,
+                metrics.recheck_pairs_started,
+                metrics.recheck_pairs_completed,
+                metrics.recheck_comparisons,
+                metrics.projected_avoided_comparisons,
+                metrics.retained_pairs,
+                metrics.depth_1_candidates,
+                metrics.depth_2_to_3_candidates,
+                metrics.depth_4_plus_candidates,
+            ]
+            .into_iter()
+            .any(|counter| counter != 0));
+    if metrics.work.common.enumeration_examined != fragment_total
+        || metrics.work.common.queries_examined != query_total
+        || metrics.parent_admission_queries > metrics.old_fragments
+        || metrics.global_queries > metrics.old_fragments
+        || (metrics.global_queries > 0 && metrics.parent_admission_queries == 0)
+        || metrics.compared_queries != metrics.global_queries
+        || metrics.offset_items != expected_offsets
+        || metrics.work.offset_items_examined != metrics.offset_items
+        || metrics.work.class_slots_examined != metrics.class_slots
+        || metrics.work.common.signature_token_steps_examined != metrics.class_slots
+        || metrics.work.radix_records_examined != metrics.class_slots
+        || metrics.work.class_ids_examined != metrics.class_slots
+        || metrics.work.active_fragment_visits_examined != metrics.active_fragment_visits
+        || metrics.work.radix_work_examined != metrics.radix_work
+        || metrics.class_slots % 2 != 0
+        || metrics.class_storage_bytes != expected_storage_bytes
+        || metrics.radix_scratch_bytes != expected_radix_scratch_bytes
+        || metrics.radix_passes != expected_radix_passes
+        || metrics.radix_work != expected_radix_work
+        || metrics.active_fragment_visits < minimum_active_fragment_visits
+        || metrics.active_fragment_visits > maximum_active_fragment_visits
+        || metrics.work.common.estimated_bytes_examined < estimated_class_bytes
+        || metrics.peak_radix_records != fragment_total
+        || metrics.class_slots < minimum_class_slots
+        || (fragment_total != 0
+            && (metrics.class_slots == 0
+                || metrics.max_depth < metrics.fixed_depth
+                || metrics.radix_scratch_bytes == 0
+                || metrics.peak_radix_records == 0
+                || metrics.prefix_distinct_classes < metrics.max_depth
+                || metrics.suffix_distinct_classes < metrics.max_depth))
+        || metrics.prefix_distinct_classes > metrics.class_slots / 2
+        || metrics.suffix_distinct_classes > metrics.class_slots / 2
+        || metrics.work.common.candidate_union_examined != metrics.hash_candidates
+        || candidate_partition != metrics.hash_candidates
+        || orientation_partition != metrics.exact_certified_candidates
+        || depth_partition != metrics.exact_certified_candidates
+        || metrics.work.common.exact_recheck_pairs_examined != metrics.recheck_pairs_started
+        || metrics.recheck_pairs_started != metrics.exact_certified_candidates
+        || metrics.recheck_pairs_completed != metrics.recheck_pairs_started
+        || metrics.work.common.exact_recheck_comparisons_examined != metrics.recheck_comparisons
+        || metrics.retained_pairs > metrics.recheck_pairs_completed
+        || metrics.projected_avoided_comparisons != metrics.certified_tokens_credited
+        || empty_record_has_counters
+    {
+        return Err("local-fragment flat exact-boundary accounting is inconsistent".to_owned());
     }
     Ok(())
 }
@@ -5809,6 +6225,65 @@ fn validate_local_fragment_exact_boundary_trie_sibling_parity(
     ];
     if actual_mismatches != expected_mismatches {
         return Err("exact-boundary trie parity counters disagree".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_local_fragment_flat_exact_boundary_sibling_parity(
+    v49: Option<LocalFragmentExactBoundaryTrieShadowMetrics>,
+    flat: Option<LocalFragmentFlatExactBoundaryShadowMetrics>,
+) -> std::result::Result<(), String> {
+    let (Some(v49), Some(flat)) = (v49, flat) else {
+        if v49.is_none() && flat.is_none() {
+            return Ok(());
+        }
+        return Err("exact-boundary trie and flat shadows must coexist".to_owned());
+    };
+    let expected_available = v49.complete && flat.complete;
+    if flat.v49_parity_available != expected_available {
+        return Err("flat exact-boundary parity availability is inconsistent".to_owned());
+    }
+    let expected_mismatches = if expected_available {
+        [
+            usize::from(flat.hash_candidates != v49.hash_candidates),
+            usize::from(flat.exact_certified_candidates != v49.exact_certified_candidates),
+            usize::from(flat.hash_collision_only_candidates != v49.hash_collision_only_candidates),
+            usize::from(
+                flat.prefix_only_candidates != v49.prefix_only_candidates
+                    || flat.suffix_only_candidates != v49.suffix_only_candidates
+                    || flat.both_candidates != v49.both_candidates,
+            ),
+            usize::from(flat.recheck_comparisons != v49.recheck_comparisons),
+            usize::from(flat.projected_avoided_comparisons != v49.projected_avoided_comparisons),
+            usize::from(flat.certified_tokens_credited != v49.certified_tokens_credited),
+            usize::from(flat.retained_pairs != v49.retained_pairs),
+            usize::from(
+                flat.retained_pairs == v49.retained_pairs
+                    && flat.retained_fingerprint != v49.retained_fingerprint,
+            ),
+            usize::from(flat.recheck_pairs_started != v49.recheck_pairs_started),
+            usize::from(flat.certification_fingerprint != v49.certification_fingerprint),
+            usize::from(flat.retained_fingerprint != v49.retained_fingerprint),
+        ]
+    } else {
+        [0; 12]
+    };
+    let actual_mismatches = [
+        flat.hash_candidate_count_mismatches,
+        flat.exact_certified_count_mismatches,
+        flat.hash_collision_count_mismatches,
+        flat.orientation_count_mismatches,
+        flat.recheck_comparison_mismatches,
+        flat.avoided_comparison_mismatches,
+        flat.credited_token_mismatches,
+        flat.retained_count_mismatches,
+        flat.retained_order_mismatches,
+        flat.recheck_pair_count_mismatches,
+        flat.certification_fingerprint_mismatches,
+        flat.retained_fingerprint_mismatches,
+    ];
+    if actual_mismatches != expected_mismatches {
+        return Err("flat exact-boundary parity counters disagree".to_owned());
     }
     Ok(())
 }
@@ -6221,6 +6696,184 @@ fn validate_local_fragment_length_aware_shadow_metrics(
         || metrics.estimated_capacity_bytes < metrics.estimated_logical_bytes
     {
         return Err("length-aware local-fragment index capacity is inconsistent".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_local_fragment_flat_exact_boundary_work(
+    work: LocalFragmentFlatExactBoundaryWorkMetrics,
+    complete: bool,
+    stop_reason: Option<LocalFragmentFlatExactBoundaryStopReason>,
+) -> std::result::Result<(), String> {
+    let common_reason = match stop_reason {
+        Some(LocalFragmentFlatExactBoundaryStopReason::EnumerationLimit) => {
+            Some(LocalFragmentLengthAwareShadowStopReason::EnumerationLimit)
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::SignatureTokenStepLimit) => {
+            Some(LocalFragmentLengthAwareShadowStopReason::SignatureTokenStepLimit)
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::IndexPostingLimit) => {
+            Some(LocalFragmentLengthAwareShadowStopReason::IndexPostingLimit)
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::DistinctKeyLimit) => {
+            Some(LocalFragmentLengthAwareShadowStopReason::DistinctKeyLimit)
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::EstimatedByteLimit) => {
+            Some(LocalFragmentLengthAwareShadowStopReason::EstimatedByteLimit)
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::QueryLimit) => {
+            Some(LocalFragmentLengthAwareShadowStopReason::QueryLimit)
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::PostingVisitLimit) => {
+            Some(LocalFragmentLengthAwareShadowStopReason::PostingVisitLimit)
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::CandidateUnionLimit) => {
+            Some(LocalFragmentLengthAwareShadowStopReason::CandidateUnionLimit)
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactRecheckPairLimit) => {
+            Some(LocalFragmentLengthAwareShadowStopReason::ExactRecheckPairLimit)
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactRecheckComparisonLimit) => {
+            Some(LocalFragmentLengthAwareShadowStopReason::ExactRecheckComparisonLimit)
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::CandidateGenerationIncomplete) => {
+            Some(LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete)
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow) => {
+            Some(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)
+        }
+        _ => None,
+    };
+    validate_local_fragment_length_aware_shadow_work(work.common, complete, common_reason)?;
+
+    let counters = [
+        (work.offset_items_examined, work.offset_items_attempted),
+        (work.class_slots_examined, work.class_slots_attempted),
+        (work.radix_records_examined, work.radix_records_attempted),
+        (
+            work.active_fragment_visits_examined,
+            work.active_fragment_visits_attempted,
+        ),
+        (work.radix_work_examined, work.radix_work_attempted),
+        (work.class_ids_examined, work.class_ids_attempted),
+    ];
+    if counters
+        .iter()
+        .any(|(examined, attempted)| examined > attempted)
+    {
+        return Err("flat exact-boundary examined work exceeds attempted work".to_owned());
+    }
+    let deficits = counters
+        .iter()
+        .enumerate()
+        .filter_map(|(index, (examined, attempted))| (examined < attempted).then_some(index))
+        .collect::<Vec<_>>();
+    if complete && !deficits.is_empty() {
+        return Err("complete flat exact-boundary shadow has unfinished work".to_owned());
+    }
+    if deficits.len() > 1 {
+        return Err("flat exact-boundary shadow has multiple unfinished stages".to_owned());
+    }
+    let expected_deficit = match stop_reason {
+        Some(LocalFragmentFlatExactBoundaryStopReason::OffsetItemLimit) => Some(0),
+        Some(LocalFragmentFlatExactBoundaryStopReason::ClassSlotLimit) => Some(1),
+        Some(LocalFragmentFlatExactBoundaryStopReason::RadixRecordLimit) => Some(2),
+        Some(LocalFragmentFlatExactBoundaryStopReason::ActiveFragmentVisitLimit) => Some(3),
+        Some(LocalFragmentFlatExactBoundaryStopReason::RadixWorkLimit) => Some(4),
+        Some(LocalFragmentFlatExactBoundaryStopReason::ClassIdLimit) => Some(5),
+        _ => None,
+    };
+    if let Some(expected) = expected_deficit {
+        if deficits.as_slice() != [expected] {
+            return Err(
+                "flat exact-boundary stop reason disagrees with unfinished work".to_owned(),
+            );
+        }
+    } else if !deficits.is_empty()
+        && stop_reason != Some(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)
+    {
+        return Err("flat exact-boundary unfinished work lacks a matching stop reason".to_owned());
+    }
+    if stop_reason == Some(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)
+        && deficits
+            .first()
+            .is_some_and(|index| counters[*index].1 != usize::MAX)
+    {
+        return Err("flat exact-boundary overflow lacks a saturated attempted counter".to_owned());
+    }
+    if stop_reason == Some(LocalFragmentFlatExactBoundaryStopReason::CandidateGenerationIncomplete)
+        && work != LocalFragmentFlatExactBoundaryWorkMetrics::default()
+    {
+        return Err("candidate-generation stop has flat exact-boundary work".to_owned());
+    }
+    let class_tail_is_zero = work.radix_records_examined == 0
+        && work.radix_records_attempted == 0
+        && work.active_fragment_visits_examined == 0
+        && work.active_fragment_visits_attempted == 0
+        && work.radix_work_examined == 0
+        && work.radix_work_attempted == 0
+        && work.class_ids_examined == 0
+        && work.class_ids_attempted == 0;
+    let flat_work_is_zero = work.offset_items_examined == 0
+        && work.offset_items_attempted == 0
+        && work.class_slots_examined == 0
+        && work.class_slots_attempted == 0
+        && class_tail_is_zero;
+    let offset_stage_complete =
+        work.offset_items_examined > 0 && work.offset_items_examined == work.offset_items_attempted;
+    let class_slots_complete = work.class_slots_examined > 0
+        && work.class_slots_examined == work.class_slots_attempted
+        && work.common.signature_token_steps_examined == work.class_slots_examined;
+    let expected_radix_work = work.class_slots_examined.checked_mul(30);
+    let class_construction_complete = offset_stage_complete
+        && class_slots_complete
+        && work.radix_records_examined == work.class_slots_examined
+        && work.radix_records_attempted == work.radix_records_examined
+        && work.class_ids_examined == work.class_slots_examined
+        && work.class_ids_attempted == work.class_ids_examined
+        && work.active_fragment_visits_examined > 0
+        && work.active_fragment_visits_attempted == work.active_fragment_visits_examined
+        && expected_radix_work == Some(work.radix_work_examined)
+        && work.radix_work_attempted == work.radix_work_examined;
+    match stop_reason {
+        Some(
+            LocalFragmentFlatExactBoundaryStopReason::EnumerationLimit
+            | LocalFragmentFlatExactBoundaryStopReason::SignatureTokenStepLimit,
+        ) if !flat_work_is_zero => {
+            return Err("enumeration stop has unreachable flat exact-boundary work".to_owned());
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::OffsetItemLimit)
+            if work.class_slots_examined != 0
+                || work.class_slots_attempted != 0
+                || !class_tail_is_zero =>
+        {
+            return Err("offset stop has unreachable class construction work".to_owned());
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::ClassSlotLimit)
+            if !offset_stage_complete || !class_tail_is_zero =>
+        {
+            return Err("class-slot stop has unreachable later work".to_owned());
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::EstimatedByteLimit)
+            if !flat_work_is_zero
+                && !(offset_stage_complete
+                    && class_slots_complete
+                    && (class_tail_is_zero || class_construction_complete)) =>
+        {
+            return Err("estimated-byte stop has unreachable class construction work".to_owned());
+        }
+        Some(
+            LocalFragmentFlatExactBoundaryStopReason::IndexPostingLimit
+            | LocalFragmentFlatExactBoundaryStopReason::DistinctKeyLimit
+            | LocalFragmentFlatExactBoundaryStopReason::QueryLimit
+            | LocalFragmentFlatExactBoundaryStopReason::PostingVisitLimit
+            | LocalFragmentFlatExactBoundaryStopReason::CandidateUnionLimit
+            | LocalFragmentFlatExactBoundaryStopReason::ExactRecheckPairLimit
+            | LocalFragmentFlatExactBoundaryStopReason::ExactRecheckComparisonLimit,
+        ) if !class_construction_complete => {
+            return Err("post-class stop lacks completed class construction work".to_owned());
+        }
+        _ => {}
     }
     Ok(())
 }
@@ -8589,7 +9242,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 49;
+    pub const SCHEMA_VERSION: u32 = 50;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -10288,7 +10941,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 49);
+        assert_eq!(completed["schema_version"], 50);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -10338,7 +10991,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 49);
+        assert_eq!(legacy_summary["schema_version"], 50);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -11548,7 +12201,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 49);
+        assert_eq!(json["schema_version"], 50);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -11989,6 +12642,137 @@ mod tests {
         }
     }
 
+    fn complete_flat_exact_boundary_shadow() -> LocalFragmentFlatExactBoundaryShadowMetrics {
+        LocalFragmentFlatExactBoundaryShadowMetrics {
+            complete: true,
+            work: LocalFragmentFlatExactBoundaryWorkMetrics {
+                common: LocalFragmentLengthAwareShadowWorkMetrics {
+                    enumeration_examined: 4,
+                    enumeration_attempted: 4,
+                    signature_token_steps_examined: 16,
+                    signature_token_steps_attempted: 16,
+                    posting_items_examined: 12,
+                    posting_items_attempted: 12,
+                    distinct_keys_examined: 6,
+                    distinct_keys_attempted: 6,
+                    estimated_bytes_examined: 400,
+                    estimated_bytes_attempted: 400,
+                    queries_examined: 3,
+                    queries_attempted: 3,
+                    candidate_union_examined: 2,
+                    candidate_union_attempted: 2,
+                    exact_recheck_pairs_examined: 2,
+                    exact_recheck_pairs_attempted: 2,
+                    exact_recheck_comparisons_examined: 2,
+                    exact_recheck_comparisons_attempted: 2,
+                    ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+                },
+                offset_items_examined: 5,
+                offset_items_attempted: 5,
+                class_slots_examined: 16,
+                class_slots_attempted: 16,
+                radix_records_examined: 16,
+                radix_records_attempted: 16,
+                active_fragment_visits_examined: 8,
+                active_fragment_visits_attempted: 8,
+                radix_work_examined: 480,
+                radix_work_attempted: 480,
+                class_ids_examined: 16,
+                class_ids_attempted: 16,
+            },
+            min_tokens: 8,
+            fixed_depth: 2,
+            old_fragments: 2,
+            new_fragments: 2,
+            parent_admission_queries: 1,
+            global_queries: 2,
+            compared_queries: 2,
+            offset_items: 5,
+            class_slots: 16,
+            class_storage_bytes: 84,
+            radix_scratch_bytes: 224,
+            max_depth: 2,
+            peak_radix_records: 4,
+            radix_passes: 60,
+            radix_work: 480,
+            active_fragment_visits: 8,
+            prefix_distinct_classes: 3,
+            suffix_distinct_classes: 3,
+            hash_candidates: 2,
+            exact_certified_candidates: 2,
+            prefix_only_candidates: 1,
+            both_candidates: 1,
+            certified_tokens_credited: 4,
+            recheck_pairs_started: 2,
+            recheck_pairs_completed: 2,
+            recheck_comparisons: 2,
+            projected_avoided_comparisons: 4,
+            retained_pairs: 1,
+            depth_2_to_3_candidates: 2,
+            v49_parity_available: true,
+            retained_fingerprint: [3; 32],
+            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+        }
+    }
+
+    fn complete_uneven_depth_flat_exact_boundary_shadow()
+    -> LocalFragmentFlatExactBoundaryShadowMetrics {
+        LocalFragmentFlatExactBoundaryShadowMetrics {
+            complete: true,
+            work: LocalFragmentFlatExactBoundaryWorkMetrics {
+                common: LocalFragmentLengthAwareShadowWorkMetrics {
+                    enumeration_examined: 2,
+                    enumeration_attempted: 2,
+                    signature_token_steps_examined: 10,
+                    signature_token_steps_attempted: 10,
+                    estimated_bytes_examined: 200,
+                    estimated_bytes_attempted: 200,
+                    ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+                },
+                offset_items_examined: 3,
+                offset_items_attempted: 3,
+                class_slots_examined: 10,
+                class_slots_attempted: 10,
+                radix_records_examined: 10,
+                radix_records_attempted: 10,
+                active_fragment_visits_examined: 6,
+                active_fragment_visits_attempted: 6,
+                radix_work_examined: 300,
+                radix_work_attempted: 300,
+                class_ids_examined: 10,
+                class_ids_attempted: 10,
+            },
+            min_tokens: 8,
+            fixed_depth: 2,
+            old_fragments: 1,
+            new_fragments: 1,
+            offset_items: 3,
+            class_slots: 10,
+            class_storage_bytes: 52,
+            radix_scratch_bytes: 112,
+            max_depth: 3,
+            peak_radix_records: 2,
+            radix_passes: 90,
+            radix_work: 300,
+            active_fragment_visits: 6,
+            prefix_distinct_classes: 3,
+            suffix_distinct_classes: 3,
+            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+        }
+    }
+
+    fn incomplete_flat_exact_boundary_shadow() -> LocalFragmentFlatExactBoundaryShadowMetrics {
+        LocalFragmentFlatExactBoundaryShadowMetrics {
+            complete: false,
+            stop_reason: Some(
+                LocalFragmentFlatExactBoundaryStopReason::CandidateGenerationIncomplete,
+            ),
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+        }
+    }
+
     #[test]
     fn serializes_absent_complete_and_stopped_recheck_reuse_shadow() {
         let absent = serde_json::to_value(SentenceRecoveryMetricsReport::default())
@@ -12016,6 +12800,9 @@ mod tests {
                 ),
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
+                ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -12072,6 +12859,9 @@ mod tests {
                 ),
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
+                ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -12142,6 +12932,9 @@ mod tests {
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
                 ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -12181,6 +12974,9 @@ mod tests {
                 ),
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
+                ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -12225,6 +13021,9 @@ mod tests {
                 ),
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
+                ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -12330,6 +13129,9 @@ mod tests {
                     local_fragment_exact_boundary_trie_shadow: Some(
                         incomplete_exact_boundary_trie_shadow(),
                     ),
+                    local_fragment_flat_exact_boundary_shadow: Some(
+                        incomplete_flat_exact_boundary_shadow(),
+                    ),
                     sentence_edge_filter_complete: true,
                     ..SentenceRecoveryMetrics::default()
                 })
@@ -12357,6 +13159,9 @@ mod tests {
                 ),
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
+                ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -12390,6 +13195,9 @@ mod tests {
                 local_fragment_length_only_candidate_shadow: Some(complete_metrics),
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
+                ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -12435,6 +13243,9 @@ mod tests {
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
                 ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -12472,6 +13283,9 @@ mod tests {
                 local_fragment_length_only_candidate_shadow: Some(shadow),
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
+                ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -12616,6 +13430,9 @@ mod tests {
                     complete_length_only_candidate_shadow(),
                 ),
                 local_fragment_exact_boundary_trie_shadow: Some(exact_trie),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -12668,6 +13485,9 @@ mod tests {
                     complete_length_only_candidate_shadow(),
                 ),
                 local_fragment_exact_boundary_trie_shadow: Some(stopped),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -12706,6 +13526,9 @@ mod tests {
                     complete_length_only_candidate_shadow(),
                 ),
                 local_fragment_exact_boundary_trie_shadow: Some(shadow),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -12795,6 +13618,435 @@ mod tests {
                 validate_local_fragment_exact_boundary_trie_shadow_metrics(Some(invalid)).is_err()
             );
         }
+    }
+
+    #[test]
+    fn serializes_and_validates_flat_exact_boundary_shadow() {
+        let absent = serde_json::to_value(SentenceRecoveryMetricsReport::default())
+            .expect("absent flat exact-boundary shadow serializes");
+        assert_eq!(
+            absent["local_fragment_flat_exact_boundary_shadow"],
+            serde_json::Value::Null
+        );
+
+        let flat = complete_flat_exact_boundary_shadow();
+        let complete =
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(
+                    complete_global_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    complete_length_aware_recheck_shadow(),
+                ),
+                local_fragment_length_only_candidate_shadow: Some(
+                    complete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    complete_exact_boundary_trie_shadow(),
+                ),
+                local_fragment_flat_exact_boundary_shadow: Some(flat),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("complete flat exact-boundary shadow validates");
+        assert_eq!(
+            complete.local_fragment_flat_exact_boundary_shadow,
+            Some(flat.into())
+        );
+        let serialized = serde_json::to_value(
+            complete
+                .local_fragment_flat_exact_boundary_shadow
+                .expect("flat exact-boundary report exists"),
+        )
+        .expect("flat exact-boundary report serializes");
+        assert!(serialized.get("certification_fingerprint").is_none());
+        assert!(serialized.get("retained_fingerprint").is_none());
+
+        let empty = LocalFragmentFlatExactBoundaryShadowMetrics {
+            complete: true,
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+        };
+        validate_local_fragment_flat_exact_boundary_shadow_metrics(Some(empty))
+            .expect("complete empty flat exact-boundary shadow validates");
+
+        let stopped = LocalFragmentFlatExactBoundaryShadowMetrics {
+            complete: false,
+            stop_reason: Some(LocalFragmentFlatExactBoundaryStopReason::ClassSlotLimit),
+            work: LocalFragmentFlatExactBoundaryWorkMetrics {
+                offset_items_examined: 2,
+                offset_items_attempted: 2,
+                class_slots_attempted: 1,
+                ..LocalFragmentFlatExactBoundaryWorkMetrics::default()
+            },
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+        };
+        let stopped =
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(
+                    complete_global_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    complete_length_aware_recheck_shadow(),
+                ),
+                local_fragment_length_only_candidate_shadow: Some(
+                    complete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
+                ),
+                local_fragment_flat_exact_boundary_shadow: Some(stopped),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("stopped flat exact-boundary shadow validates atomically");
+        assert_eq!(
+            stopped.local_fragment_flat_exact_boundary_shadow,
+            Some(LocalFragmentFlatExactBoundaryShadowMetricsReport {
+                stop_reason: Some(LocalFragmentFlatExactBoundaryStopReasonReport::ClassSlotLimit),
+                work: LocalFragmentFlatExactBoundaryWorkMetricsReport {
+                    offset_items_examined: 2,
+                    offset_items_attempted: 2,
+                    class_slots_attempted: 1,
+                    ..LocalFragmentFlatExactBoundaryWorkMetricsReport::default()
+                },
+                min_tokens: 8,
+                fixed_depth: 2,
+                ..LocalFragmentFlatExactBoundaryShadowMetricsReport::default()
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_flat_exact_boundary_accounting_and_parity() {
+        let complete = complete_flat_exact_boundary_shadow();
+        let validate = |flat| {
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(
+                    complete_global_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    complete_length_aware_recheck_shadow(),
+                ),
+                local_fragment_length_only_candidate_shadow: Some(
+                    complete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    complete_exact_boundary_trie_shadow(),
+                ),
+                local_fragment_flat_exact_boundary_shadow: Some(flat),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+        };
+        for invalid in [
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                offset_items: 4,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                work: LocalFragmentFlatExactBoundaryWorkMetrics {
+                    radix_records_examined: 7,
+                    radix_records_attempted: 7,
+                    ..complete.work
+                },
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                work: LocalFragmentFlatExactBoundaryWorkMetrics {
+                    class_ids_examined: 7,
+                    class_ids_attempted: 7,
+                    ..complete.work
+                },
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                work: LocalFragmentFlatExactBoundaryWorkMetrics {
+                    common: LocalFragmentLengthAwareShadowWorkMetrics {
+                        signature_token_steps_examined: 15,
+                        signature_token_steps_attempted: 15,
+                        ..complete.work.common
+                    },
+                    ..complete.work
+                },
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                peak_radix_records: 3,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                prefix_distinct_classes: 0,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                prefix_distinct_classes: complete.max_depth - 1,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                suffix_distinct_classes: 0,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                suffix_distinct_classes: complete.max_depth - 1,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                hash_collision_only_candidates: 1,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                prefix_only_candidates: 2,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                depth_2_to_3_candidates: 1,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                recheck_pairs_completed: 1,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                v49_parity_available: false,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                complete: false,
+                stop_reason: Some(LocalFragmentFlatExactBoundaryStopReason::ClassSlotLimit),
+                work: LocalFragmentFlatExactBoundaryWorkMetrics {
+                    class_slots_attempted: 1,
+                    ..LocalFragmentFlatExactBoundaryWorkMetrics::default()
+                },
+                min_tokens: 8,
+                fixed_depth: 2,
+                retained_pairs: 1,
+                ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+            },
+        ] {
+            assert!(validate(invalid).is_err());
+        }
+
+        let observable_mismatch = LocalFragmentFlatExactBoundaryShadowMetrics {
+            retained_order_mismatches: 1,
+            retained_fingerprint_mismatches: 1,
+            retained_fingerprint: [9; 32],
+            ..complete
+        };
+        assert!(validate(observable_mismatch).is_ok());
+    }
+
+    #[test]
+    fn rejects_nonzero_counters_for_complete_empty_flat_exact_boundary_shadow() {
+        let empty = LocalFragmentFlatExactBoundaryShadowMetrics {
+            complete: true,
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+        };
+        for invalid in [
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                radix_work: 1,
+                ..empty
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                work: LocalFragmentFlatExactBoundaryWorkMetrics {
+                    class_ids_examined: 1,
+                    class_ids_attempted: 1,
+                    ..LocalFragmentFlatExactBoundaryWorkMetrics::default()
+                },
+                ..empty
+            },
+        ] {
+            assert!(
+                validate_local_fragment_flat_exact_boundary_shadow_metrics(Some(invalid)).is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn validates_uneven_depth_flat_exact_boundary_active_visit_bounds() {
+        let complete = complete_uneven_depth_flat_exact_boundary_shadow();
+        validate_local_fragment_flat_exact_boundary_shadow_metrics(Some(complete))
+            .expect("uneven fragment depths account for pre-filter active visits");
+
+        for active_fragment_visits in [4, 7] {
+            let invalid = LocalFragmentFlatExactBoundaryShadowMetrics {
+                work: LocalFragmentFlatExactBoundaryWorkMetrics {
+                    active_fragment_visits_examined: active_fragment_visits,
+                    active_fragment_visits_attempted: active_fragment_visits,
+                    ..complete.work
+                },
+                active_fragment_visits,
+                ..complete
+            };
+            assert!(
+                validate_local_fragment_flat_exact_boundary_shadow_metrics(Some(invalid)).is_err()
+            );
+        }
+
+        for invalid in [
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                radix_scratch_bytes: 0,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                peak_radix_records: 0,
+                ..complete
+            },
+        ] {
+            assert!(
+                validate_local_fragment_flat_exact_boundary_shadow_metrics(Some(invalid)).is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_unreachable_flat_exact_boundary_stopped_work() {
+        let invalid = [
+            (
+                LocalFragmentFlatExactBoundaryWorkMetrics {
+                    common: LocalFragmentLengthAwareShadowWorkMetrics {
+                        enumeration_attempted: 1,
+                        ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+                    },
+                    offset_items_examined: 1,
+                    offset_items_attempted: 1,
+                    ..LocalFragmentFlatExactBoundaryWorkMetrics::default()
+                },
+                LocalFragmentFlatExactBoundaryStopReason::EnumerationLimit,
+            ),
+            (
+                LocalFragmentFlatExactBoundaryWorkMetrics {
+                    common: LocalFragmentLengthAwareShadowWorkMetrics {
+                        signature_token_steps_attempted: 1,
+                        ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+                    },
+                    offset_items_examined: 1,
+                    offset_items_attempted: 1,
+                    ..LocalFragmentFlatExactBoundaryWorkMetrics::default()
+                },
+                LocalFragmentFlatExactBoundaryStopReason::SignatureTokenStepLimit,
+            ),
+            (
+                LocalFragmentFlatExactBoundaryWorkMetrics {
+                    offset_items_attempted: 1,
+                    class_slots_examined: 1,
+                    class_slots_attempted: 1,
+                    ..LocalFragmentFlatExactBoundaryWorkMetrics::default()
+                },
+                LocalFragmentFlatExactBoundaryStopReason::OffsetItemLimit,
+            ),
+            (
+                LocalFragmentFlatExactBoundaryWorkMetrics {
+                    offset_items_examined: 1,
+                    offset_items_attempted: 1,
+                    class_slots_attempted: 1,
+                    active_fragment_visits_examined: 1,
+                    active_fragment_visits_attempted: 1,
+                    ..LocalFragmentFlatExactBoundaryWorkMetrics::default()
+                },
+                LocalFragmentFlatExactBoundaryStopReason::ClassSlotLimit,
+            ),
+            (
+                LocalFragmentFlatExactBoundaryWorkMetrics {
+                    common: LocalFragmentLengthAwareShadowWorkMetrics {
+                        signature_token_steps_examined: 4,
+                        signature_token_steps_attempted: 4,
+                        estimated_bytes_attempted: 1,
+                        ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+                    },
+                    offset_items_examined: 2,
+                    offset_items_attempted: 2,
+                    class_slots_examined: 4,
+                    class_slots_attempted: 4,
+                    active_fragment_visits_examined: 1,
+                    active_fragment_visits_attempted: 1,
+                    ..LocalFragmentFlatExactBoundaryWorkMetrics::default()
+                },
+                LocalFragmentFlatExactBoundaryStopReason::EstimatedByteLimit,
+            ),
+            (
+                LocalFragmentFlatExactBoundaryWorkMetrics {
+                    common: LocalFragmentLengthAwareShadowWorkMetrics {
+                        posting_items_attempted: 1,
+                        ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+                    },
+                    ..LocalFragmentFlatExactBoundaryWorkMetrics::default()
+                },
+                LocalFragmentFlatExactBoundaryStopReason::IndexPostingLimit,
+            ),
+        ];
+        for (work, reason) in invalid {
+            assert!(
+                validate_local_fragment_flat_exact_boundary_work(work, false, Some(reason))
+                    .is_err()
+            );
+        }
+
+        let estimated_before_class = LocalFragmentFlatExactBoundaryWorkMetrics {
+            common: LocalFragmentLengthAwareShadowWorkMetrics {
+                estimated_bytes_attempted: 1,
+                ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+            },
+            ..LocalFragmentFlatExactBoundaryWorkMetrics::default()
+        };
+        validate_local_fragment_flat_exact_boundary_work(
+            estimated_before_class,
+            false,
+            Some(LocalFragmentFlatExactBoundaryStopReason::EstimatedByteLimit),
+        )
+        .expect("estimated-byte work may stop during fragment enumeration");
+
+        let estimated_before_radix = LocalFragmentFlatExactBoundaryWorkMetrics {
+            common: LocalFragmentLengthAwareShadowWorkMetrics {
+                signature_token_steps_examined: 4,
+                signature_token_steps_attempted: 4,
+                estimated_bytes_attempted: 1,
+                ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+            },
+            offset_items_examined: 2,
+            offset_items_attempted: 2,
+            class_slots_examined: 4,
+            class_slots_attempted: 4,
+            ..LocalFragmentFlatExactBoundaryWorkMetrics::default()
+        };
+        validate_local_fragment_flat_exact_boundary_work(
+            estimated_before_radix,
+            false,
+            Some(LocalFragmentFlatExactBoundaryStopReason::EstimatedByteLimit),
+        )
+        .expect("estimated-byte work may stop after allocating class slots");
+
+        let complete = complete_flat_exact_boundary_shadow().work;
+        let post_class_stop = LocalFragmentFlatExactBoundaryWorkMetrics {
+            common: LocalFragmentLengthAwareShadowWorkMetrics {
+                posting_items_attempted: complete.common.posting_items_examined + 1,
+                ..complete.common
+            },
+            ..complete
+        };
+        validate_local_fragment_flat_exact_boundary_work(
+            post_class_stop,
+            false,
+            Some(LocalFragmentFlatExactBoundaryStopReason::IndexPostingLimit),
+        )
+        .expect("post-class common work may stop after class construction completes");
     }
 
     #[test]
@@ -13139,6 +14391,9 @@ mod tests {
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
                 ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -13192,6 +14447,9 @@ mod tests {
                 ),
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
+                ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -13313,6 +14571,9 @@ mod tests {
             local_fragment_exact_boundary_trie_shadow: Some(
                 incomplete_exact_boundary_trie_shadow(),
             ),
+            local_fragment_flat_exact_boundary_shadow: Some(
+                incomplete_flat_exact_boundary_shadow(),
+            ),
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         })
@@ -13376,6 +14637,9 @@ mod tests {
             ),
             local_fragment_exact_boundary_trie_shadow: Some(
                 incomplete_exact_boundary_trie_shadow(),
+            ),
+            local_fragment_flat_exact_boundary_shadow: Some(
+                incomplete_flat_exact_boundary_shadow(),
             ),
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
@@ -13493,6 +14757,9 @@ mod tests {
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
                 ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -13536,6 +14803,9 @@ mod tests {
                 ),
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
+                ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -13700,6 +14970,9 @@ mod tests {
                 ),
                 local_fragment_exact_boundary_trie_shadow: Some(
                     incomplete_exact_boundary_trie_shadow(),
+                ),
+                local_fragment_flat_exact_boundary_shadow: Some(
+                    incomplete_flat_exact_boundary_shadow(),
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -17047,7 +18320,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 49);
+        assert_eq!(value["schema_version"], 50);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -17185,6 +18458,7 @@ mod tests {
             "local_fragment_length_aware_recheck_shadow".to_owned(),
             "local_fragment_length_only_candidate_shadow".to_owned(),
             "local_fragment_exact_boundary_trie_shadow".to_owned(),
+            "local_fragment_flat_exact_boundary_shadow".to_owned(),
             "sentence_edge_filter_complete".to_owned(),
             "sentence_edge_filter_pairs_examined".to_owned(),
             "sentence_edge_filter_pairs_attempted".to_owned(),
