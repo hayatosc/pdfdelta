@@ -1249,6 +1249,16 @@ pub struct LocalFragmentGlobalLengthAwareShadowMetrics {
     pub length_aware_retained_fingerprint: [u8; 32],
 }
 
+/// Stop-safe outcome work for one fragment-candidate membership class.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LocalFragmentRecheckMembershipOutcomeWork {
+    pub pairs_started: usize,
+    pub pairs_completed: usize,
+    pub accepted_pairs: usize,
+    pub rejected_pairs: usize,
+    pub comparisons: usize,
+}
+
 /// Stop-safe work attribution for threshold-capped exact fragment rechecks.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct LocalFragmentRecheckReuseWorkAttribution {
@@ -1268,6 +1278,9 @@ pub struct LocalFragmentRecheckReuseWorkAttribution {
     pub suffix_comparisons: usize,
     pub prefix_threshold_accepts: usize,
     pub suffix_threshold_accepts: usize,
+    pub shared: LocalFragmentRecheckMembershipOutcomeWork,
+    pub fixed_only: LocalFragmentRecheckMembershipOutcomeWork,
+    pub length_aware_only: LocalFragmentRecheckMembershipOutcomeWork,
 }
 
 /// Behavior-neutral diagnostics for threshold-capped recheck reuse across candidate streams.

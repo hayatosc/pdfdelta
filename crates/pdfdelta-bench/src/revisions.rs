@@ -25,10 +25,11 @@ use pdfdelta_core::{
         LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
         LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
         LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
-        LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
-        LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
-        NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
-        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
+        LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
+        LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
+        LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, NearRelationStopReason,
+        NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
+        RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
         RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
         RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
         RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
@@ -715,6 +716,15 @@ pub struct SentenceRecoveryMetricsReport {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LocalFragmentRecheckMembershipOutcomeWorkReport {
+    pub pairs_started: usize,
+    pub pairs_completed: usize,
+    pub accepted_pairs: usize,
+    pub rejected_pairs: usize,
+    pub comparisons: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct LocalFragmentRecheckReuseWorkAttributionReport {
     pub candidate_queries_collected: usize,
     pub recheck_queries_completed: usize,
@@ -732,6 +742,9 @@ pub struct LocalFragmentRecheckReuseWorkAttributionReport {
     pub suffix_comparisons: usize,
     pub prefix_threshold_accepts: usize,
     pub suffix_threshold_accepts: usize,
+    pub shared: LocalFragmentRecheckMembershipOutcomeWorkReport,
+    pub fixed_only: LocalFragmentRecheckMembershipOutcomeWorkReport,
+    pub length_aware_only: LocalFragmentRecheckMembershipOutcomeWorkReport,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -2278,6 +2291,23 @@ impl From<LocalFragmentRecheckReuseWorkAttribution>
             suffix_comparisons: work.suffix_comparisons,
             prefix_threshold_accepts: work.prefix_threshold_accepts,
             suffix_threshold_accepts: work.suffix_threshold_accepts,
+            shared: work.shared.into(),
+            fixed_only: work.fixed_only.into(),
+            length_aware_only: work.length_aware_only.into(),
+        }
+    }
+}
+
+impl From<LocalFragmentRecheckMembershipOutcomeWork>
+    for LocalFragmentRecheckMembershipOutcomeWorkReport
+{
+    fn from(work: LocalFragmentRecheckMembershipOutcomeWork) -> Self {
+        Self {
+            pairs_started: work.pairs_started,
+            pairs_completed: work.pairs_completed,
+            accepted_pairs: work.accepted_pairs,
+            rejected_pairs: work.rejected_pairs,
+            comparisons: work.comparisons,
         }
     }
 }
@@ -5101,6 +5131,16 @@ fn validate_local_fragment_recheck_reuse_shadow_metrics(
         || metrics.work_attribution.unique_candidates_collected != metrics.unique_recheck_pairs
         || metrics.work_attribution.recheck_pairs_started != metrics.unique_recheck_pairs
         || metrics.work_attribution.recheck_pairs_completed != metrics.unique_recheck_pairs
+        || metrics.work_attribution.shared.pairs_started != metrics.shared_pre_recheck_candidates
+        || metrics.work_attribution.shared.pairs_completed != metrics.shared_pre_recheck_candidates
+        || metrics.work_attribution.fixed_only.pairs_started
+            != metrics.fixed_only_pre_recheck_candidates
+        || metrics.work_attribution.fixed_only.pairs_completed
+            != metrics.fixed_only_pre_recheck_candidates
+        || metrics.work_attribution.length_aware_only.pairs_started
+            != metrics.length_aware_only_pre_recheck_candidates
+        || metrics.work_attribution.length_aware_only.pairs_completed
+            != metrics.length_aware_only_pre_recheck_candidates
     {
         return Err("local-fragment recheck-reuse accounting is inconsistent".to_owned());
     }
@@ -5148,6 +5188,42 @@ fn validate_local_fragment_recheck_reuse_work_attribution(
         .fixed_candidates_collected
         .checked_add(attribution.length_aware_candidates_collected)
         .ok_or_else(|| "recheck-reuse attributed candidate items overflow".to_owned())?;
+    let memberships = [
+        (attribution.shared, attribution.shared_candidates_collected),
+        (
+            attribution.fixed_only,
+            attribution.fixed_only_candidates_collected,
+        ),
+        (
+            attribution.length_aware_only,
+            attribution.length_aware_only_candidates_collected,
+        ),
+    ];
+    for (membership, candidates) in memberships {
+        let membership_completed = membership
+            .accepted_pairs
+            .checked_add(membership.rejected_pairs)
+            .ok_or_else(|| "recheck-reuse membership outcomes overflow".to_owned())?;
+        if membership_completed != membership.pairs_completed
+            || membership.pairs_completed > membership.pairs_started
+            || membership.pairs_completed > membership.comparisons
+            || membership.pairs_started - membership.pairs_completed > 1
+            || membership.pairs_started > candidates
+        {
+            return Err(
+                "local-fragment recheck-reuse membership outcome is inconsistent".to_owned(),
+            );
+        }
+    }
+    let membership_sum = |field: fn(&LocalFragmentRecheckMembershipOutcomeWork) -> usize| {
+        memberships
+            .iter()
+            .try_fold(0usize, |total, (membership, _)| {
+                total
+                    .checked_add(field(membership))
+                    .ok_or_else(|| "recheck-reuse membership outcome sum overflows".to_owned())
+            })
+    };
     if fixed_candidates != attribution.fixed_candidates_collected
         || length_candidates != attribution.length_aware_candidates_collected
         || unique_candidates != attribution.unique_candidates_collected
@@ -5164,6 +5240,13 @@ fn validate_local_fragment_recheck_reuse_work_attribution(
         || attribution.recheck_pairs_started != work.exact_recheck_pairs_examined
         || comparisons != work.exact_recheck_comparisons_examined
         || candidate_items > work.candidate_union_examined
+        || membership_sum(|membership| membership.pairs_started)?
+            != attribution.recheck_pairs_started
+        || membership_sum(|membership| membership.pairs_completed)?
+            != attribution.recheck_pairs_completed
+        || membership_sum(|membership| membership.accepted_pairs)? != attribution.accepted_pairs
+        || membership_sum(|membership| membership.rejected_pairs)? != attribution.rejected_pairs
+        || membership_sum(|membership| membership.comparisons)? != comparisons
     {
         return Err("local-fragment recheck-reuse work attribution is inconsistent".to_owned());
     }
@@ -7883,7 +7966,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 45;
+    pub const SCHEMA_VERSION: u32 = 46;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -9582,7 +9665,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 45);
+        assert_eq!(completed["schema_version"], 46);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -9632,7 +9715,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 45);
+        assert_eq!(legacy_summary["schema_version"], 46);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -10842,7 +10925,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 45);
+        assert_eq!(json["schema_version"], 46);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -11042,6 +11125,21 @@ mod tests {
                 suffix_comparisons: 2,
                 prefix_threshold_accepts: 1,
                 suffix_threshold_accepts: 0,
+                shared: LocalFragmentRecheckMembershipOutcomeWork {
+                    pairs_started: 2,
+                    pairs_completed: 2,
+                    accepted_pairs: 1,
+                    rejected_pairs: 1,
+                    comparisons: 4,
+                },
+                fixed_only: LocalFragmentRecheckMembershipOutcomeWork {
+                    pairs_started: 1,
+                    pairs_completed: 1,
+                    accepted_pairs: 0,
+                    rejected_pairs: 1,
+                    comparisons: 2,
+                },
+                length_aware_only: LocalFragmentRecheckMembershipOutcomeWork::default(),
             },
             min_tokens: 8,
             fixed_depth: 2,
@@ -11191,6 +11289,10 @@ mod tests {
                 shared_candidates_collected: 1,
                 unique_candidates_collected: 1,
                 recheck_pairs_started: 1,
+                shared: LocalFragmentRecheckMembershipOutcomeWork {
+                    pairs_started: 1,
+                    ..LocalFragmentRecheckMembershipOutcomeWork::default()
+                },
                 ..LocalFragmentRecheckReuseWorkAttribution::default()
             },
             min_tokens: 8,
@@ -11301,6 +11403,50 @@ mod tests {
             LocalFragmentRecheckReuseShadowMetrics {
                 work_attribution: LocalFragmentRecheckReuseWorkAttribution {
                     accepted_pairs: 2,
+                    ..complete.work_attribution
+                },
+                ..complete
+            },
+            LocalFragmentRecheckReuseShadowMetrics {
+                work_attribution: LocalFragmentRecheckReuseWorkAttribution {
+                    shared: LocalFragmentRecheckMembershipOutcomeWork {
+                        pairs_completed: 1,
+                        ..complete.work_attribution.shared
+                    },
+                    ..complete.work_attribution
+                },
+                ..complete
+            },
+            LocalFragmentRecheckReuseShadowMetrics {
+                work_attribution: LocalFragmentRecheckReuseWorkAttribution {
+                    shared: LocalFragmentRecheckMembershipOutcomeWork {
+                        pairs_started: 3,
+                        ..complete.work_attribution.shared
+                    },
+                    ..complete.work_attribution
+                },
+                ..complete
+            },
+            LocalFragmentRecheckReuseShadowMetrics {
+                work_attribution: LocalFragmentRecheckReuseWorkAttribution {
+                    fixed_only: LocalFragmentRecheckMembershipOutcomeWork {
+                        comparisons: 3,
+                        ..complete.work_attribution.fixed_only
+                    },
+                    ..complete.work_attribution
+                },
+                ..complete
+            },
+            LocalFragmentRecheckReuseShadowMetrics {
+                work_attribution: LocalFragmentRecheckReuseWorkAttribution {
+                    shared: LocalFragmentRecheckMembershipOutcomeWork {
+                        comparisons: 0,
+                        ..complete.work_attribution.shared
+                    },
+                    fixed_only: LocalFragmentRecheckMembershipOutcomeWork {
+                        comparisons: 6,
+                        ..complete.work_attribution.fixed_only
+                    },
                     ..complete.work_attribution
                 },
                 ..complete
@@ -15337,7 +15483,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 45);
+        assert_eq!(value["schema_version"], 46);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
