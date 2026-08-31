@@ -1160,6 +1160,93 @@ pub struct LocalFragmentLengthAwareShadowMetrics {
     pub extra_retained_pairs: usize,
     pub order_mismatches: usize,
     pub compared_queries: usize,
+    /// Canonical ordered pair-stream digests used only for sibling parity checks.
+    #[doc(hidden)]
+    pub fixed_pre_recheck_fingerprint: [u8; 32],
+    #[doc(hidden)]
+    pub length_aware_pre_recheck_fingerprint: [u8; 32],
+    #[doc(hidden)]
+    pub fixed_retained_fingerprint: [u8; 32],
+    #[doc(hidden)]
+    pub length_aware_retained_fingerprint: [u8; 32],
+}
+
+/// Behavior-neutral parity diagnostics for globally traversed local-fragment signatures.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LocalFragmentGlobalLengthAwareShadowMetrics {
+    pub complete: bool,
+    pub stop_reason: Option<LocalFragmentLengthAwareShadowStopReason>,
+    pub work: LocalFragmentLengthAwareShadowWorkMetrics,
+    pub min_tokens: usize,
+    pub fixed_depth: usize,
+    pub max_own_depth: usize,
+    pub old_fragments: usize,
+    pub new_fragments: usize,
+    pub fixed_distinct_keys: usize,
+    pub own_distinct_keys: usize,
+    pub all_distinct_keys: usize,
+    pub parent_distinct_keys: usize,
+    pub fixed_posting_items: usize,
+    pub own_posting_items: usize,
+    pub all_posting_items: usize,
+    pub parent_posting_items: usize,
+    pub fixed_key_capacity: usize,
+    pub own_key_capacity: usize,
+    pub all_key_capacity: usize,
+    pub parent_key_capacity: usize,
+    pub posting_capacity_items: usize,
+    pub fragment_capacity_items: usize,
+    pub signature_capacity_items: usize,
+    pub peak_temporary_capacity_items: usize,
+    /// Cumulative logical bytes charged for persistent fragment and index entries.
+    pub estimated_logical_bytes: usize,
+    /// Capacity-based estimate for retained structures and peak query scratch.
+    ///
+    /// Hash-table control bytes, allocator metadata, and short-lived signature-key vectors are
+    /// excluded.
+    pub estimated_capacity_bytes: usize,
+    pub largest_posting: usize,
+    /// Parent-admission queries issued once per eligible old parent.
+    pub parent_admission_queries: usize,
+    /// Queries the parent-scoped traversal would issue for the same admitted parents.
+    pub projected_parent_scoped_queries: usize,
+    /// Global boundary queries issued once per old fragment with admitted parents.
+    pub global_queries: usize,
+    /// Posting occurrences observed before parent admission and deduplication.
+    pub raw_signature_hits: usize,
+    pub parent_admissible_hits: usize,
+    pub parent_rejected_hits: usize,
+    /// Repeated admissible occurrences removed from fixed and length-aware candidate unions.
+    pub duplicate_candidate_occurrences: usize,
+    pub fixed_pre_recheck_candidates: usize,
+    pub length_aware_pre_recheck_candidates: usize,
+    /// Fixed-depth candidates absent from the length-aware candidate set.
+    pub missing_pre_recheck_candidates: usize,
+    /// Length-aware candidates absent from the fixed-depth candidate set.
+    pub extra_pre_recheck_candidates: usize,
+    /// Queries whose fixed and length-aware candidate sets match but order differs.
+    pub pre_recheck_order_mismatches: usize,
+    pub fixed_exact_retained_pairs: usize,
+    pub length_aware_exact_retained_pairs: usize,
+    pub missing_retained_pairs: usize,
+    pub extra_retained_pairs: usize,
+    pub order_mismatches: usize,
+    pub compared_queries: usize,
+    /// Whether all four canonical streams were compared with a complete parent-scoped sibling.
+    pub parent_scoped_parity_available: bool,
+    pub fixed_pre_recheck_fingerprint_mismatches: usize,
+    pub length_aware_pre_recheck_fingerprint_mismatches: usize,
+    pub fixed_retained_fingerprint_mismatches: usize,
+    pub length_aware_retained_fingerprint_mismatches: usize,
+    /// Canonical ordered pair-stream digests used only for sibling parity checks.
+    #[doc(hidden)]
+    pub fixed_pre_recheck_fingerprint: [u8; 32],
+    #[doc(hidden)]
+    pub length_aware_pre_recheck_fingerprint: [u8; 32],
+    #[doc(hidden)]
+    pub fixed_retained_fingerprint: [u8; 32],
+    #[doc(hidden)]
+    pub length_aware_retained_fingerprint: [u8; 32],
 }
 
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
@@ -1240,6 +1327,8 @@ pub struct SentenceRecoveryMetrics {
         Option<SentenceEdgeSignatureReferenceOracleMetrics>,
     pub local_fragment_shadow: Option<LocalFragmentShadowMetrics>,
     pub local_fragment_length_aware_shadow: Option<LocalFragmentLengthAwareShadowMetrics>,
+    pub local_fragment_global_length_aware_shadow:
+        Option<LocalFragmentGlobalLengthAwareShadowMetrics>,
     /// Whether the production Sentence edge filter classified every query.
     /// A false value always has [`Self::sentence_edge_filter_stop_reason`].
     pub sentence_edge_filter_complete: bool,

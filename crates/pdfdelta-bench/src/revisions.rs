@@ -22,12 +22,12 @@ use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
         ChangeKind, Comparison, ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
-        LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
-        LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLocationEvidence,
-        LocalFragmentOrientation, LocalFragmentPairEvidence, LocalFragmentShadowMetrics,
-        LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, NearRelationStopReason,
-        NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
-        RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
+        LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
+        LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
+        LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
+        LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
+        NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
+        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
         RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
         RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
         RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
@@ -672,6 +672,8 @@ pub struct SentenceRecoveryMetricsReport {
         Option<SentenceEdgeSignatureReferenceOracleMetricsReport>,
     pub local_fragment_shadow: Option<LocalFragmentShadowMetricsReport>,
     pub local_fragment_length_aware_shadow: Option<LocalFragmentLengthAwareShadowMetricsReport>,
+    pub local_fragment_global_length_aware_shadow:
+        Option<LocalFragmentGlobalLengthAwareShadowMetricsReport>,
     pub sentence_edge_filter_complete: bool,
     pub sentence_edge_filter_pairs_examined: usize,
     pub sentence_edge_filter_pairs_attempted: usize,
@@ -708,6 +710,60 @@ pub struct SentenceRecoveryMetricsReport {
     pub recovered_insertion_tokens: usize,
     pub unresolved_remainder_old_source_tokens: usize,
     pub unresolved_remainder_new_source_tokens: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LocalFragmentGlobalLengthAwareShadowMetricsReport {
+    pub complete: bool,
+    pub stop_reason: Option<LocalFragmentLengthAwareShadowStopReasonReport>,
+    pub work: LocalFragmentLengthAwareShadowWorkMetricsReport,
+    pub min_tokens: usize,
+    pub fixed_depth: usize,
+    pub max_own_depth: usize,
+    pub old_fragments: usize,
+    pub new_fragments: usize,
+    pub fixed_distinct_keys: usize,
+    pub own_distinct_keys: usize,
+    pub all_distinct_keys: usize,
+    pub parent_distinct_keys: usize,
+    pub fixed_posting_items: usize,
+    pub own_posting_items: usize,
+    pub all_posting_items: usize,
+    pub parent_posting_items: usize,
+    pub fixed_key_capacity: usize,
+    pub own_key_capacity: usize,
+    pub all_key_capacity: usize,
+    pub parent_key_capacity: usize,
+    pub posting_capacity_items: usize,
+    pub fragment_capacity_items: usize,
+    pub signature_capacity_items: usize,
+    pub peak_temporary_capacity_items: usize,
+    pub estimated_logical_bytes: usize,
+    pub estimated_capacity_bytes: usize,
+    pub largest_posting: usize,
+    pub projected_parent_scoped_queries: usize,
+    pub parent_admission_queries: usize,
+    pub global_queries: usize,
+    pub raw_signature_hits: usize,
+    pub parent_admissible_hits: usize,
+    pub parent_rejected_hits: usize,
+    pub duplicate_candidate_occurrences: usize,
+    pub fixed_pre_recheck_candidates: usize,
+    pub length_aware_pre_recheck_candidates: usize,
+    pub missing_pre_recheck_candidates: usize,
+    pub extra_pre_recheck_candidates: usize,
+    pub pre_recheck_order_mismatches: usize,
+    pub fixed_exact_retained_pairs: usize,
+    pub length_aware_exact_retained_pairs: usize,
+    pub missing_retained_pairs: usize,
+    pub extra_retained_pairs: usize,
+    pub order_mismatches: usize,
+    pub compared_queries: usize,
+    pub parent_scoped_parity_available: bool,
+    pub fixed_pre_recheck_fingerprint_mismatches: usize,
+    pub length_aware_pre_recheck_fingerprint_mismatches: usize,
+    pub fixed_retained_fingerprint_mismatches: usize,
+    pub length_aware_retained_fingerprint_mismatches: usize,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -2143,6 +2199,68 @@ impl From<RunSignatureStopReason> for RunSignatureStopReasonReport {
     }
 }
 
+impl From<LocalFragmentGlobalLengthAwareShadowMetrics>
+    for LocalFragmentGlobalLengthAwareShadowMetricsReport
+{
+    fn from(metrics: LocalFragmentGlobalLengthAwareShadowMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            stop_reason: metrics.stop_reason.map(Into::into),
+            work: metrics.work.into(),
+            min_tokens: metrics.min_tokens,
+            fixed_depth: metrics.fixed_depth,
+            max_own_depth: metrics.max_own_depth,
+            old_fragments: metrics.old_fragments,
+            new_fragments: metrics.new_fragments,
+            fixed_distinct_keys: metrics.fixed_distinct_keys,
+            own_distinct_keys: metrics.own_distinct_keys,
+            all_distinct_keys: metrics.all_distinct_keys,
+            parent_distinct_keys: metrics.parent_distinct_keys,
+            fixed_posting_items: metrics.fixed_posting_items,
+            own_posting_items: metrics.own_posting_items,
+            all_posting_items: metrics.all_posting_items,
+            parent_posting_items: metrics.parent_posting_items,
+            fixed_key_capacity: metrics.fixed_key_capacity,
+            own_key_capacity: metrics.own_key_capacity,
+            all_key_capacity: metrics.all_key_capacity,
+            parent_key_capacity: metrics.parent_key_capacity,
+            posting_capacity_items: metrics.posting_capacity_items,
+            fragment_capacity_items: metrics.fragment_capacity_items,
+            signature_capacity_items: metrics.signature_capacity_items,
+            peak_temporary_capacity_items: metrics.peak_temporary_capacity_items,
+            estimated_logical_bytes: metrics.estimated_logical_bytes,
+            estimated_capacity_bytes: metrics.estimated_capacity_bytes,
+            largest_posting: metrics.largest_posting,
+            projected_parent_scoped_queries: metrics.projected_parent_scoped_queries,
+            parent_admission_queries: metrics.parent_admission_queries,
+            global_queries: metrics.global_queries,
+            raw_signature_hits: metrics.raw_signature_hits,
+            parent_admissible_hits: metrics.parent_admissible_hits,
+            parent_rejected_hits: metrics.parent_rejected_hits,
+            duplicate_candidate_occurrences: metrics.duplicate_candidate_occurrences,
+            fixed_pre_recheck_candidates: metrics.fixed_pre_recheck_candidates,
+            length_aware_pre_recheck_candidates: metrics.length_aware_pre_recheck_candidates,
+            missing_pre_recheck_candidates: metrics.missing_pre_recheck_candidates,
+            extra_pre_recheck_candidates: metrics.extra_pre_recheck_candidates,
+            pre_recheck_order_mismatches: metrics.pre_recheck_order_mismatches,
+            fixed_exact_retained_pairs: metrics.fixed_exact_retained_pairs,
+            length_aware_exact_retained_pairs: metrics.length_aware_exact_retained_pairs,
+            missing_retained_pairs: metrics.missing_retained_pairs,
+            extra_retained_pairs: metrics.extra_retained_pairs,
+            order_mismatches: metrics.order_mismatches,
+            compared_queries: metrics.compared_queries,
+            parent_scoped_parity_available: metrics.parent_scoped_parity_available,
+            fixed_pre_recheck_fingerprint_mismatches: metrics
+                .fixed_pre_recheck_fingerprint_mismatches,
+            length_aware_pre_recheck_fingerprint_mismatches: metrics
+                .length_aware_pre_recheck_fingerprint_mismatches,
+            fixed_retained_fingerprint_mismatches: metrics.fixed_retained_fingerprint_mismatches,
+            length_aware_retained_fingerprint_mismatches: metrics
+                .length_aware_retained_fingerprint_mismatches,
+        }
+    }
+}
+
 impl From<LocalFragmentLengthAwareShadowMetrics> for LocalFragmentLengthAwareShadowMetricsReport {
     fn from(metrics: LocalFragmentLengthAwareShadowMetrics) -> Self {
         Self {
@@ -2521,6 +2639,9 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             local_fragment_shadow: metrics.local_fragment_shadow.map(Into::into),
             local_fragment_length_aware_shadow: metrics
                 .local_fragment_length_aware_shadow
+                .map(Into::into),
+            local_fragment_global_length_aware_shadow: metrics
+                .local_fragment_global_length_aware_shadow
                 .map(Into::into),
             sentence_edge_filter_complete: metrics.sentence_edge_filter_complete,
             sentence_edge_filter_pairs_examined: metrics.sentence_edge_filter_pairs_examined,
@@ -4607,6 +4728,13 @@ fn validate_sentence_recovery_metrics(
     validate_local_fragment_length_aware_shadow_metrics(
         metrics.local_fragment_length_aware_shadow,
     )?;
+    validate_local_fragment_global_length_aware_shadow_metrics(
+        metrics.local_fragment_global_length_aware_shadow,
+    )?;
+    validate_local_fragment_sibling_parity(
+        metrics.local_fragment_length_aware_shadow,
+        metrics.local_fragment_global_length_aware_shadow,
+    )?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
             "examined near pair visits {} exceed attempted visits {}",
@@ -4733,6 +4861,174 @@ fn validate_sentence_recovery_metrics(
         .checked_add(metrics.unresolved_remainder_new_source_tokens)
         .ok_or_else(|| "new eligible source token counters overflow".to_owned())?;
     Ok(metrics.into())
+}
+
+fn validate_local_fragment_sibling_parity(
+    parent_scoped: Option<LocalFragmentLengthAwareShadowMetrics>,
+    global: Option<LocalFragmentGlobalLengthAwareShadowMetrics>,
+) -> std::result::Result<(), String> {
+    let (Some(parent_scoped), Some(global)) = (parent_scoped, global) else {
+        if parent_scoped.is_none() && global.is_none() {
+            return Ok(());
+        }
+        return Err("local-fragment parity siblings must be present together".to_owned());
+    };
+    let expected_available = parent_scoped.complete && global.complete;
+    let mismatch_counters = [
+        global.fixed_pre_recheck_fingerprint_mismatches,
+        global.length_aware_pre_recheck_fingerprint_mismatches,
+        global.fixed_retained_fingerprint_mismatches,
+        global.length_aware_retained_fingerprint_mismatches,
+    ];
+    if global.parent_scoped_parity_available != expected_available
+        || mismatch_counters.iter().any(|count| *count != 0)
+    {
+        return Err("local-fragment sibling parity availability is inconsistent".to_owned());
+    }
+    if expected_available
+        && (parent_scoped.fixed_pre_recheck_fingerprint != global.fixed_pre_recheck_fingerprint
+            || parent_scoped.length_aware_pre_recheck_fingerprint
+                != global.length_aware_pre_recheck_fingerprint
+            || parent_scoped.fixed_retained_fingerprint != global.fixed_retained_fingerprint
+            || parent_scoped.length_aware_retained_fingerprint
+                != global.length_aware_retained_fingerprint)
+    {
+        return Err("local-fragment sibling fingerprints disagree".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_local_fragment_global_length_aware_shadow_metrics(
+    metrics: Option<LocalFragmentGlobalLengthAwareShadowMetrics>,
+) -> std::result::Result<(), String> {
+    let Some(metrics) = metrics else {
+        return Ok(());
+    };
+    if metrics.complete != metrics.stop_reason.is_none() {
+        return Err(
+            "global length-aware local-fragment completion and stop reason disagree".to_owned(),
+        );
+    }
+    let expected_fixed_depth = local_fragment_signature_depth(metrics.min_tokens)
+        .ok_or_else(|| "global length-aware signature depth overflows".to_owned())?;
+    if metrics.min_tokens == 0
+        || metrics.fixed_depth == 0
+        || metrics.fixed_depth != expected_fixed_depth
+    {
+        return Err("global length-aware fixed depth is inconsistent".to_owned());
+    }
+    validate_local_fragment_length_aware_shadow_work(
+        metrics.work,
+        metrics.complete,
+        metrics.stop_reason,
+    )?;
+    if !metrics.complete {
+        let expected = LocalFragmentGlobalLengthAwareShadowMetrics {
+            complete: false,
+            stop_reason: metrics.stop_reason,
+            work: metrics.work,
+            min_tokens: metrics.min_tokens,
+            fixed_depth: metrics.fixed_depth,
+            ..LocalFragmentGlobalLengthAwareShadowMetrics::default()
+        };
+        if metrics != expected {
+            return Err(
+                "stopped global length-aware local-fragment shadow exposes partial metrics"
+                    .to_owned(),
+            );
+        }
+        return Ok(());
+    }
+
+    let fragment_total = metrics
+        .old_fragments
+        .checked_add(metrics.new_fragments)
+        .ok_or_else(|| "global length-aware fragment counters overflow".to_owned())?;
+    let query_total = metrics
+        .parent_admission_queries
+        .checked_add(metrics.global_queries)
+        .ok_or_else(|| "global length-aware query counters overflow".to_owned())?;
+    if metrics.work.enumeration_examined != fragment_total
+        || metrics.work.queries_examined != query_total
+        || metrics.global_queries > metrics.old_fragments
+        || metrics.projected_parent_scoped_queries < metrics.global_queries
+        || metrics.compared_queries != metrics.global_queries
+    {
+        return Err("global length-aware traversal counters are inconsistent".to_owned());
+    }
+    if metrics
+        .parent_admissible_hits
+        .checked_add(metrics.parent_rejected_hits)
+        != Some(metrics.raw_signature_hits)
+    {
+        return Err("global length-aware hit accounting is inconsistent".to_owned());
+    }
+    if metrics.extra_pre_recheck_candidates != 0
+        || metrics.pre_recheck_order_mismatches != 0
+        || metrics.missing_retained_pairs != 0
+        || metrics.extra_retained_pairs != 0
+        || metrics.order_mismatches != 0
+    {
+        return Err("global length-aware parity mismatch is nonzero".to_owned());
+    }
+    let pre_recheck_total = metrics
+        .fixed_pre_recheck_candidates
+        .checked_add(metrics.length_aware_pre_recheck_candidates)
+        .ok_or_else(|| "global length-aware candidate counters overflow".to_owned())?;
+    let expected_length_aware_pre_recheck = metrics
+        .fixed_pre_recheck_candidates
+        .checked_sub(metrics.missing_pre_recheck_candidates)
+        .and_then(|value| value.checked_add(metrics.extra_pre_recheck_candidates))
+        .ok_or_else(|| "global length-aware candidate-set equation overflows".to_owned())?;
+    let expected_length_aware_retained = metrics
+        .fixed_exact_retained_pairs
+        .checked_sub(metrics.missing_retained_pairs)
+        .and_then(|value| value.checked_add(metrics.extra_retained_pairs))
+        .ok_or_else(|| "global length-aware retained-set equation overflows".to_owned())?;
+    let expected_parent_admissible_hits = pre_recheck_total
+        .checked_add(metrics.duplicate_candidate_occurrences)
+        .ok_or_else(|| "global length-aware admissible-hit equation overflows".to_owned())?;
+    if metrics.work.candidate_union_examined != pre_recheck_total
+        || metrics.work.exact_recheck_pairs_examined != pre_recheck_total
+        || metrics.fixed_exact_retained_pairs > metrics.fixed_pre_recheck_candidates
+        || metrics.length_aware_exact_retained_pairs > metrics.length_aware_pre_recheck_candidates
+        || metrics.length_aware_pre_recheck_candidates != expected_length_aware_pre_recheck
+        || metrics.length_aware_exact_retained_pairs != expected_length_aware_retained
+        || metrics.parent_admissible_hits != expected_parent_admissible_hits
+    {
+        return Err("global length-aware candidate accounting is inconsistent".to_owned());
+    }
+    let all_posting_items = metrics
+        .fixed_posting_items
+        .checked_add(metrics.own_posting_items)
+        .and_then(|value| value.checked_add(metrics.all_posting_items))
+        .and_then(|value| value.checked_add(metrics.parent_posting_items))
+        .ok_or_else(|| "global length-aware posting counters overflow".to_owned())?;
+    let all_distinct_keys = metrics
+        .fixed_distinct_keys
+        .checked_add(metrics.own_distinct_keys)
+        .and_then(|value| value.checked_add(metrics.all_distinct_keys))
+        .and_then(|value| value.checked_add(metrics.parent_distinct_keys))
+        .ok_or_else(|| "global length-aware key counters overflow".to_owned())?;
+    if metrics.fixed_distinct_keys > metrics.fixed_key_capacity
+        || metrics.own_distinct_keys > metrics.own_key_capacity
+        || metrics.all_distinct_keys > metrics.all_key_capacity
+        || metrics.parent_distinct_keys > metrics.parent_key_capacity
+        || all_posting_items > metrics.posting_capacity_items
+        || metrics.largest_posting > metrics.posting_capacity_items
+        || all_posting_items != metrics.work.posting_items_examined
+        || all_distinct_keys != metrics.work.distinct_keys_examined
+        || metrics.estimated_logical_bytes != metrics.work.estimated_bytes_examined
+        || metrics.estimated_capacity_bytes < metrics.estimated_logical_bytes
+    {
+        return Err("global length-aware index capacity is inconsistent".to_owned());
+    }
+    if fragment_total == 0 && metrics.max_own_depth != 0
+        || fragment_total != 0 && metrics.max_own_depth < metrics.fixed_depth
+    {
+        return Err("global length-aware maximum depth is inconsistent".to_owned());
+    }
+    Ok(())
 }
 
 fn validate_local_fragment_length_aware_shadow_metrics(
@@ -7246,7 +7542,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 42;
+    pub const SCHEMA_VERSION: u32 = 43;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -8945,7 +9241,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 42);
+        assert_eq!(completed["schema_version"], 43);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -8995,7 +9291,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 42);
+        assert_eq!(legacy_summary["schema_version"], 43);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -10205,7 +10501,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 42);
+        assert_eq!(json["schema_version"], 43);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -10365,6 +10661,313 @@ mod tests {
         );
     }
 
+    fn complete_global_length_aware_local_fragment_shadow()
+    -> LocalFragmentGlobalLengthAwareShadowMetrics {
+        LocalFragmentGlobalLengthAwareShadowMetrics {
+            complete: true,
+            stop_reason: None,
+            work: LocalFragmentLengthAwareShadowWorkMetrics {
+                enumeration_examined: 4,
+                enumeration_attempted: 4,
+                signature_token_steps_examined: 12,
+                signature_token_steps_attempted: 12,
+                posting_items_examined: 20,
+                posting_items_attempted: 20,
+                distinct_keys_examined: 8,
+                distinct_keys_attempted: 8,
+                estimated_bytes_examined: 100,
+                estimated_bytes_attempted: 100,
+                queries_examined: 3,
+                queries_attempted: 3,
+                posting_visits_examined: 10,
+                posting_visits_attempted: 10,
+                candidate_union_examined: 5,
+                candidate_union_attempted: 5,
+                exact_recheck_pairs_examined: 5,
+                exact_recheck_pairs_attempted: 5,
+                exact_recheck_comparisons_examined: 10,
+                exact_recheck_comparisons_attempted: 10,
+            },
+            min_tokens: 8,
+            fixed_depth: 2,
+            max_own_depth: 3,
+            old_fragments: 2,
+            new_fragments: 2,
+            fixed_distinct_keys: 2,
+            own_distinct_keys: 2,
+            all_distinct_keys: 2,
+            parent_distinct_keys: 2,
+            fixed_posting_items: 5,
+            own_posting_items: 4,
+            all_posting_items: 6,
+            parent_posting_items: 5,
+            fixed_key_capacity: 4,
+            own_key_capacity: 4,
+            all_key_capacity: 4,
+            parent_key_capacity: 4,
+            posting_capacity_items: 24,
+            fragment_capacity_items: 4,
+            signature_capacity_items: 12,
+            peak_temporary_capacity_items: 6,
+            estimated_logical_bytes: 100,
+            estimated_capacity_bytes: 200,
+            largest_posting: 3,
+            projected_parent_scoped_queries: 4,
+            parent_admission_queries: 1,
+            global_queries: 2,
+            raw_signature_hits: 10,
+            parent_admissible_hits: 7,
+            parent_rejected_hits: 3,
+            duplicate_candidate_occurrences: 2,
+            fixed_pre_recheck_candidates: 3,
+            length_aware_pre_recheck_candidates: 2,
+            missing_pre_recheck_candidates: 1,
+            extra_pre_recheck_candidates: 0,
+            pre_recheck_order_mismatches: 0,
+            fixed_exact_retained_pairs: 1,
+            length_aware_exact_retained_pairs: 1,
+            missing_retained_pairs: 0,
+            extra_retained_pairs: 0,
+            order_mismatches: 0,
+            compared_queries: 2,
+            parent_scoped_parity_available: true,
+            fixed_pre_recheck_fingerprint_mismatches: 0,
+            length_aware_pre_recheck_fingerprint_mismatches: 0,
+            fixed_retained_fingerprint_mismatches: 0,
+            length_aware_retained_fingerprint_mismatches: 0,
+            fixed_pre_recheck_fingerprint: [1; 32],
+            length_aware_pre_recheck_fingerprint: [2; 32],
+            fixed_retained_fingerprint: [3; 32],
+            length_aware_retained_fingerprint: [4; 32],
+        }
+    }
+
+    #[test]
+    fn serializes_absent_complete_and_stopped_global_length_aware_shadow() {
+        let absent = serde_json::to_value(SentenceRecoveryMetricsReport::default())
+            .expect("absent global length-aware shadow serializes");
+        assert_eq!(
+            absent["local_fragment_global_length_aware_shadow"],
+            serde_json::Value::Null
+        );
+
+        let complete_metrics = complete_global_length_aware_local_fragment_shadow();
+        let complete = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+            local_fragment_length_aware_shadow: Some(complete_length_aware_local_fragment_shadow()),
+            local_fragment_global_length_aware_shadow: Some(complete_metrics),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        })
+        .expect("complete global length-aware shadow validates");
+        assert_eq!(
+            complete.local_fragment_global_length_aware_shadow,
+            Some(complete_metrics.into())
+        );
+        let serialized = serde_json::to_value(
+            complete
+                .local_fragment_global_length_aware_shadow
+                .expect("global report exists"),
+        )
+        .expect("global report serializes");
+        assert!(serialized.get("fixed_pre_recheck_fingerprint").is_none());
+        assert!(
+            serialized
+                .get("length_aware_pre_recheck_fingerprint")
+                .is_none()
+        );
+        assert!(serialized.get("fixed_retained_fingerprint").is_none());
+        assert!(
+            serialized
+                .get("length_aware_retained_fingerprint")
+                .is_none()
+        );
+
+        let stopped_metrics = LocalFragmentGlobalLengthAwareShadowMetrics {
+            complete: false,
+            stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::QueryLimit),
+            work: LocalFragmentLengthAwareShadowWorkMetrics {
+                queries_attempted: 1,
+                ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+            },
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentGlobalLengthAwareShadowMetrics::default()
+        };
+        let stopped = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+            local_fragment_length_aware_shadow: Some(complete_length_aware_local_fragment_shadow()),
+            local_fragment_global_length_aware_shadow: Some(stopped_metrics),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        })
+        .expect("stopped global length-aware shadow validates");
+        assert_eq!(
+            stopped.local_fragment_global_length_aware_shadow,
+            Some(LocalFragmentGlobalLengthAwareShadowMetricsReport {
+                stop_reason: Some(LocalFragmentLengthAwareShadowStopReasonReport::QueryLimit),
+                work: LocalFragmentLengthAwareShadowWorkMetricsReport {
+                    queries_attempted: 1,
+                    ..LocalFragmentLengthAwareShadowWorkMetricsReport::default()
+                },
+                min_tokens: 8,
+                fixed_depth: 2,
+                ..LocalFragmentGlobalLengthAwareShadowMetricsReport::default()
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_global_length_aware_shadow_equations() {
+        let complete = complete_global_length_aware_local_fragment_shadow();
+        let invalid = [
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                raw_signature_hits: 9,
+                ..complete
+            },
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                global_queries: 3,
+                ..complete
+            },
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                projected_parent_scoped_queries: 1,
+                ..complete
+            },
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                missing_pre_recheck_candidates: 2,
+                ..complete
+            },
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                extra_retained_pairs: 1,
+                ..complete
+            },
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    candidate_union_examined: 4,
+                    candidate_union_attempted: 4,
+                    ..complete.work
+                },
+                ..complete
+            },
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    posting_items_examined: complete.work.posting_items_examined + 1,
+                    posting_items_attempted: complete.work.posting_items_attempted + 1,
+                    ..complete.work
+                },
+                ..complete
+            },
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    distinct_keys_examined: complete.work.distinct_keys_examined + 1,
+                    distinct_keys_attempted: complete.work.distinct_keys_attempted + 1,
+                    ..complete.work
+                },
+                ..complete
+            },
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                fixed_key_capacity: 1,
+                ..complete
+            },
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                estimated_capacity_bytes: 99,
+                ..complete
+            },
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                complete: false,
+                stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::QueryLimit),
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    queries_attempted: 1,
+                    ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+                },
+                min_tokens: 8,
+                fixed_depth: 2,
+                global_queries: 1,
+                ..LocalFragmentGlobalLengthAwareShadowMetrics::default()
+            },
+        ];
+        for metrics in invalid {
+            assert!(
+                validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                    local_fragment_length_aware_shadow: Some(
+                        complete_length_aware_local_fragment_shadow(),
+                    ),
+                    local_fragment_global_length_aware_shadow: Some(metrics),
+                    sentence_edge_filter_complete: true,
+                    ..SentenceRecoveryMetrics::default()
+                })
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn validates_global_parent_scoped_fingerprint_parity() {
+        let parent = complete_length_aware_local_fragment_shadow();
+        let global = complete_global_length_aware_local_fragment_shadow();
+        validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+            local_fragment_length_aware_shadow: Some(parent),
+            local_fragment_global_length_aware_shadow: Some(global),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        })
+        .expect("complete sibling fingerprints agree");
+
+        for invalid_global in [
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                parent_scoped_parity_available: false,
+                ..global
+            },
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                fixed_pre_recheck_fingerprint_mismatches: 1,
+                ..global
+            },
+            LocalFragmentGlobalLengthAwareShadowMetrics {
+                fixed_pre_recheck_fingerprint: [9; 32],
+                ..global
+            },
+        ] {
+            assert!(
+                validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                    local_fragment_length_aware_shadow: Some(parent),
+                    local_fragment_global_length_aware_shadow: Some(invalid_global),
+                    sentence_edge_filter_complete: true,
+                    ..SentenceRecoveryMetrics::default()
+                })
+                .is_err()
+            );
+        }
+
+        let stopped_parent = LocalFragmentLengthAwareShadowMetrics {
+            complete: false,
+            stop_reason: Some(
+                LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete,
+            ),
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentLengthAwareShadowMetrics::default()
+        };
+        validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+            local_fragment_length_aware_shadow: Some(stopped_parent),
+            local_fragment_global_length_aware_shadow: Some(
+                LocalFragmentGlobalLengthAwareShadowMetrics {
+                    parent_scoped_parity_available: false,
+                    ..global
+                },
+            ),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        })
+        .expect("incomplete sibling makes parity unavailable");
+
+        assert!(
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(parent),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .is_err()
+        );
+    }
+
     fn complete_length_aware_local_fragment_shadow() -> LocalFragmentLengthAwareShadowMetrics {
         LocalFragmentLengthAwareShadowMetrics {
             complete: true,
@@ -10433,6 +11036,10 @@ mod tests {
             extra_retained_pairs: 1,
             order_mismatches: 1,
             compared_queries: 3,
+            fixed_pre_recheck_fingerprint: [1; 32],
+            length_aware_pre_recheck_fingerprint: [2; 32],
+            fixed_retained_fingerprint: [3; 32],
+            length_aware_retained_fingerprint: [4; 32],
         }
     }
 
@@ -10448,6 +11055,9 @@ mod tests {
         let complete_metrics = complete_length_aware_local_fragment_shadow();
         let complete = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
             local_fragment_length_aware_shadow: Some(complete_metrics),
+            local_fragment_global_length_aware_shadow: Some(
+                complete_global_length_aware_local_fragment_shadow(),
+            ),
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         })
@@ -10470,6 +11080,17 @@ mod tests {
         };
         let stopped = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
             local_fragment_length_aware_shadow: Some(stopped_metrics),
+            local_fragment_global_length_aware_shadow: Some(
+                LocalFragmentGlobalLengthAwareShadowMetrics {
+                    complete: false,
+                    stop_reason: Some(
+                        LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete,
+                    ),
+                    min_tokens: 8,
+                    fixed_depth: 2,
+                    ..LocalFragmentGlobalLengthAwareShadowMetrics::default()
+                },
+            ),
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         })
@@ -10613,6 +11234,17 @@ mod tests {
         ] {
             validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
                 local_fragment_length_aware_shadow: Some(stopped(work)),
+                local_fragment_global_length_aware_shadow: Some(
+                    LocalFragmentGlobalLengthAwareShadowMetrics {
+                        complete: false,
+                        stop_reason: Some(
+                            LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete,
+                        ),
+                        min_tokens: 8,
+                        fixed_depth: 2,
+                        ..LocalFragmentGlobalLengthAwareShadowMetrics::default()
+                    },
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -10628,6 +11260,17 @@ mod tests {
                         ..LocalFragmentLengthAwareShadowWorkMetrics::default()
                     },
                 )),
+                local_fragment_global_length_aware_shadow: Some(
+                    LocalFragmentGlobalLengthAwareShadowMetrics {
+                        complete: false,
+                        stop_reason: Some(
+                            LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete,
+                        ),
+                        min_tokens: 8,
+                        fixed_depth: 2,
+                        ..LocalFragmentGlobalLengthAwareShadowMetrics::default()
+                    },
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -13941,7 +14584,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 42);
+        assert_eq!(value["schema_version"], 43);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -14074,6 +14717,7 @@ mod tests {
             "sentence_edge_signature_reference_oracle".to_owned(),
             "local_fragment_shadow".to_owned(),
             "local_fragment_length_aware_shadow".to_owned(),
+            "local_fragment_global_length_aware_shadow".to_owned(),
             "sentence_edge_filter_complete".to_owned(),
             "sentence_edge_filter_pairs_examined".to_owned(),
             "sentence_edge_filter_pairs_attempted".to_owned(),
