@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`e254b48`](https://github.com/hayatosc/pdfdelta/commit/e254b48)
+- **Generator / engine commit**: [`447927d`](https://github.com/hayatosc/pdfdelta/commit/447927d)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-e254b48.json`](2026-08-31-e254b48.json)
+  - File: [`2026-08-31-447927d.json`](2026-08-31-447927d.json)
   - Schema: v34
-  - Size: 648,533 bytes
-  - SHA-256: `d7666f867c437292a3311867c0ecc0149d16ec74fdc8dd9d3d2f21f4119e27ef`
+  - Size: 648,492 bytes
+  - SHA-256: `01086e37fdbc0627c0fe58dc16a6f6279a1659a77e9585591a507097d0b60341`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -28,7 +28,7 @@ mise run bench-revisions-checksums
 mise run bench-revisions-release -- \
   --summary-json-output /tmp/pdfdelta-reproduced-summary.json
 cmp /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-31-e254b48.json
+  benchmark/realworld/results/2026-08-31-447927d.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -39,8 +39,8 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-08-31-7ffc831.json \
   benchmark/realworld/results/2026-08-31-e254b48.json \
+  benchmark/realworld/results/2026-08-31-447927d.json \
   --ignore-field sentence_edge_signature_reference_oracle
 ```
 
@@ -103,8 +103,23 @@ diagnostics exactly match the schema-v24 baseline. Across 18 measured pairs,
 the filter classifies 6,990,647 Sentence pairs and rejects 6,660,144 (95.27%).
 All shadow threshold, veto, unique-partner, reciprocal, adopted-replacement,
 and insertion/deletion-veto mismatch counters remain zero.
-The schema-v34 capture makes the independent reference oracle apply the exact
-Sentence edge gate to candidates from the legacy `UnitCandidateIndex` before
+The `447927d` schema-v34 capture preserves candidate keys, posting counts, and
+ordering while packing exact FIRST/LAST provenance into each existing posting
+word. The independent reference oracle reuses those aligned-edge facts instead
+of comparing boundary tokens again. All eight reference oracles now complete
+within their existing budgets with identical plans and retained-pair count,
+set, and order fingerprints. LibreOffice classifies all 18,853,226 broad pairs
+with 24,943,792 edge comparisons under the unchanged 32,000,000 cap, then
+charges 16,576 downstream near pairs. Removing the reference-oracle object
+produces exact `e254b48` parity for every comparison, quality, candidate-recall,
+direct-replay, and other diagnostic field. Posting elements remain one `usize`
+wide, so the evidence does not increase the legacy candidate index element
+size. Production activation remains deferred pending a revised candidate-
+overhead gate and full-build fallback design.
+
+The `e254b48` schema-v34 capture made the independent reference oracle apply
+the exact Sentence edge gate to candidates from the legacy
+`UnitCandidateIndex` before
 charging retained pairs to near-relation work. Seven of eight reference
 oracles now complete with identical plans and retained-pair count, set, and
 order fingerprints. LibreOffice no longer reaches the 8,000,000 near-pair cap:

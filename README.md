@@ -347,7 +347,7 @@ files without overwriting existing destinations). If the second publication fail
 exit code 2 is returned and the first published artifact remains in place without
 pairwise rollback across distinct paths. Dated compact evaluation summaries are
 recorded under [`benchmark/realworld/results/`](benchmark/realworld/results/README.md)
-(latest: [`2026-08-31-e254b48.json`](benchmark/realworld/results/2026-08-31-e254b48.json)).
+(latest: [`2026-08-31-447927d.json`](benchmark/realworld/results/2026-08-31-447927d.json)).
 
 ## License
 
@@ -421,6 +421,8 @@ Text reports are written to standard output as contextual unified-diff hunks: a 
   The [`7ffc831`](benchmark/realworld/results/2026-08-31-7ffc831.json) schema-v33 capture stores Sentence edge signatures as compact unique-key ranges plus occurrence arrays. All 18 available direct replays complete, common completed-path logical bytes fall by 66.24% from schema v32, and comparison and reviewed-quality fields remain unchanged. Production activation remains deferred because the comparable candidate union is 12.04%, the exact retained lower bound is already 10.89%, and the LibreOffice reference oracle still stops at its pair-visit limit; the old sub-10% gate must be replaced by an exact-lower-bound criterion before behavior changes.
 
   The [`e254b48`](benchmark/realworld/results/2026-08-31-e254b48.json) schema-v34 capture independently applies exact Sentence edge classification before reference near-relation work. Seven of eight reference oracles preserve plan and retained-pair fingerprint parity. LibreOffice reduces downstream near-pair work to 7,993 but stops fail-closed after 32,000,000 edge comparisons with 1,831 broad candidates unclassified. Every comparison, quality, candidate-recall, direct-replay, and other diagnostic field remains identical to schema v33 when the reference-oracle object is excluded; production activation remains deferred without raising budgets.
+
+  The [`447927d`](benchmark/realworld/results/2026-08-31-447927d.json) schema-v34 capture packs exact FIRST/LAST provenance into the existing one-word legacy candidate postings and reuses it during independent reference classification. All eight reference oracles complete with identical plans and retained-pair count, set, and order fingerprints. LibreOffice classifies all 18,853,226 broad pairs with 24,943,792 edge comparisons under the unchanged 32,000,000 cap. Removing the reference-oracle object produces exact `e254b48` parity for every other field; production activation remains deferred pending the candidate-overhead and full-build fallback gates.
 
 ## Contributing
 
