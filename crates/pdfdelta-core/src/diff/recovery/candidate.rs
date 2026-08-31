@@ -2089,10 +2089,13 @@ const SENTENCE_EDGE_SIGNATURE_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 #[allow(dead_code)]
 pub(in crate::diff) fn sentence_edge_signature_depth(shorter_len: usize) -> Option<usize> {
-    let numerator = shorter_len.checked_mul(usize::from(MIN_WORD_SCORE_EDGE_EVIDENCE))?;
-    let required = numerator
+    let threshold = usize::from(MIN_WORD_SCORE_EDGE_EVIDENCE);
+    let whole = shorter_len.checked_div(10_000)?.checked_mul(threshold)?;
+    let remainder_numerator = (shorter_len % 10_000).checked_mul(threshold)?;
+    let remainder = remainder_numerator
         .checked_div(10_000)?
-        .checked_add(usize::from(numerator % 10_000 != 0))?;
+        .checked_add(usize::from(remainder_numerator % 10_000 != 0))?;
+    let required = whole.checked_add(remainder)?;
     required
         .checked_div(2)?
         .checked_add(usize::from(required % 2 != 0))
@@ -2760,7 +2763,8 @@ mod tests {
         assert_eq!(sentence_edge_signature_depth(0), Some(0));
         assert_eq!(sentence_edge_signature_depth(1), Some(1));
         assert_eq!(sentence_edge_signature_depth(7), Some(2));
-        assert_eq!(sentence_edge_signature_depth(usize::MAX), None);
+        let max_depth = (usize::MAX / 20) * 3 + ((usize::MAX % 20) * 3).div_ceil(20);
+        assert_eq!(sentence_edge_signature_depth(usize::MAX), Some(max_depth));
 
         let sequences = all_binary_sequences(7);
         let index = build_body_sentences(&sequences);

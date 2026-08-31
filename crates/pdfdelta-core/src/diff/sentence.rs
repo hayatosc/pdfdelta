@@ -10617,9 +10617,12 @@ struct LocalFragment {
 #[derive(Clone, Copy)]
 struct LocalFragmentLimits {
     enumeration: usize,
+    signature_token_steps: usize,
+    temporary_signature_keys: usize,
     postings: usize,
     queries: usize,
     posting_visits: usize,
+    parent_candidate_pairs: usize,
     candidate_pairs: usize,
     comparisons: usize,
     edit_work: usize,
@@ -10627,12 +10630,15 @@ struct LocalFragmentLimits {
 }
 
 impl LocalFragmentLimits {
-    fn for_tokens(max_tokens: usize) -> Option<Self> {
+    fn for_tokens(max_tokens: usize, _min_tokens: usize) -> Option<Self> {
         Some(Self {
             enumeration: max_tokens.checked_mul(2)?,
+            signature_token_steps: max_tokens.checked_mul(16)?,
+            temporary_signature_keys: max_tokens.checked_mul(4)?,
             postings: max_tokens.checked_mul(8)?,
             queries: max_tokens.checked_mul(2)?,
             posting_visits: max_tokens.checked_mul(8)?,
+            parent_candidate_pairs: max_tokens.checked_mul(2)?,
             candidate_pairs: max_tokens.checked_mul(4)?,
             comparisons: max_tokens.checked_mul(16)?,
             edit_work: max_tokens.checked_mul(32)?,
@@ -10645,12 +10651,18 @@ struct LocalFragmentBudget {
     limits: LocalFragmentLimits,
     enumeration: usize,
     enumeration_attempted: usize,
+    signature_token_steps: usize,
+    signature_token_steps_attempted: usize,
+    temporary_signature_keys: usize,
+    temporary_signature_keys_attempted: usize,
     postings: usize,
     postings_attempted: usize,
     queries: usize,
     queries_attempted: usize,
     posting_visits: usize,
     posting_visits_attempted: usize,
+    parent_candidate_pairs: usize,
+    parent_candidate_pairs_attempted: usize,
     candidate_pairs: usize,
     candidate_pairs_attempted: usize,
     comparisons: usize,
@@ -10667,12 +10679,18 @@ impl LocalFragmentBudget {
             limits,
             enumeration: 0,
             enumeration_attempted: 0,
+            signature_token_steps: 0,
+            signature_token_steps_attempted: 0,
+            temporary_signature_keys: 0,
+            temporary_signature_keys_attempted: 0,
             postings: 0,
             postings_attempted: 0,
             queries: 0,
             queries_attempted: 0,
             posting_visits: 0,
             posting_visits_attempted: 0,
+            parent_candidate_pairs: 0,
+            parent_candidate_pairs_attempted: 0,
             candidate_pairs: 0,
             candidate_pairs_attempted: 0,
             comparisons: 0,
@@ -10729,6 +10747,32 @@ impl LocalFragmentBudget {
         )
     }
 
+    fn charge_signature_token_steps(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), LocalFragmentShadowStopReason> {
+        Self::charge(
+            &mut self.signature_token_steps,
+            &mut self.signature_token_steps_attempted,
+            amount,
+            self.limits.signature_token_steps,
+            LocalFragmentShadowStopReason::SignatureTokenStepLimit,
+        )
+    }
+
+    fn charge_temporary_signature_keys(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), LocalFragmentShadowStopReason> {
+        Self::charge(
+            &mut self.temporary_signature_keys,
+            &mut self.temporary_signature_keys_attempted,
+            amount,
+            self.limits.temporary_signature_keys,
+            LocalFragmentShadowStopReason::TemporarySignatureKeyLimit,
+        )
+    }
+
     fn charge_query(&mut self) -> std::result::Result<(), LocalFragmentShadowStopReason> {
         Self::charge(
             &mut self.queries,
@@ -10762,6 +10806,19 @@ impl LocalFragmentBudget {
             amount,
             self.limits.candidate_pairs,
             LocalFragmentShadowStopReason::CandidatePairLimit,
+        )
+    }
+
+    fn charge_parent_candidate_pairs(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), LocalFragmentShadowStopReason> {
+        Self::charge(
+            &mut self.parent_candidate_pairs,
+            &mut self.parent_candidate_pairs_attempted,
+            amount,
+            self.limits.parent_candidate_pairs,
+            LocalFragmentShadowStopReason::ParentCandidatePairLimit,
         )
     }
 
@@ -10808,12 +10865,18 @@ impl LocalFragmentBudget {
         LocalFragmentShadowWorkMetrics {
             enumeration_examined: self.enumeration,
             enumeration_attempted: self.enumeration_attempted,
+            signature_token_steps_examined: self.signature_token_steps,
+            signature_token_steps_attempted: self.signature_token_steps_attempted,
+            temporary_signature_keys_examined: self.temporary_signature_keys,
+            temporary_signature_keys_attempted: self.temporary_signature_keys_attempted,
             postings_examined: self.postings,
             postings_attempted: self.postings_attempted,
             queries_examined: self.queries,
             queries_attempted: self.queries_attempted,
             posting_visits_examined: self.posting_visits,
             posting_visits_attempted: self.posting_visits_attempted,
+            parent_candidate_pairs_examined: self.parent_candidate_pairs,
+            parent_candidate_pairs_attempted: self.parent_candidate_pairs_attempted,
             candidate_pairs_examined: self.candidate_pairs,
             candidate_pairs_attempted: self.candidate_pairs_attempted,
             comparisons_examined: self.comparisons,
@@ -10963,117 +11026,149 @@ fn local_fragment_signatures(tokens: &[SentenceEvidenceToken], depth: usize) -> 
 
 type LocalFragmentPostingIndex = HashMap<LocalFragmentSignatureKey, Vec<usize>>;
 
-fn build_local_fragment_index(
+fn local_fragment_parent_ranges(
     fragments: &[LocalFragment],
+    parent_count: usize,
+) -> std::result::Result<Vec<Range<usize>>, LocalFragmentShadowStopReason> {
+    let mut ranges = Vec::new();
+    ranges
+        .try_reserve_exact(parent_count)
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    ranges.resize(parent_count, 0..0);
+    for (fragment_index, fragment) in fragments.iter().enumerate() {
+        let range = ranges
+            .get_mut(fragment.parent_candidate_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        if range.start == range.end {
+            *range = fragment_index
+                ..fragment_index
+                    .checked_add(1)
+                    .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+        } else if range.end == fragment_index {
+            range.end = range
+                .end
+                .checked_add(1)
+                .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+        } else {
+            return Err(LocalFragmentShadowStopReason::DiagnosticFailure);
+        }
+    }
+    Ok(ranges)
+}
+
+fn local_fragment_parent_signature_keys(
+    fragments: &[LocalFragment],
+    parent_range: Range<usize>,
     occurrences: &[SentenceOccurrence],
+    signature_depth: usize,
     budget: &mut LocalFragmentBudget,
-) -> std::result::Result<
-    (LocalFragmentPostingIndex, LocalFragmentPostingIndex),
-    LocalFragmentShadowStopReason,
-> {
-    let mut own = HashMap::new();
-    let mut all = HashMap::new();
-    own.try_reserve(fragments.len())
-        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
-    all.try_reserve(fragments.len())
-        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
-    for (index, fragment) in fragments.iter().enumerate() {
+) -> std::result::Result<Vec<LocalFragmentSignatureKey>, LocalFragmentShadowStopReason> {
+    let mut keys = Vec::new();
+    for fragment in fragments
+        .get(parent_range)
+        .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?
+    {
         let parent = local_fragment_parent(fragment, occurrences)?;
         let role = parent
             .role
             .map(OccurrenceRole::from)
             .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
         let tokens = local_fragment_tokens(fragment, occurrences)?;
-        let own_depth = sentence_edge_signature_depth(tokens.len())
-            .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
-        for depth in 1..=own_depth {
-            let (prefix, suffix) = local_fragment_signatures(tokens, depth)
-                .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
-            for signature in [prefix, suffix]
-                .into_iter()
-                .take(usize::from(prefix != suffix) + 1)
-            {
-                budget.charge_postings(1)?;
-                let key = LocalFragmentSignatureKey {
-                    orientation: local_fragment_orientation_key(fragment.orientation),
-                    role,
-                    depth,
-                    signature,
-                };
-                let postings = if depth == own_depth {
-                    &mut own
-                } else {
-                    &mut all
-                };
-                if !postings.contains_key(&key) {
-                    postings
-                        .try_reserve(1)
-                        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
-                    postings.insert(key, Vec::new());
-                }
-                postings
-                    .get_mut(&key)
-                    .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?
-                    .try_reserve(1)
-                    .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
-                postings
-                    .get_mut(&key)
-                    .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?
-                    .push(index);
-            }
-        }
-    }
-    Ok((own, all))
-}
-
-fn collect_local_fragment_candidates(
-    query: &LocalFragment,
-    query_occurrences: &[SentenceOccurrence],
-    own: &LocalFragmentPostingIndex,
-    all: &LocalFragmentPostingIndex,
-    budget: &mut LocalFragmentBudget,
-) -> std::result::Result<Vec<usize>, LocalFragmentShadowStopReason> {
-    budget.charge_query()?;
-    let parent = local_fragment_parent(query, query_occurrences)?;
-    let role = parent
-        .role
-        .map(OccurrenceRole::from)
-        .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
-    let tokens = local_fragment_tokens(query, query_occurrences)?;
-    let query_depth = sentence_edge_signature_depth(tokens.len())
-        .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
-    let mut candidates = Vec::new();
-    for depth in 1..=query_depth {
-        let (prefix, suffix) = local_fragment_signatures(tokens, depth)
+        budget.charge_signature_token_steps(
+            signature_depth
+                .checked_mul(2)
+                .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?,
+        )?;
+        let (prefix, suffix) = local_fragment_signatures(tokens, signature_depth)
             .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
         for signature in [prefix, suffix]
             .into_iter()
             .take(usize::from(prefix != suffix) + 1)
         {
-            let key = LocalFragmentSignatureKey {
-                orientation: local_fragment_orientation_key(query.orientation),
+            budget.charge_temporary_signature_keys(1)?;
+            keys.try_reserve(1)
+                .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+            keys.push(LocalFragmentSignatureKey {
+                orientation: local_fragment_orientation_key(fragment.orientation),
                 role,
-                depth,
+                depth: signature_depth,
                 signature,
-            };
-            for postings in [
-                own.get(&key),
-                (depth == query_depth).then(|| all.get(&key)).flatten(),
-            ]
-            .into_iter()
-            .flatten()
-            {
-                budget.charge_posting_visits(postings.len())?;
-                candidates
-                    .try_reserve(postings.len())
+            });
+        }
+    }
+    keys.sort_unstable();
+    keys.dedup();
+    Ok(keys)
+}
+
+fn build_local_fragment_parent_index(
+    fragments: &[LocalFragment],
+    parent_ranges: &[Range<usize>],
+    occurrences: &[SentenceOccurrence],
+    signature_depth: usize,
+    budget: &mut LocalFragmentBudget,
+) -> std::result::Result<LocalFragmentPostingIndex, LocalFragmentShadowStopReason> {
+    let mut index = HashMap::new();
+    index
+        .try_reserve(parent_ranges.len())
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    for (parent_candidate_index, parent_range) in parent_ranges.iter().cloned().enumerate() {
+        for key in local_fragment_parent_signature_keys(
+            fragments,
+            parent_range,
+            occurrences,
+            signature_depth,
+            budget,
+        )? {
+            budget.charge_postings(1)?;
+            if !index.contains_key(&key) {
+                index
+                    .try_reserve(1)
                     .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
-                candidates.extend_from_slice(postings);
+                index.insert(key, Vec::new());
             }
+            index
+                .get_mut(&key)
+                .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?
+                .try_reserve(1)
+                .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+            index
+                .get_mut(&key)
+                .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?
+                .push(parent_candidate_index);
+        }
+    }
+    Ok(index)
+}
+
+fn collect_local_fragment_parent_candidates(
+    query_fragments: &[LocalFragment],
+    query_parent_range: Range<usize>,
+    query_occurrences: &[SentenceOccurrence],
+    index: &LocalFragmentPostingIndex,
+    signature_depth: usize,
+    budget: &mut LocalFragmentBudget,
+) -> std::result::Result<Vec<usize>, LocalFragmentShadowStopReason> {
+    budget.charge_query()?;
+    let mut candidates = Vec::new();
+    for key in local_fragment_parent_signature_keys(
+        query_fragments,
+        query_parent_range,
+        query_occurrences,
+        signature_depth,
+        budget,
+    )? {
+        if let Some(postings) = index.get(&key) {
+            budget.charge_posting_visits(postings.len())?;
+            candidates
+                .try_reserve(postings.len())
+                .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+            candidates.extend_from_slice(postings);
         }
     }
     candidates.sort_unstable();
     candidates.dedup();
-    budget.charge_candidate_pairs(candidates.len())?;
+    budget.charge_parent_candidate_pairs(candidates.len())?;
     Ok(candidates)
 }
 
@@ -11367,12 +11462,16 @@ fn analyze_local_fragment_shadow_with_limits(
     limits: LocalFragmentLimits,
 ) -> LocalFragmentShadowMetrics {
     let mut budget = LocalFragmentBudget::new(limits);
+    let signature_depth = sentence_edge_signature_depth(min_tokens).unwrap_or(0);
     let result =
         (|| -> std::result::Result<LocalFragmentShadowMetrics, LocalFragmentShadowStopReason> {
             if old_candidates.len() != relations.old.len()
                 || new_candidates.len() != relations.new.len()
             {
                 return Err(LocalFragmentShadowStopReason::DiagnosticFailure);
+            }
+            if signature_depth == 0 {
+                return Err(LocalFragmentShadowStopReason::CounterOverflow);
             }
             let old_fragments = enumerate_local_fragments(
                 old_occurrences,
@@ -11386,8 +11485,17 @@ fn analyze_local_fragment_shadow_with_limits(
                 min_tokens,
                 &mut budget,
             )?;
-            let (new_own, new_all) =
-                build_local_fragment_index(&new_fragments, new_occurrences, &mut budget)?;
+            let old_parent_ranges =
+                local_fragment_parent_ranges(&old_fragments, old_candidates.len())?;
+            let new_parent_ranges =
+                local_fragment_parent_ranges(&new_fragments, new_candidates.len())?;
+            let new_parent_index = build_local_fragment_parent_index(
+                &new_fragments,
+                &new_parent_ranges,
+                new_occurrences,
+                signature_depth,
+                &mut budget,
+            )?;
             let mut old_relations = Vec::new();
             let mut new_relations = Vec::new();
             old_relations
@@ -11402,47 +11510,70 @@ fn analyze_local_fragment_shadow_with_limits(
             let mut nonexact_pairs = 0usize;
             let mut qualified_pairs = 0usize;
             let mut qualified_nonexact = Vec::new();
-            for (old_index, old) in old_fragments.iter().enumerate() {
-                for new_index in collect_local_fragment_candidates(
-                    old,
+            for old_parent_range in &old_parent_ranges {
+                if old_parent_range.start == old_parent_range.end {
+                    continue;
+                }
+                let new_parent_candidates = collect_local_fragment_parent_candidates(
+                    &old_fragments,
+                    old_parent_range.clone(),
                     old_occurrences,
-                    &new_own,
-                    &new_all,
+                    &new_parent_index,
+                    signature_depth,
                     &mut budget,
-                )? {
-                    let new = new_fragments
-                        .get(new_index)
+                )?;
+                for new_parent_index in new_parent_candidates {
+                    let new_parent_range = new_parent_ranges
+                        .get(new_parent_index)
+                        .cloned()
                         .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
-                    let Some(score) = score_local_fragment_pair(
-                        old,
-                        new,
-                        old_occurrences,
-                        new_occurrences,
-                        &mut budget,
-                    )?
-                    else {
-                        continue;
-                    };
-                    old_relations[old_index].record_eligible_with_scope(new_index, score, None);
-                    new_relations[new_index].record_eligible_with_scope(old_index, score, None);
-                    if score >= MIN_NEAR_SCORE {
-                        qualified_pairs = qualified_pairs
-                            .checked_add(1)
-                            .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
-                        if local_fragment_tokens(old, old_occurrences)?
-                            == local_fragment_tokens(new, new_occurrences)?
-                        {
-                            exact_pairs = exact_pairs
+                    for old_index in old_parent_range.clone() {
+                        let old = old_fragments
+                            .get(old_index)
+                            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+                        for new_index in new_parent_range.clone() {
+                            let new = new_fragments
+                                .get(new_index)
+                                .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+                            if old.orientation != new.orientation {
+                                continue;
+                            }
+                            budget.charge_candidate_pairs(1)?;
+                            let Some(score) = score_local_fragment_pair(
+                                old,
+                                new,
+                                old_occurrences,
+                                new_occurrences,
+                                &mut budget,
+                            )?
+                            else {
+                                continue;
+                            };
+                            old_relations[old_index]
+                                .record_eligible_with_scope(new_index, score, None);
+                            new_relations[new_index]
+                                .record_eligible_with_scope(old_index, score, None);
+                            if score < MIN_NEAR_SCORE {
+                                continue;
+                            }
+                            qualified_pairs = qualified_pairs
                                 .checked_add(1)
                                 .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
-                        } else {
-                            nonexact_pairs = nonexact_pairs
-                                .checked_add(1)
-                                .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
-                            qualified_nonexact
-                                .try_reserve(1)
-                                .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
-                            qualified_nonexact.push((old_index, new_index, score));
+                            if local_fragment_tokens(old, old_occurrences)?
+                                == local_fragment_tokens(new, new_occurrences)?
+                            {
+                                exact_pairs = exact_pairs
+                                    .checked_add(1)
+                                    .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+                            } else {
+                                nonexact_pairs = nonexact_pairs
+                                    .checked_add(1)
+                                    .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+                                qualified_nonexact.try_reserve(1).map_err(|_| {
+                                    LocalFragmentShadowStopReason::AllocationFailure
+                                })?;
+                                qualified_nonexact.push((old_index, new_index, score));
+                            }
                         }
                     }
                 }
@@ -11630,6 +11761,8 @@ fn analyze_local_fragment_shadow_with_limits(
                 complete: true,
                 stop_reason: None,
                 work: LocalFragmentShadowWorkMetrics::default(),
+                min_tokens,
+                signature_depth,
                 old_eligible_parents: old_candidates
                     .iter()
                     .filter(|candidate| {
@@ -11669,6 +11802,7 @@ fn analyze_local_fragment_shadow_with_limits(
                 index_posting_items: budget.postings,
                 queries: budget.queries,
                 posting_visits: budget.posting_visits,
+                parent_candidate_pairs: budget.parent_candidate_pairs,
                 candidate_pairs: budget.candidate_pairs,
                 exact_edge_rechecks: budget.candidate_pairs,
                 similarity_comparisons: budget.comparisons,
@@ -11697,6 +11831,8 @@ fn analyze_local_fragment_shadow_with_limits(
             complete: false,
             stop_reason: Some(reason),
             work,
+            min_tokens,
+            signature_depth,
             ..LocalFragmentShadowMetrics::default()
         },
     }
@@ -11720,6 +11856,8 @@ fn record_local_fragment_shadow(
         LocalFragmentShadowMetrics {
             complete: false,
             stop_reason: Some(LocalFragmentShadowStopReason::CandidateGenerationIncomplete),
+            min_tokens,
+            signature_depth: sentence_edge_signature_depth(min_tokens).unwrap_or(0),
             ..LocalFragmentShadowMetrics::default()
         }
     } else if let Some(eligible_tokens) = old_candidates
@@ -11735,10 +11873,12 @@ fn record_local_fragment_shadow(
             total.checked_add(parent.tokens.len())
         })
     {
-        let Some(limits) = LocalFragmentLimits::for_tokens(eligible_tokens) else {
+        let Some(limits) = LocalFragmentLimits::for_tokens(eligible_tokens, min_tokens) else {
             diagnostics.metrics.local_fragment_shadow = Some(LocalFragmentShadowMetrics {
                 complete: false,
                 stop_reason: Some(LocalFragmentShadowStopReason::CounterOverflow),
+                min_tokens,
+                signature_depth: sentence_edge_signature_depth(min_tokens).unwrap_or(0),
                 ..LocalFragmentShadowMetrics::default()
             });
             return;
@@ -11756,6 +11896,8 @@ fn record_local_fragment_shadow(
         LocalFragmentShadowMetrics {
             complete: false,
             stop_reason: Some(LocalFragmentShadowStopReason::CounterOverflow),
+            min_tokens,
+            signature_depth: sentence_edge_signature_depth(min_tokens).unwrap_or(0),
             ..LocalFragmentShadowMetrics::default()
         }
     });
@@ -28624,6 +28766,15 @@ mod tests {
         new: Vec<SentenceOccurrence>,
         limits: LocalFragmentLimits,
     ) -> LocalFragmentShadowMetrics {
+        local_fragment_analysis_metrics_with_min_tokens(old, new, 8, limits)
+    }
+
+    fn local_fragment_analysis_metrics_with_min_tokens(
+        old: Vec<SentenceOccurrence>,
+        new: Vec<SentenceOccurrence>,
+        min_tokens: usize,
+        limits: LocalFragmentLimits,
+    ) -> LocalFragmentShadowMetrics {
         let old_candidates = (0..old.len())
             .map(|occurrence_index| RecoveryCandidate {
                 occurrence_index,
@@ -28644,7 +28795,7 @@ mod tests {
             &old_candidates,
             &new_candidates,
             &relations,
-            8,
+            min_tokens,
             limits,
         )
     }
@@ -28664,6 +28815,234 @@ mod tests {
         }
     }
 
+    fn test_local_fragment(
+        parent_candidate_index: usize,
+        orientation: LocalFragmentOrientation,
+        token_range: Range<usize>,
+    ) -> LocalFragment {
+        LocalFragment {
+            parent_candidate_index,
+            parent_occurrence_index: parent_candidate_index,
+            orientation,
+            byte_range: token_range.clone(),
+            token_range,
+        }
+    }
+
+    fn edge_gate_accepts(old: &[SentenceEvidenceToken], new: &[SentenceEvidenceToken]) -> bool {
+        let shorter = old.len().min(new.len());
+        let prefix = old
+            .iter()
+            .zip(new)
+            .take_while(|(old, new)| old == new)
+            .count();
+        let suffix = old
+            .iter()
+            .rev()
+            .zip(new.iter().rev())
+            .take(shorter.saturating_sub(prefix))
+            .take_while(|(old, new)| old == new)
+            .count();
+        basis_points(prefix + suffix, shorter)
+            .is_some_and(|score| score >= MIN_WORD_SCORE_EDGE_EVIDENCE)
+    }
+
+    #[test]
+    fn local_fragment_parent_index_has_no_edge_gate_false_negatives() {
+        const MIN_TOKENS: usize = 2;
+        let mut occurrences = Vec::new();
+        let mut fragments = Vec::new();
+        for token_count in 3..=7 {
+            for bits in 0..(1usize << token_count) {
+                let parent_index = occurrences.len();
+                let text = (0..token_count)
+                    .map(|bit| if bits & (1 << bit) == 0 { 'a' } else { 'b' })
+                    .collect::<String>();
+                occurrences.push(local_fragment_parent(
+                    &text,
+                    parent_index as u64 + 1,
+                    parent_index,
+                ));
+                for token_end in MIN_TOKENS..token_count {
+                    fragments.push(test_local_fragment(
+                        parent_index,
+                        LocalFragmentOrientation::Prefix,
+                        0..token_end,
+                    ));
+                }
+                for token_start in 1..=token_count - MIN_TOKENS {
+                    fragments.push(test_local_fragment(
+                        parent_index,
+                        LocalFragmentOrientation::Suffix,
+                        token_start..token_count,
+                    ));
+                }
+            }
+        }
+        let ranges = local_fragment_parent_ranges(&fragments, occurrences.len())
+            .expect("parent ranges build");
+        let signature_depth = sentence_edge_signature_depth(MIN_TOKENS).expect("depth fits");
+        assert_eq!(signature_depth, 1);
+        let mut budget = LocalFragmentBudget::new(
+            LocalFragmentLimits::for_tokens(1_000_000, MIN_TOKENS).expect("limits fit"),
+        );
+        let index = build_local_fragment_parent_index(
+            &fragments,
+            &ranges,
+            &occurrences,
+            signature_depth,
+            &mut budget,
+        )
+        .expect("index builds");
+
+        for (old_parent, old_range) in ranges.iter().cloned().enumerate() {
+            let candidates = collect_local_fragment_parent_candidates(
+                &fragments,
+                old_range.clone(),
+                &occurrences,
+                &index,
+                signature_depth,
+                &mut budget,
+            )
+            .expect("query succeeds");
+            for (new_parent, new_range) in ranges.iter().cloned().enumerate() {
+                let retained = old_range.clone().any(|old_index| {
+                    new_range.clone().any(|new_index| {
+                        let old = &fragments[old_index];
+                        let new = &fragments[new_index];
+                        old.orientation == new.orientation
+                            && edge_gate_accepts(
+                                local_fragment_tokens(old, &occurrences).expect("old tokens exist"),
+                                local_fragment_tokens(new, &occurrences).expect("new tokens exist"),
+                            )
+                    })
+                });
+                assert!(
+                    !retained || candidates.binary_search(&new_parent).is_ok(),
+                    "edge-retained parent pair {old_parent}->{new_parent} is missing; old_len={}, new_len={}",
+                    occurrences[old_parent].tokens.len(),
+                    occurrences[new_parent].tokens.len(),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn local_fragment_edge_recheck_keeps_the_three_thousand_boundary() {
+        let old_occurrences = [local_fragment_parent("abcdefghij", 1, 1)];
+        let new_occurrences = [local_fragment_parent("abcXXXXXXX", 2, 2)];
+        let old = test_local_fragment(0, LocalFragmentOrientation::Prefix, 0..10);
+        let new = test_local_fragment(0, LocalFragmentOrientation::Prefix, 0..10);
+        let mut budget = LocalFragmentBudget::new(
+            LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit"),
+        );
+        assert!(
+            score_local_fragment_pair(&old, &new, &old_occurrences, &new_occurrences, &mut budget,)
+                .expect("score succeeds")
+                .is_some()
+        );
+
+        let new_occurrences = [local_fragment_parent("abXXXXXXXX", 3, 3)];
+        assert!(
+            score_local_fragment_pair(&old, &new, &old_occurrences, &new_occurrences, &mut budget,)
+                .expect("score succeeds")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn local_fragment_signature_collision_only_adds_sorted_candidates() {
+        let old_occurrences = [local_fragment_parent("aaaaaaaaaa", 1, 1)];
+        let new_occurrences = [
+            local_fragment_parent("zzzzzzzzzz", 2, 2),
+            local_fragment_parent("yyyyyyyyyy", 3, 3),
+        ];
+        let old_fragments = [test_local_fragment(
+            0,
+            LocalFragmentOrientation::Prefix,
+            0..9,
+        )];
+        let new_fragments = [
+            test_local_fragment(0, LocalFragmentOrientation::Prefix, 0..9),
+            test_local_fragment(1, LocalFragmentOrientation::Prefix, 0..9),
+        ];
+        let signature_depth = sentence_edge_signature_depth(8).expect("depth fits");
+        let mut budget = LocalFragmentBudget::new(
+            LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit"),
+        );
+        let key = local_fragment_parent_signature_keys(
+            &old_fragments,
+            0..1,
+            &old_occurrences,
+            signature_depth,
+            &mut budget,
+        )
+        .expect("keys build")[0];
+        let index = HashMap::from([(key, vec![1, 0, 1])]);
+        let candidates = collect_local_fragment_parent_candidates(
+            &old_fragments,
+            0..1,
+            &old_occurrences,
+            &index,
+            signature_depth,
+            &mut budget,
+        )
+        .expect("query succeeds");
+        assert_eq!(candidates, vec![0, 1]);
+        assert!(candidates.into_iter().all(|candidate| {
+            score_local_fragment_pair(
+                &old_fragments[0],
+                &new_fragments[candidate],
+                &old_occurrences,
+                &new_occurrences,
+                &mut budget,
+            )
+            .expect("score succeeds")
+            .is_none()
+        }));
+    }
+
+    #[test]
+    fn local_fragment_parent_index_does_not_cross_orientations() {
+        let old_occurrences = [local_fragment_parent("aaaaaaaaaa", 1, 1)];
+        let new_occurrences = [local_fragment_parent("aaaaaaaaaa", 2, 2)];
+        let old_fragments = [test_local_fragment(
+            0,
+            LocalFragmentOrientation::Prefix,
+            0..9,
+        )];
+        let new_fragments = [test_local_fragment(
+            0,
+            LocalFragmentOrientation::Suffix,
+            1..10,
+        )];
+        let signature_depth = sentence_edge_signature_depth(8).expect("depth fits");
+        let new_ranges = local_fragment_parent_ranges(&new_fragments, 1).expect("ranges build");
+        let mut budget = LocalFragmentBudget::new(
+            LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit"),
+        );
+        let index = build_local_fragment_parent_index(
+            &new_fragments,
+            &new_ranges,
+            &new_occurrences,
+            signature_depth,
+            &mut budget,
+        )
+        .expect("index builds");
+        assert!(
+            collect_local_fragment_parent_candidates(
+                &old_fragments,
+                0..1,
+                &old_occurrences,
+                &index,
+                signature_depth,
+                &mut budget,
+            )
+            .expect("query succeeds")
+            .is_empty()
+        );
+    }
+
     #[test]
     fn local_fragment_shadow_finds_sp_shaped_suffix_comma_deletion() {
         let old = local_fragment_parent("  toolkitrequirement,", 1, 63);
@@ -28671,11 +29050,14 @@ mod tests {
         let metrics = local_fragment_analysis(
             vec![old],
             vec![new],
-            LocalFragmentLimits::for_tokens(10_000).expect("limits fit"),
+            LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit"),
         )
         .expect("shadow completes");
 
         assert!(metrics.complete);
+        assert_eq!(metrics.min_tokens, 8);
+        assert_eq!(metrics.signature_depth, 2);
+        assert!(metrics.parent_candidate_pairs >= 1);
         let best = metrics
             .best_sampled_suffix_nonexact_pair
             .expect("suffix non-exact pair exists");
@@ -28701,7 +29083,7 @@ mod tests {
         let metrics = local_fragment_analysis(
             vec![old],
             vec![new],
-            LocalFragmentLimits::for_tokens(10_000).expect("limits fit"),
+            LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit"),
         )
         .expect("shadow completes");
 
@@ -28721,7 +29103,7 @@ mod tests {
         let metrics = local_fragment_analysis(
             vec![old],
             vec![new_a, new_b],
-            LocalFragmentLimits::for_tokens(10_000).expect("limits fit"),
+            LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit"),
         )
         .expect("shadow completes");
 
@@ -28744,7 +29126,7 @@ mod tests {
         let metrics = local_fragment_analysis(
             vec![line, unmapped, missing],
             vec![eligible],
-            LocalFragmentLimits::for_tokens(10_000).expect("limits fit"),
+            LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit"),
         )
         .expect("shadow completes");
 
@@ -28761,7 +29143,7 @@ mod tests {
         let metrics = local_fragment_analysis(
             vec![old],
             vec![new],
-            LocalFragmentLimits::for_tokens(10_000).expect("limits fit"),
+            LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit"),
         )
         .expect("shadow completes");
         assert_eq!(metrics.candidate_pairs, 0);
@@ -28770,8 +29152,9 @@ mod tests {
         let new = local_fragment_parent("  The toolkit remains useful today.", 2, 2);
         let old_occurrences = [old];
         let new_occurrences = [new];
-        let mut budget =
-            LocalFragmentBudget::new(LocalFragmentLimits::for_tokens(10_000).expect("limits fit"));
+        let mut budget = LocalFragmentBudget::new(
+            LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit"),
+        );
         let old_fragments = enumerate_local_fragments(
             &old_occurrences,
             &[RecoveryCandidate {
@@ -28792,18 +29175,27 @@ mod tests {
             &mut budget,
         )
         .expect("new fragments enumerate");
-        let (own, all) = build_local_fragment_index(&new_fragments, &new_occurrences, &mut budget)
-            .expect("index builds");
-        let prefix = old_fragments
-            .iter()
-            .find(|fragment| fragment.orientation == LocalFragmentOrientation::Prefix)
-            .expect("prefix exists");
-        let candidates =
-            collect_local_fragment_candidates(prefix, &old_occurrences, &own, &all, &mut budget)
-                .expect("query succeeds");
-        assert!(candidates.iter().all(|index| {
-            new_fragments[*index].orientation == LocalFragmentOrientation::Prefix
-        }));
+        let signature_depth = sentence_edge_signature_depth(8).expect("depth fits");
+        let old_ranges = local_fragment_parent_ranges(&old_fragments, 1).expect("ranges build");
+        let new_ranges = local_fragment_parent_ranges(&new_fragments, 1).expect("ranges build");
+        let index = build_local_fragment_parent_index(
+            &new_fragments,
+            &new_ranges,
+            &new_occurrences,
+            signature_depth,
+            &mut budget,
+        )
+        .expect("index builds");
+        let candidates = collect_local_fragment_parent_candidates(
+            &old_fragments,
+            old_ranges[0].clone(),
+            &old_occurrences,
+            &index,
+            signature_depth,
+            &mut budget,
+        )
+        .expect("query succeeds");
+        assert_eq!(candidates, vec![0]);
     }
 
     #[test]
@@ -28825,7 +29217,7 @@ mod tests {
         let new = local_fragment_parent("           The toolkit remains useful today.", 2, 2);
         let limits = LocalFragmentLimits {
             enumeration: 1,
-            ..LocalFragmentLimits::for_tokens(10_000).expect("limits fit")
+            ..LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit")
         };
         let stopped = local_fragment_analysis_metrics(vec![old], vec![new], limits);
         assert_eq!(
@@ -28854,5 +29246,91 @@ mod tests {
             .expect("shadow exists");
         assert_eq!(actual.reciprocal_pairs, 0);
         assert!(actual.best_sampled_nonexact_pair.is_none());
+
+        for (limits, reason) in [
+            (
+                LocalFragmentLimits {
+                    signature_token_steps: 0,
+                    ..LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit")
+                },
+                LocalFragmentShadowStopReason::SignatureTokenStepLimit,
+            ),
+            (
+                LocalFragmentLimits {
+                    temporary_signature_keys: 0,
+                    ..LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit")
+                },
+                LocalFragmentShadowStopReason::TemporarySignatureKeyLimit,
+            ),
+        ] {
+            let old = local_fragment_parent("  The toolkit, remains useful today.", 1, 1);
+            let new = local_fragment_parent("           The toolkit remains useful today.", 2, 2);
+            let stopped = local_fragment_analysis_metrics(vec![old], vec![new], limits);
+            assert_eq!(stopped.stop_reason, Some(reason));
+            assert_eq!(stopped.min_tokens, 8);
+            assert_eq!(stopped.signature_depth, 2);
+            assert_eq!(stopped.reciprocal_pairs, 0);
+            assert!(stopped.best_sampled_nonexact_pair.is_none());
+            match reason {
+                LocalFragmentShadowStopReason::SignatureTokenStepLimit => {
+                    assert_eq!(stopped.work.signature_token_steps_examined, 0);
+                    assert_eq!(stopped.work.signature_token_steps_attempted, 4);
+                    assert_eq!(stopped.work.temporary_signature_keys_attempted, 0);
+                }
+                LocalFragmentShadowStopReason::TemporarySignatureKeyLimit => {
+                    assert_eq!(stopped.work.signature_token_steps_examined, 4);
+                    assert_eq!(stopped.work.signature_token_steps_attempted, 4);
+                    assert_eq!(stopped.work.temporary_signature_keys_examined, 0);
+                    assert_eq!(stopped.work.temporary_signature_keys_attempted, 1);
+                }
+                _ => unreachable!("the fixture only covers signature stages"),
+            }
+        }
+
+        let old = local_fragment_parent("  The toolkit, remains useful today.", 1, 1);
+        let new = local_fragment_parent("           The toolkit remains useful today.", 2, 2);
+        let limits = LocalFragmentLimits {
+            parent_candidate_pairs: 0,
+            ..LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit")
+        };
+        let stopped = local_fragment_analysis_metrics(vec![old], vec![new], limits);
+        assert_eq!(
+            stopped.stop_reason,
+            Some(LocalFragmentShadowStopReason::ParentCandidatePairLimit)
+        );
+        assert_eq!(stopped.work.parent_candidate_pairs_examined, 0);
+        assert!(stopped.work.parent_candidate_pairs_attempted > 0);
+        assert_eq!(stopped.reciprocal_pairs, 0);
+        assert!(stopped.best_sampled_nonexact_pair.is_none());
+    }
+
+    #[test]
+    fn local_fragment_signature_work_limit_is_linear_in_eligible_tokens() {
+        const MIN_TOKENS: usize = 200;
+        let text = format!("{}a", "a ".repeat(MIN_TOKENS));
+        let old = local_fragment_parent(&text, 1, 1);
+        let new = local_fragment_parent(&text, 2, 2);
+        let eligible_tokens = old.tokens.len() + new.tokens.len();
+        let limits =
+            LocalFragmentLimits::for_tokens(eligible_tokens, MIN_TOKENS).expect("limits fit");
+        assert_eq!(limits.signature_token_steps, eligible_tokens * 16);
+
+        let stopped = local_fragment_analysis_metrics_with_min_tokens(
+            vec![old],
+            vec![new],
+            MIN_TOKENS,
+            limits,
+        );
+        assert_eq!(
+            stopped.stop_reason,
+            Some(LocalFragmentShadowStopReason::SignatureTokenStepLimit)
+        );
+        assert_eq!(
+            stopped.work.signature_token_steps_examined,
+            limits.signature_token_steps / 60 * 60
+        );
+        assert!(stopped.work.signature_token_steps_attempted > limits.signature_token_steps);
+        assert_eq!(stopped.reciprocal_pairs, 0);
+        assert!(stopped.best_sampled_nonexact_pair.is_none());
     }
 }
