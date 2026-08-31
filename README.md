@@ -358,7 +358,7 @@ files without overwriting existing destinations). If the second publication fail
 exit code 2 is returned and the first published artifact remains in place without
 pairwise rollback across distinct paths. Dated compact evaluation summaries are
 recorded under [`benchmark/realworld/results/`](benchmark/realworld/results/README.md)
-(latest: [`2026-08-31-c4cc1cd.json`](benchmark/realworld/results/2026-08-31-c4cc1cd.json)).
+(latest: [`2026-08-31-cda68bf.json`](benchmark/realworld/results/2026-08-31-cda68bf.json)).
 
 ## License
 
@@ -442,6 +442,8 @@ Text reports are written to standard output as contextual unified-diff hunks: a 
   The [`10e921f`](benchmark/realworld/results/2026-08-31-10e921f.json) schema-v37 capture adds bounded quote-local exact diagnostics without changing any schema-v36 comparison, quality, candidate, or existing diagnostic field. Quote-local diagnostics complete without a stop in all eight recovery-watch reports, producing ten available pairs. The unresolved SP 800-57 toolkit counterpart scores 10,000 locally and reduces to one exact comma deletion, while its parent Sentence relation remains non-reciprocal. This supports an annotation-independent local-fragment candidate shadow, not immediate recovery or looser thresholds.
 
   The [`c4cc1cd`](benchmark/realworld/results/2026-08-31-c4cc1cd.json) schema-v38 capture adds that annotation-independent local-fragment shadow without changing any schema-v37 comparison, quality, candidate, or existing diagnostic field. It is present on 18 recovery builds; two complete with no eligible parent, while all 16 non-empty builds stop atomically under actual-input-proportional traversal limits (six at index postings and ten at similarity comparisons). No partial relation set is published. Under the current budgets, the all-boundaries expansion is not a production candidate; the next planned shadow narrows parent Sentence pairs before fragment enumeration.
+
+  The [`cda68bf`](benchmark/realworld/results/2026-08-31-cda68bf.json) schema-v39 capture replaces global fragment postings with fixed-minimum-depth parent and word-boundary signatures without changing any schema-v38 comparison, quality, candidate, or existing diagnostic field. Across the same 18 builds, postings fall from 16,574,884 to 349,740, queries fall from 5,480 fragment-level queries to 30 parent-level queries, and posting visits fall from 693,791 to 89,926. The two empty builds complete; the 16 non-empty builds still stop atomically because 12,842 admitted parent pairs expand to 9,874,942 same-orientation fragment pairs. The next shadow must enumerate boundary-signature fragment pairs inside each admitted parent instead of taking their Cartesian product.
 
 ## Contributing
 

@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`c4cc1cd`](https://github.com/hayatosc/pdfdelta/commit/c4cc1cd)
+- **Generator / engine commit**: [`cda68bf`](https://github.com/hayatosc/pdfdelta/commit/cda68bf)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-c4cc1cd.json`](2026-08-31-c4cc1cd.json)
-  - Schema: v38
-  - Size: 1,553,418 bytes
-  - SHA-256: `a7735424cf1619695e51e3544bdfae3cdcee5d2f877a5c824916916dc94f616d`
+  - File: [`2026-08-31-cda68bf.json`](2026-08-31-cda68bf.json)
+  - Schema: v39
+  - Size: 1,561,038 bytes
+  - SHA-256: `e1b5a6de2e8455a1b9c712c0fd93b055624da0df767d6985959aa27fa8843ddf`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -27,7 +27,7 @@ mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
   /tmp/pdfdelta-reproduced-summary.json \
-benchmark/realworld/results/2026-08-31-c4cc1cd.json
+  benchmark/realworld/results/2026-08-31-cda68bf.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -38,9 +38,9 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-08-31-10e921f.json \
   benchmark/realworld/results/2026-08-31-c4cc1cd.json \
-  local_fragment_shadow
+  benchmark/realworld/results/2026-08-31-cda68bf.json \
+  --ignore-field local_fragment_shadow
 ```
 
 When reviewed annotations changed between captures, exclude only those named
@@ -88,23 +88,29 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 
-Schema v38 is behavior-neutral relative to schema v37. Removing only
+Schema v39 is behavior-neutral relative to schema v38. Removing only
 `sentence_recovery_metrics.local_fragment_shadow` and `schema_version`
 produces exact parity for every prior comparison, quality, candidate,
 recovery-diagnostic, and scoped metric field.
 
 The annotation-independent local-fragment shadow is available on 18 recovery
 builds. Two complete with no eligible one-sided Sentence parent. Every non-empty
-build stops atomically: six at the index-posting limit and ten at the
-similarity-comparison limit. The stopped reports retain 752,802 examined
-fragment-enumeration units, 16,574,884 posting items, 688,905 candidate pairs,
-and 33,108,988 examined comparisons, while discarding all partial relation sets
-and samples. Fragments are range-backed into their parents. The traversal
-limits that stop these runs scale with actual eligible input rather than a
-configured global maximum. Under the current budgets, this all-boundaries
-expansion is not a production candidate; the next planned shadow will narrow
-parent Sentence pairs before enumerating or scoring their word-boundary
-fragments.
+build still stops atomically: ten at the fragment-candidate-pair limit and six
+at the similarity-comparison limit. Fixed-minimum-depth parent and word-boundary
+signatures reduce examined postings from 16,574,884 in schema v38 to 349,740,
+queries from 5,480 fragment-level queries to 30 parent-level queries, and
+posting visits from 693,791 to 89,926.
+Those 30 queries admit 12,842 parent pairs, whose same-orientation fragment
+Cartesian products then expand to 9,874,942 examined fragment pairs and
+33,437,861 comparisons. Stopped reports retain configuration and bounded work
+only; they discard every partial relation set and sample.
+
+The parent-first primitive therefore removes the global posting bottleneck but
+does not yet make a non-empty real-corpus analysis complete. The next safe
+candidate-generation change is to use the same fixed-depth boundary signatures
+inside each admitted parent pair, so only fragment pairs that can pass the edge
+gate reach exact recheck. No recovery behavior or threshold should change until
+that shadow completes and preserves the exhaustive fragment relation set.
 
 The preceding schema-v37 quote-local diagnostics complete without a stop in
 all eight recovery-watch reports. Their ten watched Sentence pairs are all
@@ -117,10 +123,10 @@ and a small exact content edit: one comma is deleted. Its enclosing Sentence
 pair still scores 2,347 and is non-reciprocal because both parents have tied
 10,000-point competitors. Other missed local evidence is either exact unchanged
 text, lacks a recovery location, or has a very low score and large edit.
-Schema v38 shows that the current all-boundaries implementation does not finish
-within its input-proportional traversal budgets. Parent-level candidate
-narrowing is the next shadow to validate before reciprocal fragment evidence
-can influence recovery behavior.
+Schema v39 shows that parent-level narrowing alone does not finish within its
+input-proportional traversal budgets. Boundary-level candidate enumeration
+inside admitted parents is required before reciprocal fragment evidence can
+influence recovery behavior.
 
 The original arXiv, W3C, and BIS scoped-complete metrics are unchanged from
 `27f096e`.
@@ -342,17 +348,20 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v38)
+## Current Writer Schema (v39)
 
-The benchmark writer and latest committed capture use schema v38. Older
-captures retain their recorded schemas. Schema v38 adds the optional,
-annotation-independent local-fragment shadow described above. It records
-range-backed prefix and suffix fragments at Unicode word boundaries, exact
-edge-signature candidate work, unchanged 7,000-point relation and 500-point
-margin decisions, reciprocal non-exact counts, bounded sampled edit evidence,
-parent recovery overlap, and independent typed resource stops. A stopped
-shadow exposes only examined and attempted work; it never publishes a partial
-relation set or changes the comparison plan. Schema v37 adds bounded
+The benchmark writer and latest committed capture use schema v39. Older
+captures retain their recorded schemas. Schema v39 changes the optional,
+annotation-independent local-fragment shadow to index deduplicated parent and
+word-boundary signatures at the fixed minimum depth implied by the 3,000-point
+edge gate. It records parent candidate pairs separately from fragment pairs,
+keeps exact rechecks and the unchanged 7,000-point relation and 500-point margin
+decisions, and applies independent limits to signature token steps, temporary
+keys, postings, parent pairs, fragment pairs, comparisons, edits, and output. A
+stopped shadow exposes only immutable configuration plus examined and attempted
+work; it never publishes a partial relation set or changes the comparison plan.
+Schema v38 introduced the range-backed prefix and suffix fragment model and its
+bounded sampled edit evidence. Schema v37 adds bounded
 quote-local exact diagnostics to expected-change watches. Schema v36 adds
 diagnostic-only one-sided recovery-veto evidence to each expected-change watch.
 It records the watched side, relation availability, veto state, best and second scores, the
@@ -616,6 +625,8 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-31-c4cc1cd.json`](2026-08-31-c4cc1cd.json): schema-v38 global local-fragment indexing; all 16 non-empty builds stop before publishing relation evidence.
+- [`2026-08-31-10e921f.json`](2026-08-31-10e921f.json): schema-v37 bounded quote-local exact diagnostics before annotation-independent fragment enumeration.
 - [`2026-08-31-85c799d.json`](2026-08-31-85c799d.json): schema-v36 bounded one-sided veto provenance and the corrected SP 800-57 toolkit-footnote replacement annotation; comparison fields and complete-scope metrics remain identical to schema v35.
 - [`2026-08-31-08cc0c6.json`](2026-08-31-08cc0c6.json): schema-v35 production Direct traversal; all 18 available builds are accepted and complete. Its apparent SP 800-57 regression triggered review of the incorrect toolkit-footnote deletion expectation.
 - [`2026-08-31-447927d.json`](2026-08-31-447927d.json): schema-v34 completed reference-oracle evidence before production Direct activation.
