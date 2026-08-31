@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`426f0a5`](https://github.com/hayatosc/pdfdelta/commit/426f0a5)
+- **Generator / engine commit**: [`1dbac7f`](https://github.com/hayatosc/pdfdelta/commit/1dbac7f)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-426f0a5.json`](2026-08-31-426f0a5.json)
-  - Schema: v42
-  - Size: 1,628,693 bytes
-  - SHA-256: `2197159c84f282de74d1ee0ca326de1f3e2f577441c44b560ca8686f61081d5e`
+  - File: [`2026-08-31-1dbac7f.json`](2026-08-31-1dbac7f.json)
+  - Schema: v43
+  - Size: 1,683,230 bytes
+  - SHA-256: `389bcb2a95f7506e6542df9790b112946009c70a937c90dcb4eb13bdeeabaf80`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -27,7 +27,7 @@ mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
   /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-31-426f0a5.json
+  benchmark/realworld/results/2026-08-31-1dbac7f.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -38,9 +38,9 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-08-31-7d34d52.json \
   benchmark/realworld/results/2026-08-31-426f0a5.json \
-  local_fragment_length_aware_shadow
+  benchmark/realworld/results/2026-08-31-1dbac7f.json \
+  local_fragment_global_length_aware_shadow
 ```
 
 When reviewed annotations changed between captures, exclude only those named
@@ -88,10 +88,49 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 
+Schema v43 is behavior-neutral relative to schema v42. Removing only
+`sentence_recovery_metrics.local_fragment_global_length_aware_shadow` and
+`schema_version` produces exact parity for every prior comparison, quality,
+candidate, recovery-diagnostic, and scoped metric field.
+
+The global length-aware local-fragment shadow removes the new-parent identity
+from boundary-signature keys. It performs one boundary query per old fragment,
+then filters each posting by the parent candidates admitted by the unchanged
+parent index. Four canonical SHA-256 streams compare fixed-depth and
+length-aware candidates and retained pairs with the parent-scoped schema-v42
+shadow. All available cross-sibling fingerprints match, including pair order.
+
+The shadow is present on all 18 recovery builds. The same three builds complete:
+arXiv and Korean W-4 have no eligible fragment, and IRS 1040 is the only
+non-empty complete build. The other 15 now stop atomically at the exact
+edge-recheck comparison limit. The seven former query-limit stops are gone.
+
+Across all bounded work, query count falls from 20,489,679 in the parent-scoped
+shadow to 42,147 in the global shadow, a 99.79% reduction. The stopped builds
+reach much farther into candidate rechecking, so their other cumulative work
+counters are not like-for-like totals: posting visits rise from 29,508,426 to
+43,839,878, candidate union from 26,535,350 to 39,453,324, and exact
+comparisons from 235,378,311 to 343,335,669. This is evidence that query
+repetition is removed and the next limiting stage is exposed, not evidence that
+the complete algorithm performs more work.
+
+On the complete IRS 1040 build, parent-scoped and global work are directly
+comparable. Total queries fall from 2,010 to 215, an 89.30% reduction; 208 are
+global boundary queries and seven are parent-admission queries. Both paths
+visit 6,497 postings, submit 6,007 candidates, perform 123,765 exact
+comparisons, and retain the same 1,725 pairs in the same order. The global
+capacity estimate falls from 1,548,320 to 1,396,000 bytes, and logical bytes
+fall from 948,856 to 820,536.
+
+This remains behavior-neutral evidence and is not sufficient to connect global
+traversal to recovery behavior. Production use must wait until complete prose
+results exist. The next shadow should avoid repeating exact edge comparisons
+for length-aware candidates already rechecked by the fixed-depth parity path,
+without changing thresholds, candidate order, or atomic stop behavior.
+
 Schema v42 is behavior-neutral relative to schema v41. Removing only
 `sentence_recovery_metrics.local_fragment_length_aware_shadow` and
-`schema_version`
-produces exact parity for every prior comparison, quality, candidate,
+`schema_version` produces exact parity for every prior comparison, quality, candidate,
 recovery-diagnostic, and scoped metric field.
 
 The length-aware local-fragment shadow is available on all 18 recovery builds.
@@ -653,6 +692,9 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-31-426f0a5.json`](2026-08-31-426f0a5.json): schema-v42 parent-scoped length-aware local-fragment signatures; one non-empty build completes with exact fixed-depth parity.
+- [`2026-08-31-7d34d52.json`](2026-08-31-7d34d52.json): schema-v41 exact local-fragment recheck attribution before length-aware signatures.
+- [`2026-08-31-40f8e19.json`](2026-08-31-40f8e19.json): schema-v40 fixed-depth boundary indexing before comparison-stage attribution.
 - [`2026-08-31-cda68bf.json`](2026-08-31-cda68bf.json): schema-v39 parent-first fixed-depth local-fragment indexing; all 16 non-empty builds stop before publishing relation evidence.
 - [`2026-08-31-c4cc1cd.json`](2026-08-31-c4cc1cd.json): schema-v38 global local-fragment indexing; all 16 non-empty builds stop before publishing relation evidence.
 - [`2026-08-31-10e921f.json`](2026-08-31-10e921f.json): schema-v37 bounded quote-local exact diagnostics before annotation-independent fragment enumeration.
