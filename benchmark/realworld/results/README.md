@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`40f8e19`](https://github.com/hayatosc/pdfdelta/commit/40f8e19)
+- **Generator / engine commit**: [`7d34d52`](https://github.com/hayatosc/pdfdelta/commit/7d34d52)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-40f8e19.json`](2026-08-31-40f8e19.json)
-  - Schema: v40
-  - Size: 1,568,742 bytes
-  - SHA-256: `975072df14aabe4215b0c8d58307ce0fdbce1750c1535443c4ca8937b4063038`
+  - File: [`2026-08-31-7d34d52.json`](2026-08-31-7d34d52.json)
+  - Schema: v41
+  - Size: 1,579,566 bytes
+  - SHA-256: `672a0d0ff7f723305d1044a0a34c09c6c1b2d97f52e05c67f49d9aee95c752ac`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -27,7 +27,7 @@ mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
   /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-31-40f8e19.json
+  benchmark/realworld/results/2026-08-31-7d34d52.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -38,8 +38,8 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-08-31-cda68bf.json \
   benchmark/realworld/results/2026-08-31-40f8e19.json \
+  benchmark/realworld/results/2026-08-31-7d34d52.json \
   --ignore-field local_fragment_shadow
 ```
 
@@ -88,7 +88,7 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 
-Schema v40 is behavior-neutral relative to schema v39. Removing only
+Schema v41 is behavior-neutral relative to schema v40. Removing only
 `sentence_recovery_metrics.local_fragment_shadow` and `schema_version`
 produces exact parity for every prior comparison, quality, candidate,
 recovery-diagnostic, and scoped metric field.
@@ -104,14 +104,20 @@ schema v39's 9,874,942-pair Cartesian expansion, even though v40 reaches 87,646
 admitted parent pairs instead of 12,842 before stopping.
 
 The index therefore removes the fragment-pair Cartesian bottleneck, but exact
-edge rechecks and word scoring now consume the comparison budget. The 16
-non-empty builds examine 42,939,833 comparisons before stopping; the higher
-total reflects progress through 6.82 times as many admitted parent pairs, not a
-comparison-output change. Stopped reports retain configuration and bounded work
-only and discard every partial relation set and sample. The next diagnostic must
-attribute comparison work between edge recheck and word scoring before testing
-another behavior-neutral pruning primitive; thresholds and recovery behavior
-remain unchanged.
+edge rechecks and word scoring now consume the comparison budget. Schema v41
+attributes the 42,939,833 examined comparisons without changing that shared
+limit: prefix and suffix edge scans consume 22,321,481 (51.98%), word-range
+scans consume 19,867,796 (46.27%), and word merges consume 750,556 (1.75%).
+
+Of the 2,840,902 fragment pairs whose edge scan completed, 137,413 (4.84%) pass
+the 3,000-point gate. Only 519,299 (18.28%) satisfy the weaker mathematical
+condition required by a length-aware prefix or suffix signature. An exact
+length-aware candidate primitive could therefore reject 81.72% of the current
+fixed-depth pairs before their full edge recheck, subject to separate index
+memory, collision, ordering, and resource-stop validation. The next change
+should remain a behavior-neutral shadow; thresholds and recovery behavior stay
+unchanged. Stopped reports retain configuration and bounded work only and
+discard every partial relation set and sample.
 
 The preceding schema-v37 quote-local diagnostics complete without a stop in
 all eight recovery-watch reports. Their ten watched Sentence pairs are all
@@ -125,9 +131,10 @@ pair still scores 2,347 and is non-reciprocal because both parents have tied
 10,000-point competitors. Other missed local evidence is either exact unchanged
 text, lacks a recovery location, or has a very low score and large edit.
 Schema v40 shows that fixed-depth boundary enumeration removes most candidate
-pairs but does not finish within the comparison budget. Comparison-stage work
-attribution is required before reciprocal fragment evidence can influence
-recovery behavior.
+pairs but does not finish within the comparison budget. Schema v41 supplies the
+comparison-stage attribution; the next evidence-neutral step is a length-aware
+signature shadow before reciprocal fragment evidence can influence recovery
+behavior.
 
 The original arXiv, W3C, and BIS scoped-complete metrics are unchanged from
 `27f096e`.
