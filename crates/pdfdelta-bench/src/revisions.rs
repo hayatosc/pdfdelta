@@ -5383,6 +5383,36 @@ fn validate_local_fragment_exact_boundary_trie_shadow_metrics(
         .checked_add(metrics.depth_2_to_3_candidates)
         .and_then(|value| value.checked_add(metrics.depth_4_plus_candidates))
         .ok_or_else(|| "exact-boundary trie depth counters overflow".to_owned())?;
+    let empty_record_has_counters = fragment_total == 0
+        && (metrics.work != LocalFragmentLengthAwareShadowWorkMetrics::default()
+            || [
+                metrics.parent_admission_queries,
+                metrics.global_queries,
+                metrics.compared_queries,
+                metrics.trie_nodes,
+                metrics.trie_transitions,
+                metrics.trie_token_steps,
+                metrics.trie_distinct_keys,
+                metrics.trie_estimated_bytes,
+                metrics.trie_largest_fanout,
+                metrics.hash_candidates,
+                metrics.exact_certified_candidates,
+                metrics.hash_collision_only_candidates,
+                metrics.prefix_only_candidates,
+                metrics.suffix_only_candidates,
+                metrics.both_candidates,
+                metrics.certified_tokens_credited,
+                metrics.recheck_pairs_started,
+                metrics.recheck_pairs_completed,
+                metrics.recheck_comparisons,
+                metrics.projected_avoided_comparisons,
+                metrics.retained_pairs,
+                metrics.depth_1_candidates,
+                metrics.depth_2_to_3_candidates,
+                metrics.depth_4_plus_candidates,
+            ]
+            .into_iter()
+            .any(|counter| counter != 0));
     if metrics.work.enumeration_examined != fragment_total
         || metrics.work.queries_examined != query_total
         || metrics.parent_admission_queries > metrics.old_fragments
@@ -5398,10 +5428,13 @@ fn validate_local_fragment_exact_boundary_trie_shadow_metrics(
         || metrics.recheck_pairs_completed != metrics.recheck_pairs_started
         || metrics.work.exact_recheck_comparisons_examined != metrics.recheck_comparisons
         || metrics.retained_pairs > metrics.recheck_pairs_completed
-        || metrics
-            .trie_transitions
-            .checked_add(1)
-            .is_none_or(|nodes| nodes != metrics.trie_nodes)
+        || empty_record_has_counters
+        || (fragment_total == 0 && metrics.trie_nodes != 0)
+        || (fragment_total != 0
+            && metrics
+                .trie_transitions
+                .checked_add(1)
+                .is_none_or(|nodes| nodes != metrics.trie_nodes))
         || metrics.trie_distinct_keys != metrics.trie_transitions
         || metrics.trie_token_steps < metrics.trie_transitions
         || metrics.trie_distinct_keys > metrics.work.distinct_keys_examined
@@ -12599,6 +12632,15 @@ mod tests {
         .expect("exact-boundary trie report serializes");
         assert!(serialized.get("retained_fingerprint").is_none());
 
+        let empty = LocalFragmentExactBoundaryTrieShadowMetrics {
+            complete: true,
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+        };
+        validate_local_fragment_exact_boundary_trie_shadow_metrics(Some(empty))
+            .expect("empty exact-boundary trie shadow validates without a root node");
+
         let stopped = LocalFragmentExactBoundaryTrieShadowMetrics {
             complete: false,
             stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::QueryLimit),
@@ -12725,6 +12767,34 @@ mod tests {
             ..complete
         };
         assert!(validate(observable_order_mismatch).is_ok());
+    }
+
+    #[test]
+    fn rejects_nonzero_counters_for_complete_empty_exact_boundary_trie_shadow() {
+        let empty = LocalFragmentExactBoundaryTrieShadowMetrics {
+            complete: true,
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+        };
+        for invalid in [
+            LocalFragmentExactBoundaryTrieShadowMetrics {
+                trie_token_steps: 1,
+                ..empty
+            },
+            LocalFragmentExactBoundaryTrieShadowMetrics {
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    signature_token_steps_examined: 1,
+                    signature_token_steps_attempted: 1,
+                    ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+                },
+                ..empty
+            },
+        ] {
+            assert!(
+                validate_local_fragment_exact_boundary_trie_shadow_metrics(Some(invalid)).is_err()
+            );
+        }
     }
 
     #[test]

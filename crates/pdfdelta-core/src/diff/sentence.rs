@@ -15351,6 +15351,15 @@ fn analyze_local_fragment_exact_boundary_trie_shadow_with_limits(
             min_tokens,
             &mut budget,
         )?;
+        if old_fragments.is_empty() && new_fragments.is_empty() {
+            return Ok(LocalFragmentExactBoundaryTrieShadowMetrics {
+                complete: true,
+                min_tokens,
+                fixed_depth,
+                retained_fingerprint: LocalFragmentPairStreamFingerprint::new().finish(),
+                ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+            });
+        }
         let old_ranges = length_aware_parent_ranges(&old_fragments, old_candidates.len())?;
         let new_ranges = length_aware_parent_ranges(&new_fragments, new_candidates.len())?;
         let mut trie = ExactBoundaryTrie::new(&mut budget)?;
@@ -34065,6 +34074,75 @@ mod tests {
             assert_eq!(metrics.retained_pairs, 0);
             assert_eq!(metrics.retained_fingerprint, [0; 32]);
         }
+    }
+
+    #[test]
+    fn exact_boundary_trie_empty_input_needs_no_budget_and_matches_v48() {
+        let zero_limits = LengthAwareLimits {
+            enumeration: 0,
+            signature_steps: 0,
+            posting_items: 0,
+            distinct_keys: 0,
+            estimated_bytes: 0,
+            queries: 0,
+            posting_visits: 0,
+            candidate_union: 0,
+            exact_recheck_pairs: 0,
+            exact_recheck_comparisons: 0,
+        };
+        let v48 = length_only_candidate_analysis_metrics(Vec::new(), Vec::new(), 8, zero_limits);
+        let exact = exact_boundary_trie_analysis_metrics(Vec::new(), Vec::new(), 8, zero_limits);
+        assert!(v48.complete, "{:?}", v48.stop_reason);
+        assert!(exact.complete, "{:?}", exact.stop_reason);
+        assert_eq!(
+            exact.work,
+            LocalFragmentLengthAwareShadowWorkMetrics::default()
+        );
+        assert_eq!(exact.trie_nodes, 0);
+        assert_eq!(exact.trie_transitions, 0);
+        assert_eq!(exact.trie_estimated_bytes, 0);
+        assert_eq!(exact.retained_fingerprint, v48.retained_fingerprint);
+
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics {
+                local_fragment_length_only_candidate_shadow: Some(v48),
+                local_fragment_exact_boundary_trie_shadow: Some(exact),
+                ..SentenceRecoveryMetrics::default()
+            },
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+            signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+            signature_retained_fingerprint_valid: false,
+        });
+        record_local_fragment_exact_boundary_trie_v48_parity(&mut diagnostics);
+        let exact = diagnostics
+            .expect("diagnostics remain available")
+            .metrics
+            .local_fragment_exact_boundary_trie_shadow
+            .expect("exact shadow remains available");
+        assert!(exact.v48_parity_available);
+        assert_eq!(exact.retained_count_mismatches, 0);
+        assert_eq!(exact.retained_order_mismatches, 0);
+        assert_eq!(exact.retained_fingerprint_mismatches, 0);
+    }
+
+    #[test]
+    fn exact_boundary_trie_nonempty_input_still_charges_estimated_bytes() {
+        let mut limits = length_aware_limits();
+        limits.estimated_bytes = 0;
+        let metrics = exact_boundary_trie_analysis_metrics(
+            vec![local_fragment_parent("abcdefghijklmnopqrst tail", 1, 1)],
+            vec![local_fragment_parent("abcdefghijklmnopqrst tail", 2, 2)],
+            8,
+            limits,
+        );
+        assert!(!metrics.complete);
+        assert_eq!(
+            metrics.stop_reason,
+            Some(LocalFragmentLengthAwareShadowStopReason::EstimatedByteLimit)
+        );
+        assert_eq!(metrics.work.estimated_bytes_examined, 0);
+        assert!(metrics.work.estimated_bytes_attempted > 0);
     }
 
     #[test]
