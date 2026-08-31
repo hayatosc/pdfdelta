@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-01
-- **Generator / engine commit**: [`9ce4bfe`](https://github.com/hayatosc/pdfdelta/commit/9ce4bfe)
+- **Generator / engine commit**: [`9fcaee6`](https://github.com/hayatosc/pdfdelta/commit/9fcaee6)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-01-9ce4bfe.json`](2026-09-01-9ce4bfe.json)
+  - File: [`2026-09-01-9fcaee6.json`](2026-09-01-9fcaee6.json)
   - Schema: v50
-  - Size: 1,923,800 bytes
-  - SHA-256: `075e2ad10142cd9196b5eaa20fe11dae60e632dc2872120f2a043a999b61a00e`
+  - Size: 1,926,586 bytes
+  - SHA-256: `417bd75b8357bffd094aa77529aff3679b4140af4ec7f2bc3d4688fe1a527475`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-01-9ce4bfe.json \
+cp benchmark/realworld/results/2026-09-01-9fcaee6.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 9ce4bfe
+git switch --detach 9fcaee6
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -88,32 +88,46 @@ still apply only to their recorded review items.
 
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `nist-fips-186-4-to-5` | dev | standard | 51.20% | 2,014 | 1,003 | 0.857 | 1.000 | 167.167 | 107 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.72% | 5,108 | 1,566 | 0.750 | 1.000 | 314.833 | 103 |
-| `irs-form-1040-2024-to-2025` | holdout | stress | 37.83% | 75 | 20 | 0.000 | N/A | N/A | 1 |
-| `edpb-right-of-access-v1-to-final` | holdout | standard | 74.81% | 2,091 | 477 | 0.750 | 1.000 | 175.667 | 56 |
-| `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 1.000 | 0 |
-| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.81% | 266 | 130 | 1.000 | 1.000 | 1.000 | 0 |
-| `ecma-109-ed10-to-ed11` | dev | stress | 73.27% | 369 | 78 | 0.333 | 0.000 | 78.000 | 5 |
-| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.21% | 515 | 474 | 1.000 | 1.000 | 158.000 | 65 |
+| `nist-fips-186-4-to-5` | dev | standard | 51.20% | 2,014 | 1,003 | 0.857 | 1.000 | 205.500 | 107 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.60% | 5,098 | 1,562 | 0.750 | 1.000 | 454.333 | 103 |
+| `irs-form-1040-2024-to-2025` | holdout | stress | 36.33% | 71 | 19 | 0.000 | N/A | N/A | 1 |
+| `edpb-right-of-access-v1-to-final` | holdout | standard | 74.81% | 2,091 | 477 | 0.750 | 1.000 | 277.333 | 56 |
+| `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 2.000 | 0 |
+| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 55.99% | 267 | 127 | 1.000 | 1.000 | 1.000 | 0 |
+| `ecma-109-ed10-to-ed11` | dev | stress | 73.27% | 369 | 78 | 0.333 | 0.000 | 122.000 | 5 |
+| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.10% | 515 | 473 | 1.000 | 1.000 | 166.333 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
-| `bis-operational-risk-2011-to-2021` | dev | standard | 68.12% | 656 | 351 | 1.000 | 1.000 | 1.000 | 0 |
-| `oasis-mqtt-311-to-50` | dev | standard | 30.45% | 2,307 | 1,134 | 1.000 | N/A | N/A | 0 |
-| `nist-csf-v1-1-to-v2-0` | holdout | standard | 53.22% | 788 | 648 | 0.333 | 1.000 | 648.000 | 0 |
+| `bis-operational-risk-2011-to-2021` | dev | standard | 68.12% | 656 | 351 | 1.000 | 1.000 | 14.000 | 0 |
+| `oasis-mqtt-311-to-50` | dev | standard | 30.39% | 2,307 | 1,133 | 1.000 | N/A | N/A | 0 |
+| `nist-csf-v1-1-to-v2-0` | holdout | standard | 53.22% | 788 | 648 | 0.333 | 1.000 | 668.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
 
 | Pair with a complete scope | Event P / R / F1 | Token P / R / F1 | Span IoU | FP tokens / 10k unchanged |
 |---|---:|---:|---:|---:|
 | `nist-fips-186-4-to-5` | 1.000 / 0.000 / 0.000 | 0.000 / 0.000 / 0.000 | 0.000 | N/A |
-| `nist-sp800-57-part1-r4-to-r5` | 1.000 / 0.750 / 0.857 | 0.092 / 0.664 / 0.162 | 0.088 | 6,372.166 |
-| `arxiv-attention-v6-to-v7` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
+| `nist-sp800-57-part1-r4-to-r5` | 1.000 / 0.750 / 0.857 | 1.000 / 0.895 / 0.944 | 0.895 | 0.000 |
+| `arxiv-attention-v6-to-v7` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 | `w3c-ws-policy-attach-20060927-to-20061102` | 1.000 / 1.000 / 1.000 | 0.984 / 1.000 / 0.992 | 0.984 | 68.027 |
-| `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
+| `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 
-Schema v50 is behavior-neutral relative to schema v49. Removing the
-diagnostic-only
+The latest engine resolves a recovered near relation over its full unit while
+reporting only bounded-Myers atomic edit hunks as changed spans. Diff,
+projection, or output-budget failure atomically returns the relation to
+unresolved instead of emitting a whole-unit fallback. Instrumented comparisons
+retain the exact recovered edit trace used by the public change event.
+
+Complete-scope annotations now distinguish stable relation context from one or
+more exact changed ranges. This corrected an incomplete SP 800-57 review item:
+the existing `Approved` relation contains a 31-token lead-in rewrite in addition
+to its comma deletion. With the complete atomic ranges recorded, scoped token
+precision rises from 0.092 to 1.000, recall from 0.664 to 0.895, F1 from 0.162
+to 0.944, and false-positive density falls from 6,372.166 to zero. The remaining
+four missed tokens belong to the unresolved Association punctuation change.
+
+The preceding schema-v50 capture is behavior-neutral relative to schema v49.
+Removing the diagnostic-only
 `sentence_recovery_metrics.local_fragment_flat_exact_boundary_shadow` field
 from schema v50 and removing `schema_version` produces exact parity for every
 prior comparison, quality, candidate, recovery-diagnostic, and scoped metric
@@ -1027,6 +1041,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-09-01-9ce4bfe.json`](2026-09-01-9ce4bfe.json): schema-v50 flat exact-boundary diagnostics before recovered replacements began emitting exact atomic spans.
 - [`2026-08-31-87aa0bb.json`](2026-08-31-87aa0bb.json): schema-v49 shared exact-boundary trie before flat exact-class interning.
 - [`2026-08-31-4a77cb4.json`](2026-08-31-4a77cb4.json): schema-v48 global length-aware fragment candidates before exact boundary certification.
 - [`2026-08-31-70486f2.json`](2026-08-31-70486f2.json): schema-v47 length-aware-only exact rechecks before removing the global fixed-depth fragment candidate stream.
