@@ -6970,19 +6970,29 @@ pub(super) fn build_sentence_recovery_plan(
     max_tokens: usize,
     watch_queries: &[RecoveryWatchQuery<'_>],
 ) -> Result<SentenceRecoveryBuildOutcome> {
-    let mut accepted = build_sentence_recovery_plan_with_atomic_fallback(|edge_filter_mode| {
-        build_sentence_recovery_plan_inner(
-            old,
-            new,
-            alignment,
-            input,
-            max_tokens,
-            watch_queries,
-            edge_filter_mode,
+    let mut accepted = build_sentence_recovery_plan_with_atomic_fallback(
+        (
+            SentenceEdgeFilterMode::Filtered,
             SentenceEdgeSignatureFilterMode::Disabled,
-            None,
-        )
-    })?;
+        ),
+        (
+            SentenceEdgeFilterMode::Legacy,
+            SentenceEdgeSignatureFilterMode::Disabled,
+        ),
+        |edge_filter_mode, signature_filter_mode| {
+            build_sentence_recovery_plan_inner(
+                old,
+                new,
+                alignment,
+                input,
+                max_tokens,
+                watch_queries,
+                edge_filter_mode,
+                signature_filter_mode,
+                None,
+            )
+        },
+    )?;
     if input.enable_sentence_edge_gate_shadow {
         let replay_input = SentenceRecoveryInput {
             enable_known_span_sentence_shadow: false,
@@ -7897,9 +7907,14 @@ fn sentence_recovery_plan_parity(
 }
 
 fn build_sentence_recovery_plan_with_atomic_fallback(
-    mut build: impl FnMut(SentenceEdgeFilterMode) -> Result<SentenceRecoveryBuildOutcome>,
+    first_modes: (SentenceEdgeFilterMode, SentenceEdgeSignatureFilterMode),
+    retry_modes: (SentenceEdgeFilterMode, SentenceEdgeSignatureFilterMode),
+    mut build: impl FnMut(
+        SentenceEdgeFilterMode,
+        SentenceEdgeSignatureFilterMode,
+    ) -> Result<SentenceRecoveryBuildOutcome>,
 ) -> Result<SentenceRecoveryBuildOutcome> {
-    let filtered = build(SentenceEdgeFilterMode::Filtered)?;
+    let filtered = build(first_modes.0, first_modes.1)?;
     if filtered
         .diagnostics
         .as_ref()
@@ -7916,7 +7931,7 @@ fn build_sentence_recovery_plan_with_atomic_fallback(
     // Each build retains the existing per-document limits. The fallback can
     // therefore perform at most two independently bounded recovery builds,
     // and the discarded build is dropped before allocating the retry.
-    let mut legacy = build(SentenceEdgeFilterMode::Legacy)?;
+    let mut legacy = build(retry_modes.0, retry_modes.1)?;
     match (filter_attempt, legacy.diagnostics.as_mut()) {
         (Some(filter_attempt), Some(diagnostics)) => {
             filter_attempt.apply(&mut diagnostics.metrics);
@@ -13817,10 +13832,29 @@ mod tests {
         }
     }
 
+    fn build_with_current_atomic_fallback(
+        mut build: impl FnMut(SentenceEdgeFilterMode) -> Result<SentenceRecoveryBuildOutcome>,
+    ) -> Result<SentenceRecoveryBuildOutcome> {
+        build_sentence_recovery_plan_with_atomic_fallback(
+            (
+                SentenceEdgeFilterMode::Filtered,
+                SentenceEdgeSignatureFilterMode::Disabled,
+            ),
+            (
+                SentenceEdgeFilterMode::Legacy,
+                SentenceEdgeSignatureFilterMode::Disabled,
+            ),
+            |edge_mode, signature_mode| {
+                assert_eq!(signature_mode, SentenceEdgeSignatureFilterMode::Disabled);
+                build(edge_mode)
+            },
+        )
+    }
+
     #[test]
-    fn complete_near_relation_does_not_rerun_when_filter_is_incomplete() {
+    fn complete_filtered_disabled_attempt_does_not_retry() {
         let mut modes = Vec::new();
-        let outcome = build_sentence_recovery_plan_with_atomic_fallback(|mode| {
+        let outcome = build_with_current_atomic_fallback(|mode| {
             modes.push(mode);
             Ok(fallback_test_outcome(true, 11, 12))
         })
@@ -13851,9 +13885,54 @@ mod tests {
     }
 
     #[test]
+    fn atomic_fallback_passes_distinct_first_and_retry_modes() {
+        let mut modes = Vec::new();
+        let outcome = build_sentence_recovery_plan_with_atomic_fallback(
+            (
+                SentenceEdgeFilterMode::Filtered,
+                SentenceEdgeSignatureFilterMode::Direct,
+            ),
+            (
+                SentenceEdgeFilterMode::Legacy,
+                SentenceEdgeSignatureFilterMode::Disabled,
+            ),
+            |edge_mode, signature_mode| {
+                modes.push((edge_mode, signature_mode));
+                Ok(fallback_test_outcome(
+                    edge_mode == SentenceEdgeFilterMode::Legacy,
+                    21,
+                    22,
+                ))
+            },
+        )
+        .expect("legacy retry succeeds");
+
+        assert_eq!(
+            modes,
+            [
+                (
+                    SentenceEdgeFilterMode::Filtered,
+                    SentenceEdgeSignatureFilterMode::Direct,
+                ),
+                (
+                    SentenceEdgeFilterMode::Legacy,
+                    SentenceEdgeSignatureFilterMode::Disabled,
+                ),
+            ]
+        );
+        assert!(
+            outcome
+                .diagnostics
+                .expect("legacy metrics remain")
+                .metrics
+                .sentence_edge_filter_full_build_fallback_used
+        );
+    }
+
+    #[test]
     fn incomplete_near_relation_reruns_when_filter_itself_completed() {
         let mut modes = Vec::new();
-        let outcome = build_sentence_recovery_plan_with_atomic_fallback(|mode| {
+        let outcome = build_with_current_atomic_fallback(|mode| {
             modes.push(mode);
             let mut outcome = match mode {
                 SentenceEdgeFilterMode::Filtered => fallback_test_outcome(false, 61, 62),
@@ -13898,7 +13977,7 @@ mod tests {
         let legacy = fallback_test_outcome(true, 31, 32);
         let expected_watch = legacy.watch_diagnostics.clone();
         let mut modes = Vec::new();
-        let outcome = build_sentence_recovery_plan_with_atomic_fallback(|mode| {
+        let outcome = build_with_current_atomic_fallback(|mode| {
             modes.push(mode);
             Ok(match mode {
                 SentenceEdgeFilterMode::Filtered => fallback_test_outcome(false, 21, 22),
@@ -13972,7 +14051,7 @@ mod tests {
 
     #[test]
     fn fallback_keeps_legacy_low_score_watch_diagnostics() {
-        let outcome = build_sentence_recovery_plan_with_atomic_fallback(|mode| {
+        let outcome = build_with_current_atomic_fallback(|mode| {
             let mut outcome = match mode {
                 SentenceEdgeFilterMode::Filtered => fallback_test_outcome(false, 41, 42),
                 SentenceEdgeFilterMode::Legacy => fallback_test_outcome(true, 51, 52),
@@ -14045,7 +14124,7 @@ mod tests {
 
     #[test]
     fn fallback_adopts_an_incomplete_legacy_build_without_filtered_plan_leakage() {
-        let outcome = build_sentence_recovery_plan_with_atomic_fallback(|mode| {
+        let outcome = build_with_current_atomic_fallback(|mode| {
             Ok(match mode {
                 SentenceEdgeFilterMode::Filtered => fallback_test_outcome(false, 81, 82),
                 SentenceEdgeFilterMode::Legacy => fallback_test_outcome(false, 91, 92),
