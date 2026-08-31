@@ -358,7 +358,7 @@ files without overwriting existing destinations). If the second publication fail
 exit code 2 is returned and the first published artifact remains in place without
 pairwise rollback across distinct paths. Dated compact evaluation summaries are
 recorded under [`benchmark/realworld/results/`](benchmark/realworld/results/README.md)
-(latest: [`2026-08-31-cda68bf.json`](benchmark/realworld/results/2026-08-31-cda68bf.json)).
+(latest: [`2026-08-31-40f8e19.json`](benchmark/realworld/results/2026-08-31-40f8e19.json)).
 
 ## License
 
@@ -444,6 +444,8 @@ Text reports are written to standard output as contextual unified-diff hunks: a 
   The [`c4cc1cd`](benchmark/realworld/results/2026-08-31-c4cc1cd.json) schema-v38 capture adds that annotation-independent local-fragment shadow without changing any schema-v37 comparison, quality, candidate, or existing diagnostic field. It is present on 18 recovery builds; two complete with no eligible parent, while all 16 non-empty builds stop atomically under actual-input-proportional traversal limits (six at index postings and ten at similarity comparisons). No partial relation set is published. Under the current budgets, the all-boundaries expansion is not a production candidate; the next planned shadow narrows parent Sentence pairs before fragment enumeration.
 
   The [`cda68bf`](benchmark/realworld/results/2026-08-31-cda68bf.json) schema-v39 capture replaces global fragment postings with fixed-minimum-depth parent and word-boundary signatures without changing any schema-v38 comparison, quality, candidate, or existing diagnostic field. Across the same 18 builds, postings fall from 16,574,884 to 349,740, queries fall from 5,480 fragment-level queries to 30 parent-level queries, and posting visits fall from 693,791 to 89,926. The two empty builds complete; the 16 non-empty builds still stop atomically because 12,842 admitted parent pairs expand to 9,874,942 same-orientation fragment pairs. The next shadow must enumerate boundary-signature fragment pairs inside each admitted parent instead of taking their Cartesian product.
+
+  The [`40f8e19`](benchmark/realworld/results/2026-08-31-40f8e19.json) schema-v40 capture adds that parent-scoped, same-side boundary-signature index without changing any schema-v39 comparison, quality, candidate, or diagnostic field outside `local_fragment_shadow`. It processes 87,646 admitted parent pairs and submits 2,840,908 fragment pairs to exact edge recheck, 71.23% fewer than schema v39's bounded Cartesian work despite reaching 6.82 times as many parent pairs. The two empty builds complete; all 16 non-empty builds now stop atomically at the similarity-comparison limit after 42,939,833 comparisons. The next shadow must attribute exact-edge and word-score comparison work before another pruning primitive is selected.
 
 ## Contributing
 
