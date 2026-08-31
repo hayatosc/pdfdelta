@@ -618,8 +618,11 @@ pub enum SentenceEdgeSignatureDirectShadowStopReason {
     DiagnosticFailure,
 }
 
-/// Independent replay that sources Sentence candidates from the edge-signature
-/// index before the broad first/last-token candidate union.
+/// Work and verification metrics for a Sentence edge-signature execution.
+///
+/// [`SentenceEdgeSignatureDirectExecution`] distinguishes an accepted or
+/// discarded production attempt from an independent diagnostic replay. The
+/// parity and watch-preservation fields are meaningful only for replay data.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceEdgeSignatureDirectShadowMetrics {
     pub complete: bool,
@@ -707,6 +710,18 @@ pub struct SentenceEdgeSignatureDirectShadowMetrics {
     pub retained_pair_count_mismatches: usize,
     pub retained_pair_set_mismatches: usize,
     pub retained_pair_order_mismatches: usize,
+}
+
+/// Identifies whether direct Sentence edge-signature metrics came from a
+/// diagnostic replay or a production attempt.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SentenceEdgeSignatureDirectExecution {
+    /// Metrics came from an independent diagnostic replay.
+    ShadowReplay,
+    /// Metrics came from the direct production attempt whose plan was accepted.
+    ProductionAccepted,
+    /// Metrics came from a direct production attempt discarded before legacy fallback.
+    ProductionDiscarded,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -833,6 +848,9 @@ pub struct SentenceRecoveryMetrics {
     pub sentence_edge_gate_shadow: Option<SentenceEdgeGateShadowMetrics>,
     pub sentence_edge_signature_shadow: Option<SentenceEdgeSignatureShadowMetrics>,
     pub sentence_edge_signature_direct_shadow: Option<SentenceEdgeSignatureDirectShadowMetrics>,
+    /// Execution origin for [`Self::sentence_edge_signature_direct_shadow`].
+    /// Both fields are present or absent together.
+    pub sentence_edge_signature_direct_execution: Option<SentenceEdgeSignatureDirectExecution>,
     pub sentence_edge_signature_reference_oracle:
         Option<SentenceEdgeSignatureReferenceOracleMetrics>,
     /// Whether the production Sentence edge filter classified every query.
@@ -7128,6 +7146,19 @@ mod tests {
             outcome.sentence_recovery_metrics,
             Some(SentenceRecoveryMetrics {
                 near_relation_complete: true,
+                sentence_edge_signature_shadow: Some(SentenceEdgeSignatureShadowMetrics {
+                    complete: true,
+                    ..SentenceEdgeSignatureShadowMetrics::default()
+                }),
+                sentence_edge_signature_direct_shadow: Some(
+                    SentenceEdgeSignatureDirectShadowMetrics {
+                        complete: true,
+                        ..SentenceEdgeSignatureDirectShadowMetrics::default()
+                    },
+                ),
+                sentence_edge_signature_direct_execution: Some(
+                    SentenceEdgeSignatureDirectExecution::ProductionAccepted,
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -8171,12 +8202,20 @@ mod tests {
         let mut measured_metrics = measured
             .sentence_recovery_metrics
             .expect("measured metrics exist");
-        assert!(baseline_metrics.sentence_edge_signature_shadow.is_none());
-        assert!(
-            baseline_metrics
-                .sentence_edge_signature_direct_shadow
-                .is_none()
+        let baseline_signature = baseline_metrics
+            .sentence_edge_signature_shadow
+            .expect("production signature metrics exist");
+        assert!(baseline_signature.complete);
+        assert!(!baseline_signature.parity_evaluable);
+        assert_eq!(
+            baseline_metrics.sentence_edge_signature_direct_execution,
+            Some(SentenceEdgeSignatureDirectExecution::ProductionAccepted)
         );
+        let baseline_direct = baseline_metrics
+            .sentence_edge_signature_direct_shadow
+            .expect("production direct metrics exist");
+        assert!(baseline_direct.complete);
+        assert!(!baseline_direct.parity_evaluable);
         let signature = measured_metrics
             .sentence_edge_signature_shadow
             .expect("signature replay metrics exist");
@@ -8193,11 +8232,16 @@ mod tests {
         );
         let direct = measured_metrics
             .sentence_edge_signature_direct_shadow
-            .expect("direct signature replay metrics exist");
+            .expect("production direct metrics exist");
         assert!(direct.complete);
-        assert!(direct.parity_evaluable);
-        assert!(direct.plan_parity);
-        assert!(direct.verification_evaluable);
+        assert!(!direct.parity_evaluable);
+        assert!(!direct.plan_parity);
+        assert!(!direct.verification_evaluable);
+        assert_eq!(direct, baseline_direct);
+        assert_eq!(
+            measured_metrics.sentence_edge_signature_direct_execution,
+            Some(SentenceEdgeSignatureDirectExecution::ProductionAccepted)
+        );
         assert_eq!(direct.retained_pair_misses, 0);
         assert_eq!(direct.retained_pair_count_mismatches, 0);
         assert_eq!(direct.retained_pair_set_mismatches, 0);
@@ -8237,14 +8281,14 @@ mod tests {
         assert_eq!(direct.sentence_broad_edge_postings_examined, 0);
         assert_eq!(direct.sentence_broad_edge_postings_attempted, 0);
         baseline_metrics.sentence_edge_gate_shadow = None;
+        baseline_metrics.sentence_edge_signature_shadow = None;
         measured_metrics.sentence_edge_gate_shadow = None;
         measured_metrics.sentence_edge_signature_shadow = None;
-        measured_metrics.sentence_edge_signature_direct_shadow = None;
         assert_eq!(measured_metrics, baseline_metrics);
     }
 
     #[test]
-    fn accepted_fragment_stop_runs_complete_reference_oracle_without_replacing_output() {
+    fn fragment_stop_discards_direct_attempt_without_replacing_legacy_output() {
         let prefix = "As a result, information has";
         let suffix = "to be provided about all personal data covered by the request.";
         let full = format!("{prefix} {suffix}");
@@ -8303,41 +8347,26 @@ mod tests {
         assert!(measured_metrics.sentence_edge_filter_complete);
         let direct = measured_metrics
             .sentence_edge_signature_direct_shadow
-            .expect("direct replay diagnostics exist");
-        assert!(direct.complete);
+            .expect("discarded direct diagnostics exist");
+        assert!(!direct.complete);
         assert!(!direct.parity_evaluable);
         assert_eq!(
-            direct.fragment_veto_pair_visits_examined,
-            direct.fragment_veto_pair_visits_attempted
-        );
-        let oracle = measured_metrics
-            .sentence_edge_signature_reference_oracle
-            .expect("accepted fragment stop triggers reference oracle");
-        assert!(oracle.direct_complete);
-        assert!(oracle.complete);
-        assert_eq!(
-            oracle.legacy_sentence_edge_pairs_examined,
-            measured_metrics.sentence_edge_filter_pairs_examined
+            direct.stop_reason,
+            Some(SentenceEdgeSignatureDirectShadowStopReason::FragmentVetoPairVisitLimit)
         );
         assert_eq!(
-            oracle.legacy_sentence_edge_pairs_attempted,
-            measured_metrics.sentence_edge_filter_pairs_attempted
+            measured_metrics.sentence_edge_signature_direct_execution,
+            Some(SentenceEdgeSignatureDirectExecution::ProductionDiscarded)
         );
-        assert_eq!(
-            oracle.legacy_sentence_edge_pairs_retained,
-            measured_metrics.sentence_edge_filter_pairs_retained
+        assert!(measured_metrics.sentence_edge_filter_full_build_fallback_used);
+        assert!(
+            direct.fragment_veto_pair_visits_examined < direct.fragment_veto_pair_visits_attempted
         );
-        assert_eq!(
-            oracle.legacy_sentence_edge_pairs_rejected,
-            measured_metrics.sentence_edge_filter_pairs_rejected
+        assert!(
+            measured_metrics
+                .sentence_edge_signature_reference_oracle
+                .is_none()
         );
-        assert!(oracle.plan_parity_evaluable);
-        assert!(oracle.plan_parity);
-        assert!(oracle.fingerprint_evaluable);
-        assert_eq!(oracle.retained_pair_misses, 0);
-        assert_eq!(oracle.retained_pair_count_mismatches, 0);
-        assert_eq!(oracle.retained_pair_set_mismatches, 0);
-        assert_eq!(oracle.retained_pair_order_mismatches, 0);
     }
 
     fn compare_run_signature_diagnostics(

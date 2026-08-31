@@ -29,8 +29,9 @@ use pdfdelta_core::{
         RecoveryWatchQuery, RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
         RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
         SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
-        SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectShadowMetrics,
-        SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureReferenceOracleMetrics,
+        SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
+        SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
+        SentenceEdgeSignatureReferenceOracleMetrics,
         SentenceEdgeSignatureReferenceOracleStopReason, SentenceEdgeSignatureShadowMetrics,
         SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics, TextSpan,
     },
@@ -546,6 +547,8 @@ pub struct SentenceRecoveryMetricsReport {
     pub sentence_edge_signature_shadow: Option<SentenceEdgeSignatureShadowMetricsReport>,
     pub sentence_edge_signature_direct_shadow:
         Option<SentenceEdgeSignatureDirectShadowMetricsReport>,
+    pub sentence_edge_signature_direct_execution:
+        Option<SentenceEdgeSignatureDirectExecutionReport>,
     pub sentence_edge_signature_reference_oracle:
         Option<SentenceEdgeSignatureReferenceOracleMetricsReport>,
     pub sentence_edge_filter_complete: bool,
@@ -817,6 +820,14 @@ pub struct SentenceEdgeSignatureDirectShadowMetricsReport {
     pub retained_pair_order_mismatches: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SentenceEdgeSignatureDirectExecutionReport {
+    ShadowReplay,
+    ProductionAccepted,
+    ProductionDiscarded,
+}
+
 impl From<SentenceEdgeSignatureDirectShadowMetrics>
     for SentenceEdgeSignatureDirectShadowMetricsReport
 {
@@ -917,6 +928,16 @@ impl From<SentenceEdgeSignatureDirectShadowMetrics>
             retained_pair_count_mismatches: metrics.retained_pair_count_mismatches,
             retained_pair_set_mismatches: metrics.retained_pair_set_mismatches,
             retained_pair_order_mismatches: metrics.retained_pair_order_mismatches,
+        }
+    }
+}
+
+impl From<SentenceEdgeSignatureDirectExecution> for SentenceEdgeSignatureDirectExecutionReport {
+    fn from(execution: SentenceEdgeSignatureDirectExecution) -> Self {
+        match execution {
+            SentenceEdgeSignatureDirectExecution::ShadowReplay => Self::ShadowReplay,
+            SentenceEdgeSignatureDirectExecution::ProductionAccepted => Self::ProductionAccepted,
+            SentenceEdgeSignatureDirectExecution::ProductionDiscarded => Self::ProductionDiscarded,
         }
     }
 }
@@ -1683,6 +1704,9 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             sentence_edge_signature_shadow: metrics.sentence_edge_signature_shadow.map(Into::into),
             sentence_edge_signature_direct_shadow: metrics
                 .sentence_edge_signature_direct_shadow
+                .map(Into::into),
+            sentence_edge_signature_direct_execution: metrics
+                .sentence_edge_signature_direct_execution
                 .map(Into::into),
             sentence_edge_signature_reference_oracle: metrics
                 .sentence_edge_signature_reference_oracle
@@ -4242,9 +4266,63 @@ fn validate_sentence_edge_signature_shadow_metrics(
 fn validate_sentence_edge_signature_direct_shadow_metrics(
     metrics: SentenceRecoveryMetrics,
 ) -> std::result::Result<(), String> {
-    let Some(shadow) = metrics.sentence_edge_signature_direct_shadow else {
-        return Ok(());
+    let (shadow, execution) = match (
+        metrics.sentence_edge_signature_direct_shadow,
+        metrics.sentence_edge_signature_direct_execution,
+    ) {
+        (None, None) => return Ok(()),
+        (Some(shadow), Some(execution)) => (shadow, execution),
+        _ => {
+            return Err(
+                "sentence-edge signature direct metrics and execution origin must be present together"
+                    .to_owned(),
+            );
+        }
     };
+    match execution {
+        SentenceEdgeSignatureDirectExecution::ShadowReplay => {}
+        SentenceEdgeSignatureDirectExecution::ProductionAccepted
+            if metrics.sentence_edge_filter_full_build_fallback_used =>
+        {
+            return Err(
+                "accepted direct production execution cannot report a full-build fallback"
+                    .to_owned(),
+            );
+        }
+        SentenceEdgeSignatureDirectExecution::ProductionDiscarded
+            if !metrics.sentence_edge_filter_full_build_fallback_used =>
+        {
+            return Err(
+                "discarded direct production execution requires a full-build fallback".to_owned(),
+            );
+        }
+        SentenceEdgeSignatureDirectExecution::ProductionAccepted if !shadow.complete => {
+            return Err("accepted direct production execution must be complete".to_owned());
+        }
+        SentenceEdgeSignatureDirectExecution::ProductionDiscarded if shadow.complete => {
+            return Err("discarded direct production execution must be incomplete".to_owned());
+        }
+        SentenceEdgeSignatureDirectExecution::ProductionAccepted
+        | SentenceEdgeSignatureDirectExecution::ProductionDiscarded => {}
+    }
+    if execution != SentenceEdgeSignatureDirectExecution::ShadowReplay
+        && (shadow.parity_evaluable
+            || shadow.plan_parity
+            || shadow.verification_evaluable
+            || shadow.retained_pair_misses != 0
+            || shadow.retained_pair_count_mismatches != 0
+            || shadow.retained_pair_set_mismatches != 0
+            || shadow.retained_pair_order_mismatches != 0
+            || shadow.watch_preservation_evaluable
+            || shadow.watch_evidence_preserved
+            || shadow.watch_preservation_mismatches != 0
+            || shadow.watch_exact_parity_evaluable
+            || shadow.watch_exact_parity)
+    {
+        return Err(
+            "direct production execution cannot report replay-only parity evidence".to_owned(),
+        );
+    }
     if shadow.complete != shadow.stop_reason.is_none() {
         return Err(
             "sentence-edge signature direct shadow completeness contradicts stop reason".to_owned(),
@@ -4461,10 +4539,12 @@ fn validate_sentence_edge_signature_direct_shadow_metrics(
                 .to_owned(),
         );
     }
-    if shadow.complete && (!shadow.watch_preservation_evaluable || !shadow.watch_evidence_preserved)
+    if execution == SentenceEdgeSignatureDirectExecution::ShadowReplay
+        && shadow.complete
+        && (!shadow.watch_preservation_evaluable || !shadow.watch_evidence_preserved)
     {
         return Err(
-            "complete sentence-edge signature direct shadow did not preserve watch evidence"
+            "complete sentence-edge signature direct replay did not preserve watch evidence"
                 .to_owned(),
         );
     }
@@ -5656,7 +5736,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 34;
+    pub const SCHEMA_VERSION: u32 = 35;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -6920,7 +7000,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 34);
+        assert_eq!(completed["schema_version"], 35);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -6963,7 +7043,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 34);
+        assert_eq!(legacy_summary["schema_version"], 35);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -7964,15 +8044,11 @@ mod tests {
                 sentence_edge_signature_direct_shadow: Some(
                     SentenceEdgeSignatureDirectShadowMetricsReport {
                         complete: true,
-                        parity_evaluable: true,
-                        verification_evaluable: true,
-                        plan_parity: true,
-                        watch_preservation_evaluable: true,
-                        watch_evidence_preserved: true,
-                        watch_exact_parity_evaluable: true,
-                        watch_exact_parity: true,
                         ..SentenceEdgeSignatureDirectShadowMetricsReport::default()
                     },
+                ),
+                sentence_edge_signature_direct_execution: Some(
+                    SentenceEdgeSignatureDirectExecutionReport::ProductionAccepted,
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetricsReport::default()
@@ -8177,7 +8253,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 34);
+        assert_eq!(json["schema_version"], 35);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -9436,6 +9512,9 @@ mod tests {
         let shadow = valid_sentence_edge_signature_direct_shadow();
         let metrics = SentenceRecoveryMetrics {
             sentence_edge_signature_direct_shadow: Some(shadow),
+            sentence_edge_signature_direct_execution: Some(
+                SentenceEdgeSignatureDirectExecution::ShadowReplay,
+            ),
             near_relation_complete: true,
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
@@ -9621,6 +9700,9 @@ mod tests {
             assert!(
                 validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
                     sentence_edge_signature_direct_shadow: Some(invalid),
+                    sentence_edge_signature_direct_execution: Some(
+                        SentenceEdgeSignatureDirectExecution::ShadowReplay,
+                    ),
                     near_relation_complete: true,
                     sentence_edge_filter_complete: true,
                     ..SentenceRecoveryMetrics::default()
@@ -9646,6 +9728,9 @@ mod tests {
         assert!(
             validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
                 sentence_edge_signature_direct_shadow: Some(incomplete),
+                sentence_edge_signature_direct_execution: Some(
+                    SentenceEdgeSignatureDirectExecution::ShadowReplay,
+                ),
                 near_relation_complete: true,
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -9663,11 +9748,123 @@ mod tests {
         assert!(
             validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
                 sentence_edge_signature_direct_shadow: Some(preserved_legacy_incomplete),
+                sentence_edge_signature_direct_execution: Some(
+                    SentenceEdgeSignatureDirectExecution::ShadowReplay,
+                ),
                 near_relation_complete: false,
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
             .is_ok()
+        );
+    }
+
+    #[test]
+    fn validates_sentence_edge_signature_direct_execution_provenance() {
+        let shadow = valid_sentence_edge_signature_direct_shadow();
+        let production = SentenceEdgeSignatureDirectShadowMetrics {
+            parity_evaluable: false,
+            plan_parity: false,
+            verification_evaluable: false,
+            watch_preservation_evaluable: false,
+            watch_evidence_preserved: false,
+            watch_exact_parity_evaluable: false,
+            watch_exact_parity: false,
+            ..shadow
+        };
+        let validates = |direct_shadow, execution, fallback| {
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                sentence_edge_signature_direct_shadow: direct_shadow,
+                sentence_edge_signature_direct_execution: execution,
+                sentence_edge_filter_full_build_fallback_used: fallback,
+                near_relation_complete: true,
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+        };
+
+        assert!(
+            validates(
+                Some(shadow),
+                Some(SentenceEdgeSignatureDirectExecution::ShadowReplay),
+                false,
+            )
+            .is_ok()
+        );
+        assert!(
+            validates(
+                Some(production),
+                Some(SentenceEdgeSignatureDirectExecution::ProductionAccepted),
+                false,
+            )
+            .is_ok()
+        );
+        let incomplete_production = SentenceEdgeSignatureDirectShadowMetrics {
+            complete: false,
+            stop_reason: Some(SentenceEdgeSignatureDirectShadowStopReason::DiagnosticFailure),
+            ..production
+        };
+        assert!(
+            validates(
+                Some(incomplete_production),
+                Some(SentenceEdgeSignatureDirectExecution::ProductionDiscarded),
+                true,
+            )
+            .is_ok()
+        );
+        assert!(validates(Some(shadow), None, false).is_err());
+        assert!(
+            validates(
+                None,
+                Some(SentenceEdgeSignatureDirectExecution::ShadowReplay),
+                false,
+            )
+            .is_err()
+        );
+        assert!(
+            validates(
+                Some(production),
+                Some(SentenceEdgeSignatureDirectExecution::ProductionAccepted),
+                true,
+            )
+            .is_err()
+        );
+        assert!(
+            validates(
+                Some(production),
+                Some(SentenceEdgeSignatureDirectExecution::ProductionDiscarded),
+                false,
+            )
+            .is_err()
+        );
+        assert!(
+            validates(
+                Some(incomplete_production),
+                Some(SentenceEdgeSignatureDirectExecution::ProductionAccepted),
+                false,
+            )
+            .is_err()
+        );
+        assert!(
+            validates(
+                Some(production),
+                Some(SentenceEdgeSignatureDirectExecution::ProductionDiscarded),
+                true,
+            )
+            .is_err()
+        );
+        let invalid_replay_claim = SentenceEdgeSignatureDirectShadowMetrics {
+            parity_evaluable: true,
+            plan_parity: true,
+            ..production
+        };
+        assert!(
+            validates(
+                Some(invalid_replay_claim),
+                Some(SentenceEdgeSignatureDirectExecution::ProductionAccepted),
+                false,
+            )
+            .is_err()
         );
     }
 
@@ -9678,6 +9875,9 @@ mod tests {
         let validates = |shadow| {
             validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
                 sentence_edge_signature_direct_shadow: Some(shadow),
+                sentence_edge_signature_direct_execution: Some(
+                    SentenceEdgeSignatureDirectExecution::ShadowReplay,
+                ),
                 near_relation_complete: true,
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -9871,6 +10071,9 @@ mod tests {
         let validates = |shadow| {
             validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
                 sentence_edge_signature_direct_shadow: Some(shadow),
+                sentence_edge_signature_direct_execution: Some(
+                    SentenceEdgeSignatureDirectExecution::ShadowReplay,
+                ),
                 near_relation_complete: true,
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -9937,6 +10140,9 @@ mod tests {
 
         let incomplete_production = SentenceRecoveryMetrics {
             sentence_edge_signature_direct_shadow: Some(same_count_set_order_mismatch),
+            sentence_edge_signature_direct_execution: Some(
+                SentenceEdgeSignatureDirectExecution::ShadowReplay,
+            ),
             near_relation_complete: false,
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
@@ -10024,6 +10230,21 @@ mod tests {
             assert_eq!(
                 serde_json::to_value(reason).expect("reason serializes"),
                 expected
+            );
+        }
+    }
+
+    #[test]
+    fn serializes_sentence_edge_signature_direct_execution_as_snake_case() {
+        use SentenceEdgeSignatureDirectExecutionReport as Execution;
+        for (execution, expected) in [
+            (Execution::ShadowReplay, "shadow_replay"),
+            (Execution::ProductionAccepted, "production_accepted"),
+            (Execution::ProductionDiscarded, "production_discarded"),
+        ] {
+            assert_eq!(
+                serde_json::to_value(execution).expect("execution serializes"),
+                serde_json::Value::String(expected.to_owned())
             );
         }
     }
@@ -11071,7 +11292,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 34);
+        assert_eq!(value["schema_version"], 35);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -11200,6 +11421,7 @@ mod tests {
             "sentence_edge_gate_shadow".to_owned(),
             "sentence_edge_signature_shadow".to_owned(),
             "sentence_edge_signature_direct_shadow".to_owned(),
+            "sentence_edge_signature_direct_execution".to_owned(),
             "sentence_edge_signature_reference_oracle".to_owned(),
             "sentence_edge_filter_complete".to_owned(),
             "sentence_edge_filter_pairs_examined".to_owned(),

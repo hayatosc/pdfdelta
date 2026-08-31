@@ -53,11 +53,15 @@ use super::{
     RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
     RecoveryWatchSegmentPairEvidence, RecoveryWatchUnitKind, RunSignatureStopReason,
     SegmentStopReason, SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
-    SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectShadowMetrics,
-    SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureReferenceOracleMetrics,
-    SentenceEdgeSignatureReferenceOracleStopReason, SentenceEdgeSignatureShadowMetrics,
-    SentenceEdgeSignatureShadowStopReason, SentenceRecoveryCommittedTokens, SentenceRecoveryInput,
-    SentenceRecoveryMetrics, Side, TokenRange, TrustedRunRecoveryInput,
+    SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
+    SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
+    SentenceEdgeSignatureShadowMetrics, SentenceEdgeSignatureShadowStopReason,
+    SentenceRecoveryCommittedTokens, SentenceRecoveryInput, SentenceRecoveryMetrics, Side,
+    TokenRange, TrustedRunRecoveryInput,
+};
+#[cfg(test)]
+use super::{
+    SentenceEdgeSignatureReferenceOracleMetrics, SentenceEdgeSignatureReferenceOracleStopReason,
 };
 
 pub(super) const MAX_SENTENCE_RECOVERY_RANGES: usize = 8_192;
@@ -3420,10 +3424,12 @@ impl SentenceEdgeRetainedFingerprint {
         Some(())
     }
 
+    #[cfg(test)]
     fn same_set(self, other: Self) -> bool {
         self.count == other.count && self.set_xor == other.set_xor && self.set_sum == other.set_sum
     }
 
+    #[cfg(test)]
     fn same_order(self, other: Self) -> bool {
         self.count == other.count && self.order == other.order
     }
@@ -6038,6 +6044,13 @@ impl RecoveryBudget {
         )
     }
 
+    fn record_watch_diagnostic_failure(&mut self) {
+        if self.sentence_edge_signature_filter_mode == SentenceEdgeSignatureFilterMode::Direct {
+            self.watch_probe_stop_reason
+                .get_or_insert(SentenceEdgeSignatureDirectShadowStopReason::DiagnosticFailure);
+        }
+    }
+
     fn charge_direct_watch_probe(
         examined: &mut usize,
         attempted: &mut usize,
@@ -6791,7 +6804,9 @@ impl RecoveryBudget {
     }
 }
 
+#[cfg(test)]
 const REFERENCE_PAIR_WORK_CAP: usize = 8_000_000;
+#[cfg(test)]
 const REFERENCE_COMPARISON_WORK_CAP: usize = 32_000_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -6802,6 +6817,7 @@ struct ReferenceBudgetLimits {
 }
 
 impl ReferenceBudgetLimits {
+    #[cfg(test)]
     fn derive(old_tokens: usize, new_tokens: usize) -> Option<Self> {
         let tokens = old_tokens.checked_add(new_tokens)?;
         Some(Self {
@@ -6973,7 +6989,7 @@ pub(super) fn build_sentence_recovery_plan(
     let mut accepted = build_sentence_recovery_plan_with_atomic_fallback(
         (
             SentenceEdgeFilterMode::Filtered,
-            SentenceEdgeSignatureFilterMode::Disabled,
+            SentenceEdgeSignatureFilterMode::Direct,
         ),
         (
             SentenceEdgeFilterMode::Legacy,
@@ -7014,39 +7030,11 @@ pub(super) fn build_sentence_recovery_plan(
             Ok(replay) => record_sentence_edge_signature_replay(&mut accepted, replay),
             Err(_) => record_sentence_edge_signature_replay_failure(&mut accepted),
         }
-        let direct_replay = build_sentence_recovery_plan_inner(
-            old,
-            new,
-            alignment,
-            replay_input,
-            max_tokens,
-            watch_queries,
-            SentenceEdgeFilterMode::Filtered,
-            SentenceEdgeSignatureFilterMode::Direct,
-            None,
-        );
-        match direct_replay {
-            Ok(replay) => {
-                record_sentence_edge_signature_direct_replay(&mut accepted, &replay);
-                maybe_run_sentence_edge_signature_reference_oracle(
-                    &mut accepted,
-                    &replay,
-                    old,
-                    new,
-                    alignment,
-                    replay_input,
-                    max_tokens,
-                );
-            }
-            Err(_) => {
-                record_sentence_edge_signature_direct_replay_failure(&mut accepted);
-                record_reference_oracle_direct_incomplete(&mut accepted);
-            }
-        }
     }
     Ok(accepted)
 }
 
+#[cfg(test)]
 fn record_sentence_edge_signature_direct_replay_failure(
     accepted: &mut SentenceRecoveryBuildOutcome,
 ) {
@@ -7057,9 +7045,12 @@ fn record_sentence_edge_signature_direct_replay_failure(
                 stop_reason: Some(SentenceEdgeSignatureDirectShadowStopReason::DiagnosticFailure),
                 ..SentenceEdgeSignatureDirectShadowMetrics::default()
             });
+        diagnostics.metrics.sentence_edge_signature_direct_execution =
+            Some(SentenceEdgeSignatureDirectExecution::ShadowReplay);
     }
 }
 
+#[cfg(test)]
 fn accepted_recovery_is_complete(accepted: &SentenceRecoveryBuildOutcome) -> bool {
     accepted.fragment_veto_complete
         && accepted.diagnostics.as_ref().is_some_and(|diagnostics| {
@@ -7068,6 +7059,7 @@ fn accepted_recovery_is_complete(accepted: &SentenceRecoveryBuildOutcome) -> boo
         })
 }
 
+#[cfg(test)]
 fn record_reference_oracle_direct_incomplete(accepted: &mut SentenceRecoveryBuildOutcome) {
     if accepted_recovery_is_complete(accepted) {
         return;
@@ -7083,61 +7075,7 @@ fn record_reference_oracle_direct_incomplete(accepted: &mut SentenceRecoveryBuil
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn maybe_run_sentence_edge_signature_reference_oracle(
-    accepted: &mut SentenceRecoveryBuildOutcome,
-    direct: &SentenceRecoveryBuildOutcome,
-    old: &Side<'_>,
-    new: &Side<'_>,
-    alignment: &Alignment,
-    input: SentenceRecoveryInput<'_>,
-    max_tokens: usize,
-) {
-    if accepted_recovery_is_complete(accepted) {
-        return;
-    }
-    let direct_complete = accepted
-        .diagnostics
-        .as_ref()
-        .and_then(|diagnostics| diagnostics.metrics.sentence_edge_signature_direct_shadow)
-        .is_some_and(|metrics| metrics.complete);
-    if !direct_complete || direct.plan.is_none() {
-        record_reference_oracle_direct_incomplete(accepted);
-        return;
-    }
-    let Some(limits) = ReferenceBudgetLimits::derive(old.total_tokens, new.total_tokens) else {
-        attach_reference_oracle_metrics(
-            accepted,
-            SentenceEdgeSignatureReferenceOracleMetrics {
-                stop_reason: Some(SentenceEdgeSignatureReferenceOracleStopReason::CounterOverflow),
-                direct_complete: true,
-                ..SentenceEdgeSignatureReferenceOracleMetrics::default()
-            },
-        );
-        return;
-    };
-    let reference = build_sentence_recovery_plan_inner(
-        old,
-        new,
-        alignment,
-        input,
-        max_tokens,
-        &[],
-        SentenceEdgeFilterMode::Filtered,
-        SentenceEdgeSignatureFilterMode::ReferenceObserve,
-        Some(limits),
-    );
-    let metrics = match reference {
-        Ok(reference) => evaluate_reference_oracle(direct, &reference),
-        Err(_) => SentenceEdgeSignatureReferenceOracleMetrics {
-            stop_reason: Some(SentenceEdgeSignatureReferenceOracleStopReason::DiagnosticFailure),
-            direct_complete: true,
-            ..SentenceEdgeSignatureReferenceOracleMetrics::default()
-        },
-    };
-    attach_reference_oracle_metrics(accepted, metrics);
-}
-
+#[cfg(test)]
 fn attach_reference_oracle_metrics(
     accepted: &mut SentenceRecoveryBuildOutcome,
     metrics: SentenceEdgeSignatureReferenceOracleMetrics,
@@ -7264,6 +7202,7 @@ fn select_direct_signature_stop_reason(
         .or_else(|| signature.stop_reason.map(direct_signature_stop_reason))
 }
 
+#[cfg(test)]
 fn reference_near_stop_reason(
     reason: NearRelationStopReason,
 ) -> SentenceEdgeSignatureReferenceOracleStopReason {
@@ -7283,6 +7222,7 @@ fn reference_near_stop_reason(
     }
 }
 
+#[cfg(test)]
 fn reference_fragment_stop_reason(
     reason: FragmentVetoStopReason,
 ) -> SentenceEdgeSignatureReferenceOracleStopReason {
@@ -7327,6 +7267,7 @@ fn direct_fragment_stop_reason(
     }
 }
 
+#[cfg(test)]
 fn evaluate_reference_oracle(
     direct: &SentenceRecoveryBuildOutcome,
     reference: &SentenceRecoveryBuildOutcome,
@@ -7437,6 +7378,7 @@ fn evaluate_reference_oracle(
     metrics
 }
 
+#[cfg(test)]
 fn reference_observer_stop_reason(
     reason: SentenceEdgeSignatureShadowStopReason,
 ) -> SentenceEdgeSignatureReferenceOracleStopReason {
@@ -7470,6 +7412,7 @@ fn reference_observer_stop_reason(
     }
 }
 
+#[cfg(test)]
 fn reference_edge_stop_reason(
     reason: SentenceEdgeFilterStopReason,
 ) -> SentenceEdgeSignatureReferenceOracleStopReason {
@@ -7526,6 +7469,7 @@ fn direct_signature_metrics_are_consistent(
         .checked_add(metrics.exact_edge_rejected_pairs);
     posting_items == Some(metrics.signature_index_items_examined)
         && posting_items == Some(metrics.signature_index_items_attempted)
+        && metrics.signature_query_visits_examined == metrics.signature_query_visits_attempted
         && depth_postings == Some(metrics.signature_index_items_examined)
         && distinct_keys == Some(metrics.signature_index_distinct_keys_examined)
         && metrics.signature_index_distinct_keys_attempted
@@ -7540,6 +7484,16 @@ fn direct_signature_metrics_are_consistent(
         && unions == Some(metrics.direct_candidates)
         && metrics.signature_candidate_union_attempted == metrics.direct_candidates
         && rechecks == Some(metrics.exact_edge_rechecks)
+        && metrics.exact_edge_rechecks_attempted == metrics.exact_edge_rechecks
+        && metrics.exact_edge_recheck_comparisons_examined
+            == metrics.exact_edge_recheck_comparisons_attempted
+        && metrics.edge_filter_pairs_examined == metrics.edge_filter_pairs_attempted
+        && metrics.edge_filter_comparisons_examined == metrics.edge_filter_comparisons_attempted
+        && metrics.downstream_candidate_postings_examined
+            == metrics.downstream_candidate_postings_attempted
+        && metrics.downstream_pair_visits_examined == metrics.downstream_pair_visits_attempted
+        && metrics.downstream_similarity_comparisons_examined
+            == metrics.downstream_similarity_comparisons_attempted
         && metrics.cross_orientation_only_candidates <= metrics.exact_edge_rejected_pairs
         && metrics.watch_probe_pairs_examined == metrics.watch_probe_pairs_attempted
         && metrics.watch_probe_similarity_comparisons_examined
@@ -7548,6 +7502,7 @@ fn direct_signature_metrics_are_consistent(
         && metrics.watch_probe_invariant_violations == 0
 }
 
+#[cfg(test)]
 fn compare_direct_watch_diagnostics(
     metrics: &mut SentenceEdgeSignatureDirectShadowMetrics,
     accepted: Option<&RecoveryWatchDiagnostics>,
@@ -7579,6 +7534,7 @@ fn compare_direct_watch_diagnostics(
     }
 }
 
+#[cfg(test)]
 fn watch_fixed_evidence_is_preserved(
     accepted: &RecoveryWatchDiagnostics,
     direct: &RecoveryWatchDiagnostics,
@@ -7607,6 +7563,7 @@ fn watch_fixed_evidence_is_preserved(
             .all(|(accepted, direct)| watch_record_fixed_evidence_is_preserved(accepted, direct))
 }
 
+#[cfg(test)]
 fn watch_record_fixed_evidence_is_preserved(
     accepted: &RecoveryWatchRecord,
     direct: &RecoveryWatchRecord,
@@ -7622,6 +7579,7 @@ fn watch_record_fixed_evidence_is_preserved(
         && accepted.granular_pair == direct.granular_pair
 }
 
+#[cfg(test)]
 fn watch_pair_fixed_evidence_is_preserved(
     accepted: Option<&RecoveryWatchPairEvidence>,
     direct: Option<&RecoveryWatchPairEvidence>,
@@ -7639,6 +7597,7 @@ fn watch_pair_fixed_evidence_is_preserved(
     }
 }
 
+#[cfg(test)]
 fn watch_segment_fixed_evidence_is_preserved(
     accepted: Option<&RecoveryWatchSegmentPairEvidence>,
     direct: Option<&RecoveryWatchSegmentPairEvidence>,
@@ -7665,6 +7624,7 @@ fn watch_segment_fixed_evidence_is_preserved(
     }
 }
 
+#[cfg(test)]
 fn compare_direct_retained_fingerprints(
     metrics: &mut SentenceEdgeSignatureDirectShadowMetrics,
     baseline: SentenceEdgeRetainedFingerprint,
@@ -7677,15 +7637,11 @@ fn compare_direct_retained_fingerprints(
     metrics.retained_pair_misses = baseline.count.saturating_sub(direct.count);
 }
 
-fn record_sentence_edge_signature_direct_replay(
-    accepted: &mut SentenceRecoveryBuildOutcome,
-    replay: &SentenceRecoveryBuildOutcome,
-) {
-    let Some(replay_diagnostics) = replay.diagnostics.as_ref() else {
-        record_sentence_edge_signature_direct_replay_failure(accepted);
-        return;
-    };
-    let recovery = replay_diagnostics.metrics;
+fn finalized_direct_metrics(
+    outcome: &SentenceRecoveryBuildOutcome,
+) -> Option<SentenceEdgeSignatureDirectShadowMetrics> {
+    let diagnostics = outcome.diagnostics.as_ref()?;
+    let recovery = diagnostics.metrics;
     let signature = recovery.sentence_edge_signature_shadow.unwrap_or_else(|| {
         SentenceEdgeSignatureShadowMetrics {
             complete: false,
@@ -7721,29 +7677,42 @@ fn record_sentence_edge_signature_direct_replay(
         recovery.near_similarity_comparisons_examined;
     metrics.downstream_similarity_comparisons_attempted =
         recovery.near_similarity_comparisons_attempted;
-    metrics.fragment_veto_pair_visits_examined = replay.fragment_veto_pair_visits_examined;
-    metrics.fragment_veto_pair_visits_attempted = replay.fragment_veto_pair_visits_attempted;
+    metrics.fragment_veto_pair_visits_examined = outcome.fragment_veto_pair_visits_examined;
+    metrics.fragment_veto_pair_visits_attempted = outcome.fragment_veto_pair_visits_attempted;
     metrics.fragment_veto_similarity_comparisons_examined =
-        replay.fragment_veto_comparisons_examined;
+        outcome.fragment_veto_comparisons_examined;
     metrics.fragment_veto_similarity_comparisons_attempted =
-        replay.fragment_veto_comparisons_attempted;
+        outcome.fragment_veto_comparisons_attempted;
     metrics.candidate_count_truncated = recovery.near_candidate_count_truncated;
+    metrics.parity_evaluable = false;
+    metrics.plan_parity = false;
+    metrics.verification_evaluable = false;
+    metrics.retained_pair_misses = 0;
+    metrics.retained_pair_count_mismatches = 0;
+    metrics.retained_pair_set_mismatches = 0;
+    metrics.retained_pair_order_mismatches = 0;
+    metrics.watch_preservation_evaluable = false;
+    metrics.watch_evidence_preserved = false;
+    metrics.watch_preservation_mismatches = 0;
+    metrics.watch_exact_parity_evaluable = false;
+    metrics.watch_exact_parity = false;
     metrics.stop_reason = metrics
         .stop_reason
         .or_else(|| select_direct_signature_stop_reason(signature, recovery));
-    if !replay.fragment_veto_complete {
+    if !outcome.fragment_veto_complete {
         metrics.stop_reason.get_or_insert_with(|| {
             direct_fragment_stop_reason(
-                replay
+                outcome
                     .fragment_veto_stop_reason
                     .unwrap_or(FragmentVetoStopReason::InvalidEvidence),
             )
         });
     }
-    if replay.fragment_veto_complete
-        && (replay.fragment_veto_pair_visits_examined != replay.fragment_veto_pair_visits_attempted
-            || replay.fragment_veto_comparisons_examined
-                != replay.fragment_veto_comparisons_attempted)
+    if outcome.fragment_veto_complete
+        && (outcome.fragment_veto_pair_visits_examined
+            != outcome.fragment_veto_pair_visits_attempted
+            || outcome.fragment_veto_comparisons_examined
+                != outcome.fragment_veto_comparisons_attempted)
     {
         metrics
             .stop_reason
@@ -7755,13 +7724,16 @@ fn record_sentence_edge_signature_direct_replay(
     {
         metrics.stop_reason = Some(SentenceEdgeSignatureDirectShadowStopReason::DiagnosticFailure);
     }
+    let no_recovery_work = metrics.direct_candidates == 0
+        && signature.pairs_considered == 0
+        && recovery.near_pair_candidates == 0;
     metrics.complete = signature.complete
         && metrics.stop_reason.is_none()
         && recovery.sentence_edge_filter_complete
         && recovery.near_relation_complete
         && !recovery.near_candidate_count_truncated
-        && replay.fragment_veto_complete;
-    let direct_internally_complete = metrics.complete;
+        && outcome.fragment_veto_complete
+        && (outcome.plan.is_some() || no_recovery_work);
     if !metrics.complete && metrics.stop_reason.is_none() {
         metrics.stop_reason = Some(if recovery.near_candidate_count_truncated {
             SentenceEdgeSignatureDirectShadowStopReason::CandidateCountLimit
@@ -7769,6 +7741,23 @@ fn record_sentence_edge_signature_direct_replay(
             SentenceEdgeSignatureDirectShadowStopReason::ProductionTraversalIncomplete
         });
     }
+    Some(metrics)
+}
+
+#[cfg(test)]
+fn record_sentence_edge_signature_direct_replay(
+    accepted: &mut SentenceRecoveryBuildOutcome,
+    replay: &SentenceRecoveryBuildOutcome,
+) {
+    let Some(replay_diagnostics) = replay.diagnostics.as_ref() else {
+        record_sentence_edge_signature_direct_replay_failure(accepted);
+        return;
+    };
+    let Some(mut metrics) = finalized_direct_metrics(replay) else {
+        record_sentence_edge_signature_direct_replay_failure(accepted);
+        return;
+    };
+    let direct_internally_complete = metrics.complete;
     let accepted_complete = accepted_recovery_is_complete(accepted);
     metrics.parity_evaluable = metrics.complete && accepted_complete;
     metrics.plan_parity = metrics.parity_evaluable
@@ -7817,6 +7806,8 @@ fn record_sentence_edge_signature_direct_replay(
     }
     if let Some(diagnostics) = accepted.diagnostics.as_mut() {
         diagnostics.metrics.sentence_edge_signature_direct_shadow = Some(metrics);
+        diagnostics.metrics.sentence_edge_signature_direct_execution =
+            Some(SentenceEdgeSignatureDirectExecution::ShadowReplay);
     }
 }
 
@@ -7914,12 +7905,29 @@ fn build_sentence_recovery_plan_with_atomic_fallback(
         SentenceEdgeSignatureFilterMode,
     ) -> Result<SentenceRecoveryBuildOutcome>,
 ) -> Result<SentenceRecoveryBuildOutcome> {
-    let filtered = build(first_modes.0, first_modes.1)?;
-    if filtered
-        .diagnostics
-        .as_ref()
-        .is_some_and(|diagnostics| diagnostics.metrics.near_relation_complete)
-    {
+    let mut filtered = build(first_modes.0, first_modes.1)?;
+    let direct_metrics = (first_modes.1 == SentenceEdgeSignatureFilterMode::Direct).then(|| {
+        finalized_direct_metrics(&filtered).unwrap_or_else(|| {
+            SentenceEdgeSignatureDirectShadowMetrics {
+                stop_reason: Some(SentenceEdgeSignatureDirectShadowStopReason::DiagnosticFailure),
+                ..SentenceEdgeSignatureDirectShadowMetrics::default()
+            }
+        })
+    });
+    let first_complete = match direct_metrics {
+        Some(metrics) => metrics.complete,
+        None => filtered
+            .diagnostics
+            .as_ref()
+            .is_some_and(|diagnostics| diagnostics.metrics.near_relation_complete),
+    };
+    if first_complete {
+        if let (Some(metrics), Some(diagnostics)) = (direct_metrics, filtered.diagnostics.as_mut())
+        {
+            diagnostics.metrics.sentence_edge_signature_direct_shadow = Some(metrics);
+            diagnostics.metrics.sentence_edge_signature_direct_execution =
+                Some(SentenceEdgeSignatureDirectExecution::ProductionAccepted);
+        }
         return Ok(filtered);
     }
 
@@ -7936,12 +7944,25 @@ fn build_sentence_recovery_plan_with_atomic_fallback(
         (Some(filter_attempt), Some(diagnostics)) => {
             filter_attempt.apply(&mut diagnostics.metrics);
         }
+        (None, Some(diagnostics)) if direct_metrics.is_some() => {
+            // A Direct setup failure can precede the detailed filter
+            // checkpoint. Its typed Direct stop still proves that this
+            // accepted plan came from a full legacy retry.
+            diagnostics
+                .metrics
+                .sentence_edge_filter_full_build_fallback_used = true;
+        }
         (None, Some(_)) => {
             // Without the first attempt's counters, publishing the disabled
             // legacy build as a completed filter run would be misleading.
             legacy.diagnostics = None;
         }
         _ => {}
+    }
+    if let (Some(metrics), Some(diagnostics)) = (direct_metrics, legacy.diagnostics.as_mut()) {
+        diagnostics.metrics.sentence_edge_signature_direct_shadow = Some(metrics);
+        diagnostics.metrics.sentence_edge_signature_direct_execution =
+            Some(SentenceEdgeSignatureDirectExecution::ProductionDiscarded);
     }
     Ok(legacy)
 }
@@ -8194,11 +8215,15 @@ fn build_sentence_recovery_plan_inner_impl(
             max_tokens,
         },
     );
+    if !watch_queries.is_empty() && watch.is_none() {
+        budget.record_watch_diagnostic_failure();
+    }
     if watch.as_mut().is_some_and(|watch| {
         watch
             .record_exact_candidates(&exact_match_candidates, &old_occurrences, &new_occurrences)
             .is_none()
     }) {
+        budget.record_watch_diagnostic_failure();
         watch = None;
     }
     let run_metrics =
@@ -8443,6 +8468,7 @@ fn build_sentence_recovery_plan_inner_impl(
             .record_relations(&old_candidates, &new_candidates, &relations)
             .is_none()
     }) {
+        budget.record_watch_diagnostic_failure();
         watch = None;
     }
     if let Some(diagnostics) = diagnostics.as_mut() {
@@ -11537,7 +11563,11 @@ fn modified_sentence_relations_tracked(
     signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
     mut watch: Option<&mut RecoveryWatchState>,
 ) -> Option<ModifiedSentenceRelations> {
-    let diagnostic_budget = budget.enable_known_span_sentence_shadow.then_some(*budget);
+    let diagnostic_budget = budget.enable_known_span_sentence_shadow.then(|| {
+        let mut diagnostic = *budget;
+        diagnostic.sentence_edge_signature_filter_mode = SentenceEdgeSignatureFilterMode::Disabled;
+        diagnostic
+    });
     let mut relations = empty_modified_sentence_relations(old_candidates, new_candidates)?;
     if budget.enable_sentence_edge_gate_shadow {
         enable_sentence_edge_gate_shadow(&mut relations);
@@ -13832,6 +13862,32 @@ mod tests {
         }
     }
 
+    fn direct_test_outcome(plan_block: Option<u64>) -> SentenceRecoveryBuildOutcome {
+        SentenceRecoveryBuildOutcome {
+            plan: plan_block.map(fallback_test_plan),
+            diagnostics: Some(SentenceRecoveryDiagnostics {
+                metrics: SentenceRecoveryMetrics {
+                    near_relation_complete: true,
+                    sentence_edge_filter_complete: true,
+                    sentence_edge_signature_shadow: Some(SentenceEdgeSignatureShadowMetrics {
+                        complete: true,
+                        ..SentenceEdgeSignatureShadowMetrics::default()
+                    }),
+                    sentence_edge_signature_direct_shadow: Some(
+                        SentenceEdgeSignatureDirectShadowMetrics::default(),
+                    ),
+                    ..SentenceRecoveryMetrics::default()
+                },
+                eligible_old_source_tokens: 0,
+                eligible_new_source_tokens: 0,
+                signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+                signature_retained_fingerprint_valid: false,
+            }),
+            fragment_veto_complete: true,
+            ..SentenceRecoveryBuildOutcome::default()
+        }
+    }
+
     fn build_with_current_atomic_fallback(
         mut build: impl FnMut(SentenceEdgeFilterMode) -> Result<SentenceRecoveryBuildOutcome>,
     ) -> Result<SentenceRecoveryBuildOutcome> {
@@ -13926,6 +13982,205 @@ mod tests {
                 .expect("legacy metrics remain")
                 .metrics
                 .sentence_edge_filter_full_build_fallback_used
+        );
+    }
+
+    #[test]
+    fn production_direct_is_accepted_without_parity_claims() {
+        let mut modes = Vec::new();
+        let outcome = build_sentence_recovery_plan_with_atomic_fallback(
+            (
+                SentenceEdgeFilterMode::Filtered,
+                SentenceEdgeSignatureFilterMode::Direct,
+            ),
+            (
+                SentenceEdgeFilterMode::Legacy,
+                SentenceEdgeSignatureFilterMode::Disabled,
+            ),
+            |edge_mode, signature_mode| {
+                modes.push((edge_mode, signature_mode));
+                Ok(direct_test_outcome(Some(23)))
+            },
+        )
+        .expect("Direct build succeeds");
+
+        assert_eq!(
+            modes,
+            [(
+                SentenceEdgeFilterMode::Filtered,
+                SentenceEdgeSignatureFilterMode::Direct,
+            )]
+        );
+        let diagnostics = outcome.diagnostics.expect("Direct diagnostics remain");
+        let direct = diagnostics
+            .metrics
+            .sentence_edge_signature_direct_shadow
+            .expect("Direct metrics are attached");
+        assert!(direct.complete);
+        assert!(!direct.parity_evaluable);
+        assert!(!direct.verification_evaluable);
+        assert_eq!(
+            diagnostics.metrics.sentence_edge_signature_direct_execution,
+            Some(SentenceEdgeSignatureDirectExecution::ProductionAccepted)
+        );
+    }
+
+    #[test]
+    fn no_work_direct_build_is_complete_without_fallback() {
+        let mut calls = 0;
+        let outcome = build_sentence_recovery_plan_with_atomic_fallback(
+            (
+                SentenceEdgeFilterMode::Filtered,
+                SentenceEdgeSignatureFilterMode::Direct,
+            ),
+            (
+                SentenceEdgeFilterMode::Legacy,
+                SentenceEdgeSignatureFilterMode::Disabled,
+            ),
+            |_, _| {
+                calls += 1;
+                Ok(direct_test_outcome(None))
+            },
+        )
+        .expect("empty Direct build succeeds");
+
+        assert_eq!(calls, 1);
+        assert!(outcome.plan.is_none());
+        let metrics = outcome.diagnostics.expect("zero metrics remain").metrics;
+        assert!(
+            metrics
+                .sentence_edge_signature_direct_shadow
+                .expect("Direct metrics exist")
+                .complete
+        );
+        assert_eq!(
+            metrics.sentence_edge_signature_direct_execution,
+            Some(SentenceEdgeSignatureDirectExecution::ProductionAccepted)
+        );
+        assert!(!metrics.sentence_edge_filter_full_build_fallback_used);
+    }
+
+    #[test]
+    fn direct_stop_retries_whole_build_and_preserves_typed_provenance() {
+        let reasons = [
+            SentenceEdgeSignatureDirectShadowStopReason::SignatureIndexPostingLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::SignatureIndexDistinctKeyLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::SignatureIndexEstimatedByteLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::SignatureQueryCountLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::SignatureQueryPostingVisitLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::SignatureCandidateUnionLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::SignatureExactEdgeRecheckLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::DirectEdgePairVisitLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::DirectEdgeSimilarityComparisonLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::CandidatePostingVisitLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::PairVisitLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::SimilarityComparisonLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::CandidateCountLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::FragmentVetoPairVisitLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::FragmentVetoSimilarityComparisonLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::FragmentVetoIncomplete,
+            SentenceEdgeSignatureDirectShadowStopReason::WatchProbePairLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::WatchProbeSimilarityComparisonLimit,
+            SentenceEdgeSignatureDirectShadowStopReason::WatchProbeInvariantViolation,
+            SentenceEdgeSignatureDirectShadowStopReason::WatchDiagnosticsMismatch,
+            SentenceEdgeSignatureDirectShadowStopReason::AllocationFailure,
+            SentenceEdgeSignatureDirectShadowStopReason::CounterOverflow,
+            SentenceEdgeSignatureDirectShadowStopReason::ProductionTraversalIncomplete,
+            SentenceEdgeSignatureDirectShadowStopReason::DiagnosticFailure,
+        ];
+        for reason in reasons {
+            let outcome = build_sentence_recovery_plan_with_atomic_fallback(
+                (
+                    SentenceEdgeFilterMode::Filtered,
+                    SentenceEdgeSignatureFilterMode::Direct,
+                ),
+                (
+                    SentenceEdgeFilterMode::Legacy,
+                    SentenceEdgeSignatureFilterMode::Disabled,
+                ),
+                |edge_mode, _| {
+                    if edge_mode == SentenceEdgeFilterMode::Legacy {
+                        return Ok(fallback_test_outcome(true, 32, 33));
+                    }
+                    let mut direct = direct_test_outcome(Some(22));
+                    direct
+                        .diagnostics
+                        .as_mut()
+                        .expect("Direct diagnostics exist")
+                        .metrics
+                        .sentence_edge_signature_direct_shadow
+                        .as_mut()
+                        .expect("Direct metrics exist")
+                        .stop_reason = Some(reason);
+                    Ok(direct)
+                },
+            )
+            .expect("legacy retry succeeds");
+
+            assert_eq!(
+                outcome
+                    .plan
+                    .as_ref()
+                    .expect("legacy plan remains")
+                    .deletions,
+                fallback_test_plan(32).deletions
+            );
+            let metrics = outcome
+                .diagnostics
+                .expect("legacy diagnostics remain")
+                .metrics;
+            let discarded = metrics
+                .sentence_edge_signature_direct_shadow
+                .expect("discarded Direct metrics remain");
+            assert!(!discarded.complete);
+            assert_eq!(discarded.stop_reason, Some(reason));
+            assert_eq!(
+                metrics.sentence_edge_signature_direct_execution,
+                Some(SentenceEdgeSignatureDirectExecution::ProductionDiscarded)
+            );
+            assert!(metrics.sentence_edge_filter_full_build_fallback_used);
+        }
+    }
+
+    #[test]
+    fn direct_setup_failure_without_filter_checkpoint_preserves_fallback_provenance() {
+        let mut calls = 0;
+        let outcome = build_sentence_recovery_plan_with_atomic_fallback(
+            (
+                SentenceEdgeFilterMode::Filtered,
+                SentenceEdgeSignatureFilterMode::Direct,
+            ),
+            (
+                SentenceEdgeFilterMode::Legacy,
+                SentenceEdgeSignatureFilterMode::Disabled,
+            ),
+            |edge_mode, _| {
+                calls += 1;
+                if edge_mode == SentenceEdgeFilterMode::Legacy {
+                    return Ok(fallback_test_outcome(true, 41, 42));
+                }
+                Ok(SentenceRecoveryBuildOutcome::default())
+            },
+        )
+        .expect("legacy retry succeeds");
+
+        assert_eq!(calls, 2);
+        let metrics = outcome
+            .diagnostics
+            .expect("legacy diagnostics remain")
+            .metrics;
+        assert!(metrics.sentence_edge_filter_full_build_fallback_used);
+        assert_eq!(
+            metrics.sentence_edge_signature_direct_execution,
+            Some(SentenceEdgeSignatureDirectExecution::ProductionDiscarded)
+        );
+        let discarded = metrics
+            .sentence_edge_signature_direct_shadow
+            .expect("failed Direct setup remains observable");
+        assert!(!discarded.complete);
+        assert_eq!(
+            discarded.stop_reason,
+            Some(SentenceEdgeSignatureDirectShadowStopReason::DiagnosticFailure)
         );
     }
 
@@ -21155,6 +21410,7 @@ mod tests {
             signature_depth_2_to_3_candidate_union: 2,
             signature_depth_4_plus_candidate_union: 3,
             exact_edge_rechecks: 6,
+            exact_edge_rechecks_attempted: 6,
             exact_edge_retained_pairs: 4,
             exact_edge_rejected_pairs: 2,
             cross_orientation_only_candidates: 1,

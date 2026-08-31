@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 23;
+const TRACE_SCHEMA_VERSION: u8 = 24;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -1627,6 +1627,24 @@ fn pipeline_metrics(
                 ),
             ]);
         }
+        if let Some(execution) = sentence.sentence_edge_signature_direct_execution {
+            use pdfdelta_core::diff::SentenceEdgeSignatureDirectExecution as Execution;
+
+            flattened.extend([
+                (
+                    "sentence_recovery_sentence_edge_signature_direct_execution_shadow_replay",
+                    usize::from(execution == Execution::ShadowReplay),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_signature_direct_execution_production_accepted",
+                    usize::from(execution == Execution::ProductionAccepted),
+                ),
+                (
+                    "sentence_recovery_sentence_edge_signature_direct_execution_production_discarded",
+                    usize::from(execution == Execution::ProductionDiscarded),
+                ),
+            ]);
+        }
         if let Some(oracle) = sentence.sentence_edge_signature_reference_oracle {
             use pdfdelta_core::diff::SentenceEdgeSignatureReferenceOracleStopReason as Stop;
 
@@ -1822,8 +1840,8 @@ mod tests {
         diff::{
             KnownSpanSentenceShadowMetrics, NearRelationStopReason, RunSignatureStopReason,
             SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
-            SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectShadowMetrics,
-            SentenceEdgeSignatureDirectShadowStopReason,
+            SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
+            SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
             SentenceEdgeSignatureReferenceOracleMetrics,
             SentenceEdgeSignatureReferenceOracleStopReason, SentenceEdgeSignatureShadowMetrics,
             SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics,
@@ -1834,8 +1852,8 @@ mod tests {
     use super::{TRACE_SCHEMA_VERSION, bounded_message, pipeline_metrics};
 
     #[test]
-    fn trace_schema_version_covers_reference_edge_filter_work() {
-        assert_eq!(TRACE_SCHEMA_VERSION, 23);
+    fn trace_schema_version_covers_direct_execution_provenance() {
+        assert_eq!(TRACE_SCHEMA_VERSION, 24);
     }
 
     #[test]
@@ -2639,6 +2657,9 @@ mod tests {
             PipelineMetrics {
                 sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
                     sentence_edge_signature_direct_shadow: Some(shadow),
+                    sentence_edge_signature_direct_execution: Some(
+                        SentenceEdgeSignatureDirectExecution::ShadowReplay,
+                    ),
                     ..SentenceRecoveryMetrics::default()
                 }),
                 ..PipelineMetrics::default()
@@ -2753,6 +2774,51 @@ mod tests {
     }
 
     #[test]
+    fn flattens_direct_execution_provenance_as_one_hot() {
+        for execution in [
+            SentenceEdgeSignatureDirectExecution::ShadowReplay,
+            SentenceEdgeSignatureDirectExecution::ProductionAccepted,
+            SentenceEdgeSignatureDirectExecution::ProductionDiscarded,
+        ] {
+            let metrics = pipeline_metrics(
+                PipelineMetrics {
+                    sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
+                        sentence_edge_signature_direct_shadow: Some(
+                            SentenceEdgeSignatureDirectShadowMetrics::default(),
+                        ),
+                        sentence_edge_signature_direct_execution: Some(execution),
+                        ..SentenceRecoveryMetrics::default()
+                    }),
+                    ..PipelineMetrics::default()
+                },
+                None,
+            );
+            for (name, expected) in [
+                (
+                    "shadow_replay",
+                    execution == SentenceEdgeSignatureDirectExecution::ShadowReplay,
+                ),
+                (
+                    "production_accepted",
+                    execution == SentenceEdgeSignatureDirectExecution::ProductionAccepted,
+                ),
+                (
+                    "production_discarded",
+                    execution == SentenceEdgeSignatureDirectExecution::ProductionDiscarded,
+                ),
+            ] {
+                assert_eq!(
+                    metrics[format!(
+                        "sentence_recovery_sentence_edge_signature_direct_execution_{name}"
+                    )
+                    .as_str()],
+                    usize::from(expected)
+                );
+            }
+        }
+    }
+
+    #[test]
     fn flattens_each_sentence_edge_signature_direct_shadow_stop_reason_as_one_hot() {
         use SentenceEdgeSignatureDirectShadowStopReason as Stop;
         let cases = [
@@ -2838,6 +2904,9 @@ mod tests {
                                 stop_reason: Some(reason),
                                 ..SentenceEdgeSignatureDirectShadowMetrics::default()
                             },
+                        ),
+                        sentence_edge_signature_direct_execution: Some(
+                            SentenceEdgeSignatureDirectExecution::ShadowReplay,
                         ),
                         ..SentenceRecoveryMetrics::default()
                     }),
@@ -3055,6 +3124,9 @@ mod tests {
                             ..SentenceEdgeSignatureDirectShadowMetrics::default()
                         },
                     ),
+                    sentence_edge_signature_direct_execution: Some(
+                        SentenceEdgeSignatureDirectExecution::ShadowReplay,
+                    ),
                     sentence_edge_signature_reference_oracle: Some(
                         SentenceEdgeSignatureReferenceOracleMetrics {
                             fragment_veto_pair_visits_examined: 7,
@@ -3122,6 +3194,9 @@ mod tests {
                             ..SentenceEdgeSignatureDirectShadowMetrics::default()
                         },
                     ),
+                    sentence_edge_signature_direct_execution: Some(
+                        SentenceEdgeSignatureDirectExecution::ShadowReplay,
+                    ),
                     ..SentenceRecoveryMetrics::default()
                 }),
                 ..PipelineMetrics::default()
@@ -3149,6 +3224,9 @@ mod tests {
                 sentence_recovery_metrics: Some(SentenceRecoveryMetrics {
                     sentence_edge_signature_direct_shadow: Some(
                         SentenceEdgeSignatureDirectShadowMetrics::default(),
+                    ),
+                    sentence_edge_signature_direct_execution: Some(
+                        SentenceEdgeSignatureDirectExecution::ShadowReplay,
                     ),
                     ..SentenceRecoveryMetrics::default()
                 }),
