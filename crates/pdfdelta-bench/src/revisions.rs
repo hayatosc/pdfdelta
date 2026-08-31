@@ -25,10 +25,10 @@ use pdfdelta_core::{
         LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
         LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
         LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
-        LocalFragmentRecheckReuseShadowMetrics, LocalFragmentShadowMetrics,
-        LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, NearRelationStopReason,
-        NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
-        RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
+        LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
+        LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
+        NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
+        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
         RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
         RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
         RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
@@ -715,10 +715,31 @@ pub struct SentenceRecoveryMetricsReport {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LocalFragmentRecheckReuseWorkAttributionReport {
+    pub candidate_queries_collected: usize,
+    pub recheck_queries_completed: usize,
+    pub fixed_candidates_collected: usize,
+    pub length_aware_candidates_collected: usize,
+    pub shared_candidates_collected: usize,
+    pub fixed_only_candidates_collected: usize,
+    pub length_aware_only_candidates_collected: usize,
+    pub unique_candidates_collected: usize,
+    pub recheck_pairs_started: usize,
+    pub recheck_pairs_completed: usize,
+    pub accepted_pairs: usize,
+    pub rejected_pairs: usize,
+    pub prefix_comparisons: usize,
+    pub suffix_comparisons: usize,
+    pub prefix_threshold_accepts: usize,
+    pub suffix_threshold_accepts: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct LocalFragmentRecheckReuseShadowMetricsReport {
     pub complete: bool,
     pub stop_reason: Option<LocalFragmentLengthAwareShadowStopReasonReport>,
     pub work: LocalFragmentLengthAwareShadowWorkMetricsReport,
+    pub work_attribution: LocalFragmentRecheckReuseWorkAttributionReport,
     pub min_tokens: usize,
     pub fixed_depth: usize,
     pub old_fragments: usize,
@@ -2236,12 +2257,38 @@ impl From<RunSignatureStopReason> for RunSignatureStopReasonReport {
     }
 }
 
+impl From<LocalFragmentRecheckReuseWorkAttribution>
+    for LocalFragmentRecheckReuseWorkAttributionReport
+{
+    fn from(work: LocalFragmentRecheckReuseWorkAttribution) -> Self {
+        Self {
+            candidate_queries_collected: work.candidate_queries_collected,
+            recheck_queries_completed: work.recheck_queries_completed,
+            fixed_candidates_collected: work.fixed_candidates_collected,
+            length_aware_candidates_collected: work.length_aware_candidates_collected,
+            shared_candidates_collected: work.shared_candidates_collected,
+            fixed_only_candidates_collected: work.fixed_only_candidates_collected,
+            length_aware_only_candidates_collected: work.length_aware_only_candidates_collected,
+            unique_candidates_collected: work.unique_candidates_collected,
+            recheck_pairs_started: work.recheck_pairs_started,
+            recheck_pairs_completed: work.recheck_pairs_completed,
+            accepted_pairs: work.accepted_pairs,
+            rejected_pairs: work.rejected_pairs,
+            prefix_comparisons: work.prefix_comparisons,
+            suffix_comparisons: work.suffix_comparisons,
+            prefix_threshold_accepts: work.prefix_threshold_accepts,
+            suffix_threshold_accepts: work.suffix_threshold_accepts,
+        }
+    }
+}
+
 impl From<LocalFragmentRecheckReuseShadowMetrics> for LocalFragmentRecheckReuseShadowMetricsReport {
     fn from(metrics: LocalFragmentRecheckReuseShadowMetrics) -> Self {
         Self {
             complete: metrics.complete,
             stop_reason: metrics.stop_reason.map(Into::into),
             work: metrics.work.into(),
+            work_attribution: metrics.work_attribution.into(),
             min_tokens: metrics.min_tokens,
             fixed_depth: metrics.fixed_depth,
             old_fragments: metrics.old_fragments,
@@ -4975,11 +5022,13 @@ fn validate_local_fragment_recheck_reuse_shadow_metrics(
         metrics.complete,
         metrics.stop_reason,
     )?;
+    validate_local_fragment_recheck_reuse_work_attribution(metrics.work_attribution, metrics.work)?;
     if !metrics.complete {
         let expected = LocalFragmentRecheckReuseShadowMetrics {
             complete: false,
             stop_reason: metrics.stop_reason,
             work: metrics.work,
+            work_attribution: metrics.work_attribution,
             min_tokens: metrics.min_tokens,
             fixed_depth: metrics.fixed_depth,
             ..LocalFragmentRecheckReuseShadowMetrics::default()
@@ -5035,6 +5084,23 @@ fn validate_local_fragment_recheck_reuse_shadow_metrics(
         || metrics.work.candidate_union_examined != metrics.projected_duplicate_recheck_pairs
         || metrics.work.exact_recheck_pairs_examined != metrics.unique_recheck_pairs
         || metrics.work.exact_recheck_comparisons_examined != metrics.actual_recheck_comparisons
+        || metrics.work_attribution.candidate_queries_collected != metrics.global_queries
+        || metrics.work_attribution.recheck_queries_completed != metrics.global_queries
+        || metrics.work_attribution.fixed_candidates_collected
+            != metrics.fixed_pre_recheck_candidates
+        || metrics.work_attribution.length_aware_candidates_collected
+            != metrics.length_aware_pre_recheck_candidates
+        || metrics.work_attribution.shared_candidates_collected
+            != metrics.shared_pre_recheck_candidates
+        || metrics.work_attribution.fixed_only_candidates_collected
+            != metrics.fixed_only_pre_recheck_candidates
+        || metrics
+            .work_attribution
+            .length_aware_only_candidates_collected
+            != metrics.length_aware_only_pre_recheck_candidates
+        || metrics.work_attribution.unique_candidates_collected != metrics.unique_recheck_pairs
+        || metrics.work_attribution.recheck_pairs_started != metrics.unique_recheck_pairs
+        || metrics.work_attribution.recheck_pairs_completed != metrics.unique_recheck_pairs
     {
         return Err("local-fragment recheck-reuse accounting is inconsistent".to_owned());
     }
@@ -5045,6 +5111,61 @@ fn validate_local_fragment_recheck_reuse_shadow_metrics(
         || metrics.order_mismatches != 0
     {
         return Err("local-fragment recheck-reuse retained accounting is inconsistent".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_local_fragment_recheck_reuse_work_attribution(
+    attribution: LocalFragmentRecheckReuseWorkAttribution,
+    work: LocalFragmentLengthAwareShadowWorkMetrics,
+) -> std::result::Result<(), String> {
+    let fixed_candidates = attribution
+        .shared_candidates_collected
+        .checked_add(attribution.fixed_only_candidates_collected)
+        .ok_or_else(|| "recheck-reuse attributed fixed candidates overflow".to_owned())?;
+    let length_candidates = attribution
+        .shared_candidates_collected
+        .checked_add(attribution.length_aware_only_candidates_collected)
+        .ok_or_else(|| "recheck-reuse attributed length candidates overflow".to_owned())?;
+    let unique_candidates = attribution
+        .shared_candidates_collected
+        .checked_add(attribution.fixed_only_candidates_collected)
+        .and_then(|value| value.checked_add(attribution.length_aware_only_candidates_collected))
+        .ok_or_else(|| "recheck-reuse attributed unique candidates overflow".to_owned())?;
+    let completed_pairs = attribution
+        .accepted_pairs
+        .checked_add(attribution.rejected_pairs)
+        .ok_or_else(|| "recheck-reuse attributed completed pairs overflow".to_owned())?;
+    let accepted_pairs = attribution
+        .prefix_threshold_accepts
+        .checked_add(attribution.suffix_threshold_accepts)
+        .ok_or_else(|| "recheck-reuse attributed accepted pairs overflow".to_owned())?;
+    let comparisons = attribution
+        .prefix_comparisons
+        .checked_add(attribution.suffix_comparisons)
+        .ok_or_else(|| "recheck-reuse attributed comparisons overflow".to_owned())?;
+    let candidate_items = attribution
+        .fixed_candidates_collected
+        .checked_add(attribution.length_aware_candidates_collected)
+        .ok_or_else(|| "recheck-reuse attributed candidate items overflow".to_owned())?;
+    if fixed_candidates != attribution.fixed_candidates_collected
+        || length_candidates != attribution.length_aware_candidates_collected
+        || unique_candidates != attribution.unique_candidates_collected
+        || attribution.recheck_queries_completed > attribution.candidate_queries_collected
+        || attribution.candidate_queries_collected - attribution.recheck_queries_completed > 1
+        || attribution.recheck_pairs_completed > attribution.recheck_pairs_started
+        || attribution.recheck_pairs_started - attribution.recheck_pairs_completed > 1
+        || attribution.recheck_pairs_started > attribution.unique_candidates_collected
+        || completed_pairs != attribution.recheck_pairs_completed
+        || accepted_pairs != attribution.accepted_pairs
+        || attribution.prefix_threshold_accepts > attribution.prefix_comparisons
+        || attribution.suffix_threshold_accepts > attribution.suffix_comparisons
+        || attribution.candidate_queries_collected > work.queries_examined
+        || attribution.recheck_pairs_started != work.exact_recheck_pairs_examined
+        || comparisons != work.exact_recheck_comparisons_examined
+        || candidate_items > work.candidate_union_examined
+    {
+        return Err("local-fragment recheck-reuse work attribution is inconsistent".to_owned());
     }
     Ok(())
 }
@@ -7762,7 +7883,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 44;
+    pub const SCHEMA_VERSION: u32 = 45;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -9461,7 +9582,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 44);
+        assert_eq!(completed["schema_version"], 45);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -9511,7 +9632,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 44);
+        assert_eq!(legacy_summary["schema_version"], 45);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -10721,7 +10842,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 44);
+        assert_eq!(json["schema_version"], 45);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -10904,6 +11025,24 @@ mod tests {
                 exact_recheck_comparisons_attempted: 6,
                 ..LocalFragmentLengthAwareShadowWorkMetrics::default()
             },
+            work_attribution: LocalFragmentRecheckReuseWorkAttribution {
+                candidate_queries_collected: 2,
+                recheck_queries_completed: 2,
+                fixed_candidates_collected: 3,
+                length_aware_candidates_collected: 2,
+                shared_candidates_collected: 2,
+                fixed_only_candidates_collected: 1,
+                length_aware_only_candidates_collected: 0,
+                unique_candidates_collected: 3,
+                recheck_pairs_started: 3,
+                recheck_pairs_completed: 3,
+                accepted_pairs: 1,
+                rejected_pairs: 2,
+                prefix_comparisons: 4,
+                suffix_comparisons: 2,
+                prefix_threshold_accepts: 1,
+                suffix_threshold_accepts: 0,
+            },
             min_tokens: 8,
             fixed_depth: 2,
             old_fragments: 2,
@@ -11028,6 +11167,57 @@ mod tests {
                 ..LocalFragmentRecheckReuseShadowMetricsReport::default()
             })
         );
+
+        let stopped_with_attribution = LocalFragmentRecheckReuseShadowMetrics {
+            complete: false,
+            stop_reason: Some(
+                LocalFragmentLengthAwareShadowStopReason::ExactRecheckComparisonLimit,
+            ),
+            work: LocalFragmentLengthAwareShadowWorkMetrics {
+                queries_examined: 2,
+                queries_attempted: 2,
+                candidate_union_examined: 2,
+                candidate_union_attempted: 2,
+                exact_recheck_pairs_examined: 1,
+                exact_recheck_pairs_attempted: 1,
+                exact_recheck_comparisons_examined: 0,
+                exact_recheck_comparisons_attempted: 1,
+                ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+            },
+            work_attribution: LocalFragmentRecheckReuseWorkAttribution {
+                candidate_queries_collected: 1,
+                fixed_candidates_collected: 1,
+                length_aware_candidates_collected: 1,
+                shared_candidates_collected: 1,
+                unique_candidates_collected: 1,
+                recheck_pairs_started: 1,
+                ..LocalFragmentRecheckReuseWorkAttribution::default()
+            },
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentRecheckReuseShadowMetrics::default()
+        };
+        let stopped_with_attribution =
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(
+                    complete_global_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_recheck_reuse_shadow: Some(stopped_with_attribution),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("stopped reuse shadow retains aggregate work attribution");
+        assert_eq!(
+            stopped_with_attribution
+                .local_fragment_recheck_reuse_shadow
+                .expect("reuse report exists")
+                .work_attribution
+                .recheck_pairs_started,
+            1
+        );
     }
 
     #[test]
@@ -11109,6 +11299,20 @@ mod tests {
                 ..complete
             },
             LocalFragmentRecheckReuseShadowMetrics {
+                work_attribution: LocalFragmentRecheckReuseWorkAttribution {
+                    accepted_pairs: 2,
+                    ..complete.work_attribution
+                },
+                ..complete
+            },
+            LocalFragmentRecheckReuseShadowMetrics {
+                work_attribution: LocalFragmentRecheckReuseWorkAttribution {
+                    shared_candidates_collected: 1,
+                    ..complete.work_attribution
+                },
+                ..complete
+            },
+            LocalFragmentRecheckReuseShadowMetrics {
                 fixed_exact_retained_pairs: 4,
                 ..complete
             },
@@ -11146,6 +11350,19 @@ mod tests {
                 min_tokens: 8,
                 fixed_depth: 2,
                 unique_recheck_pairs: 1,
+                ..LocalFragmentRecheckReuseShadowMetrics::default()
+            },
+            LocalFragmentRecheckReuseShadowMetrics {
+                complete: false,
+                stop_reason: Some(
+                    LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete,
+                ),
+                work_attribution: LocalFragmentRecheckReuseWorkAttribution {
+                    candidate_queries_collected: 1,
+                    ..LocalFragmentRecheckReuseWorkAttribution::default()
+                },
+                min_tokens: 8,
+                fixed_depth: 2,
                 ..LocalFragmentRecheckReuseShadowMetrics::default()
             },
         ];
@@ -15120,7 +15337,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 44);
+        assert_eq!(value["schema_version"], 45);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

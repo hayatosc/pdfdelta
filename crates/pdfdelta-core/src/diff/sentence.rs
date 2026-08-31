@@ -49,8 +49,8 @@ use super::{
     LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
     LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
     LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
-    LocalFragmentRecheckReuseShadowMetrics, LocalFragmentShadowMetrics,
-    LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
+    LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
+    LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
     MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
     NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
     RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
@@ -12955,6 +12955,51 @@ struct LengthAwareExactEdgeRecheck {
     comparisons: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LengthAwareThresholdAcceptSide {
+    Prefix,
+    Suffix,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LengthAwareThresholdCappedEdgeRecheck {
+    retained: bool,
+    comparisons: usize,
+    prefix_comparisons: usize,
+    suffix_comparisons: usize,
+    accept_side: Option<LengthAwareThresholdAcceptSide>,
+}
+
+fn checked_increment(
+    value: &mut usize,
+) -> std::result::Result<(), LocalFragmentLengthAwareShadowStopReason> {
+    *value = value
+        .checked_add(1)
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    Ok(())
+}
+
+fn record_completed_threshold_capped_recheck(
+    work: &mut LocalFragmentRecheckReuseWorkAttribution,
+    accept_side: Option<LengthAwareThresholdAcceptSide>,
+) -> std::result::Result<(), LocalFragmentLengthAwareShadowStopReason> {
+    let mut next = *work;
+    checked_increment(&mut next.recheck_pairs_completed)?;
+    match accept_side {
+        Some(LengthAwareThresholdAcceptSide::Prefix) => {
+            checked_increment(&mut next.accepted_pairs)?;
+            checked_increment(&mut next.prefix_threshold_accepts)?;
+        }
+        Some(LengthAwareThresholdAcceptSide::Suffix) => {
+            checked_increment(&mut next.accepted_pairs)?;
+            checked_increment(&mut next.suffix_threshold_accepts)?;
+        }
+        None => checked_increment(&mut next.rejected_pairs)?,
+    }
+    *work = next;
+    Ok(())
+}
+
 fn length_aware_exact_edge_recheck_with_cost(
     old: &LengthAwareLocalFragment,
     new: &LengthAwareLocalFragment,
@@ -12998,6 +13043,85 @@ fn length_aware_exact_edge_recheck_with_cost(
     Ok(LengthAwareExactEdgeRecheck {
         retained,
         comparisons,
+    })
+}
+
+fn length_aware_threshold_capped_edge_recheck_with_cost(
+    old: &LengthAwareLocalFragment,
+    new: &LengthAwareLocalFragment,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    budget: &mut LengthAwareBudget,
+    work_attribution: &mut LocalFragmentRecheckReuseWorkAttribution,
+) -> std::result::Result<
+    LengthAwareThresholdCappedEdgeRecheck,
+    LocalFragmentLengthAwareShadowStopReason,
+> {
+    budget.charge(LengthAwareWorkKind::ExactRecheckPairs, 1)?;
+    checked_increment(&mut work_attribution.recheck_pairs_started)?;
+    let comparisons_before = budget.work.exact_recheck_comparisons_examined;
+    let prefix_before = work_attribution.prefix_comparisons;
+    let suffix_before = work_attribution.suffix_comparisons;
+    let old_tokens = length_aware_fragment_tokens(old, old_occurrences)?;
+    let new_tokens = length_aware_fragment_tokens(new, new_occurrences)?;
+    let shorter = old_tokens.len().min(new_tokens.len());
+    let reaches_threshold = |matched: usize| {
+        basis_points(matched, shorter).is_some_and(|score| score >= MIN_WORD_SCORE_EDGE_EVIDENCE)
+    };
+    let mut prefix = 0usize;
+    while prefix < shorter {
+        budget.charge(LengthAwareWorkKind::ExactRecheckComparisons, 1)?;
+        checked_increment(&mut work_attribution.prefix_comparisons)?;
+        if old_tokens[prefix] != new_tokens[prefix] {
+            break;
+        }
+        prefix += 1;
+        if reaches_threshold(prefix) {
+            record_completed_threshold_capped_recheck(
+                work_attribution,
+                Some(LengthAwareThresholdAcceptSide::Prefix),
+            )?;
+            return Ok(LengthAwareThresholdCappedEdgeRecheck {
+                retained: true,
+                comparisons: budget.work.exact_recheck_comparisons_examined - comparisons_before,
+                prefix_comparisons: work_attribution.prefix_comparisons - prefix_before,
+                suffix_comparisons: work_attribution.suffix_comparisons - suffix_before,
+                accept_side: Some(LengthAwareThresholdAcceptSide::Prefix),
+            });
+        }
+    }
+    let mut suffix = 0usize;
+    while suffix < shorter.saturating_sub(prefix) {
+        budget.charge(LengthAwareWorkKind::ExactRecheckComparisons, 1)?;
+        checked_increment(&mut work_attribution.suffix_comparisons)?;
+        if old_tokens[old_tokens.len() - suffix - 1] != new_tokens[new_tokens.len() - suffix - 1] {
+            break;
+        }
+        suffix += 1;
+        let matched = prefix
+            .checked_add(suffix)
+            .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+        if reaches_threshold(matched) {
+            record_completed_threshold_capped_recheck(
+                work_attribution,
+                Some(LengthAwareThresholdAcceptSide::Suffix),
+            )?;
+            return Ok(LengthAwareThresholdCappedEdgeRecheck {
+                retained: true,
+                comparisons: budget.work.exact_recheck_comparisons_examined - comparisons_before,
+                prefix_comparisons: work_attribution.prefix_comparisons - prefix_before,
+                suffix_comparisons: work_attribution.suffix_comparisons - suffix_before,
+                accept_side: Some(LengthAwareThresholdAcceptSide::Suffix),
+            });
+        }
+    }
+    record_completed_threshold_capped_recheck(work_attribution, None)?;
+    Ok(LengthAwareThresholdCappedEdgeRecheck {
+        retained: false,
+        comparisons: budget.work.exact_recheck_comparisons_examined - comparisons_before,
+        prefix_comparisons: work_attribution.prefix_comparisons - prefix_before,
+        suffix_comparisons: work_attribution.suffix_comparisons - suffix_before,
+        accept_side: None,
     })
 }
 
@@ -13844,6 +13968,93 @@ struct LocalFragmentReuseQueryResult {
     length_retained: Vec<usize>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct LocalFragmentCandidateMembershipCounts {
+    shared: usize,
+    fixed_only: usize,
+    length_aware_only: usize,
+}
+
+fn local_fragment_candidate_membership_counts(
+    fixed_candidates: &[usize],
+    length_candidates: &[usize],
+) -> std::result::Result<
+    LocalFragmentCandidateMembershipCounts,
+    LocalFragmentLengthAwareShadowStopReason,
+> {
+    let mut counts = LocalFragmentCandidateMembershipCounts::default();
+    let mut fixed_position = 0usize;
+    let mut length_position = 0usize;
+    while fixed_position < fixed_candidates.len() || length_position < length_candidates.len() {
+        match (
+            fixed_candidates.get(fixed_position),
+            length_candidates.get(length_position),
+        ) {
+            (Some(fixed), Some(length)) if fixed == length => {
+                checked_increment(&mut counts.shared)?;
+                fixed_position += 1;
+                length_position += 1;
+            }
+            (Some(fixed), Some(length)) if fixed < length => {
+                checked_increment(&mut counts.fixed_only)?;
+                fixed_position += 1;
+            }
+            (Some(_), Some(_)) => {
+                checked_increment(&mut counts.length_aware_only)?;
+                length_position += 1;
+            }
+            (Some(_), None) => {
+                checked_increment(&mut counts.fixed_only)?;
+                fixed_position += 1;
+            }
+            (None, Some(_)) => {
+                checked_increment(&mut counts.length_aware_only)?;
+                length_position += 1;
+            }
+            (None, None) => break,
+        }
+    }
+    Ok(counts)
+}
+
+fn record_local_fragment_candidate_collection(
+    work: &mut LocalFragmentRecheckReuseWorkAttribution,
+    fixed_candidates: &[usize],
+    length_candidates: &[usize],
+    membership: LocalFragmentCandidateMembershipCounts,
+) -> std::result::Result<(), LocalFragmentLengthAwareShadowStopReason> {
+    let mut next = *work;
+    checked_increment(&mut next.candidate_queries_collected)?;
+    next.fixed_candidates_collected = next
+        .fixed_candidates_collected
+        .checked_add(fixed_candidates.len())
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    next.length_aware_candidates_collected = next
+        .length_aware_candidates_collected
+        .checked_add(length_candidates.len())
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    next.shared_candidates_collected = next
+        .shared_candidates_collected
+        .checked_add(membership.shared)
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    next.fixed_only_candidates_collected = next
+        .fixed_only_candidates_collected
+        .checked_add(membership.fixed_only)
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    next.length_aware_only_candidates_collected = next
+        .length_aware_only_candidates_collected
+        .checked_add(membership.length_aware_only)
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    next.unique_candidates_collected = next
+        .unique_candidates_collected
+        .checked_add(membership.shared)
+        .and_then(|value| value.checked_add(membership.fixed_only))
+        .and_then(|value| value.checked_add(membership.length_aware_only))
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    *work = next;
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn recheck_merged_local_fragment_candidates(
     old: &LengthAwareLocalFragment,
@@ -13853,13 +14064,27 @@ fn recheck_merged_local_fragment_candidates(
     old_occurrences: &[SentenceOccurrence],
     new_occurrences: &[SentenceOccurrence],
     budget: &mut LengthAwareBudget,
+    work_attribution: &mut LocalFragmentRecheckReuseWorkAttribution,
 ) -> std::result::Result<LocalFragmentReuseQueryResult, LocalFragmentLengthAwareShadowStopReason> {
     if fixed_candidates.windows(2).any(|pair| pair[0] >= pair[1])
         || length_candidates.windows(2).any(|pair| pair[0] >= pair[1])
     {
         return Err(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure);
     }
-    let mut result = LocalFragmentReuseQueryResult::default();
+    let membership =
+        local_fragment_candidate_membership_counts(fixed_candidates, length_candidates)?;
+    record_local_fragment_candidate_collection(
+        work_attribution,
+        fixed_candidates,
+        length_candidates,
+        membership,
+    )?;
+    let mut result = LocalFragmentReuseQueryResult {
+        shared_candidates: membership.shared,
+        fixed_only_candidates: membership.fixed_only,
+        length_only_candidates: membership.length_aware_only,
+        ..LocalFragmentReuseQueryResult::default()
+    };
     result
         .fixed_retained
         .try_reserve_exact(fixed_candidates.len())
@@ -13892,13 +14117,22 @@ fn recheck_merged_local_fragment_candidates(
         let new = new_fragments
             .get(new_index)
             .ok_or(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure)?;
-        let outcome = length_aware_exact_edge_recheck_with_cost(
+        let outcome = length_aware_threshold_capped_edge_recheck_with_cost(
             old,
             new,
             old_occurrences,
             new_occurrences,
             budget,
+            work_attribution,
         )?;
+        if outcome
+            .prefix_comparisons
+            .checked_add(outcome.suffix_comparisons)
+            != Some(outcome.comparisons)
+            || outcome.retained != outcome.accept_side.is_some()
+        {
+            return Err(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure);
+        }
         result.unique_recheck_pairs = result
             .unique_recheck_pairs
             .checked_add(1)
@@ -13908,10 +14142,6 @@ fn recheck_merged_local_fragment_candidates(
             .checked_add(outcome.comparisons)
             .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
         if in_fixed && in_length {
-            result.shared_candidates = result
-                .shared_candidates
-                .checked_add(1)
-                .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
             result.avoided_recheck_pairs = result
                 .avoided_recheck_pairs
                 .checked_add(1)
@@ -13919,16 +14149,6 @@ fn recheck_merged_local_fragment_candidates(
             result.avoided_recheck_comparisons = result
                 .avoided_recheck_comparisons
                 .checked_add(outcome.comparisons)
-                .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
-        } else if in_fixed {
-            result.fixed_only_candidates = result
-                .fixed_only_candidates
-                .checked_add(1)
-                .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
-        } else {
-            result.length_only_candidates = result
-                .length_only_candidates
-                .checked_add(1)
                 .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
         }
         if outcome.retained {
@@ -13958,9 +14178,11 @@ fn recheck_merged_local_fragment_candidates(
             .and_then(|value| value.checked_add(result.length_only_candidates))
             != Some(result.unique_recheck_pairs)
         || result.avoided_recheck_pairs != result.shared_candidates
+        || work_attribution.recheck_pairs_started < work_attribution.recheck_pairs_completed
     {
         return Err(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure);
     }
+    checked_increment(&mut work_attribution.recheck_queries_completed)?;
     Ok(result)
 }
 
@@ -13974,6 +14196,7 @@ fn analyze_local_fragment_recheck_reuse_shadow_with_limits(
 ) -> LocalFragmentRecheckReuseShadowMetrics {
     let fixed_depth = sentence_edge_signature_depth(min_tokens).unwrap_or(0);
     let mut budget = LengthAwareBudget::new(limits);
+    let mut work_attribution = LocalFragmentRecheckReuseWorkAttribution::default();
     let result = (|| -> std::result::Result<_, LocalFragmentLengthAwareShadowStopReason> {
         let old_fragments = enumerate_length_aware_local_fragments(
             old_occurrences,
@@ -14062,6 +14285,7 @@ fn analyze_local_fragment_recheck_reuse_shadow_with_limits(
                     old_occurrences,
                     new_occurrences,
                     &mut budget,
+                    &mut work_attribution,
                 )?;
 
                 macro_rules! add_metric {
@@ -14187,6 +14411,31 @@ fn analyze_local_fragment_recheck_reuse_shadow_with_limits(
             || metrics.avoided_recheck_pairs != metrics.shared_pre_recheck_candidates
             || budget.work.exact_recheck_pairs_examined != metrics.unique_recheck_pairs
             || budget.work.exact_recheck_comparisons_examined != metrics.actual_recheck_comparisons
+            || work_attribution.candidate_queries_collected != metrics.global_queries
+            || work_attribution.recheck_queries_completed != metrics.global_queries
+            || work_attribution.fixed_candidates_collected != metrics.fixed_pre_recheck_candidates
+            || work_attribution.length_aware_candidates_collected
+                != metrics.length_aware_pre_recheck_candidates
+            || work_attribution.shared_candidates_collected != metrics.shared_pre_recheck_candidates
+            || work_attribution.fixed_only_candidates_collected
+                != metrics.fixed_only_pre_recheck_candidates
+            || work_attribution.length_aware_only_candidates_collected
+                != metrics.length_aware_only_pre_recheck_candidates
+            || work_attribution.unique_candidates_collected != metrics.unique_recheck_pairs
+            || work_attribution.recheck_pairs_started != metrics.unique_recheck_pairs
+            || work_attribution.recheck_pairs_completed != metrics.unique_recheck_pairs
+            || work_attribution
+                .accepted_pairs
+                .checked_add(work_attribution.rejected_pairs)
+                != Some(work_attribution.recheck_pairs_completed)
+            || work_attribution
+                .prefix_threshold_accepts
+                .checked_add(work_attribution.suffix_threshold_accepts)
+                != Some(work_attribution.accepted_pairs)
+            || work_attribution
+                .prefix_comparisons
+                .checked_add(work_attribution.suffix_comparisons)
+                != Some(metrics.actual_recheck_comparisons)
         {
             return Err(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure);
         }
@@ -14194,6 +14443,7 @@ fn analyze_local_fragment_recheck_reuse_shadow_with_limits(
         metrics.length_aware_pre_recheck_fingerprint = length_pre_recheck_stream.finish();
         metrics.fixed_retained_fingerprint = fixed_retained_stream.finish();
         metrics.length_aware_retained_fingerprint = length_retained_stream.finish();
+        metrics.work_attribution = work_attribution;
         Ok(metrics)
     })();
     let work = budget.work;
@@ -14206,6 +14456,7 @@ fn analyze_local_fragment_recheck_reuse_shadow_with_limits(
             complete: false,
             stop_reason: Some(reason),
             work,
+            work_attribution,
             min_tokens,
             fixed_depth,
             ..LocalFragmentRecheckReuseShadowMetrics::default()
@@ -31801,6 +32052,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let mut budget = LengthAwareBudget::new(length_aware_limits());
+        let mut work_attribution = LocalFragmentRecheckReuseWorkAttribution::default();
         let result = recheck_merged_local_fragment_candidates(
             &old,
             &[0, 2],
@@ -31809,6 +32061,7 @@ mod tests {
             &old_occurrences,
             &new_occurrences,
             &mut budget,
+            &mut work_attribution,
         )
         .expect("merged rechecks complete");
         assert_eq!(result.shared_candidates, 1);
@@ -31820,10 +32073,134 @@ mod tests {
         assert_eq!(result.fixed_retained, vec![0, 2]);
         assert_eq!(result.length_retained, vec![1, 2]);
         assert_eq!(budget.work.exact_recheck_pairs_examined, 3);
+        assert_eq!(work_attribution.recheck_pairs_completed, 3);
         assert_eq!(
             result.actual_recheck_comparisons + result.avoided_recheck_comparisons,
             result.projected_duplicate_recheck_comparisons
         );
+    }
+
+    #[test]
+    fn threshold_capped_fragment_recheck_stops_at_prefix_or_suffix_evidence() {
+        let old_occurrences = [local_fragment_parent("abcdefghij", 1, 1)];
+        let exact_new_occurrences = [local_fragment_parent("abcdefghij", 2, 2)];
+        let suffix_new_occurrences = [local_fragment_parent("zbcdefghij", 3, 3)];
+        let old = test_length_aware_fragment(
+            0,
+            &old_occurrences[0],
+            LocalFragmentOrientation::Prefix,
+            0..10,
+        );
+        let exact_new = test_length_aware_fragment(
+            0,
+            &exact_new_occurrences[0],
+            LocalFragmentOrientation::Prefix,
+            0..10,
+        );
+        let suffix_new = test_length_aware_fragment(
+            0,
+            &suffix_new_occurrences[0],
+            LocalFragmentOrientation::Prefix,
+            0..10,
+        );
+
+        let mut prefix_budget = LengthAwareBudget::new(length_aware_limits());
+        let mut prefix_work = LocalFragmentRecheckReuseWorkAttribution::default();
+        let prefix = length_aware_threshold_capped_edge_recheck_with_cost(
+            &old,
+            &exact_new,
+            &old_occurrences,
+            &exact_new_occurrences,
+            &mut prefix_budget,
+            &mut prefix_work,
+        )
+        .expect("prefix threshold recheck completes");
+        assert!(prefix.retained);
+        assert_eq!(prefix.comparisons, 3);
+        assert_eq!(prefix.prefix_comparisons, 3);
+        assert_eq!(prefix.suffix_comparisons, 0);
+        assert_eq!(
+            prefix.accept_side,
+            Some(LengthAwareThresholdAcceptSide::Prefix)
+        );
+
+        let mut suffix_budget = LengthAwareBudget::new(length_aware_limits());
+        let mut suffix_work = LocalFragmentRecheckReuseWorkAttribution::default();
+        let suffix = length_aware_threshold_capped_edge_recheck_with_cost(
+            &old,
+            &suffix_new,
+            &old_occurrences,
+            &suffix_new_occurrences,
+            &mut suffix_budget,
+            &mut suffix_work,
+        )
+        .expect("suffix threshold recheck completes");
+        assert!(suffix.retained);
+        assert_eq!(suffix.comparisons, 4);
+        assert_eq!(suffix.prefix_comparisons, 1);
+        assert_eq!(suffix.suffix_comparisons, 3);
+        assert_eq!(
+            suffix.accept_side,
+            Some(LengthAwareThresholdAcceptSide::Suffix)
+        );
+    }
+
+    #[test]
+    fn threshold_capped_fragment_recheck_matches_full_scan_for_small_binary_inputs() {
+        let inputs = (1..=5)
+            .flat_map(|token_count| {
+                (0..(1usize << token_count)).map(move |bits| {
+                    (0..token_count)
+                        .map(|bit| if bits & (1 << bit) == 0 { 'a' } else { 'b' })
+                        .collect::<String>()
+                })
+            })
+            .collect::<Vec<_>>();
+        for (old_index, old_text) in inputs.iter().enumerate() {
+            for (new_index, new_text) in inputs.iter().enumerate() {
+                let old_occurrences = [local_fragment_parent(old_text, 1, 1)];
+                let new_occurrences = [local_fragment_parent(new_text, 2, 2)];
+                let old = test_length_aware_fragment(
+                    0,
+                    &old_occurrences[0],
+                    LocalFragmentOrientation::Prefix,
+                    0..old_text.len(),
+                );
+                let new = test_length_aware_fragment(
+                    0,
+                    &new_occurrences[0],
+                    LocalFragmentOrientation::Prefix,
+                    0..new_text.len(),
+                );
+                let mut full_budget = LengthAwareBudget::new(length_aware_limits());
+                let full = length_aware_exact_edge_recheck_with_cost(
+                    &old,
+                    &new,
+                    &old_occurrences,
+                    &new_occurrences,
+                    &mut full_budget,
+                )
+                .expect("full recheck completes");
+                let mut capped_budget = LengthAwareBudget::new(length_aware_limits());
+                let mut work = LocalFragmentRecheckReuseWorkAttribution::default();
+                let capped = length_aware_threshold_capped_edge_recheck_with_cost(
+                    &old,
+                    &new,
+                    &old_occurrences,
+                    &new_occurrences,
+                    &mut capped_budget,
+                    &mut work,
+                )
+                .expect("threshold-capped recheck completes");
+                assert_eq!(
+                    capped.retained, full.retained,
+                    "decision differs for binary inputs {old_index} and {new_index}"
+                );
+                assert!(capped.comparisons <= full.comparisons);
+                assert_eq!(work.recheck_pairs_started, 1);
+                assert_eq!(work.recheck_pairs_completed, 1);
+            }
+        }
     }
 
     #[test]
@@ -32154,6 +32531,7 @@ mod tests {
         );
         collision.signatures.clone_from(&old.signatures);
         let mut budget = LengthAwareBudget::new(length_aware_limits());
+        let mut work_attribution = LocalFragmentRecheckReuseWorkAttribution::default();
         let result = recheck_merged_local_fragment_candidates(
             &old,
             &[0],
@@ -32162,6 +32540,7 @@ mod tests {
             &old_occurrences,
             &new_occurrences,
             &mut budget,
+            &mut work_attribution,
         )
         .expect("collision recheck completes");
         assert!(result.fixed_retained.is_empty());
@@ -32169,6 +32548,7 @@ mod tests {
         assert_eq!(result.unique_recheck_pairs, 1);
         assert_eq!(result.avoided_recheck_pairs, 1);
         assert_eq!(budget.work.exact_recheck_pairs_examined, 1);
+        assert_eq!(work_attribution.rejected_pairs, 1);
     }
 
     #[test]
@@ -32739,6 +33119,20 @@ mod tests {
             assert_eq!(metrics.fixed_pre_recheck_candidates, 0);
             assert_eq!(metrics.compared_queries, 0);
             assert_eq!(metrics.fixed_pre_recheck_fingerprint, [0; 32]);
+            assert_eq!(metrics.work_attribution.candidate_queries_collected, 1);
+            assert_eq!(metrics.work_attribution.recheck_queries_completed, 0);
+            assert_eq!(metrics.work_attribution.recheck_pairs_completed, 0);
+            assert_eq!(metrics.work_attribution.accepted_pairs, 0);
+            assert_eq!(metrics.work_attribution.rejected_pairs, 0);
+            match expected {
+                LocalFragmentLengthAwareShadowStopReason::ExactRecheckPairLimit => {
+                    assert_eq!(metrics.work_attribution.recheck_pairs_started, 0);
+                }
+                LocalFragmentLengthAwareShadowStopReason::ExactRecheckComparisonLimit => {
+                    assert_eq!(metrics.work_attribution.recheck_pairs_started, 1);
+                }
+                _ => unreachable!("test covers only exact recheck limits"),
+            }
         }
     }
 

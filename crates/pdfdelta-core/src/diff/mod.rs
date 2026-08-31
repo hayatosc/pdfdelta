@@ -1249,12 +1249,35 @@ pub struct LocalFragmentGlobalLengthAwareShadowMetrics {
     pub length_aware_retained_fingerprint: [u8; 32],
 }
 
-/// Behavior-neutral diagnostics for sharing exact rechecks across fragment candidate streams.
+/// Stop-safe work attribution for threshold-capped exact fragment rechecks.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LocalFragmentRecheckReuseWorkAttribution {
+    pub candidate_queries_collected: usize,
+    pub recheck_queries_completed: usize,
+    pub fixed_candidates_collected: usize,
+    pub length_aware_candidates_collected: usize,
+    pub shared_candidates_collected: usize,
+    pub fixed_only_candidates_collected: usize,
+    pub length_aware_only_candidates_collected: usize,
+    pub unique_candidates_collected: usize,
+    pub recheck_pairs_started: usize,
+    pub recheck_pairs_completed: usize,
+    pub accepted_pairs: usize,
+    pub rejected_pairs: usize,
+    pub prefix_comparisons: usize,
+    pub suffix_comparisons: usize,
+    pub prefix_threshold_accepts: usize,
+    pub suffix_threshold_accepts: usize,
+}
+
+/// Behavior-neutral diagnostics for threshold-capped recheck reuse across candidate streams.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct LocalFragmentRecheckReuseShadowMetrics {
     pub complete: bool,
     pub stop_reason: Option<LocalFragmentLengthAwareShadowStopReason>,
     pub work: LocalFragmentLengthAwareShadowWorkMetrics,
+    /// Aggregate work survives an atomic stop; candidate sets and fingerprints do not.
+    pub work_attribution: LocalFragmentRecheckReuseWorkAttribution,
     pub min_tokens: usize,
     pub fixed_depth: usize,
     pub old_fragments: usize,
