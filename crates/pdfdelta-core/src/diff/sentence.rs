@@ -13104,6 +13104,23 @@ struct CertifiedExactEdgeRecheck {
     credited_tokens: usize,
 }
 
+fn edge_threshold_required_matches(
+    shorter: usize,
+) -> std::result::Result<usize, LocalFragmentLengthAwareShadowStopReason> {
+    let threshold = usize::from(MIN_WORD_SCORE_EDGE_EVIDENCE);
+    let whole = shorter
+        .checked_div(10_000)
+        .and_then(|value| value.checked_mul(threshold))
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    let remainder_numerator = (shorter % 10_000)
+        .checked_mul(threshold)
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    whole
+        .checked_add(remainder_numerator / 10_000)
+        .and_then(|required| required.checked_add(usize::from(remainder_numerator % 10_000 != 0)))
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn certified_threshold_capped_edge_recheck(
     old: &LengthAwareLocalFragment,
@@ -13119,6 +13136,7 @@ fn certified_threshold_capped_edge_recheck(
     let old_tokens = length_aware_fragment_tokens(old, old_occurrences)?;
     let new_tokens = length_aware_fragment_tokens(new, new_occurrences)?;
     let shorter = old_tokens.len().min(new_tokens.len());
+    let required = edge_threshold_required_matches(shorter)?;
     let reaches_threshold = |matched: usize| {
         basis_points(matched, shorter).is_some_and(|score| score >= MIN_WORD_SCORE_EDGE_EVIDENCE)
     };
@@ -13130,9 +13148,7 @@ fn certified_threshold_capped_edge_recheck(
         certification,
         ExactBoundaryCertification::Suffix | ExactBoundaryCertification::Both
     );
-    let mut prefix = usize::from(has_prefix)
-        .checked_mul(depth)
-        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    let mut prefix = if has_prefix { depth.min(required) } else { 0 };
     let mut avoided = prefix;
     if reaches_threshold(prefix) {
         return Ok(CertifiedExactEdgeRecheck {
@@ -13154,13 +13170,15 @@ fn certified_threshold_capped_edge_recheck(
                 retained: true,
                 comparisons,
                 avoided_comparisons: avoided,
-                credited_tokens: usize::from(has_prefix) * depth,
+                credited_tokens: avoided,
             });
         }
     }
     let available_suffix = shorter.saturating_sub(prefix);
     let mut suffix = if has_suffix {
-        depth.min(available_suffix)
+        depth
+            .min(available_suffix)
+            .min(required.saturating_sub(prefix))
     } else {
         0
     };
@@ -13195,10 +13213,7 @@ fn certified_threshold_capped_edge_recheck(
         retained: reaches_threshold(matched),
         comparisons: budget.work.exact_recheck_comparisons_examined - comparisons_before,
         avoided_comparisons: avoided,
-        credited_tokens: match certification {
-            ExactBoundaryCertification::Prefix | ExactBoundaryCertification::Suffix => depth,
-            ExactBoundaryCertification::Both => depth.saturating_mul(2).min(shorter),
-        },
+        credited_tokens: avoided,
     })
 }
 
@@ -33795,14 +33810,17 @@ mod tests {
                             continue;
                         };
                         let mut full_budget = LengthAwareBudget::new(length_aware_limits());
-                        let full = length_aware_exact_edge_recheck_with_cost(
+                        let mut full_work = LocalFragmentRecheckReuseWorkAttribution::default();
+                        let legacy = length_aware_threshold_capped_edge_recheck_with_cost(
                             &old,
                             &new,
                             &old_occurrences,
                             &new_occurrences,
                             &mut full_budget,
+                            &mut full_work,
+                            LocalFragmentCandidateMembership::LengthAwareOnly,
                         )
-                        .expect("full recheck succeeds");
+                        .expect("legacy recheck succeeds");
                         let mut certified_budget = LengthAwareBudget::new(length_aware_limits());
                         let certified = certified_threshold_capped_edge_recheck(
                             &old,
@@ -33814,10 +33832,31 @@ mod tests {
                             &mut certified_budget,
                         )
                         .expect("certified recheck succeeds");
-                        assert_eq!(certified.retained, full.retained);
+                        assert_eq!(certified.retained, legacy.retained);
+                        assert_eq!(certified.credited_tokens, certified.avoided_comparisons);
+                        assert_eq!(
+                            legacy.comparisons,
+                            certified.comparisons + certified.avoided_comparisons
+                        );
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn edge_threshold_required_matches_agrees_with_basis_points() {
+        for shorter in 1..=4_096 {
+            let required = edge_threshold_required_matches(shorter).expect("threshold fits");
+            assert!(
+                basis_points(required, shorter)
+                    .is_some_and(|score| score >= MIN_WORD_SCORE_EDGE_EVIDENCE)
+            );
+            assert!(
+                required == 0
+                    || basis_points(required - 1, shorter)
+                        .is_some_and(|score| score < MIN_WORD_SCORE_EDGE_EVIDENCE)
+            );
         }
     }
 
