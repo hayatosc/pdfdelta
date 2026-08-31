@@ -1360,6 +1360,38 @@ pub struct LocalFragmentLengthAwareRecheckShadowMetrics {
     pub retained_fingerprint: [u8; 32],
 }
 
+/// Behavior-neutral diagnostics for generating only length-aware fragment candidates.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LocalFragmentLengthOnlyCandidateShadowMetrics {
+    pub complete: bool,
+    pub stop_reason: Option<LocalFragmentLengthAwareShadowStopReason>,
+    pub work: LocalFragmentLengthAwareShadowWorkMetrics,
+    pub min_tokens: usize,
+    pub fixed_depth: usize,
+    pub old_fragments: usize,
+    pub new_fragments: usize,
+    pub parent_admission_queries: usize,
+    pub global_queries: usize,
+    pub compared_queries: usize,
+    pub pre_recheck_candidates: usize,
+    pub recheck_pairs: usize,
+    pub recheck_comparisons: usize,
+    pub retained_pairs: usize,
+    /// Whether counts and fingerprints were compared with a complete v47 sibling.
+    pub v47_parity_available: bool,
+    pub pre_recheck_candidate_count_mismatches: usize,
+    pub recheck_pair_count_mismatches: usize,
+    pub recheck_comparison_count_mismatches: usize,
+    pub retained_pair_count_mismatches: usize,
+    pub pre_recheck_fingerprint_mismatches: usize,
+    pub retained_fingerprint_mismatches: usize,
+    /// Canonical ordered pair-stream digests used only for sibling parity checks.
+    #[doc(hidden)]
+    pub pre_recheck_fingerprint: [u8; 32],
+    #[doc(hidden)]
+    pub retained_fingerprint: [u8; 32],
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -1443,6 +1475,8 @@ pub struct SentenceRecoveryMetrics {
     pub local_fragment_recheck_reuse_shadow: Option<LocalFragmentRecheckReuseShadowMetrics>,
     pub local_fragment_length_aware_recheck_shadow:
         Option<LocalFragmentLengthAwareRecheckShadowMetrics>,
+    pub local_fragment_length_only_candidate_shadow:
+        Option<LocalFragmentLengthOnlyCandidateShadowMetrics>,
     /// Whether the production Sentence edge filter classified every query.
     /// A false value always has [`Self::sentence_edge_filter_stop_reason`].
     pub sentence_edge_filter_complete: bool,

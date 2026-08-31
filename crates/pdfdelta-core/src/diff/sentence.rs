@@ -48,10 +48,11 @@ use super::{
     ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
     LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
     LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
-    LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLocationEvidence,
-    LocalFragmentOrientation, LocalFragmentPairEvidence, LocalFragmentRecheckMembershipOutcomeWork,
-    LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
-    LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
+    LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLengthOnlyCandidateShadowMetrics,
+    LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
+    LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
+    LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
+    LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
     MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
     NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
     RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
@@ -12727,6 +12728,40 @@ fn build_global_length_aware_boundary_indexes(
     Ok((fixed, own, all))
 }
 
+fn build_global_length_aware_only_boundary_indexes(
+    fragments: &[LengthAwareLocalFragment],
+    budget: &mut LengthAwareBudget,
+) -> std::result::Result<
+    (
+        GlobalLengthAwareBoundaryIndex,
+        GlobalLengthAwareBoundaryIndex,
+    ),
+    LocalFragmentLengthAwareShadowStopReason,
+> {
+    let mut own = GlobalLengthAwareBoundaryIndex::new();
+    let mut all = GlobalLengthAwareBoundaryIndex::new();
+    for (fragment_index, fragment) in fragments.iter().enumerate() {
+        let own_depth = fragment.signatures.len();
+        for side in [LocalFragmentEdgeSide::Prefix, LocalFragmentEdgeSide::Suffix] {
+            for depth in 1..own_depth {
+                insert_global_length_aware_posting(
+                    &mut all,
+                    global_length_aware_key(fragment, side, depth)?,
+                    fragment_index,
+                    budget,
+                )?;
+            }
+            insert_global_length_aware_posting(
+                &mut own,
+                global_length_aware_key(fragment, side, own_depth)?,
+                fragment_index,
+                budget,
+            )?;
+        }
+    }
+    Ok((own, all))
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct GlobalLengthAwareQueryWork {
     raw_signature_hits: usize,
@@ -12851,6 +12886,51 @@ fn collect_global_length_aware_boundary_candidates(
         .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
     budget.charge(LengthAwareWorkKind::CandidateUnion, length_candidates.len())?;
     Ok((fixed_candidates, length_candidates, work))
+}
+
+fn collect_global_length_aware_only_boundary_candidates(
+    query: &LengthAwareLocalFragment,
+    admitted_parents: &[usize],
+    fragments: &[LengthAwareLocalFragment],
+    own: &GlobalLengthAwareBoundaryIndex,
+    all: &GlobalLengthAwareBoundaryIndex,
+    budget: &mut LengthAwareBudget,
+) -> std::result::Result<
+    (Vec<usize>, GlobalLengthAwareQueryWork),
+    LocalFragmentLengthAwareShadowStopReason,
+> {
+    budget.charge(LengthAwareWorkKind::Queries, 1)?;
+    let mut work = GlobalLengthAwareQueryWork::default();
+    let own_depth = query.signatures.len();
+    let mut candidates = Vec::new();
+    collect_global_length_aware_postings(
+        query,
+        admitted_parents,
+        fragments,
+        own,
+        1..=own_depth,
+        budget,
+        &mut candidates,
+        &mut work,
+    )?;
+    collect_global_length_aware_postings(
+        query,
+        admitted_parents,
+        fragments,
+        all,
+        std::iter::once(own_depth),
+        budget,
+        &mut candidates,
+        &mut work,
+    )?;
+    let occurrences = candidates.len();
+    candidates.sort_unstable();
+    candidates.dedup();
+    work.duplicate_candidate_occurrences = occurrences
+        .checked_sub(candidates.len())
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure)?;
+    budget.charge(LengthAwareWorkKind::CandidateUnion, candidates.len())?;
+    Ok((candidates, work))
 }
 
 fn collect_length_aware_postings(
@@ -14793,6 +14873,177 @@ fn analyze_local_fragment_length_aware_recheck_shadow_with_limits(
     }
 }
 
+fn analyze_local_fragment_length_only_candidate_shadow_with_limits(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    min_tokens: usize,
+    limits: LengthAwareLimits,
+) -> LocalFragmentLengthOnlyCandidateShadowMetrics {
+    let fixed_depth = sentence_edge_signature_depth(min_tokens).unwrap_or(0);
+    let mut budget = LengthAwareBudget::new(limits);
+    let result = (|| -> std::result::Result<_, LocalFragmentLengthAwareShadowStopReason> {
+        let old_fragments = enumerate_length_aware_local_fragments(
+            old_occurrences,
+            old_candidates,
+            min_tokens,
+            &mut budget,
+        )?;
+        let new_fragments = enumerate_length_aware_local_fragments(
+            new_occurrences,
+            new_candidates,
+            min_tokens,
+            &mut budget,
+        )?;
+        let old_ranges = length_aware_parent_ranges(&old_fragments, old_candidates.len())?;
+        let new_ranges = length_aware_parent_ranges(&new_fragments, new_candidates.len())?;
+        let (own_index, all_index) =
+            build_global_length_aware_only_boundary_indexes(&new_fragments, &mut budget)?;
+        let parent_index =
+            build_length_aware_parent_index(&new_fragments, &new_ranges, fixed_depth, &mut budget)?;
+
+        let mut metrics = LocalFragmentLengthOnlyCandidateShadowMetrics {
+            complete: true,
+            min_tokens,
+            fixed_depth,
+            old_fragments: old_fragments.len(),
+            new_fragments: new_fragments.len(),
+            ..LocalFragmentLengthOnlyCandidateShadowMetrics::default()
+        };
+        let mut work_attribution = LocalFragmentRecheckReuseWorkAttribution::default();
+        let mut pre_recheck_stream = LocalFragmentPairStreamFingerprint::new();
+        let mut retained_stream = LocalFragmentPairStreamFingerprint::new();
+
+        for old_range in old_ranges.iter().cloned() {
+            if old_range.is_empty() {
+                continue;
+            }
+            let admitted_parents = collect_length_aware_parent_candidates(
+                &old_fragments,
+                old_range.clone(),
+                &parent_index,
+                fixed_depth,
+                &mut budget,
+            )?;
+            metrics.parent_admission_queries = metrics
+                .parent_admission_queries
+                .checked_add(1)
+                .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+            if admitted_parents.is_empty() {
+                for old_index in old_range {
+                    pre_recheck_stream
+                        .commit_query(old_index, LocalFragmentQueryFingerprint::new())?;
+                    retained_stream
+                        .commit_query(old_index, LocalFragmentQueryFingerprint::new())?;
+                }
+                continue;
+            }
+            for old_index in old_range {
+                metrics.global_queries = metrics
+                    .global_queries
+                    .checked_add(1)
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                let old = old_fragments
+                    .get(old_index)
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure)?;
+                let (length_candidates, _) = collect_global_length_aware_only_boundary_candidates(
+                    old,
+                    &admitted_parents,
+                    &new_fragments,
+                    &own_index,
+                    &all_index,
+                    &mut budget,
+                )?;
+                metrics.pre_recheck_candidates = metrics
+                    .pre_recheck_candidates
+                    .checked_add(length_candidates.len())
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                pre_recheck_stream.commit_query(
+                    old_index,
+                    local_fragment_query_fingerprint(&length_candidates)?,
+                )?;
+
+                let mut retained = Vec::new();
+                retained
+                    .try_reserve_exact(length_candidates.len())
+                    .map_err(|_| LocalFragmentLengthAwareShadowStopReason::AllocationFailure)?;
+                for &new_index in &length_candidates {
+                    let new = new_fragments
+                        .get(new_index)
+                        .ok_or(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure)?;
+                    if length_aware_threshold_capped_edge_recheck_with_cost(
+                        old,
+                        new,
+                        old_occurrences,
+                        new_occurrences,
+                        &mut budget,
+                        &mut work_attribution,
+                        LocalFragmentCandidateMembership::LengthAwareOnly,
+                    )?
+                    .retained
+                    {
+                        retained.push(new_index);
+                    }
+                }
+                retained_stream
+                    .commit_query(old_index, local_fragment_query_fingerprint(&retained)?)?;
+                metrics.retained_pairs = metrics
+                    .retained_pairs
+                    .checked_add(retained.len())
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                metrics.compared_queries = metrics
+                    .compared_queries
+                    .checked_add(1)
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+            }
+        }
+        metrics.recheck_pairs = budget.work.exact_recheck_pairs_examined;
+        metrics.recheck_comparisons = budget.work.exact_recheck_comparisons_examined;
+        if budget.work.enumeration_examined
+            != metrics
+                .old_fragments
+                .checked_add(metrics.new_fragments)
+                .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
+            || budget.work.queries_examined
+                != metrics
+                    .parent_admission_queries
+                    .checked_add(metrics.global_queries)
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
+            || metrics.compared_queries != metrics.global_queries
+            || metrics.recheck_pairs != metrics.pre_recheck_candidates
+            || work_attribution.recheck_pairs_started != metrics.recheck_pairs
+            || work_attribution.recheck_pairs_completed != metrics.recheck_pairs
+            || work_attribution.accepted_pairs != metrics.retained_pairs
+            || work_attribution.length_aware_only.pairs_started != metrics.recheck_pairs
+            || work_attribution.length_aware_only.pairs_completed != metrics.recheck_pairs
+            || work_attribution.length_aware_only.accepted_pairs != metrics.retained_pairs
+            || work_attribution.length_aware_only.comparisons != metrics.recheck_comparisons
+            || validate_local_fragment_recheck_work_attribution(&work_attribution).is_err()
+        {
+            return Err(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure);
+        }
+        metrics.pre_recheck_fingerprint = pre_recheck_stream.finish();
+        metrics.retained_fingerprint = retained_stream.finish();
+        Ok(metrics)
+    })();
+    let work = budget.work;
+    match result {
+        Ok(mut metrics) => {
+            metrics.work = work;
+            metrics
+        }
+        Err(reason) => LocalFragmentLengthOnlyCandidateShadowMetrics {
+            complete: false,
+            stop_reason: Some(reason),
+            work,
+            min_tokens,
+            fixed_depth,
+            ..LocalFragmentLengthOnlyCandidateShadowMetrics::default()
+        },
+    }
+}
+
 fn depth_band_index(depth: usize) -> usize {
     match depth {
         0 | 1 => 0,
@@ -15002,6 +15253,73 @@ fn record_local_fragment_length_aware_recheck_shadow(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn record_local_fragment_length_only_candidate_shadow(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    min_tokens: usize,
+    candidate_generation_complete: bool,
+) {
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    let fixed_depth = sentence_edge_signature_depth(min_tokens).unwrap_or(0);
+    diagnostics
+        .metrics
+        .local_fragment_length_only_candidate_shadow = Some(if !candidate_generation_complete {
+        LocalFragmentLengthOnlyCandidateShadowMetrics {
+            complete: false,
+            stop_reason: Some(
+                LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete,
+            ),
+            min_tokens,
+            fixed_depth,
+            ..LocalFragmentLengthOnlyCandidateShadowMetrics::default()
+        }
+    } else if let Some(eligible_tokens) = old_candidates
+        .iter()
+        .filter_map(|candidate| old_occurrences.get(candidate.occurrence_index))
+        .chain(
+            new_candidates
+                .iter()
+                .filter_map(|candidate| new_occurrences.get(candidate.occurrence_index)),
+        )
+        .filter(|parent| local_fragment_parent_eligible(parent, min_tokens))
+        .try_fold(0usize, |total, parent| {
+            total.checked_add(parent.tokens.len())
+        })
+    {
+        match LengthAwareLimits::for_tokens(eligible_tokens) {
+            Some(limits) => analyze_local_fragment_length_only_candidate_shadow_with_limits(
+                old_occurrences,
+                new_occurrences,
+                old_candidates,
+                new_candidates,
+                min_tokens,
+                limits,
+            ),
+            None => LocalFragmentLengthOnlyCandidateShadowMetrics {
+                complete: false,
+                stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::CounterOverflow),
+                min_tokens,
+                fixed_depth,
+                ..LocalFragmentLengthOnlyCandidateShadowMetrics::default()
+            },
+        }
+    } else {
+        LocalFragmentLengthOnlyCandidateShadowMetrics {
+            complete: false,
+            stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::CounterOverflow),
+            min_tokens,
+            fixed_depth,
+            ..LocalFragmentLengthOnlyCandidateShadowMetrics::default()
+        }
+    });
+}
+
+#[allow(clippy::too_many_arguments)]
 fn record_local_fragment_length_aware_shadow(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     old_occurrences: &[SentenceOccurrence],
@@ -15174,6 +15492,47 @@ fn record_local_fragment_length_aware_recheck_reuse_parity(
         usize::from(length_aware.retained_fingerprint != reuse.length_aware_retained_fingerprint);
 }
 
+fn record_local_fragment_length_only_candidate_v47_parity(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+) {
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    let Some(v47) = diagnostics
+        .metrics
+        .local_fragment_length_aware_recheck_shadow
+    else {
+        return;
+    };
+    let Some(length_only) = diagnostics
+        .metrics
+        .local_fragment_length_only_candidate_shadow
+    else {
+        return;
+    };
+    if !v47.complete || !length_only.complete {
+        return;
+    }
+    let length_only = diagnostics
+        .metrics
+        .local_fragment_length_only_candidate_shadow
+        .as_mut()
+        .expect("length-only shadow was present above");
+    length_only.v47_parity_available = true;
+    length_only.pre_recheck_candidate_count_mismatches =
+        usize::from(length_only.pre_recheck_candidates != v47.pre_recheck_candidates);
+    length_only.recheck_pair_count_mismatches =
+        usize::from(length_only.recheck_pairs != v47.recheck_pairs);
+    length_only.recheck_comparison_count_mismatches =
+        usize::from(length_only.recheck_comparisons != v47.recheck_comparisons);
+    length_only.retained_pair_count_mismatches =
+        usize::from(length_only.retained_pairs != v47.retained_pairs);
+    length_only.pre_recheck_fingerprint_mismatches =
+        usize::from(length_only.pre_recheck_fingerprint != v47.pre_recheck_fingerprint);
+    length_only.retained_fingerprint_mismatches =
+        usize::from(length_only.retained_fingerprint != v47.retained_fingerprint);
+}
+
 #[allow(clippy::too_many_arguments)]
 fn record_local_fragment_shadow(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
@@ -15221,9 +15580,19 @@ fn record_local_fragment_shadow(
         min_tokens,
         candidate_generation_complete,
     );
+    record_local_fragment_length_only_candidate_shadow(
+        diagnostics,
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        min_tokens,
+        candidate_generation_complete,
+    );
     record_local_fragment_global_parent_scoped_parity(diagnostics);
     record_local_fragment_recheck_global_parity(diagnostics);
     record_local_fragment_length_aware_recheck_reuse_parity(diagnostics);
+    record_local_fragment_length_only_candidate_v47_parity(diagnostics);
     let Some(diagnostics) = diagnostics.as_mut() else {
         return;
     };
@@ -32343,6 +32712,34 @@ mod tests {
         )
     }
 
+    fn length_only_candidate_analysis_metrics(
+        old: Vec<SentenceOccurrence>,
+        new: Vec<SentenceOccurrence>,
+        min_tokens: usize,
+        limits: LengthAwareLimits,
+    ) -> LocalFragmentLengthOnlyCandidateShadowMetrics {
+        let old_candidates = (0..old.len())
+            .map(|occurrence_index| RecoveryCandidate {
+                occurrence_index,
+                span_index: old[occurrence_index].span_index.expect("old span exists"),
+            })
+            .collect::<Vec<_>>();
+        let new_candidates = (0..new.len())
+            .map(|occurrence_index| RecoveryCandidate {
+                occurrence_index,
+                span_index: new[occurrence_index].span_index.expect("new span exists"),
+            })
+            .collect::<Vec<_>>();
+        analyze_local_fragment_length_only_candidate_shadow_with_limits(
+            &old,
+            &new,
+            &old_candidates,
+            &new_candidates,
+            min_tokens,
+            limits,
+        )
+    }
+
     #[test]
     fn length_aware_local_fragment_shadow_preserves_fixed_retained_order() {
         let old = vec![
@@ -32565,6 +32962,102 @@ mod tests {
             length_aware.retained_fingerprint,
             reuse.length_aware_retained_fingerprint
         );
+    }
+
+    #[test]
+    fn length_only_candidate_shadow_preserves_v47_streams_without_fixed_global_work() {
+        let documents = || {
+            (
+                vec![local_fragment_parent("abcdefghijklmnopqrst tail", 1, 1)],
+                vec![
+                    local_fragment_parent("abcdefghijklmnopqrst tail", 2, 2),
+                    local_fragment_parent("abcdefghijklmnopqrst tail", 3, 3),
+                ],
+            )
+        };
+        let (old, new) = documents();
+        let v47 = length_aware_recheck_analysis_metrics(old, new, 8, length_aware_limits());
+        let (old, new) = documents();
+        let length_only =
+            length_only_candidate_analysis_metrics(old, new, 8, length_aware_limits());
+        assert!(v47.complete, "{:?}", v47.stop_reason);
+        assert!(length_only.complete, "{:?}", length_only.stop_reason);
+        assert_eq!(length_only.parent_admission_queries, 1);
+        assert_eq!(length_only.global_queries, length_only.compared_queries);
+        assert_eq!(
+            length_only.pre_recheck_candidates,
+            v47.pre_recheck_candidates
+        );
+        assert_eq!(length_only.recheck_pairs, v47.recheck_pairs);
+        assert_eq!(length_only.recheck_comparisons, v47.recheck_comparisons);
+        assert_eq!(length_only.retained_pairs, v47.retained_pairs);
+        assert_eq!(
+            length_only.pre_recheck_fingerprint,
+            v47.pre_recheck_fingerprint
+        );
+        assert_eq!(length_only.retained_fingerprint, v47.retained_fingerprint);
+        assert_eq!(
+            length_only.work.candidate_union_examined,
+            length_only.pre_recheck_candidates
+        );
+        assert!(
+            length_only.work.candidate_union_examined < v47.work.candidate_union_examined,
+            "global fixed candidates must not be queried or unioned"
+        );
+        assert!(
+            length_only.work.posting_items_examined < v47.work.posting_items_examined,
+            "global fixed postings must not be built"
+        );
+    }
+
+    #[test]
+    fn length_only_candidate_shadow_preserves_empty_query_fingerprints() {
+        let documents = || {
+            (
+                vec![local_fragment_parent("abcdefghij klmnopqrst uvwxyz", 1, 1)],
+                vec![local_fragment_parent("1111111111 2222222222 333333", 2, 2)],
+            )
+        };
+        let (old, new) = documents();
+        let v47 = length_aware_recheck_analysis_metrics(old, new, 8, length_aware_limits());
+        let (old, new) = documents();
+        let length_only =
+            length_only_candidate_analysis_metrics(old, new, 8, length_aware_limits());
+        assert!(length_only.complete, "{:?}", length_only.stop_reason);
+        assert_eq!(length_only.parent_admission_queries, 1);
+        assert_eq!(length_only.global_queries, 0);
+        assert_eq!(length_only.compared_queries, 0);
+        assert_eq!(
+            length_only.pre_recheck_fingerprint,
+            v47.pre_recheck_fingerprint
+        );
+        assert_eq!(length_only.retained_fingerprint, v47.retained_fingerprint);
+    }
+
+    #[test]
+    fn length_only_candidate_shadow_deduplicates_candidates_in_v47_order() {
+        let documents = || {
+            (
+                vec![local_fragment_parent("abcdefghijklmnopqrst tail", 1, 1)],
+                vec![
+                    local_fragment_parent("abcdefghijklmnopqrst tail", 2, 2),
+                    local_fragment_parent("abcdefghijklmnopqrst tail", 3, 3),
+                    local_fragment_parent("abcdefghijklmnopqrst tail", 4, 4),
+                ],
+            )
+        };
+        let (old, new) = documents();
+        let v47 = length_aware_recheck_analysis_metrics(old, new, 8, length_aware_limits());
+        let (old, new) = documents();
+        let length_only =
+            length_only_candidate_analysis_metrics(old, new, 8, length_aware_limits());
+        assert!(length_only.complete, "{:?}", length_only.stop_reason);
+        assert!(length_only.work.posting_visits_examined > length_only.pre_recheck_candidates);
+        assert_eq!(
+            length_only.pre_recheck_fingerprint,
+            v47.pre_recheck_fingerprint
+        );
+        assert_eq!(length_only.retained_fingerprint, v47.retained_fingerprint);
     }
 
     #[test]
@@ -33883,6 +34376,170 @@ mod tests {
                 }
                 _ => unreachable!("test covers only exact recheck limits"),
             }
+        }
+    }
+
+    #[test]
+    fn length_only_candidate_shadow_publishes_only_work_on_resource_stop() {
+        type LimitCase = (
+            LocalFragmentLengthAwareShadowStopReason,
+            fn(&mut LengthAwareLimits),
+        );
+        let cases: &[LimitCase] = &[
+            (
+                LocalFragmentLengthAwareShadowStopReason::EnumerationLimit,
+                |limits| limits.enumeration = 0,
+            ),
+            (
+                LocalFragmentLengthAwareShadowStopReason::SignatureTokenStepLimit,
+                |limits| limits.signature_steps = 0,
+            ),
+            (
+                LocalFragmentLengthAwareShadowStopReason::IndexPostingLimit,
+                |limits| limits.posting_items = 0,
+            ),
+            (
+                LocalFragmentLengthAwareShadowStopReason::DistinctKeyLimit,
+                |limits| limits.distinct_keys = 0,
+            ),
+            (
+                LocalFragmentLengthAwareShadowStopReason::EstimatedByteLimit,
+                |limits| limits.estimated_bytes = 0,
+            ),
+            (
+                LocalFragmentLengthAwareShadowStopReason::QueryLimit,
+                |limits| limits.queries = 0,
+            ),
+            (
+                LocalFragmentLengthAwareShadowStopReason::PostingVisitLimit,
+                |limits| limits.posting_visits = 0,
+            ),
+            (
+                LocalFragmentLengthAwareShadowStopReason::CandidateUnionLimit,
+                |limits| limits.candidate_union = 0,
+            ),
+            (
+                LocalFragmentLengthAwareShadowStopReason::ExactRecheckPairLimit,
+                |limits| limits.exact_recheck_pairs = 0,
+            ),
+            (
+                LocalFragmentLengthAwareShadowStopReason::ExactRecheckComparisonLimit,
+                |limits| limits.exact_recheck_comparisons = 0,
+            ),
+        ];
+        for &(expected, mutate) in cases {
+            let mut limits = length_aware_limits();
+            mutate(&mut limits);
+            let metrics = length_only_candidate_analysis_metrics(
+                vec![local_fragment_parent("abcdefghijklmnopqrst tail", 1, 1)],
+                vec![local_fragment_parent("abcdefghijklmnopqrst tail", 2, 2)],
+                8,
+                limits,
+            );
+            assert!(!metrics.complete);
+            assert_eq!(metrics.stop_reason, Some(expected));
+            assert_eq!(metrics.old_fragments, 0);
+            assert_eq!(metrics.new_fragments, 0);
+            assert_eq!(metrics.parent_admission_queries, 0);
+            assert_eq!(metrics.global_queries, 0);
+            assert_eq!(metrics.compared_queries, 0);
+            assert_eq!(metrics.pre_recheck_candidates, 0);
+            assert_eq!(metrics.recheck_pairs, 0);
+            assert_eq!(metrics.recheck_comparisons, 0);
+            assert_eq!(metrics.retained_pairs, 0);
+            assert!(!metrics.v47_parity_available);
+            assert_eq!(metrics.pre_recheck_fingerprint, [0; 32]);
+            assert_eq!(metrics.retained_fingerprint, [0; 32]);
+            assert!(
+                metrics.work.enumeration_attempted > 0
+                    || metrics.work.signature_token_steps_attempted > 0
+                    || metrics.work.posting_items_attempted > 0
+                    || metrics.work.distinct_keys_attempted > 0
+                    || metrics.work.estimated_bytes_attempted > 0
+                    || metrics.work.queries_attempted > 0
+                    || metrics.work.posting_visits_attempted > 0
+                    || metrics.work.candidate_union_attempted > 0
+                    || metrics.work.exact_recheck_pairs_attempted > 0
+                    || metrics.work.exact_recheck_comparisons_attempted > 0
+            );
+        }
+    }
+
+    #[test]
+    fn length_only_candidate_v47_parity_requires_complete_siblings_and_counts_each_mismatch() {
+        let fingerprint = |value| [value; 32];
+        let diagnostics = |v47_complete, length_only_complete, mismatches: [bool; 6]| {
+            let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+                metrics: SentenceRecoveryMetrics {
+                    local_fragment_length_aware_recheck_shadow: Some(
+                        LocalFragmentLengthAwareRecheckShadowMetrics {
+                            complete: v47_complete,
+                            pre_recheck_candidates: 10,
+                            recheck_pairs: 10,
+                            recheck_comparisons: 20,
+                            retained_pairs: 5,
+                            pre_recheck_fingerprint: fingerprint(1),
+                            retained_fingerprint: fingerprint(2),
+                            ..LocalFragmentLengthAwareRecheckShadowMetrics::default()
+                        },
+                    ),
+                    local_fragment_length_only_candidate_shadow: Some(
+                        LocalFragmentLengthOnlyCandidateShadowMetrics {
+                            complete: length_only_complete,
+                            pre_recheck_candidates: 10 + usize::from(mismatches[0]),
+                            recheck_pairs: 10 + usize::from(mismatches[1]),
+                            recheck_comparisons: 20 + usize::from(mismatches[2]),
+                            retained_pairs: 5 + usize::from(mismatches[3]),
+                            pre_recheck_fingerprint: fingerprint(1 + u8::from(mismatches[4])),
+                            retained_fingerprint: fingerprint(2 + u8::from(mismatches[5])),
+                            ..LocalFragmentLengthOnlyCandidateShadowMetrics::default()
+                        },
+                    ),
+                    ..SentenceRecoveryMetrics::default()
+                },
+                eligible_old_source_tokens: 0,
+                eligible_new_source_tokens: 0,
+                signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+                signature_retained_fingerprint_valid: false,
+            });
+            record_local_fragment_length_only_candidate_v47_parity(&mut diagnostics);
+            diagnostics
+                .expect("diagnostics remain available")
+                .metrics
+                .local_fragment_length_only_candidate_shadow
+                .expect("length-only shadow remains available")
+        };
+
+        for (v47_complete, length_only_complete) in [(false, false), (true, false), (false, true)] {
+            assert!(
+                !diagnostics(v47_complete, length_only_complete, [false; 6]).v47_parity_available
+            );
+        }
+        let parity = diagnostics(true, true, [false; 6]);
+        assert!(parity.v47_parity_available);
+        assert_eq!(parity.pre_recheck_candidate_count_mismatches, 0);
+        assert_eq!(parity.recheck_pair_count_mismatches, 0);
+        assert_eq!(parity.recheck_comparison_count_mismatches, 0);
+        assert_eq!(parity.retained_pair_count_mismatches, 0);
+        assert_eq!(parity.pre_recheck_fingerprint_mismatches, 0);
+        assert_eq!(parity.retained_fingerprint_mismatches, 0);
+
+        for index in 0..6 {
+            let mut mismatches = [false; 6];
+            mismatches[index] = true;
+            let mismatched = diagnostics(true, true, mismatches);
+            assert!(mismatched.v47_parity_available);
+            assert_eq!(
+                [
+                    mismatched.pre_recheck_candidate_count_mismatches,
+                    mismatched.recheck_pair_count_mismatches,
+                    mismatched.recheck_comparison_count_mismatches,
+                    mismatched.retained_pair_count_mismatches,
+                    mismatched.pre_recheck_fingerprint_mismatches,
+                    mismatched.retained_fingerprint_mismatches,
+                ],
+                std::array::from_fn(|position| usize::from(position == index))
+            );
         }
     }
 

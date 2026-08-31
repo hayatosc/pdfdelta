@@ -773,7 +773,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 47);
+    assert_eq!(val["schema_version"], 48);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 
@@ -818,6 +818,11 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(
         rec["sentence_recovery_metrics"]
             .get("local_fragment_length_aware_recheck_shadow")
+            .is_some()
+    );
+    assert!(
+        rec["sentence_recovery_metrics"]
+            .get("local_fragment_length_only_candidate_shadow")
             .is_some()
     );
     assert_eq!(
