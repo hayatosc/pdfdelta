@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`85c799d`](https://github.com/hayatosc/pdfdelta/commit/85c799d)
+- **Generator / engine commit**: [`10e921f`](https://github.com/hayatosc/pdfdelta/commit/10e921f)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-85c799d.json`](2026-08-31-85c799d.json)
-  - Schema: v36
-  - Size: 1,449,049 bytes
-  - SHA-256: `411d59577fdc9a153a67a437169bfade0d222d13c6be88bde611330bb0fc7894`
+  - File: [`2026-08-31-10e921f.json`](2026-08-31-10e921f.json)
+  - Schema: v37
+  - Size: 1,521,758 bytes
+  - SHA-256: `63d6e7e6c9f5812872de69e6b7ffeac87d82e5d56a23240a3fbc7dd6e1b5458a`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -27,7 +27,7 @@ mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
   /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-31-85c799d.json
+benchmark/realworld/results/2026-08-31-10e921f.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -87,6 +87,25 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | `w3c-ws-policy-attach-20060927-to-20061102` | 1.000 / 1.000 / 1.000 | 0.984 / 1.000 / 0.992 | 0.984 | 68.027 |
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
+
+Schema v37 is behavior-neutral relative to schema v36. Removing only the new
+quote-local fields and `schema_version` produces exact parity for every prior
+comparison, quality, candidate, recovery-diagnostic, and scoped metric field.
+Quote-local diagnostics complete without a stop in all eight recovery-watch
+reports. Their ten
+watched Sentence pairs are all available on both sides and consume 20,310
+comparisons, 309,018 bounded edit-work units, 149 output items, and 411 output
+scalars.
+
+The unresolved SP 800-57 toolkit-footnote replacement is the only missed item
+that combines a recovery location on both sides, a 10,000-point local score,
+and a small exact content edit: one comma is deleted. Its enclosing Sentence
+pair still scores 2,347 and is non-reciprocal because both parents have tied
+10,000-point competitors. Other missed local evidence is either exact unchanged
+text, lacks a recovery location, or has a very low score and large edit. The
+next safe step is therefore an annotation-independent, bounded local-fragment
+candidate shadow that measures reciprocal uniqueness, margin, role, location,
+and overlap before any recovery behavior changes.
 
 The original arXiv, W3C, and BIS scoped-complete metrics are unchanged from
 `27f096e`.
