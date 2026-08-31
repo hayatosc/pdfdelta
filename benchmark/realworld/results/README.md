@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`70486f2`](https://github.com/hayatosc/pdfdelta/commit/70486f2)
+- **Generator / engine commit**: [`4a77cb4`](https://github.com/hayatosc/pdfdelta/commit/4a77cb4)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-70486f2.json`](2026-08-31-70486f2.json)
-  - Schema: v47
-  - Size: 1,783,580 bytes
-  - SHA-256: `91b80b5e4c11501485ff92431b5f0c51a1dafe7e190578b8ebad99a3c046f49c`
+  - File: [`2026-08-31-4a77cb4.json`](2026-08-31-4a77cb4.json)
+  - Schema: v48
+  - Size: 1,816,835 bytes
+  - SHA-256: `051f6862906e8f47aa01b6e33f279a66b1a3299ffa957571370031cdbc5e8399`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-08-31-70486f2.json \
+cp benchmark/realworld/results/2026-08-31-4a77cb4.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 70486f2
+git switch --detach 4a77cb4
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -44,9 +44,9 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-08-31-666c9dd.json \
   benchmark/realworld/results/2026-08-31-70486f2.json \
-  local_fragment_length_aware_recheck_shadow
+  benchmark/realworld/results/2026-08-31-4a77cb4.json \
+  local_fragment_length_only_candidate_shadow
 ```
 
 When reviewed annotations changed between captures, exclude only those named
@@ -93,6 +93,41 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | `w3c-ws-policy-attach-20060927-to-20061102` | 1.000 / 1.000 / 1.000 | 0.984 / 1.000 / 0.992 | 0.984 | 68.027 |
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
+
+Schema v48 is behavior-neutral relative to schema v47. Removing the
+candidate-only
+`sentence_recovery_metrics.local_fragment_length_only_candidate_shadow` field
+from schema v48 and removing `schema_version` produces exact parity for every
+prior comparison, quality, candidate, recovery-diagnostic, and scoped metric
+field.
+
+The new shadow retains the fixed-depth parent-admission constraint but does not
+build or query the global fixed-depth fragment candidate stream. It enumerates
+only the length-aware own/all-depth postings, preserves their sorted and
+deduplicated candidate order, and applies the same threshold-capped exact edge
+recheck under an independent resource budget. Stopped runs publish only
+immutable configuration and stop-safe work.
+
+The shadow is available for all 18 recovery builds and completes ten, up from
+seven in schema v47. EDPB Dark Patterns, BIS Operational Risk, and NIST CSF are
+the three newly complete builds. All eight remaining runs now stop at the exact
+recheck comparison limit; the ten candidate-union stops observed in schema v47
+are eliminated.
+
+Across the seven builds where both shadows complete, parity is available and
+all four count plus two fingerprint mismatch totals are zero. Both paths
+produce the same 326,225 pre-recheck candidates, 5,810,109 successful token
+comparisons, and 170,148 retained pairs. Omitting the fixed global stream
+reduces candidate-union work from 1,295,809 to 326,225 items (74.82%) and
+posting visits from 1,388,457 to 404,274 (70.88%). Built posting items fall from
+963,163 to 929,671 (3.48%); query and exact-recheck work remain identical.
+
+Across all ten complete length-only shadows, 3,430,113 candidate pairs consume
+40,898,423 successful token comparisons and retain 1,134,831 pairs. The
+candidate-generation optimization is therefore validated on both dev and
+holdout records without changing comparison behavior. The next diagnostic
+should target the exact-recheck rejection and comparison cost that now limits
+the remaining eight builds, while using only dev records for tuning decisions.
 
 Schema v47 is behavior-neutral relative to schema v46. Removing the
 candidate-only
@@ -559,10 +594,12 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v47)
+## Current Writer Schema (v48)
 
-The benchmark writer and latest committed capture use schema v47. Older
-captures retain their recorded schemas. Schema v47 measures a length-aware-only
+The benchmark writer and latest committed capture use schema v48. Older
+captures retain their recorded schemas. Schema v48 builds only the global
+length-aware fragment candidate stream while preserving fixed-depth parent
+admission and exact-recheck parity. Schema v47 measures a length-aware-only
 exact-recheck stream under an independent budget and verifies its available
 candidate and retained fingerprints against the existing reuse shadow. Schema
 v46 attributes threshold-capped local-fragment recheck outcomes and comparisons
@@ -848,6 +885,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-31-70486f2.json`](2026-08-31-70486f2.json): schema-v47 length-aware-only exact rechecks before removing the global fixed-depth fragment candidate stream.
 - [`2026-08-31-666c9dd.json`](2026-08-31-666c9dd.json): schema-v46 fragment-candidate membership outcomes before the length-aware-only recheck shadow.
 - [`2026-08-31-121bfb1.json`](2026-08-31-121bfb1.json): schema-v45 threshold-capped exact fragment rechecks before candidate-membership outcome attribution.
 - [`2026-08-31-2585c57.json`](2026-08-31-2585c57.json): schema-v44 shared exact fragment rechecks before threshold-capped scanning.
