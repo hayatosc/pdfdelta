@@ -10639,6 +10639,14 @@ struct LocalFragmentBoundarySignatureKey {
     signature: u64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LocalFragmentComparisonKind {
+    PrefixEdge,
+    SuffixEdge,
+    WordRangeScan,
+    WordMerge,
+}
+
 #[derive(Clone, Copy)]
 struct LocalFragmentLimits {
     enumeration: usize,
@@ -10704,6 +10712,17 @@ struct LocalFragmentBudget {
     candidate_pairs_attempted: usize,
     comparisons: usize,
     comparisons_attempted: usize,
+    prefix_edge_comparisons: usize,
+    prefix_edge_comparisons_attempted: usize,
+    suffix_edge_comparisons: usize,
+    suffix_edge_comparisons_attempted: usize,
+    word_range_scan_comparisons: usize,
+    word_range_scan_comparisons_attempted: usize,
+    word_merge_comparisons: usize,
+    word_merge_comparisons_attempted: usize,
+    edge_gate_passed_pairs: usize,
+    edge_gate_rejected_pairs: usize,
+    length_aware_signature_necessary_pairs: usize,
     edit_work: usize,
     edit_work_attempted: usize,
     output: usize,
@@ -10738,6 +10757,17 @@ impl LocalFragmentBudget {
             candidate_pairs_attempted: 0,
             comparisons: 0,
             comparisons_attempted: 0,
+            prefix_edge_comparisons: 0,
+            prefix_edge_comparisons_attempted: 0,
+            suffix_edge_comparisons: 0,
+            suffix_edge_comparisons_attempted: 0,
+            word_range_scan_comparisons: 0,
+            word_range_scan_comparisons_attempted: 0,
+            word_merge_comparisons: 0,
+            word_merge_comparisons_attempted: 0,
+            edge_gate_passed_pairs: 0,
+            edge_gate_rejected_pairs: 0,
+            length_aware_signature_necessary_pairs: 0,
             edit_work: 0,
             edit_work_attempted: 0,
             output: 0,
@@ -10904,14 +10934,102 @@ impl LocalFragmentBudget {
     fn charge_comparisons(
         &mut self,
         amount: usize,
+        kind: LocalFragmentComparisonKind,
     ) -> std::result::Result<(), LocalFragmentShadowStopReason> {
-        Self::charge(
-            &mut self.comparisons,
-            &mut self.comparisons_attempted,
-            amount,
-            self.limits.comparisons,
-            LocalFragmentShadowStopReason::SimilarityComparisonLimit,
-        )
+        let Some(next_comparisons) = self.comparisons.checked_add(amount) else {
+            self.comparisons_attempted = usize::MAX;
+            self.set_comparison_kind_attempted(kind, usize::MAX);
+            return Err(LocalFragmentShadowStopReason::CounterOverflow);
+        };
+        let (category_examined, _) = self.comparison_kind_work(kind);
+        let Some(next_category) = category_examined.checked_add(amount) else {
+            self.comparisons_attempted = usize::MAX;
+            self.set_comparison_kind_attempted(kind, usize::MAX);
+            return Err(LocalFragmentShadowStopReason::CounterOverflow);
+        };
+        self.comparisons_attempted = next_comparisons;
+        self.set_comparison_kind_attempted(kind, next_category);
+        if next_comparisons > self.limits.comparisons {
+            return Err(LocalFragmentShadowStopReason::SimilarityComparisonLimit);
+        }
+        self.comparisons = next_comparisons;
+        self.set_comparison_kind_examined(kind, next_category);
+        Ok(())
+    }
+
+    fn comparison_kind_work(&self, kind: LocalFragmentComparisonKind) -> (usize, usize) {
+        match kind {
+            LocalFragmentComparisonKind::PrefixEdge => (
+                self.prefix_edge_comparisons,
+                self.prefix_edge_comparisons_attempted,
+            ),
+            LocalFragmentComparisonKind::SuffixEdge => (
+                self.suffix_edge_comparisons,
+                self.suffix_edge_comparisons_attempted,
+            ),
+            LocalFragmentComparisonKind::WordRangeScan => (
+                self.word_range_scan_comparisons,
+                self.word_range_scan_comparisons_attempted,
+            ),
+            LocalFragmentComparisonKind::WordMerge => (
+                self.word_merge_comparisons,
+                self.word_merge_comparisons_attempted,
+            ),
+        }
+    }
+
+    fn set_comparison_kind_examined(&mut self, kind: LocalFragmentComparisonKind, value: usize) {
+        match kind {
+            LocalFragmentComparisonKind::PrefixEdge => self.prefix_edge_comparisons = value,
+            LocalFragmentComparisonKind::SuffixEdge => self.suffix_edge_comparisons = value,
+            LocalFragmentComparisonKind::WordRangeScan => {
+                self.word_range_scan_comparisons = value;
+            }
+            LocalFragmentComparisonKind::WordMerge => self.word_merge_comparisons = value,
+        }
+    }
+
+    fn set_comparison_kind_attempted(&mut self, kind: LocalFragmentComparisonKind, value: usize) {
+        match kind {
+            LocalFragmentComparisonKind::PrefixEdge => {
+                self.prefix_edge_comparisons_attempted = value;
+            }
+            LocalFragmentComparisonKind::SuffixEdge => {
+                self.suffix_edge_comparisons_attempted = value;
+            }
+            LocalFragmentComparisonKind::WordRangeScan => {
+                self.word_range_scan_comparisons_attempted = value;
+            }
+            LocalFragmentComparisonKind::WordMerge => {
+                self.word_merge_comparisons_attempted = value;
+            }
+        }
+    }
+
+    fn record_completed_edge_scan(
+        &mut self,
+        passed: bool,
+        length_aware_signature_necessary: bool,
+    ) -> std::result::Result<(), LocalFragmentShadowStopReason> {
+        if passed && !length_aware_signature_necessary {
+            return Err(LocalFragmentShadowStopReason::DiagnosticFailure);
+        }
+        let next_passed = self
+            .edge_gate_passed_pairs
+            .checked_add(usize::from(passed))
+            .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+        let next_rejected = self
+            .edge_gate_rejected_pairs
+            .checked_add(usize::from(!passed))
+            .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+        let next_necessary = self
+            .length_aware_signature_necessary_pairs
+            .checked_add(usize::from(length_aware_signature_necessary))
+            .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+        self.edge_gate_passed_pairs = next_passed;
+        self.edge_gate_rejected_pairs = next_rejected;
+        self.length_aware_signature_necessary_pairs = next_necessary;
+        Ok(())
     }
 
     fn charge_edit_work(
@@ -10966,6 +11084,17 @@ impl LocalFragmentBudget {
             candidate_pairs_attempted: self.candidate_pairs_attempted,
             comparisons_examined: self.comparisons,
             comparisons_attempted: self.comparisons_attempted,
+            prefix_edge_comparisons_examined: self.prefix_edge_comparisons,
+            prefix_edge_comparisons_attempted: self.prefix_edge_comparisons_attempted,
+            suffix_edge_comparisons_examined: self.suffix_edge_comparisons,
+            suffix_edge_comparisons_attempted: self.suffix_edge_comparisons_attempted,
+            word_range_scan_comparisons_examined: self.word_range_scan_comparisons,
+            word_range_scan_comparisons_attempted: self.word_range_scan_comparisons_attempted,
+            word_merge_comparisons_examined: self.word_merge_comparisons,
+            word_merge_comparisons_attempted: self.word_merge_comparisons_attempted,
+            edge_gate_passed_pairs: self.edge_gate_passed_pairs,
+            edge_gate_rejected_pairs: self.edge_gate_rejected_pairs,
+            length_aware_signature_necessary_pairs: self.length_aware_signature_necessary_pairs,
             edit_work_examined: self.edit_work,
             edit_work_attempted: self.edit_work_attempted,
             output_examined: self.output,
@@ -11359,7 +11488,7 @@ fn score_local_fragment_pair(
     let shorter = old_tokens.len().min(new_tokens.len());
     let mut prefix = 0usize;
     while prefix < shorter {
-        budget.charge_comparisons(1)?;
+        budget.charge_comparisons(1, LocalFragmentComparisonKind::PrefixEdge)?;
         if old_tokens[prefix] != new_tokens[prefix] {
             break;
         }
@@ -11367,7 +11496,7 @@ fn score_local_fragment_pair(
     }
     let mut suffix = 0usize;
     while suffix < shorter.saturating_sub(prefix) {
-        budget.charge_comparisons(1)?;
+        budget.charge_comparisons(1, LocalFragmentComparisonKind::SuffixEdge)?;
         if old_tokens[old_tokens.len() - suffix - 1] != new_tokens[new_tokens.len() - suffix - 1] {
             break;
         }
@@ -11380,7 +11509,12 @@ fn score_local_fragment_pair(
         shorter,
     )
     .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
-    if edge_score < MIN_WORD_SCORE_EDGE_EVIDENCE {
+    let passed = edge_score >= MIN_WORD_SCORE_EDGE_EVIDENCE;
+    let length_aware_signature_depth = sentence_edge_signature_depth(shorter)
+        .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+    budget
+        .record_completed_edge_scan(passed, prefix.max(suffix) >= length_aware_signature_depth)?;
+    if !passed {
         return Ok(None);
     }
     let word_score = local_fragment_word_score(
@@ -11411,7 +11545,7 @@ fn local_fragment_word_score(
         .checked_add(new_parent.word_ranges.len())
         .and_then(|visits| visits.checked_mul(2))
         .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
-    budget.charge_comparisons(range_visits)?;
+    budget.charge_comparisons(range_visits, LocalFragmentComparisonKind::WordRangeScan)?;
     let old_count = old_parent
         .word_ranges
         .iter()
@@ -11442,7 +11576,7 @@ fn local_fragment_word_score(
     let mut new_index = 0usize;
     let mut shared = 0usize;
     while let (Some(old_range), Some(new_range)) = (old_words.peek(), new_words.peek()) {
-        budget.charge_comparisons(1)?;
+        budget.charge_comparisons(1, LocalFragmentComparisonKind::WordMerge)?;
         let old_word = old_parent
             .key
             .get((*old_range).clone())
@@ -29210,6 +29344,207 @@ mod tests {
     }
 
     #[test]
+    fn local_fragment_edge_attribution_keeps_the_2999_3000_boundary() {
+        const TOKENS: usize = 10_000;
+        let old_text = "a".repeat(TOKENS);
+        let old_occurrences = [local_fragment_parent(&old_text, 1, 1)];
+        let old = test_local_fragment(
+            0,
+            &old_occurrences[0],
+            LocalFragmentOrientation::Prefix,
+            0..TOKENS,
+            8,
+        );
+
+        for (shared, expected_passed) in [(2_999, false), (3_000, true)] {
+            let new_text = format!("{}{}", "a".repeat(shared), "b".repeat(TOKENS - shared));
+            let new_occurrences = [local_fragment_parent(&new_text, 2, 2)];
+            let new = test_local_fragment(
+                0,
+                &new_occurrences[0],
+                LocalFragmentOrientation::Prefix,
+                0..TOKENS,
+                8,
+            );
+            let mut budget = LocalFragmentBudget::new(
+                LocalFragmentLimits::for_tokens(TOKENS * 2, 8).expect("limits fit"),
+            );
+            budget
+                .charge_candidate_pairs(1)
+                .expect("candidate charge succeeds");
+            let score = score_local_fragment_pair(
+                &old,
+                &new,
+                &old_occurrences,
+                &new_occurrences,
+                &mut budget,
+            )
+            .expect("edge scan succeeds");
+            assert_eq!(score.is_some(), expected_passed);
+            let work = budget.metrics();
+            assert_eq!(work.edge_gate_passed_pairs, usize::from(expected_passed));
+            assert_eq!(work.edge_gate_rejected_pairs, usize::from(!expected_passed));
+            assert_eq!(work.length_aware_signature_necessary_pairs, 1);
+        }
+    }
+
+    #[test]
+    fn local_fragment_length_aware_signature_rejects_a_fixed_depth_false_positive() {
+        let old_occurrences = [local_fragment_parent("abcdefghijklmnopqrst", 1, 1)];
+        let new_occurrences = [local_fragment_parent("abXXXXXXXXXXXXXXXXXX", 2, 2)];
+        let old = test_local_fragment(
+            0,
+            &old_occurrences[0],
+            LocalFragmentOrientation::Prefix,
+            0..20,
+            8,
+        );
+        let new = test_local_fragment(
+            0,
+            &new_occurrences[0],
+            LocalFragmentOrientation::Prefix,
+            0..20,
+            8,
+        );
+        assert_eq!(old.signatures.prefix, new.signatures.prefix);
+        let mut budget = LocalFragmentBudget::new(
+            LocalFragmentLimits::for_tokens(10_000, 8).expect("limits fit"),
+        );
+        budget
+            .charge_candidate_pairs(1)
+            .expect("candidate charge succeeds");
+        assert!(
+            score_local_fragment_pair(&old, &new, &old_occurrences, &new_occurrences, &mut budget,)
+                .expect("edge scan succeeds")
+                .is_none()
+        );
+        let work = budget.metrics();
+        assert_eq!(work.edge_gate_passed_pairs, 0);
+        assert_eq!(work.edge_gate_rejected_pairs, 1);
+        assert_eq!(work.length_aware_signature_necessary_pairs, 0);
+    }
+
+    #[test]
+    fn local_fragment_shared_comparison_limit_attributes_the_active_category() {
+        let run = |old_text: &str, new_text: &str, limit: usize| {
+            let old_occurrences = [local_fragment_parent(old_text, 1, 1)];
+            let new_occurrences = [local_fragment_parent(new_text, 2, 2)];
+            let old = test_local_fragment(
+                0,
+                &old_occurrences[0],
+                LocalFragmentOrientation::Prefix,
+                0..old_text.chars().count(),
+                2,
+            );
+            let new = test_local_fragment(
+                0,
+                &new_occurrences[0],
+                LocalFragmentOrientation::Prefix,
+                0..new_text.chars().count(),
+                2,
+            );
+            let limits = LocalFragmentLimits {
+                comparisons: limit,
+                ..LocalFragmentLimits::for_tokens(10_000, 2).expect("limits fit")
+            };
+            let mut budget = LocalFragmentBudget::new(limits);
+            budget
+                .charge_candidate_pairs(1)
+                .expect("candidate charge succeeds");
+            assert_eq!(
+                score_local_fragment_pair(
+                    &old,
+                    &new,
+                    &old_occurrences,
+                    &new_occurrences,
+                    &mut budget,
+                ),
+                Err(LocalFragmentShadowStopReason::SimilarityComparisonLimit)
+            );
+            budget.metrics()
+        };
+        let cases = [
+            (
+                LocalFragmentComparisonKind::PrefixEdge,
+                run("abcdefghij", "zbcdefghij", 0),
+            ),
+            (
+                LocalFragmentComparisonKind::SuffixEdge,
+                run("abcdefghij", "zbcdefghij", 1),
+            ),
+            (
+                LocalFragmentComparisonKind::WordRangeScan,
+                run("abc def", "abc def", 7),
+            ),
+            (
+                LocalFragmentComparisonKind::WordMerge,
+                run("abc def", "abc def", 15),
+            ),
+        ];
+        for (active, work) in cases {
+            let categories = [
+                (
+                    LocalFragmentComparisonKind::PrefixEdge,
+                    work.prefix_edge_comparisons_examined,
+                    work.prefix_edge_comparisons_attempted,
+                ),
+                (
+                    LocalFragmentComparisonKind::SuffixEdge,
+                    work.suffix_edge_comparisons_examined,
+                    work.suffix_edge_comparisons_attempted,
+                ),
+                (
+                    LocalFragmentComparisonKind::WordRangeScan,
+                    work.word_range_scan_comparisons_examined,
+                    work.word_range_scan_comparisons_attempted,
+                ),
+                (
+                    LocalFragmentComparisonKind::WordMerge,
+                    work.word_merge_comparisons_examined,
+                    work.word_merge_comparisons_attempted,
+                ),
+            ];
+            assert_eq!(
+                categories
+                    .iter()
+                    .filter(|(_, examined, attempted)| examined < attempted)
+                    .map(|(kind, _, _)| *kind)
+                    .collect::<Vec<_>>(),
+                vec![active]
+            );
+            assert_eq!(
+                categories.iter().map(|(_, value, _)| value).sum::<usize>(),
+                work.comparisons_examined
+            );
+            assert_eq!(
+                categories.iter().map(|(_, _, value)| value).sum::<usize>(),
+                work.comparisons_attempted
+            );
+            let completed_pairs = work.edge_gate_passed_pairs + work.edge_gate_rejected_pairs;
+            assert!(completed_pairs <= 1);
+            assert!(1 - completed_pairs <= 1);
+        }
+    }
+
+    #[test]
+    fn local_fragment_comparison_counter_overflow_is_atomic() {
+        let limits = LocalFragmentLimits {
+            comparisons: usize::MAX,
+            ..LocalFragmentLimits::for_tokens(1, 1).expect("limits fit")
+        };
+        let mut budget = LocalFragmentBudget::new(limits);
+        budget.prefix_edge_comparisons = usize::MAX;
+        assert_eq!(
+            budget.charge_comparisons(1, LocalFragmentComparisonKind::PrefixEdge),
+            Err(LocalFragmentShadowStopReason::CounterOverflow)
+        );
+        assert_eq!(budget.comparisons, 0);
+        assert_eq!(budget.prefix_edge_comparisons, usize::MAX);
+        assert_eq!(budget.comparisons_attempted, usize::MAX);
+        assert_eq!(budget.prefix_edge_comparisons_attempted, usize::MAX);
+    }
+
+    #[test]
     fn local_fragment_signature_collision_only_adds_sorted_candidates() {
         let old_occurrences = [local_fragment_parent("aaaaaaaaaa", 1, 1)];
         let new_occurrences = [
@@ -29428,6 +29763,30 @@ mod tests {
             metrics.work.signature_token_steps_examined,
             fragments * metrics.signature_depth * 2
         );
+        assert_eq!(
+            metrics.work.prefix_edge_comparisons_examined
+                + metrics.work.suffix_edge_comparisons_examined
+                + metrics.work.word_range_scan_comparisons_examined
+                + metrics.work.word_merge_comparisons_examined,
+            metrics.work.comparisons_examined
+        );
+        assert_eq!(
+            metrics.work.prefix_edge_comparisons_attempted
+                + metrics.work.suffix_edge_comparisons_attempted
+                + metrics.work.word_range_scan_comparisons_attempted
+                + metrics.work.word_merge_comparisons_attempted,
+            metrics.work.comparisons_attempted
+        );
+        assert_eq!(
+            metrics.work.edge_gate_passed_pairs + metrics.work.edge_gate_rejected_pairs,
+            metrics.candidate_pairs
+        );
+        assert!(
+            metrics.work.length_aware_signature_necessary_pairs
+                >= metrics.work.edge_gate_passed_pairs
+        );
+        assert!(metrics.work.word_range_scan_comparisons_examined > 0);
+        assert!(metrics.work.word_merge_comparisons_examined > 0);
         let best = metrics
             .best_sampled_suffix_nonexact_pair
             .expect("suffix non-exact pair exists");
