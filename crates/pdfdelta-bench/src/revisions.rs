@@ -21,18 +21,19 @@ use std::{
 use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
-        ChangeKind, Comparison, ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
-        LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentFlatExactBoundaryShadowMetrics,
-        LocalFragmentFlatExactBoundaryStopReason, LocalFragmentFlatExactBoundaryWorkMetrics,
-        LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
-        LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
-        LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLengthOnlyCandidateShadowMetrics,
-        LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
+        ChangeKind, ChangeOccurrence, Comparison, ExactSegmentRelation,
+        KnownSpanSentenceShadowMetrics, LocalFragmentExactBoundaryTrieShadowMetrics,
+        LocalFragmentFlatExactBoundaryShadowMetrics, LocalFragmentFlatExactBoundaryStopReason,
+        LocalFragmentFlatExactBoundaryWorkMetrics, LocalFragmentGlobalLengthAwareShadowMetrics,
+        LocalFragmentLengthAwareRecheckShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
+        LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
+        LocalFragmentLengthOnlyCandidateShadowMetrics, LocalFragmentLocationEvidence,
+        LocalFragmentOrientation, LocalFragmentPairEvidence,
         LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
         LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
-        LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, NearRelationStopReason,
-        NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
-        RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
+        LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, MatchedAtomicDiff,
+        NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveredAtomicDiff,
+        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
         RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
         RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
         RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
@@ -136,15 +137,37 @@ pub(super) const MAX_EXPECTED_CHANGE_DIAGNOSTICS: usize = 4_096;
 pub struct ActualChange {
     pub kind: ChangeKind,
     pub occurrences: Vec<ActualChangeOccurrence>,
+    /// Number of exact hunks emitted by the source
+    /// [`ChangeEvent`](pdfdelta_core::diff::ChangeEvent).
+    ///
+    /// Event matching may coalesce recovered hunks into one logical
+    /// occurrence, but quality metrics must still report the public output's
+    /// actual fragmentation.
+    pub reported_hunk_count: usize,
 }
 
 #[derive(Clone, Debug)]
 pub struct ActualChangeOccurrence {
     pub old_text: Option<String>,
     pub new_text: Option<String>,
+    pub old_relation_context: Option<String>,
+    pub new_relation_context: Option<String>,
     pub old_comparable_len: Option<usize>,
     pub new_comparable_len: Option<usize>,
+    pub old_atomic_changed_tokens: Option<usize>,
+    pub new_atomic_changed_tokens: Option<usize>,
+    pub old_semantic_changed_tokens: Option<usize>,
+    pub new_semantic_changed_tokens: Option<usize>,
+    pub semantic_hunks: Option<Vec<ActualSemanticHunk>>,
     pub resolvable: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct ActualSemanticHunk {
+    pub old_text: Option<String>,
+    pub new_text: Option<String>,
+    pub old_atomic_changed_tokens: usize,
+    pub new_atomic_changed_tokens: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -3537,16 +3560,38 @@ pub struct ExpectedChange {
     /// Exact number of occurrences expected in one semantic change event.
     #[serde(default)]
     pub occurrence_count: Option<usize>,
-    /// Within a complete scope, this is the exact expected changed span on
-    /// the old side, not surrounding context used only for identification.
+    /// Stable old-side context used to identify the semantic change.
     #[serde(default)]
     pub old_quote: Option<String>,
-    /// Within a complete scope, this is the exact expected changed span on
-    /// the new side, not surrounding context used only for identification.
+    /// Stable new-side context used to identify the semantic change.
     #[serde(default)]
     pub new_quote: Option<String>,
+    /// Exact old-side changed span when it is narrower than [`Self::old_quote`].
+    ///
+    /// Complete-scope token metrics use this value when present. It must be
+    /// contained by the corresponding context quote after whitespace
+    /// normalization. An empty string denotes a zero-token side of a
+    /// replacement envelope whose exact edit is one-sided.
+    #[serde(default)]
+    pub old_changed_quote: Option<String>,
+    /// Exact new-side changed span when it is narrower than [`Self::new_quote`].
+    #[serde(default)]
+    pub new_changed_quote: Option<String>,
+    /// Exact old-side semantic hunk ranges relative to [`Self::old_quote`].
+    #[serde(default)]
+    pub old_changed_ranges: Option<Vec<ExpectedChangedRange>>,
+    /// Exact new-side semantic hunk ranges relative to [`Self::new_quote`].
+    #[serde(default)]
+    pub new_changed_ranges: Option<Vec<ExpectedChangedRange>>,
     #[serde(default)]
     pub note: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExpectedChangedRange {
+    pub start: usize,
+    pub end: usize,
 }
 
 /// Inclusive quote anchors delimiting one reviewed region on a document side.
@@ -3692,24 +3737,76 @@ impl MatchingScanBudget {
             change.old_quote.as_deref(),
             change.new_quote.as_deref(),
             limits,
-        )
+        )?;
+        self.charge_optional_texts(
+            change.old_changed_quote.as_deref(),
+            change.new_changed_quote.as_deref(),
+            limits,
+        )?;
+        let changed_range_count = change
+            .old_changed_ranges
+            .as_ref()
+            .map_or(0, Vec::len)
+            .checked_add(change.new_changed_ranges.as_ref().map_or(0, Vec::len))
+            .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+        self.charge_visits(changed_range_count, limits)
     }
 
     fn charge_occurrence(
         &mut self,
         occurrence: &ActualChangeOccurrence,
+        needles: &NormalizedExpectedQuotes,
         limits: MatchingLimits,
     ) -> MatchingResult<()> {
-        self.occurrence_visits = self
-            .occurrence_visits
-            .checked_add(1)
-            .filter(|visits| *visits <= limits.max_occurrence_visits)
+        let semantic_hunk_visits = occurrence.semantic_hunks.as_ref().map_or(0, Vec::len);
+        let expected_fragment_count = needles
+            .old_changed_range_fragments
+            .as_ref()
+            .map_or(0, Vec::len)
+            .checked_add(
+                needles
+                    .new_changed_range_fragments
+                    .as_ref()
+                    .map_or(0, Vec::len),
+            )
             .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+        let fragment_visits = semantic_hunk_visits
+            .checked_mul(expected_fragment_count)
+            .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+        let visits = 1usize
+            .checked_add(semantic_hunk_visits)
+            .and_then(|visits| visits.checked_add(fragment_visits))
+            .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+        self.charge_visits(visits, limits)?;
         self.charge_optional_texts(
             occurrence.old_text.as_deref(),
             occurrence.new_text.as_deref(),
             limits,
-        )
+        )?;
+        self.charge_optional_texts(
+            occurrence.old_relation_context.as_deref(),
+            occurrence.new_relation_context.as_deref(),
+            limits,
+        )?;
+        if let Some(hunks) = &occurrence.semantic_hunks {
+            for hunk in hunks {
+                self.charge_optional_texts(
+                    hunk.old_text.as_deref(),
+                    hunk.new_text.as_deref(),
+                    limits,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    fn charge_visits(&mut self, visits: usize, limits: MatchingLimits) -> MatchingResult<()> {
+        self.occurrence_visits = self
+            .occurrence_visits
+            .checked_add(visits)
+            .filter(|total| *total <= limits.max_occurrence_visits)
+            .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+        Ok(())
     }
 
     fn charge_optional_texts(
@@ -3736,8 +3833,14 @@ impl MatchingScanBudget {
 }
 
 struct NormalizedExpectedQuotes {
-    old: Option<String>,
-    new: Option<String>,
+    old_context: Option<String>,
+    new_context: Option<String>,
+    old_changed: Option<String>,
+    new_changed: Option<String>,
+    old_changed_range_tokens: Option<usize>,
+    new_changed_range_tokens: Option<usize>,
+    old_changed_range_fragments: Option<Vec<String>>,
+    new_changed_range_fragments: Option<Vec<String>>,
 }
 
 type MatchingResult<T> = std::result::Result<T, &'static str>;
@@ -4092,6 +4195,82 @@ pub fn load_expected_document(expected_json: &str) -> Result<ExpectedDocument> {
                 change.kind.name()
             )));
         }
+        let old_changed = change.old_changed_quote.as_deref();
+        let new_changed = change.new_changed_quote.as_deref();
+        let old_ranges = change.old_changed_ranges.as_ref();
+        let new_ranges = change.new_changed_ranges.as_ref();
+        if old_changed.is_some() && old_ranges.is_some()
+            || new_changed.is_some() && new_ranges.is_some()
+        {
+            return Err(BenchError::InvalidInput(format!(
+                "expected-revision JSON change {} cannot combine a changed quote and changed ranges on one side",
+                change.id
+            )));
+        }
+        if old_changed
+            .is_some_and(|quote| !quote.is_empty() && collapse_whitespace(quote).is_empty())
+            || new_changed
+                .is_some_and(|quote| !quote.is_empty() && collapse_whitespace(quote).is_empty())
+        {
+            return Err(BenchError::InvalidInput(format!(
+                "expected-revision JSON change {} has a blank changed quote",
+                change.id
+            )));
+        }
+        let old_changed_present = old_changed.is_some() || old_ranges.is_some();
+        let new_changed_present = new_changed.is_some() || new_ranges.is_some();
+        if old_changed_present || new_changed_present {
+            let changed_shape_valid = match change.kind {
+                ExpectedKind::Replacement | ExpectedKind::Move => {
+                    old_changed_present && new_changed_present
+                }
+                ExpectedKind::Insertion => new_changed_present && !old_changed_present,
+                ExpectedKind::Deletion => old_changed_present && !new_changed_present,
+            };
+            if !changed_shape_valid {
+                return Err(BenchError::InvalidInput(format!(
+                    "expected-revision JSON change {} of kind {} has incomplete changed quotes",
+                    change.id,
+                    change.kind.name()
+                )));
+            }
+            for (side, context, changed) in [
+                ("old", change.old_quote.as_deref(), old_changed),
+                ("new", change.new_quote.as_deref(), new_changed),
+            ] {
+                let Some(changed) = changed else { continue };
+                let context = collapse_whitespace(context.expect("shape validated above"));
+                let changed = collapse_whitespace(changed);
+                if !context.contains(&changed) {
+                    return Err(BenchError::InvalidInput(format!(
+                        "expected-revision JSON change {} {side}_changed_quote is not contained by its context quote",
+                        change.id
+                    )));
+                }
+            }
+            for (side, context, ranges) in [
+                ("old", change.old_quote.as_deref(), old_ranges),
+                ("new", change.new_quote.as_deref(), new_ranges),
+            ] {
+                let Some(ranges) = ranges else { continue };
+                let context_len = collapse_whitespace(context.expect("shape validated above"))
+                    .chars()
+                    .count();
+                let mut previous_end = 0usize;
+                for range in ranges {
+                    if range.start >= range.end
+                        || range.end > context_len
+                        || range.start < previous_end
+                    {
+                        return Err(BenchError::InvalidInput(format!(
+                            "expected-revision JSON change {} has invalid {side}_changed_ranges",
+                            change.id
+                        )));
+                    }
+                    previous_end = range.end;
+                }
+            }
+        }
     }
     Ok(document)
 }
@@ -4228,18 +4407,403 @@ fn is_space_token(token: &ComparableToken) -> bool {
     matches!(token, ComparableToken::Scalar(scalar) if scalar.is_whitespace())
 }
 
+#[derive(Clone)]
+struct RelationContext {
+    old: String,
+    new: String,
+    old_comparable_len: usize,
+    new_comparable_len: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct SpanGroupKey {
+    blocks: Vec<u64>,
+    separator: Option<BlockSeparator>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct RelationGroupKey {
+    old: Option<SpanGroupKey>,
+    new: Option<SpanGroupKey>,
+}
+
+fn span_group_key(span: &TextSpan) -> SpanGroupKey {
+    SpanGroupKey {
+        blocks: span.blocks.iter().map(|block| block.0).collect(),
+        separator: span.separator,
+    }
+}
+
+fn relation_group_key(old: Option<&TextSpan>, new: Option<&TextSpan>) -> RelationGroupKey {
+    RelationGroupKey {
+        old: old.map(span_group_key),
+        new: new.map(span_group_key),
+    }
+}
+
+fn insert_relation_context<K: std::hash::Hash + Eq, V>(
+    contexts: &mut HashMap<K, Option<V>>,
+    key: K,
+    context: Option<V>,
+) {
+    match contexts.entry(key) {
+        Entry::Vacant(entry) => {
+            entry.insert(context);
+        }
+        Entry::Occupied(mut entry) => {
+            entry.insert(None);
+        }
+    }
+}
+
+#[derive(Clone)]
+struct RecoveredOccurrenceEvidence {
+    context: Option<RelationContext>,
+    old_atomic_changed_tokens: usize,
+    new_atomic_changed_tokens: usize,
+}
+
+#[derive(Clone)]
+struct RecoveredEventEvidence {
+    context: RelationContext,
+    old_atomic_changed_tokens: usize,
+    new_atomic_changed_tokens: usize,
+    old_semantic_changed_tokens: usize,
+    new_semantic_changed_tokens: usize,
+    semantic_hunks: Vec<ActualSemanticHunk>,
+}
+
+fn recovered_event_evidence(
+    traces: &[RecoveredAtomicDiff],
+    blocks_by_side: [&HashMap<u64, &BlockText>; 2],
+) -> HashMap<Vec<ChangeOccurrence>, Option<RecoveredEventEvidence>> {
+    let mut evidence = HashMap::new();
+    for trace in traces {
+        let context = resolve_span(blocks_by_side[0], &trace.old_context)
+            .zip(resolve_span(blocks_by_side[1], &trace.new_context))
+            .map(
+                |((old, old_comparable_len), (new, new_comparable_len))| RelationContext {
+                    old: collapse_whitespace(&old),
+                    new: collapse_whitespace(&new),
+                    old_comparable_len,
+                    new_comparable_len,
+                },
+            );
+        let counts = trace
+            .edits
+            .iter()
+            .try_fold((0usize, 0usize), |(old, new), edit| {
+                Some((
+                    old.checked_add(edit.old.end.checked_sub(edit.old.start)?)?,
+                    new.checked_add(edit.new.end.checked_sub(edit.new.start)?)?,
+                ))
+            });
+        let semantic_counts =
+            trace
+                .changed_occurrences
+                .iter()
+                .try_fold((0usize, 0usize), |(old, new), changed| {
+                    let old_len = changed
+                        .occurrence
+                        .old_span
+                        .as_ref()?
+                        .comparable_range
+                        .end
+                        .checked_sub(
+                            changed.occurrence.old_span.as_ref()?.comparable_range.start,
+                        )?;
+                    let new_len = changed
+                        .occurrence
+                        .new_span
+                        .as_ref()?
+                        .comparable_range
+                        .end
+                        .checked_sub(
+                            changed.occurrence.new_span.as_ref()?.comparable_range.start,
+                        )?;
+                    Some((old.checked_add(old_len)?, new.checked_add(new_len)?))
+                });
+        let semantic_hunks = trace
+            .changed_occurrences
+            .iter()
+            .map(|changed| {
+                let edits = trace.edits.get(changed.edit_range.clone())?;
+                let (old_atomic_changed_tokens, new_atomic_changed_tokens) = edits
+                    .iter()
+                    .try_fold((0usize, 0usize), |(old, new), edit| {
+                        Some((
+                            old.checked_add(edit.old.end.checked_sub(edit.old.start)?)?,
+                            new.checked_add(edit.new.end.checked_sub(edit.new.start)?)?,
+                        ))
+                    })?;
+                let old_text = changed
+                    .occurrence
+                    .old_span
+                    .as_ref()
+                    .and_then(|span| resolve_span(blocks_by_side[0], span))
+                    .map(|(text, _)| collapse_whitespace(&text));
+                let new_text = changed
+                    .occurrence
+                    .new_span
+                    .as_ref()
+                    .and_then(|span| resolve_span(blocks_by_side[1], span))
+                    .map(|(text, _)| collapse_whitespace(&text));
+                Some(ActualSemanticHunk {
+                    old_text,
+                    new_text,
+                    old_atomic_changed_tokens,
+                    new_atomic_changed_tokens,
+                })
+            })
+            .collect::<Option<Vec<_>>>();
+        let value = context
+            .zip(counts)
+            .zip(semantic_counts)
+            .zip(semantic_hunks)
+            .map(
+                |(
+                    (
+                        (context, (old_atomic_changed_tokens, new_atomic_changed_tokens)),
+                        (old_semantic_changed_tokens, new_semantic_changed_tokens),
+                    ),
+                    semantic_hunks,
+                )| {
+                    RecoveredEventEvidence {
+                        context,
+                        old_atomic_changed_tokens,
+                        new_atomic_changed_tokens,
+                        old_semantic_changed_tokens,
+                        new_semantic_changed_tokens,
+                        semantic_hunks,
+                    }
+                },
+            );
+        let key = trace
+            .changed_occurrences
+            .iter()
+            .map(|changed| changed.occurrence.clone())
+            .collect();
+        insert_relation_context(&mut evidence, key, value);
+    }
+    evidence
+}
+
+fn recovered_occurrence_evidence(
+    traces: &[RecoveredAtomicDiff],
+    blocks_by_side: [&HashMap<u64, &BlockText>; 2],
+) -> HashMap<ChangeOccurrence, Option<RecoveredOccurrenceEvidence>> {
+    let mut contexts = HashMap::new();
+    for trace in traces {
+        let context = resolve_span(blocks_by_side[0], &trace.old_context)
+            .zip(resolve_span(blocks_by_side[1], &trace.new_context))
+            .map(
+                |((old, old_comparable_len), (new, new_comparable_len))| RelationContext {
+                    old: collapse_whitespace(&old),
+                    new: collapse_whitespace(&new),
+                    old_comparable_len,
+                    new_comparable_len,
+                },
+            );
+        for changed in &trace.changed_occurrences {
+            let Some(edits) = trace.edits.get(changed.edit_range.clone()) else {
+                insert_relation_context(&mut contexts, changed.occurrence.clone(), None);
+                continue;
+            };
+            let counts = edits.iter().try_fold((0usize, 0usize), |(old, new), edit| {
+                Some((
+                    old.checked_add(edit.old.end.checked_sub(edit.old.start)?)?,
+                    new.checked_add(edit.new.end.checked_sub(edit.new.start)?)?,
+                ))
+            });
+            let evidence = counts.map(|(old_atomic_changed_tokens, new_atomic_changed_tokens)| {
+                RecoveredOccurrenceEvidence {
+                    context: context.clone(),
+                    old_atomic_changed_tokens,
+                    new_atomic_changed_tokens,
+                }
+            });
+            insert_relation_context(&mut contexts, changed.occurrence.clone(), evidence);
+        }
+    }
+    contexts
+}
+
+#[derive(Clone)]
+struct MatchedRelationEvidence {
+    context: RelationContext,
+    trace_index: usize,
+}
+
+fn matched_relation_contexts(
+    traces: &[MatchedAtomicDiff],
+    blocks_by_side: [&HashMap<u64, &BlockText>; 2],
+) -> HashMap<RelationGroupKey, Option<MatchedRelationEvidence>> {
+    let mut contexts = HashMap::new();
+    for (trace_index, trace) in traces.iter().enumerate() {
+        let context = resolve_span(blocks_by_side[0], &trace.old_context)
+            .zip(resolve_span(blocks_by_side[1], &trace.new_context))
+            .map(
+                |((old, old_comparable_len), (new, new_comparable_len))| RelationContext {
+                    old: collapse_whitespace(&old),
+                    new: collapse_whitespace(&new),
+                    old_comparable_len,
+                    new_comparable_len,
+                },
+            )
+            .map(|context| MatchedRelationEvidence {
+                context,
+                trace_index,
+            });
+        for key in [
+            relation_group_key(Some(&trace.old_context), Some(&trace.new_context)),
+            relation_group_key(Some(&trace.old_context), None),
+            relation_group_key(None, Some(&trace.new_context)),
+        ] {
+            insert_relation_context(&mut contexts, key, context.clone());
+        }
+    }
+    contexts
+}
+
+fn span_range_within_context(
+    span: Option<&TextSpan>,
+    context: &TextSpan,
+) -> Option<Option<(usize, usize)>> {
+    let Some(span) = span else { return Some(None) };
+    if span_group_key(span) != span_group_key(context)
+        || span.comparable_range.start < context.comparable_range.start
+        || span.comparable_range.end > context.comparable_range.end
+    {
+        return None;
+    }
+    Some(Some((
+        span.comparable_range
+            .start
+            .checked_sub(context.comparable_range.start)?,
+        span.comparable_range
+            .end
+            .checked_sub(context.comparable_range.start)?,
+    )))
+}
+
+fn atomic_range_is_covered(range: &std::ops::Range<usize>, hunk: Option<(usize, usize)>) -> bool {
+    match hunk {
+        Some((start, end)) => start <= range.start && range.end <= end,
+        None => range.is_empty(),
+    }
+}
+
+fn atomic_range_touches_hunk(range: &std::ops::Range<usize>, hunk: Option<(usize, usize)>) -> bool {
+    hunk.is_some_and(|(start, end)| {
+        if range.is_empty() {
+            start <= range.start && range.start <= end
+        } else {
+            range.start < end && start < range.end
+        }
+    })
+}
+
+fn matched_semantic_hunk(
+    occurrence: &ChangeOccurrence,
+    trace: &MatchedAtomicDiff,
+    blocks_by_side: [&HashMap<u64, &BlockText>; 2],
+) -> Option<ActualSemanticHunk> {
+    let old_range = span_range_within_context(occurrence.old_span.as_ref(), &trace.old_context)?;
+    let new_range = span_range_within_context(occurrence.new_span.as_ref(), &trace.new_context)?;
+    let mut matched_edit = false;
+    let mut old_atomic_changed_tokens = 0usize;
+    let mut new_atomic_changed_tokens = 0usize;
+    for edit in &trace.edits {
+        let touches_hunk = atomic_range_touches_hunk(&edit.old, old_range)
+            || atomic_range_touches_hunk(&edit.new, new_range);
+        if !touches_hunk {
+            continue;
+        }
+        if !atomic_range_is_covered(&edit.old, old_range)
+            || !atomic_range_is_covered(&edit.new, new_range)
+        {
+            return None;
+        }
+        matched_edit = true;
+        old_atomic_changed_tokens =
+            old_atomic_changed_tokens.checked_add(edit.old.end.checked_sub(edit.old.start)?)?;
+        new_atomic_changed_tokens =
+            new_atomic_changed_tokens.checked_add(edit.new.end.checked_sub(edit.new.start)?)?;
+    }
+    if !matched_edit {
+        return None;
+    }
+    let resolve = |side: usize, span: Option<&TextSpan>| match span {
+        Some(span) => resolve_span(blocks_by_side[side], span)
+            .map(|(text, _)| Some(collapse_whitespace(&text))),
+        None => Some(None),
+    };
+    Some(ActualSemanticHunk {
+        old_text: resolve(0, occurrence.old_span.as_ref())?,
+        new_text: resolve(1, occurrence.new_span.as_ref())?,
+        old_atomic_changed_tokens,
+        new_atomic_changed_tokens,
+    })
+}
+
 fn flatten_actual_changes(
     comparison: &Comparison,
     blocks_by_side: [&HashMap<u64, &BlockText>; 2],
+    matched_atomic_diffs: &[MatchedAtomicDiff],
+    recovered_atomic_diffs: &[RecoveredAtomicDiff],
 ) -> Vec<ActualChange> {
+    let recovered_events = recovered_event_evidence(recovered_atomic_diffs, blocks_by_side);
+    let recovered_evidence = recovered_occurrence_evidence(recovered_atomic_diffs, blocks_by_side);
+    let matched_contexts = matched_relation_contexts(matched_atomic_diffs, blocks_by_side);
     comparison
         .changes
         .iter()
         .map(|change| {
+            let reported_hunk_count = change.occurrences.len();
+            if let Some(Some(evidence)) = recovered_events.get(&change.occurrences) {
+                return ActualChange {
+                    kind: change.kind,
+                    reported_hunk_count,
+                    occurrences: vec![ActualChangeOccurrence {
+                        old_text: Some(evidence.context.old.clone()),
+                        new_text: Some(evidence.context.new.clone()),
+                        old_relation_context: Some(evidence.context.old.clone()),
+                        new_relation_context: Some(evidence.context.new.clone()),
+                        old_comparable_len: Some(evidence.context.old_comparable_len),
+                        new_comparable_len: Some(evidence.context.new_comparable_len),
+                        old_atomic_changed_tokens: Some(evidence.old_atomic_changed_tokens),
+                        new_atomic_changed_tokens: Some(evidence.new_atomic_changed_tokens),
+                        old_semantic_changed_tokens: Some(evidence.old_semantic_changed_tokens),
+                        new_semantic_changed_tokens: Some(evidence.new_semantic_changed_tokens),
+                        semantic_hunks: Some(evidence.semantic_hunks.clone()),
+                        resolvable: true,
+                    }],
+                };
+            }
             let occurrences = change
                 .occurrences
                 .iter()
                 .map(|occurrence| {
+                    let recovered = recovered_evidence.get(occurrence);
+                    let matched_context = matched_contexts
+                        .get(&relation_group_key(
+                            occurrence.old_span.as_ref(),
+                            occurrence.new_span.as_ref(),
+                        ))
+                        .and_then(Option::as_ref);
+                    let relation_context = match (recovered, matched_context) {
+                        (Some(Some(evidence)), None) => evidence.context.as_ref(),
+                        (None, Some(evidence)) => Some(&evidence.context),
+                        (Some(None), _) | (Some(Some(_)), Some(_)) | (None, None) => None,
+                    };
+                    let (old_atomic_changed_tokens, new_atomic_changed_tokens) = recovered
+                        .and_then(Option::as_ref)
+                        .map_or((None, None), |evidence| {
+                            (
+                                Some(evidence.old_atomic_changed_tokens),
+                                Some(evidence.new_atomic_changed_tokens),
+                            )
+                        });
                     let old_resolved = occurrence
                         .old_span
                         .as_ref()
@@ -4257,11 +4821,27 @@ fn flatten_actual_changes(
                     };
                     let (old_text, old_comparable_len) = unwrap_resolved(old_resolved);
                     let (new_text, new_comparable_len) = unwrap_resolved(new_resolved);
+                    let semantic_hunks = match (recovered, matched_context) {
+                        (None, Some(evidence)) => matched_atomic_diffs
+                            .get(evidence.trace_index)
+                            .and_then(|trace| {
+                                matched_semantic_hunk(occurrence, trace, blocks_by_side)
+                            })
+                            .map(|hunk| vec![hunk]),
+                        _ => None,
+                    };
                     ActualChangeOccurrence {
                         old_text,
                         new_text,
+                        old_relation_context: relation_context.map(|context| context.old.clone()),
+                        new_relation_context: relation_context.map(|context| context.new.clone()),
                         old_comparable_len,
                         new_comparable_len,
+                        old_atomic_changed_tokens,
+                        new_atomic_changed_tokens,
+                        old_semantic_changed_tokens: old_comparable_len,
+                        new_semantic_changed_tokens: new_comparable_len,
+                        semantic_hunks,
                         resolvable,
                     }
                 })
@@ -4269,6 +4849,7 @@ fn flatten_actual_changes(
             ActualChange {
                 kind: change.kind,
                 occurrences,
+                reported_hunk_count,
             }
         })
         .collect()
@@ -4296,18 +4877,257 @@ fn scope_matches(
 
 fn occurrence_matches_quotes(
     occurrence: &ActualChangeOccurrence,
-    needle_old: Option<&str>,
-    needle_new: Option<&str>,
+    needles: &NormalizedExpectedQuotes,
 ) -> bool {
-    occurrence.resolvable
-        && contains_needle(occurrence.old_text.as_deref(), needle_old)
-        && contains_needle(occurrence.new_text.as_deref(), needle_new)
+    if !occurrence.resolvable {
+        return false;
+    }
+    let changed_ranges_match = (needles.old_changed_range_tokens.is_some()
+        || needles.new_changed_range_tokens.is_some())
+    .then(|| changed_range_fragments_match(occurrence, needles));
+    let old_matches = match needles.old_changed_range_tokens {
+        Some(_) => {
+            contains_needle(
+                occurrence.old_relation_context.as_deref(),
+                needles.old_context.as_deref(),
+            ) && changed_ranges_match == Some(true)
+        }
+        None => match needles.old_changed.as_deref() {
+            Some(changed) => {
+                contains_needle(
+                    occurrence.old_relation_context.as_deref(),
+                    needles.old_context.as_deref(),
+                ) && changed_needle_matches(
+                    occurrence.old_text.as_deref(),
+                    changed,
+                    occurrence.old_atomic_changed_tokens,
+                )
+            }
+            None => contains_needle(
+                occurrence.old_text.as_deref(),
+                needles.old_context.as_deref(),
+            ),
+        },
+    };
+    let new_matches = match needles.new_changed_range_tokens {
+        Some(_) => {
+            contains_needle(
+                occurrence.new_relation_context.as_deref(),
+                needles.new_context.as_deref(),
+            ) && changed_ranges_match == Some(true)
+        }
+        None => match needles.new_changed.as_deref() {
+            Some(changed) => {
+                contains_needle(
+                    occurrence.new_relation_context.as_deref(),
+                    needles.new_context.as_deref(),
+                ) && changed_needle_matches(
+                    occurrence.new_text.as_deref(),
+                    changed,
+                    occurrence.new_atomic_changed_tokens,
+                )
+            }
+            None => contains_needle(
+                occurrence.new_text.as_deref(),
+                needles.new_context.as_deref(),
+            ),
+        },
+    };
+    old_matches && new_matches
+}
+
+fn changed_range_fragments_match(
+    occurrence: &ActualChangeOccurrence,
+    needles: &NormalizedExpectedQuotes,
+) -> bool {
+    let old_expected = needles.old_changed_range_fragments.as_deref();
+    let new_expected = needles.new_changed_range_fragments.as_deref();
+    if old_expected.is_none() && new_expected.is_none() {
+        return false;
+    }
+    let Some(hunks) = occurrence.semantic_hunks.as_deref() else {
+        return false;
+    };
+    match (old_expected, new_expected) {
+        (Some([]), Some([])) => false,
+        (Some([]), Some(new)) => {
+            ordered_single_side_hunk_fragment_subset_matches(hunks, new, false, true)
+        }
+        (Some(old), Some([])) => {
+            ordered_single_side_hunk_fragment_subset_matches(hunks, old, true, true)
+        }
+        (Some(old), Some(new)) => ordered_paired_hunk_fragment_subset_matches(hunks, old, new),
+        (Some([]), None) => hunks.iter().any(|hunk| hunk.old_atomic_changed_tokens == 0),
+        (None, Some([])) => hunks.iter().any(|hunk| hunk.new_atomic_changed_tokens == 0),
+        (Some(old), None) => {
+            ordered_single_side_hunk_fragment_subset_matches(hunks, old, true, false)
+        }
+        (None, Some(new)) => {
+            ordered_single_side_hunk_fragment_subset_matches(hunks, new, false, false)
+        }
+        (None, None) => false,
+    }
+}
+
+fn semantic_hunk_side(hunk: &ActualSemanticHunk, old_side: bool) -> (Option<&str>, usize) {
+    if old_side {
+        (hunk.old_text.as_deref(), hunk.old_atomic_changed_tokens)
+    } else {
+        (hunk.new_text.as_deref(), hunk.new_atomic_changed_tokens)
+    }
+}
+
+fn matching_fragment_prefix_len(text: &str, fragments: &[String]) -> usize {
+    let mut matched = 0usize;
+    let mut offset = 0usize;
+    for fragment in fragments {
+        if fragment.is_empty() {
+            break;
+        }
+        let Some(found) = text
+            .get(offset..)
+            .and_then(|tail| tail.find(fragment.as_str()))
+        else {
+            break;
+        };
+        offset = offset.saturating_add(found).saturating_add(fragment.len());
+        matched = matched.saturating_add(1);
+    }
+    matched
+}
+
+fn ordered_paired_hunk_fragment_subset_matches(
+    hunks: &[ActualSemanticHunk],
+    old_expected: &[String],
+    new_expected: &[String],
+) -> bool {
+    if old_expected.is_empty() || new_expected.is_empty() {
+        return false;
+    }
+    let mut paired_hunk_seen = false;
+    let mut old_index = 0usize;
+    let mut new_index = 0usize;
+    for hunk in hunks {
+        if old_index == old_expected.len() && new_index == new_expected.len() {
+            return paired_hunk_seen;
+        }
+        let old_matches = if hunk.old_atomic_changed_tokens == 0 {
+            0
+        } else {
+            hunk.old_text.as_deref().map_or(0, |text| {
+                matching_fragment_prefix_len(text, &old_expected[old_index..])
+            })
+        };
+        let new_matches = if hunk.new_atomic_changed_tokens == 0 {
+            0
+        } else {
+            hunk.new_text.as_deref().map_or(0, |text| {
+                matching_fragment_prefix_len(text, &new_expected[new_index..])
+            })
+        };
+        match (
+            hunk.old_atomic_changed_tokens != 0,
+            hunk.new_atomic_changed_tokens != 0,
+        ) {
+            (true, true) if old_matches != 0 && new_matches != 0 => {
+                paired_hunk_seen = true;
+                old_index = old_index.saturating_add(old_matches);
+                new_index = new_index.saturating_add(new_matches);
+            }
+            (true, false) if old_matches != 0 => {
+                old_index = old_index.saturating_add(old_matches);
+            }
+            (false, true) if new_matches != 0 => {
+                new_index = new_index.saturating_add(new_matches);
+            }
+            _ => {}
+        }
+    }
+    paired_hunk_seen && old_index == old_expected.len() && new_index == new_expected.len()
+}
+
+fn ordered_single_side_hunk_fragment_subset_matches(
+    hunks: &[ActualSemanticHunk],
+    expected: &[String],
+    old_side: bool,
+    opposite_must_be_empty: bool,
+) -> bool {
+    if expected.is_empty() {
+        return false;
+    }
+    let mut index = 0usize;
+    for hunk in hunks {
+        let opposite_changed_tokens = if old_side {
+            hunk.new_atomic_changed_tokens
+        } else {
+            hunk.old_atomic_changed_tokens
+        };
+        if opposite_must_be_empty && opposite_changed_tokens != 0 {
+            continue;
+        }
+        let (text, changed_tokens) = semantic_hunk_side(hunk, old_side);
+        if changed_tokens == 0 {
+            continue;
+        }
+        let Some(text) = text else { continue };
+        index = index.saturating_add(matching_fragment_prefix_len(text, &expected[index..]));
+        if index == expected.len() {
+            return true;
+        }
+    }
+    false
+}
+
+fn changed_needle_matches(
+    actual: Option<&str>,
+    expected: &str,
+    atomic_changed_tokens: Option<usize>,
+) -> bool {
+    if expected.is_empty() {
+        return atomic_changed_tokens == Some(0);
+    }
+    atomic_changed_tokens != Some(0) && contains_needle(actual, Some(expected))
 }
 
 fn normalized_expected_quotes(change: &ExpectedChange) -> NormalizedExpectedQuotes {
+    let range_tokens = |ranges: &Option<Vec<ExpectedChangedRange>>| {
+        ranges.as_ref().and_then(|ranges| {
+            ranges.iter().try_fold(0usize, |count, range| {
+                count.checked_add(range.end.checked_sub(range.start)?)
+            })
+        })
+    };
+    let old_context = change.old_quote.as_deref().map(collapse_whitespace);
+    let new_context = change.new_quote.as_deref().map(collapse_whitespace);
+    let range_fragments = |context: Option<&String>, ranges: &Option<Vec<ExpectedChangedRange>>| {
+        ranges.as_ref().and_then(|ranges| {
+            let context = context?;
+            let scalars: Vec<char> = context.chars().collect();
+            ranges
+                .iter()
+                .map(|range| {
+                    scalars
+                        .get(range.start..range.end)
+                        .map(|slice| collapse_whitespace(&slice.iter().collect::<String>()))
+                })
+                .collect::<Option<Vec<String>>>()
+        })
+    };
     NormalizedExpectedQuotes {
-        old: change.old_quote.as_deref().map(collapse_whitespace),
-        new: change.new_quote.as_deref().map(collapse_whitespace),
+        old_changed_range_fragments: range_fragments(
+            old_context.as_ref(),
+            &change.old_changed_ranges,
+        ),
+        new_changed_range_fragments: range_fragments(
+            new_context.as_ref(),
+            &change.new_changed_ranges,
+        ),
+        old_context,
+        new_context,
+        old_changed: change.old_changed_quote.as_deref().map(collapse_whitespace),
+        new_changed: change.new_changed_quote.as_deref().map(collapse_whitespace),
+        old_changed_range_tokens: range_tokens(&change.old_changed_ranges),
+        new_changed_range_tokens: range_tokens(&change.new_changed_ranges),
     }
 }
 
@@ -4323,21 +5143,16 @@ fn actual_matches_quotes(
             return Ok(false);
         }
         for occurrence in &actual.occurrences {
-            budget.charge_occurrence(occurrence, limits)?;
-            if !occurrence_matches_quotes(
-                occurrence,
-                needles.old.as_deref(),
-                needles.new.as_deref(),
-            ) {
+            budget.charge_occurrence(occurrence, needles, limits)?;
+            if !occurrence_matches_quotes(occurrence, needles) {
                 return Ok(false);
             }
         }
         Ok(true)
     } else {
         for occurrence in &actual.occurrences {
-            budget.charge_occurrence(occurrence, limits)?;
-            if occurrence_matches_quotes(occurrence, needles.old.as_deref(), needles.new.as_deref())
-            {
+            budget.charge_occurrence(occurrence, needles, limits)?;
+            if occurrence_matches_quotes(occurrence, needles) {
                 return Ok(true);
             }
         }
@@ -4677,6 +5492,7 @@ fn evaluate_complete_scopes(
     old_blocks: &[BlockText],
     new_blocks: &[BlockText],
     actuals: &[ActualChange],
+    recovered_atomic_diffs: &[RecoveredAtomicDiff],
 ) -> std::result::Result<CompleteScopeEvaluation, String> {
     let scopes = resolve_revision_scopes(&document.scopes, old_blocks, new_blocks)?;
     let expected = document
@@ -4695,6 +5511,7 @@ fn evaluate_complete_scopes(
         &scopes,
         old_blocks,
         new_blocks,
+        recovered_atomic_diffs,
     )?;
     let mut all_actual_scopes = vec![None; actuals.len()];
     let mut scoped_actuals = Vec::with_capacity(changes.len());
@@ -4779,7 +5596,7 @@ fn quality_from_match_outcome(
 
 fn reported_hunk_count(actuals: &[ActualChange]) -> usize {
     actuals.iter().fold(0, |total, change| {
-        total.saturating_add(change.occurrences.len())
+        total.saturating_add(change.reported_hunk_count)
     })
 }
 
@@ -4950,7 +5767,13 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         .unwrap_or_default();
 
     let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
-    let (outcome, alignment, recovery_watch_diagnostics) = match run_extraction_and_comparison(
+    let (
+        outcome,
+        alignment,
+        recovery_watch_diagnostics,
+        matched_atomic_diffs,
+        recovered_atomic_diffs,
+    ) = match run_extraction_and_comparison(
         &source,
         &old_path,
         &new_path,
@@ -4964,11 +5787,19 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
             sentence_recovery_metrics,
             pressure,
             recovery_watch_diagnostics,
+            matched_atomic_diffs,
+            recovered_atomic_diffs,
         }) => {
             metrics.apply_to(&mut record);
             record.sentence_recovery_metrics = sentence_recovery_metrics;
             record.candidate_visit_pressure = pressure;
-            (outcome, alignment, recovery_watch_diagnostics)
+            (
+                outcome,
+                alignment,
+                recovery_watch_diagnostics,
+                matched_atomic_diffs,
+                recovered_atomic_diffs,
+            )
         }
         Err(RevisionRunError::Read(reason)) => {
             record.failure = Some(reason);
@@ -5033,6 +5864,8 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         Some(flatten_actual_changes(
             &outcome.comparison,
             [&old_map, &new_map],
+            &matched_atomic_diffs,
+            &recovered_atomic_diffs,
         ))
     } else {
         None
@@ -5057,6 +5890,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                 &outcome.old_blocks,
                 &outcome.new_blocks,
                 actuals.as_deref().unwrap_or_default(),
+                &recovered_atomic_diffs,
             ) {
                 Ok(scoped) => {
                     record.quality = Some(scoped.quality);
@@ -5078,6 +5912,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                         &outcome.old_blocks,
                         &outcome.new_blocks,
                         &actuals,
+                        &recovered_atomic_diffs,
                     )
                 })
                 .transpose();
@@ -8928,6 +9763,8 @@ struct ComparisonWithMetrics {
     sentence_recovery_metrics: Option<SentenceRecoveryMetricsReport>,
     pressure: Option<CandidateVisitPressure>,
     recovery_watch_diagnostics: Option<RecoveryWatchDiagnostics>,
+    matched_atomic_diffs: Vec<MatchedAtomicDiff>,
+    recovered_atomic_diffs: Vec<RecoveredAtomicDiff>,
 }
 
 /// Compares two extracted outcomes and returns the alignment candidate
@@ -8965,7 +9802,15 @@ fn compare_outcomes_with_metrics(
         &mut diagnostics,
         recovery_watch_queries,
     )
-    .map(|watched| (watched.outcome, watched.alignment, watched.diagnostics));
+    .map(|watched| {
+        (
+            watched.outcome,
+            watched.alignment,
+            watched.diagnostics,
+            watched.matched_atomic_diffs,
+            watched.recovered_atomic_diffs,
+        )
+    });
     let metrics = alignment_visit_metrics(&diagnostics).map_err(|message| {
         RevisionRunError::Other("alignment metrics contract violation", message)
     })?;
@@ -8973,7 +9818,13 @@ fn compare_outcomes_with_metrics(
         RevisionRunError::Other("sentence recovery metrics contract violation", message)
     })?;
     let pressure = resolve_pressure(metrics.candidate_visits, pressure_required, pressure_result)?;
-    let (outcome, alignment, recovery_watch_diagnostics) = result.map_err(|error| match error {
+    let (
+        outcome,
+        alignment,
+        recovery_watch_diagnostics,
+        matched_atomic_diffs,
+        recovered_atomic_diffs,
+    ) = result.map_err(|error| match error {
         pdfdelta_core::Error::LimitExceeded { .. } => RevisionRunError::Limit {
             message: error.to_string(),
             metrics: Box::new(metrics),
@@ -8988,6 +9839,8 @@ fn compare_outcomes_with_metrics(
         sentence_recovery_metrics,
         pressure,
         recovery_watch_diagnostics,
+        matched_atomic_diffs,
+        recovered_atomic_diffs,
     })
 }
 
@@ -9344,10 +10197,13 @@ pub fn write_summary_json(path: &Path, reports: &[PairRunReport]) -> Result<()> 
 mod tests {
     use pdfdelta_core::{
         alignment::AlignmentOptions,
+        diff::TokenRange,
+        layout::{BlockId, BlockRole},
         model::{
             DecodedText, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
             GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
         },
+        normalize::{MappedText, ScalarRange},
         pdf::ObjectRef,
     };
 
@@ -9390,6 +10246,43 @@ mod tests {
         }
     }
 
+    fn relation_block(id: u64, text: &str) -> BlockText {
+        let mapped = || MappedText {
+            text: text.to_owned(),
+            source_map: Vec::new(),
+            unmapped: Vec::new(),
+        };
+        BlockText {
+            block: BlockId(id),
+            role: BlockRole::Body,
+            raw: mapped(),
+            canonical: mapped(),
+            matching: text.to_owned(),
+            matching_tokens: text.chars().map(ComparableToken::Scalar).collect(),
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: Vec::new(),
+            pages: Vec::new(),
+            font_size_signatures: None,
+            position_signatures: None,
+            line_breaks: None,
+            page_breaks: None,
+        }
+    }
+
+    fn relation_span(
+        blocks: Vec<BlockId>,
+        separator: Option<BlockSeparator>,
+        len: usize,
+    ) -> TextSpan {
+        TextSpan {
+            blocks,
+            separator,
+            canonical_range: ScalarRange { start: 0, end: len },
+            comparable_range: TokenRange { start: 0, end: len },
+        }
+    }
+
     fn recovery_watch_expected_change(id: &str, kind: ExpectedKind) -> ExpectedChange {
         ExpectedChange {
             id: id.to_owned(),
@@ -9398,6 +10291,10 @@ mod tests {
             occurrence_count: None,
             old_quote: Some(format!("old {id}")),
             new_quote: Some(format!("new {id}")),
+            old_changed_quote: None,
+            new_changed_quote: None,
+            old_changed_ranges: None,
+            new_changed_ranges: None,
             note: String::new(),
         }
     }
@@ -10537,12 +11434,20 @@ mod tests {
             r#"{"id":"c2","kind":"insertion","old_quote":"leftover","new_quote":"added"}"#;
         let insertion_good = r#"{"id":"c2","kind":"insertion","new_quote":"added"}"#;
         let deletion_good = r#"{"id":"c3","kind":"deletion","old_quote":"removed"}"#;
+        let narrowed_replacement = r#"{"id":"c4","kind":"replacement","old_quote":"release 10 remains","new_quote":"release 20 remains","old_changed_quote":"10","new_changed_quote":"20"}"#;
+        let one_sided_replacement = r#"{"id":"c4","kind":"replacement","old_quote":"release, remains","new_quote":"release remains","old_changed_quote":",","new_changed_quote":""}"#;
+        let escaped_change = r#"{"id":"c4","kind":"replacement","old_quote":"release 10 remains","new_quote":"release 20 remains","old_changed_quote":"11","new_changed_quote":"20"}"#;
+        let incomplete_change = r#"{"id":"c4","kind":"replacement","old_quote":"release 10 remains","new_quote":"release 20 remains","old_changed_quote":"10"}"#;
         let with_changes = |changes: &str| template.replace("[CHANGES]", &format!("[{changes}]"));
 
         assert!(load_expected_document(&with_changes(replacement)).is_ok());
         assert!(load_expected_document(&with_changes(insertion_bad)).is_err());
         assert!(load_expected_document(&with_changes(insertion_good)).is_ok());
         assert!(load_expected_document(&with_changes(deletion_good)).is_ok());
+        assert!(load_expected_document(&with_changes(narrowed_replacement)).is_ok());
+        assert!(load_expected_document(&with_changes(one_sided_replacement)).is_ok());
+        assert!(load_expected_document(&with_changes(escaped_change)).is_err());
+        assert!(load_expected_document(&with_changes(incomplete_change)).is_err());
         assert!(
             load_expected_document(
                 &with_changes(replacement).replace(r#""version":1"#, r#""version":2"#)
@@ -10751,6 +11656,10 @@ mod tests {
             occurrence_count: None,
             old_quote: old.map(str::to_owned),
             new_quote: new.map(str::to_owned),
+            old_changed_quote: None,
+            new_changed_quote: None,
+            old_changed_ranges: None,
+            new_changed_ranges: None,
             note: String::new(),
         }
     }
@@ -10764,11 +11673,19 @@ mod tests {
     ) -> ActualChange {
         ActualChange {
             kind,
+            reported_hunk_count: 1,
             occurrences: vec![ActualChangeOccurrence {
                 old_text: old_text.map(collapse_whitespace),
                 new_text: new_text.map(collapse_whitespace),
+                old_relation_context: None,
+                new_relation_context: None,
                 old_comparable_len: old_len,
                 new_comparable_len: new_len,
+                old_atomic_changed_tokens: None,
+                new_atomic_changed_tokens: None,
+                old_semantic_changed_tokens: old_len,
+                new_semantic_changed_tokens: new_len,
+                semantic_hunks: None,
                 resolvable: true,
             }],
         }
@@ -10777,13 +11694,21 @@ mod tests {
     fn repeated_replacement(occurrences: &[(&str, &str)]) -> ActualChange {
         ActualChange {
             kind: ChangeKind::Replacement,
+            reported_hunk_count: occurrences.len(),
             occurrences: occurrences
                 .iter()
                 .map(|(old, new)| ActualChangeOccurrence {
                     old_text: Some(collapse_whitespace(old)),
                     new_text: Some(collapse_whitespace(new)),
+                    old_relation_context: None,
+                    new_relation_context: None,
                     old_comparable_len: Some(old.chars().count()),
                     new_comparable_len: Some(new.chars().count()),
+                    old_atomic_changed_tokens: None,
+                    new_atomic_changed_tokens: None,
+                    old_semantic_changed_tokens: Some(old.chars().count()),
+                    new_semantic_changed_tokens: Some(new.chars().count()),
+                    semantic_hunks: None,
                     resolvable: true,
                 })
                 .collect(),
@@ -11574,6 +12499,468 @@ mod tests {
     }
 
     #[test]
+    fn changed_quotes_match_narrow_output_without_discarding_context() {
+        let mut expected = expected_change(
+            "c1",
+            ExpectedKind::Replacement,
+            Some("the release 10 remains available"),
+            Some("the release 20 remains available"),
+        );
+        expected.old_changed_quote = Some("10".to_owned());
+        expected.new_changed_quote = Some("20".to_owned());
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("10"),
+            Some("20"),
+            Some(2),
+            Some(2),
+        );
+        actual.occurrences[0].old_relation_context =
+            Some("the release 10 remains available".to_owned());
+        actual.occurrences[0].new_relation_context =
+            Some("the release 20 remains available".to_owned());
+        let actuals = vec![actual];
+
+        let quality = compute_quality(Annotation::Complete, &[expected], &actuals);
+
+        assert_eq!(quality.precision, Some(1.0));
+        assert_eq!(quality.recall, Some(1.0));
+        assert_eq!(quality.kind_accuracy, Some(1.0));
+    }
+
+    #[test]
+    fn empty_changed_quote_requires_zero_token_atomic_evidence() {
+        let mut expected = expected_change(
+            "comma-removed",
+            ExpectedKind::Replacement,
+            Some("standards, and"),
+            Some("standards and"),
+        );
+        expected.old_changed_quote = Some(",".to_owned());
+        expected.new_changed_quote = Some(String::new());
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some(","),
+            Some(";"),
+            Some(1),
+            Some(1),
+        );
+        actual.occurrences[0].old_relation_context = Some("standards, and".to_owned());
+        actual.occurrences[0].new_relation_context = Some("standards and".to_owned());
+        actual.occurrences[0].old_atomic_changed_tokens = Some(1);
+        actual.occurrences[0].new_atomic_changed_tokens = Some(1);
+
+        let mismatch = compute_quality(
+            Annotation::Complete,
+            std::slice::from_ref(&expected),
+            std::slice::from_ref(&actual),
+        );
+        assert_eq!(mismatch.recall, Some(0.0));
+
+        actual.occurrences[0].new_text = Some(String::new());
+        actual.occurrences[0].new_comparable_len = Some(0);
+        actual.occurrences[0].new_atomic_changed_tokens = Some(0);
+        let matched = compute_quality(Annotation::Complete, &[expected], &[actual]);
+        assert_eq!(matched.recall, Some(1.0));
+        assert_eq!(matched.precision, Some(1.0));
+    }
+
+    #[test]
+    fn changed_ranges_match_one_exact_hunk_and_leave_extra_tokens_for_precision() {
+        let mut expected = expected_change(
+            "comma-removed",
+            ExpectedKind::Replacement,
+            Some("standards, and"),
+            Some("standards and"),
+        );
+        expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 9, end: 10 }]);
+        expected.new_changed_ranges = Some(Vec::new());
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("standards, and"),
+            Some("standards and"),
+            Some(14),
+            Some(13),
+        );
+        let occurrence = &mut actual.occurrences[0];
+        occurrence.old_relation_context = Some("standards, and".to_owned());
+        occurrence.new_relation_context = Some("standards and".to_owned());
+        occurrence.old_atomic_changed_tokens = Some(6);
+        occurrence.new_atomic_changed_tokens = Some(5);
+        occurrence.old_semantic_changed_tokens = Some(6);
+        occurrence.new_semantic_changed_tokens = Some(5);
+        occurrence.semantic_hunks = Some(vec![
+            ActualSemanticHunk {
+                old_text: Some("wrong".to_owned()),
+                new_text: Some("label".to_owned()),
+                old_atomic_changed_tokens: 5,
+                new_atomic_changed_tokens: 5,
+            },
+            ActualSemanticHunk {
+                old_text: Some(",".to_owned()),
+                new_text: Some(String::new()),
+                old_atomic_changed_tokens: 1,
+                new_atomic_changed_tokens: 0,
+            },
+        ]);
+
+        let quality = compute_quality(Annotation::Complete, &[expected], &[actual]);
+
+        assert_eq!(quality.recall, Some(1.0));
+        assert_eq!(quality.precision, Some(1.0));
+    }
+
+    #[test]
+    fn changed_ranges_with_an_empty_side_require_a_one_sided_hunk() {
+        let mut expected = expected_change(
+            "comma-removed",
+            ExpectedKind::Replacement,
+            Some("standards, and"),
+            Some("standards and"),
+        );
+        expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 9, end: 10 }]);
+        expected.new_changed_ranges = Some(Vec::new());
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("standards, and"),
+            Some("standards; and"),
+            Some(14),
+            Some(14),
+        );
+        let occurrence = &mut actual.occurrences[0];
+        occurrence.old_relation_context = Some("standards, and".to_owned());
+        occurrence.new_relation_context = Some("standards and".to_owned());
+        occurrence.semantic_hunks = Some(vec![ActualSemanticHunk {
+            old_text: Some(",".to_owned()),
+            new_text: Some(";".to_owned()),
+            old_atomic_changed_tokens: 1,
+            new_atomic_changed_tokens: 1,
+        }]);
+
+        let quality = compute_quality(Annotation::Complete, &[expected], &[actual]);
+
+        assert_eq!(quality.recall, Some(0.0));
+    }
+
+    #[test]
+    fn changed_ranges_fail_closed_without_semantic_hunk_evidence() {
+        let mut expected = expected_change(
+            "range",
+            ExpectedKind::Replacement,
+            Some("old A context"),
+            Some("new B context"),
+        );
+        expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 4, end: 5 }]);
+        expected.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 4, end: 5 }]);
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("X"),
+            Some("Y"),
+            Some(1),
+            Some(1),
+        );
+        actual.occurrences[0].old_relation_context = Some("old A context".to_owned());
+        actual.occurrences[0].new_relation_context = Some("new B context".to_owned());
+        actual.occurrences[0].old_semantic_changed_tokens = Some(1);
+        actual.occurrences[0].new_semantic_changed_tokens = Some(1);
+
+        let quality = compute_quality(Annotation::Complete, &[expected], &[actual]);
+
+        assert_eq!(quality.recall, Some(0.0));
+    }
+
+    #[test]
+    fn changed_ranges_do_not_pair_fragments_from_different_hunks() {
+        let mut expected =
+            expected_change("crossed", ExpectedKind::Replacement, Some("AB"), Some("CD"));
+        expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+        expected.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 1, end: 2 }]);
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("AB"),
+            Some("CD"),
+            Some(2),
+            Some(2),
+        );
+        let occurrence = &mut actual.occurrences[0];
+        occurrence.old_relation_context = Some("AB".to_owned());
+        occurrence.new_relation_context = Some("CD".to_owned());
+        occurrence.semantic_hunks = Some(vec![
+            ActualSemanticHunk {
+                old_text: Some("A".to_owned()),
+                new_text: Some("C".to_owned()),
+                old_atomic_changed_tokens: 1,
+                new_atomic_changed_tokens: 1,
+            },
+            ActualSemanticHunk {
+                old_text: Some("B".to_owned()),
+                new_text: Some("D".to_owned()),
+                old_atomic_changed_tokens: 1,
+                new_atomic_changed_tokens: 1,
+            },
+        ]);
+
+        let quality = compute_quality(Annotation::Complete, &[expected], &[actual]);
+
+        assert_eq!(quality.recall, Some(0.0));
+    }
+
+    #[test]
+    fn changed_ranges_do_not_combine_opposite_one_sided_hunks() {
+        let mut expected =
+            expected_change("split", ExpectedKind::Replacement, Some("A"), Some("B"));
+        expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+        expected.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("A"),
+            Some("B"),
+            Some(1),
+            Some(1),
+        );
+        let occurrence = &mut actual.occurrences[0];
+        occurrence.old_relation_context = Some("A".to_owned());
+        occurrence.new_relation_context = Some("B".to_owned());
+        occurrence.semantic_hunks = Some(vec![
+            ActualSemanticHunk {
+                old_text: Some("A".to_owned()),
+                new_text: Some(String::new()),
+                old_atomic_changed_tokens: 1,
+                new_atomic_changed_tokens: 0,
+            },
+            ActualSemanticHunk {
+                old_text: Some(String::new()),
+                new_text: Some("B".to_owned()),
+                old_atomic_changed_tokens: 0,
+                new_atomic_changed_tokens: 1,
+            },
+        ]);
+
+        let quality = compute_quality(Annotation::Complete, &[expected], &[actual]);
+
+        assert_eq!(quality.recall, Some(0.0));
+    }
+
+    #[test]
+    fn changed_ranges_match_an_ordered_hunk_subset() {
+        let mut expected =
+            expected_change("subset", ExpectedKind::Replacement, Some("AC"), Some("BD"));
+        expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+        expected.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("AC"),
+            Some("BD"),
+            Some(2),
+            Some(2),
+        );
+        let occurrence = &mut actual.occurrences[0];
+        occurrence.old_relation_context = Some("AC".to_owned());
+        occurrence.new_relation_context = Some("BD".to_owned());
+        occurrence.semantic_hunks = Some(vec![
+            ActualSemanticHunk {
+                old_text: Some("A".to_owned()),
+                new_text: Some("B".to_owned()),
+                old_atomic_changed_tokens: 1,
+                new_atomic_changed_tokens: 1,
+            },
+            ActualSemanticHunk {
+                old_text: Some("C".to_owned()),
+                new_text: Some("D".to_owned()),
+                old_atomic_changed_tokens: 1,
+                new_atomic_changed_tokens: 1,
+            },
+        ]);
+
+        let quality = compute_quality(Annotation::Complete, &[expected], &[actual]);
+
+        assert_eq!(quality.recall, Some(1.0));
+        assert_eq!(quality.precision, Some(1.0));
+    }
+
+    #[test]
+    fn changed_ranges_match_paired_and_one_sided_hunks_in_one_event() {
+        let mut expected =
+            expected_change("mixed", ExpectedKind::Replacement, Some("AC"), Some("B"));
+        expected.old_changed_ranges = Some(vec![
+            ExpectedChangedRange { start: 0, end: 1 },
+            ExpectedChangedRange { start: 1, end: 2 },
+        ]);
+        expected.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("AC"),
+            Some("B"),
+            Some(2),
+            Some(1),
+        );
+        let occurrence = &mut actual.occurrences[0];
+        occurrence.old_relation_context = Some("AC".to_owned());
+        occurrence.new_relation_context = Some("B".to_owned());
+        occurrence.semantic_hunks = Some(vec![
+            ActualSemanticHunk {
+                old_text: Some("A".to_owned()),
+                new_text: Some("B".to_owned()),
+                old_atomic_changed_tokens: 1,
+                new_atomic_changed_tokens: 1,
+            },
+            ActualSemanticHunk {
+                old_text: Some("C".to_owned()),
+                new_text: Some(String::new()),
+                old_atomic_changed_tokens: 1,
+                new_atomic_changed_tokens: 0,
+            },
+        ]);
+
+        let quality = compute_quality(Annotation::Complete, &[expected], &[actual]);
+
+        assert_eq!(quality.recall, Some(1.0));
+        assert_eq!(quality.precision, Some(1.0));
+    }
+
+    #[test]
+    fn matched_atomic_diff_provides_exact_hunk_evidence() {
+        let old_blocks = [relation_block(1, "abc, def")];
+        let new_blocks = [relation_block(2, "abc def")];
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+        let trace = MatchedAtomicDiff {
+            alignment_span_index: 0,
+            old_context: relation_span(vec![BlockId(1)], None, 8),
+            new_context: relation_span(vec![BlockId(2)], None, 7),
+            edits: vec![pdfdelta_core::diff::AtomicEdit {
+                old: 3..4,
+                new: 3..3,
+            }],
+        };
+        let mut old_span = trace.old_context.clone();
+        old_span.canonical_range = ScalarRange { start: 3, end: 4 };
+        old_span.comparable_range = TokenRange { start: 3, end: 4 };
+        let mut new_span = trace.new_context.clone();
+        new_span.canonical_range = ScalarRange { start: 3, end: 3 };
+        new_span.comparable_range = TokenRange { start: 3, end: 3 };
+        let occurrence = ChangeOccurrence {
+            old_span: Some(old_span),
+            new_span: Some(new_span),
+        };
+
+        let hunk = matched_semantic_hunk(&occurrence, &trace, [&old_map, &new_map])
+            .expect("one exact matched hunk");
+
+        assert_eq!(hunk.old_text.as_deref(), Some(","));
+        assert_eq!(hunk.new_text.as_deref(), Some(""));
+        assert_eq!(hunk.old_atomic_changed_tokens, 1);
+        assert_eq!(hunk.new_atomic_changed_tokens, 0);
+    }
+
+    #[test]
+    fn matched_atomic_diff_rejects_an_empty_edit_point_outside_the_hunk() {
+        let old_blocks = [relation_block(1, "abc")];
+        let new_blocks = [relation_block(2, "abcx")];
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+        let trace = MatchedAtomicDiff {
+            alignment_span_index: 0,
+            old_context: relation_span(vec![BlockId(1)], None, 3),
+            new_context: relation_span(vec![BlockId(2)], None, 4),
+            edits: vec![pdfdelta_core::diff::AtomicEdit {
+                old: 3..3,
+                new: 3..4,
+            }],
+        };
+        let mut old_span = trace.old_context.clone();
+        old_span.canonical_range = ScalarRange { start: 0, end: 1 };
+        old_span.comparable_range = TokenRange { start: 0, end: 1 };
+        let mut new_span = trace.new_context.clone();
+        new_span.canonical_range = ScalarRange { start: 3, end: 4 };
+        new_span.comparable_range = TokenRange { start: 3, end: 4 };
+        let occurrence = ChangeOccurrence {
+            old_span: Some(old_span),
+            new_span: Some(new_span),
+        };
+
+        assert!(matched_semantic_hunk(&occurrence, &trace, [&old_map, &new_map]).is_none());
+    }
+
+    #[test]
+    fn matching_budget_charges_semantic_hunks_and_their_text() {
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("a"),
+            Some("b"),
+            Some(1),
+            Some(1),
+        );
+        actual.occurrences[0].semantic_hunks = Some(vec![ActualSemanticHunk {
+            old_text: Some("old hunk".to_owned()),
+            new_text: Some("new hunk".to_owned()),
+            old_atomic_changed_tokens: 1,
+            new_atomic_changed_tokens: 1,
+        }]);
+        let mut budget = MatchingScanBudget::default();
+        let mut expected =
+            expected_change("budget", ExpectedKind::Replacement, Some("a"), Some("b"));
+        expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+        expected.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+        let needles = normalized_expected_quotes(&expected);
+        let limits = MatchingLimits {
+            max_occurrence_visits: 3,
+            ..MatchingLimits::default()
+        };
+
+        assert_eq!(
+            budget.charge_occurrence(&actual.occurrences[0], &needles, limits),
+            Err(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)
+        );
+    }
+
+    #[test]
+    fn matched_relation_contexts_support_event_shapes_and_fail_closed_on_duplicates() {
+        let old_blocks = [relation_block(1, "old relation context")];
+        let new_blocks = [relation_block(2, "new relation context")];
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+        let trace = MatchedAtomicDiff {
+            alignment_span_index: 0,
+            old_context: relation_span(vec![BlockId(1)], None, 20),
+            new_context: relation_span(vec![BlockId(2)], None, 20),
+            edits: Vec::new(),
+        };
+        let contexts =
+            matched_relation_contexts(std::slice::from_ref(&trace), [&old_map, &new_map]);
+
+        for key in [
+            relation_group_key(Some(&trace.old_context), Some(&trace.new_context)),
+            relation_group_key(Some(&trace.old_context), None),
+            relation_group_key(None, Some(&trace.new_context)),
+        ] {
+            let context = contexts
+                .get(&key)
+                .and_then(Option::as_ref)
+                .expect("each event shape resolves one trace");
+            assert_eq!(context.context.old, "old relation context");
+            assert_eq!(context.context.new, "new relation context");
+        }
+
+        let duplicates = matched_relation_contexts(&[trace.clone(), trace], [&old_map, &new_map]);
+        assert!(duplicates.values().all(Option::is_none));
+    }
+
+    #[test]
+    fn relation_group_keys_preserve_block_order_and_separator() {
+        let ordered = relation_span(vec![BlockId(1), BlockId(2)], Some(BlockSeparator::Space), 4);
+        let reversed = relation_span(vec![BlockId(2), BlockId(1)], Some(BlockSeparator::Space), 4);
+        let concatenated = relation_span(
+            vec![BlockId(1), BlockId(2)],
+            Some(BlockSeparator::Concatenate),
+            4,
+        );
+
+        assert_ne!(span_group_key(&ordered), span_group_key(&reversed));
+        assert_ne!(span_group_key(&ordered), span_group_key(&concatenated));
+    }
+
+    #[test]
     fn quote_matching_considers_every_occurrence_of_one_semantic_change() {
         let expected = vec![expected_change(
             "c1",
@@ -11591,10 +12978,18 @@ mod tests {
         actual.occurrences.push(ActualChangeOccurrence {
             old_text: Some("prefix target old text suffix".to_owned()),
             new_text: Some("prefix target new text suffix".to_owned()),
+            old_relation_context: None,
+            new_relation_context: None,
             old_comparable_len: Some(29),
             new_comparable_len: Some(29),
+            old_atomic_changed_tokens: None,
+            new_atomic_changed_tokens: None,
+            old_semantic_changed_tokens: Some(29),
+            new_semantic_changed_tokens: Some(29),
+            semantic_hunks: None,
             resolvable: true,
         });
+        actual.reported_hunk_count = actual.occurrences.len();
 
         let quality = compute_quality(Annotation::Complete, &expected, &[actual]);
 
@@ -11919,6 +13314,8 @@ mod tests {
             sentence_recovery_metrics,
             pressure,
             recovery_watch_diagnostics: _,
+            matched_atomic_diffs: _,
+            recovered_atomic_diffs: _,
         } = compare_outcomes_with_metrics(old, new, PipelineOptions::default(), &[])
             .expect("comparison succeeds");
 
@@ -12018,6 +13415,8 @@ mod tests {
             sentence_recovery_metrics: _,
             pressure: _,
             recovery_watch_diagnostics: _,
+            matched_atomic_diffs: _,
+            recovered_atomic_diffs: _,
         } = compare_outcomes_with_metrics(
             old.clone(),
             new.clone(),
@@ -12127,6 +13526,8 @@ mod tests {
             sentence_recovery_metrics,
             pressure,
             recovery_watch_diagnostics: _,
+            matched_atomic_diffs: _,
+            recovered_atomic_diffs: _,
         } = compare_outcomes_with_metrics(incomplete, complete, PipelineOptions::default(), &[])
             .expect("incomplete comparison is not an error");
 

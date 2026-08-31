@@ -63,6 +63,8 @@
       "scope": "introduction-adjacent-replacements",
       "old_quote": "standards1",
       "new_quote": "standards11",
+      "old_changed_ranges": [],
+      "new_changed_ranges": [{ "start": 10, "end": 11 }],
       "note": "The toolkit footnote reference changes from 1 to 11."
     },
     {
@@ -71,15 +73,22 @@
       "scope": "introduction-adjacent-replacements",
       "old_quote": "standards, and",
       "new_quote": "standards and",
+      "old_changed_ranges": [{ "start": 9, "end": 10 }],
+      "new_changed_ranges": [],
       "note": "The revised sentence removes the comma before the coordinated predicate."
     },
     {
-      "id": "approved-definition-comma-removed",
+      "id": "approved-definition-rewritten",
       "kind": "replacement",
       "scope": "glossary-adjacent-replacements",
-      "old_quote": "Recommendation, or",
-      "new_quote": "Recommendation or",
-      "note": "The revised Approved definition removes the comma between alternatives."
+      "old_quote": "An algorithm or technique that is either 1) specified in a FIPS or NIST Recommendation, or 2) specified elsewhere and adopted by reference in a FIPS or NIST Recommendation.",
+      "new_quote": "Approved that is either 1) specified in a FIPS or NIST Recommendation or 2) specified elsewhere and adopted by reference in a FIPS or NIST Recommendation.",
+      "old_changed_ranges": [
+        { "start": 1, "end": 25 },
+        { "start": 86, "end": 87 }
+      ],
+      "new_changed_ranges": [{ "start": 1, "end": 8 }],
+      "note": "The revised Approved entry replaces the descriptive lead-in with its term label and removes the comma between alternatives."
     },
     {
       "id": "association-definition-punctuation",
@@ -87,6 +96,14 @@
       "scope": "glossary-adjacent-replacements",
       "old_quote": "purpose. For example,",
       "new_quote": "purpose; for example,",
+      "old_changed_ranges": [
+        { "start": 7, "end": 8 },
+        { "start": 9, "end": 10 }
+      ],
+      "new_changed_ranges": [
+        { "start": 7, "end": 8 },
+        { "start": 9, "end": 10 }
+      ],
       "note": "The revised Association definition joins the example with a semicolon."
     }
   ]

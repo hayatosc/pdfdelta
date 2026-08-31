@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use pdfdelta_core::{
     alignment::BlockSeparator,
-    diff::{Change, TextSpan},
+    diff::{Change, RecoveredAtomicDiff, TextSpan, TokenRange},
     layout::BlockId,
-    normalize::{BlockText, ComparableToken},
+    normalize::{BlockText, ComparableToken, ScalarRange},
 };
 
 use super::{
-    ExpectedChange, ExpectedScope, ScopedTokenMetrics,
+    ExpectedChange, ExpectedChangedRange, ExpectedScope, ScopedTokenMetrics, collapse_whitespace,
     revision_diagnostics::{
         DiagnosticBudget, DiagnosticLimits, ScopedQuoteLocateOutcome, ScopedQuoteLocation,
         ScopedQuoteRange, locate_scope_anchor_quote, locate_scoped_quote,
@@ -48,6 +48,19 @@ struct TokenInterval {
     block_order: usize,
     start: usize,
     end: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct CollapsedScalarMapping {
+    value: char,
+    interval_start: usize,
+    interval_end: usize,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct CollapsedContextMapping {
+    scalars: Vec<CollapsedScalarMapping>,
+    intervals: Vec<TokenInterval>,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -366,6 +379,73 @@ fn span_range_with_limits(
     budget: &mut ClassificationBudget,
     limits: ClassificationLimits,
 ) -> Result<ResolvedScopeRange, String> {
+    let expanded;
+    let span = if span.comparable_range.start == span.comparable_range.end
+        && span.canonical_range.start == span.canonical_range.end
+    {
+        let [block] = span.blocks.as_slice() else {
+            return Err(SCOPED_CHANGE_INDETERMINATE.to_owned());
+        };
+        let block_order = *order
+            .get(block)
+            .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?;
+        let tokens = blocks
+            .get(block_order)
+            .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?
+            .canonical
+            .comparable_tokens()
+            .map_err(|_| SCOPED_CHANGE_INDETERMINATE.to_owned())?;
+        let (comparable_range, canonical_range) = if span.comparable_range.start > 0
+            && span.canonical_range.start > 0
+            && tokens
+                .get(span.comparable_range.start - 1)
+                .is_some_and(ComparableToken::is_scalar)
+        {
+            (
+                TokenRange {
+                    start: span.comparable_range.start - 1,
+                    end: span.comparable_range.start,
+                },
+                ScalarRange {
+                    start: span.canonical_range.start - 1,
+                    end: span.canonical_range.start,
+                },
+            )
+        } else if tokens
+            .get(span.comparable_range.end)
+            .is_some_and(ComparableToken::is_scalar)
+        {
+            (
+                TokenRange {
+                    start: span.comparable_range.start,
+                    end: span
+                        .comparable_range
+                        .end
+                        .checked_add(1)
+                        .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?,
+                },
+                ScalarRange {
+                    start: span.canonical_range.start,
+                    end: span
+                        .canonical_range
+                        .end
+                        .checked_add(1)
+                        .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?,
+                },
+            )
+        } else {
+            return Err(SCOPED_CHANGE_INDETERMINATE.to_owned());
+        };
+        expanded = TextSpan {
+            blocks: span.blocks.clone(),
+            separator: span.separator,
+            canonical_range,
+            comparable_range,
+        };
+        &expanded
+    } else {
+        span
+    };
     let (_, rest) = span
         .blocks
         .split_first()
@@ -739,6 +819,176 @@ fn expected_quote_unavailable(
     )
 }
 
+fn collapsed_scalar_mapping(
+    location: ScopedQuoteLocation,
+    collapsed_context: &str,
+    blocks: &[BlockText],
+    budget: &mut ClassificationBudget,
+    limits: ClassificationLimits,
+) -> Result<CollapsedContextMapping, String> {
+    if location.start_block > location.end_block || location.end_block >= blocks.len() {
+        return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+    }
+    let expected_len = collapsed_context.chars().count();
+    let mut expected = Vec::new();
+    expected
+        .try_reserve_exact(expected_len)
+        .map_err(|_| SCOPED_TOKEN_METRICS_LIMITED.to_owned())?;
+    expected.extend(collapsed_context.chars());
+    let mut scalars = Vec::new();
+    scalars
+        .try_reserve_exact(expected_len)
+        .map_err(|_| SCOPED_TOKEN_METRICS_LIMITED.to_owned())?;
+    let mut intervals = Vec::new();
+    intervals
+        .try_reserve_exact(expected_len)
+        .map_err(|_| SCOPED_TOKEN_METRICS_LIMITED.to_owned())?;
+    let mut pending_whitespace = Vec::<TokenInterval>::new();
+    let mut has_text = false;
+    let mut crossed_block = false;
+    let mut pending_crosses_block = false;
+
+    for (block_offset, block) in blocks[location.start_block..=location.end_block]
+        .iter()
+        .enumerate()
+    {
+        budget.charge_work(1, limits)?;
+        let block_order = budget.checked_add(location.start_block, block_offset)?;
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .map_err(|_| SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned())?;
+        let scalar_count = block.canonical.text.chars().count();
+        let start_scalar = if block_order == location.start_block {
+            location.start_scalar
+        } else {
+            0
+        };
+        let end_scalar = if block_order == location.end_block {
+            location.end_scalar
+        } else {
+            scalar_count
+        };
+        if start_scalar > end_scalar || end_scalar > scalar_count {
+            return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+        }
+
+        if has_text && block_offset > 0 {
+            crossed_block = true;
+            pending_crosses_block = !pending_whitespace.is_empty();
+        }
+        let mut scalar = 0_usize;
+        for (token_index, token) in tokens.iter().enumerate() {
+            budget.charge_work(1, limits)?;
+            match token {
+                ComparableToken::Scalar(value) => {
+                    let in_range = start_scalar <= scalar && scalar < end_scalar;
+                    scalar = budget.checked_add(scalar, 1)?;
+                    if !in_range {
+                        continue;
+                    }
+                    let interval = TokenInterval {
+                        block_order,
+                        start: token_index,
+                        end: budget.checked_add(token_index, 1)?,
+                    };
+                    if value.is_whitespace() {
+                        if has_text {
+                            if let Some(pending) = pending_whitespace.last_mut()
+                                && pending.block_order == interval.block_order
+                                && pending.end == interval.start
+                            {
+                                pending.end = interval.end;
+                            } else {
+                                pending_whitespace
+                                    .try_reserve(1)
+                                    .map_err(|_| SCOPED_TOKEN_METRICS_LIMITED.to_owned())?;
+                                pending_whitespace.push(interval);
+                            }
+                        }
+                        continue;
+                    }
+                    if has_text && expected.get(scalars.len()) == Some(&' ') {
+                        if pending_whitespace.is_empty() && !crossed_block {
+                            return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+                        }
+                        let interval_start = intervals.len();
+                        intervals
+                            .try_reserve(pending_whitespace.len())
+                            .map_err(|_| SCOPED_TOKEN_METRICS_LIMITED.to_owned())?;
+                        intervals.append(&mut pending_whitespace);
+                        scalars.push(CollapsedScalarMapping {
+                            value: ' ',
+                            interval_start,
+                            interval_end: intervals.len(),
+                        });
+                    } else if !pending_whitespace.is_empty() && !pending_crosses_block {
+                        return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+                    } else {
+                        pending_whitespace.clear();
+                    }
+                    let interval_start = intervals.len();
+                    intervals
+                        .try_reserve(1)
+                        .map_err(|_| SCOPED_TOKEN_METRICS_LIMITED.to_owned())?;
+                    intervals.push(interval);
+                    scalars.push(CollapsedScalarMapping {
+                        value: *value,
+                        interval_start,
+                        interval_end: intervals.len(),
+                    });
+                    has_text = true;
+                    crossed_block = false;
+                    pending_crosses_block = false;
+                }
+                ComparableToken::Unmapped { .. } => {
+                    return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+                }
+            }
+        }
+        if scalar != scalar_count {
+            return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+        }
+    }
+
+    if scalars.len() != expected.len()
+        || scalars
+            .iter()
+            .zip(expected)
+            .any(|(mapped, expected)| mapped.value != expected)
+    {
+        return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+    }
+    Ok(CollapsedContextMapping { scalars, intervals })
+}
+
+fn relative_changed_intervals(
+    context: &CollapsedContextMapping,
+    ranges: &[ExpectedChangedRange],
+    budget: &mut ClassificationBudget,
+    limits: ClassificationLimits,
+) -> Result<Vec<TokenInterval>, String> {
+    let mut selected = Vec::new();
+    for range in ranges {
+        let Some(changed) = context.scalars.get(range.start..range.end) else {
+            return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+        };
+        for mapped in changed {
+            budget.charge_work(1, limits)?;
+            let Some(intervals) = context
+                .intervals
+                .get(mapped.interval_start..mapped.interval_end)
+            else {
+                return Err(SCOPED_TOKEN_METRICS_INDETERMINATE.to_owned());
+            };
+            for interval in intervals {
+                push_token_interval(&mut selected, *interval, budget, limits)?;
+            }
+        }
+    }
+    Ok(selected)
+}
+
 pub(super) fn validate_scoped_expected_changes(
     changes: &[ExpectedChange],
     scopes: &[ResolvedScope],
@@ -768,14 +1018,28 @@ pub(super) fn validate_scoped_expected_changes(
             }
         }
         let scope = resolved_scope.ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?;
-        for (side, quote, blocks, range) in [
-            ("old", change.old_quote.as_deref(), old_blocks, scope.old),
-            ("new", change.new_quote.as_deref(), new_blocks, scope.new),
+        for (side, context, changed, changed_ranges, blocks, range) in [
+            (
+                "old",
+                change.old_quote.as_deref(),
+                change.old_changed_quote.as_deref(),
+                change.old_changed_ranges.as_deref(),
+                old_blocks,
+                scope.old,
+            ),
+            (
+                "new",
+                change.new_quote.as_deref(),
+                change.new_changed_quote.as_deref(),
+                change.new_changed_ranges.as_deref(),
+                new_blocks,
+                scope.new,
+            ),
         ] {
-            let Some(quote) = quote else { continue };
-            let outcome = locate_scoped_quote(
+            let Some(context) = context else { continue };
+            let context_outcome = locate_scoped_quote(
                 blocks,
-                quote,
+                context,
                 ScopedQuoteRange {
                     start_block: range.start.block_order,
                     start_scalar: range.start.scalar,
@@ -786,7 +1050,7 @@ pub(super) fn validate_scoped_expected_changes(
                 limits,
             )
             .map_err(|_| expected_quote_unavailable(change, scope_id, side, "indeterminate"))?;
-            let location = match outcome {
+            let context_location = match context_outcome {
                 ScopedQuoteLocateOutcome::Unique(location) => location,
                 ScopedQuoteLocateOutcome::Missing => {
                     return Err(expected_quote_unavailable(
@@ -812,6 +1076,80 @@ pub(super) fn validate_scoped_expected_changes(
                 ScopedQuoteLocateOutcome::Limited => {
                     return Err(SCOPED_EXPECTED_CHANGE_LIMITED.to_owned());
                 }
+            };
+            if let Some(changed_ranges) = changed_ranges {
+                let collapsed_context = collapse_whitespace(context);
+                let context_mapping = collapsed_scalar_mapping(
+                    context_location,
+                    &collapsed_context,
+                    blocks,
+                    &mut token_budget,
+                    token_limits,
+                )
+                .map_err(token_metrics_error)?;
+                let intervals = relative_changed_intervals(
+                    &context_mapping,
+                    changed_ranges,
+                    &mut token_budget,
+                    token_limits,
+                )
+                .map_err(token_metrics_error)?;
+                if side == "old" {
+                    evidence.old.extend(intervals);
+                } else {
+                    evidence.new.extend(intervals);
+                }
+                continue;
+            }
+            let location = if let Some(changed) = changed {
+                if changed.is_empty() {
+                    continue;
+                }
+                let changed_outcome = locate_scoped_quote(
+                    blocks,
+                    changed,
+                    ScopedQuoteRange {
+                        start_block: context_location.start_block,
+                        start_scalar: context_location.start_scalar,
+                        end_block: context_location.end_block,
+                        end_scalar: context_location
+                            .end_scalar
+                            .checked_sub(1)
+                            .ok_or_else(|| SCOPED_CHANGE_INDETERMINATE.to_owned())?,
+                    },
+                    &mut budget,
+                    limits,
+                )
+                .map_err(|_| expected_quote_unavailable(change, scope_id, side, "indeterminate"))?;
+                match changed_outcome {
+                    ScopedQuoteLocateOutcome::Unique(location) => location,
+                    ScopedQuoteLocateOutcome::Missing => {
+                        return Err(expected_quote_unavailable(
+                            change, scope_id, side, "missing",
+                        ));
+                    }
+                    ScopedQuoteLocateOutcome::Ambiguous => {
+                        return Err(expected_quote_unavailable(
+                            change,
+                            scope_id,
+                            side,
+                            "ambiguous",
+                        ));
+                    }
+                    ScopedQuoteLocateOutcome::Indeterminate => {
+                        return Err(expected_quote_unavailable(
+                            change,
+                            scope_id,
+                            side,
+                            "indeterminate",
+                        ));
+                    }
+                    ScopedQuoteLocateOutcome::Limited => {
+                        return Err(SCOPED_EXPECTED_CHANGE_LIMITED.to_owned());
+                    }
+                }
+            } else {
+                context_location
             };
             let intervals =
                 scalar_location_intervals(location, blocks, &mut token_budget, token_limits)
@@ -996,6 +1334,7 @@ pub(super) fn evaluate_scoped_token_metrics(
     scopes: &[ResolvedScope],
     old_blocks: &[BlockText],
     new_blocks: &[BlockText],
+    _recovered_atomic_diffs: &[RecoveredAtomicDiff],
 ) -> Result<ScopedTokenMetrics, String> {
     evaluate_scoped_token_metrics_with_limits(
         changes,
@@ -1004,11 +1343,13 @@ pub(super) fn evaluate_scoped_token_metrics(
         scopes,
         old_blocks,
         new_blocks,
+        _recovered_atomic_diffs,
         ClassificationLimits::default(),
     )
     .map_err(token_metrics_error)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn evaluate_scoped_token_metrics_with_limits(
     changes: &[Change],
     classified: &[ScopedChange],
@@ -1016,6 +1357,7 @@ fn evaluate_scoped_token_metrics_with_limits(
     scopes: &[ResolvedScope],
     old_blocks: &[BlockText],
     new_blocks: &[BlockText],
+    _recovered_atomic_diffs: &[RecoveredAtomicDiff],
     limits: ClassificationLimits,
 ) -> Result<ScopedTokenMetrics, String> {
     let mut budget = ClassificationBudget::default();
@@ -1133,7 +1475,9 @@ fn evaluate_scoped_token_metrics_with_limits(
 
 #[cfg(test)]
 mod tests {
-    use pdfdelta_core::diff::{ChangeKind, ChangeOccurrence, Confidence, TokenRange};
+    use pdfdelta_core::diff::{
+        AtomicEdit, ChangeKind, ChangeOccurrence, Confidence, RecoveredAtomicOccurrence, TokenRange,
+    };
     use pdfdelta_core::layout::BlockRole;
     use pdfdelta_core::normalize::{
         ComparableToken, MappedText, NormalizationIssue, NormalizationIssueKind, ScalarRange,
@@ -1237,6 +1581,10 @@ mod tests {
             occurrence_count: None,
             old_quote: Some(old.to_owned()),
             new_quote: Some(new.to_owned()),
+            old_changed_quote: None,
+            new_changed_quote: None,
+            old_changed_ranges: None,
+            new_changed_ranges: None,
             note: String::new(),
         }
     }
@@ -1246,6 +1594,16 @@ mod tests {
         new: &[BlockText],
         expected_changes: &[ExpectedChange],
         actual_changes: &[Change],
+    ) -> ScopedTokenMetrics {
+        scoped_metrics_with_recovery(old, new, expected_changes, actual_changes, &[])
+    }
+
+    fn scoped_metrics_with_recovery(
+        old: &[BlockText],
+        new: &[BlockText],
+        expected_changes: &[ExpectedChange],
+        actual_changes: &[Change],
+        recovered_atomic_diffs: &[RecoveredAtomicDiff],
     ) -> ScopedTokenMetrics {
         let old_end = old
             .last()
@@ -1290,8 +1648,16 @@ mod tests {
             .expect("expected quotes resolve");
         let classified = classify_scoped_changes(actual_changes, &scopes, old, new)
             .expect("actual spans classify");
-        evaluate_scoped_token_metrics(actual_changes, &classified, evidence, &scopes, old, new)
-            .expect("token metrics evaluate")
+        evaluate_scoped_token_metrics(
+            actual_changes,
+            &classified,
+            evidence,
+            &scopes,
+            old,
+            new,
+            recovered_atomic_diffs,
+        )
+        .expect("token metrics evaluate")
     }
 
     #[test]
@@ -1318,6 +1684,10 @@ mod tests {
             occurrence_count: None,
             old_quote: None,
             new_quote: Some("ADD".to_owned()),
+            old_changed_quote: None,
+            new_changed_quote: None,
+            old_changed_ranges: None,
+            new_changed_ranges: None,
             note: String::new(),
         };
         let insertion = scoped_metrics(
@@ -1341,6 +1711,10 @@ mod tests {
             occurrence_count: None,
             old_quote: Some("OLD".to_owned()),
             new_quote: None,
+            old_changed_quote: None,
+            new_changed_quote: None,
+            old_changed_ranges: None,
+            new_changed_ranges: None,
             note: String::new(),
         };
         let deletion = scoped_metrics(
@@ -1356,6 +1730,221 @@ mod tests {
             ),
             (3, 3)
         );
+    }
+
+    #[test]
+    fn recovered_token_metrics_use_the_emitted_semantic_hunk() {
+        let old = [block(1, "aaOLDzz")];
+        let new = [block(2, "aaNEWzz")];
+        let old_context = span(1, 0, 7);
+        let new_context = span(2, 0, 7);
+        let old_event_span = span(1, 2, 5);
+        let new_event_span = span(2, 2, 5);
+        let changes = [change(
+            Some(old_event_span.clone()),
+            Some(new_event_span.clone()),
+        )];
+        let traces = [RecoveredAtomicDiff {
+            old_alignment_span_index: 0,
+            new_alignment_span_index: 0,
+            old_context,
+            new_context,
+            changed_occurrences: vec![RecoveredAtomicOccurrence {
+                occurrence: ChangeOccurrence {
+                    old_span: Some(old_event_span),
+                    new_span: Some(new_event_span),
+                },
+                edit_range: 0..2,
+            }],
+            edits: vec![
+                AtomicEdit {
+                    old: 2..5,
+                    new: 2..2,
+                },
+                AtomicEdit {
+                    old: 5..5,
+                    new: 2..5,
+                },
+            ],
+        }];
+
+        let metrics = scoped_metrics_with_recovery(
+            &old,
+            &new,
+            &[expected("body", "OLD", "NEW")],
+            &changes,
+            &traces,
+        );
+
+        assert_eq!(metrics.expected_changed_tokens, 6);
+        assert_eq!(metrics.reported_changed_tokens, 6);
+        assert_eq!(metrics.true_positive_tokens, 6);
+        assert_eq!(
+            (
+                metrics.precision,
+                metrics.recall,
+                metrics.f1,
+                metrics.span_iou
+            ),
+            (1.0, 1.0, 1.0, 1.0)
+        );
+    }
+
+    #[test]
+    fn scoped_token_metrics_use_changed_quotes_instead_of_context() {
+        let mut reviewed = expected("body", "aaOLDzz", "aaNEWzz");
+        reviewed.old_changed_quote = Some("OLD".to_owned());
+        reviewed.new_changed_quote = Some("NEW".to_owned());
+
+        let metrics = scoped_metrics(
+            &[block(1, "OLD aaOLDzz OLD")],
+            &[block(2, "NEW aaNEWzz NEW")],
+            &[reviewed],
+            &[change(Some(span(1, 6, 9)), Some(span(2, 6, 9)))],
+        );
+
+        assert_eq!(metrics.expected_changed_tokens, 6);
+        assert_eq!(metrics.reported_changed_tokens, 6);
+        assert_eq!(metrics.true_positive_tokens, 6);
+        assert_eq!((metrics.precision, metrics.recall), (1.0, 1.0));
+    }
+
+    #[test]
+    fn scoped_token_metrics_use_disjoint_context_relative_ranges() {
+        let mut reviewed = expected("body", "aaOLDxxTAILzz", "aaNEWxxHEADzz");
+        reviewed.old_changed_ranges = Some(vec![
+            ExpectedChangedRange { start: 2, end: 5 },
+            ExpectedChangedRange { start: 7, end: 11 },
+        ]);
+        reviewed.new_changed_ranges = Some(vec![
+            ExpectedChangedRange { start: 2, end: 5 },
+            ExpectedChangedRange { start: 7, end: 11 },
+        ]);
+        let mut reported = change(Some(span(1, 2, 5)), Some(span(2, 2, 5)));
+        reported.occurrences.push(ChangeOccurrence {
+            old_span: Some(span(1, 7, 11)),
+            new_span: Some(span(2, 7, 11)),
+        });
+
+        let metrics = scoped_metrics(
+            &[block(1, "aaOLDxxTAILzz")],
+            &[block(2, "aaNEWxxHEADzz")],
+            &[reviewed],
+            &[reported],
+        );
+
+        assert_eq!(metrics.expected_changed_tokens, 14);
+        assert_eq!(metrics.reported_changed_tokens, 14);
+        assert_eq!(metrics.true_positive_tokens, 14);
+        assert_eq!((metrics.precision, metrics.recall), (1.0, 1.0));
+    }
+
+    #[test]
+    fn scoped_token_metrics_project_collapsed_whitespace_ranges_to_raw_tokens() {
+        let mut reviewed = expected("body", "aa OLDzz", "aa NEWzz");
+        reviewed.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 2, end: 3 }]);
+        reviewed.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 2, end: 3 }]);
+
+        let metrics = scoped_metrics(
+            &[block(1, "aa \n\tOLDzz")],
+            &[block(2, "aa  \nNEWzz")],
+            &[reviewed],
+            &[change(Some(span(1, 2, 5)), Some(span(2, 2, 5)))],
+        );
+
+        assert_eq!(metrics.expected_changed_tokens, 6);
+        assert_eq!(metrics.reported_changed_tokens, 6);
+        assert_eq!(metrics.true_positive_tokens, 6);
+        assert_eq!((metrics.precision, metrics.recall), (1.0, 1.0));
+    }
+
+    #[test]
+    fn scoped_token_metrics_project_ranges_after_collapsed_whitespace() {
+        let mut reviewed = expected("body", "aa OLDzz", "aa NEWzz");
+        reviewed.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 3, end: 6 }]);
+        reviewed.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 3, end: 6 }]);
+
+        let metrics = scoped_metrics(
+            &[block(1, "aa \n\tOLDzz")],
+            &[block(2, "aa  \nNEWzz")],
+            &[reviewed],
+            &[change(Some(span(1, 5, 8)), Some(span(2, 5, 8)))],
+        );
+
+        assert_eq!(metrics.expected_changed_tokens, 6);
+        assert_eq!(metrics.reported_changed_tokens, 6);
+        assert_eq!(metrics.true_positive_tokens, 6);
+        assert_eq!((metrics.precision, metrics.recall), (1.0, 1.0));
+    }
+
+    #[test]
+    fn scoped_token_metrics_project_ranges_across_virtual_block_whitespace() {
+        let mut reviewed = expected("body", "aa OLDzz", "aa NEWzz");
+        reviewed.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 2, end: 6 }]);
+        reviewed.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 2, end: 6 }]);
+
+        let metrics = scoped_metrics(
+            &[block(1, "aa"), block(2, "OLDzz")],
+            &[block(3, "aa"), block(4, "NEWzz")],
+            &[reviewed],
+            &[change(Some(span(2, 0, 3)), Some(span(4, 0, 3)))],
+        );
+
+        assert_eq!(metrics.expected_changed_tokens, 6);
+        assert_eq!(metrics.reported_changed_tokens, 6);
+        assert_eq!(metrics.true_positive_tokens, 6);
+        assert_eq!((metrics.precision, metrics.recall), (1.0, 1.0));
+    }
+
+    #[test]
+    fn scoped_token_metrics_preserve_whitespace_spanning_block_boundaries() {
+        let mut reviewed = expected("body", "aa OLDzz", "aa NEWzz");
+        reviewed.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 2, end: 3 }]);
+        reviewed.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 2, end: 3 }]);
+
+        let metrics = scoped_metrics(
+            &[block(1, "aa \n"), block(2, "\tOLDzz")],
+            &[block(3, "aa\t"), block(4, " \nNEWzz")],
+            &[reviewed],
+            &[change(
+                Some(group_span(
+                    vec![BlockId(1), BlockId(2)],
+                    BlockSeparator::Concatenate,
+                    2,
+                    5,
+                )),
+                Some(group_span(
+                    vec![BlockId(3), BlockId(4)],
+                    BlockSeparator::Concatenate,
+                    2,
+                    5,
+                )),
+            )],
+        );
+
+        assert_eq!(metrics.expected_changed_tokens, 6);
+        assert_eq!(metrics.reported_changed_tokens, 6);
+        assert_eq!(metrics.true_positive_tokens, 6);
+        assert_eq!((metrics.precision, metrics.recall), (1.0, 1.0));
+    }
+
+    #[test]
+    fn scoped_token_metrics_allow_a_zero_token_replacement_side() {
+        let mut reviewed = expected("body", "aa,zz", "aazz");
+        reviewed.old_changed_quote = Some(",".to_owned());
+        reviewed.new_changed_quote = Some(String::new());
+
+        let metrics = scoped_metrics(
+            &[block(1, "aa,zz")],
+            &[block(2, "aazz")],
+            &[reviewed],
+            &[change(Some(span(1, 2, 3)), Some(span(2, 2, 2)))],
+        );
+
+        assert_eq!(metrics.expected_changed_tokens, 1);
+        assert_eq!(metrics.reported_changed_tokens, 1);
+        assert_eq!(metrics.true_positive_tokens, 1);
+        assert_eq!((metrics.precision, metrics.recall), (1.0, 1.0));
     }
 
     #[test]
@@ -1554,6 +2143,7 @@ mod tests {
             &[],
             &[],
             &[],
+            &[],
         )
         .expect("empty reviewed set evaluates");
         assert_eq!(
@@ -1615,6 +2205,7 @@ mod tests {
             &scopes,
             &blocks,
             &blocks,
+            &[],
             ClassificationLimits {
                 max_work: 0,
                 max_output: 1,
@@ -1778,7 +2369,7 @@ mod tests {
         )
         .and_then(|scopes| {
             let evidence = validate_scoped_expected_changes(&[], &scopes, &old, &new)?;
-            evaluate_scoped_token_metrics(&[], &[], evidence, &scopes, &old, &new)
+            evaluate_scoped_token_metrics(&[], &[], evidence, &scopes, &old, &new, &[])
         });
 
         assert_eq!(
@@ -1821,6 +2412,10 @@ mod tests {
                 occurrence_count: None,
                 old_quote: old_quote.map(str::to_owned),
                 new_quote: new_quote.map(str::to_owned),
+                old_changed_quote: None,
+                new_changed_quote: None,
+                old_changed_ranges: None,
+                new_changed_ranges: None,
                 note: String::new(),
             }];
 

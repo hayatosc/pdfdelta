@@ -300,7 +300,7 @@ ended `LIMIT`/`FAIL`; low quality scores never fail a run because the dated
 captures serve as calibration evidence and current fragmentation and recall
 remain too unstable for rigid quality-gate thresholds (confidence calibration
 has landed, but broader large-document alignment quality remains ongoing work).
-Compact revision summaries use schema version 38 and include optional nested
+Compact revision summaries use schema version 50 and include optional nested
 sentence-recovery diagnostics, near-search examined and attempted work,
 Sentence/Line, search-scope, and known/ambiguous-span work attribution,
 diagnostic-only Sentence shadow relations, paired-anchor cross-span locality,
@@ -341,12 +341,21 @@ reviewed candidate recall at the production top-K limit, and bounded
 evidence-backed reasons for missed expected changes.
 The historical schema-v34 capture retains the independent legacy-candidate
 reference oracle and its separately bounded edge-filter and downstream work.
-For `scoped_complete` annotations, each `old_quote` and `new_quote` is the exact
-expected changed span on that side; it must not include unchanged context.
-Candidate recall is unavailable when either reviewed quote does not identify
-exactly one extracted block. Diagnostic caps produce an explicit incomplete
-fallback instead of a guessed cause. The unversioned full-report v1 key set
-remains unchanged. Reviewed candidate recall and expected-change failure
+Inside complete scopes, including complete scopes nested in a partial review,
+`old_quote` and `new_quote` identify stable relation context. Optional
+`old_changed_quote` and `new_changed_quote` narrow changed-token ground truth
+within that context; an empty changed quote denotes the zero-token side of a
+one-sided exact edit. For disjoint or textually ambiguous hunks,
+`old_changed_ranges` and `new_changed_ranges` instead record ordered,
+non-overlapping scalar ranges relative to the corresponding
+whitespace-normalized context; an empty range list denotes a zero-token side.
+Quotes and ranges cannot be combined on the same side. When both are omitted,
+the context quote remains the expected changed span. Candidate recall is
+unavailable when either reviewed context quote does not identify exactly one
+extracted block. Diagnostic caps produce an explicit incomplete fallback
+instead of a guessed cause. The
+unversioned full-report v1 key set remains unchanged. Reviewed candidate recall
+and expected-change failure
 diagnostics and scoped event/token metrics are available only through
 `--summary-json-output`; CLI trace schema v24 exposes sentence-recovery metrics,
 including both Sentence edge shadows and the production edge filter, one-hot
@@ -402,7 +411,7 @@ pdfdelta inspect document.pdf --glyphs
 pdfdelta completions bash > ~/.local/share/bash-completion/completions/pdfdelta
 ```
 
-Text reports are written to standard output as contextual unified-diff hunks: a one-line summary, `---` / `+++` file headers, and `@@ page N … @@` hunks with `-` / `+` markers, bounded surrounding context, one-based page numbers, explicit unresolved regions, and presentation-only grouping of nearby exact changes. `--color auto|always|never` controls ANSI color (`auto`, the default, colorizes only when stdout is a terminal; color supplements the markers and is never required to read the output). Standard input can be supplied as `-` for either PDF input. `-o, --output PATH` publishes the human-readable text report atomically to a new file instead of standard output. `-q, --quiet` suppresses standard-output reports for exit-code-only CI workflows. The typed JSON report is unchanged by presentation options: `-j, --json PATH` writes a version 8 JSON report to a new path and refuses to replace an existing file. Each semantic content change contains one or more provenance-preserving `occurrences`; ordinary changes contain exactly one. Exit code `0` means no content changes, `1` means content changes were found, `2` means the comparison could not run, and `3` means `--strict` rejected an incomplete comparison.
+Text reports are written to standard output as contextual unified-diff hunks: a one-line summary, `---` / `+++` file headers, and `@@ page N … @@` hunks with `-` / `+` markers, bounded surrounding context, one-based page numbers, explicit unresolved regions, and presentation-only grouping of nearby exact changes. `--color auto|always|never` controls ANSI color (`auto`, the default, colorizes only when stdout is a terminal; color supplements the markers and is never required to read the output). Standard input can be supplied as `-` for either PDF input. `-o, --output PATH` publishes the human-readable text report atomically to a new file instead of standard output. `-q, --quiet` suppresses standard-output reports for exit-code-only CI workflows. The typed JSON report is unchanged by presentation options: `-j, --json PATH` writes a version 8 JSON report to a new path and refuses to replace an existing file. Each semantic content change contains one or more provenance-preserving `occurrences`; a one-hunk change contains exactly one, while one accepted recovered relation may retain multiple disjoint exact hunks as occurrences of the same event. Exit code `0` means no content changes, `1` means content changes were found, `2` means the comparison could not run, and `3` means `--strict` rejected an incomplete comparison.
 
 `--limit-scale FACTOR` raises the comparison pipeline budgets for n-gram token elements, alignment candidate visits, alignment DP cells, and diff tokens. It also raises the diff edit-distance budget up to the bounded Myers implementation's 64 MiB trace-allocation cap. The factor must be finite and at least `1`; parser and extraction limits remain unchanged.
 

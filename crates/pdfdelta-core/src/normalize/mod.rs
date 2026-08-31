@@ -12,7 +12,7 @@ use crate::{
 pub const DEFAULT_MAX_NUMERIC_MASK_RATIO: f64 = 0.3;
 const NUMBER_MASK: &str = "<NUM>";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ScalarRange {
     pub start: usize,
     pub end: usize,

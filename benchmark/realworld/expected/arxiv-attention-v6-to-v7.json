@@ -24,6 +24,14 @@
       "scope": "distribution-stamp",
       "old_quote": "arXiv:1706.03762v6 [cs.CL] 24 Jul 2023",
       "new_quote": "arXiv:1706.03762v7 [cs.CL] 2 Aug 2023",
+      "old_changed_ranges": [
+        { "start": 17, "end": 18 },
+        { "start": 28, "end": 33 }
+      ],
+      "new_changed_ranges": [
+        { "start": 17, "end": 18 },
+        { "start": 28, "end": 32 }
+      ],
       "note": "The first-page distribution stamp records the later submitted revision and date."
     }
   ]

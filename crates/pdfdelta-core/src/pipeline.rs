@@ -124,6 +124,8 @@ pub struct ComparisonOutcomeWithRecoveryWatch {
     pub outcome: ComparisonOutcome,
     pub alignment: Option<Alignment>,
     pub diagnostics: Option<RecoveryWatchDiagnostics>,
+    pub matched_atomic_diffs: Vec<MatchedAtomicDiff>,
+    pub recovered_atomic_diffs: Vec<RecoveredAtomicDiff>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -148,6 +150,8 @@ impl InstrumentedComparisonOutcome {
             outcome: self.outcome,
             alignment: self.alignment,
             diagnostics: self.recovery_watch_diagnostics,
+            matched_atomic_diffs: self.matched_atomic_diffs,
+            recovered_atomic_diffs: self.recovered_atomic_diffs,
         }
     }
 }
@@ -531,7 +535,7 @@ pub fn compare_extraction_outcomes_with_known_span_sentence_shadow_diagnostics(
             watch_queries,
             enable_known_span_sentence_shadow: true,
             enable_sentence_edge_gate_shadow: true,
-            retain_atomic_edits: false,
+            retain_atomic_edits: true,
         },
     )
     .map(InstrumentedComparisonOutcome::into_recovery_watch)
@@ -921,14 +925,24 @@ fn compare_validated_glyph_documents_inner(
             recovery,
             instrumentation.watch_queries,
         )
-        .map(|outcome| {
-            (
+        .and_then(|outcome| {
+            let matched_atomic_diffs = outcome.matched_atomic_diffs.ok_or_else(|| {
+                Error::Unresolved(
+                    "atomic diff retention did not initialize matched output".to_owned(),
+                )
+            })?;
+            let recovered_atomic_diffs = outcome.recovered_atomic_diffs.ok_or_else(|| {
+                Error::Unresolved(
+                    "atomic diff retention did not initialize recovery output".to_owned(),
+                )
+            })?;
+            Ok((
                 outcome.comparison,
                 outcome.sentence_recovery_metrics,
                 outcome.recovery_watch_diagnostics,
-                Vec::new(),
-                Vec::new(),
-            )
+                matched_atomic_diffs,
+                recovered_atomic_diffs,
+            ))
         })
     } else if instrumentation.enable_sentence_recovery && !instrumentation.watch_queries.is_empty()
     {

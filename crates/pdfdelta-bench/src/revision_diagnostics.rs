@@ -1732,6 +1732,10 @@ mod tests {
             occurrence_count: None,
             old_quote: old.map(str::to_owned),
             new_quote: new.map(str::to_owned),
+            old_changed_quote: None,
+            new_changed_quote: None,
+            old_changed_ranges: None,
+            new_changed_ranges: None,
             note: String::new(),
         }
     }
@@ -1745,11 +1749,19 @@ mod tests {
     ) -> ActualChange {
         ActualChange {
             kind,
+            reported_hunk_count: 1,
             occurrences: vec![crate::revisions::ActualChangeOccurrence {
                 old_text: old_text.map(str::to_owned),
                 new_text: new_text.map(str::to_owned),
+                old_relation_context: None,
+                new_relation_context: None,
                 old_comparable_len: old_len,
                 new_comparable_len: new_len,
+                old_atomic_changed_tokens: None,
+                new_atomic_changed_tokens: None,
+                old_semantic_changed_tokens: old_len,
+                new_semantic_changed_tokens: new_len,
+                semantic_hunks: None,
                 resolvable: true,
             }],
         }

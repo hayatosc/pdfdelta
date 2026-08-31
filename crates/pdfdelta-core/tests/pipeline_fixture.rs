@@ -354,30 +354,16 @@ fn complete_unknown_order_recovers_unique_modified_sentences() -> Result<()> {
 
     let comparison = compare_glyph_documents(&old, &new, options)?;
 
-    assert_eq!(comparison.changes.len(), 3, "{comparison:#?}");
-    assert_eq!(
-        comparison
-            .changes
-            .iter()
-            .map(|change| change.kind)
-            .collect::<Vec<_>>(),
-        [
-            ChangeKind::Replacement,
-            ChangeKind::Insertion,
-            ChangeKind::Replacement,
-        ]
-    );
-    assert!(
-        comparison
-            .changes
-            .iter()
-            .all(|change| change.confidence == Confidence::Medium)
-    );
+    assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");
+    assert_eq!(comparison.changes[0].kind, ChangeKind::Replacement);
+    assert_eq!(comparison.changes[0].confidence, Confidence::Medium);
     let ranges = comparison
         .changes
+        .first()
+        .expect("one recovered relation")
+        .occurrences
         .iter()
-        .map(|change| {
-            let occurrence = &change.occurrences[0];
+        .map(|occurrence| {
             (
                 occurrence
                     .old_span
@@ -397,7 +383,10 @@ fn complete_unknown_order_recovers_unique_modified_sentences() -> Result<()> {
                 Some(TokenRange { start: 52, end: 62 }),
                 Some(TokenRange { start: 52, end: 59 }),
             ),
-            (None, Some(TokenRange { start: 72, end: 76 })),
+            (
+                Some(TokenRange { start: 75, end: 75 }),
+                Some(TokenRange { start: 72, end: 76 }),
+            ),
             (
                 Some(TokenRange { start: 76, end: 82 }),
                 Some(TokenRange { start: 77, end: 80 }),

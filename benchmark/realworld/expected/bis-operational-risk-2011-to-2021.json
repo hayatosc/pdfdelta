@@ -24,6 +24,30 @@
       "scope": "change-management-opening-sentence",
       "old_quote": "In general, a bank’s operational risk exposure is increased when a bank engages in new activities or develops new products; enters unfamiliar markets; implements new business processes or technology systems; and/or engages in businesses that are geographically distant from the head office.",
       "new_quote": "In general, a bank’s operational risk exposure evolves when a bank initiates change, such as engaging in new activities or developing new products or services; entering into unfamiliar markets or jurisdictions; implementing new or modifying business processes or technology systems; and/or engaging in businesses that are geographically distant from the head office.",
+      "old_changed_ranges": [
+        { "start": 47, "end": 59 },
+        { "start": 75, "end": 80 },
+        { "start": 108, "end": 109 },
+        { "start": 129, "end": 131 },
+        { "start": 160, "end": 161 },
+        { "start": 220, "end": 222 }
+      ],
+      "new_changed_ranges": [
+        { "start": 47, "end": 54 },
+        { "start": 67, "end": 74 },
+        { "start": 75, "end": 80 },
+        { "start": 82, "end": 98 },
+        { "start": 100, "end": 101 },
+        { "start": 102, "end": 103 },
+        { "start": 104, "end": 106 },
+        { "start": 130, "end": 133 },
+        { "start": 146, "end": 158 },
+        { "start": 165, "end": 174 },
+        { "start": 192, "end": 209 },
+        { "start": 220, "end": 223 },
+        { "start": 228, "end": 241 },
+        { "start": 295, "end": 298 }
+      ],
       "note": "The revised principle broadens new-product approval into lifecycle-oriented change management."
     }
   ]

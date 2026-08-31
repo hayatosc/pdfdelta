@@ -2,7 +2,7 @@ use crate::normalize::ComparableToken;
 
 use super::{BlockFeatures, features::token_ngram_counts, multiset_dice_similarity};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BlockSeparator {
     Concatenate,
     Space,

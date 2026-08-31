@@ -46,13 +46,13 @@ pub enum ChangeTag {
     OcrConfusion,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TokenRange {
     pub start: usize,
     pub end: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TextSpan {
     pub blocks: Vec<BlockId>,
     pub separator: Option<BlockSeparator>,
@@ -62,9 +62,11 @@ pub struct TextSpan {
 
 /// One source-location pair belonging to a semantic [`ChangeEvent`].
 ///
-/// An event may contain multiple occurrences when the same semantic change is
-/// reported once across repeated content while retaining every exact span.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// An event may contain multiple occurrences for repeated content or for
+/// disjoint exact hunks within one accepted relation. A replacement may use a
+/// zero-length span on one side to preserve the exact source boundary of a
+/// pure insertion or deletion within an accepted pair.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ChangeOccurrence {
     pub old_span: Option<TextSpan>,
     pub new_span: Option<TextSpan>,
@@ -195,7 +197,16 @@ pub struct RecoveredAtomicDiff {
     pub new_alignment_span_index: usize,
     pub old_context: TextSpan,
     pub new_context: TextSpan,
+    /// Emitted semantic hunks and the exact edit subsequence behind each one.
+    pub changed_occurrences: Vec<RecoveredAtomicOccurrence>,
     pub edits: Vec<AtomicEdit>,
+}
+
+/// One emitted recovered hunk and its range within [`RecoveredAtomicDiff::edits`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecoveredAtomicOccurrence {
+    pub occurrence: ChangeOccurrence,
+    pub edit_range: Range<usize>,
 }
 
 /// A normal comparison plus opt-in exact edit traces for accepted alignment
@@ -1934,7 +1945,7 @@ pub(crate) fn compare_aligned_with_known_span_sentence_shadow_diagnostics(
             recovery: Some(recovery),
             watch_queries: Some(watch_queries),
             recovery_output_limits: RecoveryOutputLimits::default(),
-            retain_atomic_edits: false,
+            retain_atomic_edits: true,
         },
     )
 }
@@ -2677,42 +2688,140 @@ fn prepare_recovered_replacement_edits(
     max_edit_distance: usize,
     output_budget: &mut RecoveryOutputBudget,
 ) -> Option<()> {
-    let mut prepared = Vec::new();
-    prepared
-        .try_reserve_exact(recovery.replacements.len())
-        .ok()?;
-    let prepared_bytes = prepared
-        .capacity()
-        .checked_mul(std::mem::size_of::<Vec<AtomicEdit>>())?;
-    if !output_budget.charge_many(0, prepared_bytes) {
+    let mut fatal = false;
+    recovery.replacements.retain_mut(|replacement| {
+        if fatal {
+            return false;
+        }
+        let mut tentative_budget = *output_budget;
+        match prepare_one_recovered_replacement(
+            old,
+            new,
+            replacement,
+            max_edit_distance,
+            &mut tentative_budget,
+        ) {
+            Some(true) => {
+                *output_budget = tentative_budget;
+                true
+            }
+            Some(false) => {
+                if !remove_consumed_ranges(
+                    &mut recovery.deletion_consumed,
+                    &replacement.old_consumed,
+                ) || !remove_consumed_ranges(
+                    &mut recovery.insertion_consumed,
+                    &replacement.new_consumed,
+                ) {
+                    fatal = true;
+                }
+                false
+            }
+            None => {
+                fatal = true;
+                false
+            }
+        }
+    });
+    if fatal {
         return None;
     }
+    recovery.cross_span_replacement_new_spans.clear();
     for replacement in &recovery.replacements {
-        if replacement.edits.is_some()
-            || !replacement.relation.is_accepted()
-            || !valid_recovered_sentence(&replacement.old)
-            || !valid_recovered_sentence(&replacement.new)
-        {
-            return None;
+        if replacement.old.span_index != replacement.new.span_index {
+            recovery
+                .cross_span_replacement_new_spans
+                .push(replacement.new.span_index);
         }
-        let old_tokens = try_recovered_tokens(old, &replacement.old, output_budget)?;
-        let new_tokens = try_recovered_tokens(new, &replacement.new, output_budget)?;
-        let edits = myers::diff(&old_tokens, &new_tokens, max_edit_distance).ok()??;
-        let edit_bytes = edits
-            .capacity()
-            .checked_mul(std::mem::size_of::<AtomicEdit>())?;
-        if !output_budget.charge_many(0, edit_bytes) {
-            return None;
-        }
-        prepared.push(edits);
     }
-    if prepared.len() != recovery.replacements.len() {
+    recovery.cross_span_replacement_new_spans.sort_unstable();
+    recovery.cross_span_replacement_new_spans.dedup();
+    Some(())
+}
+
+fn prepare_one_recovered_replacement(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    replacement: &mut sentence::RecoveredReplacement,
+    max_edit_distance: usize,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<bool> {
+    if replacement.edits.is_some()
+        || !replacement.relation.is_accepted()
+        || !valid_recovered_sentence(&replacement.old)
+        || !valid_recovered_sentence(&replacement.new)
+    {
         return None;
     }
-    for (replacement, edits) in recovery.replacements.iter_mut().zip(prepared) {
-        replacement.edits = Some(edits);
+    let old_tokens = try_recovered_tokens(old, &replacement.old, output_budget)?;
+    let new_tokens = try_recovered_tokens(new, &replacement.new, output_budget)?;
+    let edits = match myers::diff(&old_tokens, &new_tokens, max_edit_distance).ok()? {
+        Some(edits) if !edits.is_empty() => edits,
+        Some(_) | None => return Some(false),
+    };
+    let edit_bytes = edits
+        .capacity()
+        .checked_mul(std::mem::size_of::<AtomicEdit>())?;
+    if !output_budget.charge_many(0, edit_bytes) {
+        return None;
     }
-    Some(())
+    let mut projection_budget = *output_budget;
+    if !recovered_semantic_hunks_projectable(
+        old,
+        &replacement.old,
+        &old_tokens,
+        new,
+        &replacement.new,
+        &new_tokens,
+        &edits,
+        &mut projection_budget,
+    )? {
+        return Some(false);
+    }
+    replacement.edits = Some(edits);
+    Some(true)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn recovered_semantic_hunks_projectable(
+    old_side: &Side<'_>,
+    old_recovery: &sentence::RecoveredSentence,
+    old_tokens: &[ComparableToken],
+    new_side: &Side<'_>,
+    new_recovery: &sentence::RecoveredSentence,
+    new_tokens: &[ComparableToken],
+    edits: &[AtomicEdit],
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<bool> {
+    let mut found = false;
+    let completed = visit_semantic_hunks(old_tokens, new_tokens, edits, |hunk| {
+        found = true;
+        project_recovered_replacement_hunk(
+            old_side,
+            old_recovery,
+            old_tokens,
+            new_side,
+            new_recovery,
+            new_tokens,
+            &hunk,
+            output_budget,
+        )
+        .is_some()
+    });
+    Some(found && completed)
+}
+
+fn remove_consumed_ranges(
+    consumed: &mut Vec<sentence::LocalSentenceRange>,
+    rejected: &[sentence::LocalSentenceRange],
+) -> bool {
+    for rejected in rejected {
+        let Some(index) = consumed.iter().position(|range| range == rejected) else {
+            return false;
+        };
+        consumed.remove(index);
+    }
+    true
 }
 
 fn try_recovered_tokens_counted(
@@ -3215,43 +3324,26 @@ fn prepare_recovered_replacements(
         }
         let old = recovered_group_text(old_side, &replacement.old, output_budget)?;
         let new = recovered_group_text(new_side, &replacement.new, output_budget)?;
-        let mut hunks = Vec::new();
-        hunks.try_reserve_exact(edits.len()).ok()?;
-        let hunk_bytes = hunks
-            .capacity()
-            .checked_mul(std::mem::size_of::<SemanticHunk>())?;
-        if !output_budget.charge_many(0, hunk_bytes) {
-            return None;
-        }
-        if !visit_semantic_hunks(&old.tokens, &new.tokens, edits, |hunk| {
-            hunks.push(hunk);
-            true
-        }) || hunks.is_empty()
-        {
-            return None;
-        }
-        changes.try_reserve_exact(hunks.len()).ok()?;
-        for hunk in hunks {
-            let block_count = replacement
-                .old
-                .blocks
-                .len()
-                .checked_add(replacement.new.blocks.len())?;
-            if !output_budget.charge(estimated_change_bytes(block_count)?) {
-                return None;
-            }
-            changes.push(recovered_semantic_change(&old, &new, hunk)?);
-        }
+        let (replacement_change, changed_occurrences) = recovered_replacement_event(
+            old_side,
+            &replacement.old,
+            &old,
+            new_side,
+            &replacement.new,
+            &new,
+            edits,
+            output_budget,
+        )?;
         if retain_atomic_edits {
             let edit_bytes = edits.len().checked_mul(std::mem::size_of::<AtomicEdit>())?;
-            let block_count = replacement
+            let context_block_count = replacement
                 .old
                 .blocks
                 .len()
                 .checked_add(replacement.new.blocks.len())?;
             let trace_bytes = std::mem::size_of::<RecoveredAtomicDiff>()
                 .checked_add(edit_bytes)?
-                .checked_add(block_count.checked_mul(std::mem::size_of::<BlockId>())?)?;
+                .checked_add(context_block_count.checked_mul(std::mem::size_of::<BlockId>())?)?;
             if !output_budget.charge(trace_bytes) {
                 return None;
             }
@@ -3264,9 +3356,12 @@ fn prepare_recovered_replacements(
                 new_alignment_span_index: replacement.new.span_index,
                 old_context: old.try_span(0, old.tokens.len())?,
                 new_context: new.try_span(0, new.tokens.len())?,
+                changed_occurrences,
                 edits: retained_edits,
             });
         }
+        changes.try_reserve_exact(1).ok()?;
+        changes.push(replacement_change);
         resolved_old = resolved_old.checked_add(replacement.old.source_tokens)?;
         resolved_new = resolved_new.checked_add(replacement.new.source_tokens)?;
     }
@@ -3317,38 +3412,429 @@ fn recovered_group_text(
     .with_origins(recovery.canonical.start, recovery.comparable.start)
 }
 
-fn recovered_semantic_change(
+#[allow(clippy::too_many_arguments)]
+fn recovered_replacement_event(
+    old_side: &Side<'_>,
+    old_recovery: &sentence::RecoveredSentence,
     old: &GroupText,
+    new_side: &Side<'_>,
+    new_recovery: &sentence::RecoveredSentence,
     new: &GroupText,
-    hunk: SemanticHunk,
-) -> Option<ChangeEvent> {
-    let kind = change_kind(hunk.old.start, hunk.new.start, hunk.old.end, hunk.new.end)?;
-    let tags = (kind == ChangeKind::Replacement
-        && is_character_width_replacement(
+    edits: &[AtomicEdit],
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<(ChangeEvent, Vec<RecoveredAtomicOccurrence>)> {
+    let mut occurrences = Vec::new();
+    let mut changed_occurrences = Vec::new();
+    let mut edit_cursor = 0usize;
+    let mut failed = false;
+    let mut has_character_width_tag = false;
+    let completed = visit_semantic_hunks(&old.tokens, &new.tokens, edits, |hunk| {
+        let edit_start = edit_cursor;
+        while edits
+            .get(edit_cursor)
+            .is_some_and(|edit| atomic_edit_belongs_to_hunk(edit, &hunk))
+        {
+            edit_cursor += 1;
+        }
+        if edit_start == edit_cursor {
+            failed = true;
+            return false;
+        }
+        let mut tentative_budget = *output_budget;
+        if !try_reserve_recovery_output(&mut occurrences, 1, &mut tentative_budget)
+            || !try_reserve_recovery_output(&mut changed_occurrences, 1, &mut tentative_budget)
+        {
+            failed = true;
+            return false;
+        }
+        let Some((old_span, new_span)) = project_recovered_replacement_hunk(
+            old_side,
+            old_recovery,
+            &old.tokens,
+            new_side,
+            new_recovery,
+            &new.tokens,
+            &hunk,
+            &mut tentative_budget,
+        ) else {
+            failed = true;
+            return false;
+        };
+        has_character_width_tag |= is_character_width_replacement(
             &old.tokens[hunk.old.clone()],
             &new.tokens[hunk.new.clone()],
-        ))
-    .then_some(ChangeTag::CharacterWidth)
-    .into_iter()
-    .collect();
-    let old_span = (!hunk.old.is_empty())
-        .then(|| old.try_span(hunk.old.start, hunk.old.end))
-        .flatten();
-    let new_span = (!hunk.new.is_empty())
-        .then(|| new.try_span(hunk.new.start, hunk.new.end))
-        .flatten();
-    if (kind != ChangeKind::Insertion && old_span.is_none())
-        || (kind != ChangeKind::Deletion && new_span.is_none())
+        );
+        let occurrence = ChangeOccurrence {
+            old_span: Some(old_span),
+            new_span: Some(new_span),
+        };
+        occurrences.push(occurrence.clone());
+        changed_occurrences.push(RecoveredAtomicOccurrence {
+            occurrence,
+            edit_range: edit_start..edit_cursor,
+        });
+        *output_budget = tentative_budget;
+        true
+    });
+    if !completed
+        || failed
+        || edit_cursor != edits.len()
+        || occurrences.is_empty()
+        || occurrences.len() != changed_occurrences.len()
     {
         return None;
     }
-    Some(ChangeEvent::single_occurrence(
-        kind,
-        old_span,
-        new_span,
-        Confidence::Medium,
-        tags,
+    let block_count = occurrences.iter().try_fold(0usize, |count, occurrence| {
+        count
+            .checked_add(
+                occurrence
+                    .old_span
+                    .as_ref()
+                    .map_or(0, |span| span.blocks.len()),
+            )?
+            .checked_add(
+                occurrence
+                    .new_span
+                    .as_ref()
+                    .map_or(0, |span| span.blocks.len()),
+            )
+    })?;
+    let retained_block_bytes = block_count.checked_mul(std::mem::size_of::<BlockId>())?;
+    let event_bytes = estimated_change_bytes(block_count)?.checked_sub(retained_block_bytes)?;
+    if !output_budget.charge(event_bytes) {
+        return None;
+    }
+    let tags = has_character_width_tag
+        .then_some(ChangeTag::CharacterWidth)
+        .into_iter()
+        .collect();
+    Some((
+        ChangeEvent {
+            kind: ChangeKind::Replacement,
+            occurrences,
+            confidence: Confidence::Medium,
+            tags,
+        },
+        changed_occurrences,
     ))
+}
+
+fn try_reserve_recovery_output<T>(
+    output: &mut Vec<T>,
+    additional: usize,
+    output_budget: &mut RecoveryOutputBudget,
+) -> bool {
+    let previous_capacity = output.capacity();
+    if output.try_reserve_exact(additional).is_err() {
+        return false;
+    }
+    let Some(added_bytes) = output
+        .capacity()
+        .checked_sub(previous_capacity)
+        .and_then(|added| added.checked_mul(std::mem::size_of::<T>()))
+    else {
+        return false;
+    };
+    output_budget.charge_many(0, added_bytes)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn project_recovered_replacement_hunk(
+    old_side: &Side<'_>,
+    old_recovery: &sentence::RecoveredSentence,
+    old_tokens: &[ComparableToken],
+    new_side: &Side<'_>,
+    new_recovery: &sentence::RecoveredSentence,
+    new_tokens: &[ComparableToken],
+    hunk: &SemanticHunk,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<(TextSpan, TextSpan)> {
+    if hunk.old.start > hunk.old.end
+        || hunk.new.start > hunk.new.end
+        || hunk.old.end > old_tokens.len()
+        || hunk.new.end > new_tokens.len()
+        || (hunk.old.is_empty() && hunk.new.is_empty())
+    {
+        return None;
+    }
+    if (hunk.old.is_empty() || hunk.new.is_empty())
+        && !has_matching_scalar_hunk_boundary(old_tokens, new_tokens, hunk)
+    {
+        return None;
+    }
+    let mut tentative_budget = *output_budget;
+    let old_span = project_recovered_source_span(
+        old_side,
+        old_recovery,
+        hunk.old.clone(),
+        &old_tokens[hunk.old.clone()],
+        &mut tentative_budget,
+    )?;
+    let new_span = project_recovered_source_span(
+        new_side,
+        new_recovery,
+        hunk.new.clone(),
+        &new_tokens[hunk.new.clone()],
+        &mut tentative_budget,
+    )?;
+    *output_budget = tentative_budget;
+    Some((old_span, new_span))
+}
+
+fn has_matching_scalar_hunk_boundary(
+    old_tokens: &[ComparableToken],
+    new_tokens: &[ComparableToken],
+    hunk: &SemanticHunk,
+) -> bool {
+    let left = hunk
+        .old
+        .start
+        .checked_sub(1)
+        .zip(hunk.new.start.checked_sub(1))
+        .and_then(|(old_index, new_index)| old_tokens.get(old_index).zip(new_tokens.get(new_index)))
+        .is_some_and(|(old, new)| old.is_scalar() && old == new);
+    let right = old_tokens
+        .get(hunk.old.end)
+        .zip(new_tokens.get(hunk.new.end))
+        .is_some_and(|(old, new)| old.is_scalar() && old == new);
+    left || right
+}
+
+fn atomic_edit_belongs_to_hunk(edit: &AtomicEdit, hunk: &SemanticHunk) -> bool {
+    hunk.old.start <= edit.old.start
+        && edit.old.end <= hunk.old.end
+        && hunk.new.start <= edit.new.start
+        && edit.new.end <= hunk.new.end
+}
+
+fn project_recovered_source_span(
+    side: &Side<'_>,
+    recovery: &sentence::RecoveredSentence,
+    local_range: Range<usize>,
+    expected_tokens: &[ComparableToken],
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<TextSpan> {
+    let recovery_len = recovery
+        .comparable
+        .end
+        .checked_sub(recovery.comparable.start)?;
+    if local_range.start > local_range.end
+        || local_range.end > recovery_len
+        || local_range.end.checked_sub(local_range.start)? != expected_tokens.len()
+        || expected_tokens.iter().any(|token| !token.is_scalar())
+    {
+        return None;
+    }
+    if local_range.is_empty() {
+        return project_recovered_source_point(side, recovery, local_range.start, output_budget);
+    }
+    let target_start = recovery.comparable.start.checked_add(local_range.start)?;
+    let target_end = recovery.comparable.start.checked_add(local_range.end)?;
+    let separator = effective_group_separator(recovery.blocks.len(), recovery.separator);
+    let mut group_cursor = 0usize;
+    let mut previous_is_space = None;
+    let mut first_block_position = None;
+    let mut last_block_position = None;
+    let mut first_block_start = 0usize;
+    let mut previous_source_position = None;
+    let mut verified_tokens = 0usize;
+
+    for (block_position, block) in recovery.blocks.iter().copied().enumerate() {
+        let source_position = *side.index.get(&block)?;
+        let source = side.canonical.get(source_position)?;
+        if block_position > 0
+            && separator == Some(BlockSeparator::Space)
+            && previous_is_space != Some(true)
+            && !source.first().is_some_and(is_space_token)
+        {
+            if target_start <= group_cursor && group_cursor < target_end {
+                return None;
+            }
+            group_cursor = group_cursor.checked_add(1)?;
+        }
+        let block_start = group_cursor;
+        let block_end = block_start.checked_add(source.len())?;
+        let overlap_start = target_start.max(block_start);
+        let overlap_end = target_end.min(block_end);
+        if overlap_start < overlap_end {
+            if last_block_position.is_some_and(|previous| previous + 1 != block_position)
+                || previous_source_position.is_some_and(|previous| previous + 1 != source_position)
+            {
+                return None;
+            }
+            let source_range =
+                overlap_start.checked_sub(block_start)?..overlap_end.checked_sub(block_start)?;
+            let source_tokens = source.get(source_range)?;
+            if source_tokens.iter().any(|token| !token.is_scalar())
+                || source_tokens
+                    != expected_tokens
+                        .get(verified_tokens..verified_tokens.checked_add(source_tokens.len())?)?
+            {
+                return None;
+            }
+            if first_block_position.is_none() {
+                first_block_position = Some(block_position);
+                first_block_start = block_start;
+            }
+            last_block_position = Some(block_position);
+            previous_source_position = Some(source_position);
+            verified_tokens = verified_tokens.checked_add(source_tokens.len())?;
+        }
+        group_cursor = block_end;
+        if let Some(last) = source.last() {
+            previous_is_space = Some(is_space_token(last));
+        }
+    }
+    if verified_tokens != expected_tokens.len() || target_end > group_cursor {
+        return None;
+    }
+
+    let first = first_block_position?;
+    let last = last_block_position?;
+    let blocks = recovery.blocks.get(first..=last)?;
+    let comparable_start = target_start.checked_sub(first_block_start)?;
+    let comparable_end = target_end.checked_sub(first_block_start)?;
+    let (canonical_start, canonical_end) =
+        recovered_scalar_boundaries(side, blocks, separator, comparable_start, comparable_end)?;
+    let block_bytes = blocks.len().checked_mul(std::mem::size_of::<BlockId>())?;
+    if !output_budget.charge_many(0, block_bytes) {
+        return None;
+    }
+    Some(TextSpan {
+        blocks: try_copy_slice(blocks)?,
+        separator: if blocks.len() > 1 {
+            Some(separator?)
+        } else {
+            None
+        },
+        canonical_range: ScalarRange {
+            start: canonical_start,
+            end: canonical_end,
+        },
+        comparable_range: TokenRange {
+            start: comparable_start,
+            end: comparable_end,
+        },
+    })
+}
+
+fn project_recovered_source_point(
+    side: &Side<'_>,
+    recovery: &sentence::RecoveredSentence,
+    local_position: usize,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<TextSpan> {
+    let recovery_len = recovery
+        .comparable
+        .end
+        .checked_sub(recovery.comparable.start)?;
+    if local_position > recovery_len {
+        return None;
+    }
+    let target = recovery.comparable.start.checked_add(local_position)?;
+    let separator = effective_group_separator(recovery.blocks.len(), recovery.separator);
+    let mut group_cursor = 0usize;
+    let mut previous_is_space = None;
+    for (block_position, block) in recovery.blocks.iter().copied().enumerate() {
+        let source = side.canonical.get(*side.index.get(&block)?)?;
+        if block_position > 0
+            && separator == Some(BlockSeparator::Space)
+            && previous_is_space != Some(true)
+            && !source.first().is_some_and(is_space_token)
+        {
+            group_cursor = group_cursor.checked_add(1)?;
+        }
+        let block_start = group_cursor;
+        let block_end = block_start.checked_add(source.len())?;
+        if block_start <= target && target <= block_end {
+            let position = target.checked_sub(block_start)?;
+            let adjacent_is_scalar = position
+                .checked_sub(1)
+                .and_then(|index| source.get(index))
+                .or_else(|| source.get(position))
+                .is_some_and(ComparableToken::is_scalar);
+            if !adjacent_is_scalar {
+                return None;
+            }
+            let (canonical, canonical_end) =
+                recovered_scalar_boundaries(side, &[block], None, position, position)?;
+            if canonical != canonical_end
+                || !output_budget.charge_many(0, std::mem::size_of::<BlockId>())
+            {
+                return None;
+            }
+            return Some(TextSpan {
+                blocks: try_single_block(block)?,
+                separator: None,
+                canonical_range: ScalarRange {
+                    start: canonical,
+                    end: canonical,
+                },
+                comparable_range: TokenRange {
+                    start: position,
+                    end: position,
+                },
+            });
+        }
+        group_cursor = block_end;
+        if let Some(last) = source.last() {
+            previous_is_space = Some(is_space_token(last));
+        }
+    }
+    None
+}
+
+fn recovered_scalar_boundaries(
+    side: &Side<'_>,
+    blocks: &[BlockId],
+    separator: Option<BlockSeparator>,
+    start: usize,
+    end: usize,
+) -> Option<(usize, usize)> {
+    let mut token_cursor = 0usize;
+    let mut scalar_cursor = 0usize;
+    let mut start_scalar = (start == 0).then_some(0);
+    let mut end_scalar = (end == 0).then_some(0);
+    let mut previous_is_space = None;
+    for (position, block) in blocks.iter().copied().enumerate() {
+        let source = side.canonical.get(*side.index.get(&block)?)?;
+        if position > 0
+            && separator == Some(BlockSeparator::Space)
+            && previous_is_space != Some(true)
+            && !source.first().is_some_and(is_space_token)
+        {
+            if token_cursor == start {
+                start_scalar = Some(scalar_cursor);
+            }
+            token_cursor = token_cursor.checked_add(1)?;
+            scalar_cursor = scalar_cursor.checked_add(1)?;
+            if token_cursor == end {
+                end_scalar = Some(scalar_cursor);
+            }
+        }
+        for token in source {
+            if token_cursor == start {
+                start_scalar = Some(scalar_cursor);
+            }
+            token_cursor = token_cursor.checked_add(1)?;
+            if token.is_scalar() {
+                scalar_cursor = scalar_cursor.checked_add(1)?;
+            }
+            if token_cursor == end {
+                end_scalar = Some(scalar_cursor);
+            }
+        }
+        if let Some(last) = source.last() {
+            previous_is_space = Some(is_space_token(last));
+        }
+    }
+    if token_cursor == start {
+        start_scalar = Some(scalar_cursor);
+    }
+    if token_cursor == end {
+        end_scalar = Some(scalar_cursor);
+    }
+    Some((start_scalar?, end_scalar?))
 }
 
 fn sort_recovered_changes(
@@ -5873,12 +6359,27 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(result.changes.len(), 2);
-        assert!(
-            result
-                .changes
-                .iter()
-                .all(|change| change.confidence == Confidence::Medium)
+        let old_revision = old_stamp.find("v6").expect("old revision exists") + 1;
+        let new_revision = new_stamp.find("v7").expect("new revision exists") + 1;
+        let old_date = old_stamp.find("4 Jul").expect("old changed date exists");
+        let new_date = new_stamp.find(" Aug").expect("new changed date exists");
+        assert_eq!(
+            result.changes,
+            vec![ChangeEvent {
+                kind: ChangeKind::Replacement,
+                occurrences: vec![
+                    ChangeOccurrence {
+                        old_span: Some(test_span(1, old_revision, old_revision + 1)),
+                        new_span: Some(test_span(101, new_revision, new_revision + 1)),
+                    },
+                    ChangeOccurrence {
+                        old_span: Some(test_span(1, old_date, old_date + "4 Jul".len())),
+                        new_span: Some(test_span(101, new_date, new_date + " Aug".len())),
+                    },
+                ],
+                confidence: Confidence::Medium,
+                tags: Vec::new(),
+            }]
         );
         assert_eq!(
             result.old_coverage.resolved_tokens,
@@ -7072,19 +7573,8 @@ mod tests {
         ];
         let clean_run = [Some(TrustedRunId(1))];
         let split_run = [Some(TrustedRunId(2)), Some(TrustedRunId(2))];
-        let clean_span = test_span(16, 0, "Alpha".len());
-        let split_span = TextSpan {
-            blocks: vec![BlockId(17), BlockId(18)],
-            separator: Some(BlockSeparator::Space),
-            canonical_range: ScalarRange {
-                start: 0,
-                end: "Beta".len(),
-            },
-            comparable_range: TokenRange {
-                start: 0,
-                end: "Beta".len(),
-            },
-        };
+        let clean_span = test_span(16, 0, "Alph".len());
+        let split_span = test_span(17, 0, "Bet".len());
 
         for reverse in [false, true] {
             let (old, new, old_runs, new_runs, expected_old, expected_new) = if reverse {
@@ -7121,17 +7611,15 @@ mod tests {
                 result.changes[0].occurrences[0]
                     .old_span
                     .as_ref()
-                    .expect("replacement has old span")
-                    .blocks,
-                expected_old.blocks
+                    .expect("replacement has old span"),
+                &expected_old
             );
             assert_eq!(
                 result.changes[0].occurrences[0]
                     .new_span
                     .as_ref()
-                    .expect("replacement has new span")
-                    .blocks,
-                expected_new.blocks
+                    .expect("replacement has new span"),
+                &expected_new
             );
             assert!(result.unresolved_regions.is_empty());
             assert_eq!(
@@ -7664,6 +8152,31 @@ mod tests {
                     .as_ref()
                     .is_none_or(|span| !span.blocks.contains(&BlockId(91)))
         }));
+    }
+
+    #[test]
+    fn recovered_hunk_vector_reservations_charge_actual_capacity() {
+        let mut output = Vec::<RecoveredAtomicOccurrence>::new();
+        let mut budget = RecoveryOutputBudget::default();
+
+        assert!(try_reserve_recovery_output(&mut output, 1, &mut budget));
+        assert_eq!(
+            budget.bytes,
+            output.capacity() * std::mem::size_of::<RecoveredAtomicOccurrence>()
+        );
+        assert_eq!(budget.items, 0);
+
+        let mut blocked = Vec::<RecoveredAtomicOccurrence>::new();
+        let mut blocked_budget = RecoveryOutputBudget::with_limits(RecoveryOutputLimits {
+            max_items: usize::MAX,
+            max_bytes: 0,
+        });
+        assert!(!try_reserve_recovery_output(
+            &mut blocked,
+            1,
+            &mut blocked_budget,
+        ));
+        assert_eq!((blocked_budget.items, blocked_budget.bytes), (0, 0));
     }
 
     #[test]
@@ -8241,7 +8754,7 @@ mod tests {
     }
 
     #[test]
-    fn recovered_comma_deletion_reports_one_atomic_span_with_full_coverage() {
+    fn recovered_comma_deletion_reports_one_exact_replacement_hunk_with_full_coverage() {
         let old_text = "Toolkit support remains available, throughout this reviewed sentence.";
         let new_text = "Toolkit support remains available throughout this reviewed sentence.";
         let old = vec![sentence_block(24, old_text)];
@@ -8260,10 +8773,10 @@ mod tests {
         assert_eq!(
             result.changes,
             vec![ChangeEvent {
-                kind: ChangeKind::Deletion,
+                kind: ChangeKind::Replacement,
                 occurrences: vec![ChangeOccurrence {
                     old_span: Some(test_span(24, comma, comma + 1)),
-                    new_span: None,
+                    new_span: Some(test_span(25, comma, comma)),
                 }],
                 confidence: Confidence::Medium,
                 tags: Vec::new(),
@@ -8278,6 +8791,326 @@ mod tests {
             new_text.chars().count()
         );
         assert!(result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn recovered_projection_trims_untouched_source_blocks() {
+        let blocks = vec![
+            sentence_block(20, "prefix "),
+            sentence_block(21, "middle"),
+            sentence_block(22, " suffix"),
+        ];
+        let side = SidePlan::inspect("old", &blocks)
+            .expect("source is valid")
+            .materialize()
+            .expect("source materializes");
+        let recovery = sentence::RecoveredSentence {
+            span_index: 0,
+            kind: sentence::RecoveryUnitKind::Sentence,
+            role: sentence::OccurrenceRole::Body,
+            blocks: vec![BlockId(20), BlockId(21), BlockId(22)],
+            separator: Some(BlockSeparator::Space),
+            canonical: ScalarRange { start: 0, end: 20 },
+            comparable: TokenRange { start: 0, end: 20 },
+            source_tokens: 20,
+        };
+        let mut budget = RecoveryOutputBudget::default();
+
+        let span = project_recovered_source_span(
+            &side,
+            &recovery,
+            7..13,
+            &"middle"
+                .chars()
+                .map(ComparableToken::Scalar)
+                .collect::<Vec<_>>(),
+            &mut budget,
+        )
+        .expect("the middle block projects independently");
+
+        assert_eq!(span, test_span(21, 0, 6));
+    }
+
+    #[test]
+    fn recovered_projection_accepts_a_valid_contiguous_multi_block_range() {
+        let blocks = vec![sentence_block(30, "alpha "), sentence_block(31, "beta")];
+        let side = SidePlan::inspect("old", &blocks)
+            .expect("source is valid")
+            .materialize()
+            .expect("source materializes");
+        let recovery = sentence::RecoveredSentence {
+            span_index: 0,
+            kind: sentence::RecoveryUnitKind::Sentence,
+            role: sentence::OccurrenceRole::Body,
+            blocks: vec![BlockId(30), BlockId(31)],
+            separator: Some(BlockSeparator::Space),
+            canonical: ScalarRange { start: 0, end: 10 },
+            comparable: TokenRange { start: 0, end: 10 },
+            source_tokens: 10,
+        };
+        let mut budget = RecoveryOutputBudget::default();
+
+        let span = project_recovered_source_span(
+            &side,
+            &recovery,
+            4..8,
+            &"a be"
+                .chars()
+                .map(ComparableToken::Scalar)
+                .collect::<Vec<_>>(),
+            &mut budget,
+        )
+        .expect("the source-backed boundary projects");
+
+        assert_eq!(span.blocks, [BlockId(30), BlockId(31)]);
+        assert_eq!(span.separator, Some(BlockSeparator::Space));
+        assert_eq!(span.canonical_range, ScalarRange { start: 4, end: 8 });
+        assert_eq!(span.comparable_range, TokenRange { start: 4, end: 8 });
+    }
+
+    #[test]
+    fn synthetic_separator_hunk_fails_closed_before_recovery_commit() {
+        let old_blocks = vec![sentence_block(40, "alpha"), sentence_block(41, "beta")];
+        let new_blocks = vec![sentence_block(42, "alphaxbeta")];
+        let old = SidePlan::inspect("old", &old_blocks)
+            .expect("old source is valid")
+            .materialize()
+            .expect("old source materializes");
+        let new = SidePlan::inspect("new", &new_blocks)
+            .expect("new source is valid")
+            .materialize()
+            .expect("new source materializes");
+        let replacement = sentence::RecoveredReplacement {
+            old: sentence::RecoveredSentence {
+                span_index: 0,
+                kind: sentence::RecoveryUnitKind::Sentence,
+                role: sentence::OccurrenceRole::Body,
+                blocks: vec![BlockId(40), BlockId(41)],
+                separator: Some(BlockSeparator::Space),
+                canonical: ScalarRange { start: 0, end: 10 },
+                comparable: TokenRange { start: 0, end: 10 },
+                source_tokens: 9,
+            },
+            new: sentence::RecoveredSentence {
+                span_index: 0,
+                kind: sentence::RecoveryUnitKind::Sentence,
+                role: sentence::OccurrenceRole::Body,
+                blocks: vec![BlockId(42)],
+                separator: None,
+                canonical: ScalarRange { start: 0, end: 10 },
+                comparable: TokenRange { start: 0, end: 10 },
+                source_tokens: 10,
+            },
+            old_consumed: Vec::new(),
+            new_consumed: Vec::new(),
+            relation: sentence::RecoveryRelationEvidence {
+                old_best_score: 8_000,
+                old_second_score: 7_000,
+                old_best_scope: None,
+                new_best_score: 8_000,
+                new_second_score: 7_000,
+                new_best_scope: None,
+            },
+            edits: Some(vec![
+                AtomicEdit {
+                    old: 5..6,
+                    new: 5..5,
+                },
+                AtomicEdit {
+                    old: 6..6,
+                    new: 5..6,
+                },
+            ]),
+        };
+        let mut changes = Vec::new();
+        let mut traces = Vec::new();
+        let mut budget = RecoveryOutputBudget::default();
+
+        assert!(
+            prepare_recovered_replacements(
+                &old,
+                &new,
+                &[replacement],
+                &mut changes,
+                &mut traces,
+                &mut budget,
+                true,
+            )
+            .is_none()
+        );
+        assert!(changes.is_empty());
+        assert!(traces.is_empty());
+    }
+
+    #[test]
+    fn unprojectable_replacement_does_not_discard_independent_recovery() {
+        let old_blocks = vec![
+            sentence_block(40, "alpha"),
+            sentence_block(41, "beta"),
+            sentence_block(50, "The reviewed value is alpha."),
+        ];
+        let new_blocks = vec![
+            sentence_block(42, "alphaxbeta"),
+            sentence_block(51, "The reviewed value is beta."),
+        ];
+        let old = SidePlan::inspect("old", &old_blocks)
+            .expect("old source is valid")
+            .materialize()
+            .expect("old source materializes");
+        let new = SidePlan::inspect("new", &new_blocks)
+            .expect("new source is valid")
+            .materialize()
+            .expect("new source materializes");
+        let range = |block, end| sentence::LocalSentenceRange {
+            block: BlockId(block),
+            canonical: ScalarRange { start: 0, end },
+            comparable: TokenRange { start: 0, end },
+        };
+        let recovery =
+            |span_index, blocks: Vec<BlockId>, end, source_tokens| sentence::RecoveredSentence {
+                span_index,
+                kind: sentence::RecoveryUnitKind::Sentence,
+                role: sentence::OccurrenceRole::Body,
+                separator: (blocks.len() > 1).then_some(BlockSeparator::Space),
+                blocks,
+                canonical: ScalarRange { start: 0, end },
+                comparable: TokenRange { start: 0, end },
+                source_tokens,
+            };
+        let relation = || sentence::RecoveryRelationEvidence {
+            old_best_score: 8_000,
+            old_second_score: 7_000,
+            old_best_scope: None,
+            new_best_score: 8_000,
+            new_second_score: 7_000,
+            new_best_scope: None,
+        };
+        let invalid_old = vec![range(40, 5), range(41, 4)];
+        let invalid_new = vec![range(42, 10)];
+        let valid_old = vec![range(50, 28)];
+        let valid_new = vec![range(51, 27)];
+        let mut plan = sentence::SentenceRecoveryPlan {
+            replacements: vec![
+                sentence::RecoveredReplacement {
+                    old: recovery(0, vec![BlockId(40), BlockId(41)], 10, 9),
+                    new: recovery(0, vec![BlockId(42)], 10, 10),
+                    old_consumed: invalid_old.clone(),
+                    new_consumed: invalid_new.clone(),
+                    relation: relation(),
+                    edits: None,
+                },
+                sentence::RecoveredReplacement {
+                    old: recovery(1, vec![BlockId(50)], 28, 28),
+                    new: recovery(1, vec![BlockId(51)], 27, 27),
+                    old_consumed: valid_old.clone(),
+                    new_consumed: valid_new.clone(),
+                    relation: relation(),
+                    edits: None,
+                },
+            ],
+            deletion_consumed: invalid_old.iter().chain(&valid_old).copied().collect(),
+            insertion_consumed: invalid_new.iter().chain(&valid_new).copied().collect(),
+            ..sentence::SentenceRecoveryPlan::default()
+        };
+        let mut budget = RecoveryOutputBudget::default();
+
+        prepare_recovered_replacement_edits(&old, &new, &mut plan, 100, &mut budget)
+            .expect("invalid source projection rejects only its relation");
+
+        assert_eq!(plan.replacements.len(), 1);
+        assert_eq!(plan.replacements[0].old.blocks, [BlockId(50)]);
+        assert!(plan.replacements[0].edits.is_some());
+        assert_eq!(plan.deletion_consumed, valid_old);
+        assert_eq!(plan.insertion_consumed, valid_new);
+
+        let mut valid_only = sentence::SentenceRecoveryPlan {
+            replacements: vec![sentence::RecoveredReplacement {
+                old: recovery(1, vec![BlockId(50)], 28, 28),
+                new: recovery(1, vec![BlockId(51)], 27, 27),
+                old_consumed: valid_old.clone(),
+                new_consumed: valid_new.clone(),
+                relation: relation(),
+                edits: None,
+            }],
+            deletion_consumed: valid_old,
+            insertion_consumed: valid_new,
+            ..sentence::SentenceRecoveryPlan::default()
+        };
+        let mut valid_only_budget = RecoveryOutputBudget::default();
+        prepare_recovered_replacement_edits(
+            &old,
+            &new,
+            &mut valid_only,
+            100,
+            &mut valid_only_budget,
+        )
+        .expect("the independent relation remains valid");
+
+        assert_eq!(budget.items, valid_only_budget.items);
+        assert_eq!(budget.bytes, valid_only_budget.bytes);
+    }
+
+    #[test]
+    fn recovered_projection_rejects_nonconsecutive_source_blocks() {
+        let blocks = vec![
+            sentence_block(50, "alpha "),
+            sentence_block(51, "omitted "),
+            sentence_block(52, "beta"),
+        ];
+        let side = SidePlan::inspect("old", &blocks)
+            .expect("source is valid")
+            .materialize()
+            .expect("source materializes");
+        let recovery = sentence::RecoveredSentence {
+            span_index: 0,
+            kind: sentence::RecoveryUnitKind::Sentence,
+            role: sentence::OccurrenceRole::Body,
+            blocks: vec![BlockId(50), BlockId(52)],
+            separator: Some(BlockSeparator::Space),
+            canonical: ScalarRange { start: 0, end: 10 },
+            comparable: TokenRange { start: 0, end: 10 },
+            source_tokens: 10,
+        };
+        let mut budget = RecoveryOutputBudget::default();
+
+        assert!(
+            project_recovered_source_span(
+                &side,
+                &recovery,
+                4..8,
+                &"a be"
+                    .chars()
+                    .map(ComparableToken::Scalar)
+                    .collect::<Vec<_>>(),
+                &mut budget,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn recovered_projection_rejects_unmapped_source_evidence() {
+        let blocks = vec![sentence_block_with_unmapped(53, "alpha")];
+        let side = SidePlan::inspect("old", &blocks)
+            .expect("source is valid")
+            .materialize()
+            .expect("source materializes");
+        let recovery = sentence::RecoveredSentence {
+            span_index: 0,
+            kind: sentence::RecoveryUnitKind::Sentence,
+            role: sentence::OccurrenceRole::Body,
+            blocks: vec![BlockId(53)],
+            separator: None,
+            canonical: ScalarRange { start: 0, end: 5 },
+            comparable: TokenRange { start: 0, end: 5 },
+            source_tokens: 5,
+        };
+        let expected = side.canonical[0].clone();
+        let mut budget = RecoveryOutputBudget::default();
+
+        assert!(
+            project_recovered_source_span(&side, &recovery, 0..5, &expected, &mut budget).is_none()
+        );
     }
 
     #[test]
@@ -8314,7 +9147,7 @@ mod tests {
     }
 
     #[test]
-    fn recovered_replacements_share_normal_semantic_hunk_grouping() {
+    fn recovered_replacement_uses_normal_semantic_hunk_boundaries() {
         let old_text = "The reviewed clause keeps every alpha, value and every gamma marker.";
         let new_text = "The reviewed clause keeps every beta; value and every delta marker.";
         let old = vec![sentence_block(26, old_text)];
@@ -8339,13 +9172,18 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(recovered.changes.len(), aligned.changes.len());
-        for (recovered, aligned) in recovered.changes.iter().zip(&aligned.changes) {
-            assert_eq!(recovered.kind, aligned.kind);
-            assert_eq!(recovered.occurrences, aligned.occurrences);
-            assert_eq!(recovered.tags, aligned.tags);
-            assert_eq!(recovered.confidence, Confidence::Medium);
-        }
+        let expected = vec![ChangeEvent {
+            kind: ChangeKind::Replacement,
+            occurrences: aligned
+                .changes
+                .into_iter()
+                .flat_map(|change| change.occurrences)
+                .collect(),
+            confidence: Confidence::Medium,
+            tags: Vec::new(),
+        }];
+
+        assert_eq!(recovered.changes, expected);
     }
 
     #[test]
@@ -8452,6 +9290,8 @@ mod tests {
                 .known_span_sentence_shadow
                 .is_none()
         );
+        assert!(diagnostic.matched_atomic_diffs.is_some());
+        assert!(diagnostic.recovered_atomic_diffs.is_some());
         assert!(
             diagnostic
                 .sentence_recovery_metrics

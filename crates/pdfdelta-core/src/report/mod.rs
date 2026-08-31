@@ -433,9 +433,7 @@ fn validate_comparison(comparison: &Comparison) -> Result<()> {
             )));
         }
         for occurrence in &change.occurrences {
-            for span in occurrence.old_span.iter().chain(occurrence.new_span.iter()) {
-                validate_change_span(span)?;
-            }
+            validate_change_occurrence(change.kind, occurrence)?;
         }
     }
 
@@ -462,11 +460,36 @@ fn validate_comparison(comparison: &Comparison) -> Result<()> {
     Ok(())
 }
 
-fn validate_change_span(span: &TextSpan) -> Result<()> {
-    validate_text_span("change", span)?;
-    if span.comparable_range.start == span.comparable_range.end {
+fn validate_change_occurrence(
+    kind: ChangeKind,
+    occurrence: &crate::diff::ChangeOccurrence,
+) -> Result<()> {
+    for span in occurrence.old_span.iter().chain(occurrence.new_span.iter()) {
+        validate_text_span("change", span)?;
+        let comparable_is_empty = span.comparable_range.start == span.comparable_range.end;
+        let canonical_is_empty = span.canonical_range.start == span.canonical_range.end;
+        if comparable_is_empty && !canonical_is_empty {
+            return Err(Error::InvalidConfiguration(
+                "zero-token change boundaries require zero-width canonical ranges".to_owned(),
+            ));
+        }
+    }
+    let old_is_empty = occurrence
+        .old_span
+        .as_ref()
+        .is_some_and(|span| span.comparable_range.start == span.comparable_range.end);
+    let new_is_empty = occurrence
+        .new_span
+        .as_ref()
+        .is_some_and(|span| span.comparable_range.start == span.comparable_range.end);
+    let empty_side_count = usize::from(old_is_empty) + usize::from(new_is_empty);
+    let valid_empty_sides = match kind {
+        ChangeKind::Replacement => empty_side_count <= 1,
+        ChangeKind::Insertion | ChangeKind::Deletion | ChangeKind::Move => empty_side_count == 0,
+    };
+    if !valid_empty_sides {
         return Err(Error::InvalidConfiguration(
-            "content change spans require at least one comparable token".to_owned(),
+            "content change occurrences require changed comparable tokens".to_owned(),
         ));
     }
     Ok(())

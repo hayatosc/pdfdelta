@@ -515,6 +515,41 @@ fn json_report_projects_replacement_glyph_provenance() -> Result<()> {
 }
 
 #[test]
+fn json_report_preserves_zero_length_replacement_boundary() -> Result<()> {
+    let old_blocks = [block_with_text(1, "x,")];
+    let new_blocks = [block_with_text(101, "x")];
+    let mut comparison = empty_comparison();
+    comparison.changes.push(Change {
+        kind: ChangeKind::Replacement,
+        occurrences: vec![ChangeOccurrence {
+            old_span: Some(span(1, 1, 2, 1, 2)),
+            new_span: Some(span(101, 1, 1, 1, 1)),
+        }],
+        confidence: Confidence::Medium,
+        tags: Vec::new(),
+    });
+    let mut output = Vec::new();
+
+    write_json(
+        &mut output,
+        &old_blocks,
+        &new_blocks,
+        &[],
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
+    let occurrence = &json["changes"][0]["occurrences"][0];
+
+    assert_eq!(occurrence["old_span"]["text"], ",");
+    assert_eq!(occurrence["new_span"]["text"], "");
+    assert_eq!(occurrence["new_span"]["canonical_range"]["start"], 1);
+    assert_eq!(occurrence["new_span"]["canonical_range"]["end"], 1);
+    Ok(())
+}
+
+#[test]
 fn json_report_deduplicates_expansion_and_preserves_contraction_sources() -> Result<()> {
     let old_blocks = [sourced_block(
         1,
@@ -1198,16 +1233,42 @@ fn rejects_invalid_public_change_and_region_shapes() {
             if message.contains("multi-block") && message.contains("separator")
     ));
 
-    let mut empty_change = content_comparison();
-    empty_change.changes[0].occurrences[0]
+    let mut one_sided_exact_replacement = content_comparison();
+    let empty_new = one_sided_exact_replacement.changes[0].occurrences[0]
         .new_span
         .as_mut()
-        .expect("fixture replacement should have a new span")
-        .comparable_range = TokenRange { start: 1, end: 1 };
+        .expect("fixture replacement should have a new span");
+    empty_new.canonical_range = ScalarRange { start: 1, end: 1 };
+    empty_new.comparable_range = TokenRange { start: 1, end: 1 };
+    assert!(summarize(&one_sided_exact_replacement, &ExtractionStatus::complete()).is_ok());
+
+    let mut mismatched_empty_coordinates = content_comparison();
+    let mismatched_new = mismatched_empty_coordinates.changes[0].occurrences[0]
+        .new_span
+        .as_mut()
+        .expect("fixture replacement should have a new span");
+    mismatched_new.canonical_range = ScalarRange { start: 0, end: 1 };
+    mismatched_new.comparable_range = TokenRange { start: 1, end: 1 };
+    assert!(matches!(
+        summarize(
+            &mismatched_empty_coordinates,
+            &ExtractionStatus::complete()
+        ),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("zero-width canonical ranges")
+    ));
+
+    let mut empty_change = one_sided_exact_replacement;
+    let empty_old = empty_change.changes[0].occurrences[0]
+        .old_span
+        .as_mut()
+        .expect("fixture replacement should have an old span");
+    empty_old.canonical_range = ScalarRange { start: 1, end: 1 };
+    empty_old.comparable_range = TokenRange { start: 1, end: 1 };
     assert!(matches!(
         summarize(&empty_change, &ExtractionStatus::complete()),
         Err(Error::InvalidConfiguration(message))
-            if message.contains("at least one comparable token")
+            if message.contains("changed comparable tokens")
     ));
 
     let mut missing_reason = empty_comparison();

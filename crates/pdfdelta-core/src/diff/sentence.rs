@@ -116,6 +116,8 @@ pub(super) struct RecoveredSentence {
 pub(super) struct RecoveredReplacement {
     pub old: RecoveredSentence,
     pub new: RecoveredSentence,
+    pub old_consumed: Vec<LocalSentenceRange>,
+    pub new_consumed: Vec<LocalSentenceRange>,
     pub relation: RecoveryRelationEvidence,
     pub edits: Option<Vec<AtomicEdit>>,
 }
@@ -21432,9 +21434,15 @@ fn append_replacements_typed(
             .location
             .take()
             .ok_or(SentenceEdgeGateShadowStopReason::DiagnosticFailure)?;
+        plan.deletion_consumed
+            .extend(old_location.consumed.iter().copied());
+        plan.insertion_consumed
+            .extend(new_location.consumed.iter().copied());
         plan.replacements.push(RecoveredReplacement {
             old: old_location.recovery,
             new: new_location.recovery,
+            old_consumed: old_location.consumed,
+            new_consumed: new_location.consumed,
             relation: old_relation.reciprocal_evidence(new_relation),
             edits: None,
         });
@@ -21446,8 +21454,6 @@ fn append_replacements_typed(
             plan.cross_span_replacement_new_spans
                 .push(replacement.new.span_index);
         }
-        plan.deletion_consumed.extend(old_location.consumed);
-        plan.insertion_consumed.extend(new_location.consumed);
     }
     plan.replacements.sort_unstable_by_key(|replacement| {
         (
