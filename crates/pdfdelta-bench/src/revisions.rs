@@ -22,9 +22,10 @@ use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
         ChangeKind, Comparison, ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
-        LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
-        LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
-        LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
+        LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
+        LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
+        LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLocationEvidence,
+        LocalFragmentOrientation, LocalFragmentPairEvidence,
         LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
         LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
         LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, NearRelationStopReason,
@@ -677,6 +678,8 @@ pub struct SentenceRecoveryMetricsReport {
     pub local_fragment_global_length_aware_shadow:
         Option<LocalFragmentGlobalLengthAwareShadowMetricsReport>,
     pub local_fragment_recheck_reuse_shadow: Option<LocalFragmentRecheckReuseShadowMetricsReport>,
+    pub local_fragment_length_aware_recheck_shadow:
+        Option<LocalFragmentLengthAwareRecheckShadowMetricsReport>,
     pub sentence_edge_filter_complete: bool,
     pub sentence_edge_filter_pairs_examined: usize,
     pub sentence_edge_filter_pairs_attempted: usize,
@@ -778,6 +781,28 @@ pub struct LocalFragmentRecheckReuseShadowMetricsReport {
     pub compared_queries: usize,
     pub global_parity_available: bool,
     pub fixed_pre_recheck_fingerprint_mismatches: usize,
+    pub length_aware_pre_recheck_fingerprint_mismatches: usize,
+    pub fixed_retained_fingerprint_mismatches: usize,
+    pub length_aware_retained_fingerprint_mismatches: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LocalFragmentLengthAwareRecheckShadowMetricsReport {
+    pub complete: bool,
+    pub stop_reason: Option<LocalFragmentLengthAwareShadowStopReasonReport>,
+    pub work: LocalFragmentLengthAwareShadowWorkMetricsReport,
+    pub min_tokens: usize,
+    pub fixed_depth: usize,
+    pub old_fragments: usize,
+    pub new_fragments: usize,
+    pub parent_admission_queries: usize,
+    pub global_queries: usize,
+    pub compared_queries: usize,
+    pub pre_recheck_candidates: usize,
+    pub recheck_pairs: usize,
+    pub recheck_comparisons: usize,
+    pub retained_pairs: usize,
+    pub reuse_parity_available: bool,
     pub length_aware_pre_recheck_fingerprint_mismatches: usize,
     pub fixed_retained_fingerprint_mismatches: usize,
     pub length_aware_retained_fingerprint_mismatches: usize,
@@ -2356,6 +2381,35 @@ impl From<LocalFragmentRecheckReuseShadowMetrics> for LocalFragmentRecheckReuseS
     }
 }
 
+impl From<LocalFragmentLengthAwareRecheckShadowMetrics>
+    for LocalFragmentLengthAwareRecheckShadowMetricsReport
+{
+    fn from(metrics: LocalFragmentLengthAwareRecheckShadowMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            stop_reason: metrics.stop_reason.map(Into::into),
+            work: metrics.work.into(),
+            min_tokens: metrics.min_tokens,
+            fixed_depth: metrics.fixed_depth,
+            old_fragments: metrics.old_fragments,
+            new_fragments: metrics.new_fragments,
+            parent_admission_queries: metrics.parent_admission_queries,
+            global_queries: metrics.global_queries,
+            compared_queries: metrics.compared_queries,
+            pre_recheck_candidates: metrics.pre_recheck_candidates,
+            recheck_pairs: metrics.recheck_pairs,
+            recheck_comparisons: metrics.recheck_comparisons,
+            retained_pairs: metrics.retained_pairs,
+            reuse_parity_available: metrics.reuse_parity_available,
+            length_aware_pre_recheck_fingerprint_mismatches: metrics
+                .length_aware_pre_recheck_fingerprint_mismatches,
+            fixed_retained_fingerprint_mismatches: metrics.fixed_retained_fingerprint_mismatches,
+            length_aware_retained_fingerprint_mismatches: metrics
+                .length_aware_retained_fingerprint_mismatches,
+        }
+    }
+}
+
 impl From<LocalFragmentGlobalLengthAwareShadowMetrics>
     for LocalFragmentGlobalLengthAwareShadowMetricsReport
 {
@@ -2802,6 +2856,9 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
                 .map(Into::into),
             local_fragment_recheck_reuse_shadow: metrics
                 .local_fragment_recheck_reuse_shadow
+                .map(Into::into),
+            local_fragment_length_aware_recheck_shadow: metrics
+                .local_fragment_length_aware_recheck_shadow
                 .map(Into::into),
             sentence_edge_filter_complete: metrics.sentence_edge_filter_complete,
             sentence_edge_filter_pairs_examined: metrics.sentence_edge_filter_pairs_examined,
@@ -4894,6 +4951,9 @@ fn validate_sentence_recovery_metrics(
     validate_local_fragment_recheck_reuse_shadow_metrics(
         metrics.local_fragment_recheck_reuse_shadow,
     )?;
+    validate_local_fragment_length_aware_recheck_shadow_metrics(
+        metrics.local_fragment_length_aware_recheck_shadow,
+    )?;
     validate_local_fragment_sibling_parity(
         metrics.local_fragment_length_aware_shadow,
         metrics.local_fragment_global_length_aware_shadow,
@@ -4901,6 +4961,10 @@ fn validate_sentence_recovery_metrics(
     validate_local_fragment_recheck_reuse_sibling_parity(
         metrics.local_fragment_global_length_aware_shadow,
         metrics.local_fragment_recheck_reuse_shadow,
+    )?;
+    validate_local_fragment_length_aware_recheck_sibling_parity(
+        metrics.local_fragment_recheck_reuse_shadow,
+        metrics.local_fragment_length_aware_recheck_shadow,
     )?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
@@ -5028,6 +5092,68 @@ fn validate_sentence_recovery_metrics(
         .checked_add(metrics.unresolved_remainder_new_source_tokens)
         .ok_or_else(|| "new eligible source token counters overflow".to_owned())?;
     Ok(metrics.into())
+}
+
+fn validate_local_fragment_length_aware_recheck_shadow_metrics(
+    metrics: Option<LocalFragmentLengthAwareRecheckShadowMetrics>,
+) -> std::result::Result<(), String> {
+    let Some(metrics) = metrics else {
+        return Ok(());
+    };
+    if metrics.complete != metrics.stop_reason.is_none() {
+        return Err(
+            "local-fragment length-aware recheck completion and stop reason disagree".to_owned(),
+        );
+    }
+    let expected_fixed_depth = local_fragment_signature_depth(metrics.min_tokens)
+        .ok_or_else(|| "local-fragment length-aware recheck depth overflows".to_owned())?;
+    if metrics.min_tokens == 0
+        || metrics.fixed_depth == 0
+        || metrics.fixed_depth != expected_fixed_depth
+    {
+        return Err("local-fragment length-aware recheck depth is inconsistent".to_owned());
+    }
+    validate_local_fragment_length_aware_shadow_work(
+        metrics.work,
+        metrics.complete,
+        metrics.stop_reason,
+    )?;
+    if !metrics.complete {
+        let expected = LocalFragmentLengthAwareRecheckShadowMetrics {
+            complete: false,
+            stop_reason: metrics.stop_reason,
+            work: metrics.work,
+            min_tokens: metrics.min_tokens,
+            fixed_depth: metrics.fixed_depth,
+            ..LocalFragmentLengthAwareRecheckShadowMetrics::default()
+        };
+        if metrics != expected {
+            return Err("stopped length-aware recheck shadow exposes partial metrics".to_owned());
+        }
+        return Ok(());
+    }
+
+    let fragment_total = metrics
+        .old_fragments
+        .checked_add(metrics.new_fragments)
+        .ok_or_else(|| "length-aware recheck fragment counters overflow".to_owned())?;
+    let query_total = metrics
+        .parent_admission_queries
+        .checked_add(metrics.global_queries)
+        .ok_or_else(|| "length-aware recheck query counters overflow".to_owned())?;
+    if metrics.work.enumeration_examined != fragment_total
+        || metrics.work.queries_examined != query_total
+        || metrics.global_queries > metrics.old_fragments
+        || metrics.compared_queries != metrics.global_queries
+        || metrics.recheck_pairs != metrics.pre_recheck_candidates
+        || metrics.work.candidate_union_examined < metrics.pre_recheck_candidates
+        || metrics.work.exact_recheck_pairs_examined != metrics.recheck_pairs
+        || metrics.work.exact_recheck_comparisons_examined != metrics.recheck_comparisons
+        || metrics.retained_pairs > metrics.recheck_pairs
+    {
+        return Err("local-fragment length-aware recheck accounting is inconsistent".to_owned());
+    }
+    Ok(())
 }
 
 fn validate_local_fragment_recheck_reuse_shadow_metrics(
@@ -5249,6 +5375,69 @@ fn validate_local_fragment_recheck_reuse_work_attribution(
         || membership_sum(|membership| membership.comparisons)? != comparisons
     {
         return Err("local-fragment recheck-reuse work attribution is inconsistent".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_local_fragment_length_aware_recheck_sibling_parity(
+    reuse: Option<LocalFragmentRecheckReuseShadowMetrics>,
+    length_aware: Option<LocalFragmentLengthAwareRecheckShadowMetrics>,
+) -> std::result::Result<(), String> {
+    let (Some(reuse), Some(length_aware)) = (reuse, length_aware) else {
+        if reuse.is_none() && length_aware.is_none() {
+            return Ok(());
+        }
+        return Err("recheck-reuse and length-aware recheck shadows must coexist".to_owned());
+    };
+    let expected_available = reuse.complete && length_aware.complete;
+    if length_aware.reuse_parity_available != expected_available {
+        return Err("length-aware recheck parity availability is inconsistent".to_owned());
+    }
+    let expected_mismatches = if expected_available {
+        [
+            usize::from(
+                length_aware.pre_recheck_fingerprint != reuse.length_aware_pre_recheck_fingerprint,
+            ),
+            usize::from(length_aware.retained_fingerprint != reuse.fixed_retained_fingerprint),
+            usize::from(
+                length_aware.retained_fingerprint != reuse.length_aware_retained_fingerprint,
+            ),
+        ]
+    } else {
+        [0; 3]
+    };
+    let actual_mismatches = [
+        length_aware.length_aware_pre_recheck_fingerprint_mismatches,
+        length_aware.fixed_retained_fingerprint_mismatches,
+        length_aware.length_aware_retained_fingerprint_mismatches,
+    ];
+    if actual_mismatches != expected_mismatches {
+        return Err("length-aware recheck parity counters disagree with fingerprints".to_owned());
+    }
+    if expected_available {
+        let expected_pairs = reuse
+            .shared_pre_recheck_candidates
+            .checked_add(reuse.length_aware_only_pre_recheck_candidates)
+            .ok_or_else(|| "length-aware recheck pair count overflows".to_owned())?;
+        let expected_comparisons = reuse
+            .work_attribution
+            .shared
+            .comparisons
+            .checked_add(reuse.work_attribution.length_aware_only.comparisons)
+            .ok_or_else(|| "length-aware recheck comparison count overflows".to_owned())?;
+        let expected_candidate_work = reuse
+            .fixed_pre_recheck_candidates
+            .checked_add(reuse.length_aware_pre_recheck_candidates)
+            .ok_or_else(|| "length-aware recheck candidate work overflows".to_owned())?;
+        if length_aware.pre_recheck_candidates != reuse.length_aware_pre_recheck_candidates
+            || length_aware.recheck_pairs != expected_pairs
+            || length_aware.recheck_comparisons != expected_comparisons
+            || length_aware.retained_pairs != reuse.fixed_exact_retained_pairs
+            || length_aware.retained_pairs != reuse.length_aware_exact_retained_pairs
+            || length_aware.work.candidate_union_examined != expected_candidate_work
+        {
+            return Err("length-aware recheck sibling accounting disagrees".to_owned());
+        }
     }
     Ok(())
 }
@@ -7966,7 +8155,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 46;
+    pub const SCHEMA_VERSION: u32 = 47;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -9665,7 +9854,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 46);
+        assert_eq!(completed["schema_version"], 47);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -9715,7 +9904,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 46);
+        assert_eq!(legacy_summary["schema_version"], 47);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -10925,7 +11114,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 46);
+        assert_eq!(json["schema_version"], 47);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -11172,7 +11361,7 @@ mod tests {
             fixed_pre_recheck_fingerprint: [1; 32],
             length_aware_pre_recheck_fingerprint: [2; 32],
             fixed_retained_fingerprint: [3; 32],
-            length_aware_retained_fingerprint: [4; 32],
+            length_aware_retained_fingerprint: [3; 32],
         }
     }
 
@@ -11188,6 +11377,61 @@ mod tests {
         }
     }
 
+    fn complete_length_aware_recheck_shadow() -> LocalFragmentLengthAwareRecheckShadowMetrics {
+        LocalFragmentLengthAwareRecheckShadowMetrics {
+            complete: true,
+            stop_reason: None,
+            work: LocalFragmentLengthAwareShadowWorkMetrics {
+                enumeration_examined: 4,
+                enumeration_attempted: 4,
+                posting_items_examined: 20,
+                posting_items_attempted: 20,
+                distinct_keys_examined: 8,
+                distinct_keys_attempted: 8,
+                estimated_bytes_examined: 100,
+                estimated_bytes_attempted: 100,
+                queries_examined: 3,
+                queries_attempted: 3,
+                candidate_union_examined: 5,
+                candidate_union_attempted: 5,
+                exact_recheck_pairs_examined: 2,
+                exact_recheck_pairs_attempted: 2,
+                exact_recheck_comparisons_examined: 4,
+                exact_recheck_comparisons_attempted: 4,
+                ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+            },
+            min_tokens: 8,
+            fixed_depth: 2,
+            old_fragments: 2,
+            new_fragments: 2,
+            parent_admission_queries: 1,
+            global_queries: 2,
+            compared_queries: 2,
+            pre_recheck_candidates: 2,
+            recheck_pairs: 2,
+            recheck_comparisons: 4,
+            retained_pairs: 1,
+            reuse_parity_available: true,
+            length_aware_pre_recheck_fingerprint_mismatches: 0,
+            fixed_retained_fingerprint_mismatches: 0,
+            length_aware_retained_fingerprint_mismatches: 0,
+            pre_recheck_fingerprint: [2; 32],
+            retained_fingerprint: [3; 32],
+        }
+    }
+
+    fn incomplete_length_aware_recheck_shadow() -> LocalFragmentLengthAwareRecheckShadowMetrics {
+        LocalFragmentLengthAwareRecheckShadowMetrics {
+            complete: false,
+            stop_reason: Some(
+                LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete,
+            ),
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentLengthAwareRecheckShadowMetrics::default()
+        }
+    }
+
     #[test]
     fn serializes_absent_complete_and_stopped_recheck_reuse_shadow() {
         let absent = serde_json::to_value(SentenceRecoveryMetricsReport::default())
@@ -11198,16 +11442,22 @@ mod tests {
         );
 
         let reuse = complete_recheck_reuse_shadow();
-        let complete = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
-            local_fragment_length_aware_shadow: Some(complete_length_aware_local_fragment_shadow()),
-            local_fragment_global_length_aware_shadow: Some(
-                complete_global_length_aware_local_fragment_shadow(),
-            ),
-            local_fragment_recheck_reuse_shadow: Some(reuse),
-            sentence_edge_filter_complete: true,
-            ..SentenceRecoveryMetrics::default()
-        })
-        .expect("complete reuse shadow validates");
+        let complete =
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(
+                    complete_global_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_recheck_reuse_shadow: Some(reuse),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    complete_length_aware_recheck_shadow(),
+                ),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("complete reuse shadow validates");
         assert_eq!(
             complete.local_fragment_recheck_reuse_shadow,
             Some(reuse.into())
@@ -11248,6 +11498,9 @@ mod tests {
                 complete_global_length_aware_local_fragment_shadow(),
             ),
             local_fragment_recheck_reuse_shadow: Some(stopped),
+            local_fragment_length_aware_recheck_shadow: Some(
+                incomplete_length_aware_recheck_shadow(),
+            ),
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         })
@@ -11308,6 +11561,9 @@ mod tests {
                     complete_global_length_aware_local_fragment_shadow(),
                 ),
                 local_fragment_recheck_reuse_shadow: Some(stopped_with_attribution),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    incomplete_length_aware_recheck_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -11319,6 +11575,185 @@ mod tests {
                 .work_attribution
                 .recheck_pairs_started,
             1
+        );
+    }
+
+    #[test]
+    fn serializes_and_validates_length_aware_recheck_shadow() {
+        let absent = serde_json::to_value(SentenceRecoveryMetricsReport::default())
+            .expect("absent length-aware recheck shadow serializes");
+        assert_eq!(
+            absent["local_fragment_length_aware_recheck_shadow"],
+            serde_json::Value::Null
+        );
+
+        let complete_metrics = complete_length_aware_recheck_shadow();
+        let complete = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+            local_fragment_length_aware_shadow: Some(complete_length_aware_local_fragment_shadow()),
+            local_fragment_global_length_aware_shadow: Some(
+                complete_global_length_aware_local_fragment_shadow(),
+            ),
+            local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+            local_fragment_length_aware_recheck_shadow: Some(complete_metrics),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        })
+        .expect("complete length-aware recheck shadow validates");
+        assert_eq!(
+            complete.local_fragment_length_aware_recheck_shadow,
+            Some(complete_metrics.into())
+        );
+        let serialized = serde_json::to_value(
+            complete
+                .local_fragment_length_aware_recheck_shadow
+                .expect("length-aware recheck report exists"),
+        )
+        .expect("length-aware recheck report serializes");
+        assert!(serialized.get("pre_recheck_fingerprint").is_none());
+        assert!(serialized.get("retained_fingerprint").is_none());
+
+        let stopped = LocalFragmentLengthAwareRecheckShadowMetrics {
+            complete: false,
+            stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::QueryLimit),
+            work: LocalFragmentLengthAwareShadowWorkMetrics {
+                queries_attempted: 1,
+                ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+            },
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentLengthAwareRecheckShadowMetrics::default()
+        };
+        let stopped = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+            local_fragment_length_aware_shadow: Some(complete_length_aware_local_fragment_shadow()),
+            local_fragment_global_length_aware_shadow: Some(
+                complete_global_length_aware_local_fragment_shadow(),
+            ),
+            local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+            local_fragment_length_aware_recheck_shadow: Some(stopped),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        })
+        .expect("stopped length-aware recheck shadow validates");
+        assert_eq!(
+            stopped.local_fragment_length_aware_recheck_shadow,
+            Some(LocalFragmentLengthAwareRecheckShadowMetricsReport {
+                stop_reason: Some(LocalFragmentLengthAwareShadowStopReasonReport::QueryLimit),
+                work: LocalFragmentLengthAwareShadowWorkMetricsReport {
+                    queries_attempted: 1,
+                    ..LocalFragmentLengthAwareShadowWorkMetricsReport::default()
+                },
+                min_tokens: 8,
+                fixed_depth: 2,
+                ..LocalFragmentLengthAwareRecheckShadowMetricsReport::default()
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_length_aware_recheck_accounting_and_parity() {
+        let complete = complete_length_aware_recheck_shadow();
+        let invalid = [
+            LocalFragmentLengthAwareRecheckShadowMetrics {
+                recheck_pairs: 3,
+                ..complete
+            },
+            LocalFragmentLengthAwareRecheckShadowMetrics {
+                retained_pairs: 3,
+                ..complete
+            },
+            LocalFragmentLengthAwareRecheckShadowMetrics {
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    exact_recheck_comparisons_examined: 5,
+                    exact_recheck_comparisons_attempted: 5,
+                    ..complete.work
+                },
+                ..complete
+            },
+            LocalFragmentLengthAwareRecheckShadowMetrics {
+                fixed_retained_fingerprint_mismatches: 1,
+                ..complete
+            },
+            LocalFragmentLengthAwareRecheckShadowMetrics {
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    exact_recheck_pairs_examined: 1,
+                    exact_recheck_pairs_attempted: 1,
+                    ..complete.work
+                },
+                pre_recheck_candidates: 1,
+                recheck_pairs: 1,
+                ..complete
+            },
+            LocalFragmentLengthAwareRecheckShadowMetrics {
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    exact_recheck_comparisons_examined: 5,
+                    exact_recheck_comparisons_attempted: 5,
+                    ..complete.work
+                },
+                recheck_comparisons: 5,
+                ..complete
+            },
+            LocalFragmentLengthAwareRecheckShadowMetrics {
+                retained_pairs: 0,
+                ..complete
+            },
+            LocalFragmentLengthAwareRecheckShadowMetrics {
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    candidate_union_examined: 6,
+                    candidate_union_attempted: 6,
+                    ..complete.work
+                },
+                ..complete
+            },
+            LocalFragmentLengthAwareRecheckShadowMetrics {
+                complete: false,
+                stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::QueryLimit),
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    queries_attempted: 1,
+                    ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+                },
+                min_tokens: 8,
+                fixed_depth: 2,
+                retained_pairs: 1,
+                ..LocalFragmentLengthAwareRecheckShadowMetrics::default()
+            },
+        ];
+        for shadow in invalid {
+            assert!(
+                validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                    local_fragment_length_aware_shadow: Some(
+                        complete_length_aware_local_fragment_shadow(),
+                    ),
+                    local_fragment_global_length_aware_shadow: Some(
+                        complete_global_length_aware_local_fragment_shadow(),
+                    ),
+                    local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+                    local_fragment_length_aware_recheck_shadow: Some(shadow),
+                    sentence_edge_filter_complete: true,
+                    ..SentenceRecoveryMetrics::default()
+                })
+                .is_err()
+            );
+        }
+        let observable_mismatch = LocalFragmentLengthAwareRecheckShadowMetrics {
+            retained_fingerprint: [9; 32],
+            fixed_retained_fingerprint_mismatches: 1,
+            length_aware_retained_fingerprint_mismatches: 1,
+            ..complete
+        };
+        assert!(
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(
+                    complete_global_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(observable_mismatch),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .is_ok()
         );
     }
 
@@ -11522,6 +11957,9 @@ mod tests {
                         complete_global_length_aware_local_fragment_shadow(),
                     ),
                     local_fragment_recheck_reuse_shadow: Some(reuse),
+                    local_fragment_length_aware_recheck_shadow: Some(
+                        complete_length_aware_recheck_shadow(),
+                    ),
                     sentence_edge_filter_complete: true,
                     ..SentenceRecoveryMetrics::default()
                 })
@@ -11628,7 +12066,7 @@ mod tests {
             fixed_pre_recheck_fingerprint: [1; 32],
             length_aware_pre_recheck_fingerprint: [2; 32],
             fixed_retained_fingerprint: [3; 32],
-            length_aware_retained_fingerprint: [4; 32],
+            length_aware_retained_fingerprint: [3; 32],
         }
     }
 
@@ -11642,14 +12080,20 @@ mod tests {
         );
 
         let complete_metrics = complete_global_length_aware_local_fragment_shadow();
-        let complete = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
-            local_fragment_length_aware_shadow: Some(complete_length_aware_local_fragment_shadow()),
-            local_fragment_global_length_aware_shadow: Some(complete_metrics),
-            local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
-            sentence_edge_filter_complete: true,
-            ..SentenceRecoveryMetrics::default()
-        })
-        .expect("complete global length-aware shadow validates");
+        let complete =
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(complete_metrics),
+                local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    complete_length_aware_recheck_shadow(),
+                ),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("complete global length-aware shadow validates");
         assert_eq!(
             complete.local_fragment_global_length_aware_shadow,
             Some(complete_metrics.into())
@@ -11688,6 +12132,9 @@ mod tests {
             local_fragment_length_aware_shadow: Some(complete_length_aware_local_fragment_shadow()),
             local_fragment_global_length_aware_shadow: Some(stopped_metrics),
             local_fragment_recheck_reuse_shadow: Some(incomplete_recheck_reuse_shadow()),
+            local_fragment_length_aware_recheck_shadow: Some(
+                incomplete_length_aware_recheck_shadow(),
+            ),
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         })
@@ -11799,6 +12246,9 @@ mod tests {
             local_fragment_length_aware_shadow: Some(parent),
             local_fragment_global_length_aware_shadow: Some(global),
             local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+            local_fragment_length_aware_recheck_shadow: Some(
+                complete_length_aware_recheck_shadow(),
+            ),
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         })
@@ -11823,6 +12273,9 @@ mod tests {
                     local_fragment_length_aware_shadow: Some(parent),
                     local_fragment_global_length_aware_shadow: Some(invalid_global),
                     local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+                    local_fragment_length_aware_recheck_shadow: Some(
+                        complete_length_aware_recheck_shadow(),
+                    ),
                     sentence_edge_filter_complete: true,
                     ..SentenceRecoveryMetrics::default()
                 })
@@ -11848,6 +12301,9 @@ mod tests {
                 },
             ),
             local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+            local_fragment_length_aware_recheck_shadow: Some(
+                complete_length_aware_recheck_shadow(),
+            ),
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         })
@@ -11927,14 +12383,14 @@ mod tests {
             length_aware_pre_recheck_candidates: 2,
             fixed_exact_retained_pairs: 1,
             length_aware_exact_retained_pairs: 1,
-            missing_retained_pairs: 1,
-            extra_retained_pairs: 1,
-            order_mismatches: 1,
+            missing_retained_pairs: 0,
+            extra_retained_pairs: 0,
+            order_mismatches: 0,
             compared_queries: 3,
             fixed_pre_recheck_fingerprint: [1; 32],
             length_aware_pre_recheck_fingerprint: [2; 32],
             fixed_retained_fingerprint: [3; 32],
-            length_aware_retained_fingerprint: [4; 32],
+            length_aware_retained_fingerprint: [3; 32],
         }
     }
 
@@ -11948,16 +12404,20 @@ mod tests {
         );
 
         let complete_metrics = complete_length_aware_local_fragment_shadow();
-        let complete = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
-            local_fragment_length_aware_shadow: Some(complete_metrics),
-            local_fragment_global_length_aware_shadow: Some(
-                complete_global_length_aware_local_fragment_shadow(),
-            ),
-            local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
-            sentence_edge_filter_complete: true,
-            ..SentenceRecoveryMetrics::default()
-        })
-        .expect("complete length-aware local-fragment shadow validates");
+        let complete =
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(complete_metrics),
+                local_fragment_global_length_aware_shadow: Some(
+                    complete_global_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    complete_length_aware_recheck_shadow(),
+                ),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("complete length-aware local-fragment shadow validates");
         assert_eq!(
             complete.local_fragment_length_aware_shadow,
             Some(complete_metrics.into())
@@ -11988,6 +12448,9 @@ mod tests {
                 },
             ),
             local_fragment_recheck_reuse_shadow: Some(incomplete_recheck_reuse_shadow()),
+            local_fragment_length_aware_recheck_shadow: Some(
+                incomplete_length_aware_recheck_shadow(),
+            ),
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         })
@@ -12143,6 +12606,9 @@ mod tests {
                     },
                 ),
                 local_fragment_recheck_reuse_shadow: Some(incomplete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    incomplete_length_aware_recheck_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -12170,6 +12636,9 @@ mod tests {
                     },
                 ),
                 local_fragment_recheck_reuse_shadow: Some(incomplete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    incomplete_length_aware_recheck_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -15483,7 +15952,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 46);
+        assert_eq!(value["schema_version"], 47);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -15618,6 +16087,7 @@ mod tests {
             "local_fragment_length_aware_shadow".to_owned(),
             "local_fragment_global_length_aware_shadow".to_owned(),
             "local_fragment_recheck_reuse_shadow".to_owned(),
+            "local_fragment_length_aware_recheck_shadow".to_owned(),
             "sentence_edge_filter_complete".to_owned(),
             "sentence_edge_filter_pairs_examined".to_owned(),
             "sentence_edge_filter_pairs_attempted".to_owned(),
