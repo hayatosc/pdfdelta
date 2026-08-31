@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`2585c57`](https://github.com/hayatosc/pdfdelta/commit/2585c57)
+- **Generator / engine commit**: [`121bfb1`](https://github.com/hayatosc/pdfdelta/commit/121bfb1)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-2585c57.json`](2026-08-31-2585c57.json)
-  - Schema: v44
-  - Size: 1,725,819 bytes
-  - SHA-256: `b0f509e943fa96151cfa96a2609a0439f3b7e393b20556f37fc8f0a069fe69a5`
+  - File: [`2026-08-31-121bfb1.json`](2026-08-31-121bfb1.json)
+  - Schema: v45
+  - Size: 1,740,238 bytes
+  - SHA-256: `e18bb108cc77eb023cbb356e7351e1081eb504d6dc4c75c1535fc010ea477de6`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -27,7 +27,7 @@ mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
   /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-31-2585c57.json
+  benchmark/realworld/results/2026-08-31-121bfb1.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -87,6 +87,45 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | `w3c-ws-policy-attach-20060927-to-20061102` | 1.000 / 1.000 / 1.000 | 0.984 / 1.000 / 0.992 | 0.984 | 68.027 |
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
+
+Schema v45 is behavior-neutral relative to schema v44. Removing
+`sentence_recovery_metrics.local_fragment_recheck_reuse_shadow` from both
+captures and removing `schema_version` produces exact parity for every prior
+comparison, quality, candidate, recovery-diagnostic, and scoped metric field.
+Use `--ignore-field local_fragment_recheck_reuse_shadow` with the schema-parity
+mise task for this comparison.
+
+The recheck-reuse shadow now stops an exact token-edge scan as soon as the
+existing integer edge score reaches 3,000 basis points. The score is monotone as
+matching prefix or suffix evidence grows, so later comparisons cannot reverse
+an accepted decision. Rejected pairs still scan exactly as before. Exhaustive
+small binary-token tests and every available sibling fingerprint preserve the
+fixed-depth and length-aware candidate and retained streams.
+
+The same five of 18 recovery builds complete: two have no eligible fragments,
+and IRS 1040 plus the QGIS English and Spanish pairs provide non-empty results.
+Across those three results, the same 12,219 unique pairs now consume 299,706
+exact token comparisons instead of schema v44's 849,004, a 64.70% reduction.
+Against the original duplicated two-stream projection of 1,671,477 comparisons,
+threshold capping plus merge-union reuse removes 82.07%. Within the capped path
+alone, reuse reduces the duplicated projection from 572,881 comparisons to
+299,706, avoiding 273,175 comparisons (47.68%).
+
+IRS 1040 falls from 68,505 comparisons to 42,193 (38.41%), QGIS English from
+689,972 to 222,947 (67.69%), and QGIS Spanish from 90,527 to 34,566 (61.82%).
+Their retained counts and ordering remain unchanged.
+
+The other 13 builds still stop atomically at the exact-recheck comparison limit.
+At the same aggregate limit of 342,103,168 comparisons, they progress from
+43,106,010 to 46,671,256 unique pairs (8.27%) and from 51,870,391 to 56,231,629
+candidate items (8.41%). Stop-safe attribution shows that 2,716,520 completed
+pairs pass the edge gate and 43,954,723 fail it: 94.18% of completed pairs still
+require the rejecting scan. Candidate-source attribution records 9,559,975
+shared fixed/length-aware candidates, 37,132,743 fixed-only candidates, and no
+observed length-aware-only candidate across all 18 builds. This corpus result
+does not prove the subset relation under signature collisions. The next
+behavior-neutral diagnostic should classify accepted and rejected pairs by
+candidate-source membership before any candidate stream is pruned.
 
 Schema v44 is behavior-neutral relative to schema v43. Removing only
 `sentence_recovery_metrics.local_fragment_recheck_reuse_shadow` and
