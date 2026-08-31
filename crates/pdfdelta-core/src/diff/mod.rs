@@ -183,7 +183,23 @@ pub struct MatchedAtomicDiff {
     pub edits: Vec<AtomicEdit>,
 }
 
-/// A normal comparison plus opt-in exact edit traces for accepted matches.
+/// Exact Myers edits retained for one accepted uncertain-region replacement.
+///
+/// Edit coordinates start at zero within [`Self::old_context`] and
+/// [`Self::new_context`]. Separate alignment span indices preserve cross-span
+/// recovery origins without weakening [`MatchedAtomicDiff`]'s single-span
+/// contract.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecoveredAtomicDiff {
+    pub old_alignment_span_index: usize,
+    pub new_alignment_span_index: usize,
+    pub old_context: TextSpan,
+    pub new_context: TextSpan,
+    pub edits: Vec<AtomicEdit>,
+}
+
+/// A normal comparison plus opt-in exact edit traces for accepted alignment
+/// matches.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComparisonWithAtomicEdits {
     pub comparison: Comparison,
@@ -1670,7 +1686,8 @@ pub(crate) struct ComparisonWithSentenceRecoveryMetrics {
     pub(crate) comparison: Comparison,
     pub(crate) sentence_recovery_metrics: Option<SentenceRecoveryMetrics>,
     pub(crate) recovery_watch_diagnostics: Option<RecoveryWatchDiagnostics>,
-    matched_atomic_diffs: Option<Vec<MatchedAtomicDiff>>,
+    pub(crate) matched_atomic_diffs: Option<Vec<MatchedAtomicDiff>>,
+    pub(crate) recovered_atomic_diffs: Option<Vec<RecoveredAtomicDiff>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1876,6 +1893,28 @@ pub(crate) fn compare_aligned_with_sentence_recovery_metrics(
     )
 }
 
+pub(crate) fn compare_aligned_with_sentence_recovery_metrics_and_atomic_edits(
+    old: &[BlockText],
+    new: &[BlockText],
+    alignment: &Alignment,
+    options: DiffOptions,
+    mut recovery: SentenceRecoveryInput<'_>,
+) -> Result<ComparisonWithSentenceRecoveryMetrics> {
+    recovery.enable_known_span_sentence_shadow = false;
+    compare_aligned_inner(
+        old,
+        new,
+        alignment,
+        CompareAlignedConfig {
+            options,
+            recovery: Some(recovery),
+            watch_queries: None,
+            recovery_output_limits: RecoveryOutputLimits::default(),
+            retain_atomic_edits: true,
+        },
+    )
+}
+
 pub(crate) fn compare_aligned_with_known_span_sentence_shadow_diagnostics(
     old: &[BlockText],
     new: &[BlockText],
@@ -1961,6 +2000,7 @@ fn compare_aligned_inner(
     let mut formatting_changes = Vec::new();
     let mut unresolved_regions = Vec::new();
     let mut matched_atomic_diffs = retain_atomic_edits.then(Vec::new);
+    let mut recovered_atomic_diffs = retain_atomic_edits.then(Vec::new);
     let mut resolved_old = 0;
     let mut resolved_new = 0;
     let mut sentence_recovery_output_budget = RecoveryOutputBudget {
@@ -1968,9 +2008,23 @@ fn compare_aligned_inner(
         items: 0,
         bytes: 0,
     };
-    let requires_atomic_recovery = sentence_recovery.plan.as_ref().is_some_and(|plan| {
-        plan.has_cross_span_recovery() || plan.has_repeated_recovery_candidates()
-    });
+    if let Some(plan) = sentence_recovery.plan.as_mut() {
+        let mut tentative_budget = sentence_recovery_output_budget;
+        if prepare_recovered_replacement_edits(
+            &old,
+            &new,
+            plan,
+            options.max_edit_distance,
+            &mut tentative_budget,
+        )
+        .is_some()
+        {
+            sentence_recovery_output_budget = tentative_budget;
+        } else {
+            sentence_recovery.plan = None;
+        }
+    }
+    let requires_atomic_recovery = sentence_recovery.plan.is_some();
     let mut atomic_recovery = requires_atomic_recovery
         .then(|| {
             prepare_sentence_recovery_batch(
@@ -1979,6 +2033,7 @@ fn compare_aligned_inner(
                 alignment,
                 sentence_recovery.plan.as_ref()?,
                 &mut sentence_recovery_output_budget,
+                retain_atomic_edits,
             )
         })
         .flatten();
@@ -2105,6 +2160,8 @@ fn compare_aligned_inner(
                         &mut resolved_old,
                         &mut resolved_new,
                         &mut sentence_recovery_output_budget,
+                        retain_atomic_edits,
+                        &mut recovered_atomic_diffs,
                     );
                     if let Some(committed) = committed {
                         sentence_recovery.record_committed(committed);
@@ -2127,6 +2184,7 @@ fn compare_aligned_inner(
             &mut unresolved_regions,
             &mut resolved_old,
             &mut resolved_new,
+            &mut recovered_atomic_diffs,
         )
     {
         sentence_recovery.record_committed(committed);
@@ -2145,6 +2203,7 @@ fn compare_aligned_inner(
         sentence_recovery_metrics,
         recovery_watch_diagnostics,
         matched_atomic_diffs,
+        recovered_atomic_diffs,
     })
 }
 
@@ -2246,6 +2305,7 @@ impl RecoveryOutputBudget {
 
 struct PreparedSentenceRecovery {
     changes: Vec<ChangeEvent>,
+    recovered_atomic_diffs: Vec<RecoveredAtomicDiff>,
     unresolved_regions: Vec<UnresolvedRegion>,
     resolved_old: usize,
     resolved_new: usize,
@@ -2292,6 +2352,7 @@ fn prepare_sentence_recovery_batch(
     alignment: &Alignment,
     recovery: &sentence::SentenceRecoveryPlan,
     output_budget: &mut RecoveryOutputBudget,
+    retain_atomic_edits: bool,
 ) -> Option<PreparedSentenceRecoveryBatch> {
     let mut tentative_budget = *output_budget;
     let mut entries = Vec::new();
@@ -2302,8 +2363,15 @@ fn prepare_sentence_recovery_batch(
         if entries.len() == sentence::MAX_SENTENCE_RECOVERY_RANGES {
             return None;
         }
-        let prepared =
-            prepare_sentence_recovery(old, new, span_index, span, recovery, &mut tentative_budget)?;
+        let prepared = prepare_sentence_recovery(
+            old,
+            new,
+            span_index,
+            span,
+            recovery,
+            &mut tentative_budget,
+            retain_atomic_edits,
+        )?;
         entries.try_reserve(1).ok()?;
         entries.push(PreparedSentenceRecoveryEntry {
             span_index,
@@ -2602,6 +2670,51 @@ fn try_recovered_tokens(
     try_recovered_tokens_counted(side, recovery, output_budget).map(|(tokens, _)| tokens)
 }
 
+fn prepare_recovered_replacement_edits(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    recovery: &mut sentence::SentenceRecoveryPlan,
+    max_edit_distance: usize,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<()> {
+    let mut prepared = Vec::new();
+    prepared
+        .try_reserve_exact(recovery.replacements.len())
+        .ok()?;
+    let prepared_bytes = prepared
+        .capacity()
+        .checked_mul(std::mem::size_of::<Vec<AtomicEdit>>())?;
+    if !output_budget.charge_many(0, prepared_bytes) {
+        return None;
+    }
+    for replacement in &recovery.replacements {
+        if replacement.edits.is_some()
+            || !replacement.relation.is_accepted()
+            || !valid_recovered_sentence(&replacement.old)
+            || !valid_recovered_sentence(&replacement.new)
+        {
+            return None;
+        }
+        let old_tokens = try_recovered_tokens(old, &replacement.old, output_budget)?;
+        let new_tokens = try_recovered_tokens(new, &replacement.new, output_budget)?;
+        let edits = myers::diff(&old_tokens, &new_tokens, max_edit_distance).ok()??;
+        let edit_bytes = edits
+            .capacity()
+            .checked_mul(std::mem::size_of::<AtomicEdit>())?;
+        if !output_budget.charge_many(0, edit_bytes) {
+            return None;
+        }
+        prepared.push(edits);
+    }
+    if prepared.len() != recovery.replacements.len() {
+        return None;
+    }
+    for (replacement, edits) in recovery.replacements.iter_mut().zip(prepared) {
+        replacement.edits = Some(edits);
+    }
+    Some(())
+}
+
 fn try_recovered_tokens_counted(
     side: &Side<'_>,
     recovery: &sentence::RecoveredSentence,
@@ -2704,12 +2817,24 @@ fn commit_prepared_sentence_recovery_batch(
     unresolved_regions: &mut Vec<UnresolvedRegion>,
     resolved_old: &mut usize,
     resolved_new: &mut usize,
+    recovered_atomic_diffs: &mut Option<Vec<RecoveredAtomicDiff>>,
 ) -> Option<SentenceRecoveryCommittedTokens> {
     let mut change_count = changes.len();
     let mut unresolved_count = unresolved_regions.len().checked_sub(batch.entries.len())?;
     let mut recovered_old = 0usize;
     let mut recovered_new = 0usize;
     let mut committed = SentenceRecoveryCommittedTokens::default();
+    let recovered_atomic_diff_count = batch.entries.iter().try_fold(0usize, |count, entry| {
+        count.checked_add(entry.prepared.recovered_atomic_diffs.len())
+    })?;
+    let retained_recovery_atomic_diffs = match recovered_atomic_diffs.as_mut() {
+        Some(output) => {
+            output.try_reserve_exact(recovered_atomic_diff_count).ok()?;
+            Some(output)
+        }
+        None if recovered_atomic_diff_count == 0 => None,
+        None => return None,
+    };
     let mut previous_change_index = 0usize;
     let mut previous_unresolved_index = None;
     for entry in &batch.entries {
@@ -2782,6 +2907,11 @@ fn commit_prepared_sentence_recovery_batch(
     *unresolved_regions = merged_unresolved;
     *resolved_old = next_resolved_old;
     *resolved_new = next_resolved_new;
+    if let Some(output) = retained_recovery_atomic_diffs {
+        for entry in &mut batch.entries {
+            output.append(&mut entry.prepared.recovered_atomic_diffs);
+        }
+    }
     Some(committed)
 }
 
@@ -2797,6 +2927,8 @@ fn apply_sentence_recovery_or_fallback(
     resolved_old: &mut usize,
     resolved_new: &mut usize,
     output_budget: &mut RecoveryOutputBudget,
+    retain_atomic_edits: bool,
+    recovered_atomic_diffs: &mut Option<Vec<RecoveredAtomicDiff>>,
 ) -> Option<SentenceRecoveryCommittedTokens> {
     let committed = append_sentence_recovery(
         old,
@@ -2809,6 +2941,8 @@ fn apply_sentence_recovery_or_fallback(
         resolved_old,
         resolved_new,
         output_budget,
+        retain_atomic_edits,
+        recovered_atomic_diffs,
     );
     if committed.is_none() {
         unresolved_regions.push(UnresolvedRegion {
@@ -2832,10 +2966,19 @@ fn append_sentence_recovery(
     resolved_old: &mut usize,
     resolved_new: &mut usize,
     output_budget: &mut RecoveryOutputBudget,
+    retain_atomic_edits: bool,
+    recovered_atomic_diffs: &mut Option<Vec<RecoveredAtomicDiff>>,
 ) -> Option<SentenceRecoveryCommittedTokens> {
     let mut tentative_budget = *output_budget;
-    let prepared =
-        prepare_sentence_recovery(old, new, span_index, span, recovery, &mut tentative_budget)?;
+    let mut prepared = prepare_sentence_recovery(
+        old,
+        new,
+        span_index,
+        span,
+        recovery,
+        &mut tentative_budget,
+        retain_atomic_edits,
+    )?;
     let next_resolved_old = resolved_old.checked_add(prepared.resolved_old)?;
     let next_resolved_new = resolved_new.checked_add(prepared.resolved_new)?;
     if changes.try_reserve_exact(prepared.changes.len()).is_err()
@@ -2845,10 +2988,20 @@ fn append_sentence_recovery(
     {
         return None;
     }
+    match recovered_atomic_diffs.as_mut() {
+        Some(output) => output
+            .try_reserve_exact(prepared.recovered_atomic_diffs.len())
+            .ok()?,
+        None if prepared.recovered_atomic_diffs.is_empty() => {}
+        None => return None,
+    }
 
     let committed = prepared.committed;
     changes.extend(prepared.changes);
     unresolved_regions.extend(prepared.unresolved_regions);
+    if let Some(output) = recovered_atomic_diffs.as_mut() {
+        output.append(&mut prepared.recovered_atomic_diffs);
+    }
     *resolved_old = next_resolved_old;
     *resolved_new = next_resolved_new;
     *output_budget = tentative_budget;
@@ -2862,6 +3015,7 @@ fn prepare_sentence_recovery(
     span: &AlignmentSpan,
     recovery: &sentence::SentenceRecoveryPlan,
     output_budget: &mut RecoveryOutputBudget,
+    retain_atomic_edits: bool,
 ) -> Option<PreparedSentenceRecovery> {
     let matches = sentence::matches_for_span(&recovery.matches, span_index);
     let cross_span_match_old =
@@ -2889,6 +3043,7 @@ fn prepare_sentence_recovery(
         return None;
     }
     let mut changes = Vec::new();
+    let mut recovered_atomic_diffs = Vec::new();
     let mut unresolved_regions = Vec::new();
     changes.try_reserve_exact(change_capacity).ok()?;
     unresolved_regions
@@ -2900,14 +3055,21 @@ fn prepare_sentence_recovery(
         same_span_match_old.checked_add(recovered_sentence_tokens(cross_span_match_old)?)?;
     let exact_match_new =
         same_span_match_new.checked_add(recovered_sentence_tokens(cross_span_match_new)?)?;
-    let (replacement_old, replacement_new) =
-        prepare_recovered_replacements(replacements, &mut changes, output_budget)?;
+    let (replacement_old, replacement_new) = prepare_recovered_replacements(
+        old,
+        new,
+        replacements,
+        &mut changes,
+        &mut recovered_atomic_diffs,
+        output_budget,
+        retain_atomic_edits,
+    )?;
     let deletion =
         prepare_recovered_changes(deletions, ChangeKind::Deletion, &mut changes, output_budget)?;
     let resolved_old = exact_match_old
         .checked_add(replacement_old)?
         .checked_add(deletion)?;
-    sort_recovered_old_changes(old, &mut changes)?;
+    sort_recovered_changes(old, new, &mut changes)?;
     let insertion = prepare_recovered_changes(
         insertions,
         ChangeKind::Insertion,
@@ -2940,6 +3102,7 @@ fn prepare_sentence_recovery(
 
     Some(PreparedSentenceRecovery {
         changes,
+        recovered_atomic_diffs,
         unresolved_regions,
         resolved_old,
         resolved_new,
@@ -3029,64 +3192,199 @@ fn prepare_recovered_changes(
 }
 
 fn prepare_recovered_replacements(
+    old_side: &Side<'_>,
+    new_side: &Side<'_>,
     replacements: &[sentence::RecoveredReplacement],
     changes: &mut Vec<ChangeEvent>,
+    recovered_atomic_diffs: &mut Vec<RecoveredAtomicDiff>,
     output_budget: &mut RecoveryOutputBudget,
+    retain_atomic_edits: bool,
 ) -> Option<(usize, usize)> {
     let mut resolved_old = 0usize;
     let mut resolved_new = 0usize;
     for replacement in replacements {
         if !valid_recovered_sentence(&replacement.old)
             || !valid_recovered_sentence(&replacement.new)
+            || !replacement.relation.is_accepted()
         {
             return None;
         }
-        resolved_old = resolved_old.checked_add(replacement.old.source_tokens)?;
-        resolved_new = resolved_new.checked_add(replacement.new.source_tokens)?;
-        let block_count = replacement
-            .old
-            .blocks
-            .len()
-            .checked_add(replacement.new.blocks.len())?;
-        if !output_budget.charge(estimated_change_bytes(block_count)?) {
+        let edits = replacement.edits.as_deref()?;
+        if edits.is_empty() {
             return None;
         }
-        changes.push(ChangeEvent::single_occurrence(
-            ChangeKind::Replacement,
-            Some(recovered_text_span(&replacement.old)?),
-            Some(recovered_text_span(&replacement.new)?),
-            Confidence::High,
-            Vec::new(),
-        ));
+        let old = recovered_group_text(old_side, &replacement.old, output_budget)?;
+        let new = recovered_group_text(new_side, &replacement.new, output_budget)?;
+        let mut hunks = Vec::new();
+        hunks.try_reserve_exact(edits.len()).ok()?;
+        let hunk_bytes = hunks
+            .capacity()
+            .checked_mul(std::mem::size_of::<SemanticHunk>())?;
+        if !output_budget.charge_many(0, hunk_bytes) {
+            return None;
+        }
+        if !visit_semantic_hunks(&old.tokens, &new.tokens, edits, |hunk| {
+            hunks.push(hunk);
+            true
+        }) || hunks.is_empty()
+        {
+            return None;
+        }
+        changes.try_reserve_exact(hunks.len()).ok()?;
+        for hunk in hunks {
+            let block_count = replacement
+                .old
+                .blocks
+                .len()
+                .checked_add(replacement.new.blocks.len())?;
+            if !output_budget.charge(estimated_change_bytes(block_count)?) {
+                return None;
+            }
+            changes.push(recovered_semantic_change(&old, &new, hunk)?);
+        }
+        if retain_atomic_edits {
+            let edit_bytes = edits.len().checked_mul(std::mem::size_of::<AtomicEdit>())?;
+            let block_count = replacement
+                .old
+                .blocks
+                .len()
+                .checked_add(replacement.new.blocks.len())?;
+            let trace_bytes = std::mem::size_of::<RecoveredAtomicDiff>()
+                .checked_add(edit_bytes)?
+                .checked_add(block_count.checked_mul(std::mem::size_of::<BlockId>())?)?;
+            if !output_budget.charge(trace_bytes) {
+                return None;
+            }
+            let mut retained_edits = Vec::new();
+            retained_edits.try_reserve_exact(edits.len()).ok()?;
+            retained_edits.extend(edits.iter().cloned());
+            recovered_atomic_diffs.try_reserve_exact(1).ok()?;
+            recovered_atomic_diffs.push(RecoveredAtomicDiff {
+                old_alignment_span_index: replacement.old.span_index,
+                new_alignment_span_index: replacement.new.span_index,
+                old_context: old.try_span(0, old.tokens.len())?,
+                new_context: new.try_span(0, new.tokens.len())?,
+                edits: retained_edits,
+            });
+        }
+        resolved_old = resolved_old.checked_add(replacement.old.source_tokens)?;
+        resolved_new = resolved_new.checked_add(replacement.new.source_tokens)?;
     }
     Some((resolved_old, resolved_new))
 }
 
-fn sort_recovered_old_changes(side: &Side<'_>, changes: &mut [ChangeEvent]) -> Option<()> {
-    if changes
+fn recovered_group_text(
+    side: &Side<'_>,
+    recovery: &sentence::RecoveredSentence,
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<GroupText> {
+    let tokens = try_recovered_tokens(side, recovery, output_budget)?;
+    let comparable_len = recovery
+        .comparable
+        .end
+        .checked_sub(recovery.comparable.start)?;
+    let canonical_len = recovery
+        .canonical
+        .end
+        .checked_sub(recovery.canonical.start)?;
+    let scalar_len = tokens
         .iter()
-        .any(|change| recovered_old_change_key(side, change).is_none())
+        .filter(|token| matches!(token, ComparableToken::Scalar(_)))
+        .count();
+    if tokens.len() != comparable_len || scalar_len != canonical_len {
+        return None;
+    }
+    let boundary_bytes = tokens
+        .len()
+        .checked_add(1)?
+        .checked_mul(std::mem::size_of::<usize>())?;
+    let block_bytes = recovery
+        .blocks
+        .len()
+        .checked_mul(std::mem::size_of::<BlockId>())?;
+    if !output_budget.charge_many(0, boundary_bytes.checked_add(block_bytes)?) {
+        return None;
+    }
+    GroupText::try_new(
+        try_copy_slice(&recovery.blocks)?,
+        recovery.separator,
+        tokens,
+        None,
+        None,
+        None,
+        None,
+    )?
+    .with_origins(recovery.canonical.start, recovery.comparable.start)
+}
+
+fn recovered_semantic_change(
+    old: &GroupText,
+    new: &GroupText,
+    hunk: SemanticHunk,
+) -> Option<ChangeEvent> {
+    let kind = change_kind(hunk.old.start, hunk.new.start, hunk.old.end, hunk.new.end)?;
+    let tags = (kind == ChangeKind::Replacement
+        && is_character_width_replacement(
+            &old.tokens[hunk.old.clone()],
+            &new.tokens[hunk.new.clone()],
+        ))
+    .then_some(ChangeTag::CharacterWidth)
+    .into_iter()
+    .collect();
+    let old_span = (!hunk.old.is_empty())
+        .then(|| old.try_span(hunk.old.start, hunk.old.end))
+        .flatten();
+    let new_span = (!hunk.new.is_empty())
+        .then(|| new.try_span(hunk.new.start, hunk.new.end))
+        .flatten();
+    if (kind != ChangeKind::Insertion && old_span.is_none())
+        || (kind != ChangeKind::Deletion && new_span.is_none())
     {
         return None;
     }
-    changes.sort_unstable_by_key(|change| recovered_old_change_key(side, change));
+    Some(ChangeEvent::single_occurrence(
+        kind,
+        old_span,
+        new_span,
+        Confidence::Medium,
+        tags,
+    ))
+}
+
+fn sort_recovered_changes(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    changes: &mut [ChangeEvent],
+) -> Option<()> {
+    if changes
+        .iter()
+        .any(|change| recovered_change_key(old, new, change).is_none())
+    {
+        return None;
+    }
+    changes.sort_unstable_by_key(|change| recovered_change_key(old, new, change));
     Some(())
 }
 
-fn recovered_old_change_key(
-    side: &Side<'_>,
+fn recovered_change_key(
+    old: &Side<'_>,
+    new: &Side<'_>,
     change: &ChangeEvent,
-) -> Option<(usize, usize, usize, bool)> {
-    if !matches!(change.kind, ChangeKind::Deletion | ChangeKind::Replacement) {
-        return None;
-    }
-    let span = change.occurrences.first()?.old_span.as_ref()?;
+) -> Option<(usize, usize, usize, bool, bool)> {
+    let occurrence = change.occurrences.first()?;
+    let (side, span, new_only) = match (occurrence.old_span.as_ref(), occurrence.new_span.as_ref())
+    {
+        (Some(span), _) => (old, span, false),
+        (None, Some(span)) => (new, span, true),
+        (None, None) => return None,
+    };
     let block = span.blocks.first()?;
     Some((
         *side.index.get(block)?,
         span.comparable_range.start,
         span.comparable_range.end,
         change.kind == ChangeKind::Replacement,
+        new_only,
     ))
 }
 
@@ -3099,15 +3397,6 @@ fn valid_recovered_sentence(recovery: &sentence::RecoveredSentence) -> bool {
     }) && recovery.canonical.start < recovery.canonical.end
         && recovery.comparable.start < recovery.comparable.end
         && recovery.source_tokens != 0
-}
-
-fn recovered_text_span(recovery: &sentence::RecoveredSentence) -> Option<TextSpan> {
-    Some(TextSpan {
-        blocks: try_copy_slice(&recovery.blocks)?,
-        separator: recovery.separator,
-        canonical_range: recovery.canonical,
-        comparable_range: recovery.comparable,
-    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3817,6 +4106,12 @@ fn is_whitespace_token(token: &ComparableToken) -> bool {
     matches!(token, ComparableToken::Scalar(scalar) if scalar.is_whitespace())
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SemanticHunk {
+    old: Range<usize>,
+    new: Range<usize>,
+}
+
 fn append_changes(
     old: &GroupText,
     new: &GroupText,
@@ -3824,6 +4119,19 @@ fn append_changes(
     confidence: Confidence,
     changes: &mut Vec<ChangeEvent>,
 ) {
+    let completed = visit_semantic_hunks(&old.tokens, &new.tokens, edits, |hunk| {
+        append_semantic_hunk(old, new, hunk, confidence, changes);
+        true
+    });
+    debug_assert!(completed);
+}
+
+fn visit_semantic_hunks(
+    old_tokens: &[ComparableToken],
+    new_tokens: &[ComparableToken],
+    edits: &[AtomicEdit],
+    mut visit: impl FnMut(SemanticHunk) -> bool,
+) -> bool {
     let mut old_index = 0;
     let mut new_index = 0;
     let mut hunk_start = None;
@@ -3837,8 +4145,8 @@ fn append_changes(
         old_index = edit.old.start;
         new_index = edit.new.start;
         debug_assert_eq!(
-            old.tokens[old_equal_start..old_index],
-            new.tokens[new_equal_start..new_index]
+            old_tokens[old_equal_start..old_index],
+            new_tokens[new_equal_start..new_index]
         );
         if old_equal_start != old_index
             && let Some((old_start, new_start)) = hunk_start
@@ -3846,7 +4154,7 @@ fn append_changes(
             let left_kind = change_kind(old_start, new_start, old_equal_start, new_equal_start);
             let right_kind = contiguous_change_kind(&edits[edit_index..]);
             if bridges_replacement_hunks(
-                &old.tokens[old_equal_start..old_index],
+                &old_tokens[old_equal_start..old_index],
                 left_kind,
                 right_kind,
             ) {
@@ -3854,23 +4162,17 @@ fn append_changes(
                     || right_kind != Some(ChangeKind::Replacement);
             } else {
                 let (old_end, new_end) = complete_word_ends(
-                    &old.tokens,
-                    &new.tokens,
+                    old_tokens,
+                    new_tokens,
                     old_equal_start,
                     new_equal_start,
                     old_index,
                     new_index,
                     complete_trailing_word,
                 );
-                flush_hunk(
-                    old,
-                    new,
-                    hunk_start.take(),
-                    old_end,
-                    new_end,
-                    confidence,
-                    changes,
-                );
+                if !visit_hunk(hunk_start.take(), old_end, new_end, &mut visit) {
+                    return false;
+                }
                 hunk_start = Some((old_index, new_index));
                 complete_trailing_word = false;
             }
@@ -3881,21 +4183,39 @@ fn append_changes(
         old_index = edit.old.end;
         new_index = edit.new.end;
     }
-    debug_assert_eq!(old.tokens[old_index..], new.tokens[new_index..]);
-    let (old_end, new_end) = if old_index != old.tokens.len() {
+    debug_assert_eq!(old_tokens[old_index..], new_tokens[new_index..]);
+    let (old_end, new_end) = if old_index != old_tokens.len() {
         complete_word_ends(
-            &old.tokens,
-            &new.tokens,
+            old_tokens,
+            new_tokens,
             old_index,
             new_index,
-            old.tokens.len(),
-            new.tokens.len(),
+            old_tokens.len(),
+            new_tokens.len(),
             complete_trailing_word,
         )
     } else {
         (old_index, new_index)
     };
-    flush_hunk(old, new, hunk_start, old_end, new_end, confidence, changes);
+    visit_hunk(hunk_start, old_end, new_end, &mut visit)
+}
+
+fn visit_hunk(
+    start: Option<(usize, usize)>,
+    old_end: usize,
+    new_end: usize,
+    visit: &mut impl FnMut(SemanticHunk) -> bool,
+) -> bool {
+    let Some((old_start, new_start)) = start else {
+        return true;
+    };
+    if change_kind(old_start, new_start, old_end, new_end).is_none() {
+        return true;
+    }
+    visit(SemanticHunk {
+        old: old_start..old_end,
+        new: new_start..new_end,
+    })
 }
 
 fn complete_word_ends(
@@ -4011,36 +4331,29 @@ fn is_common_punctuation(scalar: char) -> bool {
         )
 }
 
-#[allow(clippy::too_many_arguments)]
-fn flush_hunk(
+fn append_semantic_hunk(
     old: &GroupText,
     new: &GroupText,
-    start: Option<(usize, usize)>,
-    old_end: usize,
-    new_end: usize,
+    hunk: SemanticHunk,
     confidence: Confidence,
     changes: &mut Vec<ChangeEvent>,
 ) {
-    let Some((old_start, new_start)) = start else {
-        return;
-    };
-    let Some(kind) = change_kind(old_start, new_start, old_end, new_end) else {
-        return;
-    };
-    let old_changed = old_start != old_end;
-    let new_changed = new_start != new_end;
+    let kind = change_kind(hunk.old.start, hunk.new.start, hunk.old.end, hunk.new.end)
+        .expect("semantic hunk must contain at least one changed side");
+    let old_changed = !hunk.old.is_empty();
+    let new_changed = !hunk.new.is_empty();
     let tags = (kind == ChangeKind::Replacement
         && is_character_width_replacement(
-            &old.tokens[old_start..old_end],
-            &new.tokens[new_start..new_end],
+            &old.tokens[hunk.old.clone()],
+            &new.tokens[hunk.new.clone()],
         ))
     .then_some(ChangeTag::CharacterWidth)
     .into_iter()
     .collect();
     changes.push(ChangeEvent::single_occurrence(
         kind,
-        old_changed.then(|| old.span(old_start, old_end)),
-        new_changed.then(|| new.span(new_start, new_end)),
+        old_changed.then(|| old.span(hunk.old.start, hunk.old.end)),
+        new_changed.then(|| new.span(hunk.new.start, hunk.new.end)),
         confidence,
         tags,
     ));
@@ -4612,6 +4925,8 @@ struct GroupText {
     line_breaks: Option<Vec<usize>>,
     page_breaks: Option<Vec<usize>>,
     scalar_boundaries: Vec<usize>,
+    canonical_origin: usize,
+    comparable_origin: usize,
 }
 
 impl GroupText {
@@ -4624,7 +4939,32 @@ impl GroupText {
         line_breaks: Option<Vec<usize>>,
         page_breaks: Option<Vec<usize>>,
     ) -> Self {
-        let mut scalar_boundaries = Vec::with_capacity(tokens.len() + 1);
+        Self::try_new(
+            blocks,
+            separator,
+            tokens,
+            font_size_signatures,
+            position_signatures,
+            line_breaks,
+            page_breaks,
+        )
+        .expect("group scalar boundaries must fit in memory")
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn try_new(
+        blocks: Vec<BlockId>,
+        separator: Option<BlockSeparator>,
+        tokens: Vec<ComparableToken>,
+        font_size_signatures: Option<Vec<FontSizeSignature>>,
+        position_signatures: Option<Vec<Option<PositionSignature>>>,
+        line_breaks: Option<Vec<usize>>,
+        page_breaks: Option<Vec<usize>>,
+    ) -> Option<Self> {
+        let mut scalar_boundaries = Vec::new();
+        scalar_boundaries
+            .try_reserve_exact(tokens.len().checked_add(1)?)
+            .ok()?;
         let mut scalar_count = 0;
         scalar_boundaries.push(0);
         for token in &tokens {
@@ -4633,7 +4973,7 @@ impl GroupText {
             }
             scalar_boundaries.push(scalar_count);
         }
-        Self {
+        Some(Self {
             blocks,
             separator,
             tokens,
@@ -4642,7 +4982,17 @@ impl GroupText {
             line_breaks,
             page_breaks,
             scalar_boundaries,
-        }
+            canonical_origin: 0,
+            comparable_origin: 0,
+        })
+    }
+
+    fn with_origins(mut self, canonical_origin: usize, comparable_origin: usize) -> Option<Self> {
+        canonical_origin.checked_add(*self.scalar_boundaries.last()?)?;
+        comparable_origin.checked_add(self.tokens.len())?;
+        self.canonical_origin = canonical_origin;
+        self.comparable_origin = comparable_origin;
+        Some(self)
     }
 
     fn full_span(&self) -> TextSpan {
@@ -4656,12 +5006,12 @@ impl GroupText {
             blocks: self.blocks,
             separator: self.separator,
             canonical_range: ScalarRange {
-                start: 0,
-                end: canonical_end,
+                start: self.canonical_origin,
+                end: self.canonical_origin + canonical_end,
             },
             comparable_range: TokenRange {
-                start: 0,
-                end: comparable_end,
+                start: self.comparable_origin,
+                end: self.comparable_origin + comparable_end,
             },
         }
     }
@@ -4671,11 +5021,36 @@ impl GroupText {
             blocks: self.blocks.clone(),
             separator: self.separator,
             canonical_range: ScalarRange {
-                start: self.scalar_boundaries[start],
-                end: self.scalar_boundaries[end],
+                start: self.canonical_origin + self.scalar_boundaries[start],
+                end: self.canonical_origin + self.scalar_boundaries[end],
             },
-            comparable_range: TokenRange { start, end },
+            comparable_range: TokenRange {
+                start: self.comparable_origin + start,
+                end: self.comparable_origin + end,
+            },
         }
+    }
+
+    fn try_span(&self, start: usize, end: usize) -> Option<TextSpan> {
+        if start > end || end > self.tokens.len() {
+            return None;
+        }
+        Some(TextSpan {
+            blocks: try_copy_slice(&self.blocks)?,
+            separator: self.separator,
+            canonical_range: ScalarRange {
+                start: self
+                    .canonical_origin
+                    .checked_add(*self.scalar_boundaries.get(start)?)?,
+                end: self
+                    .canonical_origin
+                    .checked_add(*self.scalar_boundaries.get(end)?)?,
+            },
+            comparable_range: TokenRange {
+                start: self.comparable_origin.checked_add(start)?,
+                end: self.comparable_origin.checked_add(end)?,
+            },
+        })
     }
 }
 
@@ -5416,12 +5791,21 @@ mod tests {
         assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
         assert_eq!(
             result.changes[0].occurrences[0].old_span,
-            Some(test_span(2, 0, old_clause.chars().count()))
+            Some(test_span(
+                2,
+                old_clause.find("alpha").expect("old changed word exists"),
+                old_clause.find("alpha").expect("old changed word exists") + "alpha".len(),
+            ))
         );
         assert_eq!(
             result.changes[0].occurrences[0].new_span,
-            Some(test_span(102, 0, new_clause.chars().count()))
+            Some(test_span(
+                102,
+                new_clause.find("beta").expect("new changed word exists"),
+                new_clause.find("beta").expect("new changed word exists") + "beta".len(),
+            ))
         );
+        assert_eq!(result.changes[0].confidence, Confidence::Medium);
     }
 
     #[test]
@@ -5445,11 +5829,11 @@ mod tests {
         assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
         assert_eq!(
             result.changes[0].occurrences[0].old_span,
-            Some(test_span(2, 0, old_date.chars().count()))
+            Some(test_span(2, 3, 4))
         );
         assert_eq!(
             result.changes[0].occurrences[0].new_span,
-            Some(test_span(102, 0, new_date.chars().count()))
+            Some(test_span(102, 3, 4))
         );
     }
 
@@ -5489,15 +5873,12 @@ mod tests {
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
-        assert_eq!(
-            result.changes[0].occurrences[0].old_span,
-            Some(test_span(1, 0, old_stamp.chars().count()))
-        );
-        assert_eq!(
-            result.changes[0].occurrences[0].new_span,
-            Some(test_span(101, 0, new_stamp.chars().count()))
+        assert_eq!(result.changes.len(), 2);
+        assert!(
+            result
+                .changes
+                .iter()
+                .all(|change| change.confidence == Confidence::Medium)
         );
         assert_eq!(
             result.old_coverage.resolved_tokens,
@@ -5816,6 +6197,8 @@ mod tests {
                 &mut resolved_old,
                 &mut resolved_new,
                 &mut output_budget,
+                false,
+                &mut None,
             )
             .is_some()
         );
@@ -6431,22 +6814,43 @@ mod tests {
             );
             assert_eq!(result.changes.len(), 1);
             assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+            let old_word = if old[0].canonical.text.contains("alpha") {
+                "alpha"
+            } else {
+                "beta"
+            };
+            let new_word = if new[0].canonical.text.contains("alpha") {
+                "alpha"
+            } else {
+                "beta"
+            };
+            let old_start = old[0]
+                .canonical
+                .text
+                .find(old_word)
+                .expect("old changed word exists");
+            let new_start = new[0]
+                .canonical
+                .text
+                .find(new_word)
+                .expect("new changed word exists");
             assert_eq!(
                 result.changes[0].occurrences[0].old_span,
                 Some(test_span(
                     old[0].block.0,
-                    0,
-                    old[0].canonical.text.chars().count(),
+                    old_start,
+                    old_start + old_word.len()
                 ))
             );
             assert_eq!(
                 result.changes[0].occurrences[0].new_span,
                 Some(test_span(
                     new[0].block.0,
-                    0,
-                    new[0].canonical.text.chars().count(),
+                    new_start,
+                    new_start + new_word.len()
                 ))
             );
+            assert_eq!(result.changes[0].confidence, Confidence::Medium);
             assert!(result.unresolved_regions.is_empty());
             assert_eq!(
                 result.old_coverage.resolved_tokens,
@@ -6484,15 +6888,25 @@ mod tests {
         let old_end = old_start + old_sentence.chars().count();
         let new_start = prefix.chars().count();
         let new_end = new_start + new_sentence.chars().count();
+        let old_change_start = old_text.find("alpha").expect("old changed word exists");
+        let new_change_start = new_text.find("beta").expect("new changed word exists");
         assert_eq!(
             result.changes,
             vec![ChangeEvent {
                 kind: ChangeKind::Replacement,
                 occurrences: vec![ChangeOccurrence {
-                    old_span: Some(test_span(12, old_start, old_end)),
-                    new_span: Some(test_span(13, new_start, new_end)),
+                    old_span: Some(test_span(
+                        12,
+                        old_change_start,
+                        old_change_start + "alpha".len(),
+                    )),
+                    new_span: Some(test_span(
+                        13,
+                        new_change_start,
+                        new_change_start + "beta".len(),
+                    )),
                 }],
-                confidence: Confidence::High,
+                confidence: Confidence::Medium,
                 tags: Vec::new(),
             }]
         );
@@ -6587,7 +7001,16 @@ mod tests {
                 .expect("unique near pair becomes a replacement");
             assert_eq!(
                 replacement.occurrences[0].new_span,
-                Some(test_span(15, 0, replacement_new.chars().count()))
+                Some(test_span(
+                    15,
+                    replacement_new
+                        .find("beta")
+                        .expect("new changed word exists"),
+                    replacement_new
+                        .find("beta")
+                        .expect("new changed word exists")
+                        + "beta".len(),
+                ))
             );
             assert_eq!(
                 result.old_coverage.resolved_tokens,
@@ -6649,22 +7072,17 @@ mod tests {
         ];
         let clean_run = [Some(TrustedRunId(1))];
         let split_run = [Some(TrustedRunId(2)), Some(TrustedRunId(2))];
-        let split_end = split
-            .iter()
-            .map(|block| block.canonical.text.chars().count())
-            .sum::<usize>()
-            + 1;
-        let clean_span = test_span(16, 0, clean[0].canonical.text.chars().count());
+        let clean_span = test_span(16, 0, "Alpha".len());
         let split_span = TextSpan {
             blocks: vec![BlockId(17), BlockId(18)],
             separator: Some(BlockSeparator::Space),
             canonical_range: ScalarRange {
                 start: 0,
-                end: split_end,
+                end: "Beta".len(),
             },
             comparable_range: TokenRange {
                 start: 0,
-                end: split_end,
+                end: "Beta".len(),
             },
         };
 
@@ -6700,12 +7118,20 @@ mod tests {
             assert_eq!(result.changes.len(), 1);
             assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
             assert_eq!(
-                result.changes[0].occurrences[0].old_span,
-                Some(expected_old)
+                result.changes[0].occurrences[0]
+                    .old_span
+                    .as_ref()
+                    .expect("replacement has old span")
+                    .blocks,
+                expected_old.blocks
             );
             assert_eq!(
-                result.changes[0].occurrences[0].new_span,
-                Some(expected_new)
+                result.changes[0].occurrences[0]
+                    .new_span
+                    .as_ref()
+                    .expect("replacement has new span")
+                    .blocks,
+                expected_new.blocks
             );
             assert!(result.unresolved_regions.is_empty());
             assert_eq!(
@@ -6840,8 +7266,13 @@ mod tests {
             DiffOptions::default(),
         );
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert!(!result.changes.is_empty());
+        assert!(
+            result
+                .changes
+                .iter()
+                .all(|change| change.confidence == Confidence::Medium)
+        );
         assert!(result.unresolved_regions.is_empty());
         assert_eq!(result.old_coverage.ratio, Some(1.0));
         assert_eq!(result.new_coverage.ratio, Some(1.0));
@@ -6876,9 +7307,16 @@ mod tests {
             DiffOptions::default(),
         );
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert!(!result.changes.is_empty());
+        assert!(
+            result
+                .changes
+                .iter()
+                .all(|change| change.confidence == Confidence::Medium)
+        );
         assert!(result.unresolved_regions.is_empty());
+        assert_eq!(result.old_coverage.ratio, Some(1.0));
+        assert_eq!(result.new_coverage.ratio, Some(1.0));
     }
 
     #[test]
@@ -7278,6 +7716,8 @@ mod tests {
                 &mut resolved_old,
                 &mut resolved_new,
                 &mut output_budget,
+                false,
+                &mut None,
             );
             assert!(committed.is_none());
             assert!(changes.is_empty());
@@ -7596,6 +8036,8 @@ mod tests {
             &mut resolved_old,
             &mut resolved_new,
             &mut output_budget,
+            false,
+            &mut None,
         );
         assert!(committed.is_none());
 
@@ -7762,10 +8204,28 @@ mod tests {
             vec![ChangeEvent {
                 kind: ChangeKind::Replacement,
                 occurrences: vec![ChangeOccurrence {
-                    old_span: Some(test_span(21, 0, old_parameter.chars().count())),
-                    new_span: Some(test_span(23, 0, new_parameter.chars().count())),
+                    old_span: Some(test_span(
+                        21,
+                        old_parameter
+                            .find("number")
+                            .expect("old changed word exists"),
+                        old_parameter
+                            .find("number")
+                            .expect("old changed word exists")
+                            + "number".len(),
+                    )),
+                    new_span: Some(test_span(
+                        23,
+                        new_parameter
+                            .find("value")
+                            .expect("new changed word exists"),
+                        new_parameter
+                            .find("value")
+                            .expect("new changed word exists")
+                            + "value".len(),
+                    )),
                 }],
-                confidence: Confidence::High,
+                confidence: Confidence::Medium,
                 tags: Vec::new(),
             }]
         );
@@ -7778,6 +8238,114 @@ mod tests {
             definition.chars().count() + new_parameter.chars().count()
         );
         assert!(result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn recovered_comma_deletion_reports_one_atomic_span_with_full_coverage() {
+        let old_text = "Toolkit support remains available, throughout this reviewed sentence.";
+        let new_text = "Toolkit support remains available throughout this reviewed sentence.";
+        let old = vec![sentence_block(24, old_text)];
+        let new = vec![sentence_block(25, new_text)];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2))],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        let comma = old_text.find(',').expect("comma exists");
+        assert_eq!(
+            result.changes,
+            vec![ChangeEvent {
+                kind: ChangeKind::Deletion,
+                occurrences: vec![ChangeOccurrence {
+                    old_span: Some(test_span(24, comma, comma + 1)),
+                    new_span: None,
+                }],
+                confidence: Confidence::Medium,
+                tags: Vec::new(),
+            }]
+        );
+        assert_eq!(
+            result.old_coverage.resolved_tokens,
+            old_text.chars().count()
+        );
+        assert_eq!(
+            result.new_coverage.resolved_tokens,
+            new_text.chars().count()
+        );
+        assert!(result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn recovered_replacement_edit_distance_failure_restores_original_unresolved() {
+        let old = vec![sentence_block(
+            28,
+            "The reviewed clause keeps every value except alpha.",
+        )];
+        let new = vec![sentence_block(
+            29,
+            "The reviewed clause keeps every value except beta.",
+        )];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let options = DiffOptions {
+            max_edit_distance: 1,
+            ..DiffOptions::default()
+        };
+
+        let result = compare_sentence_recovery_with_intervals(
+            &old,
+            &new,
+            &alignment,
+            &trusted_run_intervals(&[Some(TrustedRunId(1))]),
+            &trusted_run_intervals(&[Some(TrustedRunId(2))]),
+            5,
+            options,
+        );
+
+        assert!(result.changes.is_empty());
+        assert_eq!(result.unresolved_regions.len(), 1);
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
+    }
+
+    #[test]
+    fn recovered_replacements_share_normal_semantic_hunk_grouping() {
+        let old_text = "The reviewed clause keeps every alpha, value and every gamma marker.";
+        let new_text = "The reviewed clause keeps every beta; value and every delta marker.";
+        let old = vec![sentence_block(26, old_text)];
+        let new = vec![sentence_block(27, new_text)];
+        let aligned = compare_aligned(
+            &old,
+            &new,
+            &Alignment {
+                spans: vec![matched_span(vec![BlockId(26)], vec![BlockId(27)])],
+                main_anchors: Vec::new(),
+                move_candidates: Vec::new(),
+            },
+            DiffOptions::default(),
+        )
+        .expect("aligned comparison succeeds");
+        let recovered = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2))],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(recovered.changes.len(), aligned.changes.len());
+        for (recovered, aligned) in recovered.changes.iter().zip(&aligned.changes) {
+            assert_eq!(recovered.kind, aligned.kind);
+            assert_eq!(recovered.occurrences, aligned.occurrences);
+            assert_eq!(recovered.tags, aligned.tags);
+            assert_eq!(recovered.confidence, Confidence::Medium);
+        }
     }
 
     #[test]
@@ -8245,16 +8813,20 @@ mod tests {
             DiffOptions::default(),
         );
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
-        assert_eq!(
-            result.changes[0].occurrences[0].old_span,
-            Some(test_span(2, 0, full.chars().count()))
-        );
-        assert_eq!(
-            result.changes[0].occurrences[0].new_span,
-            Some(test_span(103, 0, suffix.chars().count()))
-        );
+        assert!(!result.changes.is_empty());
+        assert!(result.changes.iter().all(|change| {
+            change.confidence == Confidence::Medium
+                && change.occurrences.iter().all(|occurrence| {
+                    occurrence
+                        .old_span
+                        .as_ref()
+                        .is_none_or(|span| span.blocks == [BlockId(2)])
+                        && occurrence
+                            .new_span
+                            .as_ref()
+                            .is_none_or(|span| span.blocks == [BlockId(103)])
+                })
+        }));
     }
 
     #[test]
@@ -8343,11 +8915,24 @@ mod tests {
         assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
         assert_eq!(
             result.changes[0].occurrences[0].old_span,
-            Some(test_span(2, 0, old_clause.chars().count()))
+            Some(test_span(
+                2,
+                old_clause
+                    .find("will mostly")
+                    .expect("old changed phrase exists"),
+                old_clause
+                    .find("will mostly")
+                    .expect("old changed phrase exists")
+                    + "will mostly".len(),
+            ))
         );
         assert_eq!(
             result.changes[0].occurrences[0].new_span,
-            Some(test_span(102, 0, new_clause.chars().count()))
+            Some(test_span(
+                102,
+                new_clause.find("may").expect("new changed word exists"),
+                new_clause.find("may").expect("new changed word exists") + "may".len(),
+            ))
         );
     }
 
@@ -8385,16 +8970,20 @@ mod tests {
             DiffOptions::default(),
         );
 
-        assert_eq!(result.changes.len(), 1);
-        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
-        assert_eq!(
-            result.changes[0].occurrences[0].old_span,
-            Some(test_span(1, 0, full.chars().count()))
-        );
-        assert_eq!(
-            result.changes[0].occurrences[0].new_span,
-            Some(test_span(101, 0, suffix.chars().count()))
-        );
+        assert!(!result.changes.is_empty());
+        assert!(result.changes.iter().all(|change| {
+            change.confidence == Confidence::Medium
+                && change.occurrences.iter().all(|occurrence| {
+                    occurrence
+                        .old_span
+                        .as_ref()
+                        .is_none_or(|span| span.blocks == [BlockId(1)])
+                        && occurrence
+                            .new_span
+                            .as_ref()
+                            .is_none_or(|span| span.blocks == [BlockId(101)])
+                })
+        }));
     }
 
     #[test]
@@ -8763,7 +9352,7 @@ mod tests {
     }
 
     #[test]
-    fn atomic_diff_omits_uncertain_region_recovery() {
+    fn atomic_diff_omits_exact_uncertain_region_recovery() {
         let old = vec![sentence_block(1, "Same recovered sentence.")];
         let new = vec![sentence_block(2, "Same recovered sentence.")];
         let alignment =
@@ -8808,6 +9397,78 @@ mod tests {
                 .expect("atomic retention was requested")
                 .is_empty()
         );
+        assert!(
+            outcome
+                .recovered_atomic_diffs
+                .expect("recovery atomic retention was requested")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn atomic_diff_retains_uncertain_region_replacement_edits() {
+        let old_text = "The reviewed clause keeps every value except alpha.";
+        let new_text = "The reviewed clause keeps every value except beta.";
+        let old = vec![sentence_block(1, old_text)];
+        let new = vec![sentence_block(2, new_text)];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let old_intervals = [Some(TrustedRunInterval {
+            run_id: TrustedRunId(1),
+            start: 0,
+            end: 1,
+        })];
+        let new_intervals = [Some(TrustedRunInterval {
+            run_id: TrustedRunId(2),
+            start: 0,
+            end: 1,
+        })];
+
+        let outcome = compare_aligned_inner(
+            &old,
+            &new,
+            &alignment,
+            CompareAlignedConfig {
+                options: DiffOptions::default(),
+                recovery: Some(SentenceRecoveryInput {
+                    old_trusted_run_intervals: &old_intervals,
+                    new_trusted_run_intervals: &new_intervals,
+                    old_trusted_run_evidence: None,
+                    new_trusted_run_evidence: None,
+                    min_tokens: 5,
+                    enable_known_span_sentence_shadow: false,
+                    enable_sentence_edge_gate_shadow: false,
+                }),
+                watch_queries: None,
+                recovery_output_limits: RecoveryOutputLimits::default(),
+                retain_atomic_edits: true,
+            },
+        )
+        .expect("recovery comparison succeeds");
+
+        assert_eq!(outcome.comparison.changes.len(), 1);
+        assert_eq!(outcome.comparison.changes[0].confidence, Confidence::Medium);
+        assert!(
+            outcome
+                .matched_atomic_diffs
+                .expect("atomic retention was requested")
+                .is_empty()
+        );
+        let recovered = outcome
+            .recovered_atomic_diffs
+            .expect("recovery atomic retention was requested");
+        assert_eq!(recovered.len(), 1);
+        assert_eq!(recovered[0].old_alignment_span_index, 0);
+        assert_eq!(recovered[0].new_alignment_span_index, 0);
+        assert_eq!(
+            recovered[0].old_context,
+            test_span(1, 0, old_text.chars().count())
+        );
+        assert_eq!(
+            recovered[0].new_context,
+            test_span(2, 0, new_text.chars().count())
+        );
+        assert!(!recovered[0].edits.is_empty());
     }
 
     #[test]

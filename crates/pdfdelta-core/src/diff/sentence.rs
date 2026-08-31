@@ -45,7 +45,7 @@ use super::recovery::{
     },
 };
 use super::{
-    ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
+    AtomicEdit, ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
     LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentFlatExactBoundaryShadowMetrics,
     LocalFragmentFlatExactBoundaryStopReason, LocalFragmentFlatExactBoundaryWorkMetrics,
     LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
@@ -116,6 +116,31 @@ pub(super) struct RecoveredSentence {
 pub(super) struct RecoveredReplacement {
     pub old: RecoveredSentence,
     pub new: RecoveredSentence,
+    pub relation: RecoveryRelationEvidence,
+    pub edits: Option<Vec<AtomicEdit>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RecoveryRelationEvidence {
+    pub old_best_score: u16,
+    pub old_second_score: u16,
+    pub old_best_scope: Option<RecoveryWatchNearScope>,
+    pub new_best_score: u16,
+    pub new_second_score: u16,
+    pub new_best_scope: Option<RecoveryWatchNearScope>,
+}
+
+impl RecoveryRelationEvidence {
+    pub(super) fn is_accepted(&self) -> bool {
+        let accepted = |best_score: u16, second_score: u16| {
+            best_score >= MIN_NEAR_SCORE
+                && best_score
+                    .checked_sub(second_score)
+                    .is_some_and(|margin| margin >= MIN_NEAR_SCORE_MARGIN)
+        };
+        accepted(self.old_best_score, self.old_second_score)
+            && accepted(self.new_best_score, self.new_second_score)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -142,30 +167,6 @@ impl SentenceRecoveryPlan {
         !self.matches.is_empty()
             || !self.cross_span_match_old.is_empty()
             || !self.cross_span_match_new.is_empty()
-    }
-
-    pub fn has_cross_span_recovery(&self) -> bool {
-        !self.cross_span_match_old.is_empty()
-            || !self.cross_span_match_new.is_empty()
-            || !self.cross_span_replacement_new_spans.is_empty()
-    }
-
-    pub fn has_repeated_recovery_candidates(&self) -> bool {
-        [&self.deletions, &self.insertions]
-            .into_iter()
-            .any(|recoveries| {
-                let mut seen = [false; 4];
-                recoveries.iter().any(|recovery| {
-                    let index = match (recovery.kind, recovery.role) {
-                        (_, OccurrenceRole::Body) => return false,
-                        (RecoveryUnitKind::Sentence, OccurrenceRole::RepeatedHeader) => 0,
-                        (RecoveryUnitKind::Sentence, OccurrenceRole::RepeatedFooter) => 1,
-                        (RecoveryUnitKind::Line, OccurrenceRole::RepeatedHeader) => 2,
-                        (RecoveryUnitKind::Line, OccurrenceRole::RepeatedFooter) => 3,
-                    };
-                    std::mem::replace(&mut seen[index], true)
-                })
-            })
     }
 
     pub fn has_recovery(&self, span_index: usize) -> bool {
@@ -4374,6 +4375,17 @@ impl CandidateNearRelation {
         self.best_score = self.best_score.max(MIN_NEAR_SCORE);
         self.best_partner = None;
         self.best_scope = None;
+    }
+
+    fn reciprocal_evidence(self, reciprocal: Self) -> RecoveryRelationEvidence {
+        RecoveryRelationEvidence {
+            old_best_score: self.best_score,
+            old_second_score: self.second_score,
+            old_best_scope: self.best_scope,
+            new_best_score: reciprocal.best_score,
+            new_second_score: reciprocal.second_score,
+            new_best_scope: reciprocal.best_scope,
+        }
     }
 }
 
@@ -21395,6 +21407,11 @@ fn append_replacements_typed(
         else {
             continue;
         };
+        let new_relation = relations
+            .new
+            .get(new_candidate_index)
+            .copied()
+            .ok_or(SentenceEdgeGateShadowStopReason::DiagnosticFailure)?;
         let old_occurrence_index = old_candidates
             .get(old_candidate_index)
             .ok_or(SentenceEdgeGateShadowStopReason::DiagnosticFailure)?
@@ -21418,6 +21435,8 @@ fn append_replacements_typed(
         plan.replacements.push(RecoveredReplacement {
             old: old_location.recovery,
             new: new_location.recovery,
+            relation: old_relation.reciprocal_evidence(new_relation),
+            edits: None,
         });
         let replacement = plan
             .replacements
@@ -27491,6 +27510,36 @@ mod tests {
 
         assert!(relation.vetoed());
         assert_eq!(relation.unique_partner(), None);
+    }
+
+    #[test]
+    fn reciprocal_replacement_evidence_preserves_directional_scores_and_scopes() {
+        let mut old = CandidateNearRelation::default();
+        old.record_eligible_in_scope(3, 8_100, RecoveryWatchNearScope::SameSpan);
+        old.record_eligible_in_scope(4, 6_900, RecoveryWatchNearScope::CrossSpan);
+        let mut new = CandidateNearRelation::default();
+        new.record_eligible_in_scope(7, 7_800, RecoveryWatchNearScope::PairedStream);
+        new.record_eligible_in_scope(8, 6_700, RecoveryWatchNearScope::AmbiguousSpan);
+
+        let evidence = old.reciprocal_evidence(new);
+        assert_eq!(
+            evidence,
+            RecoveryRelationEvidence {
+                old_best_score: 8_100,
+                old_second_score: 6_900,
+                old_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+                new_best_score: 7_800,
+                new_second_score: 6_700,
+                new_best_scope: Some(RecoveryWatchNearScope::PairedStream),
+            }
+        );
+        assert!(evidence.is_accepted());
+
+        let rejected = RecoveryRelationEvidence {
+            new_second_score: 7_301,
+            ..evidence
+        };
+        assert!(!rejected.is_accepted());
     }
 
     #[test]

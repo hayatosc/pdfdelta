@@ -1,7 +1,9 @@
 use pdfdelta_core::{
     Error, Result,
     alignment::AlignmentOptions,
-    diff::{ChangeKind, ChangeTag, Comparison, DiffOptions, FormattingReason},
+    diff::{
+        ChangeKind, ChangeTag, Comparison, Confidence, DiffOptions, FormattingReason, TokenRange,
+    },
     layout::{BlockOptions, LineOptions, LineTextDirection, reconstruct_blocks, reconstruct_lines},
     model::{
         DecodedText, Document, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
@@ -12,6 +14,7 @@ use pdfdelta_core::{
         PipelineDiagnostics, PipelineErrorKind, PipelineOptions, PipelinePhase,
         PipelinePhaseStatus, compare_extraction_outcomes,
         compare_extraction_outcomes_with_alignment_diagnostics,
+        compare_extraction_outcomes_with_atomic_edits,
         compare_extraction_outcomes_with_diagnostics, compare_glyph_documents,
     },
     report::{DocumentSide, ExitStatus, exit_status, summarize},
@@ -351,7 +354,56 @@ fn complete_unknown_order_recovers_unique_modified_sentences() -> Result<()> {
 
     let comparison = compare_glyph_documents(&old, &new, options)?;
 
-    assert_single_change_with_unresolved(&comparison, ChangeKind::Replacement);
+    assert_eq!(comparison.changes.len(), 3, "{comparison:#?}");
+    assert_eq!(
+        comparison
+            .changes
+            .iter()
+            .map(|change| change.kind)
+            .collect::<Vec<_>>(),
+        [
+            ChangeKind::Replacement,
+            ChangeKind::Insertion,
+            ChangeKind::Replacement,
+        ]
+    );
+    assert!(
+        comparison
+            .changes
+            .iter()
+            .all(|change| change.confidence == Confidence::Medium)
+    );
+    let ranges = comparison
+        .changes
+        .iter()
+        .map(|change| {
+            let occurrence = &change.occurrences[0];
+            (
+                occurrence
+                    .old_span
+                    .as_ref()
+                    .map(|span| span.comparable_range),
+                occurrence
+                    .new_span
+                    .as_ref()
+                    .map(|span| span.comparable_range),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        ranges,
+        [
+            (
+                Some(TokenRange { start: 52, end: 62 }),
+                Some(TokenRange { start: 52, end: 59 }),
+            ),
+            (None, Some(TokenRange { start: 72, end: 76 })),
+            (
+                Some(TokenRange { start: 76, end: 82 }),
+                Some(TokenRange { start: 77, end: 80 }),
+            ),
+        ]
+    );
     assert!(!comparison.unresolved_regions.is_empty());
     assert!(comparison.unresolved_regions.iter().all(|region| {
         region.evidence == [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
@@ -499,6 +551,68 @@ fn partial_render_order_uncertainty_recovers_one_line_beside_a_safe_replacement(
     )?;
 
     assert_single_change(&outcome.comparison, ChangeKind::Replacement);
+    Ok(())
+}
+
+#[test]
+fn pipeline_atomic_trace_retains_recovered_replacement_edits() -> Result<()> {
+    let old = document(&[
+        line_at("Left context remains open", 0, 0.0, 300.0),
+        line_at("Right context remains open", 0, 300.0, 300.0),
+        line_at("Left remainder stays open", 0, 0.0, 288.0),
+        line_at("Right remainder stays open", 0, 300.0, 288.0),
+        line_at("The legacy sentence is removed.", 0, 0.0, 276.0),
+        line_at("Right tail remains open", 0, 300.0, 276.0),
+    ]);
+    let new = document(&[
+        line_at("Left context remains open", 0, 0.0, 300.0),
+        line_at("Right context remains open", 0, 300.0, 300.0),
+        line_at("Left remainder stays open", 0, 0.0, 288.0),
+        line_at("Right remainder stays open", 0, 300.0, 288.0),
+        line_at("A fresh sentence is inserted.", 0, 0.0, 276.0),
+        line_at("Right tail remains open", 0, 300.0, 276.0),
+    ]);
+    let options = PipelineOptions {
+        alignment: AlignmentOptions {
+            anchor_min_tokens: 4,
+            ..AlignmentOptions::default()
+        },
+        ..PipelineOptions::default()
+    };
+    let comparison = compare_glyph_documents(&old, &new, options)?;
+    let mut diagnostics = PipelineDiagnostics::new();
+
+    let traced = compare_extraction_outcomes_with_atomic_edits(
+        ExtractionOutcome::complete(old),
+        ExtractionOutcome::complete(new),
+        options,
+        &mut diagnostics,
+    )?;
+
+    assert_eq!(traced.outcome.comparison, comparison);
+    assert!(traced.alignment.is_some());
+    let [recovered] = traced.recovered_atomic_diffs.as_slice() else {
+        panic!(
+            "expected one recovered replacement trace, got {:#?}",
+            traced.recovered_atomic_diffs
+        );
+    };
+    assert!(!recovered.edits.is_empty());
+    assert!(
+        recovered
+            .edits
+            .iter()
+            .all(|edit| edit.old.is_empty() != edit.new.is_empty())
+    );
+    let old_context_tokens =
+        recovered.old_context.comparable_range.end - recovered.old_context.comparable_range.start;
+    let new_context_tokens =
+        recovered.new_context.comparable_range.end - recovered.new_context.comparable_range.start;
+    assert!(
+        recovered.edits.iter().all(|edit| {
+            edit.old.end <= old_context_tokens && edit.new.end <= new_context_tokens
+        })
+    );
     Ok(())
 }
 

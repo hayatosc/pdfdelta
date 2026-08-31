@@ -7,13 +7,15 @@ use crate::{
         validate_ngram_size,
     },
     diff::{
-        Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, RecoveryWatchDiagnostics,
-        RecoveryWatchQuery, SentenceRecoveryInput, SentenceRecoveryMetrics,
-        TrustedRunRecoveryInput, compare_aligned,
+        Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, MatchedAtomicDiff, RecoveredAtomicDiff,
+        RecoveryWatchDiagnostics, RecoveryWatchQuery, SentenceRecoveryInput,
+        SentenceRecoveryMetrics, TrustedRunRecoveryInput, compare_aligned,
+        compare_aligned_with_atomic_edits,
         compare_aligned_with_known_span_sentence_shadow_diagnostics,
         compare_aligned_with_recovery_watch_diagnostics,
-        compare_aligned_with_sentence_recovery_metrics, enforce_diff_raw_token_budget,
-        enforce_diff_token_budget, validate_diff_options,
+        compare_aligned_with_sentence_recovery_metrics,
+        compare_aligned_with_sentence_recovery_metrics_and_atomic_edits,
+        enforce_diff_raw_token_budget, enforce_diff_token_budget, validate_diff_options,
     },
     layout::{
         BlockOptions, LayoutIssue, LineOptions, TrustedRegionEdge, TrustedRunDescriptor,
@@ -124,12 +126,48 @@ pub struct ComparisonOutcomeWithRecoveryWatch {
     pub diagnostics: Option<RecoveryWatchDiagnostics>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ComparisonOutcomeWithAtomicEdits {
+    pub outcome: ComparisonOutcome,
+    pub alignment: Option<Alignment>,
+    pub matched_atomic_diffs: Vec<MatchedAtomicDiff>,
+    pub recovered_atomic_diffs: Vec<RecoveredAtomicDiff>,
+}
+
+struct InstrumentedComparisonOutcome {
+    outcome: ComparisonOutcome,
+    alignment: Option<Alignment>,
+    recovery_watch_diagnostics: Option<RecoveryWatchDiagnostics>,
+    matched_atomic_diffs: Vec<MatchedAtomicDiff>,
+    recovered_atomic_diffs: Vec<RecoveredAtomicDiff>,
+}
+
+impl InstrumentedComparisonOutcome {
+    fn into_recovery_watch(self) -> ComparisonOutcomeWithRecoveryWatch {
+        ComparisonOutcomeWithRecoveryWatch {
+            outcome: self.outcome,
+            alignment: self.alignment,
+            diagnostics: self.recovery_watch_diagnostics,
+        }
+    }
+}
+
 struct ValidatedComparisonOutcome {
     comparison: Comparison,
     old_blocks: Vec<BlockText>,
     new_blocks: Vec<BlockText>,
     alignment: Alignment,
     recovery_watch_diagnostics: Option<RecoveryWatchDiagnostics>,
+    matched_atomic_diffs: Vec<MatchedAtomicDiff>,
+    recovered_atomic_diffs: Vec<RecoveredAtomicDiff>,
+}
+
+#[derive(Clone, Copy)]
+struct ExtractionComparisonInstrumentation<'a> {
+    watch_queries: &'a [RecoveryWatchQuery<'a>],
+    enable_known_span_sentence_shadow: bool,
+    enable_sentence_edge_gate_shadow: bool,
+    retain_atomic_edits: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -140,6 +178,7 @@ struct ComparisonInstrumentation<'a> {
     watch_queries: &'a [RecoveryWatchQuery<'a>],
     enable_known_span_sentence_shadow: bool,
     enable_sentence_edge_gate_shadow: bool,
+    retain_atomic_edits: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -364,9 +403,12 @@ pub fn compare_extraction_outcomes_with_alignment_diagnostics(
         new,
         options,
         diagnostics,
-        &[],
-        false,
-        false,
+        ExtractionComparisonInstrumentation {
+            watch_queries: &[],
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
+            retain_atomic_edits: false,
+        },
     )
     .map(|outcome| (outcome.outcome, outcome.alignment))
 }
@@ -388,10 +430,50 @@ pub fn compare_extraction_outcomes_with_recovery_watch_diagnostics(
         new,
         options,
         diagnostics,
-        watch_queries,
-        false,
-        false,
+        ExtractionComparisonInstrumentation {
+            watch_queries,
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
+            retain_atomic_edits: false,
+        },
     )
+    .map(InstrumentedComparisonOutcome::into_recovery_watch)
+}
+
+/// Compares extracted documents while retaining exact edit traces from both
+/// accepted alignment matches and uncertain-region replacements.
+///
+/// The alignment is `None` and both trace lists are empty when a
+/// document-scoped extraction issue suppresses the diff.
+///
+/// # Errors
+///
+/// Returns an error when configuration validation, layout reconstruction,
+/// alignment, exact diffing, trace retention, or a resource limit fails.
+pub fn compare_extraction_outcomes_with_atomic_edits(
+    old: ExtractionOutcome,
+    new: ExtractionOutcome,
+    options: PipelineOptions,
+    diagnostics: &mut PipelineDiagnostics,
+) -> Result<ComparisonOutcomeWithAtomicEdits> {
+    compare_extraction_outcomes_with_recovery_watch_inner(
+        old,
+        new,
+        options,
+        diagnostics,
+        ExtractionComparisonInstrumentation {
+            watch_queries: &[],
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: false,
+            retain_atomic_edits: true,
+        },
+    )
+    .map(|outcome| ComparisonOutcomeWithAtomicEdits {
+        outcome: outcome.outcome,
+        alignment: outcome.alignment,
+        matched_atomic_diffs: outcome.matched_atomic_diffs,
+        recovered_atomic_diffs: outcome.recovered_atomic_diffs,
+    })
 }
 
 /// Compares extracted documents and records the Sentence edge-gate shadow.
@@ -414,9 +496,12 @@ pub fn compare_extraction_outcomes_with_sentence_edge_gate_shadow_diagnostics(
         new,
         options,
         diagnostics,
-        &[],
-        false,
-        true,
+        ExtractionComparisonInstrumentation {
+            watch_queries: &[],
+            enable_known_span_sentence_shadow: false,
+            enable_sentence_edge_gate_shadow: true,
+            retain_atomic_edits: false,
+        },
     )
     .map(|outcome| outcome.outcome)
 }
@@ -442,10 +527,14 @@ pub fn compare_extraction_outcomes_with_known_span_sentence_shadow_diagnostics(
         new,
         options,
         diagnostics,
-        watch_queries,
-        true,
-        true,
+        ExtractionComparisonInstrumentation {
+            watch_queries,
+            enable_known_span_sentence_shadow: true,
+            enable_sentence_edge_gate_shadow: true,
+            retain_atomic_edits: false,
+        },
     )
+    .map(InstrumentedComparisonOutcome::into_recovery_watch)
 }
 
 fn compare_extraction_outcomes_with_recovery_watch_inner(
@@ -453,10 +542,8 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
     new: ExtractionOutcome,
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
-    watch_queries: &[RecoveryWatchQuery<'_>],
-    enable_known_span_sentence_shadow: bool,
-    enable_sentence_edge_gate_shadow: bool,
-) -> Result<ComparisonOutcomeWithRecoveryWatch> {
+    instrumentation: ExtractionComparisonInstrumentation<'_>,
+) -> Result<InstrumentedComparisonOutcome> {
     diagnostics.begin();
     let options = match options.validate() {
         Ok(options) => options,
@@ -491,12 +578,14 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
                 old_issue_boundaries: &[],
                 new_issue_boundaries: &[],
                 enable_sentence_recovery: true,
-                watch_queries,
-                enable_known_span_sentence_shadow,
-                enable_sentence_edge_gate_shadow,
+                watch_queries: instrumentation.watch_queries,
+                enable_known_span_sentence_shadow: instrumentation
+                    .enable_known_span_sentence_shadow,
+                enable_sentence_edge_gate_shadow: instrumentation.enable_sentence_edge_gate_shadow,
+                retain_atomic_edits: instrumentation.retain_atomic_edits,
             },
         )?;
-        return Ok(ComparisonOutcomeWithRecoveryWatch {
+        return Ok(InstrumentedComparisonOutcome {
             outcome: ComparisonOutcome {
                 comparison: compared.comparison,
                 extraction: ExtractionStatus::complete(),
@@ -506,7 +595,9 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
                 new_glyph_evidence,
             },
             alignment: Some(compared.alignment),
-            diagnostics: compared.recovery_watch_diagnostics,
+            recovery_watch_diagnostics: compared.recovery_watch_diagnostics,
+            matched_atomic_diffs: compared.matched_atomic_diffs,
+            recovered_atomic_diffs: compared.recovered_atomic_diffs,
         });
     }
 
@@ -529,9 +620,11 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
                 old_issue_boundaries: &old_gap_boundaries,
                 new_issue_boundaries: &new_gap_boundaries,
                 enable_sentence_recovery: false,
-                watch_queries,
-                enable_known_span_sentence_shadow,
-                enable_sentence_edge_gate_shadow,
+                watch_queries: instrumentation.watch_queries,
+                enable_known_span_sentence_shadow: instrumentation
+                    .enable_known_span_sentence_shadow,
+                enable_sentence_edge_gate_shadow: instrumentation.enable_sentence_edge_gate_shadow,
+                retain_atomic_edits: instrumentation.retain_atomic_edits,
             },
         )?;
         if !old_complete {
@@ -541,7 +634,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
             compared.comparison.new_coverage.ratio = None;
         }
         let issues = extraction_issue_records(old_issues, new_issues);
-        return Ok(ComparisonOutcomeWithRecoveryWatch {
+        return Ok(InstrumentedComparisonOutcome {
             outcome: ComparisonOutcome {
                 comparison: compared.comparison,
                 extraction: ExtractionStatus {
@@ -555,7 +648,9 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
                 new_glyph_evidence,
             },
             alignment: Some(compared.alignment),
-            diagnostics: compared.recovery_watch_diagnostics,
+            recovery_watch_diagnostics: compared.recovery_watch_diagnostics,
+            matched_atomic_diffs: compared.matched_atomic_diffs,
+            recovered_atomic_diffs: compared.recovered_atomic_diffs,
         });
     }
 
@@ -564,7 +659,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
     let issues = extraction_issue_records(old_issues, new_issues);
 
     // Incomplete extraction suppresses the diff to prevent false comparison output.
-    Ok(ComparisonOutcomeWithRecoveryWatch {
+    Ok(InstrumentedComparisonOutcome {
         outcome: ComparisonOutcome {
             comparison: Comparison {
                 changes: Vec::new(),
@@ -584,7 +679,9 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
             new_glyph_evidence,
         },
         alignment: None,
-        diagnostics: None,
+        recovery_watch_diagnostics: None,
+        matched_atomic_diffs: Vec::new(),
+        recovered_atomic_diffs: Vec::new(),
     })
 }
 
@@ -620,6 +717,7 @@ fn compare_validated_glyph_documents(
             watch_queries: &[],
             enable_known_span_sentence_shadow: false,
             enable_sentence_edge_gate_shadow: false,
+            retain_atomic_edits: false,
         },
     )
     .map(|outcome| {
@@ -828,6 +926,8 @@ fn compare_validated_glyph_documents_inner(
                 outcome.comparison,
                 outcome.sentence_recovery_metrics,
                 outcome.recovery_watch_diagnostics,
+                Vec::new(),
+                Vec::new(),
             )
         })
     } else if instrumentation.enable_sentence_recovery && !instrumentation.watch_queries.is_empty()
@@ -845,7 +945,36 @@ fn compare_validated_glyph_documents_inner(
                 outcome.comparison,
                 outcome.sentence_recovery_metrics,
                 outcome.recovery_watch_diagnostics,
+                Vec::new(),
+                Vec::new(),
             )
+        })
+    } else if instrumentation.enable_sentence_recovery && instrumentation.retain_atomic_edits {
+        compare_aligned_with_sentence_recovery_metrics_and_atomic_edits(
+            &old,
+            &new,
+            &alignment,
+            options.diff,
+            recovery,
+        )
+        .and_then(|outcome| {
+            let matched_atomic_diffs = outcome.matched_atomic_diffs.ok_or_else(|| {
+                Error::Unresolved(
+                    "atomic diff retention did not initialize matched output".to_owned(),
+                )
+            })?;
+            let recovered_atomic_diffs = outcome.recovered_atomic_diffs.ok_or_else(|| {
+                Error::Unresolved(
+                    "atomic diff retention did not initialize recovery output".to_owned(),
+                )
+            })?;
+            Ok((
+                outcome.comparison,
+                outcome.sentence_recovery_metrics,
+                None,
+                matched_atomic_diffs,
+                recovered_atomic_diffs,
+            ))
         })
     } else if instrumentation.enable_sentence_recovery {
         compare_aligned_with_sentence_recovery_metrics(
@@ -855,12 +984,36 @@ fn compare_validated_glyph_documents_inner(
             options.diff,
             recovery,
         )
-        .map(|outcome| (outcome.comparison, outcome.sentence_recovery_metrics, None))
+        .map(|outcome| {
+            (
+                outcome.comparison,
+                outcome.sentence_recovery_metrics,
+                None,
+                Vec::new(),
+                Vec::new(),
+            )
+        })
+    } else if instrumentation.retain_atomic_edits {
+        compare_aligned_with_atomic_edits(&old, &new, &alignment, options.diff).map(|outcome| {
+            (
+                outcome.comparison,
+                None,
+                None,
+                outcome.matched_atomic_diffs,
+                Vec::new(),
+            )
+        })
     } else {
         compare_aligned(&old, &new, &alignment, options.diff)
-            .map(|comparison| (comparison, None, None))
+            .map(|comparison| (comparison, None, None, Vec::new(), Vec::new()))
     };
-    let (comparison, sentence_recovery_metrics, recovery_watch_diagnostics) = phase_result(
+    let (
+        comparison,
+        sentence_recovery_metrics,
+        recovery_watch_diagnostics,
+        matched_atomic_diffs,
+        recovered_atomic_diffs,
+    ) = phase_result(
         diagnostics,
         PipelinePhase::ExactDiff,
         None,
@@ -883,6 +1036,8 @@ fn compare_validated_glyph_documents_inner(
         new_blocks: new,
         alignment,
         recovery_watch_diagnostics,
+        matched_atomic_diffs,
+        recovered_atomic_diffs,
     })
 }
 
