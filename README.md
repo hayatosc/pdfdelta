@@ -300,7 +300,7 @@ ended `LIMIT`/`FAIL`; low quality scores never fail a run because the dated
 captures serve as calibration evidence and current fragmentation and recall
 remain too unstable for rigid quality-gate thresholds (confidence calibration
 has landed, but broader large-document alignment quality remains ongoing work).
-Compact revision summaries use schema version 35 and include optional nested
+Compact revision summaries use schema version 36 and include optional nested
 sentence-recovery diagnostics, near-search examined and attempted work,
 Sentence/Line, search-scope, and known/ambiguous-span work attribution,
 diagnostic-only Sentence shadow relations, paired-anchor cross-span locality,
@@ -319,7 +319,10 @@ bounded one- and two-sided expected-change recovery watches with retained
 occurrence evidence for single-unit or adjacent-unit
 segment locations, exact segment-pair candidate and classification counters,
 per-record exact segment-pair evidence, existing candidate scores and
-relations, reciprocal status, and typed stop evidence,
+relations, reciprocal status, typed stop evidence, and diagnostic-only
+one-sided veto provenance with the authoritative best opponent, actual search
+scope, and at most two observed opponents with descriptor geometry and
+containment when available,
 bounded Clause/ListItem unit boundaries, locations, best-partner relations,
 tie and exactness evidence, aggregate work counts, completion, and typed stops,
 optional exact expected occurrence counts with bounded deterministic event
@@ -348,7 +351,7 @@ files without overwriting existing destinations). If the second publication fail
 exit code 2 is returned and the first published artifact remains in place without
 pairwise rollback across distinct paths. Dated compact evaluation summaries are
 recorded under [`benchmark/realworld/results/`](benchmark/realworld/results/README.md)
-(latest: [`2026-08-31-08cc0c6.json`](benchmark/realworld/results/2026-08-31-08cc0c6.json)).
+(latest: [`2026-08-31-85c799d.json`](benchmark/realworld/results/2026-08-31-85c799d.json)).
 
 ## License
 
@@ -425,7 +428,9 @@ Text reports are written to standard output as contextual unified-diff hunks: a 
 
   The [`447927d`](benchmark/realworld/results/2026-08-31-447927d.json) schema-v34 capture packs exact FIRST/LAST provenance into the existing one-word legacy candidate postings and reuses it during independent reference classification. All eight reference oracles complete with identical plans and retained-pair count, set, and order fingerprints. LibreOffice classifies all 18,853,226 broad pairs with 24,943,792 edge comparisons under the unchanged 32,000,000 cap. Removing the reference-oracle object produces exact `e254b48` parity for every other field; production activation remains deferred pending the candidate-overhead and full-build fallback gates.
 
-  The [`08cc0c6`](benchmark/realworld/results/2026-08-31-08cc0c6.json) schema-v35 capture activates exact edge-signature traversal in production. All 18 available Direct builds are accepted and complete, all six former legacy fallbacks are eliminated, and the 12 previously complete paths preserve their comparison and quality fields. On the six newly completed paths, Direct generates 1,633,897 candidates instead of the completed reference oracles' 31,842,858 broad candidates, a 94.87% reduction, with zero broad Sentence posting visits. The capture is traversal evidence rather than a passed quality gate: SP 800-57 reviewed recall falls from 0.875 to 0.750 as `toolkit-footnote-removed` becomes unresolved, even though scoped event precision rises from 0.600 to 1.000; one-sided veto diagnostics are the next investigation.
+  The [`08cc0c6`](benchmark/realworld/results/2026-08-31-08cc0c6.json) schema-v35 capture activates exact edge-signature traversal in production. All 18 available Direct builds are accepted and complete, all six former legacy fallbacks are eliminated, and the 12 previously complete paths preserve their comparison and quality fields. On the six newly completed paths, Direct generates 1,633,897 candidates instead of the completed reference oracles' 31,842,858 broad candidates, a 94.87% reduction, with zero broad Sentence posting visits. Its apparent SP 800-57 recall regression led to a review of the expected deletion.
+
+  The [`85c799d`](benchmark/realworld/results/2026-08-31-85c799d.json) schema-v36 capture adds bounded one-sided veto provenance without changing any comparison field or complete-scope metric. The review confirmed that the SP 800-57 toolkit footnote exists in both revisions and removes only the comma before `rather`; the annotation is now a replacement. Its counterpart remains unresolved because the watched whole-Sentence units are in different spans, score only 2,347 against each other, and each side has tied 10,000-point competing relations. The next diagnostic therefore targets quote-local fragment or clause boundaries without changing thresholds or margins.
 
 ## Contributing
 

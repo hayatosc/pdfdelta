@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`08cc0c6`](https://github.com/hayatosc/pdfdelta/commit/08cc0c6)
+- **Generator / engine commit**: [`85c799d`](https://github.com/hayatosc/pdfdelta/commit/85c799d)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-08cc0c6.json`](2026-08-31-08cc0c6.json)
-  - Schema: v35
-  - Size: 633,643 bytes
-  - SHA-256: `8c157d449fc6f80e4e1b13e300c46e9385c00d3580702ae94a1e2a77847dc988`
+  - File: [`2026-08-31-85c799d.json`](2026-08-31-85c799d.json)
+  - Schema: v36
+  - Size: 1,449,049 bytes
+  - SHA-256: `411d59577fdc9a153a67a437169bfade0d222d13c6be88bde611330bb0fc7894`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -27,7 +27,7 @@ mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
   /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-31-08cc0c6.json
+  benchmark/realworld/results/2026-08-31-85c799d.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -110,12 +110,23 @@ both directions:
 | `oasis-mqtt-311-to-50` | 48.86% -> 30.45% | 1,884 -> 1,134 |
 | `libreoffice-getting-started-74-to-75` | 36.50% -> 39.42% | 863 -> 2,028 |
 
-This is production-traversal evidence, not a passed quality gate. SP 800-57
-global reviewed recall regresses from 0.875 to 0.750 because
-`toolkit-footnote-removed` becomes reading-order unresolved. Its scoped event
-precision improves from 0.600 to 1.000, while scoped token recall falls from
-0.824 to 0.664. The next investigation is one-sided veto diagnostics; thresholds
-and margins remain unchanged.
+This is production-traversal evidence, not a passed quality gate. Schema v36
+leaves every comparison field and every complete-scope metric identical to
+schema v35. It corrects the SP 800-57 toolkit expectation: the footnote exists
+in both revisions, and Rev. 5 removes only the comma before `rather`. The
+reviewed replacement counterpart count therefore rises from three of three to
+four of four evaluable pairs at candidate recall@32, while global reviewed
+recall remains 0.750.
+
+The corrected counterpart is found on page 16 in both revisions, but its
+whole-Sentence units occupy spans 32 and 42 and score only 2,347 against each
+other. Each side instead has tied best and second relation scores of 10,000,
+and the watched pair is neither best nor reciprocal. The next investigation is
+a behavior-neutral quote-local fragment or clause-boundary diagnostic;
+thresholds and margins remain unchanged. Across all watches, schema v36 records
+218 bounded one-sided evidence items in 12 records, 434 observed opponents, and
+157 authoritative eligible best opponents. None reaches the production veto
+threshold, so these diagnostics do not justify a one-sided behavior change.
 
 The `447927d` schema-v34 capture remains the historical reference-oracle proof.
 It preserves candidate keys, posting counts, and ordering while packing exact
@@ -297,10 +308,18 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v35)
+## Current Writer Schema (v36)
 
-The benchmark writer and latest committed capture use schema v35. Older
-captures retain their recorded schemas. Schema v35 records whether direct
+The benchmark writer and latest committed capture use schema v36. Older
+captures retain their recorded schemas. Schema v36 adds diagnostic-only
+one-sided recovery-veto evidence to each expected-change watch. It records the
+watched side, relation availability, veto state, best and second scores, the
+production-selected eligible opponent and its actual near-search scope, plus
+at most two observed opponents, including descriptor-backed geometry and
+containment when available.
+Same-span, ambiguous-span, cross-span, and paired-stream scopes remain distinct.
+If this bounded sidecar cannot be completed, its partial evidence is discarded
+without changing the comparison plan. Schema v35 records whether direct
 edge-signature work is a diagnostic shadow replay, an accepted production
 result, or discarded production work followed by the atomic legacy fallback.
 The associated direct metrics are present only with this execution provenance;
@@ -544,7 +563,10 @@ Each record includes:
 - `expected_change_diagnostics`, including classified miss reasons and a
   distinct `alignment_span_mismatch` reason when a recalled counterpart was
   assigned to separate old/new alignment spans, plus optional recovery-watch
-  occurrence, candidate, score, relation, and stop evidence;
+  occurrence, candidate, score, relation, and stop evidence. One-sided watch
+  records also expose bounded veto provenance, the authoritative eligible best
+  opponent when present, actual near-search scope, and up to two observed
+  opponents;
 - `candidate_recall` for reviewed replacement counterparts;
 - `sentence_recovery_metrics`, including exact matches, near replacements, recovered insertions/deletions, vetoes, remainders, structural and exact-signature trusted-run evidence, and whether bounded searches completed within their budgets.
 
@@ -552,7 +574,8 @@ Each record includes:
 
 ## Historical Captures
 
-- [`2026-08-31-08cc0c6.json`](2026-08-31-08cc0c6.json): schema-v35 production Direct traversal; all 18 available builds are accepted and complete, while SP 800-57 exposes a reviewed-recall regression that keeps this capture below the quality gate.
+- [`2026-08-31-85c799d.json`](2026-08-31-85c799d.json): schema-v36 bounded one-sided veto provenance and the corrected SP 800-57 toolkit-footnote replacement annotation; comparison fields and complete-scope metrics remain identical to schema v35.
+- [`2026-08-31-08cc0c6.json`](2026-08-31-08cc0c6.json): schema-v35 production Direct traversal; all 18 available builds are accepted and complete. Its apparent SP 800-57 regression triggered review of the incorrect toolkit-footnote deletion expectation.
 - [`2026-08-31-447927d.json`](2026-08-31-447927d.json): schema-v34 completed reference-oracle evidence before production Direct activation.
 - [`2026-08-30-f0ffe19.json`](2026-08-30-f0ffe19.json): schema-v23 relation-floor probe before retaining pair-complete observations from budget-stopped cross-span searches.
 - [`2026-08-30-d6cd66d.json`](2026-08-30-d6cd66d.json): schema-v22 paired-anchor cross-span Sentence locality and strict-shadow diagnostics before relation-floor probing.
