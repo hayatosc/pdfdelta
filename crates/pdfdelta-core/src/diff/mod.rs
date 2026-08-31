@@ -1249,6 +1249,52 @@ pub struct LocalFragmentGlobalLengthAwareShadowMetrics {
     pub length_aware_retained_fingerprint: [u8; 32],
 }
 
+/// Behavior-neutral diagnostics for sharing exact rechecks across fragment candidate streams.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LocalFragmentRecheckReuseShadowMetrics {
+    pub complete: bool,
+    pub stop_reason: Option<LocalFragmentLengthAwareShadowStopReason>,
+    pub work: LocalFragmentLengthAwareShadowWorkMetrics,
+    pub min_tokens: usize,
+    pub fixed_depth: usize,
+    pub old_fragments: usize,
+    pub new_fragments: usize,
+    pub parent_admission_queries: usize,
+    pub global_queries: usize,
+    pub fixed_pre_recheck_candidates: usize,
+    pub length_aware_pre_recheck_candidates: usize,
+    pub shared_pre_recheck_candidates: usize,
+    pub fixed_only_pre_recheck_candidates: usize,
+    pub length_aware_only_pre_recheck_candidates: usize,
+    pub unique_recheck_pairs: usize,
+    pub projected_duplicate_recheck_pairs: usize,
+    pub avoided_recheck_pairs: usize,
+    pub actual_recheck_comparisons: usize,
+    pub projected_duplicate_recheck_comparisons: usize,
+    pub avoided_recheck_comparisons: usize,
+    pub fixed_exact_retained_pairs: usize,
+    pub length_aware_exact_retained_pairs: usize,
+    pub missing_retained_pairs: usize,
+    pub extra_retained_pairs: usize,
+    pub order_mismatches: usize,
+    pub compared_queries: usize,
+    /// Whether all four canonical streams were compared with a complete global sibling.
+    pub global_parity_available: bool,
+    pub fixed_pre_recheck_fingerprint_mismatches: usize,
+    pub length_aware_pre_recheck_fingerprint_mismatches: usize,
+    pub fixed_retained_fingerprint_mismatches: usize,
+    pub length_aware_retained_fingerprint_mismatches: usize,
+    /// Canonical ordered pair-stream digests used only for sibling parity checks.
+    #[doc(hidden)]
+    pub fixed_pre_recheck_fingerprint: [u8; 32],
+    #[doc(hidden)]
+    pub length_aware_pre_recheck_fingerprint: [u8; 32],
+    #[doc(hidden)]
+    pub fixed_retained_fingerprint: [u8; 32],
+    #[doc(hidden)]
+    pub length_aware_retained_fingerprint: [u8; 32],
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -1329,6 +1375,7 @@ pub struct SentenceRecoveryMetrics {
     pub local_fragment_length_aware_shadow: Option<LocalFragmentLengthAwareShadowMetrics>,
     pub local_fragment_global_length_aware_shadow:
         Option<LocalFragmentGlobalLengthAwareShadowMetrics>,
+    pub local_fragment_recheck_reuse_shadow: Option<LocalFragmentRecheckReuseShadowMetrics>,
     /// Whether the production Sentence edge filter classified every query.
     /// A false value always has [`Self::sentence_edge_filter_stop_reason`].
     pub sentence_edge_filter_complete: bool,
