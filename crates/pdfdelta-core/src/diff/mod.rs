@@ -1431,7 +1431,110 @@ pub struct LocalFragmentExactBoundaryTrieShadowMetrics {
     pub retained_count_mismatches: usize,
     pub retained_order_mismatches: usize,
     pub retained_fingerprint_mismatches: usize,
+    #[doc(hidden)]
+    pub certification_fingerprint: [u8; 32],
     /// Canonical ordered retained-pair digest used only for sibling parity checks.
+    #[doc(hidden)]
+    pub retained_fingerprint: [u8; 32],
+}
+
+/// Reason the flat exact-boundary shadow stopped before parity was evaluable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LocalFragmentFlatExactBoundaryStopReason {
+    EnumerationLimit,
+    SignatureTokenStepLimit,
+    IndexPostingLimit,
+    DistinctKeyLimit,
+    EstimatedByteLimit,
+    QueryLimit,
+    PostingVisitLimit,
+    CandidateUnionLimit,
+    ExactRecheckPairLimit,
+    ExactRecheckComparisonLimit,
+    OffsetItemLimit,
+    ClassSlotLimit,
+    RadixRecordLimit,
+    ActiveFragmentVisitLimit,
+    RadixWorkLimit,
+    ClassIdLimit,
+    CandidateGenerationIncomplete,
+    AllocationFailure,
+    CounterOverflow,
+    DiagnosticFailure,
+}
+
+/// Stop-safe work for the flat exact-boundary shadow.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LocalFragmentFlatExactBoundaryWorkMetrics {
+    pub common: LocalFragmentLengthAwareShadowWorkMetrics,
+    pub offset_items_examined: usize,
+    pub offset_items_attempted: usize,
+    pub class_slots_examined: usize,
+    pub class_slots_attempted: usize,
+    pub radix_records_examined: usize,
+    pub radix_records_attempted: usize,
+    pub active_fragment_visits_examined: usize,
+    pub active_fragment_visits_attempted: usize,
+    pub radix_work_examined: usize,
+    pub radix_work_attempted: usize,
+    pub class_ids_examined: usize,
+    pub class_ids_attempted: usize,
+}
+
+/// Behavior-neutral diagnostics for flat exact-boundary class interning.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LocalFragmentFlatExactBoundaryShadowMetrics {
+    pub complete: bool,
+    pub stop_reason: Option<LocalFragmentFlatExactBoundaryStopReason>,
+    pub work: LocalFragmentFlatExactBoundaryWorkMetrics,
+    pub min_tokens: usize,
+    pub fixed_depth: usize,
+    pub old_fragments: usize,
+    pub new_fragments: usize,
+    pub parent_admission_queries: usize,
+    pub global_queries: usize,
+    pub compared_queries: usize,
+    pub offset_items: usize,
+    pub class_slots: usize,
+    pub class_storage_bytes: usize,
+    pub radix_scratch_bytes: usize,
+    pub max_depth: usize,
+    pub peak_radix_records: usize,
+    pub radix_passes: usize,
+    pub radix_work: usize,
+    pub active_fragment_visits: usize,
+    pub prefix_distinct_classes: usize,
+    pub suffix_distinct_classes: usize,
+    pub hash_candidates: usize,
+    pub exact_certified_candidates: usize,
+    pub hash_collision_only_candidates: usize,
+    pub prefix_only_candidates: usize,
+    pub suffix_only_candidates: usize,
+    pub both_candidates: usize,
+    pub certified_tokens_credited: usize,
+    pub recheck_pairs_started: usize,
+    pub recheck_pairs_completed: usize,
+    pub recheck_comparisons: usize,
+    pub projected_avoided_comparisons: usize,
+    pub retained_pairs: usize,
+    pub depth_1_candidates: usize,
+    pub depth_2_to_3_candidates: usize,
+    pub depth_4_plus_candidates: usize,
+    pub v49_parity_available: bool,
+    pub hash_candidate_count_mismatches: usize,
+    pub exact_certified_count_mismatches: usize,
+    pub hash_collision_count_mismatches: usize,
+    pub orientation_count_mismatches: usize,
+    pub recheck_comparison_mismatches: usize,
+    pub avoided_comparison_mismatches: usize,
+    pub credited_token_mismatches: usize,
+    pub retained_count_mismatches: usize,
+    pub retained_order_mismatches: usize,
+    pub recheck_pair_count_mismatches: usize,
+    pub certification_fingerprint_mismatches: usize,
+    pub retained_fingerprint_mismatches: usize,
+    #[doc(hidden)]
+    pub certification_fingerprint: [u8; 32],
     #[doc(hidden)]
     pub retained_fingerprint: [u8; 32],
 }
@@ -1523,6 +1626,8 @@ pub struct SentenceRecoveryMetrics {
         Option<LocalFragmentLengthOnlyCandidateShadowMetrics>,
     pub local_fragment_exact_boundary_trie_shadow:
         Option<LocalFragmentExactBoundaryTrieShadowMetrics>,
+    pub local_fragment_flat_exact_boundary_shadow:
+        Option<LocalFragmentFlatExactBoundaryShadowMetrics>,
     /// Whether the production Sentence edge filter classified every query.
     /// A false value always has [`Self::sentence_edge_filter_stop_reason`].
     pub sentence_edge_filter_complete: bool,

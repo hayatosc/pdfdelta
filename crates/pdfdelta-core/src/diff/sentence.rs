@@ -46,13 +46,15 @@ use super::recovery::{
 };
 use super::{
     ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
-    LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentGlobalLengthAwareShadowMetrics,
-    LocalFragmentLengthAwareRecheckShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
-    LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
-    LocalFragmentLengthOnlyCandidateShadowMetrics, LocalFragmentLocationEvidence,
-    LocalFragmentOrientation, LocalFragmentPairEvidence, LocalFragmentRecheckMembershipOutcomeWork,
-    LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
-    LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
+    LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentFlatExactBoundaryShadowMetrics,
+    LocalFragmentFlatExactBoundaryStopReason, LocalFragmentFlatExactBoundaryWorkMetrics,
+    LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
+    LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
+    LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLengthOnlyCandidateShadowMetrics,
+    LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
+    LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
+    LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
+    LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
     MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
     NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
     RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
@@ -12194,6 +12196,83 @@ struct LocalFragmentPairStreamFingerprint {
     hasher: Sha256,
 }
 
+struct ExactBoundaryCertificationStreamFingerprint {
+    hasher: Sha256,
+}
+
+impl ExactBoundaryCertificationStreamFingerprint {
+    fn new() -> Self {
+        let mut hasher = Sha256::new();
+        hasher.update(b"pdfdelta-exact-boundary-certification-stream-v1");
+        Self { hasher }
+    }
+
+    fn commit_query(
+        &mut self,
+        old_fragment_index: usize,
+        query: ExactBoundaryCertificationQueryFingerprint,
+    ) -> std::result::Result<(), LocalFragmentLengthAwareShadowStopReason> {
+        self.hasher.update(
+            u64::try_from(old_fragment_index)
+                .map_err(|_| LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
+                .to_le_bytes(),
+        );
+        self.hasher.update(
+            u64::try_from(query.count)
+                .map_err(|_| LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
+                .to_le_bytes(),
+        );
+        self.hasher.update(query.hasher.finalize());
+        Ok(())
+    }
+
+    fn finish(self) -> [u8; 32] {
+        self.hasher.finalize().into()
+    }
+}
+
+struct ExactBoundaryCertificationQueryFingerprint {
+    hasher: Sha256,
+    count: usize,
+}
+
+impl ExactBoundaryCertificationQueryFingerprint {
+    fn new() -> Self {
+        let mut hasher = Sha256::new();
+        hasher.update(b"pdfdelta-exact-boundary-certification-query-v1");
+        Self { hasher, count: 0 }
+    }
+
+    fn push(
+        &mut self,
+        new_fragment_index: usize,
+        certification: Option<(ExactBoundaryCertification, usize)>,
+    ) -> std::result::Result<(), LocalFragmentLengthAwareShadowStopReason> {
+        self.count = self
+            .count
+            .checked_add(1)
+            .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+        self.hasher.update(
+            u64::try_from(new_fragment_index)
+                .map_err(|_| LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
+                .to_le_bytes(),
+        );
+        let (tag, depth) = match certification {
+            None => (0u8, 0usize),
+            Some((ExactBoundaryCertification::Prefix, depth)) => (1, depth),
+            Some((ExactBoundaryCertification::Suffix, depth)) => (2, depth),
+            Some((ExactBoundaryCertification::Both, depth)) => (3, depth),
+        };
+        self.hasher.update([tag]);
+        self.hasher.update(
+            u64::try_from(depth)
+                .map_err(|_| LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
+                .to_le_bytes(),
+        );
+        Ok(())
+    }
+}
+
 impl LocalFragmentPairStreamFingerprint {
     fn new() -> Self {
         let mut hasher = Sha256::new();
@@ -13021,6 +13100,575 @@ impl ExactBoundaryTrie {
 struct ExactFragmentBoundaryNodes {
     prefix: Vec<usize>,
     suffix: Vec<usize>,
+}
+
+impl From<LocalFragmentLengthAwareShadowStopReason> for LocalFragmentFlatExactBoundaryStopReason {
+    fn from(reason: LocalFragmentLengthAwareShadowStopReason) -> Self {
+        match reason {
+            LocalFragmentLengthAwareShadowStopReason::EnumerationLimit => Self::EnumerationLimit,
+            LocalFragmentLengthAwareShadowStopReason::SignatureTokenStepLimit => {
+                Self::SignatureTokenStepLimit
+            }
+            LocalFragmentLengthAwareShadowStopReason::IndexPostingLimit => Self::IndexPostingLimit,
+            LocalFragmentLengthAwareShadowStopReason::DistinctKeyLimit => Self::DistinctKeyLimit,
+            LocalFragmentLengthAwareShadowStopReason::EstimatedByteLimit => {
+                Self::EstimatedByteLimit
+            }
+            LocalFragmentLengthAwareShadowStopReason::QueryLimit => Self::QueryLimit,
+            LocalFragmentLengthAwareShadowStopReason::PostingVisitLimit => Self::PostingVisitLimit,
+            LocalFragmentLengthAwareShadowStopReason::CandidateUnionLimit => {
+                Self::CandidateUnionLimit
+            }
+            LocalFragmentLengthAwareShadowStopReason::ExactRecheckPairLimit => {
+                Self::ExactRecheckPairLimit
+            }
+            LocalFragmentLengthAwareShadowStopReason::ExactRecheckComparisonLimit => {
+                Self::ExactRecheckComparisonLimit
+            }
+            LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete => {
+                Self::CandidateGenerationIncomplete
+            }
+            LocalFragmentLengthAwareShadowStopReason::AllocationFailure => Self::AllocationFailure,
+            LocalFragmentLengthAwareShadowStopReason::CounterOverflow => Self::CounterOverflow,
+            LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure => Self::DiagnosticFailure,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct FlatExactBoundaryLimits {
+    common: LengthAwareLimits,
+    offset_items: usize,
+    class_slots: usize,
+    radix_records: usize,
+    active_fragment_visits: usize,
+    radix_work: usize,
+    class_ids: usize,
+}
+
+impl FlatExactBoundaryLimits {
+    fn for_tokens(tokens: usize) -> Option<Self> {
+        let common = LengthAwareLimits::for_tokens(tokens)?;
+        let class_slots = common.signature_steps;
+        Some(Self {
+            common,
+            offset_items: common.enumeration.checked_add(1)?,
+            class_slots,
+            radix_records: class_slots,
+            active_fragment_visits: class_slots
+                .checked_div(2)?
+                .checked_add(common.enumeration)?,
+            radix_work: class_slots.checked_mul(EXACT_CLASS_RADIX_PASSES.checked_mul(2)?)?,
+            class_ids: class_slots,
+        })
+    }
+}
+
+#[derive(Clone, Copy)]
+enum FlatExactBoundaryWorkKind {
+    OffsetItems,
+    ClassSlots,
+    RadixRecords,
+    ActiveFragmentVisits,
+    RadixWork,
+    ClassIds,
+}
+
+struct FlatExactBoundaryBudget {
+    common: LengthAwareBudget,
+    limits: FlatExactBoundaryLimits,
+    work: LocalFragmentFlatExactBoundaryWorkMetrics,
+}
+
+impl FlatExactBoundaryBudget {
+    fn new(limits: FlatExactBoundaryLimits) -> Self {
+        Self {
+            common: LengthAwareBudget::new(limits.common),
+            limits,
+            work: LocalFragmentFlatExactBoundaryWorkMetrics::default(),
+        }
+    }
+
+    fn charge(
+        &mut self,
+        kind: FlatExactBoundaryWorkKind,
+        amount: usize,
+    ) -> std::result::Result<(), LocalFragmentFlatExactBoundaryStopReason> {
+        let (examined, attempted, limit, reason) = match kind {
+            FlatExactBoundaryWorkKind::OffsetItems => (
+                &mut self.work.offset_items_examined,
+                &mut self.work.offset_items_attempted,
+                self.limits.offset_items,
+                LocalFragmentFlatExactBoundaryStopReason::OffsetItemLimit,
+            ),
+            FlatExactBoundaryWorkKind::ClassSlots => (
+                &mut self.work.class_slots_examined,
+                &mut self.work.class_slots_attempted,
+                self.limits.class_slots,
+                LocalFragmentFlatExactBoundaryStopReason::ClassSlotLimit,
+            ),
+            FlatExactBoundaryWorkKind::RadixRecords => (
+                &mut self.work.radix_records_examined,
+                &mut self.work.radix_records_attempted,
+                self.limits.radix_records,
+                LocalFragmentFlatExactBoundaryStopReason::RadixRecordLimit,
+            ),
+            FlatExactBoundaryWorkKind::ActiveFragmentVisits => (
+                &mut self.work.active_fragment_visits_examined,
+                &mut self.work.active_fragment_visits_attempted,
+                self.limits.active_fragment_visits,
+                LocalFragmentFlatExactBoundaryStopReason::ActiveFragmentVisitLimit,
+            ),
+            FlatExactBoundaryWorkKind::RadixWork => (
+                &mut self.work.radix_work_examined,
+                &mut self.work.radix_work_attempted,
+                self.limits.radix_work,
+                LocalFragmentFlatExactBoundaryStopReason::RadixWorkLimit,
+            ),
+            FlatExactBoundaryWorkKind::ClassIds => (
+                &mut self.work.class_ids_examined,
+                &mut self.work.class_ids_attempted,
+                self.limits.class_ids,
+                LocalFragmentFlatExactBoundaryStopReason::ClassIdLimit,
+            ),
+        };
+        let Some(next) = examined.checked_add(amount) else {
+            *attempted = usize::MAX;
+            return Err(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow);
+        };
+        *attempted = next;
+        if next > limit {
+            return Err(reason);
+        }
+        *examined = next;
+        Ok(())
+    }
+
+    fn finish_work(&mut self) -> LocalFragmentFlatExactBoundaryWorkMetrics {
+        self.work.common = self.common.work;
+        self.work
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ExactClassTokenKey {
+    tag: u8,
+    primary: u64,
+    secondary: u16,
+}
+
+impl From<SentenceEvidenceToken> for ExactClassTokenKey {
+    fn from(token: SentenceEvidenceToken) -> Self {
+        match token {
+            SentenceEvidenceToken::Scalar(scalar) => Self {
+                tag: 0,
+                primary: u64::from(u32::from(scalar)),
+                secondary: 0,
+            },
+            SentenceEvidenceToken::Unmapped {
+                font_fingerprint,
+                glyph_id,
+            } => Self {
+                tag: 1,
+                primary: font_fingerprint,
+                secondary: glyph_id,
+            },
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ExactClassRecord {
+    parent_class: u32,
+    token: ExactClassTokenKey,
+    fragment: u32,
+}
+
+impl ExactClassRecord {
+    fn key_byte(self, pass: usize) -> u8 {
+        match pass {
+            0..=3 => self.parent_class.to_le_bytes()[pass],
+            4 => self.token.tag,
+            5..=12 => self.token.primary.to_le_bytes()[pass - 5],
+            13..=14 => self.token.secondary.to_le_bytes()[pass - 13],
+            _ => 0,
+        }
+    }
+
+    fn same_class_key(self, other: Self) -> bool {
+        self.parent_class == other.parent_class && self.token == other.token
+    }
+}
+
+const EXACT_CLASS_RADIX_PASSES: usize = 15;
+
+fn radix_sort_exact_class_records(
+    records: &mut [ExactClassRecord],
+    scratch: &mut Vec<ExactClassRecord>,
+    budget: &mut FlatExactBoundaryBudget,
+) -> std::result::Result<(), LocalFragmentFlatExactBoundaryStopReason> {
+    scratch.clear();
+    scratch
+        .try_reserve(records.len())
+        .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::AllocationFailure)?;
+    scratch.resize(records.len(), ExactClassRecord::default());
+    for pass in 0..EXACT_CLASS_RADIX_PASSES {
+        budget.charge(
+            FlatExactBoundaryWorkKind::RadixWork,
+            records
+                .len()
+                .checked_mul(2)
+                .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?,
+        )?;
+        let mut counts = [0usize; 256];
+        for record in records.iter().copied() {
+            counts[usize::from(record.key_byte(pass))] += 1;
+        }
+        let mut next = 0usize;
+        for count in &mut counts {
+            let start = next;
+            next = next
+                .checked_add(*count)
+                .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+            *count = start;
+        }
+        for record in records.iter().copied() {
+            let bucket = usize::from(record.key_byte(pass));
+            let target = counts[bucket];
+            scratch[target] = record;
+            counts[bucket] = target
+                .checked_add(1)
+                .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+        }
+        records.copy_from_slice(scratch);
+    }
+    Ok(())
+}
+
+#[derive(Default)]
+struct FlatExactBoundaryClasses {
+    offsets: Vec<u32>,
+    prefix_class_ids: Vec<u32>,
+    suffix_class_ids: Vec<u32>,
+    class_storage_bytes: usize,
+    radix_scratch_bytes: usize,
+    max_depth: usize,
+    peak_radix_records: usize,
+    radix_passes: usize,
+    prefix_distinct_classes: usize,
+    suffix_distinct_classes: usize,
+}
+
+fn combined_length_aware_fragment<'a>(
+    index: usize,
+    old: &'a [LengthAwareLocalFragment],
+    new: &'a [LengthAwareLocalFragment],
+) -> Option<(&'a LengthAwareLocalFragment, bool)> {
+    old.get(index).map(|fragment| (fragment, true)).or_else(|| {
+        new.get(index.checked_sub(old.len())?)
+            .map(|fragment| (fragment, false))
+    })
+}
+
+fn combined_length_aware_tokens<'a>(
+    index: usize,
+    old_fragments: &[LengthAwareLocalFragment],
+    new_fragments: &[LengthAwareLocalFragment],
+    old_occurrences: &'a [SentenceOccurrence],
+    new_occurrences: &'a [SentenceOccurrence],
+) -> std::result::Result<&'a [SentenceEvidenceToken], LocalFragmentFlatExactBoundaryStopReason> {
+    let (fragment, is_old) = combined_length_aware_fragment(index, old_fragments, new_fragments)
+        .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?;
+    length_aware_fragment_tokens(
+        fragment,
+        if is_old {
+            old_occurrences
+        } else {
+            new_occurrences
+        },
+    )
+    .map_err(Into::into)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_flat_exact_boundary_classes(
+    old_fragments: &[LengthAwareLocalFragment],
+    new_fragments: &[LengthAwareLocalFragment],
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    budget: &mut FlatExactBoundaryBudget,
+) -> std::result::Result<FlatExactBoundaryClasses, LocalFragmentFlatExactBoundaryStopReason> {
+    let fragment_count = old_fragments
+        .len()
+        .checked_add(new_fragments.len())
+        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+    let offset_items = fragment_count
+        .checked_add(1)
+        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+    budget.charge(FlatExactBoundaryWorkKind::OffsetItems, offset_items)?;
+    let mut offsets = Vec::new();
+    offsets
+        .try_reserve_exact(offset_items)
+        .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::AllocationFailure)?;
+    offsets.push(0u32);
+    let mut slot_count = 0usize;
+    let mut max_depth = 0usize;
+    for index in 0..fragment_count {
+        let (fragment, _) = combined_length_aware_fragment(index, old_fragments, new_fragments)
+            .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?;
+        slot_count = slot_count
+            .checked_add(fragment.signatures.len())
+            .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+        max_depth = max_depth.max(fragment.signatures.len());
+        offsets.push(
+            u32::try_from(slot_count)
+                .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::OffsetItemLimit)?,
+        );
+    }
+    let class_slots = slot_count
+        .checked_mul(2)
+        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+    budget.charge(FlatExactBoundaryWorkKind::ClassSlots, class_slots)?;
+    let class_storage_bytes = offset_items
+        .checked_add(class_slots)
+        .and_then(|items| items.checked_mul(std::mem::size_of::<u32>()))
+        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+    let radix_scratch_bytes = fragment_count
+        .checked_mul(
+            std::mem::size_of::<ExactClassRecord>()
+                .checked_mul(2)
+                .and_then(|bytes| bytes.checked_add(std::mem::size_of::<usize>()))
+                .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?,
+        )
+        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+    budget
+        .common
+        .charge(
+            LengthAwareWorkKind::EstimatedBytes,
+            class_storage_bytes
+                .checked_add(radix_scratch_bytes)
+                .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?,
+        )
+        .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+    let mut prefix_class_ids = Vec::new();
+    let mut suffix_class_ids = Vec::new();
+    prefix_class_ids
+        .try_reserve_exact(slot_count)
+        .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::AllocationFailure)?;
+    suffix_class_ids
+        .try_reserve_exact(slot_count)
+        .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::AllocationFailure)?;
+    prefix_class_ids.resize(slot_count, 0u32);
+    suffix_class_ids.resize(slot_count, 0u32);
+
+    let mut records = Vec::<ExactClassRecord>::new();
+    let mut scratch = Vec::<ExactClassRecord>::new();
+    let mut active = Vec::<usize>::new();
+    records
+        .try_reserve_exact(fragment_count)
+        .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::AllocationFailure)?;
+    scratch
+        .try_reserve_exact(fragment_count)
+        .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::AllocationFailure)?;
+    active
+        .try_reserve_exact(fragment_count)
+        .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::AllocationFailure)?;
+    active.extend(0..fragment_count);
+    let mut peak_radix_records = 0usize;
+    let mut radix_passes = 0usize;
+    let mut prefix_distinct_classes = 0usize;
+    let mut suffix_distinct_classes = 0usize;
+    for depth in 1..=max_depth {
+        budget.charge(
+            FlatExactBoundaryWorkKind::ActiveFragmentVisits,
+            active.len(),
+        )?;
+        let mut kept = 0usize;
+        for read in 0..active.len() {
+            let index = *active
+                .get(read)
+                .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?;
+            let (fragment, _) = combined_length_aware_fragment(index, old_fragments, new_fragments)
+                .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?;
+            if fragment.signatures.len() >= depth {
+                *active
+                    .get_mut(kept)
+                    .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)? = index;
+                kept = kept
+                    .checked_add(1)
+                    .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+            }
+        }
+        active.truncate(kept);
+        for side in [LocalFragmentEdgeSide::Prefix, LocalFragmentEdgeSide::Suffix] {
+            records.clear();
+            let eligible = active.len();
+            budget.charge(FlatExactBoundaryWorkKind::RadixRecords, eligible)?;
+            for &index in &active {
+                let offset = usize::try_from(
+                    *offsets
+                        .get(index)
+                        .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?,
+                )
+                .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::OffsetItemLimit)?;
+                let slot = offset
+                    .checked_add(depth - 1)
+                    .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+                let ids = match side {
+                    LocalFragmentEdgeSide::Prefix => &prefix_class_ids,
+                    LocalFragmentEdgeSide::Suffix => &suffix_class_ids,
+                };
+                let parent_class = if depth == 1 {
+                    0
+                } else {
+                    *ids.get(slot - 1)
+                        .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?
+                };
+                let tokens = combined_length_aware_tokens(
+                    index,
+                    old_fragments,
+                    new_fragments,
+                    old_occurrences,
+                    new_occurrences,
+                )?;
+                let token =
+                    match side {
+                        LocalFragmentEdgeSide::Prefix => *tokens
+                            .get(depth - 1)
+                            .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?,
+                        LocalFragmentEdgeSide::Suffix => *tokens
+                            .get(tokens.len().checked_sub(depth).ok_or(
+                                LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure,
+                            )?)
+                            .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?,
+                    };
+                records.push(ExactClassRecord {
+                    parent_class,
+                    token: token.into(),
+                    fragment: u32::try_from(index)
+                        .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::ClassIdLimit)?,
+                });
+            }
+            if records.is_empty() {
+                continue;
+            }
+            peak_radix_records = peak_radix_records.max(records.len());
+            radix_sort_exact_class_records(&mut records, &mut scratch, budget)?;
+            radix_passes = radix_passes
+                .checked_add(EXACT_CLASS_RADIX_PASSES)
+                .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+            let mut previous = None;
+            let mut class_id = 0u32;
+            for record in records.iter().copied() {
+                if previous
+                    .is_none_or(|previous: ExactClassRecord| !previous.same_class_key(record))
+                {
+                    class_id = class_id
+                        .checked_add(1)
+                        .ok_or(LocalFragmentFlatExactBoundaryStopReason::ClassIdLimit)?;
+                    previous = Some(record);
+                }
+                budget.charge(FlatExactBoundaryWorkKind::ClassIds, 1)?;
+                let fragment = usize::try_from(record.fragment)
+                    .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::ClassIdLimit)?;
+                let slot = usize::try_from(
+                    *offsets
+                        .get(fragment)
+                        .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?,
+                )
+                .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::OffsetItemLimit)?
+                .checked_add(depth - 1)
+                .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+                let ids = match side {
+                    LocalFragmentEdgeSide::Prefix => &mut prefix_class_ids,
+                    LocalFragmentEdgeSide::Suffix => &mut suffix_class_ids,
+                };
+                *ids.get_mut(slot)
+                    .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)? = class_id;
+            }
+            let distinct = usize::try_from(class_id)
+                .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::ClassIdLimit)?;
+            match side {
+                LocalFragmentEdgeSide::Prefix => {
+                    prefix_distinct_classes = prefix_distinct_classes
+                        .checked_add(distinct)
+                        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+                }
+                LocalFragmentEdgeSide::Suffix => {
+                    suffix_distinct_classes = suffix_distinct_classes
+                        .checked_add(distinct)
+                        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+                }
+            }
+        }
+    }
+    Ok(FlatExactBoundaryClasses {
+        offsets,
+        prefix_class_ids,
+        suffix_class_ids,
+        class_storage_bytes,
+        radix_scratch_bytes,
+        max_depth,
+        peak_radix_records,
+        radix_passes,
+        prefix_distinct_classes,
+        suffix_distinct_classes,
+    })
+}
+
+fn flat_exact_boundary_certification(
+    old_index: usize,
+    new_index: usize,
+    old_fragments: &[LengthAwareLocalFragment],
+    new_fragments: &[LengthAwareLocalFragment],
+    classes: &FlatExactBoundaryClasses,
+) -> std::result::Result<
+    Option<(ExactBoundaryCertification, usize)>,
+    LocalFragmentFlatExactBoundaryStopReason,
+> {
+    let old = old_fragments
+        .get(old_index)
+        .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?;
+    let new = new_fragments
+        .get(new_index)
+        .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?;
+    let depth = sentence_edge_signature_depth(old.token_range.len().min(new.token_range.len()))
+        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+    let depth_index = depth
+        .checked_sub(1)
+        .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?;
+    let old_slot = usize::try_from(
+        *classes
+            .offsets
+            .get(old_index)
+            .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?,
+    )
+    .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::OffsetItemLimit)?
+    .checked_add(depth_index)
+    .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+    let combined_new = old_fragments
+        .len()
+        .checked_add(new_index)
+        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+    let new_slot = usize::try_from(
+        *classes
+            .offsets
+            .get(combined_new)
+            .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?,
+    )
+    .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::OffsetItemLimit)?
+    .checked_add(depth_index)
+    .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+    let prefix = classes.prefix_class_ids.get(old_slot) == classes.prefix_class_ids.get(new_slot)
+        && classes.prefix_class_ids.get(old_slot).is_some();
+    let suffix = classes.suffix_class_ids.get(old_slot) == classes.suffix_class_ids.get(new_slot)
+        && classes.suffix_class_ids.get(old_slot).is_some();
+    Ok(match (prefix, suffix) {
+        (true, true) => Some((ExactBoundaryCertification::Both, depth)),
+        (true, false) => Some((ExactBoundaryCertification::Prefix, depth)),
+        (false, true) => Some((ExactBoundaryCertification::Suffix, depth)),
+        (false, false) => None,
+    })
 }
 
 fn build_exact_fragment_boundary_nodes(
@@ -15356,6 +16004,8 @@ fn analyze_local_fragment_exact_boundary_trie_shadow_with_limits(
                 complete: true,
                 min_tokens,
                 fixed_depth,
+                certification_fingerprint: ExactBoundaryCertificationStreamFingerprint::new()
+                    .finish(),
                 retained_fingerprint: LocalFragmentPairStreamFingerprint::new().finish(),
                 ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
             });
@@ -15394,6 +16044,7 @@ fn analyze_local_fragment_exact_boundary_trie_shadow_with_limits(
             trie_largest_fanout: trie.largest_fanout,
             ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
         };
+        let mut certification_stream = ExactBoundaryCertificationStreamFingerprint::new();
         let mut retained_stream = LocalFragmentPairStreamFingerprint::new();
         for old_range in old_ranges.iter().cloned() {
             if old_range.is_empty() {
@@ -15412,6 +16063,10 @@ fn analyze_local_fragment_exact_boundary_trie_shadow_with_limits(
                 .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
             if admitted_parents.is_empty() {
                 for old_index in old_range {
+                    certification_stream.commit_query(
+                        old_index,
+                        ExactBoundaryCertificationQueryFingerprint::new(),
+                    )?;
                     retained_stream
                         .commit_query(old_index, LocalFragmentQueryFingerprint::new())?;
                 }
@@ -15440,6 +16095,7 @@ fn analyze_local_fragment_exact_boundary_trie_shadow_with_limits(
                     .hash_candidates
                     .checked_add(hash_candidates.len())
                     .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                let mut certification_query = ExactBoundaryCertificationQueryFingerprint::new();
                 let mut retained = Vec::new();
                 retained
                     .try_reserve_exact(hash_candidates.len())
@@ -15451,9 +16107,10 @@ fn analyze_local_fragment_exact_boundary_trie_shadow_with_limits(
                     let new_nodes = new_boundary_nodes
                         .get(new_index)
                         .ok_or(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure)?;
-                    let Some((certification, depth)) =
-                        exact_boundary_certification(old, new, old_nodes, new_nodes)?
-                    else {
+                    let certification =
+                        exact_boundary_certification(old, new, old_nodes, new_nodes)?;
+                    certification_query.push(new_index, certification)?;
+                    let Some((certification, depth)) = certification else {
                         metrics.hash_collision_only_candidates = metrics
                             .hash_collision_only_candidates
                             .checked_add(1)
@@ -15518,6 +16175,7 @@ fn analyze_local_fragment_exact_boundary_trie_shadow_with_limits(
                         retained.push(new_index);
                     }
                 }
+                certification_stream.commit_query(old_index, certification_query)?;
                 retained_stream
                     .commit_query(old_index, local_fragment_query_fingerprint(&retained)?)?;
                 metrics.retained_pairs = metrics
@@ -15554,6 +16212,7 @@ fn analyze_local_fragment_exact_boundary_trie_shadow_with_limits(
         {
             return Err(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure);
         }
+        metrics.certification_fingerprint = certification_stream.finish();
         metrics.retained_fingerprint = retained_stream.finish();
         Ok(metrics)
     })();
@@ -15570,6 +16229,285 @@ fn analyze_local_fragment_exact_boundary_trie_shadow_with_limits(
             min_tokens,
             fixed_depth,
             ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+        },
+    }
+}
+
+fn analyze_local_fragment_flat_exact_boundary_shadow_with_limits(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    min_tokens: usize,
+    limits: FlatExactBoundaryLimits,
+) -> LocalFragmentFlatExactBoundaryShadowMetrics {
+    let fixed_depth = sentence_edge_signature_depth(min_tokens).unwrap_or(0);
+    let mut budget = FlatExactBoundaryBudget::new(limits);
+    let result = (|| -> std::result::Result<_, LocalFragmentFlatExactBoundaryStopReason> {
+        let old_fragments = enumerate_length_aware_local_fragments(
+            old_occurrences,
+            old_candidates,
+            min_tokens,
+            &mut budget.common,
+        )
+        .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+        let new_fragments = enumerate_length_aware_local_fragments(
+            new_occurrences,
+            new_candidates,
+            min_tokens,
+            &mut budget.common,
+        )
+        .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+        if old_fragments.is_empty() && new_fragments.is_empty() {
+            return Ok(LocalFragmentFlatExactBoundaryShadowMetrics {
+                complete: true,
+                min_tokens,
+                fixed_depth,
+                certification_fingerprint: ExactBoundaryCertificationStreamFingerprint::new()
+                    .finish(),
+                retained_fingerprint: LocalFragmentPairStreamFingerprint::new().finish(),
+                ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+            });
+        }
+        let old_ranges = length_aware_parent_ranges(&old_fragments, old_candidates.len())
+            .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+        let new_ranges = length_aware_parent_ranges(&new_fragments, new_candidates.len())
+            .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+        let classes = build_flat_exact_boundary_classes(
+            &old_fragments,
+            &new_fragments,
+            old_occurrences,
+            new_occurrences,
+            &mut budget,
+        )?;
+        let (own_index, all_index) =
+            build_global_length_aware_only_boundary_indexes(&new_fragments, &mut budget.common)
+                .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+        let parent_index = build_length_aware_parent_index(
+            &new_fragments,
+            &new_ranges,
+            fixed_depth,
+            &mut budget.common,
+        )
+        .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+
+        let mut metrics = LocalFragmentFlatExactBoundaryShadowMetrics {
+            complete: true,
+            min_tokens,
+            fixed_depth,
+            old_fragments: old_fragments.len(),
+            new_fragments: new_fragments.len(),
+            offset_items: classes.offsets.len(),
+            class_slots: classes
+                .prefix_class_ids
+                .len()
+                .checked_add(classes.suffix_class_ids.len())
+                .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?,
+            class_storage_bytes: classes.class_storage_bytes,
+            radix_scratch_bytes: classes.radix_scratch_bytes,
+            max_depth: classes.max_depth,
+            peak_radix_records: classes.peak_radix_records,
+            radix_passes: classes.radix_passes,
+            radix_work: budget.work.radix_work_examined,
+            active_fragment_visits: budget.work.active_fragment_visits_examined,
+            prefix_distinct_classes: classes.prefix_distinct_classes,
+            suffix_distinct_classes: classes.suffix_distinct_classes,
+            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+        };
+        let mut certification_stream = ExactBoundaryCertificationStreamFingerprint::new();
+        let mut retained_stream = LocalFragmentPairStreamFingerprint::new();
+        for old_range in old_ranges.iter().cloned() {
+            if old_range.is_empty() {
+                continue;
+            }
+            let admitted_parents = collect_length_aware_parent_candidates(
+                &old_fragments,
+                old_range.clone(),
+                &parent_index,
+                fixed_depth,
+                &mut budget.common,
+            )
+            .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+            metrics.parent_admission_queries = metrics
+                .parent_admission_queries
+                .checked_add(1)
+                .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+            if admitted_parents.is_empty() {
+                for old_index in old_range {
+                    certification_stream
+                        .commit_query(old_index, ExactBoundaryCertificationQueryFingerprint::new())
+                        .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+                    retained_stream
+                        .commit_query(old_index, LocalFragmentQueryFingerprint::new())
+                        .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+                }
+                continue;
+            }
+            for old_index in old_range {
+                metrics.global_queries = metrics
+                    .global_queries
+                    .checked_add(1)
+                    .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+                let old = old_fragments
+                    .get(old_index)
+                    .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?;
+                let (hash_candidates, _) = collect_global_length_aware_only_boundary_candidates(
+                    old,
+                    &admitted_parents,
+                    &new_fragments,
+                    &own_index,
+                    &all_index,
+                    &mut budget.common,
+                )
+                .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+                metrics.hash_candidates = metrics
+                    .hash_candidates
+                    .checked_add(hash_candidates.len())
+                    .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+                let mut certification_query = ExactBoundaryCertificationQueryFingerprint::new();
+                let mut retained = Vec::new();
+                retained
+                    .try_reserve_exact(hash_candidates.len())
+                    .map_err(|_| LocalFragmentFlatExactBoundaryStopReason::AllocationFailure)?;
+                for &new_index in &hash_candidates {
+                    let new = new_fragments
+                        .get(new_index)
+                        .ok_or(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure)?;
+                    let certification = flat_exact_boundary_certification(
+                        old_index,
+                        new_index,
+                        &old_fragments,
+                        &new_fragments,
+                        &classes,
+                    )?;
+                    certification_query
+                        .push(new_index, certification)
+                        .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+                    let Some((certification, depth)) = certification else {
+                        metrics.hash_collision_only_candidates = metrics
+                            .hash_collision_only_candidates
+                            .checked_add(1)
+                            .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+                        continue;
+                    };
+                    metrics.exact_certified_candidates = metrics
+                        .exact_certified_candidates
+                        .checked_add(1)
+                        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+                    match certification {
+                        ExactBoundaryCertification::Prefix => {
+                            checked_increment(&mut metrics.prefix_only_candidates)
+                                .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+                        }
+                        ExactBoundaryCertification::Suffix => {
+                            checked_increment(&mut metrics.suffix_only_candidates)
+                                .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+                        }
+                        ExactBoundaryCertification::Both => {
+                            checked_increment(&mut metrics.both_candidates)
+                                .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+                        }
+                    }
+                    match depth_band_index(depth) {
+                        0 => checked_increment(&mut metrics.depth_1_candidates),
+                        1 => checked_increment(&mut metrics.depth_2_to_3_candidates),
+                        _ => checked_increment(&mut metrics.depth_4_plus_candidates),
+                    }
+                    .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+                    metrics.recheck_pairs_started = metrics
+                        .recheck_pairs_started
+                        .checked_add(1)
+                        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+                    let recheck = certified_threshold_capped_edge_recheck(
+                        old,
+                        new,
+                        old_occurrences,
+                        new_occurrences,
+                        certification,
+                        depth,
+                        &mut budget.common,
+                    )
+                    .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+                    metrics.recheck_pairs_completed = metrics
+                        .recheck_pairs_completed
+                        .checked_add(1)
+                        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+                    metrics.certified_tokens_credited = metrics
+                        .certified_tokens_credited
+                        .checked_add(recheck.credited_tokens)
+                        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+                    metrics.projected_avoided_comparisons = metrics
+                        .projected_avoided_comparisons
+                        .checked_add(recheck.avoided_comparisons)
+                        .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+                    if recheck.retained {
+                        retained.push(new_index);
+                    }
+                }
+                certification_stream
+                    .commit_query(old_index, certification_query)
+                    .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+                retained_stream
+                    .commit_query(
+                        old_index,
+                        local_fragment_query_fingerprint(&retained)
+                            .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?,
+                    )
+                    .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+                metrics.retained_pairs = metrics
+                    .retained_pairs
+                    .checked_add(retained.len())
+                    .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+                metrics.compared_queries = metrics
+                    .compared_queries
+                    .checked_add(1)
+                    .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?;
+            }
+        }
+        metrics.recheck_comparisons = budget.common.work.exact_recheck_comparisons_examined;
+        if metrics.hash_candidates
+            != metrics
+                .exact_certified_candidates
+                .checked_add(metrics.hash_collision_only_candidates)
+                .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?
+            || metrics.exact_certified_candidates
+                != metrics
+                    .prefix_only_candidates
+                    .checked_add(metrics.suffix_only_candidates)
+                    .and_then(|count| count.checked_add(metrics.both_candidates))
+                    .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?
+            || metrics.recheck_pairs_started != metrics.exact_certified_candidates
+            || metrics.recheck_pairs_completed != metrics.exact_certified_candidates
+            || budget.common.work.exact_recheck_pairs_examined != metrics.exact_certified_candidates
+            || metrics.compared_queries != metrics.global_queries
+            || budget.common.work.queries_examined
+                != metrics
+                    .parent_admission_queries
+                    .checked_add(metrics.global_queries)
+                    .ok_or(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow)?
+            || budget.work.class_ids_examined != metrics.class_slots
+            || budget.work.radix_records_examined != metrics.class_slots
+            || budget.work.radix_work_examined != metrics.radix_work
+        {
+            return Err(LocalFragmentFlatExactBoundaryStopReason::DiagnosticFailure);
+        }
+        metrics.certification_fingerprint = certification_stream.finish();
+        metrics.retained_fingerprint = retained_stream.finish();
+        Ok(metrics)
+    })();
+    let work = budget.finish_work();
+    match result {
+        Ok(mut metrics) => {
+            metrics.work = work;
+            metrics
+        }
+        Err(reason) => LocalFragmentFlatExactBoundaryShadowMetrics {
+            complete: false,
+            stop_reason: Some(reason),
+            work,
+            min_tokens,
+            fixed_depth,
+            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
         },
     }
 }
@@ -15917,6 +16855,73 @@ fn record_local_fragment_exact_boundary_trie_shadow(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn record_local_fragment_flat_exact_boundary_shadow(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    min_tokens: usize,
+    candidate_generation_complete: bool,
+) {
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    let fixed_depth = sentence_edge_signature_depth(min_tokens).unwrap_or(0);
+    diagnostics
+        .metrics
+        .local_fragment_flat_exact_boundary_shadow = Some(if !candidate_generation_complete {
+        LocalFragmentFlatExactBoundaryShadowMetrics {
+            complete: false,
+            stop_reason: Some(
+                LocalFragmentFlatExactBoundaryStopReason::CandidateGenerationIncomplete,
+            ),
+            min_tokens,
+            fixed_depth,
+            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+        }
+    } else if let Some(eligible_tokens) = old_candidates
+        .iter()
+        .filter_map(|candidate| old_occurrences.get(candidate.occurrence_index))
+        .chain(
+            new_candidates
+                .iter()
+                .filter_map(|candidate| new_occurrences.get(candidate.occurrence_index)),
+        )
+        .filter(|parent| local_fragment_parent_eligible(parent, min_tokens))
+        .try_fold(0usize, |total, parent| {
+            total.checked_add(parent.tokens.len())
+        })
+    {
+        match FlatExactBoundaryLimits::for_tokens(eligible_tokens) {
+            Some(limits) => analyze_local_fragment_flat_exact_boundary_shadow_with_limits(
+                old_occurrences,
+                new_occurrences,
+                old_candidates,
+                new_candidates,
+                min_tokens,
+                limits,
+            ),
+            None => LocalFragmentFlatExactBoundaryShadowMetrics {
+                complete: false,
+                stop_reason: Some(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow),
+                min_tokens,
+                fixed_depth,
+                ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+            },
+        }
+    } else {
+        LocalFragmentFlatExactBoundaryShadowMetrics {
+            complete: false,
+            stop_reason: Some(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow),
+            min_tokens,
+            fixed_depth,
+            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+        }
+    });
+}
+
+#[allow(clippy::too_many_arguments)]
 fn record_local_fragment_length_aware_shadow(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     old_occurrences: &[SentenceOccurrence],
@@ -16166,6 +17171,62 @@ fn record_local_fragment_exact_boundary_trie_v48_parity(
     );
 }
 
+fn record_local_fragment_flat_exact_boundary_v49_parity(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+) {
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    let Some(v49) = diagnostics
+        .metrics
+        .local_fragment_exact_boundary_trie_shadow
+    else {
+        return;
+    };
+    let Some(flat) = diagnostics
+        .metrics
+        .local_fragment_flat_exact_boundary_shadow
+    else {
+        return;
+    };
+    if !v49.complete || !flat.complete {
+        return;
+    }
+    let flat = diagnostics
+        .metrics
+        .local_fragment_flat_exact_boundary_shadow
+        .as_mut()
+        .expect("flat exact-boundary shadow was present above");
+    flat.v49_parity_available = true;
+    flat.hash_candidate_count_mismatches = usize::from(flat.hash_candidates != v49.hash_candidates);
+    flat.exact_certified_count_mismatches =
+        usize::from(flat.exact_certified_candidates != v49.exact_certified_candidates);
+    flat.hash_collision_count_mismatches =
+        usize::from(flat.hash_collision_only_candidates != v49.hash_collision_only_candidates);
+    flat.orientation_count_mismatches = usize::from(
+        flat.prefix_only_candidates != v49.prefix_only_candidates
+            || flat.suffix_only_candidates != v49.suffix_only_candidates
+            || flat.both_candidates != v49.both_candidates,
+    );
+    flat.recheck_pair_count_mismatches =
+        usize::from(flat.recheck_pairs_started != v49.recheck_pairs_started);
+    flat.recheck_comparison_mismatches =
+        usize::from(flat.recheck_comparisons != v49.recheck_comparisons);
+    flat.avoided_comparison_mismatches =
+        usize::from(flat.projected_avoided_comparisons != v49.projected_avoided_comparisons);
+    flat.credited_token_mismatches =
+        usize::from(flat.certified_tokens_credited != v49.certified_tokens_credited);
+    flat.retained_count_mismatches = usize::from(flat.retained_pairs != v49.retained_pairs);
+    flat.certification_fingerprint_mismatches =
+        usize::from(flat.certification_fingerprint != v49.certification_fingerprint);
+    flat.retained_fingerprint_mismatches =
+        usize::from(flat.retained_fingerprint != v49.retained_fingerprint);
+    flat.retained_order_mismatches = usize::from(
+        flat.retained_pairs == v49.retained_pairs
+            && flat.retained_fingerprint != v49.retained_fingerprint,
+    );
+}
+
 #[allow(clippy::too_many_arguments)]
 fn record_local_fragment_shadow(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
@@ -16231,11 +17292,21 @@ fn record_local_fragment_shadow(
         min_tokens,
         candidate_generation_complete,
     );
+    record_local_fragment_flat_exact_boundary_shadow(
+        diagnostics,
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        min_tokens,
+        candidate_generation_complete,
+    );
     record_local_fragment_global_parent_scoped_parity(diagnostics);
     record_local_fragment_recheck_global_parity(diagnostics);
     record_local_fragment_length_aware_recheck_reuse_parity(diagnostics);
     record_local_fragment_length_only_candidate_v47_parity(diagnostics);
     record_local_fragment_exact_boundary_trie_v48_parity(diagnostics);
+    record_local_fragment_flat_exact_boundary_v49_parity(diagnostics);
     let Some(diagnostics) = diagnostics.as_mut() else {
         return;
     };
@@ -33411,6 +34482,34 @@ mod tests {
         )
     }
 
+    fn flat_exact_boundary_analysis_metrics(
+        old: Vec<SentenceOccurrence>,
+        new: Vec<SentenceOccurrence>,
+        min_tokens: usize,
+        limits: FlatExactBoundaryLimits,
+    ) -> LocalFragmentFlatExactBoundaryShadowMetrics {
+        let old_candidates = (0..old.len())
+            .map(|occurrence_index| RecoveryCandidate {
+                occurrence_index,
+                span_index: old[occurrence_index].span_index.expect("old span exists"),
+            })
+            .collect::<Vec<_>>();
+        let new_candidates = (0..new.len())
+            .map(|occurrence_index| RecoveryCandidate {
+                occurrence_index,
+                span_index: new[occurrence_index].span_index.expect("new span exists"),
+            })
+            .collect::<Vec<_>>();
+        analyze_local_fragment_flat_exact_boundary_shadow_with_limits(
+            &old,
+            &new,
+            &old_candidates,
+            &new_candidates,
+            min_tokens,
+            limits,
+        )
+    }
+
     #[test]
     fn length_aware_local_fragment_shadow_preserves_fixed_retained_order() {
         let old = vec![
@@ -33761,6 +34860,319 @@ mod tests {
         );
         assert!(exact.projected_avoided_comparisons > 0);
         assert!(exact.recheck_comparisons < v48.recheck_comparisons);
+    }
+
+    #[test]
+    fn flat_exact_boundary_shadow_preserves_v49_certification_and_retained_streams() {
+        let documents = || {
+            (
+                vec![
+                    local_fragment_parent("abcdefghijklmnopqrst tail", 1, 1),
+                    local_fragment_parent("shorter abcdefghij tail", 2, 2),
+                ],
+                vec![
+                    local_fragment_parent("abcdefghijklmnopqrst tail", 3, 3),
+                    local_fragment_parent("abcdefghZZZZZZZZZZZZ tail", 4, 4),
+                    local_fragment_parent("ZZZZZZZZZZZZklmnopqrst tail", 5, 5),
+                    local_fragment_parent("shorter abcdefghij tail", 6, 6),
+                ],
+            )
+        };
+        let (old, new) = documents();
+        let v49 = exact_boundary_trie_analysis_metrics(old, new, 8, length_aware_limits());
+        let (old, new) = documents();
+        let flat = flat_exact_boundary_analysis_metrics(
+            old,
+            new,
+            8,
+            FlatExactBoundaryLimits::for_tokens(1_000_000).expect("limits fit"),
+        );
+        assert!(v49.complete, "{:?}", v49.stop_reason);
+        assert!(flat.complete, "{:?}", flat.stop_reason);
+        assert_eq!(flat.hash_candidates, v49.hash_candidates);
+        assert_eq!(
+            flat.exact_certified_candidates,
+            v49.exact_certified_candidates
+        );
+        assert_eq!(
+            flat.hash_collision_only_candidates,
+            v49.hash_collision_only_candidates
+        );
+        assert_eq!(flat.prefix_only_candidates, v49.prefix_only_candidates);
+        assert_eq!(flat.suffix_only_candidates, v49.suffix_only_candidates);
+        assert_eq!(flat.both_candidates, v49.both_candidates);
+        assert_eq!(flat.recheck_pairs_started, v49.recheck_pairs_started);
+        assert_eq!(flat.recheck_comparisons, v49.recheck_comparisons);
+        assert_eq!(
+            flat.projected_avoided_comparisons,
+            v49.projected_avoided_comparisons
+        );
+        assert_eq!(
+            flat.certification_fingerprint,
+            v49.certification_fingerprint
+        );
+        assert_eq!(flat.retained_fingerprint, v49.retained_fingerprint);
+        assert_eq!(flat.work.class_slots_examined, flat.class_slots);
+        assert_eq!(flat.work.radix_records_examined, flat.class_slots);
+        assert_eq!(flat.work.class_ids_examined, flat.class_slots);
+        assert!(flat.radix_scratch_bytes > 0);
+        assert!(flat.active_fragment_visits > 0);
+    }
+
+    #[test]
+    fn flat_exact_boundary_shadow_empty_input_needs_no_budget() {
+        let zero = FlatExactBoundaryLimits {
+            common: LengthAwareLimits {
+                enumeration: 0,
+                signature_steps: 0,
+                posting_items: 0,
+                distinct_keys: 0,
+                estimated_bytes: 0,
+                queries: 0,
+                posting_visits: 0,
+                candidate_union: 0,
+                exact_recheck_pairs: 0,
+                exact_recheck_comparisons: 0,
+            },
+            offset_items: 0,
+            class_slots: 0,
+            radix_records: 0,
+            active_fragment_visits: 0,
+            radix_work: 0,
+            class_ids: 0,
+        };
+        let flat = flat_exact_boundary_analysis_metrics(Vec::new(), Vec::new(), 8, zero);
+        assert!(flat.complete, "{:?}", flat.stop_reason);
+        assert_eq!(
+            flat.work,
+            LocalFragmentFlatExactBoundaryWorkMetrics::default()
+        );
+        assert_eq!(flat.offset_items, 0);
+        assert_eq!(flat.class_slots, 0);
+        assert_eq!(
+            flat.certification_fingerprint,
+            ExactBoundaryCertificationStreamFingerprint::new().finish()
+        );
+        assert_eq!(
+            flat.retained_fingerprint,
+            LocalFragmentPairStreamFingerprint::new().finish()
+        );
+    }
+
+    #[test]
+    fn flat_exact_boundary_shadow_handles_one_sided_and_line_only_inputs() {
+        let one_sided = || {
+            (
+                vec![local_fragment_parent("abcdefghijklmnopqrst tail", 1, 1)],
+                Vec::new(),
+            )
+        };
+        let (old, new) = one_sided();
+        let v49 = exact_boundary_trie_analysis_metrics(old, new, 8, length_aware_limits());
+        let (old, new) = one_sided();
+        let flat = flat_exact_boundary_analysis_metrics(
+            old,
+            new,
+            8,
+            FlatExactBoundaryLimits::for_tokens(1_000_000).expect("limits fit"),
+        );
+        assert!(flat.complete, "{:?}", flat.stop_reason);
+        assert_eq!(flat.hash_candidates, 0);
+        assert_eq!(
+            flat.certification_fingerprint,
+            v49.certification_fingerprint
+        );
+        assert_eq!(flat.retained_fingerprint, v49.retained_fingerprint);
+
+        let mut old = local_fragment_parent("abcdefghijklmnopqrst tail", 2, 2);
+        let mut new = local_fragment_parent("abcdefghijklmnopqrst tail", 3, 3);
+        old.kind = RecoveryUnitKind::Line;
+        new.kind = RecoveryUnitKind::Line;
+        let flat = flat_exact_boundary_analysis_metrics(
+            vec![old],
+            vec![new],
+            8,
+            FlatExactBoundaryLimits::for_tokens(1_000_000).expect("limits fit"),
+        );
+        assert!(flat.complete, "{:?}", flat.stop_reason);
+        assert_eq!(flat.old_fragments, 0);
+        assert_eq!(flat.new_fragments, 0);
+        assert_eq!(
+            flat.work,
+            LocalFragmentFlatExactBoundaryWorkMetrics::default()
+        );
+    }
+
+    #[test]
+    fn flat_exact_classes_preserve_unmapped_identity_despite_hash_collision() {
+        let unmapped = |glyph_id| SentenceEvidenceToken::Unmapped {
+            font_fingerprint: 7,
+            glyph_id,
+        };
+        let mut old_occurrences = [local_fragment_parent("abcdefghijklmnopqrst", 1, 1)];
+        let mut new_occurrences = [
+            local_fragment_parent("abcdefghijklmnopqrst", 2, 2),
+            local_fragment_parent("abcdefghijklmnopqrst", 3, 3),
+        ];
+        old_occurrences[0].tokens[0] = unmapped(11);
+        new_occurrences[0].tokens[0] = unmapped(11);
+        new_occurrences[1].tokens[0] = unmapped(12);
+        let old_fragments = [test_length_aware_fragment(
+            0,
+            &old_occurrences[0],
+            LocalFragmentOrientation::Prefix,
+            0..20,
+        )];
+        let mut new_fragments = [
+            test_length_aware_fragment(
+                0,
+                &new_occurrences[0],
+                LocalFragmentOrientation::Prefix,
+                0..20,
+            ),
+            test_length_aware_fragment(
+                1,
+                &new_occurrences[1],
+                LocalFragmentOrientation::Prefix,
+                0..20,
+            ),
+        ];
+        new_fragments[1]
+            .signatures
+            .clone_from(&old_fragments[0].signatures);
+        let mut budget = FlatExactBoundaryBudget::new(
+            FlatExactBoundaryLimits::for_tokens(1_000_000).expect("limits fit"),
+        );
+        let classes = build_flat_exact_boundary_classes(
+            &old_fragments,
+            &new_fragments,
+            &old_occurrences,
+            &new_occurrences,
+            &mut budget,
+        )
+        .expect("flat classes build");
+        assert_eq!(
+            flat_exact_boundary_certification(0, 0, &old_fragments, &new_fragments, &classes,)
+                .expect("exact certification succeeds")
+                .map(|(certification, _)| certification),
+            Some(ExactBoundaryCertification::Both)
+        );
+        assert_eq!(
+            flat_exact_boundary_certification(0, 1, &old_fragments, &new_fragments, &classes,)
+                .expect("collision certification succeeds")
+                .map(|(certification, _)| certification),
+            Some(ExactBoundaryCertification::Suffix)
+        );
+    }
+
+    #[test]
+    fn flat_exact_classes_match_exact_edges_exhaustively() {
+        let sequence = |length: usize, bits: usize| {
+            (0..length)
+                .map(|offset| {
+                    SentenceEvidenceToken::Scalar(if bits & (1 << offset) == 0 { 'a' } else { 'b' })
+                })
+                .collect::<Vec<_>>()
+        };
+        for old_len in 1..=5 {
+            for new_len in 1..=5 {
+                for old_bits in 0..(1 << old_len) {
+                    for new_bits in 0..(1 << new_len) {
+                        let old_occurrences = [SentenceOccurrence {
+                            tokens: sequence(old_len, old_bits),
+                            ..local_fragment_parent("placeholder words", 1, 1)
+                        }];
+                        let new_occurrences = [SentenceOccurrence {
+                            tokens: sequence(new_len, new_bits),
+                            ..local_fragment_parent("placeholder words", 2, 2)
+                        }];
+                        let old_fragments = [test_length_aware_fragment(
+                            0,
+                            &old_occurrences[0],
+                            LocalFragmentOrientation::Prefix,
+                            0..old_len,
+                        )];
+                        let new_fragments = [test_length_aware_fragment(
+                            0,
+                            &new_occurrences[0],
+                            LocalFragmentOrientation::Prefix,
+                            0..new_len,
+                        )];
+                        let mut budget = FlatExactBoundaryBudget::new(
+                            FlatExactBoundaryLimits::for_tokens(1_000_000).expect("limits fit"),
+                        );
+                        let classes = build_flat_exact_boundary_classes(
+                            &old_fragments,
+                            &new_fragments,
+                            &old_occurrences,
+                            &new_occurrences,
+                            &mut budget,
+                        )
+                        .expect("flat classes build");
+                        let actual = flat_exact_boundary_certification(
+                            0,
+                            0,
+                            &old_fragments,
+                            &new_fragments,
+                            &classes,
+                        )
+                        .expect("certification succeeds")
+                        .map(|(certification, _)| certification);
+                        let depth = sentence_edge_signature_depth(old_len.min(new_len))
+                            .expect("depth fits");
+                        let old_tokens = &old_occurrences[0].tokens;
+                        let new_tokens = &new_occurrences[0].tokens;
+                        let prefix = old_tokens[..depth] == new_tokens[..depth];
+                        let suffix = old_tokens[old_len - depth..] == new_tokens[new_len - depth..];
+                        let expected = match (prefix, suffix) {
+                            (true, true) => Some(ExactBoundaryCertification::Both),
+                            (true, false) => Some(ExactBoundaryCertification::Prefix),
+                            (false, true) => Some(ExactBoundaryCertification::Suffix),
+                            (false, false) => None,
+                        };
+                        assert_eq!(actual, expected);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn flat_exact_boundary_limits_stop_atomically() {
+        let documents = || {
+            (
+                vec![local_fragment_parent("abcdefghijklmnopqrst tail", 1, 1)],
+                vec![local_fragment_parent("abcdefghijklmnopqrst tail", 2, 2)],
+            )
+        };
+        for (expected, mutate) in [
+            (
+                LocalFragmentFlatExactBoundaryStopReason::ClassSlotLimit,
+                (|limits: &mut FlatExactBoundaryLimits| limits.class_slots = 0)
+                    as fn(&mut FlatExactBoundaryLimits),
+            ),
+            (
+                LocalFragmentFlatExactBoundaryStopReason::RadixWorkLimit,
+                |limits: &mut FlatExactBoundaryLimits| limits.radix_work = 0,
+            ),
+            (
+                LocalFragmentFlatExactBoundaryStopReason::EstimatedByteLimit,
+                |limits: &mut FlatExactBoundaryLimits| limits.common.estimated_bytes = 0,
+            ),
+        ] {
+            let mut limits = FlatExactBoundaryLimits::for_tokens(1_000_000).expect("limits fit");
+            mutate(&mut limits);
+            let (old, new) = documents();
+            let flat = flat_exact_boundary_analysis_metrics(old, new, 8, limits);
+            assert!(!flat.complete);
+            assert_eq!(flat.stop_reason, Some(expected));
+            assert_eq!(flat.old_fragments, 0);
+            assert_eq!(flat.class_slots, 0);
+            assert_eq!(flat.hash_candidates, 0);
+            assert_eq!(flat.certification_fingerprint, [0; 32]);
+            assert_eq!(flat.retained_fingerprint, [0; 32]);
+        }
+        assert!(FlatExactBoundaryLimits::for_tokens(usize::MAX).is_none());
     }
 
     #[test]
@@ -35683,6 +37095,76 @@ mod tests {
         assert_eq!(order_mismatch.retained_count_mismatches, 0);
         assert_eq!(order_mismatch.retained_order_mismatches, 1);
         assert_eq!(order_mismatch.retained_fingerprint_mismatches, 1);
+    }
+
+    #[test]
+    fn flat_exact_boundary_v49_parity_covers_certification_and_retained_order() {
+        let fingerprint = |value| [value; 32];
+        let diagnostics = |v49_complete, flat_complete, certification, retained| {
+            let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+                metrics: SentenceRecoveryMetrics {
+                    local_fragment_exact_boundary_trie_shadow: Some(
+                        LocalFragmentExactBoundaryTrieShadowMetrics {
+                            complete: v49_complete,
+                            hash_candidates: 4,
+                            exact_certified_candidates: 3,
+                            hash_collision_only_candidates: 1,
+                            prefix_only_candidates: 1,
+                            suffix_only_candidates: 1,
+                            both_candidates: 1,
+                            certified_tokens_credited: 6,
+                            recheck_pairs_started: 3,
+                            recheck_comparisons: 5,
+                            projected_avoided_comparisons: 6,
+                            retained_pairs: 2,
+                            certification_fingerprint: fingerprint(1),
+                            retained_fingerprint: fingerprint(2),
+                            ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+                        },
+                    ),
+                    local_fragment_flat_exact_boundary_shadow: Some(
+                        LocalFragmentFlatExactBoundaryShadowMetrics {
+                            complete: flat_complete,
+                            hash_candidates: 4,
+                            exact_certified_candidates: 3,
+                            hash_collision_only_candidates: 1,
+                            prefix_only_candidates: 1,
+                            suffix_only_candidates: 1,
+                            both_candidates: 1,
+                            certified_tokens_credited: 6,
+                            recheck_pairs_started: 3,
+                            recheck_comparisons: 5,
+                            projected_avoided_comparisons: 6,
+                            retained_pairs: 2,
+                            certification_fingerprint: fingerprint(certification),
+                            retained_fingerprint: fingerprint(retained),
+                            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+                        },
+                    ),
+                    ..SentenceRecoveryMetrics::default()
+                },
+                eligible_old_source_tokens: 0,
+                eligible_new_source_tokens: 0,
+                signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+                signature_retained_fingerprint_valid: false,
+            });
+            record_local_fragment_flat_exact_boundary_v49_parity(&mut diagnostics);
+            diagnostics
+                .expect("diagnostics remain available")
+                .metrics
+                .local_fragment_flat_exact_boundary_shadow
+                .expect("flat shadow remains available")
+        };
+        assert!(!diagnostics(false, true, 1, 2).v49_parity_available);
+        assert!(!diagnostics(true, false, 1, 2).v49_parity_available);
+        let parity = diagnostics(true, true, 1, 2);
+        assert!(parity.v49_parity_available);
+        assert_eq!(parity.certification_fingerprint_mismatches, 0);
+        assert_eq!(parity.retained_order_mismatches, 0);
+        let mismatch = diagnostics(true, true, 9, 8);
+        assert_eq!(mismatch.certification_fingerprint_mismatches, 1);
+        assert_eq!(mismatch.retained_fingerprint_mismatches, 1);
+        assert_eq!(mismatch.retained_order_mismatches, 1);
     }
 
     #[test]
