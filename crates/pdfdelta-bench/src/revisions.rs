@@ -25,13 +25,14 @@ use pdfdelta_core::{
         NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
         RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
         RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
-        RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence, RecoveryWatchPairEvidence,
-        RecoveryWatchQuery, RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
-        RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
-        SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
-        SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
-        SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
-        SentenceEdgeSignatureReferenceOracleMetrics,
+        RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
+        RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
+        RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchRelation,
+        RecoveryWatchSegmentPairEvidence, RecoveryWatchSide, RecoveryWatchUnitKind,
+        RunSignatureStopReason, SegmentStopReason, SentenceEdgeFilterStopReason,
+        SentenceEdgeGateShadowMetrics, SentenceEdgeGateShadowStopReason,
+        SentenceEdgeSignatureDirectExecution, SentenceEdgeSignatureDirectShadowMetrics,
+        SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureReferenceOracleMetrics,
         SentenceEdgeSignatureReferenceOracleStopReason, SentenceEdgeSignatureShadowMetrics,
         SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics, TextSpan,
     },
@@ -261,6 +262,7 @@ pub struct ExpectedChangeRecoveryWatchRecord {
     pub old: RecoveryWatchOccurrenceReport,
     pub new: RecoveryWatchOccurrenceReport,
     pub pair: Option<RecoveryWatchPairEvidenceReport>,
+    pub one_sided_vetoes: Vec<RecoveryWatchOneSidedVetoEvidenceReport>,
     pub segment_pair: Option<RecoveryWatchSegmentPairEvidenceReport>,
     pub granular_pair: Option<RecoveryWatchGranularPairEvidenceReport>,
 }
@@ -383,6 +385,33 @@ pub struct RecoveryWatchPairEvidenceReport {
     pub reciprocal: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct RecoveryWatchOneSidedVetoEvidenceReport {
+    pub side: RecoveryWatchSideReport,
+    pub watched: RecoveryWatchFoundOccurrenceReport,
+    pub relation_available: bool,
+    pub vetoed: bool,
+    pub best_score: u16,
+    pub second_score: u16,
+    pub best_opposite: Option<RecoveryWatchFoundOccurrenceReport>,
+    pub observed_opponents: Vec<RecoveryWatchOneSidedOpponentEvidenceReport>,
+    pub near_scope: Option<RecoveryWatchNearScopeReport>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct RecoveryWatchOneSidedOpponentEvidenceReport {
+    pub occurrence: RecoveryWatchFoundOccurrenceReport,
+    pub score: u16,
+    pub near_scope: RecoveryWatchNearScopeReport,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryWatchSideReport {
+    Old,
+    New,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct RecoveryWatchSegmentPairEvidenceReport {
     pub old_start_ordinal: usize,
@@ -425,6 +454,7 @@ pub enum SegmentStopReasonReport {
 #[serde(rename_all = "snake_case")]
 pub enum RecoveryWatchNearScopeReport {
     SameSpan,
+    AmbiguousSpan,
     CrossSpan,
     PairedStream,
 }
@@ -1443,6 +1473,45 @@ impl From<RecoveryWatchPairEvidence> for RecoveryWatchPairEvidenceReport {
     }
 }
 
+impl From<RecoveryWatchOneSidedVetoEvidence> for RecoveryWatchOneSidedVetoEvidenceReport {
+    fn from(evidence: RecoveryWatchOneSidedVetoEvidence) -> Self {
+        Self {
+            side: evidence.side.into(),
+            watched: evidence.watched.into(),
+            relation_available: evidence.relation_available,
+            vetoed: evidence.vetoed,
+            best_score: evidence.best_score,
+            second_score: evidence.second_score,
+            best_opposite: evidence.best_opposite.map(Into::into),
+            observed_opponents: evidence
+                .observed_opponents
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            near_scope: evidence.near_scope.map(Into::into),
+        }
+    }
+}
+
+impl From<RecoveryWatchOneSidedOpponentEvidence> for RecoveryWatchOneSidedOpponentEvidenceReport {
+    fn from(evidence: RecoveryWatchOneSidedOpponentEvidence) -> Self {
+        Self {
+            occurrence: evidence.occurrence.into(),
+            score: evidence.score,
+            near_scope: evidence.near_scope.into(),
+        }
+    }
+}
+
+impl From<RecoveryWatchSide> for RecoveryWatchSideReport {
+    fn from(side: RecoveryWatchSide) -> Self {
+        match side {
+            RecoveryWatchSide::Old => Self::Old,
+            RecoveryWatchSide::New => Self::New,
+        }
+    }
+}
+
 impl From<RecoveryWatchSegmentPairEvidence> for RecoveryWatchSegmentPairEvidenceReport {
     fn from(pair: RecoveryWatchSegmentPairEvidence) -> Self {
         Self {
@@ -1492,6 +1561,7 @@ impl From<RecoveryWatchNearScope> for RecoveryWatchNearScopeReport {
     fn from(scope: RecoveryWatchNearScope) -> Self {
         match scope {
             RecoveryWatchNearScope::SameSpan => Self::SameSpan,
+            RecoveryWatchNearScope::AmbiguousSpan => Self::AmbiguousSpan,
             RecoveryWatchNearScope::CrossSpan => Self::CrossSpan,
             RecoveryWatchNearScope::PairedStream => Self::PairedStream,
         }
@@ -1566,6 +1636,11 @@ fn recovery_watch_report(
                     old: record.old.into(),
                     new: record.new.into(),
                     pair: record.pair.map(Into::into),
+                    one_sided_vetoes: record
+                        .one_sided_vetoes
+                        .into_iter()
+                        .map(Into::into)
+                        .collect(),
                     segment_pair: record.segment_pair.map(Into::into),
                     granular_pair: record.granular_pair.map(Into::into),
                 },
@@ -1581,6 +1656,7 @@ fn recovery_watch_report(
                             change.and_then(|change| change.new_quote.as_deref()),
                         ),
                         pair: None,
+                        one_sided_vetoes: Vec::new(),
                         segment_pair: None,
                         granular_pair: None,
                     }
@@ -5736,7 +5812,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 35;
+    pub const SCHEMA_VERSION: u32 = 36;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -5970,6 +6046,7 @@ mod tests {
                     old: RecoveryWatchOccurrenceEvidence::Unfound,
                     new: RecoveryWatchOccurrenceEvidence::Ambiguous,
                     pair: None,
+                    one_sided_vetoes: Vec::new(),
                     segment_pair: None,
                     granular_pair: None,
                 },
@@ -5978,6 +6055,7 @@ mod tests {
                     old: RecoveryWatchOccurrenceEvidence::Unavailable,
                     new: RecoveryWatchOccurrenceEvidence::Unavailable,
                     pair: None,
+                    one_sided_vetoes: Vec::new(),
                     segment_pair: None,
                     granular_pair: None,
                 },
@@ -5986,6 +6064,7 @@ mod tests {
                     old: RecoveryWatchOccurrenceEvidence::Unfound,
                     new: RecoveryWatchOccurrenceEvidence::Unfound,
                     pair: None,
+                    one_sided_vetoes: Vec::new(),
                     segment_pair: None,
                     granular_pair: None,
                 },
@@ -6049,6 +6128,7 @@ mod tests {
                 old: occurrence,
                 new: RecoveryWatchOccurrenceEvidence::Unfound,
                 pair: None,
+                one_sided_vetoes: Vec::new(),
                 segment_pair: None,
                 granular_pair: None,
             },
@@ -6095,6 +6175,7 @@ mod tests {
                 },
                 reciprocal: false,
             }),
+            one_sided_vetoes: Vec::new(),
             segment_pair: Some(RecoveryWatchSegmentPairEvidence {
                 old_start_ordinal: 4,
                 old_end_ordinal: 6,
@@ -6156,6 +6237,7 @@ mod tests {
             old: RecoveryWatchOccurrenceEvidence::NotQueried,
             new: RecoveryWatchOccurrenceEvidence::Unavailable,
             pair: None,
+            one_sided_vetoes: Vec::new(),
             segment_pair: None,
             granular_pair: None,
         });
@@ -6184,6 +6266,7 @@ mod tests {
             ),
             new: RecoveryWatchOccurrenceEvidence::NotQueried,
             pair: None,
+            one_sided_vetoes: Vec::new(),
             segment_pair: None,
             granular_pair: None,
         });
@@ -6329,9 +6412,14 @@ mod tests {
                 "old",
                 "new",
                 "pair",
+                "one_sided_vetoes",
                 "segment_pair",
                 "granular_pair",
             ])
+        );
+        assert_eq!(
+            value["records"][3]["one_sided_vetoes"],
+            serde_json::json!([])
         );
         assert_eq!(
             value["records"][3]["old"]
@@ -6390,6 +6478,187 @@ mod tests {
                 "crossing_anchor_count": 0,
                 "relation": "exact_unique_monotone"
             })
+        );
+    }
+
+    #[test]
+    fn recovery_watch_report_serializes_one_sided_veto_evidence() {
+        let mut deletion = recovery_watch_expected_change("deleted", ExpectedKind::Deletion);
+        deletion.new_quote = None;
+        let document = expected_document(vec![deletion]);
+        let query_set = RecoveryWatchQuerySet::new(Some(&document));
+        let watched = RecoveryWatchOccurrence {
+            span_index: Some(3),
+            trusted_run_descriptor_index: Some(4),
+            ordinal: Some(5),
+            end_ordinal: None,
+            unit_count: None,
+            token_count: Some(24),
+            recovery_location_available: true,
+            fully_contained: false,
+            page: Some(6),
+            bbox: None,
+            role: Some(BlockRole::Body),
+            kind: RecoveryWatchUnitKind::Sentence,
+        };
+        let best_opposite = RecoveryWatchOccurrence {
+            span_index: None,
+            trusted_run_descriptor_index: Some(7),
+            ordinal: Some(8),
+            end_ordinal: None,
+            unit_count: None,
+            token_count: Some(22),
+            recovery_location_available: true,
+            fully_contained: true,
+            page: Some(9),
+            bbox: Some(Rect {
+                min: Vec2 { x: 1.0, y: 2.0 },
+                max: Vec2 { x: 3.0, y: 4.0 },
+            }),
+            role: Some(BlockRole::RepeatedFooter),
+            kind: RecoveryWatchUnitKind::Line,
+        };
+        let tied_opposite = RecoveryWatchOccurrence {
+            span_index: Some(10),
+            trusted_run_descriptor_index: None,
+            ordinal: None,
+            end_ordinal: None,
+            unit_count: None,
+            token_count: Some(20),
+            recovery_location_available: false,
+            fully_contained: false,
+            page: Some(11),
+            bbox: None,
+            role: Some(BlockRole::Body),
+            kind: RecoveryWatchUnitKind::Sentence,
+        };
+        let report = recovery_watch_report(
+            &document.changes,
+            &query_set,
+            RecoveryWatchDiagnostics {
+                complete: true,
+                candidate_generation_complete: true,
+                near_relation_complete: true,
+                records: vec![pdfdelta_core::diff::RecoveryWatchRecord {
+                    id: query_set.ids[0].clone(),
+                    old: RecoveryWatchOccurrenceEvidence::Occurrences(
+                        pdfdelta_core::diff::RecoveryWatchOccurrences {
+                            occurrence_count: 1,
+                            complete: true,
+                            occurrences: vec![watched.clone()],
+                        },
+                    ),
+                    new: RecoveryWatchOccurrenceEvidence::NotQueried,
+                    pair: None,
+                    one_sided_vetoes: vec![RecoveryWatchOneSidedVetoEvidence {
+                        side: RecoveryWatchSide::Old,
+                        watched,
+                        relation_available: true,
+                        vetoed: true,
+                        best_score: 7_250,
+                        second_score: 6_900,
+                        best_opposite: Some(best_opposite.clone()),
+                        observed_opponents: vec![
+                            RecoveryWatchOneSidedOpponentEvidence {
+                                occurrence: best_opposite,
+                                score: 7_250,
+                                near_scope: RecoveryWatchNearScope::CrossSpan,
+                            },
+                            RecoveryWatchOneSidedOpponentEvidence {
+                                occurrence: tied_opposite,
+                                score: 7_250,
+                                near_scope: RecoveryWatchNearScope::AmbiguousSpan,
+                            },
+                        ],
+                        near_scope: Some(RecoveryWatchNearScope::CrossSpan),
+                    }],
+                    segment_pair: None,
+                    granular_pair: None,
+                }],
+                ..RecoveryWatchDiagnostics::default()
+            },
+        );
+
+        let value = serde_json::to_value(report).expect("watch report serializes");
+        assert_eq!(
+            value["records"][0]["one_sided_vetoes"],
+            serde_json::json!([{
+                "side": "old",
+                "watched": {
+                    "span_index": 3,
+                    "trusted_run_descriptor_index": 4,
+                    "ordinal": 5,
+                    "end_ordinal": null,
+                    "unit_count": null,
+                    "token_count": 24,
+                    "recovery_location_available": true,
+                    "fully_contained": false,
+                    "page": 6,
+                    "bbox": null,
+                    "role": "body",
+                    "kind": "sentence"
+                },
+                "relation_available": true,
+                "vetoed": true,
+                "best_score": 7250,
+                "second_score": 6900,
+                "best_opposite": {
+                    "span_index": null,
+                    "trusted_run_descriptor_index": 7,
+                    "ordinal": 8,
+                    "end_ordinal": null,
+                    "unit_count": null,
+                    "token_count": 22,
+                    "recovery_location_available": true,
+                    "fully_contained": true,
+                    "page": 9,
+                    "bbox": {
+                        "min": { "x": 1.0, "y": 2.0 },
+                        "max": { "x": 3.0, "y": 4.0 }
+                    },
+                    "role": "repeated_footer",
+                    "kind": "line"
+                },
+                "observed_opponents": [{
+                    "occurrence": {
+                        "span_index": null,
+                        "trusted_run_descriptor_index": 7,
+                        "ordinal": 8,
+                        "end_ordinal": null,
+                        "unit_count": null,
+                        "token_count": 22,
+                        "recovery_location_available": true,
+                        "fully_contained": true,
+                        "page": 9,
+                        "bbox": {
+                            "min": { "x": 1.0, "y": 2.0 },
+                            "max": { "x": 3.0, "y": 4.0 }
+                        },
+                        "role": "repeated_footer",
+                        "kind": "line"
+                    },
+                    "score": 7250,
+                    "near_scope": "cross_span"
+                }, {
+                    "occurrence": {
+                        "span_index": 10,
+                        "trusted_run_descriptor_index": null,
+                        "ordinal": null,
+                        "end_ordinal": null,
+                        "unit_count": null,
+                        "token_count": 20,
+                        "recovery_location_available": false,
+                        "fully_contained": false,
+                        "page": 11,
+                        "bbox": null,
+                        "role": "body",
+                        "kind": "sentence"
+                    },
+                    "score": 7250,
+                    "near_scope": "ambiguous_span"
+                }],
+                "near_scope": "cross_span"
+            }])
         );
     }
 
@@ -7000,7 +7269,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 35);
+        assert_eq!(completed["schema_version"], 36);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -7043,7 +7312,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 35);
+        assert_eq!(legacy_summary["schema_version"], 36);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -8253,7 +8522,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 35);
+        assert_eq!(json["schema_version"], 36);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -11292,7 +11561,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 35);
+        assert_eq!(value["schema_version"], 36);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

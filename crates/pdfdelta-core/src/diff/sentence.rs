@@ -49,15 +49,16 @@ use super::{
     NearSearchWorkMetrics, RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence,
     RecoveryWatchGranularRelation, RecoveryWatchGranularStopReason,
     RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope, RecoveryWatchOccurrence,
-    RecoveryWatchOccurrenceEvidence, RecoveryWatchOccurrences, RecoveryWatchPairEvidence,
-    RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
-    RecoveryWatchSegmentPairEvidence, RecoveryWatchUnitKind, RunSignatureStopReason,
-    SegmentStopReason, SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
-    SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
-    SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
-    SentenceEdgeSignatureShadowMetrics, SentenceEdgeSignatureShadowStopReason,
-    SentenceRecoveryCommittedTokens, SentenceRecoveryInput, SentenceRecoveryMetrics, Side,
-    TokenRange, TrustedRunRecoveryInput,
+    RecoveryWatchOccurrenceEvidence, RecoveryWatchOccurrences,
+    RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
+    RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
+    RecoveryWatchSegmentPairEvidence, RecoveryWatchSide, RecoveryWatchUnitKind,
+    RunSignatureStopReason, SegmentStopReason, SentenceEdgeFilterStopReason,
+    SentenceEdgeGateShadowMetrics, SentenceEdgeGateShadowStopReason,
+    SentenceEdgeSignatureDirectExecution, SentenceEdgeSignatureDirectShadowMetrics,
+    SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureShadowMetrics,
+    SentenceEdgeSignatureShadowStopReason, SentenceRecoveryCommittedTokens, SentenceRecoveryInput,
+    SentenceRecoveryMetrics, Side, TokenRange, TrustedRunRecoveryInput,
 };
 #[cfg(test)]
 use super::{
@@ -741,6 +742,7 @@ struct CandidateNearRelation {
     best_score: u16,
     second_score: u16,
     best_partner: Option<usize>,
+    best_scope: Option<RecoveryWatchNearScope>,
 }
 
 struct RecoveryWatchState {
@@ -760,6 +762,8 @@ struct RecoveryWatchState {
     pair_by_occurrences: HashMap<(usize, usize), Vec<usize>>,
     old_pair_partners: HashMap<usize, Vec<usize>>,
     new_pair_partners: HashMap<usize, Vec<usize>>,
+    old_one_sided_near: HashMap<usize, OneSidedNearObservations>,
+    new_one_sided_near: HashMap<usize, OneSidedNearObservations>,
     scan_work: usize,
     scan_limit: usize,
     retained_one_sided_occurrences: usize,
@@ -771,6 +775,8 @@ struct RecoveryWatchStateRecord {
     new_occurrence: Option<usize>,
     old_segment: Option<usize>,
     new_segment: Option<usize>,
+    old_one_sided_occurrences: Vec<Option<usize>>,
+    new_one_sided_occurrences: Vec<Option<usize>>,
 }
 
 struct RecoveryWatchLookup {
@@ -778,6 +784,82 @@ struct RecoveryWatchLookup {
     occurrence_index: Option<usize>,
     span_index: Option<usize>,
     segment_key: Option<RecoverySegmentKey>,
+    one_sided_occurrence_indices: Vec<Option<usize>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct OneSidedNearObservation {
+    opposite_occurrence: usize,
+    score: u16,
+    scope: RecoveryWatchNearScope,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct OneSidedNearObservations {
+    values: [Option<OneSidedNearObservation>; 2],
+}
+
+impl OneSidedNearObservations {
+    fn record(&mut self, observation: OneSidedNearObservation) {
+        if let Some(existing) = self
+            .values
+            .iter_mut()
+            .flatten()
+            .find(|existing| existing.opposite_occurrence == observation.opposite_occurrence)
+        {
+            if observation.score > existing.score {
+                *existing = observation;
+            }
+        } else if self.values[0].is_none() {
+            self.values[0] = Some(observation);
+        } else if self.values[1].is_none() {
+            self.values[1] = Some(observation);
+        } else if let Some(second) = self.values[1]
+            && observation_out_ranks(observation, second)
+        {
+            self.values[1] = Some(observation);
+        }
+        if let (Some(first), Some(second)) = (self.values[0], self.values[1])
+            && observation_out_ranks(second, first)
+        {
+            self.values.swap(0, 1);
+        }
+    }
+}
+
+fn observation_out_ranks(left: OneSidedNearObservation, right: OneSidedNearObservation) -> bool {
+    left.score > right.score
+}
+
+fn watch_scope_for_occurrences(
+    scope: RecoveryWatchNearScope,
+    old: &SentenceOccurrence,
+    new: &SentenceOccurrence,
+) -> RecoveryWatchNearScope {
+    if scope != RecoveryWatchNearScope::SameSpan {
+        return scope;
+    }
+    if old.span_index.is_some() && old.span_index == new.span_index {
+        RecoveryWatchNearScope::SameSpan
+    } else {
+        RecoveryWatchNearScope::AmbiguousSpan
+    }
+}
+
+fn watch_scope_for_search(
+    scope: NearSearchScope,
+    old: &SentenceOccurrence,
+    new: &SentenceOccurrence,
+) -> RecoveryWatchNearScope {
+    match scope {
+        NearSearchScope::PairedInterval | NearSearchScope::PairedCrossIntervalVeto => {
+            RecoveryWatchNearScope::PairedStream
+        }
+        NearSearchScope::SameOrAmbiguousSpan => {
+            watch_scope_for_occurrences(RecoveryWatchNearScope::SameSpan, old, new)
+        }
+        NearSearchScope::CrossSpan => RecoveryWatchNearScope::CrossSpan,
+    }
 }
 
 fn push_unique_watch_partner(
@@ -800,6 +882,7 @@ impl RecoveryWatchLookup {
             occurrence_index: None,
             span_index: None,
             segment_key: None,
+            one_sided_occurrence_indices: Vec::new(),
         }
     }
 
@@ -809,6 +892,7 @@ impl RecoveryWatchLookup {
             occurrence_index: None,
             span_index: None,
             segment_key: None,
+            one_sided_occurrence_indices: Vec::new(),
         }
     }
 
@@ -818,6 +902,7 @@ impl RecoveryWatchLookup {
             occurrence_index: None,
             span_index: None,
             segment_key: None,
+            one_sided_occurrence_indices: Vec::new(),
         }
     }
 }
@@ -2353,6 +2438,8 @@ impl RecoveryWatchState {
             pair_by_occurrences: HashMap::new(),
             old_pair_partners: HashMap::new(),
             new_pair_partners: HashMap::new(),
+            old_one_sided_near: HashMap::new(),
+            new_one_sided_near: HashMap::new(),
             scan_work: 0,
             scan_limit: context.max_tokens.checked_mul(16)?,
             retained_one_sided_occurrences: 0,
@@ -2362,6 +2449,14 @@ impl RecoveryWatchState {
         state.pair_by_occurrences.try_reserve(processed).ok()?;
         state.old_pair_partners.try_reserve(processed).ok()?;
         state.new_pair_partners.try_reserve(processed).ok()?;
+        state
+            .old_one_sided_near
+            .try_reserve(MAX_RECOVERY_WATCH_RETAINED_OCCURRENCES)
+            .ok()?;
+        state
+            .new_one_sided_near
+            .try_reserve(MAX_RECOVERY_WATCH_RETAINED_OCCURRENCES)
+            .ok()?;
         for query in queries.iter().take(processed) {
             let paired = query.old_quote.is_some() && query.new_quote.is_some();
             let valid = query.old_quote.is_some() || query.new_quote.is_some();
@@ -2428,6 +2523,14 @@ impl RecoveryWatchState {
             };
             let old_occurrence = old.occurrence_index;
             let new_occurrence = new.occurrence_index;
+            let old_one_sided_occurrences = old.one_sided_occurrence_indices;
+            let new_one_sided_occurrences = new.one_sided_occurrence_indices;
+            for occurrence in old_one_sided_occurrences.iter().flatten() {
+                state.old_one_sided_near.entry(*occurrence).or_default();
+            }
+            for occurrence in new_one_sided_occurrences.iter().flatten() {
+                state.new_one_sided_near.entry(*occurrence).or_default();
+            }
             let mut old_segment = old.segment_key.and_then(|key| {
                 state
                     .segment_analysis
@@ -2524,11 +2627,14 @@ impl RecoveryWatchState {
                     pair,
                     segment_pair,
                     granular_pair,
+                    one_sided_vetoes: Vec::new(),
                 },
                 old_occurrence,
                 new_occurrence,
                 old_segment,
                 new_segment,
+                old_one_sided_occurrences,
+                new_one_sided_occurrences,
             });
             if paired && let (Some(old), Some(new)) = (old_occurrence, new_occurrence) {
                 let indices = state.pair_by_occurrences.entry((old, new)).or_default();
@@ -2557,7 +2663,8 @@ impl RecoveryWatchState {
             .checked_sub(self.retained_one_sided_occurrences)?;
         let mut outputs = Vec::new();
         let mut occurrence_count = 0usize;
-        for occurrence in occurrences {
+        let mut occurrence_indices = Vec::new();
+        for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
             let haystack = collapse_watch_whitespace(&occurrence.key)?;
             self.scan_work = self.scan_work.checked_add(haystack.chars().count())?;
             if self.scan_work > self.scan_limit {
@@ -2586,6 +2693,8 @@ impl RecoveryWatchState {
             let output = recovery_watch_occurrence(occurrence, descriptor, contained, min_tokens);
             outputs.try_reserve_exact(retained).ok()?;
             outputs.extend(std::iter::repeat_n(output, retained));
+            occurrence_indices.try_reserve_exact(retained).ok()?;
+            occurrence_indices.extend(std::iter::repeat_n(Some(occurrence_index), retained));
         }
         if self.collect_one_sided_segment_occurrences(
             &needle,
@@ -2599,6 +2708,7 @@ impl RecoveryWatchState {
         )? {
             return Some(RecoveryWatchLookup::unavailable());
         }
+        occurrence_indices.resize(outputs.len(), None);
         if occurrence_count == 0 {
             return Some(RecoveryWatchLookup::unfound());
         }
@@ -2618,6 +2728,7 @@ impl RecoveryWatchState {
             occurrence_index: None,
             span_index: None,
             segment_key: None,
+            one_sided_occurrence_indices: occurrence_indices,
         })
     }
 
@@ -2754,6 +2865,7 @@ impl RecoveryWatchState {
                 occurrence_index: None,
                 span_index: None,
                 segment_key: None,
+                one_sided_occurrence_indices: Vec::new(),
             });
         }
         let mut found = None;
@@ -2778,6 +2890,7 @@ impl RecoveryWatchState {
                 occurrence_index: None,
                 span_index: None,
                 segment_key: None,
+                one_sided_occurrence_indices: Vec::new(),
             });
         }
         let Some(occurrence_index) = found else {
@@ -2802,6 +2915,7 @@ impl RecoveryWatchState {
                 occurrence_index: None,
                 span_index: None,
                 segment_key: None,
+                one_sided_occurrence_indices: Vec::new(),
             });
         }
         let occurrence = occurrences.get(occurrence_index)?;
@@ -2811,6 +2925,7 @@ impl RecoveryWatchState {
                 occurrence_index: None,
                 span_index: None,
                 segment_key: None,
+                one_sided_occurrence_indices: Vec::new(),
             });
         }
         let descriptor = occurrence
@@ -2827,6 +2942,7 @@ impl RecoveryWatchState {
             occurrence_index: Some(occurrence_index),
             span_index: occurrence.span_index,
             segment_key: None,
+            one_sided_occurrence_indices: Vec::new(),
         })
     }
 
@@ -2946,6 +3062,7 @@ impl RecoveryWatchState {
                                 occurrence_index: None,
                                 span_index: None,
                                 segment_key: None,
+                                one_sided_occurrence_indices: Vec::new(),
                             });
                         }
                     }
@@ -2972,6 +3089,7 @@ impl RecoveryWatchState {
                 occurrence_index: None,
                 span_index: None,
                 segment_key: None,
+                one_sided_occurrence_indices: Vec::new(),
             });
         };
         if !all_scalar {
@@ -2980,6 +3098,7 @@ impl RecoveryWatchState {
                 occurrence_index: None,
                 span_index: None,
                 segment_key: None,
+                one_sided_occurrence_indices: Vec::new(),
             });
         }
         let descriptor = descriptor_index.and_then(|index| evidence?.descriptors.get(index));
@@ -3010,6 +3129,7 @@ impl RecoveryWatchState {
                 start_ordinal: hit.start_ordinal,
                 end_ordinal: hit.end_ordinal,
             }),
+            one_sided_occurrence_indices: Vec::new(),
         })
     }
 
@@ -3062,6 +3182,20 @@ impl RecoveryWatchState {
         score: u16,
         scope: RecoveryWatchNearScope,
     ) {
+        if let Some(observations) = self.old_one_sided_near.get_mut(&old_occurrence) {
+            observations.record(OneSidedNearObservation {
+                opposite_occurrence: new_occurrence,
+                score,
+                scope,
+            });
+        }
+        if let Some(observations) = self.new_one_sided_near.get_mut(&new_occurrence) {
+            observations.record(OneSidedNearObservation {
+                opposite_occurrence: old_occurrence,
+                score,
+                scope,
+            });
+        }
         let Some(record_indices) = self
             .pair_by_occurrences
             .get(&(old_occurrence, new_occurrence))
@@ -3161,6 +3295,69 @@ impl RecoveryWatchState {
                     _ => false,
                 };
             }
+        }
+        Some(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn record_one_sided_vetoes(
+        &mut self,
+        old_occurrences: &[SentenceOccurrence],
+        new_occurrences: &[SentenceOccurrence],
+        old_candidates: &[RecoveryCandidate],
+        new_candidates: &[RecoveryCandidate],
+        relations: &ModifiedSentenceRelations,
+        relations_complete: bool,
+        old_evidence: Option<&RunRecoveryEvidence<'_>>,
+        new_evidence: Option<&RunRecoveryEvidence<'_>>,
+        old_fully_contained: Option<&[bool]>,
+        new_fully_contained: Option<&[bool]>,
+        min_tokens: usize,
+    ) -> Option<()> {
+        let old_by_occurrence = candidate_indices_by_occurrence(old_candidates)?;
+        let new_by_occurrence = candidate_indices_by_occurrence(new_candidates)?;
+        let old_observations = &self.old_one_sided_near;
+        let new_observations = &self.new_one_sided_near;
+        for record in &mut self.records {
+            record.output.one_sided_vetoes.clear();
+            let old_watched = one_sided_watch_occurrences(&record.output.old);
+            let new_watched = one_sided_watch_occurrences(&record.output.new);
+            let count = old_watched.len().checked_add(new_watched.len())?;
+            record
+                .output
+                .one_sided_vetoes
+                .try_reserve_exact(count)
+                .ok()?;
+            append_one_sided_veto_evidence(
+                &mut record.output.one_sided_vetoes,
+                RecoveryWatchSide::Old,
+                old_watched,
+                &record.old_one_sided_occurrences,
+                new_occurrences,
+                &old_by_occurrence,
+                new_candidates,
+                &relations.old,
+                old_observations,
+                relations_complete,
+                new_evidence,
+                new_fully_contained,
+                min_tokens,
+            )?;
+            append_one_sided_veto_evidence(
+                &mut record.output.one_sided_vetoes,
+                RecoveryWatchSide::New,
+                new_watched,
+                &record.new_one_sided_occurrences,
+                old_occurrences,
+                &new_by_occurrence,
+                old_candidates,
+                &relations.new,
+                new_observations,
+                relations_complete,
+                old_evidence,
+                old_fully_contained,
+                min_tokens,
+            )?;
         }
         Some(())
     }
@@ -3280,6 +3477,159 @@ impl RecoveryWatchState {
     }
 }
 
+fn candidate_indices_by_occurrence(
+    candidates: &[RecoveryCandidate],
+) -> Option<HashMap<usize, usize>> {
+    let mut by_occurrence = HashMap::new();
+    by_occurrence.try_reserve(candidates.len()).ok()?;
+    for (index, candidate) in candidates.iter().enumerate() {
+        by_occurrence.insert(candidate.occurrence_index, index);
+    }
+    Some(by_occurrence)
+}
+
+fn one_sided_watch_occurrences(
+    evidence: &RecoveryWatchOccurrenceEvidence,
+) -> &[RecoveryWatchOccurrence] {
+    match evidence {
+        RecoveryWatchOccurrenceEvidence::Occurrences(occurrences) => &occurrences.occurrences,
+        _ => &[],
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_one_sided_veto_evidence(
+    output: &mut Vec<RecoveryWatchOneSidedVetoEvidence>,
+    side: RecoveryWatchSide,
+    watched: &[RecoveryWatchOccurrence],
+    occurrence_indices: &[Option<usize>],
+    opposite_occurrences: &[SentenceOccurrence],
+    candidate_by_occurrence: &HashMap<usize, usize>,
+    opposite_candidates: &[RecoveryCandidate],
+    relations: &[CandidateNearRelation],
+    observations: &HashMap<usize, OneSidedNearObservations>,
+    relations_complete: bool,
+    opposite_evidence: Option<&RunRecoveryEvidence<'_>>,
+    opposite_fully_contained: Option<&[bool]>,
+    min_tokens: usize,
+) -> Option<()> {
+    if watched.len() != occurrence_indices.len() {
+        return None;
+    }
+    for (watched, occurrence_index) in watched.iter().zip(occurrence_indices) {
+        let candidate_index = occurrence_index
+            .and_then(|occurrence| candidate_by_occurrence.get(&occurrence).copied());
+        let relation = relations_complete
+            .then_some(candidate_index)
+            .flatten()
+            .and_then(|index| relations.get(index).copied());
+        let best_opposite = relation
+            .and_then(|relation| relation.best_partner)
+            .and_then(|index| opposite_candidates.get(index))
+            .and_then(|candidate| {
+                watch_occurrence_with_context(
+                    candidate.occurrence_index,
+                    opposite_occurrences,
+                    opposite_evidence,
+                    opposite_fully_contained,
+                    min_tokens,
+                )
+            });
+        let observed = occurrence_index
+            .and_then(|index| observations.get(&index))
+            .copied()
+            .unwrap_or_default();
+        let best_observation = relation.and_then(|relation| {
+            Some((
+                relation.best_partner?,
+                relation.best_score,
+                relation.best_scope?,
+            ))
+        });
+        let observed_count = observed
+            .values
+            .iter()
+            .flatten()
+            .count()
+            .checked_add(usize::from(best_observation.is_some()))?
+            .min(2);
+        let mut observed_opponents = Vec::new();
+        observed_opponents.try_reserve_exact(observed_count).ok()?;
+        if let Some((candidate_index, score, near_scope)) = best_observation {
+            let candidate = opposite_candidates.get(candidate_index)?;
+            let occurrence = watch_occurrence_with_context(
+                candidate.occurrence_index,
+                opposite_occurrences,
+                opposite_evidence,
+                opposite_fully_contained,
+                min_tokens,
+            )?;
+            observed_opponents.push(RecoveryWatchOneSidedOpponentEvidence {
+                occurrence,
+                score,
+                near_scope,
+            });
+        }
+        for observation in observed.values.into_iter().flatten() {
+            if observed_opponents.len() == 2
+                || best_observation.is_some_and(|(candidate_index, _, _)| {
+                    opposite_candidates
+                        .get(candidate_index)
+                        .is_some_and(|candidate| {
+                            candidate.occurrence_index == observation.opposite_occurrence
+                        })
+                })
+            {
+                continue;
+            }
+            let occurrence = watch_occurrence_with_context(
+                observation.opposite_occurrence,
+                opposite_occurrences,
+                opposite_evidence,
+                opposite_fully_contained,
+                min_tokens,
+            )?;
+            observed_opponents.push(RecoveryWatchOneSidedOpponentEvidence {
+                occurrence,
+                score: observation.score,
+                near_scope: observation.scope,
+            });
+        }
+        output.push(RecoveryWatchOneSidedVetoEvidence {
+            side,
+            watched: watched.clone(),
+            relation_available: relation.is_some(),
+            vetoed: relation.is_some_and(CandidateNearRelation::vetoed),
+            best_score: relation.map_or(0, |relation| relation.best_score),
+            second_score: relation.map_or(0, |relation| relation.second_score),
+            best_opposite,
+            near_scope: relation.and_then(|relation| relation.best_scope),
+            observed_opponents,
+        });
+    }
+    Some(())
+}
+
+fn watch_occurrence_with_context(
+    occurrence_index: usize,
+    occurrences: &[SentenceOccurrence],
+    evidence: Option<&RunRecoveryEvidence<'_>>,
+    fully_contained: Option<&[bool]>,
+    min_tokens: usize,
+) -> Option<RecoveryWatchOccurrence> {
+    let occurrence = occurrences.get(occurrence_index)?;
+    let (descriptor, contained) = match occurrence.run_descriptor_index {
+        Some(index) => (
+            Some(evidence?.descriptors.get(index)?),
+            *fully_contained?.get(index)?,
+        ),
+        None => (None, false),
+    };
+    Some(recovery_watch_occurrence(
+        occurrence, descriptor, contained, min_tokens,
+    ))
+}
+
 fn segment_consumed_ranges_overlap(
     segment: &RecoverySegment,
     snapshots: &HashMap<usize, Vec<LocalSentenceRange>>,
@@ -3318,11 +3668,31 @@ fn collapse_watch_whitespace(value: &str) -> Option<String> {
 }
 
 impl CandidateNearRelation {
+    #[cfg(test)]
     fn record_eligible(&mut self, partner: usize, score: u16) {
+        self.record_eligible_with_scope(partner, score, None);
+    }
+
+    fn record_eligible_in_scope(
+        &mut self,
+        partner: usize,
+        score: u16,
+        scope: RecoveryWatchNearScope,
+    ) {
+        self.record_eligible_with_scope(partner, score, Some(scope));
+    }
+
+    fn record_eligible_with_scope(
+        &mut self,
+        partner: usize,
+        score: u16,
+        scope: Option<RecoveryWatchNearScope>,
+    ) {
         if score > self.best_score {
             self.second_score = self.best_score;
             self.best_score = score;
             self.best_partner = Some(partner);
+            self.best_scope = scope;
         } else {
             self.second_score = self.second_score.max(score);
         }
@@ -3333,6 +3703,7 @@ impl CandidateNearRelation {
             self.second_score = self.best_score;
             self.best_score = score;
             self.best_partner = None;
+            self.best_scope = None;
         } else {
             self.second_score = self.second_score.max(score);
         }
@@ -3351,6 +3722,7 @@ impl CandidateNearRelation {
     fn veto_without_partner(&mut self) {
         self.best_score = self.best_score.max(MIN_NEAR_SCORE);
         self.best_partner = None;
+        self.best_scope = None;
     }
 }
 
@@ -4251,7 +4623,7 @@ fn probe_direct_watch_pairs(
             old_occurrence_index,
             new_occurrence_index,
             evidence.edge_score(),
-            near_scope,
+            watch_scope_for_occurrences(near_scope, query, candidate),
         );
     }
     Some(())
@@ -4490,12 +4862,20 @@ fn score_and_record_sentence_edge_gate_shadow(
                         .old
                         .get_mut(old_index)
                         .ok_or(SentenceEdgeGateShadowStopReason::DiagnosticFailure)?
-                        .record_eligible(new_index, score);
+                        .record_eligible_in_scope(
+                            new_index,
+                            score,
+                            watch_scope_for_search(scope, old, new),
+                        );
                     shadow
                         .new
                         .get_mut(new_index)
                         .ok_or(SentenceEdgeGateShadowStopReason::DiagnosticFailure)?
-                        .record_eligible(old_index, score);
+                        .record_eligible_in_scope(
+                            old_index,
+                            score,
+                            watch_scope_for_search(scope, old, new),
+                        );
                 }
                 (Some(old_index), None) => shadow
                     .old
@@ -4642,7 +5022,7 @@ impl SentenceEdgeFilterQuery {
                     old_index,
                     new_index,
                     rejected.evidence.edge_score(),
-                    watch_scope,
+                    watch_scope_for_occurrences(watch_scope, query, occurrence),
                 );
             }
         }
@@ -4706,7 +5086,7 @@ impl SentenceEdgeRejectionObserver<'_> {
                 old_index,
                 new_index,
                 evidence.edge_score(),
-                self.watch_scope,
+                watch_scope_for_occurrences(self.watch_scope, query, occurrence),
             );
             if !watch.complete {
                 budget.record_watch_diagnostic_failure();
@@ -8582,6 +8962,33 @@ fn build_sentence_recovery_plan_inner_impl(
         budget.record_watch_diagnostic_failure();
         watch = None;
     }
+    if let Some(watch) = watch.as_mut()
+        && watch
+            .record_one_sided_vetoes(
+                &old_occurrences,
+                &new_occurrences,
+                &old_candidates,
+                &new_candidates,
+                &relations,
+                relations.complete && candidate_generation_complete,
+                structural_evidence.old.as_ref(),
+                structural_evidence.new.as_ref(),
+                run_signature_eligibility
+                    .as_ref()
+                    .map(|(old, _)| old.as_slice()),
+                run_signature_eligibility
+                    .as_ref()
+                    .map(|(_, new)| new.as_slice()),
+                input.min_tokens,
+            )
+            .is_none()
+    {
+        for record in &mut watch.records {
+            record.output.one_sided_vetoes.clear();
+        }
+        watch.complete = false;
+        budget.record_watch_diagnostic_failure();
+    }
     if let Some(diagnostics) = diagnostics.as_mut() {
         diagnostics.metrics.near_relation_complete =
             relations.complete && candidate_generation_complete;
@@ -10968,8 +11375,16 @@ fn paired_modified_sentence_relations_tracked(
             if let Some(new_candidate_index) = new_candidate_index
                 && new_candidates.intervals.get(new_candidate_index).copied() == Some(interval)
             {
-                relations.old[old_candidate_index].record_eligible(new_candidate_index, score);
-                relations.new[new_candidate_index].record_eligible(old_candidate_index, score);
+                relations.old[old_candidate_index].record_eligible_in_scope(
+                    new_candidate_index,
+                    score,
+                    RecoveryWatchNearScope::PairedStream,
+                );
+                relations.new[new_candidate_index].record_eligible_in_scope(
+                    old_candidate_index,
+                    score,
+                    RecoveryWatchNearScope::PairedStream,
+                );
             } else {
                 relations.old[old_candidate_index].record_disqualifying(score);
                 if let Some(new_candidate_index) = new_candidate_by_occurrence[new_occurrence_index]
@@ -12519,15 +12934,22 @@ fn extend_modified_sentence_relations_tracked(
                     old_candidate.occurrence_index,
                     new_occurrence_index,
                     score,
-                    match scope {
-                        NearRelationScope::SameOrAmbiguous => RecoveryWatchNearScope::SameSpan,
-                        NearRelationScope::CrossSpan => RecoveryWatchNearScope::CrossSpan,
-                    },
+                    watch_scope_for_search(work_scope, old_occurrence, new_occurrence),
                 );
             }
             if let Some(new_candidate_index) = new_candidate_index {
-                relations.old[old_candidate_index].record_eligible(new_candidate_index, score);
-                relations.new[new_candidate_index].record_eligible(old_candidate_index, score);
+                let watch_scope =
+                    watch_scope_for_search(work_scope, old_occurrence, new_occurrence);
+                relations.old[old_candidate_index].record_eligible_in_scope(
+                    new_candidate_index,
+                    score,
+                    watch_scope,
+                );
+                relations.new[new_candidate_index].record_eligible_in_scope(
+                    old_candidate_index,
+                    score,
+                    watch_scope,
+                );
                 record_known_span_replay_pair(
                     shadow.as_mut(),
                     scope,
@@ -12746,10 +13168,7 @@ fn extend_modified_sentence_relations_tracked(
                     old_occurrence_index,
                     new_candidate.occurrence_index,
                     score,
-                    match scope {
-                        NearRelationScope::SameOrAmbiguous => RecoveryWatchNearScope::SameSpan,
-                        NearRelationScope::CrossSpan => RecoveryWatchNearScope::CrossSpan,
-                    },
+                    watch_scope_for_search(work_scope, old_occurrence, new_occurrence),
                 );
             }
             relations.new[new_candidate_index].record_disqualifying(score);
@@ -12819,8 +13238,24 @@ fn record_known_span_replay_pair(
     if retained {
         match (old_candidate_index, new_candidate_index) {
             (Some(old_index), Some(new_index)) => {
-                replay.relations.old[old_index].record_eligible(new_index, score);
-                replay.relations.new[new_index].record_eligible(old_index, score);
+                let watch_scope = match scope {
+                    NearRelationScope::SameOrAmbiguous => watch_scope_for_occurrences(
+                        RecoveryWatchNearScope::SameSpan,
+                        old_occurrence,
+                        new_occurrence,
+                    ),
+                    NearRelationScope::CrossSpan => RecoveryWatchNearScope::CrossSpan,
+                };
+                replay.relations.old[old_index].record_eligible_in_scope(
+                    new_index,
+                    score,
+                    watch_scope,
+                );
+                replay.relations.new[new_index].record_eligible_in_scope(
+                    old_index,
+                    score,
+                    watch_scope,
+                );
             }
             (Some(old_index), None) => {
                 replay.relations.old[old_index].record_disqualifying(score);
@@ -14512,6 +14947,7 @@ mod tests {
                     }),
                     segment_pair: None,
                     granular_pair: None,
+                    one_sided_vetoes: Vec::new(),
                 });
             Ok(outcome)
         })
@@ -14583,6 +15019,8 @@ mod tests {
             pair_by_occurrences: HashMap::new(),
             old_pair_partners: HashMap::new(),
             new_pair_partners: HashMap::new(),
+            old_one_sided_near: HashMap::new(),
+            new_one_sided_near: HashMap::new(),
             scan_work: 0,
             scan_limit: 0,
             retained_one_sided_occurrences: 0,
@@ -14637,15 +15075,20 @@ mod tests {
                     }),
                     segment_pair: None,
                     granular_pair: None,
+                    one_sided_vetoes: Vec::new(),
                 },
                 old_occurrence: Some(0),
                 new_occurrence: Some(1),
                 old_segment: None,
                 new_segment: None,
+                old_one_sided_occurrences: Vec::new(),
+                new_one_sided_occurrences: Vec::new(),
             }],
             pair_by_occurrences: HashMap::new(),
             old_pair_partners: HashMap::new(),
             new_pair_partners: HashMap::new(),
+            old_one_sided_near: HashMap::new(),
+            new_one_sided_near: HashMap::new(),
             scan_work: 0,
             scan_limit: 0,
             retained_one_sided_occurrences: 0,
@@ -14675,6 +15118,347 @@ mod tests {
         assert_eq!(pair.old_relation.best_score, 7_500);
         assert!(!pair.new_relation.available);
         assert!(!pair.reciprocal);
+    }
+
+    #[test]
+    fn recovery_watch_records_one_sided_veto_partner() {
+        let old = [positioned_occurrence("deleted sentence", 1, 0, 0)];
+        let mut new_occurrence = positioned_occurrence("modified sentence", 2, 1, 0);
+        new_occurrence.span_index = Some(1);
+        let mut tied_occurrence = positioned_occurrence("other sentence", 3, 2, 0);
+        tied_occurrence.span_index = Some(2);
+        let mut best_occurrence = positioned_occurrence("selected sentence", 4, 3, 0);
+        best_occurrence.span_index = Some(3);
+        best_occurrence.run_descriptor_index = Some(0);
+        let new = [new_occurrence, tied_occurrence, best_occurrence];
+        let mut descriptor = structural_descriptor(9, 42, Vec::new(), Vec::new(), None, Vec::new());
+        descriptor.bbox = Rect {
+            min: Vec2 { x: 2.0, y: 3.0 },
+            max: Vec2 { x: 8.0, y: 9.0 },
+        };
+        let descriptors = [descriptor.clone()];
+        let new_evidence = RunRecoveryEvidence {
+            descriptors: &descriptors,
+            raw_region_edges: &[],
+            descriptor_by_id: HashMap::new(),
+            descriptor_indices_by_block: HashMap::new(),
+        };
+        let new_fully_contained = [true];
+        let watched = recovery_watch_occurrence(&old[0], None, false, 1);
+        let mut watch = watch_state();
+        watch.records.push(RecoveryWatchStateRecord {
+            output: RecoveryWatchRecord {
+                id: "deletion".to_owned(),
+                old: RecoveryWatchOccurrenceEvidence::Occurrences(RecoveryWatchOccurrences {
+                    occurrence_count: 1,
+                    complete: true,
+                    occurrences: vec![watched.clone()],
+                }),
+                new: RecoveryWatchOccurrenceEvidence::NotQueried,
+                pair: None,
+                segment_pair: None,
+                granular_pair: None,
+                one_sided_vetoes: Vec::new(),
+            },
+            old_occurrence: None,
+            new_occurrence: None,
+            old_segment: None,
+            new_segment: None,
+            old_one_sided_occurrences: vec![Some(0)],
+            new_one_sided_occurrences: Vec::new(),
+        });
+        watch
+            .old_one_sided_near
+            .insert(0, OneSidedNearObservations::default());
+        watch.record_near(0, 1, 10_000, RecoveryWatchNearScope::CrossSpan);
+        watch.record_near(0, 0, 10_000, RecoveryWatchNearScope::SameSpan);
+        watch.record_near(0, 1, 10_000, RecoveryWatchNearScope::PairedStream);
+        watch
+            .record_one_sided_vetoes(
+                &old,
+                &new,
+                &[RecoveryCandidate {
+                    occurrence_index: 0,
+                    span_index: 0,
+                }],
+                &[
+                    RecoveryCandidate {
+                        occurrence_index: 0,
+                        span_index: 1,
+                    },
+                    RecoveryCandidate {
+                        occurrence_index: 1,
+                        span_index: 2,
+                    },
+                    RecoveryCandidate {
+                        occurrence_index: 2,
+                        span_index: 3,
+                    },
+                ],
+                &ModifiedSentenceRelations {
+                    old: vec![CandidateNearRelation {
+                        best_score: 10_000,
+                        second_score: 10_000,
+                        best_partner: Some(2),
+                        best_scope: Some(RecoveryWatchNearScope::CrossSpan),
+                    }],
+                    new: vec![CandidateNearRelation::default()],
+                    complete: true,
+                    edge_gate_shadow: None,
+                    edge_signature_shadow: None,
+                },
+                true,
+                None,
+                Some(&new_evidence),
+                None,
+                Some(&new_fully_contained),
+                1,
+            )
+            .expect("bounded one-sided evidence records");
+
+        let evidence = &watch.records[0].output.one_sided_vetoes[0];
+        assert_eq!(evidence.side, RecoveryWatchSide::Old);
+        assert_eq!(evidence.watched, watched);
+        assert!(evidence.relation_available);
+        assert!(evidence.vetoed);
+        assert_eq!(
+            (evidence.best_score, evidence.second_score),
+            (10_000, 10_000)
+        );
+        assert_eq!(evidence.near_scope, Some(RecoveryWatchNearScope::CrossSpan));
+        assert_eq!(
+            evidence
+                .best_opposite
+                .as_ref()
+                .and_then(|occurrence| occurrence.span_index),
+            Some(3)
+        );
+        assert_eq!(
+            evidence
+                .best_opposite
+                .as_ref()
+                .and_then(|occurrence| occurrence.bbox),
+            Some(descriptor.bbox)
+        );
+        assert!(
+            evidence
+                .best_opposite
+                .as_ref()
+                .is_some_and(|occurrence| occurrence.fully_contained)
+        );
+        assert_eq!(evidence.observed_opponents.len(), 2);
+        assert_eq!(
+            evidence
+                .observed_opponents
+                .iter()
+                .map(|opponent| (
+                    opponent.occurrence.span_index,
+                    opponent.score,
+                    opponent.near_scope
+                ))
+                .collect::<Vec<_>>(),
+            [
+                (Some(3), 10_000, RecoveryWatchNearScope::CrossSpan),
+                (Some(2), 10_000, RecoveryWatchNearScope::CrossSpan),
+            ]
+        );
+
+        watch
+            .record_one_sided_vetoes(
+                &old,
+                &new,
+                &[RecoveryCandidate {
+                    occurrence_index: 0,
+                    span_index: 0,
+                }],
+                &[RecoveryCandidate {
+                    occurrence_index: 0,
+                    span_index: 1,
+                }],
+                &ModifiedSentenceRelations {
+                    old: vec![CandidateNearRelation {
+                        best_score: 7_500,
+                        second_score: 6_000,
+                        best_partner: Some(0),
+                        best_scope: Some(RecoveryWatchNearScope::CrossSpan),
+                    }],
+                    new: vec![CandidateNearRelation::default()],
+                    complete: false,
+                    edge_gate_shadow: None,
+                    edge_signature_shadow: None,
+                },
+                false,
+                None,
+                None,
+                None,
+                None,
+                1,
+            )
+            .expect("incomplete relation stays diagnostic-only");
+        assert!(!watch.records[0].output.one_sided_vetoes[0].relation_available);
+
+        watch
+            .record_one_sided_vetoes(
+                &old,
+                &new,
+                &[RecoveryCandidate {
+                    occurrence_index: 0,
+                    span_index: 0,
+                }],
+                &[RecoveryCandidate {
+                    occurrence_index: 0,
+                    span_index: 1,
+                }],
+                &ModifiedSentenceRelations {
+                    old: vec![CandidateNearRelation {
+                        best_score: 7_500,
+                        second_score: 6_000,
+                        best_partner: None,
+                        best_scope: None,
+                    }],
+                    new: vec![CandidateNearRelation::default()],
+                    complete: true,
+                    edge_gate_shadow: None,
+                    edge_signature_shadow: None,
+                },
+                true,
+                None,
+                None,
+                None,
+                None,
+                1,
+            )
+            .expect("partner-less veto stays observable");
+        let evidence = &watch.records[0].output.one_sided_vetoes[0];
+        assert!(evidence.relation_available);
+        assert!(evidence.vetoed);
+        assert!(evidence.best_opposite.is_none());
+    }
+
+    #[test]
+    fn one_sided_near_observations_keep_top_two_and_dedupe_scopes() {
+        let mut observations = OneSidedNearObservations::default();
+        observations.record(OneSidedNearObservation {
+            opposite_occurrence: 2,
+            score: 10_000,
+            scope: RecoveryWatchNearScope::CrossSpan,
+        });
+        observations.record(OneSidedNearObservation {
+            opposite_occurrence: 0,
+            score: 10_000,
+            scope: RecoveryWatchNearScope::SameSpan,
+        });
+        observations.record(OneSidedNearObservation {
+            opposite_occurrence: 2,
+            score: 10_000,
+            scope: RecoveryWatchNearScope::PairedStream,
+        });
+        observations.record(OneSidedNearObservation {
+            opposite_occurrence: 1,
+            score: 9_999,
+            scope: RecoveryWatchNearScope::SameSpan,
+        });
+
+        assert_eq!(
+            observations.values,
+            [
+                Some(OneSidedNearObservation {
+                    opposite_occurrence: 2,
+                    score: 10_000,
+                    scope: RecoveryWatchNearScope::CrossSpan,
+                }),
+                Some(OneSidedNearObservation {
+                    opposite_occurrence: 0,
+                    score: 10_000,
+                    scope: RecoveryWatchNearScope::SameSpan,
+                }),
+            ]
+        );
+    }
+
+    #[test]
+    fn watch_scope_distinguishes_ambiguous_span() {
+        let old = positioned_occurrence("old", 1, 0, 0);
+        let mut new = positioned_occurrence("new", 2, 1, 0);
+        new.span_index = None;
+
+        assert_eq!(
+            watch_scope_for_occurrences(RecoveryWatchNearScope::SameSpan, &old, &new),
+            RecoveryWatchNearScope::AmbiguousSpan
+        );
+        new.span_index = old.span_index;
+        assert_eq!(
+            watch_scope_for_occurrences(RecoveryWatchNearScope::SameSpan, &old, &new),
+            RecoveryWatchNearScope::SameSpan
+        );
+    }
+
+    #[test]
+    fn recovery_watch_reports_unmapped_one_sided_segment_as_unavailable() {
+        let watched = RecoveryWatchOccurrence {
+            span_index: Some(0),
+            trusted_run_descriptor_index: Some(0),
+            ordinal: Some(0),
+            end_ordinal: Some(2),
+            unit_count: Some(2),
+            token_count: Some(10),
+            recovery_location_available: true,
+            fully_contained: false,
+            page: Some(1),
+            bbox: None,
+            role: Some(BlockRole::Body),
+            kind: RecoveryWatchUnitKind::Segment,
+        };
+        let mut watch = watch_state();
+        watch.records.push(RecoveryWatchStateRecord {
+            output: RecoveryWatchRecord {
+                id: "segment-deletion".to_owned(),
+                old: RecoveryWatchOccurrenceEvidence::Occurrences(RecoveryWatchOccurrences {
+                    occurrence_count: 1,
+                    complete: true,
+                    occurrences: vec![watched],
+                }),
+                new: RecoveryWatchOccurrenceEvidence::NotQueried,
+                pair: None,
+                segment_pair: None,
+                granular_pair: None,
+                one_sided_vetoes: Vec::new(),
+            },
+            old_occurrence: None,
+            new_occurrence: None,
+            old_segment: None,
+            new_segment: None,
+            old_one_sided_occurrences: vec![None],
+            new_one_sided_occurrences: Vec::new(),
+        });
+        watch
+            .record_one_sided_vetoes(
+                &[],
+                &[],
+                &[],
+                &[],
+                &ModifiedSentenceRelations {
+                    old: Vec::new(),
+                    new: Vec::new(),
+                    complete: true,
+                    edge_gate_shadow: None,
+                    edge_signature_shadow: None,
+                },
+                true,
+                None,
+                None,
+                None,
+                None,
+                1,
+            )
+            .expect("unmapped occurrence remains diagnostic-only");
+
+        let evidence = &watch.records[0].output.one_sided_vetoes[0];
+        assert!(!evidence.relation_available);
+        assert!(!evidence.vetoed);
+        assert!(evidence.best_opposite.is_none());
+        assert!(evidence.near_scope.is_none());
+        assert!(watch.complete);
     }
 
     fn interval(run_id: u64, start: usize, end: usize) -> Option<TrustedRunInterval> {
@@ -14777,6 +15561,8 @@ mod tests {
             pair_by_occurrences: HashMap::new(),
             old_pair_partners: HashMap::new(),
             new_pair_partners: HashMap::new(),
+            old_one_sided_near: HashMap::new(),
+            new_one_sided_near: HashMap::new(),
             scan_work: 0,
             scan_limit: 100_000,
             retained_one_sided_occurrences: 0,
@@ -14803,11 +15589,14 @@ mod tests {
                 }),
                 segment_pair: None,
                 granular_pair: None,
+                one_sided_vetoes: Vec::new(),
             },
             old_occurrence: Some(0),
             new_occurrence: Some(0),
             old_segment: None,
             new_segment: None,
+            old_one_sided_occurrences: Vec::new(),
+            new_one_sided_occurrences: Vec::new(),
         });
         watch.pair_by_occurrences.insert((0, 0), vec![0]);
         watch.old_pair_partners.insert(0, vec![0]);
@@ -14855,6 +15644,7 @@ mod tests {
         assert!(pair.near_candidate_examined);
         assert_eq!(pair.near_score, Some(1_000));
         assert_eq!(pair.near_scope, Some(RecoveryWatchNearScope::CrossSpan));
+        assert!(watch.records[0].output.one_sided_vetoes.is_empty());
         assert_eq!(budget.watch_probe_pairs, 1);
         assert_eq!(budget.watch_probe_missing_signature_candidates, 1);
     }
@@ -15956,6 +16746,8 @@ mod tests {
             pair_by_occurrences: HashMap::new(),
             old_pair_partners: HashMap::new(),
             new_pair_partners: HashMap::new(),
+            old_one_sided_near: HashMap::new(),
+            new_one_sided_near: HashMap::new(),
             scan_work: 0,
             scan_limit: 0,
             retained_one_sided_occurrences: 0,
@@ -19797,6 +20589,7 @@ mod tests {
                 best_score: 8_000,
                 second_score: 6_999,
                 best_partner: Some(0),
+                best_scope: Some(RecoveryWatchNearScope::CrossSpan),
             };
             relations.new[0] = relations.old[0];
             let mut budget = RecoveryBudget::new(20, 10, 30, 1).expect("budget is valid");

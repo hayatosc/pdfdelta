@@ -264,6 +264,7 @@ pub enum RecoveryWatchOccurrenceEvidence {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RecoveryWatchNearScope {
     SameSpan,
+    AmbiguousSpan,
     CrossSpan,
     PairedStream,
 }
@@ -289,6 +290,41 @@ pub struct RecoveryWatchPairEvidence {
     pub old_relation: RecoveryWatchRelation,
     pub new_relation: RecoveryWatchRelation,
     pub reciprocal: bool,
+}
+
+/// Document side containing a watched one-sided recovery occurrence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RecoveryWatchSide {
+    Old,
+    New,
+}
+
+/// One of at most two observed near candidates for a one-sided occurrence.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecoveryWatchOneSidedOpponentEvidence {
+    pub occurrence: RecoveryWatchOccurrence,
+    pub score: u16,
+    pub near_scope: RecoveryWatchNearScope,
+}
+
+/// Best near-relation evidence that can veto one-sided recovery.
+///
+/// This sidecar evidence never changes whether the watched occurrence is
+/// recovered. An absent `best_opposite` means the production relation has no
+/// eligible best partner; `observed_opponents` can still retain
+/// the strongest examined disqualifying pairs.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecoveryWatchOneSidedVetoEvidence {
+    pub side: RecoveryWatchSide,
+    pub watched: RecoveryWatchOccurrence,
+    pub relation_available: bool,
+    pub vetoed: bool,
+    pub best_score: u16,
+    pub second_score: u16,
+    pub best_opposite: Option<RecoveryWatchOccurrence>,
+    pub near_scope: Option<RecoveryWatchNearScope>,
+    /// Highest observed candidates, ordered by score descending.
+    pub observed_opponents: Vec<RecoveryWatchOneSidedOpponentEvidence>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -380,6 +416,8 @@ pub struct RecoveryWatchRecord {
     pub pair: Option<RecoveryWatchPairEvidence>,
     pub segment_pair: Option<RecoveryWatchSegmentPairEvidence>,
     pub granular_pair: Option<RecoveryWatchGranularPairEvidence>,
+    /// Bounded evidence for exact occurrences in a one-sided watch query.
+    pub one_sided_vetoes: Vec<RecoveryWatchOneSidedVetoEvidence>,
 }
 
 /// Bounded sidecar diagnostics that never alter the recovery plan.

@@ -45,10 +45,11 @@
       "note": "Rev. 5 expands the key-information terminology discussion."
     },
     {
-      "id": "toolkit-footnote-removed",
-      "kind": "deletion",
+      "id": "toolkit-footnote-comma-removed",
+      "kind": "replacement",
       "old_quote": "The toolkit consists of publications specifying algorithms and guidance for their use, rather than software code.",
-      "note": "Footnote dropped in Rev. 5."
+      "new_quote": "The toolkit consists of publications specifying algorithms and guidance for their use rather than software code.",
+      "note": "The Rev. 5 footnote remains present and removes the comma before 'rather'."
     },
     {
       "id": "cryptanalysis-review-window-added",
