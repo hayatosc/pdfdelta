@@ -4,17 +4,17 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 
 ## Latest Capture
 
-- **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`87aa0bb`](https://github.com/hayatosc/pdfdelta/commit/87aa0bb)
+- **Capture date**: 2026-09-01
+- **Generator / engine commit**: [`9ce4bfe`](https://github.com/hayatosc/pdfdelta/commit/9ce4bfe)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-87aa0bb.json`](2026-08-31-87aa0bb.json)
-  - Schema: v49
-  - Size: 1,859,281 bytes
-  - SHA-256: `af9c1696022bcdede5a8eff57292e7c5b6531b57e50cc3a7865bfb8e6d74f973`
+  - File: [`2026-09-01-9ce4bfe.json`](2026-09-01-9ce4bfe.json)
+  - Schema: v50
+  - Size: 1,923,800 bytes
+  - SHA-256: `075e2ad10142cd9196b5eaa20fe11dae60e632dc2872120f2a043a999b61a00e`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-08-31-87aa0bb.json \
+cp benchmark/realworld/results/2026-09-01-9ce4bfe.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 87aa0bb
+git switch --detach 9ce4bfe
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -41,6 +41,15 @@ The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../mani
 When a capture only adds sentence-recovery diagnostics, compare it with the
 preceding schema through the bounded parity task instead of maintaining an
 ad-hoc `jq` filter:
+
+```bash
+mise run bench-revisions-schema-parity -- \
+  benchmark/realworld/results/2026-08-31-87aa0bb.json \
+  benchmark/realworld/results/2026-09-01-9ce4bfe.json \
+  local_fragment_flat_exact_boundary_shadow
+```
+
+The preceding exact-boundary capture can be checked in the same way:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
@@ -102,6 +111,63 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | `w3c-ws-policy-attach-20060927-to-20061102` | 1.000 / 1.000 / 1.000 | 0.984 / 1.000 / 0.992 | 0.984 | 68.027 |
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
+
+Schema v50 is behavior-neutral relative to schema v49. Removing the
+diagnostic-only
+`sentence_recovery_metrics.local_fragment_flat_exact_boundary_shadow` field
+from schema v50 and removing `schema_version` produces exact parity for every
+prior comparison, quality, candidate, recovery-diagnostic, and scoped metric
+field.
+
+The new shadow replaces the shared exact-token transition trie with
+side-separated, depth-local exact classes. Old and new fragments share each
+class namespace, so equal class IDs still certify exact prefix or suffix token
+sequences. Checked `u32` offsets and class IDs retain the persistent result;
+bounded stable radix passes build each depth without a transition `HashMap`.
+The shadow accounts for both reusable radix buffers and the active-fragment
+index, verifies every hash candidate against exact classes, and reuses the
+unchanged threshold-capped edge recheck. Any resource or allocation stop
+discards partial classes and publishes only immutable configuration plus
+stop-safe work.
+
+The flat and trie shadows are both available for all 18 recovery builds and
+complete on the same 11. Five builds stop at the exact-recheck comparison
+limit, while MQTT and LibreOffice stop at the candidate-union limit. Across
+the 11 both-complete builds, all 12 count, order, certification, and retained
+fingerprint mismatch totals are zero. The 6,540,013 hash candidates are all
+exact-certified, with no observed hash-only collision.
+
+| Complete-build evidence | Value |
+|---|---:|
+| Exact recheck comparisons | 31,793,303 |
+| Certified comparisons avoided | 41,372,963 |
+| Retained pairs | 1,946,919 |
+| Exact class slots | 8,039,524 |
+| Persistent class storage | 32,859,704 bytes |
+| Radix scratch storage | 9,822,008 bytes |
+| Prefix / suffix distinct classes | 1,167,925 / 1,235,627 |
+| Active-fragment visits | 4,195,140 |
+| Radix work | 241,185,720 |
+| Prefix / suffix / both certifications | 3,727,995 / 2,757,614 / 54,404 |
+| Depth 1 / 2-3 / 4+ candidates | 0 / 2,073,747 / 4,466,266 |
+
+The v49 exact representation used 96,023,032 logical trie bytes plus
+64,316,192 bytes of per-fragment boundary-node arrays. The v50 class storage
+and scratch use 42,681,712 bytes, a reduction of 117,657,512 bytes (73.38%).
+Total bounded estimated bytes across the same builds fall from 361,283,280 to
+243,625,768, a 32.57% reduction. On the ten builds that also complete in
+schema v48, the added storage overhead above the v48 path falls from 76.61% to
+19.45%; this removes 74.61% of the representation overhead introduced by the
+trie shadow.
+
+This compact representation does not complete any additional build because
+the remaining stops occur after class construction. It also performs exactly
+30 radix operations per class slot, and the capture does not measure wall-clock
+time or peak RSS. The result therefore validates the memory model and retained
+stream, not production readiness. Exact-recheck and candidate-union work remain
+the performance bottlenecks; scoped token metrics separately show that
+recovered replacements must emit exact changed spans before more fragment
+relations are promoted.
 
 Schema v49 is behavior-neutral relative to schema v48. Removing the
 candidate-only
@@ -665,10 +731,12 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v49)
+## Current Writer Schema (v50)
 
-The benchmark writer and latest committed capture use schema v49. Older
-captures retain their recorded schemas. Schema v49 preserves the global
+The benchmark writer and latest committed capture use schema v50. Older
+captures retain their recorded schemas. Schema v50 preserves the exact-token
+certification and retained stream while replacing transition-trie storage with
+bounded, depth-local exact classes. Schema v49 preserves the global
 length-aware candidate stream and adds a shared exact-token trie that certifies
 prefix and suffix comparisons without changing retained-pair behavior. Schema
 v48 builds only the global
@@ -959,6 +1027,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-31-87aa0bb.json`](2026-08-31-87aa0bb.json): schema-v49 shared exact-boundary trie before flat exact-class interning.
 - [`2026-08-31-4a77cb4.json`](2026-08-31-4a77cb4.json): schema-v48 global length-aware fragment candidates before exact boundary certification.
 - [`2026-08-31-70486f2.json`](2026-08-31-70486f2.json): schema-v47 length-aware-only exact rechecks before removing the global fixed-depth fragment candidate stream.
 - [`2026-08-31-666c9dd.json`](2026-08-31-666c9dd.json): schema-v46 fragment-candidate membership outcomes before the length-aware-only recheck shadow.
