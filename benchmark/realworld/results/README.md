@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`4a77cb4`](https://github.com/hayatosc/pdfdelta/commit/4a77cb4)
+- **Generator / engine commit**: [`87aa0bb`](https://github.com/hayatosc/pdfdelta/commit/87aa0bb)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-4a77cb4.json`](2026-08-31-4a77cb4.json)
-  - Schema: v48
-  - Size: 1,816,835 bytes
-  - SHA-256: `051f6862906e8f47aa01b6e33f279a66b1a3299ffa957571370031cdbc5e8399`
+  - File: [`2026-08-31-87aa0bb.json`](2026-08-31-87aa0bb.json)
+  - Schema: v49
+  - Size: 1,859,281 bytes
+  - SHA-256: `af9c1696022bcdede5a8eff57292e7c5b6531b57e50cc3a7865bfb8e6d74f973`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-08-31-4a77cb4.json \
+cp benchmark/realworld/results/2026-08-31-87aa0bb.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 4a77cb4
+git switch --detach 87aa0bb
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -41,6 +41,15 @@ The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../mani
 When a capture only adds sentence-recovery diagnostics, compare it with the
 preceding schema through the bounded parity task instead of maintaining an
 ad-hoc `jq` filter:
+
+```bash
+mise run bench-revisions-schema-parity -- \
+  benchmark/realworld/results/2026-08-31-4a77cb4.json \
+  benchmark/realworld/results/2026-08-31-87aa0bb.json \
+  local_fragment_exact_boundary_trie_shadow
+```
+
+The preceding candidate-generation capture can be checked in the same way:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
@@ -93,6 +102,68 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | `w3c-ws-policy-attach-20060927-to-20061102` | 1.000 / 1.000 / 1.000 | 0.984 / 1.000 / 0.992 | 0.984 | 68.027 |
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
+
+Schema v49 is behavior-neutral relative to schema v48. Removing the
+candidate-only
+`sentence_recovery_metrics.local_fragment_exact_boundary_trie_shadow` field
+from schema v49 and removing `schema_version` produces exact parity for every
+prior comparison, quality, candidate, recovery-diagnostic, and scoped metric
+field.
+
+The new shadow preserves schema v48 candidate generation and retained-pair
+ordering. It adds one shared exact-token boundary trie for old and new local
+fragments. Rolling hashes still generate candidates only; matching trie node
+identities certify exact prefix or suffix ranges, and the exact recheck skips
+only comparisons already proved by those identities. Stopped runs publish only
+immutable configuration and stop-safe work. Empty fragment sets complete
+without allocating a root node and retain the same empty pair-stream
+fingerprint as schema v48.
+
+The shadow is available for all 18 recovery builds and completes 11. Five of
+the remaining builds stop at the exact-recheck comparison limit; MQTT and
+LibreOffice reach the later candidate-union limit after certified comparisons
+let traversal progress farther. The empty arXiv and Korean W-4 builds complete
+with zero fragments, trie nodes, work, and candidates. Across all 11 complete
+builds, 6,540,013 hash candidates are all exact-certified, with no observed
+hash-collision-only candidate.
+
+| Complete-build evidence | Value |
+|---|---:|
+| Exact recheck comparisons | 31,793,303 |
+| Certified comparisons avoided | 41,372,963 |
+| Retained pairs | 1,946,919 |
+| Trie nodes / transitions | 2,400,583 / 2,400,574 |
+| Trie token steps | 8,039,524 |
+| Trie logical bytes | 96,023,032 |
+| Total bounded logical work bytes | 361,283,280 |
+| Prefix / suffix / both certifications | 3,727,995 / 2,757,614 / 54,404 |
+| Depth 1 / 2-3 / 4+ candidates | 0 / 2,073,747 / 4,466,266 |
+
+Ten builds complete under both schema v48 and schema v49. Two are zero-work
+builds; across the remaining evidence, retained count, order, and fingerprint
+parity are exact.
+
+| Both-complete evidence | Schema v48 | Schema v49 | Change |
+|---|---:|---:|---:|
+| Candidate pairs | 3,430,113 | 3,430,113 | 0 |
+| Retained pairs | 1,134,831 | 1,134,831 | 0 |
+| Exact token comparisons | 40,898,423 | 17,593,211 | -23,305,212 (-56.98%) |
+| Bounded logical work bytes | 154,479,672 | 272,822,104 | +118,342,432 (+76.61%) |
+| Trie logical bytes | 0 | 72,133,584 | +72,133,584 |
+
+For every both-complete build, schema-v49 comparisons plus reported avoided
+comparisons equal the schema-v48 count exactly. FIPS is newly complete in
+schema v49: it performs 14,200,092 comparisons and certifies 18,067,751 more,
+for the same projected 32,267,843 comparisons that exceeded the schema-v48
+budget. Its 3,109,900 candidates retain 812,088 pairs without a hash-only
+collision.
+
+The comparison savings are substantial, but the 76.61% increase in bounded
+logical work bytes means this representation is not ready for production.
+These are accounting-model bytes rather than process RSS. The next diagnostic
+should reduce exact-trie storage or replace it with a more compact exact
+boundary representation while preserving the same retained stream and
+comparison-savings equation.
 
 Schema v48 is behavior-neutral relative to schema v47. Removing the
 candidate-only
@@ -594,10 +665,13 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v48)
+## Current Writer Schema (v49)
 
-The benchmark writer and latest committed capture use schema v48. Older
-captures retain their recorded schemas. Schema v48 builds only the global
+The benchmark writer and latest committed capture use schema v49. Older
+captures retain their recorded schemas. Schema v49 preserves the global
+length-aware candidate stream and adds a shared exact-token trie that certifies
+prefix and suffix comparisons without changing retained-pair behavior. Schema
+v48 builds only the global
 length-aware fragment candidate stream while preserving fixed-depth parent
 admission and exact-recheck parity. Schema v47 measures a length-aware-only
 exact-recheck stream under an independent budget and verifies its available
@@ -885,6 +959,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-08-31-4a77cb4.json`](2026-08-31-4a77cb4.json): schema-v48 global length-aware fragment candidates before exact boundary certification.
 - [`2026-08-31-70486f2.json`](2026-08-31-70486f2.json): schema-v47 length-aware-only exact rechecks before removing the global fixed-depth fragment candidate stream.
 - [`2026-08-31-666c9dd.json`](2026-08-31-666c9dd.json): schema-v46 fragment-candidate membership outcomes before the length-aware-only recheck shadow.
 - [`2026-08-31-121bfb1.json`](2026-08-31-121bfb1.json): schema-v45 threshold-capped exact fragment rechecks before candidate-membership outcome attribution.
