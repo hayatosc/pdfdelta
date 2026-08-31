@@ -300,7 +300,7 @@ ended `LIMIT`/`FAIL`; low quality scores never fail a run because the dated
 captures serve as calibration evidence and current fragmentation and recall
 remain too unstable for rigid quality-gate thresholds (confidence calibration
 has landed, but broader large-document alignment quality remains ongoing work).
-Compact revision summaries use schema version 37 and include optional nested
+Compact revision summaries use schema version 38 and include optional nested
 sentence-recovery diagnostics, near-search examined and attempted work,
 Sentence/Line, search-scope, and known/ambiguous-span work attribution,
 diagnostic-only Sentence shadow relations, paired-anchor cross-span locality,
@@ -326,6 +326,10 @@ containment when available,
 bounded quote-local Sentence evidence with whitespace-collapsed source
 projection, exact local edge/word scores, scalar edit ranges and typed atomic
 budget stops,
+annotation-independent range-backed prefix/suffix fragment diagnostics with
+exact Sentence edge-signature candidates, reciprocal relation counts, bounded
+sampled edit evidence, parent recovery overlap, and fail-closed typed work
+limits,
 bounded Clause/ListItem unit boundaries, locations, best-partner relations,
 tie and exactness evidence, aggregate work counts, completion, and typed stops,
 optional exact expected occurrence counts with bounded deterministic event
@@ -354,7 +358,7 @@ files without overwriting existing destinations). If the second publication fail
 exit code 2 is returned and the first published artifact remains in place without
 pairwise rollback across distinct paths. Dated compact evaluation summaries are
 recorded under [`benchmark/realworld/results/`](benchmark/realworld/results/README.md)
-(latest: [`2026-08-31-10e921f.json`](benchmark/realworld/results/2026-08-31-10e921f.json)).
+(latest: [`2026-08-31-c4cc1cd.json`](benchmark/realworld/results/2026-08-31-c4cc1cd.json)).
 
 ## License
 
@@ -436,6 +440,8 @@ Text reports are written to standard output as contextual unified-diff hunks: a 
   The [`85c799d`](benchmark/realworld/results/2026-08-31-85c799d.json) schema-v36 capture adds bounded one-sided veto provenance without changing any comparison field or complete-scope metric. The review confirmed that the SP 800-57 toolkit footnote exists in both revisions and removes only the comma before `rather`; the annotation is now a replacement. Its counterpart remains unresolved because the watched whole-Sentence units are in different spans, score only 2,347 against each other, and each side has tied 10,000-point competing relations. The next diagnostic therefore targets quote-local fragment or clause boundaries without changing thresholds or margins.
 
   The [`10e921f`](benchmark/realworld/results/2026-08-31-10e921f.json) schema-v37 capture adds bounded quote-local exact diagnostics without changing any schema-v36 comparison, quality, candidate, or existing diagnostic field. Quote-local diagnostics complete without a stop in all eight recovery-watch reports, producing ten available pairs. The unresolved SP 800-57 toolkit counterpart scores 10,000 locally and reduces to one exact comma deletion, while its parent Sentence relation remains non-reciprocal. This supports an annotation-independent local-fragment candidate shadow, not immediate recovery or looser thresholds.
+
+  The [`c4cc1cd`](benchmark/realworld/results/2026-08-31-c4cc1cd.json) schema-v38 capture adds that annotation-independent local-fragment shadow without changing any schema-v37 comparison, quality, candidate, or existing diagnostic field. It is present on 18 recovery builds; two complete with no eligible parent, while all 16 non-empty builds stop atomically under actual-input-proportional traversal limits (six at index postings and ten at similarity comparisons). No partial relation set is published. Under the current budgets, the all-boundaries expansion is not a production candidate; the next planned shadow narrows parent Sentence pairs before fragment enumeration.
 
 ## Contributing
 
