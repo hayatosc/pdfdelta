@@ -20,14 +20,13 @@ The capture contains all 29 manifest pairs. Every pair finished with `ok` status
 
 ## Reproduction
 
-Atomic publication refuses to overwrite existing files. Generate a summary at a temporary path, verify provenance, and compare it with the committed artifact:
+From a clean checkout of the linked generator commit, generate a summary at a temporary path, verify provenance, and compare it with the committed artifact. Atomic publication refuses to overwrite existing files:
 
 ```bash
 mise run bench-fetch
-mise run bench-revisions-checksums
-mise run bench-revisions-release -- \
-  --summary-json-output /tmp/pdfdelta-reproduced-summary.json
-cmp /tmp/pdfdelta-reproduced-summary.json \
+mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
+mise run bench-revisions-exact-parity -- \
+  /tmp/pdfdelta-reproduced-summary.json \
   benchmark/realworld/results/2026-08-31-447927d.json
 ```
 

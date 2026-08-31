@@ -79,6 +79,14 @@ run = "cargo run -p pdfdelta-bench --locked -- revisions --cache-dir benchmark/r
 description = "Run release-mode real-world revision comparisons (usage: mise run bench-revisions-release -- <args>)"
 run = "cargo run -p pdfdelta-bench --release --locked -- revisions --cache-dir benchmark/realworld/cache"
 
+[tasks.bench-revisions-capture]
+description = "Verify the corpus and capture a release summary (usage: mise run bench-revisions-capture -- [output.json])"
+run = "benchmark/realworld/capture-summary.sh"
+
+[tasks.bench-revisions-exact-parity]
+description = "Require byte-for-byte equality between two benchmark summaries (usage: mise run bench-revisions-exact-parity -- <baseline.json> <candidate.json>)"
+run = "benchmark/realworld/compare-summary-exact.sh"
+
 [tasks.bench-revisions-schema-parity]
 description = "Compare benchmark summaries after removing named recovery fields (usage: mise run bench-revisions-schema-parity -- <baseline.json> <candidate.json> [--exclude-pair <pair-id>]... [--ignore-field <field-path>]... [<candidate-only-field-path>...])"
 run = "benchmark/realworld/compare-summary-parity.sh"
