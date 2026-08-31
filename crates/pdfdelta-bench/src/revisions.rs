@@ -22,6 +22,8 @@ use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
         ChangeKind, Comparison, ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
+        LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
+        LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
         NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
         RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
         RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
@@ -666,6 +668,7 @@ pub struct SentenceRecoveryMetricsReport {
         Option<SentenceEdgeSignatureDirectExecutionReport>,
     pub sentence_edge_signature_reference_oracle:
         Option<SentenceEdgeSignatureReferenceOracleMetricsReport>,
+    pub local_fragment_shadow: Option<LocalFragmentShadowMetricsReport>,
     pub sentence_edge_filter_complete: bool,
     pub sentence_edge_filter_pairs_examined: usize,
     pub sentence_edge_filter_pairs_attempted: usize,
@@ -702,6 +705,117 @@ pub struct SentenceRecoveryMetricsReport {
     pub recovered_insertion_tokens: usize,
     pub unresolved_remainder_old_source_tokens: usize,
     pub unresolved_remainder_new_source_tokens: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LocalFragmentShadowMetricsReport {
+    pub complete: bool,
+    pub stop_reason: Option<LocalFragmentShadowStopReasonReport>,
+    pub work: LocalFragmentShadowWorkMetricsReport,
+    pub old_eligible_parents: usize,
+    pub new_eligible_parents: usize,
+    pub old_prefix_fragments: usize,
+    pub old_suffix_fragments: usize,
+    pub new_prefix_fragments: usize,
+    pub new_suffix_fragments: usize,
+    pub index_posting_items: usize,
+    pub queries: usize,
+    pub posting_visits: usize,
+    pub candidate_pairs: usize,
+    pub exact_edge_rechecks: usize,
+    pub similarity_comparisons: usize,
+    pub score_qualified_pairs: usize,
+    pub exact_pairs: usize,
+    pub nonexact_pairs: usize,
+    pub old_unique_relations: usize,
+    pub new_unique_relations: usize,
+    pub reciprocal_pairs: usize,
+    pub reciprocal_nonexact_pairs: usize,
+    pub edit_distance_sampled_pairs: usize,
+    pub edit_distance_available_pairs: usize,
+    pub edit_distance_skipped_pairs: usize,
+    pub best_sampled_nonexact_pair: Option<LocalFragmentPairEvidenceReport>,
+    pub best_sampled_prefix_nonexact_pair: Option<LocalFragmentPairEvidenceReport>,
+    pub best_sampled_suffix_nonexact_pair: Option<LocalFragmentPairEvidenceReport>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LocalFragmentShadowStopReasonReport {
+    EnumerationLimit,
+    IndexPostingLimit,
+    QueryLimit,
+    PostingVisitLimit,
+    CandidatePairLimit,
+    SimilarityComparisonLimit,
+    EditWorkLimit,
+    OutputLimit,
+    CandidateGenerationIncomplete,
+    AllocationFailure,
+    CounterOverflow,
+    DiagnosticFailure,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LocalFragmentOrientationReport {
+    Prefix,
+    Suffix,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LocalFragmentShadowWorkMetricsReport {
+    pub enumeration_examined: usize,
+    pub enumeration_attempted: usize,
+    pub postings_examined: usize,
+    pub postings_attempted: usize,
+    pub queries_examined: usize,
+    pub queries_attempted: usize,
+    pub posting_visits_examined: usize,
+    pub posting_visits_attempted: usize,
+    pub candidate_pairs_examined: usize,
+    pub candidate_pairs_attempted: usize,
+    pub comparisons_examined: usize,
+    pub comparisons_attempted: usize,
+    pub edit_work_examined: usize,
+    pub edit_work_attempted: usize,
+    pub output_examined: usize,
+    pub output_attempted: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub struct LocalFragmentLocationEvidenceReport {
+    pub parent_span_index: usize,
+    pub parent_page: Option<u32>,
+    pub parent_trusted_stream: Option<usize>,
+    pub parent_trusted_ordinal: Option<usize>,
+    pub token_start: usize,
+    pub token_end: usize,
+    pub parent_token_count: usize,
+    pub parent_existing_recovery_overlap: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub struct LocalFragmentPairEvidenceReport {
+    pub orientation: LocalFragmentOrientationReport,
+    pub old: LocalFragmentLocationEvidenceReport,
+    pub new: LocalFragmentLocationEvidenceReport,
+    pub score: u16,
+    pub old_best_score: u16,
+    pub old_second_score: u16,
+    pub new_best_score: u16,
+    pub new_second_score: u16,
+    pub old_score_margin: u16,
+    pub new_score_margin: u16,
+    pub old_unique: bool,
+    pub new_unique: bool,
+    pub reciprocal: bool,
+    pub exact: bool,
+    pub role_compatible: bool,
+    pub location_available: bool,
+    pub old_changed_tokens: usize,
+    pub new_changed_tokens: usize,
+    pub edit_distance: usize,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -1899,6 +2013,141 @@ impl From<RunSignatureStopReason> for RunSignatureStopReasonReport {
     }
 }
 
+impl From<LocalFragmentShadowMetrics> for LocalFragmentShadowMetricsReport {
+    fn from(metrics: LocalFragmentShadowMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            stop_reason: metrics.stop_reason.map(Into::into),
+            work: metrics.work.into(),
+            old_eligible_parents: metrics.old_eligible_parents,
+            new_eligible_parents: metrics.new_eligible_parents,
+            old_prefix_fragments: metrics.old_prefix_fragments,
+            old_suffix_fragments: metrics.old_suffix_fragments,
+            new_prefix_fragments: metrics.new_prefix_fragments,
+            new_suffix_fragments: metrics.new_suffix_fragments,
+            index_posting_items: metrics.index_posting_items,
+            queries: metrics.queries,
+            posting_visits: metrics.posting_visits,
+            candidate_pairs: metrics.candidate_pairs,
+            exact_edge_rechecks: metrics.exact_edge_rechecks,
+            similarity_comparisons: metrics.similarity_comparisons,
+            score_qualified_pairs: metrics.score_qualified_pairs,
+            exact_pairs: metrics.exact_pairs,
+            nonexact_pairs: metrics.nonexact_pairs,
+            old_unique_relations: metrics.old_unique_relations,
+            new_unique_relations: metrics.new_unique_relations,
+            reciprocal_pairs: metrics.reciprocal_pairs,
+            reciprocal_nonexact_pairs: metrics.reciprocal_nonexact_pairs,
+            edit_distance_sampled_pairs: metrics.edit_distance_sampled_pairs,
+            edit_distance_available_pairs: metrics.edit_distance_available_pairs,
+            edit_distance_skipped_pairs: metrics.edit_distance_skipped_pairs,
+            best_sampled_nonexact_pair: metrics.best_sampled_nonexact_pair.map(Into::into),
+            best_sampled_prefix_nonexact_pair: metrics
+                .best_sampled_prefix_nonexact_pair
+                .map(Into::into),
+            best_sampled_suffix_nonexact_pair: metrics
+                .best_sampled_suffix_nonexact_pair
+                .map(Into::into),
+        }
+    }
+}
+
+impl From<LocalFragmentShadowStopReason> for LocalFragmentShadowStopReasonReport {
+    fn from(reason: LocalFragmentShadowStopReason) -> Self {
+        match reason {
+            LocalFragmentShadowStopReason::EnumerationLimit => Self::EnumerationLimit,
+            LocalFragmentShadowStopReason::IndexPostingLimit => Self::IndexPostingLimit,
+            LocalFragmentShadowStopReason::QueryLimit => Self::QueryLimit,
+            LocalFragmentShadowStopReason::PostingVisitLimit => Self::PostingVisitLimit,
+            LocalFragmentShadowStopReason::CandidatePairLimit => Self::CandidatePairLimit,
+            LocalFragmentShadowStopReason::SimilarityComparisonLimit => {
+                Self::SimilarityComparisonLimit
+            }
+            LocalFragmentShadowStopReason::EditWorkLimit => Self::EditWorkLimit,
+            LocalFragmentShadowStopReason::OutputLimit => Self::OutputLimit,
+            LocalFragmentShadowStopReason::CandidateGenerationIncomplete => {
+                Self::CandidateGenerationIncomplete
+            }
+            LocalFragmentShadowStopReason::AllocationFailure => Self::AllocationFailure,
+            LocalFragmentShadowStopReason::CounterOverflow => Self::CounterOverflow,
+            LocalFragmentShadowStopReason::DiagnosticFailure => Self::DiagnosticFailure,
+        }
+    }
+}
+
+impl From<LocalFragmentShadowWorkMetrics> for LocalFragmentShadowWorkMetricsReport {
+    fn from(work: LocalFragmentShadowWorkMetrics) -> Self {
+        Self {
+            enumeration_examined: work.enumeration_examined,
+            enumeration_attempted: work.enumeration_attempted,
+            postings_examined: work.postings_examined,
+            postings_attempted: work.postings_attempted,
+            queries_examined: work.queries_examined,
+            queries_attempted: work.queries_attempted,
+            posting_visits_examined: work.posting_visits_examined,
+            posting_visits_attempted: work.posting_visits_attempted,
+            candidate_pairs_examined: work.candidate_pairs_examined,
+            candidate_pairs_attempted: work.candidate_pairs_attempted,
+            comparisons_examined: work.comparisons_examined,
+            comparisons_attempted: work.comparisons_attempted,
+            edit_work_examined: work.edit_work_examined,
+            edit_work_attempted: work.edit_work_attempted,
+            output_examined: work.output_examined,
+            output_attempted: work.output_attempted,
+        }
+    }
+}
+
+impl From<LocalFragmentOrientation> for LocalFragmentOrientationReport {
+    fn from(orientation: LocalFragmentOrientation) -> Self {
+        match orientation {
+            LocalFragmentOrientation::Prefix => Self::Prefix,
+            LocalFragmentOrientation::Suffix => Self::Suffix,
+        }
+    }
+}
+
+impl From<LocalFragmentLocationEvidence> for LocalFragmentLocationEvidenceReport {
+    fn from(location: LocalFragmentLocationEvidence) -> Self {
+        Self {
+            parent_span_index: location.parent_span_index,
+            parent_page: location.parent_page,
+            parent_trusted_stream: location.parent_trusted_stream,
+            parent_trusted_ordinal: location.parent_trusted_ordinal,
+            token_start: location.token_start,
+            token_end: location.token_end,
+            parent_token_count: location.parent_token_count,
+            parent_existing_recovery_overlap: location.parent_existing_recovery_overlap,
+        }
+    }
+}
+
+impl From<LocalFragmentPairEvidence> for LocalFragmentPairEvidenceReport {
+    fn from(pair: LocalFragmentPairEvidence) -> Self {
+        Self {
+            orientation: pair.orientation.into(),
+            old: pair.old.into(),
+            new: pair.new.into(),
+            score: pair.score,
+            old_best_score: pair.old_best_score,
+            old_second_score: pair.old_second_score,
+            new_best_score: pair.new_best_score,
+            new_second_score: pair.new_second_score,
+            old_score_margin: pair.old_score_margin,
+            new_score_margin: pair.new_score_margin,
+            old_unique: pair.old_unique,
+            new_unique: pair.new_unique,
+            reciprocal: pair.reciprocal,
+            exact: pair.exact,
+            role_compatible: pair.role_compatible,
+            location_available: pair.location_available,
+            old_changed_tokens: pair.old_changed_tokens,
+            new_changed_tokens: pair.new_changed_tokens,
+            edit_distance: pair.edit_distance,
+        }
+    }
+}
+
 impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
     fn from(metrics: SentenceRecoveryMetrics) -> Self {
         Self {
@@ -1980,6 +2229,7 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             sentence_edge_signature_reference_oracle: metrics
                 .sentence_edge_signature_reference_oracle
                 .map(Into::into),
+            local_fragment_shadow: metrics.local_fragment_shadow.map(Into::into),
             sentence_edge_filter_complete: metrics.sentence_edge_filter_complete,
             sentence_edge_filter_pairs_examined: metrics.sentence_edge_filter_pairs_examined,
             sentence_edge_filter_pairs_attempted: metrics.sentence_edge_filter_pairs_attempted,
@@ -4061,6 +4311,7 @@ fn validate_sentence_recovery_metrics(
     validate_sentence_edge_signature_direct_shadow_metrics(metrics)?;
     validate_sentence_edge_signature_reference_oracle_metrics(metrics)?;
     validate_sentence_edge_filter_metrics(metrics)?;
+    validate_local_fragment_shadow_metrics(metrics.local_fragment_shadow)?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
             "examined near pair visits {} exceed attempted visits {}",
@@ -4187,6 +4438,280 @@ fn validate_sentence_recovery_metrics(
         .checked_add(metrics.unresolved_remainder_new_source_tokens)
         .ok_or_else(|| "new eligible source token counters overflow".to_owned())?;
     Ok(metrics.into())
+}
+
+fn validate_local_fragment_shadow_metrics(
+    metrics: Option<LocalFragmentShadowMetrics>,
+) -> std::result::Result<(), String> {
+    let Some(metrics) = metrics else {
+        return Ok(());
+    };
+    if metrics.complete != metrics.stop_reason.is_none() {
+        return Err("local-fragment completion and stop reason disagree".to_owned());
+    }
+    validate_local_fragment_shadow_work(metrics.work, metrics.complete, metrics.stop_reason)?;
+    if !metrics.complete {
+        let expected = LocalFragmentShadowMetrics {
+            complete: false,
+            stop_reason: metrics.stop_reason,
+            work: metrics.work,
+            ..LocalFragmentShadowMetrics::default()
+        };
+        if metrics != expected {
+            return Err("stopped local-fragment shadow exposes partial metrics".to_owned());
+        }
+        return Ok(());
+    }
+
+    if metrics.index_posting_items != metrics.work.postings_examined
+        || metrics.queries != metrics.work.queries_examined
+        || metrics.posting_visits != metrics.work.posting_visits_examined
+        || metrics.candidate_pairs != metrics.work.candidate_pairs_examined
+        || metrics.similarity_comparisons != metrics.work.comparisons_examined
+    {
+        return Err("local-fragment complete-set counters disagree with bounded work".to_owned());
+    }
+
+    let old_fragments = metrics
+        .old_prefix_fragments
+        .checked_add(metrics.old_suffix_fragments)
+        .ok_or_else(|| "old local-fragment count overflows".to_owned())?;
+    let new_fragments = metrics
+        .new_prefix_fragments
+        .checked_add(metrics.new_suffix_fragments)
+        .ok_or_else(|| "new local-fragment count overflows".to_owned())?;
+    if metrics.queries != old_fragments {
+        return Err("local-fragment query count does not equal old fragments".to_owned());
+    }
+    if metrics.index_posting_items < new_fragments {
+        return Err("local-fragment index postings are fewer than new fragments".to_owned());
+    }
+    if metrics.candidate_pairs > metrics.posting_visits {
+        return Err("local-fragment candidate pairs exceed posting visits".to_owned());
+    }
+    if metrics.exact_edge_rechecks != metrics.candidate_pairs {
+        return Err("local-fragment edge rechecks do not equal candidate pairs".to_owned());
+    }
+    if metrics.score_qualified_pairs > metrics.candidate_pairs {
+        return Err("qualified local-fragment pairs exceed candidates".to_owned());
+    }
+    let classified = metrics
+        .exact_pairs
+        .checked_add(metrics.nonexact_pairs)
+        .ok_or_else(|| "qualified local-fragment pair count overflows".to_owned())?;
+    if classified != metrics.score_qualified_pairs {
+        return Err("qualified local-fragment pair partition is inconsistent".to_owned());
+    }
+    if metrics.old_unique_relations > old_fragments || metrics.new_unique_relations > new_fragments
+    {
+        return Err("unique local-fragment relations exceed fragments".to_owned());
+    }
+    if metrics.reciprocal_pairs > metrics.old_unique_relations
+        || metrics.reciprocal_pairs > metrics.new_unique_relations
+    {
+        return Err("reciprocal local-fragment pairs exceed unique relations".to_owned());
+    }
+    if metrics.reciprocal_nonexact_pairs > metrics.reciprocal_pairs
+        || metrics.reciprocal_nonexact_pairs > metrics.nonexact_pairs
+    {
+        return Err(
+            "reciprocal non-exact local-fragment pairs exceed their parent stages".to_owned(),
+        );
+    }
+
+    let sampled_pairs = metrics
+        .edit_distance_available_pairs
+        .checked_add(metrics.edit_distance_skipped_pairs)
+        .ok_or_else(|| "sampled local-fragment edit-distance count overflows".to_owned())?;
+    if sampled_pairs != metrics.edit_distance_sampled_pairs
+        || sampled_pairs > metrics.reciprocal_nonexact_pairs
+    {
+        return Err("local-fragment edit-distance sample stages are inconsistent".to_owned());
+    }
+
+    let has_best = metrics.best_sampled_nonexact_pair.is_some();
+    if has_best != (metrics.edit_distance_available_pairs != 0) {
+        return Err("local-fragment best evidence does not match reciprocal pairs".to_owned());
+    }
+    if metrics.best_sampled_prefix_nonexact_pair.is_some()
+        || metrics.best_sampled_suffix_nonexact_pair.is_some()
+    {
+        let Some(best) = metrics.best_sampled_nonexact_pair else {
+            return Err("oriented local-fragment evidence requires overall evidence".to_owned());
+        };
+        if Some(best) != metrics.best_sampled_prefix_nonexact_pair
+            && Some(best) != metrics.best_sampled_suffix_nonexact_pair
+        {
+            return Err("overall local-fragment evidence is not an oriented best".to_owned());
+        }
+    }
+    for (expected_orientation, pair) in [
+        (
+            LocalFragmentOrientation::Prefix,
+            metrics.best_sampled_prefix_nonexact_pair,
+        ),
+        (
+            LocalFragmentOrientation::Suffix,
+            metrics.best_sampled_suffix_nonexact_pair,
+        ),
+    ] {
+        if let Some(pair) = pair {
+            if pair.orientation != expected_orientation {
+                return Err("oriented local-fragment evidence has the wrong orientation".to_owned());
+            }
+            validate_local_fragment_pair_evidence(pair)?;
+        }
+    }
+    if let Some(pair) = metrics.best_sampled_nonexact_pair {
+        validate_local_fragment_pair_evidence(pair)?;
+    }
+    let evidence_slots = usize::from(metrics.best_sampled_nonexact_pair.is_some())
+        + usize::from(metrics.best_sampled_prefix_nonexact_pair.is_some())
+        + usize::from(metrics.best_sampled_suffix_nonexact_pair.is_some());
+    if metrics.work.output_examined != evidence_slots {
+        return Err("local-fragment output work disagrees with evidence slots".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_local_fragment_shadow_work(
+    work: LocalFragmentShadowWorkMetrics,
+    complete: bool,
+    stop_reason: Option<LocalFragmentShadowStopReason>,
+) -> std::result::Result<(), String> {
+    let stages = [
+        (
+            "enumeration",
+            work.enumeration_examined,
+            work.enumeration_attempted,
+        ),
+        ("postings", work.postings_examined, work.postings_attempted),
+        ("queries", work.queries_examined, work.queries_attempted),
+        (
+            "posting visits",
+            work.posting_visits_examined,
+            work.posting_visits_attempted,
+        ),
+        (
+            "candidate pairs",
+            work.candidate_pairs_examined,
+            work.candidate_pairs_attempted,
+        ),
+        (
+            "comparisons",
+            work.comparisons_examined,
+            work.comparisons_attempted,
+        ),
+        (
+            "edit work",
+            work.edit_work_examined,
+            work.edit_work_attempted,
+        ),
+        ("output", work.output_examined, work.output_attempted),
+    ];
+    for (name, examined, attempted) in stages {
+        if examined > attempted {
+            return Err(format!(
+                "local-fragment {name} examined {examined} exceed attempted {attempted}"
+            ));
+        }
+    }
+    if complete
+        && stages
+            .iter()
+            .any(|(_, examined, attempted)| examined != attempted)
+    {
+        return Err("complete local-fragment shadow has unfinished work".to_owned());
+    }
+
+    let limited_stage = match stop_reason {
+        Some(LocalFragmentShadowStopReason::EnumerationLimit) => Some(0),
+        Some(LocalFragmentShadowStopReason::IndexPostingLimit) => Some(1),
+        Some(LocalFragmentShadowStopReason::QueryLimit) => Some(2),
+        Some(LocalFragmentShadowStopReason::PostingVisitLimit) => Some(3),
+        Some(LocalFragmentShadowStopReason::CandidatePairLimit) => Some(4),
+        Some(LocalFragmentShadowStopReason::SimilarityComparisonLimit) => Some(5),
+        Some(LocalFragmentShadowStopReason::EditWorkLimit) => Some(6),
+        Some(LocalFragmentShadowStopReason::OutputLimit) => Some(7),
+        _ => None,
+    };
+    if let Some(limited_stage) = limited_stage {
+        for (index, (name, examined, attempted)) in stages.into_iter().enumerate() {
+            let deficit = attempted.checked_sub(examined);
+            if (index == limited_stage && !deficit.is_some_and(|deficit| deficit > 0))
+                || (index != limited_stage && deficit != Some(0))
+            {
+                return Err(format!(
+                    "local-fragment stop reason does not match {name} work"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_local_fragment_pair_evidence(
+    pair: LocalFragmentPairEvidence,
+) -> std::result::Result<(), String> {
+    if pair.score < 7_000 {
+        return Err("local-fragment evidence score is below the near threshold".to_owned());
+    }
+    if pair.old_score_margin < 500 || pair.new_score_margin < 500 {
+        return Err(
+            "local-fragment evidence score margin is below the unique threshold".to_owned(),
+        );
+    }
+    for location in [pair.old, pair.new] {
+        if location.token_start >= location.token_end
+            || location.token_end > location.parent_token_count
+        {
+            return Err("local-fragment evidence has an invalid token range".to_owned());
+        }
+        match pair.orientation {
+            LocalFragmentOrientation::Prefix
+                if location.token_start != 0
+                    || location.token_end == location.parent_token_count =>
+            {
+                return Err("prefix local-fragment evidence is not a proper prefix".to_owned());
+            }
+            LocalFragmentOrientation::Suffix
+                if location.token_start == 0
+                    || location.token_end != location.parent_token_count =>
+            {
+                return Err("suffix local-fragment evidence is not a proper suffix".to_owned());
+            }
+            _ => {}
+        }
+    }
+    if !pair.old_unique
+        || !pair.new_unique
+        || !pair.reciprocal
+        || pair.exact
+        || !pair.role_compatible
+        || !pair.location_available
+    {
+        return Err("non-exact local-fragment evidence has invalid eligibility flags".to_owned());
+    }
+    if pair.score != pair.old_best_score || pair.score != pair.new_best_score {
+        return Err(
+            "local-fragment evidence score does not match reciprocal best scores".to_owned(),
+        );
+    }
+    if pair.old_second_score > pair.old_best_score
+        || pair.new_second_score > pair.new_best_score
+        || pair.old_score_margin != pair.old_best_score.saturating_sub(pair.old_second_score)
+        || pair.new_score_margin != pair.new_best_score.saturating_sub(pair.new_second_score)
+    {
+        return Err("local-fragment evidence score margins are inconsistent".to_owned());
+    }
+    let changed_tokens = pair
+        .old_changed_tokens
+        .checked_add(pair.new_changed_tokens)
+        .ok_or_else(|| "local-fragment changed-token count overflows".to_owned())?;
+    if changed_tokens == 0 || changed_tokens != pair.edit_distance {
+        return Err("local-fragment exact edit counts are inconsistent".to_owned());
+    }
+    Ok(())
 }
 
 fn validate_sentence_edge_filter_metrics(
@@ -6005,7 +6530,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 37;
+    pub const SCHEMA_VERSION: u32 = 38;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -7704,7 +8229,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 37);
+        assert_eq!(completed["schema_version"], 38);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -7754,7 +8279,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 37);
+        assert_eq!(legacy_summary["schema_version"], 38);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -8964,7 +9489,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 37);
+        assert_eq!(json["schema_version"], 38);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -9122,6 +9647,280 @@ mod tests {
             validated.run_signature_stop_reason,
             Some(RunSignatureStopReasonReport::CandidatePairLimit)
         );
+    }
+
+    fn prefix_local_fragment_pair() -> LocalFragmentPairEvidence {
+        LocalFragmentPairEvidence {
+            orientation: LocalFragmentOrientation::Prefix,
+            old: LocalFragmentLocationEvidence {
+                parent_span_index: 3,
+                parent_page: Some(27),
+                parent_trusted_stream: Some(4),
+                parent_trusted_ordinal: Some(2),
+                token_start: 0,
+                token_end: 8,
+                parent_token_count: 10,
+                parent_existing_recovery_overlap: true,
+            },
+            new: LocalFragmentLocationEvidence {
+                parent_span_index: 5,
+                parent_page: Some(30),
+                parent_trusted_stream: Some(6),
+                parent_trusted_ordinal: Some(8),
+                token_start: 0,
+                token_end: 8,
+                parent_token_count: 12,
+                parent_existing_recovery_overlap: false,
+            },
+            score: 9_000,
+            old_best_score: 9_000,
+            old_second_score: 7_000,
+            new_best_score: 9_000,
+            new_second_score: 7_000,
+            old_score_margin: 2_000,
+            new_score_margin: 2_000,
+            old_unique: true,
+            new_unique: true,
+            reciprocal: true,
+            exact: false,
+            role_compatible: true,
+            location_available: true,
+            old_changed_tokens: 1,
+            new_changed_tokens: 0,
+            edit_distance: 1,
+        }
+    }
+
+    fn complete_local_fragment_shadow() -> LocalFragmentShadowMetrics {
+        let best = prefix_local_fragment_pair();
+        LocalFragmentShadowMetrics {
+            complete: true,
+            stop_reason: None,
+            work: LocalFragmentShadowWorkMetrics {
+                enumeration_examined: 2,
+                enumeration_attempted: 2,
+                postings_examined: 2,
+                postings_attempted: 2,
+                queries_examined: 1,
+                queries_attempted: 1,
+                posting_visits_examined: 1,
+                posting_visits_attempted: 1,
+                candidate_pairs_examined: 1,
+                candidate_pairs_attempted: 1,
+                comparisons_examined: 8,
+                comparisons_attempted: 8,
+                edit_work_examined: 4,
+                edit_work_attempted: 4,
+                output_examined: 2,
+                output_attempted: 2,
+            },
+            old_eligible_parents: 1,
+            new_eligible_parents: 1,
+            old_prefix_fragments: 1,
+            new_prefix_fragments: 1,
+            index_posting_items: 2,
+            queries: 1,
+            posting_visits: 1,
+            candidate_pairs: 1,
+            exact_edge_rechecks: 1,
+            similarity_comparisons: 8,
+            score_qualified_pairs: 1,
+            nonexact_pairs: 1,
+            old_unique_relations: 1,
+            new_unique_relations: 1,
+            reciprocal_pairs: 1,
+            reciprocal_nonexact_pairs: 1,
+            edit_distance_sampled_pairs: 1,
+            edit_distance_available_pairs: 1,
+            best_sampled_nonexact_pair: Some(best),
+            best_sampled_prefix_nonexact_pair: Some(best),
+            ..LocalFragmentShadowMetrics::default()
+        }
+    }
+
+    #[test]
+    fn serializes_absent_complete_and_stopped_local_fragment_shadow() {
+        let absent = serde_json::to_value(SentenceRecoveryMetricsReport::default())
+            .expect("absent local-fragment shadow serializes");
+        assert_eq!(absent["local_fragment_shadow"], serde_json::Value::Null);
+
+        let complete = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+            local_fragment_shadow: Some(complete_local_fragment_shadow()),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        })
+        .expect("complete local-fragment shadow validates");
+        let best = LocalFragmentPairEvidenceReport::from(prefix_local_fragment_pair());
+        assert_eq!(
+            serde_json::to_value(complete.local_fragment_shadow)
+                .expect("complete local-fragment shadow serializes"),
+            serde_json::to_value(LocalFragmentShadowMetricsReport {
+                complete: true,
+                stop_reason: None,
+                work: complete_local_fragment_shadow().work.into(),
+                old_eligible_parents: 1,
+                new_eligible_parents: 1,
+                old_prefix_fragments: 1,
+                old_suffix_fragments: 0,
+                new_prefix_fragments: 1,
+                new_suffix_fragments: 0,
+                index_posting_items: 2,
+                queries: 1,
+                posting_visits: 1,
+                candidate_pairs: 1,
+                exact_edge_rechecks: 1,
+                similarity_comparisons: 8,
+                score_qualified_pairs: 1,
+                exact_pairs: 0,
+                nonexact_pairs: 1,
+                old_unique_relations: 1,
+                new_unique_relations: 1,
+                reciprocal_pairs: 1,
+                reciprocal_nonexact_pairs: 1,
+                edit_distance_sampled_pairs: 1,
+                edit_distance_available_pairs: 1,
+                edit_distance_skipped_pairs: 0,
+                best_sampled_nonexact_pair: Some(best),
+                best_sampled_prefix_nonexact_pair: Some(best),
+                best_sampled_suffix_nonexact_pair: None,
+            })
+            .expect("expected complete local-fragment shadow serializes")
+        );
+
+        let stopped = LocalFragmentShadowMetrics {
+            complete: false,
+            stop_reason: Some(LocalFragmentShadowStopReason::PostingVisitLimit),
+            work: LocalFragmentShadowWorkMetrics {
+                posting_visits_attempted: 3,
+                ..LocalFragmentShadowWorkMetrics::default()
+            },
+            ..LocalFragmentShadowMetrics::default()
+        };
+        let stopped = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+            local_fragment_shadow: Some(stopped),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        })
+        .expect("stopped local-fragment shadow validates");
+        assert_eq!(
+            serde_json::to_value(stopped.local_fragment_shadow)
+                .expect("stopped local-fragment shadow serializes"),
+            serde_json::json!({
+                "complete": false,
+                "stop_reason": "posting_visit_limit",
+                "work": {
+                    "enumeration_examined": 0,
+                    "enumeration_attempted": 0,
+                    "postings_examined": 0,
+                    "postings_attempted": 0,
+                    "queries_examined": 0,
+                    "queries_attempted": 0,
+                    "posting_visits_examined": 0,
+                    "posting_visits_attempted": 3,
+                    "candidate_pairs_examined": 0,
+                    "candidate_pairs_attempted": 0,
+                    "comparisons_examined": 0,
+                    "comparisons_attempted": 0,
+                    "edit_work_examined": 0,
+                    "edit_work_attempted": 0,
+                    "output_examined": 0,
+                    "output_attempted": 0
+                },
+                "old_eligible_parents": 0,
+                "new_eligible_parents": 0,
+                "old_prefix_fragments": 0,
+                "old_suffix_fragments": 0,
+                "new_prefix_fragments": 0,
+                "new_suffix_fragments": 0,
+                "index_posting_items": 0,
+                "queries": 0,
+                "posting_visits": 0,
+                "candidate_pairs": 0,
+                "exact_edge_rechecks": 0,
+                "similarity_comparisons": 0,
+                "score_qualified_pairs": 0,
+                "exact_pairs": 0,
+                "nonexact_pairs": 0,
+                "old_unique_relations": 0,
+                "new_unique_relations": 0,
+                "reciprocal_pairs": 0,
+                "reciprocal_nonexact_pairs": 0,
+                "edit_distance_sampled_pairs": 0,
+                "edit_distance_available_pairs": 0,
+                "edit_distance_skipped_pairs": 0,
+                "best_sampled_nonexact_pair": null,
+                "best_sampled_prefix_nonexact_pair": null,
+                "best_sampled_suffix_nonexact_pair": null
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_local_fragment_shadow_metrics() {
+        let complete = complete_local_fragment_shadow();
+        let invalid = [
+            LocalFragmentShadowMetrics {
+                stop_reason: Some(LocalFragmentShadowStopReason::DiagnosticFailure),
+                ..complete
+            },
+            LocalFragmentShadowMetrics {
+                queries: 0,
+                ..complete
+            },
+            LocalFragmentShadowMetrics {
+                exact_edge_rechecks: 0,
+                ..complete
+            },
+            LocalFragmentShadowMetrics {
+                exact_pairs: 1,
+                ..complete
+            },
+            LocalFragmentShadowMetrics {
+                reciprocal_nonexact_pairs: 0,
+                ..complete
+            },
+            LocalFragmentShadowMetrics {
+                best_sampled_prefix_nonexact_pair: None,
+                best_sampled_suffix_nonexact_pair: None,
+                ..complete
+            },
+            LocalFragmentShadowMetrics {
+                complete: false,
+                stop_reason: Some(LocalFragmentShadowStopReason::QueryLimit),
+                queries: 1,
+                ..LocalFragmentShadowMetrics::default()
+            },
+        ];
+        for metrics in invalid {
+            assert!(
+                validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                    local_fragment_shadow: Some(metrics),
+                    ..SentenceRecoveryMetrics::default()
+                })
+                .is_err()
+            );
+        }
+
+        let below_score = LocalFragmentPairEvidence {
+            score: 6_999,
+            old_best_score: 6_999,
+            old_second_score: 6_000,
+            new_best_score: 6_999,
+            new_second_score: 6_000,
+            old_score_margin: 999,
+            new_score_margin: 999,
+            ..prefix_local_fragment_pair()
+        };
+        assert!(validate_local_fragment_pair_evidence(below_score).is_err());
+
+        let below_margin = LocalFragmentPairEvidence {
+            old_second_score: 8_501,
+            new_second_score: 8_501,
+            old_score_margin: 499,
+            new_score_margin: 499,
+            ..prefix_local_fragment_pair()
+        };
+        assert!(validate_local_fragment_pair_evidence(below_margin).is_err());
     }
 
     #[test]
@@ -12003,7 +12802,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 37);
+        assert_eq!(value["schema_version"], 38);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -12134,6 +12933,7 @@ mod tests {
             "sentence_edge_signature_direct_shadow".to_owned(),
             "sentence_edge_signature_direct_execution".to_owned(),
             "sentence_edge_signature_reference_oracle".to_owned(),
+            "local_fragment_shadow".to_owned(),
             "sentence_edge_filter_complete".to_owned(),
             "sentence_edge_filter_pairs_examined".to_owned(),
             "sentence_edge_filter_pairs_attempted".to_owned(),

@@ -2083,12 +2083,12 @@ fn validate_sentence_edge_signature_build_limits(
 }
 
 #[allow(dead_code)]
-const SENTENCE_EDGE_SIGNATURE_SEED: u64 = 0xcbf2_9ce4_8422_2325;
+pub(in crate::diff) const SENTENCE_EDGE_SIGNATURE_SEED: u64 = 0xcbf2_9ce4_8422_2325;
 #[allow(dead_code)]
 const SENTENCE_EDGE_SIGNATURE_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 #[allow(dead_code)]
-fn sentence_edge_signature_depth(shorter_len: usize) -> Option<usize> {
+pub(in crate::diff) fn sentence_edge_signature_depth(shorter_len: usize) -> Option<usize> {
     let numerator = shorter_len.checked_mul(usize::from(MIN_WORD_SCORE_EDGE_EVIDENCE))?;
     let required = numerator
         .checked_div(10_000)?
@@ -2099,7 +2099,10 @@ fn sentence_edge_signature_depth(shorter_len: usize) -> Option<usize> {
 }
 
 #[allow(dead_code)]
-fn sentence_edge_signature_step(state: u64, token: SentenceEvidenceToken) -> u64 {
+pub(in crate::diff) fn sentence_edge_signature_step(
+    state: u64,
+    token: SentenceEvidenceToken,
+) -> u64 {
     let token = match token {
         SentenceEvidenceToken::Scalar(scalar) => u64::from(u32::from(scalar)),
         SentenceEvidenceToken::Unmapped {

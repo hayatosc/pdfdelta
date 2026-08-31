@@ -907,6 +907,121 @@ pub struct SentenceEdgeSignatureReferenceOracleMetrics {
     pub retained_pair_order_mismatches: usize,
 }
 
+/// Orientation of a proper parent-sentence fragment.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LocalFragmentOrientation {
+    Prefix,
+    Suffix,
+}
+
+/// Reason annotation-independent local-fragment diagnostics are incomplete.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LocalFragmentShadowStopReason {
+    EnumerationLimit,
+    IndexPostingLimit,
+    QueryLimit,
+    PostingVisitLimit,
+    CandidatePairLimit,
+    SimilarityComparisonLimit,
+    EditWorkLimit,
+    OutputLimit,
+    CandidateGenerationIncomplete,
+    AllocationFailure,
+    CounterOverflow,
+    DiagnosticFailure,
+}
+
+/// Stable parent and token coordinates for one local fragment.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LocalFragmentLocationEvidence {
+    pub parent_span_index: usize,
+    pub parent_page: Option<u32>,
+    pub parent_trusted_stream: Option<usize>,
+    pub parent_trusted_ordinal: Option<usize>,
+    pub token_start: usize,
+    pub token_end: usize,
+    pub parent_token_count: usize,
+    pub parent_existing_recovery_overlap: bool,
+}
+
+/// Fixed-size evidence for one sampled reciprocal non-exact fragment pair.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LocalFragmentPairEvidence {
+    pub orientation: LocalFragmentOrientation,
+    pub old: LocalFragmentLocationEvidence,
+    pub new: LocalFragmentLocationEvidence,
+    pub score: u16,
+    pub old_best_score: u16,
+    pub old_second_score: u16,
+    pub new_best_score: u16,
+    pub new_second_score: u16,
+    pub old_score_margin: u16,
+    pub new_score_margin: u16,
+    pub old_unique: bool,
+    pub new_unique: bool,
+    pub reciprocal: bool,
+    pub exact: bool,
+    pub role_compatible: bool,
+    pub location_available: bool,
+    pub old_changed_tokens: usize,
+    pub new_changed_tokens: usize,
+    pub edit_distance: usize,
+}
+
+/// Bounded work retained even when local-fragment analysis stops atomically.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LocalFragmentShadowWorkMetrics {
+    pub enumeration_examined: usize,
+    pub enumeration_attempted: usize,
+    pub postings_examined: usize,
+    pub postings_attempted: usize,
+    pub queries_examined: usize,
+    pub queries_attempted: usize,
+    pub posting_visits_examined: usize,
+    pub posting_visits_attempted: usize,
+    pub candidate_pairs_examined: usize,
+    pub candidate_pairs_attempted: usize,
+    pub comparisons_examined: usize,
+    pub comparisons_attempted: usize,
+    pub edit_work_examined: usize,
+    pub edit_work_attempted: usize,
+    pub output_examined: usize,
+    pub output_attempted: usize,
+}
+
+/// Behavior-neutral, annotation-independent local-fragment diagnostics.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LocalFragmentShadowMetrics {
+    pub complete: bool,
+    pub stop_reason: Option<LocalFragmentShadowStopReason>,
+    pub work: LocalFragmentShadowWorkMetrics,
+    pub old_eligible_parents: usize,
+    pub new_eligible_parents: usize,
+    pub old_prefix_fragments: usize,
+    pub old_suffix_fragments: usize,
+    pub new_prefix_fragments: usize,
+    pub new_suffix_fragments: usize,
+    pub index_posting_items: usize,
+    pub queries: usize,
+    pub posting_visits: usize,
+    pub candidate_pairs: usize,
+    pub exact_edge_rechecks: usize,
+    pub similarity_comparisons: usize,
+    pub score_qualified_pairs: usize,
+    pub exact_pairs: usize,
+    pub nonexact_pairs: usize,
+    pub old_unique_relations: usize,
+    pub new_unique_relations: usize,
+    pub reciprocal_pairs: usize,
+    pub reciprocal_nonexact_pairs: usize,
+    pub edit_distance_sampled_pairs: usize,
+    pub edit_distance_available_pairs: usize,
+    pub edit_distance_skipped_pairs: usize,
+    pub best_sampled_nonexact_pair: Option<LocalFragmentPairEvidence>,
+    pub best_sampled_prefix_nonexact_pair: Option<LocalFragmentPairEvidence>,
+    pub best_sampled_suffix_nonexact_pair: Option<LocalFragmentPairEvidence>,
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -983,6 +1098,7 @@ pub struct SentenceRecoveryMetrics {
     pub sentence_edge_signature_direct_execution: Option<SentenceEdgeSignatureDirectExecution>,
     pub sentence_edge_signature_reference_oracle:
         Option<SentenceEdgeSignatureReferenceOracleMetrics>,
+    pub local_fragment_shadow: Option<LocalFragmentShadowMetrics>,
     /// Whether the production Sentence edge filter classified every query.
     /// A false value always has [`Self::sentence_edge_filter_stop_reason`].
     pub sentence_edge_filter_complete: bool,
