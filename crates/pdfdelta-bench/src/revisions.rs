@@ -723,6 +723,9 @@ pub struct LocalFragmentShadowMetricsReport {
     pub index_posting_items: usize,
     pub queries: usize,
     pub posting_visits: usize,
+    pub boundary_index_posting_items: usize,
+    pub boundary_queries: usize,
+    pub boundary_posting_visits: usize,
     pub parent_candidate_pairs: usize,
     pub candidate_pairs: usize,
     pub exact_edge_rechecks: usize,
@@ -751,6 +754,9 @@ pub enum LocalFragmentShadowStopReasonReport {
     IndexPostingLimit,
     QueryLimit,
     PostingVisitLimit,
+    BoundaryIndexPostingLimit,
+    BoundaryQueryLimit,
+    BoundaryPostingVisitLimit,
     ParentCandidatePairLimit,
     CandidatePairLimit,
     SimilarityComparisonLimit,
@@ -783,6 +789,12 @@ pub struct LocalFragmentShadowWorkMetricsReport {
     pub queries_attempted: usize,
     pub posting_visits_examined: usize,
     pub posting_visits_attempted: usize,
+    pub boundary_postings_examined: usize,
+    pub boundary_postings_attempted: usize,
+    pub boundary_queries_examined: usize,
+    pub boundary_queries_attempted: usize,
+    pub boundary_posting_visits_examined: usize,
+    pub boundary_posting_visits_attempted: usize,
     pub parent_candidate_pairs_examined: usize,
     pub parent_candidate_pairs_attempted: usize,
     pub candidate_pairs_examined: usize,
@@ -2042,6 +2054,9 @@ impl From<LocalFragmentShadowMetrics> for LocalFragmentShadowMetricsReport {
             index_posting_items: metrics.index_posting_items,
             queries: metrics.queries,
             posting_visits: metrics.posting_visits,
+            boundary_index_posting_items: metrics.boundary_index_posting_items,
+            boundary_queries: metrics.boundary_queries,
+            boundary_posting_visits: metrics.boundary_posting_visits,
             parent_candidate_pairs: metrics.parent_candidate_pairs,
             candidate_pairs: metrics.candidate_pairs,
             exact_edge_rechecks: metrics.exact_edge_rechecks,
@@ -2078,6 +2093,13 @@ impl From<LocalFragmentShadowStopReason> for LocalFragmentShadowStopReasonReport
             LocalFragmentShadowStopReason::IndexPostingLimit => Self::IndexPostingLimit,
             LocalFragmentShadowStopReason::QueryLimit => Self::QueryLimit,
             LocalFragmentShadowStopReason::PostingVisitLimit => Self::PostingVisitLimit,
+            LocalFragmentShadowStopReason::BoundaryIndexPostingLimit => {
+                Self::BoundaryIndexPostingLimit
+            }
+            LocalFragmentShadowStopReason::BoundaryQueryLimit => Self::BoundaryQueryLimit,
+            LocalFragmentShadowStopReason::BoundaryPostingVisitLimit => {
+                Self::BoundaryPostingVisitLimit
+            }
             LocalFragmentShadowStopReason::ParentCandidatePairLimit => {
                 Self::ParentCandidatePairLimit
             }
@@ -2112,6 +2134,12 @@ impl From<LocalFragmentShadowWorkMetrics> for LocalFragmentShadowWorkMetricsRepo
             queries_attempted: work.queries_attempted,
             posting_visits_examined: work.posting_visits_examined,
             posting_visits_attempted: work.posting_visits_attempted,
+            boundary_postings_examined: work.boundary_postings_examined,
+            boundary_postings_attempted: work.boundary_postings_attempted,
+            boundary_queries_examined: work.boundary_queries_examined,
+            boundary_queries_attempted: work.boundary_queries_attempted,
+            boundary_posting_visits_examined: work.boundary_posting_visits_examined,
+            boundary_posting_visits_attempted: work.boundary_posting_visits_attempted,
             parent_candidate_pairs_examined: work.parent_candidate_pairs_examined,
             parent_candidate_pairs_attempted: work.parent_candidate_pairs_attempted,
             candidate_pairs_examined: work.candidate_pairs_examined,
@@ -4504,6 +4532,9 @@ fn validate_local_fragment_shadow_metrics(
     if metrics.index_posting_items != metrics.work.postings_examined
         || metrics.queries != metrics.work.queries_examined
         || metrics.posting_visits != metrics.work.posting_visits_examined
+        || metrics.boundary_index_posting_items != metrics.work.boundary_postings_examined
+        || metrics.boundary_queries != metrics.work.boundary_queries_examined
+        || metrics.boundary_posting_visits != metrics.work.boundary_posting_visits_examined
         || metrics.parent_candidate_pairs != metrics.work.parent_candidate_pairs_examined
         || metrics.candidate_pairs != metrics.work.candidate_pairs_examined
         || metrics.similarity_comparisons != metrics.work.comparisons_examined
@@ -4528,11 +4559,20 @@ fn validate_local_fragment_shadow_metrics(
     if (new_fragments == 0) != (metrics.index_posting_items == 0) {
         return Err("local-fragment parent index disagrees with new fragments".to_owned());
     }
+    let expected_boundary_postings = new_fragments
+        .checked_mul(2)
+        .ok_or_else(|| "local-fragment boundary posting count overflows".to_owned())?;
+    if metrics.boundary_index_posting_items != expected_boundary_postings {
+        return Err("local-fragment boundary index disagrees with new fragments".to_owned());
+    }
     if metrics.parent_candidate_pairs > metrics.posting_visits {
         return Err("local-fragment parent candidates exceed posting visits".to_owned());
     }
-    if metrics.parent_candidate_pairs > metrics.candidate_pairs {
-        return Err("local-fragment parent candidates exceed fragment candidates".to_owned());
+    if metrics.parent_candidate_pairs > metrics.boundary_queries {
+        return Err("local-fragment parent candidates exceed boundary queries".to_owned());
+    }
+    if metrics.candidate_pairs > metrics.boundary_posting_visits {
+        return Err("local-fragment candidates exceed boundary posting visits".to_owned());
     }
     if metrics.exact_edge_rechecks != metrics.candidate_pairs {
         return Err("local-fragment edge rechecks do not equal candidate pairs".to_owned());
@@ -4651,6 +4691,11 @@ fn validate_local_fragment_shadow_work(
             work.temporary_signature_keys_attempted,
         ),
         ("postings", work.postings_examined, work.postings_attempted),
+        (
+            "boundary postings",
+            work.boundary_postings_examined,
+            work.boundary_postings_attempted,
+        ),
         ("queries", work.queries_examined, work.queries_attempted),
         (
             "posting visits",
@@ -4661,6 +4706,16 @@ fn validate_local_fragment_shadow_work(
             "parent candidate pairs",
             work.parent_candidate_pairs_examined,
             work.parent_candidate_pairs_attempted,
+        ),
+        (
+            "boundary queries",
+            work.boundary_queries_examined,
+            work.boundary_queries_attempted,
+        ),
+        (
+            "boundary posting visits",
+            work.boundary_posting_visits_examined,
+            work.boundary_posting_visits_attempted,
         ),
         (
             "candidate pairs",
@@ -4699,13 +4754,16 @@ fn validate_local_fragment_shadow_work(
         Some(LocalFragmentShadowStopReason::SignatureTokenStepLimit) => Some(1),
         Some(LocalFragmentShadowStopReason::TemporarySignatureKeyLimit) => Some(2),
         Some(LocalFragmentShadowStopReason::IndexPostingLimit) => Some(3),
-        Some(LocalFragmentShadowStopReason::QueryLimit) => Some(4),
-        Some(LocalFragmentShadowStopReason::PostingVisitLimit) => Some(5),
-        Some(LocalFragmentShadowStopReason::ParentCandidatePairLimit) => Some(6),
-        Some(LocalFragmentShadowStopReason::CandidatePairLimit) => Some(7),
-        Some(LocalFragmentShadowStopReason::SimilarityComparisonLimit) => Some(8),
-        Some(LocalFragmentShadowStopReason::EditWorkLimit) => Some(9),
-        Some(LocalFragmentShadowStopReason::OutputLimit) => Some(10),
+        Some(LocalFragmentShadowStopReason::BoundaryIndexPostingLimit) => Some(4),
+        Some(LocalFragmentShadowStopReason::QueryLimit) => Some(5),
+        Some(LocalFragmentShadowStopReason::PostingVisitLimit) => Some(6),
+        Some(LocalFragmentShadowStopReason::ParentCandidatePairLimit) => Some(7),
+        Some(LocalFragmentShadowStopReason::BoundaryQueryLimit) => Some(8),
+        Some(LocalFragmentShadowStopReason::BoundaryPostingVisitLimit) => Some(9),
+        Some(LocalFragmentShadowStopReason::CandidatePairLimit) => Some(10),
+        Some(LocalFragmentShadowStopReason::SimilarityComparisonLimit) => Some(11),
+        Some(LocalFragmentShadowStopReason::EditWorkLimit) => Some(12),
+        Some(LocalFragmentShadowStopReason::OutputLimit) => Some(13),
         _ => None,
     };
     if let Some(limited_stage) = limited_stage {
@@ -6603,7 +6661,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 39;
+    pub const SCHEMA_VERSION: u32 = 40;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -8302,7 +8360,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 39);
+        assert_eq!(completed["schema_version"], 40);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -8352,7 +8410,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 39);
+        assert_eq!(legacy_summary["schema_version"], 40);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -9562,7 +9620,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 39);
+        assert_eq!(json["schema_version"], 40);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -9782,6 +9840,12 @@ mod tests {
                 queries_attempted: 1,
                 posting_visits_examined: 1,
                 posting_visits_attempted: 1,
+                boundary_postings_examined: 2,
+                boundary_postings_attempted: 2,
+                boundary_queries_examined: 1,
+                boundary_queries_attempted: 1,
+                boundary_posting_visits_examined: 1,
+                boundary_posting_visits_attempted: 1,
                 parent_candidate_pairs_examined: 1,
                 parent_candidate_pairs_attempted: 1,
                 candidate_pairs_examined: 1,
@@ -9802,6 +9866,9 @@ mod tests {
             index_posting_items: 2,
             queries: 1,
             posting_visits: 1,
+            boundary_index_posting_items: 2,
+            boundary_queries: 1,
+            boundary_posting_visits: 1,
             parent_candidate_pairs: 1,
             candidate_pairs: 1,
             exact_edge_rechecks: 1,
@@ -9851,6 +9918,9 @@ mod tests {
                 index_posting_items: 2,
                 queries: 1,
                 posting_visits: 1,
+                boundary_index_posting_items: 2,
+                boundary_queries: 1,
+                boundary_posting_visits: 1,
                 parent_candidate_pairs: 1,
                 candidate_pairs: 1,
                 exact_edge_rechecks: 1,
@@ -9908,6 +9978,12 @@ mod tests {
                     "queries_attempted": 0,
                     "posting_visits_examined": 0,
                     "posting_visits_attempted": 3,
+                    "boundary_postings_examined": 0,
+                    "boundary_postings_attempted": 0,
+                    "boundary_queries_examined": 0,
+                    "boundary_queries_attempted": 0,
+                    "boundary_posting_visits_examined": 0,
+                    "boundary_posting_visits_attempted": 0,
                     "parent_candidate_pairs_examined": 0,
                     "parent_candidate_pairs_attempted": 0,
                     "candidate_pairs_examined": 0,
@@ -9930,6 +10006,9 @@ mod tests {
                 "index_posting_items": 0,
                 "queries": 0,
                 "posting_visits": 0,
+                "boundary_index_posting_items": 0,
+                "boundary_queries": 0,
+                "boundary_posting_visits": 0,
                 "parent_candidate_pairs": 0,
                 "candidate_pairs": 0,
                 "exact_edge_rechecks": 0,
@@ -9976,6 +10055,10 @@ mod tests {
                 ..complete
             },
             LocalFragmentShadowMetrics {
+                boundary_index_posting_items: 1,
+                ..complete
+            },
+            LocalFragmentShadowMetrics {
                 exact_edge_rechecks: 0,
                 ..complete
             },
@@ -10016,6 +10099,17 @@ mod tests {
                 stop_reason: Some(LocalFragmentShadowStopReason::SignatureTokenStepLimit),
                 work: LocalFragmentShadowWorkMetrics {
                     temporary_signature_keys_attempted: 1,
+                    ..LocalFragmentShadowWorkMetrics::default()
+                },
+                min_tokens: 8,
+                signature_depth: 2,
+                ..LocalFragmentShadowMetrics::default()
+            },
+            LocalFragmentShadowMetrics {
+                complete: false,
+                stop_reason: Some(LocalFragmentShadowStopReason::BoundaryQueryLimit),
+                work: LocalFragmentShadowWorkMetrics {
+                    boundary_posting_visits_attempted: 1,
                     ..LocalFragmentShadowWorkMetrics::default()
                 },
                 min_tokens: 8,
@@ -12942,7 +13036,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 39);
+        assert_eq!(value["schema_version"], 40);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

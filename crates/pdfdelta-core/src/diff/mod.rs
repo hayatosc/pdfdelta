@@ -923,6 +923,9 @@ pub enum LocalFragmentShadowStopReason {
     IndexPostingLimit,
     QueryLimit,
     PostingVisitLimit,
+    BoundaryIndexPostingLimit,
+    BoundaryQueryLimit,
+    BoundaryPostingVisitLimit,
     ParentCandidatePairLimit,
     CandidatePairLimit,
     SimilarityComparisonLimit,
@@ -986,6 +989,12 @@ pub struct LocalFragmentShadowWorkMetrics {
     pub queries_attempted: usize,
     pub posting_visits_examined: usize,
     pub posting_visits_attempted: usize,
+    pub boundary_postings_examined: usize,
+    pub boundary_postings_attempted: usize,
+    pub boundary_queries_examined: usize,
+    pub boundary_queries_attempted: usize,
+    pub boundary_posting_visits_examined: usize,
+    pub boundary_posting_visits_attempted: usize,
     pub parent_candidate_pairs_examined: usize,
     pub parent_candidate_pairs_attempted: usize,
     pub candidate_pairs_examined: usize,
@@ -1017,7 +1026,14 @@ pub struct LocalFragmentShadowMetrics {
     pub index_posting_items: usize,
     pub queries: usize,
     pub posting_visits: usize,
+    /// New-fragment postings in the parent-scoped, same-side boundary index.
+    pub boundary_index_posting_items: usize,
+    /// Old-fragment and admitted-new-parent boundary queries.
+    pub boundary_queries: usize,
+    /// Posting entries visited by boundary queries.
+    pub boundary_posting_visits: usize,
     pub parent_candidate_pairs: usize,
+    /// Boundary-union candidates submitted to exact edge rechecking.
     pub candidate_pairs: usize,
     pub exact_edge_rechecks: usize,
     pub similarity_comparisons: usize,
