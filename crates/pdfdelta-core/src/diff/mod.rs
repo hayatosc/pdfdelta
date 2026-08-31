@@ -408,6 +408,90 @@ pub struct RecoveryWatchGranularPairEvidence {
     pub new_units: Vec<RecoveryWatchGranularUnitEvidence>,
 }
 
+/// Result of locating and exactly comparing a reviewed quote inside its
+/// uniquely matched parent unit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RecoveryWatchQuoteLocalStatus {
+    Available,
+    Unfound,
+    Ambiguous,
+    Unmapped,
+    EditDistanceLimit,
+}
+
+/// Exact quote range inside a parent recovery unit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecoveryWatchQuoteLocalUnitEvidence {
+    pub parent_byte_start: usize,
+    pub parent_byte_end: usize,
+    pub parent_token_start: usize,
+    pub parent_token_end: usize,
+    pub token_count: usize,
+    pub parent_token_count: usize,
+    pub starts_parent: bool,
+    pub ends_parent: bool,
+}
+
+/// Mapping evidence for one side of a paired reviewed quote.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecoveryWatchQuoteLocalSideEvidence {
+    pub status: RecoveryWatchQuoteLocalStatus,
+    pub unit: Option<RecoveryWatchQuoteLocalUnitEvidence>,
+}
+
+/// One coalesced exact edit in quote-local token coordinates.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecoveryWatchQuoteLocalEditEvidence {
+    pub old_start: usize,
+    pub old_end: usize,
+    pub new_start: usize,
+    pub new_end: usize,
+    pub old_scalars: Vec<u32>,
+    pub new_scalars: Vec<u32>,
+}
+
+/// Exact score and edit evidence for two available quote-local ranges.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecoveryWatchQuoteLocalScoreEvidence {
+    pub prefix_tokens: usize,
+    pub suffix_tokens: usize,
+    pub shorter_tokens: usize,
+    pub edge_score: u16,
+    /// Raw word score when edge evidence reaches the production word gate.
+    ///
+    /// Production can skip this scan when its upper bound cannot improve the
+    /// final score; this diagnostic retains the raw value while preserving the
+    /// same final-score semantics.
+    pub word_score: Option<u16>,
+    pub final_score: u16,
+    pub exact: bool,
+    pub role_compatible: bool,
+    pub old_changed_tokens: usize,
+    pub new_changed_tokens: usize,
+    pub edit_distance: usize,
+    pub edits: Vec<RecoveryWatchQuoteLocalEditEvidence>,
+}
+
+/// Diagnostic-only relation between paired reviewed quote ranges.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecoveryWatchQuoteLocalPairEvidence {
+    pub status: RecoveryWatchQuoteLocalStatus,
+    pub old: RecoveryWatchQuoteLocalSideEvidence,
+    pub new: RecoveryWatchQuoteLocalSideEvidence,
+    pub score: Option<RecoveryWatchQuoteLocalScoreEvidence>,
+}
+
+/// Resource limit that stopped quote-local paired-watch diagnostics.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RecoveryWatchQuoteLocalStopReason {
+    TokenByteLimit,
+    ComparisonLimit,
+    EditWorkLimit,
+    OutputLimit,
+    AuxiliaryLimit,
+    AllocationFailure,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecoveryWatchRecord {
     pub id: String,
@@ -416,6 +500,7 @@ pub struct RecoveryWatchRecord {
     pub pair: Option<RecoveryWatchPairEvidence>,
     pub segment_pair: Option<RecoveryWatchSegmentPairEvidence>,
     pub granular_pair: Option<RecoveryWatchGranularPairEvidence>,
+    pub quote_local_pair: Option<RecoveryWatchQuoteLocalPairEvidence>,
     /// Bounded evidence for exact occurrences in a one-sided watch query.
     pub one_sided_vetoes: Vec<RecoveryWatchOneSidedVetoEvidence>,
 }
@@ -441,6 +526,13 @@ pub struct RecoveryWatchDiagnostics {
     pub granular_new_units: usize,
     pub granular_pair_comparisons: usize,
     pub granular_stop_reason: Option<RecoveryWatchGranularStopReason>,
+    pub quote_local_complete: bool,
+    pub quote_local_pairs: usize,
+    pub quote_local_comparisons: usize,
+    pub quote_local_edit_work: usize,
+    pub quote_local_output_items: usize,
+    pub quote_local_output_scalars: usize,
+    pub quote_local_stop_reason: Option<RecoveryWatchQuoteLocalStopReason>,
     pub records: Vec<RecoveryWatchRecord>,
 }
 

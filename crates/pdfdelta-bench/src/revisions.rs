@@ -27,12 +27,16 @@ use pdfdelta_core::{
         RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
         RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
         RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
-        RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchRelation,
-        RecoveryWatchSegmentPairEvidence, RecoveryWatchSide, RecoveryWatchUnitKind,
-        RunSignatureStopReason, SegmentStopReason, SentenceEdgeFilterStopReason,
-        SentenceEdgeGateShadowMetrics, SentenceEdgeGateShadowStopReason,
-        SentenceEdgeSignatureDirectExecution, SentenceEdgeSignatureDirectShadowMetrics,
-        SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureReferenceOracleMetrics,
+        RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchQuoteLocalEditEvidence,
+        RecoveryWatchQuoteLocalPairEvidence, RecoveryWatchQuoteLocalScoreEvidence,
+        RecoveryWatchQuoteLocalSideEvidence, RecoveryWatchQuoteLocalStatus,
+        RecoveryWatchQuoteLocalStopReason, RecoveryWatchQuoteLocalUnitEvidence,
+        RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence, RecoveryWatchSide,
+        RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
+        SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
+        SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
+        SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
+        SentenceEdgeSignatureReferenceOracleMetrics,
         SentenceEdgeSignatureReferenceOracleStopReason, SentenceEdgeSignatureShadowMetrics,
         SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics, TextSpan,
     },
@@ -253,6 +257,13 @@ pub struct RecoveryWatchDiagnosticsReport {
     pub granular_new_units: usize,
     pub granular_pair_comparisons: usize,
     pub granular_stop_reason: Option<RecoveryWatchGranularStopReasonReport>,
+    pub quote_local_complete: bool,
+    pub quote_local_pairs: usize,
+    pub quote_local_comparisons: usize,
+    pub quote_local_output_items: usize,
+    pub quote_local_output_scalars: usize,
+    pub quote_local_edit_work: usize,
+    pub quote_local_stop_reason: Option<RecoveryWatchQuoteLocalStopReasonReport>,
     pub records: Vec<ExpectedChangeRecoveryWatchRecord>,
 }
 
@@ -265,6 +276,7 @@ pub struct ExpectedChangeRecoveryWatchRecord {
     pub one_sided_vetoes: Vec<RecoveryWatchOneSidedVetoEvidenceReport>,
     pub segment_pair: Option<RecoveryWatchSegmentPairEvidenceReport>,
     pub granular_pair: Option<RecoveryWatchGranularPairEvidenceReport>,
+    pub quote_local_pair: Option<RecoveryWatchQuoteLocalPairEvidenceReport>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -369,6 +381,79 @@ pub enum RecoveryWatchGranularStopReasonReport {
     ComparisonLimit,
     OutputLimit,
     AuxiliaryLimit,
+    AllocationFailure,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RecoveryWatchQuoteLocalPairEvidenceReport {
+    pub status: RecoveryWatchQuoteLocalStatusReport,
+    pub old: RecoveryWatchQuoteLocalSideEvidenceReport,
+    pub new: RecoveryWatchQuoteLocalSideEvidenceReport,
+    pub score: Option<RecoveryWatchQuoteLocalScoreEvidenceReport>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RecoveryWatchQuoteLocalSideEvidenceReport {
+    pub status: RecoveryWatchQuoteLocalStatusReport,
+    pub unit: Option<RecoveryWatchQuoteLocalUnitEvidenceReport>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryWatchQuoteLocalStatusReport {
+    Available,
+    Unfound,
+    Ambiguous,
+    Unmapped,
+    EditDistanceLimit,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub struct RecoveryWatchQuoteLocalUnitEvidenceReport {
+    pub parent_byte_start: usize,
+    pub parent_byte_end: usize,
+    pub parent_token_start: usize,
+    pub parent_token_end: usize,
+    pub token_count: usize,
+    pub parent_token_count: usize,
+    pub starts_parent: bool,
+    pub ends_parent: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RecoveryWatchQuoteLocalScoreEvidenceReport {
+    pub prefix_tokens: usize,
+    pub suffix_tokens: usize,
+    pub shorter_tokens: usize,
+    pub edge_score: u16,
+    pub word_score: Option<u16>,
+    pub final_score: u16,
+    pub exact: bool,
+    pub role_compatible: bool,
+    pub old_changed_tokens: usize,
+    pub new_changed_tokens: usize,
+    pub edit_distance: usize,
+    pub edits: Vec<RecoveryWatchQuoteLocalEditEvidenceReport>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RecoveryWatchQuoteLocalEditEvidenceReport {
+    pub old_start: usize,
+    pub old_end: usize,
+    pub new_start: usize,
+    pub new_end: usize,
+    pub old_scalars: Vec<u32>,
+    pub new_scalars: Vec<u32>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryWatchQuoteLocalStopReasonReport {
+    TokenByteLimit,
+    ComparisonLimit,
+    OutputLimit,
+    AuxiliaryLimit,
+    EditWorkLimit,
     AllocationFailure,
 }
 
@@ -1457,6 +1542,98 @@ impl From<RecoveryWatchGranularStopReason> for RecoveryWatchGranularStopReasonRe
     }
 }
 
+impl From<RecoveryWatchQuoteLocalPairEvidence> for RecoveryWatchQuoteLocalPairEvidenceReport {
+    fn from(pair: RecoveryWatchQuoteLocalPairEvidence) -> Self {
+        Self {
+            status: pair.status.into(),
+            old: pair.old.into(),
+            new: pair.new.into(),
+            score: pair.score.map(Into::into),
+        }
+    }
+}
+
+impl From<RecoveryWatchQuoteLocalSideEvidence> for RecoveryWatchQuoteLocalSideEvidenceReport {
+    fn from(side: RecoveryWatchQuoteLocalSideEvidence) -> Self {
+        Self {
+            status: side.status.into(),
+            unit: side.unit.map(Into::into),
+        }
+    }
+}
+
+impl From<RecoveryWatchQuoteLocalStatus> for RecoveryWatchQuoteLocalStatusReport {
+    fn from(status: RecoveryWatchQuoteLocalStatus) -> Self {
+        match status {
+            RecoveryWatchQuoteLocalStatus::Available => Self::Available,
+            RecoveryWatchQuoteLocalStatus::Unfound => Self::Unfound,
+            RecoveryWatchQuoteLocalStatus::Ambiguous => Self::Ambiguous,
+            RecoveryWatchQuoteLocalStatus::Unmapped => Self::Unmapped,
+            RecoveryWatchQuoteLocalStatus::EditDistanceLimit => Self::EditDistanceLimit,
+        }
+    }
+}
+
+impl From<RecoveryWatchQuoteLocalUnitEvidence> for RecoveryWatchQuoteLocalUnitEvidenceReport {
+    fn from(unit: RecoveryWatchQuoteLocalUnitEvidence) -> Self {
+        Self {
+            parent_byte_start: unit.parent_byte_start,
+            parent_byte_end: unit.parent_byte_end,
+            parent_token_start: unit.parent_token_start,
+            parent_token_end: unit.parent_token_end,
+            token_count: unit.token_count,
+            parent_token_count: unit.parent_token_count,
+            starts_parent: unit.starts_parent,
+            ends_parent: unit.ends_parent,
+        }
+    }
+}
+
+impl From<RecoveryWatchQuoteLocalScoreEvidence> for RecoveryWatchQuoteLocalScoreEvidenceReport {
+    fn from(score: RecoveryWatchQuoteLocalScoreEvidence) -> Self {
+        Self {
+            prefix_tokens: score.prefix_tokens,
+            suffix_tokens: score.suffix_tokens,
+            shorter_tokens: score.shorter_tokens,
+            edge_score: score.edge_score,
+            word_score: score.word_score,
+            final_score: score.final_score,
+            exact: score.exact,
+            role_compatible: score.role_compatible,
+            old_changed_tokens: score.old_changed_tokens,
+            new_changed_tokens: score.new_changed_tokens,
+            edit_distance: score.edit_distance,
+            edits: score.edits.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<RecoveryWatchQuoteLocalEditEvidence> for RecoveryWatchQuoteLocalEditEvidenceReport {
+    fn from(edit: RecoveryWatchQuoteLocalEditEvidence) -> Self {
+        Self {
+            old_start: edit.old_start,
+            old_end: edit.old_end,
+            new_start: edit.new_start,
+            new_end: edit.new_end,
+            old_scalars: edit.old_scalars,
+            new_scalars: edit.new_scalars,
+        }
+    }
+}
+
+impl From<RecoveryWatchQuoteLocalStopReason> for RecoveryWatchQuoteLocalStopReasonReport {
+    fn from(reason: RecoveryWatchQuoteLocalStopReason) -> Self {
+        match reason {
+            RecoveryWatchQuoteLocalStopReason::TokenByteLimit => Self::TokenByteLimit,
+            RecoveryWatchQuoteLocalStopReason::ComparisonLimit => Self::ComparisonLimit,
+            RecoveryWatchQuoteLocalStopReason::OutputLimit => Self::OutputLimit,
+            RecoveryWatchQuoteLocalStopReason::AuxiliaryLimit => Self::AuxiliaryLimit,
+            RecoveryWatchQuoteLocalStopReason::EditWorkLimit => Self::EditWorkLimit,
+            RecoveryWatchQuoteLocalStopReason::AllocationFailure => Self::AllocationFailure,
+        }
+    }
+}
+
 impl From<RecoveryWatchPairEvidence> for RecoveryWatchPairEvidenceReport {
     fn from(pair: RecoveryWatchPairEvidence) -> Self {
         Self {
@@ -1599,6 +1776,13 @@ fn completed_empty_recovery_watch_report() -> RecoveryWatchDiagnosticsReport {
         granular_new_units: 0,
         granular_pair_comparisons: 0,
         granular_stop_reason: None,
+        quote_local_complete: true,
+        quote_local_pairs: 0,
+        quote_local_comparisons: 0,
+        quote_local_output_items: 0,
+        quote_local_output_scalars: 0,
+        quote_local_edit_work: 0,
+        quote_local_stop_reason: None,
         records: Vec::new(),
     }
 }
@@ -1643,6 +1827,7 @@ fn recovery_watch_report(
                         .collect(),
                     segment_pair: record.segment_pair.map(Into::into),
                     granular_pair: record.granular_pair.map(Into::into),
+                    quote_local_pair: record.quote_local_pair.map(Into::into),
                 },
                 None => {
                     join_complete = false;
@@ -1659,6 +1844,7 @@ fn recovery_watch_report(
                         one_sided_vetoes: Vec::new(),
                         segment_pair: None,
                         granular_pair: None,
+                        quote_local_pair: None,
                     }
                 }
             }
@@ -1684,6 +1870,13 @@ fn recovery_watch_report(
         granular_new_units: diagnostics.granular_new_units,
         granular_pair_comparisons: diagnostics.granular_pair_comparisons,
         granular_stop_reason: diagnostics.granular_stop_reason.map(Into::into),
+        quote_local_complete: diagnostics.quote_local_complete,
+        quote_local_pairs: diagnostics.quote_local_pairs,
+        quote_local_comparisons: diagnostics.quote_local_comparisons,
+        quote_local_output_items: diagnostics.quote_local_output_items,
+        quote_local_output_scalars: diagnostics.quote_local_output_scalars,
+        quote_local_edit_work: diagnostics.quote_local_edit_work,
+        quote_local_stop_reason: diagnostics.quote_local_stop_reason.map(Into::into),
         records,
     }
 }
@@ -5812,7 +6005,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 36;
+    pub const SCHEMA_VERSION: u32 = 37;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -6049,6 +6242,7 @@ mod tests {
                     one_sided_vetoes: Vec::new(),
                     segment_pair: None,
                     granular_pair: None,
+                    quote_local_pair: None,
                 },
                 pdfdelta_core::diff::RecoveryWatchRecord {
                     id: query_set.ids[0].clone(),
@@ -6058,6 +6252,7 @@ mod tests {
                     one_sided_vetoes: Vec::new(),
                     segment_pair: None,
                     granular_pair: None,
+                    quote_local_pair: None,
                 },
                 pdfdelta_core::diff::RecoveryWatchRecord {
                     id: "unknown".to_owned(),
@@ -6067,6 +6262,7 @@ mod tests {
                     one_sided_vetoes: Vec::new(),
                     segment_pair: None,
                     granular_pair: None,
+                    quote_local_pair: None,
                 },
             ],
             ..RecoveryWatchDiagnostics::default()
@@ -6131,6 +6327,7 @@ mod tests {
                 one_sided_vetoes: Vec::new(),
                 segment_pair: None,
                 granular_pair: None,
+                quote_local_pair: None,
             },
         )
         .collect::<Vec<_>>();
@@ -6231,6 +6428,56 @@ mod tests {
                     },
                 }],
             }),
+            quote_local_pair: Some(RecoveryWatchQuoteLocalPairEvidence {
+                status: RecoveryWatchQuoteLocalStatus::Available,
+                old: RecoveryWatchQuoteLocalSideEvidence {
+                    status: RecoveryWatchQuoteLocalStatus::Available,
+                    unit: Some(RecoveryWatchQuoteLocalUnitEvidence {
+                        parent_byte_start: 2,
+                        parent_byte_end: 14,
+                        parent_token_start: 2,
+                        parent_token_end: 12,
+                        token_count: 10,
+                        parent_token_count: 20,
+                        starts_parent: false,
+                        ends_parent: false,
+                    }),
+                },
+                new: RecoveryWatchQuoteLocalSideEvidence {
+                    status: RecoveryWatchQuoteLocalStatus::Available,
+                    unit: Some(RecoveryWatchQuoteLocalUnitEvidence {
+                        parent_byte_start: 3,
+                        parent_byte_end: 15,
+                        parent_token_start: 3,
+                        parent_token_end: 12,
+                        token_count: 9,
+                        parent_token_count: 18,
+                        starts_parent: false,
+                        ends_parent: true,
+                    }),
+                },
+                score: Some(RecoveryWatchQuoteLocalScoreEvidence {
+                    prefix_tokens: 5,
+                    suffix_tokens: 4,
+                    shorter_tokens: 9,
+                    edge_score: 10_000,
+                    word_score: Some(10_000),
+                    final_score: 10_000,
+                    exact: false,
+                    role_compatible: true,
+                    old_changed_tokens: 1,
+                    new_changed_tokens: 0,
+                    edit_distance: 1,
+                    edits: vec![RecoveryWatchQuoteLocalEditEvidence {
+                        old_start: 5,
+                        old_end: 6,
+                        new_start: 5,
+                        new_end: 5,
+                        old_scalars: vec![44],
+                        new_scalars: Vec::new(),
+                    }],
+                }),
+            }),
         });
         records.push(pdfdelta_core::diff::RecoveryWatchRecord {
             id: query_set.ids[4].clone(),
@@ -6240,6 +6487,7 @@ mod tests {
             one_sided_vetoes: Vec::new(),
             segment_pair: None,
             granular_pair: None,
+            quote_local_pair: None,
         });
         let occurrence = RecoveryWatchOccurrence {
             span_index: Some(10),
@@ -6269,6 +6517,7 @@ mod tests {
             one_sided_vetoes: Vec::new(),
             segment_pair: None,
             granular_pair: None,
+            quote_local_pair: None,
         });
         let report = recovery_watch_report(
             &document.changes,
@@ -6292,6 +6541,13 @@ mod tests {
                 granular_new_units: 4,
                 granular_pair_comparisons: 12,
                 granular_stop_reason: Some(RecoveryWatchGranularStopReason::OutputLimit),
+                quote_local_complete: true,
+                quote_local_pairs: 1,
+                quote_local_comparisons: 1,
+                quote_local_output_items: 1,
+                quote_local_output_scalars: 1,
+                quote_local_edit_work: 11,
+                quote_local_stop_reason: None,
                 records,
             },
         );
@@ -6323,6 +6579,13 @@ mod tests {
                 "granular_new_units",
                 "granular_pair_comparisons",
                 "granular_stop_reason",
+                "quote_local_complete",
+                "quote_local_pairs",
+                "quote_local_comparisons",
+                "quote_local_output_items",
+                "quote_local_output_scalars",
+                "quote_local_edit_work",
+                "quote_local_stop_reason",
                 "records",
             ])
         );
@@ -6342,6 +6605,13 @@ mod tests {
         assert_eq!(value["granular_new_units"], 4);
         assert_eq!(value["granular_pair_comparisons"], 12);
         assert_eq!(value["granular_stop_reason"], "output_limit");
+        assert_eq!(value["quote_local_complete"], true);
+        assert_eq!(value["quote_local_pairs"], 1);
+        assert_eq!(value["quote_local_comparisons"], 1);
+        assert_eq!(value["quote_local_output_items"], 1);
+        assert_eq!(value["quote_local_output_scalars"], 1);
+        assert_eq!(value["quote_local_edit_work"], 11);
+        assert_eq!(value["quote_local_stop_reason"], serde_json::Value::Null);
         assert_eq!(value["records"][0]["old"]["status"], "unfound");
         assert_eq!(value["records"][1]["old"]["status"], "ambiguous");
         assert_eq!(value["records"][2]["old"]["status"], "unavailable");
@@ -6415,6 +6685,7 @@ mod tests {
                 "one_sided_vetoes",
                 "segment_pair",
                 "granular_pair",
+                "quote_local_pair",
             ])
         );
         assert_eq!(
@@ -6477,6 +6748,59 @@ mod tests {
                 "overlaps_existing_recovery": false,
                 "crossing_anchor_count": 0,
                 "relation": "exact_unique_monotone"
+            })
+        );
+        assert_eq!(
+            value["records"][3]["quote_local_pair"],
+            serde_json::json!({
+                "status": "available",
+                "old": {
+                    "status": "available",
+                    "unit": {
+                        "parent_byte_start": 2,
+                        "parent_byte_end": 14,
+                        "parent_token_start": 2,
+                        "parent_token_end": 12,
+                        "token_count": 10,
+                        "parent_token_count": 20,
+                        "starts_parent": false,
+                        "ends_parent": false
+                    }
+                },
+                "new": {
+                    "status": "available",
+                    "unit": {
+                        "parent_byte_start": 3,
+                        "parent_byte_end": 15,
+                        "parent_token_start": 3,
+                        "parent_token_end": 12,
+                        "token_count": 9,
+                        "parent_token_count": 18,
+                        "starts_parent": false,
+                        "ends_parent": true
+                    }
+                },
+                "score": {
+                    "prefix_tokens": 5,
+                    "suffix_tokens": 4,
+                    "shorter_tokens": 9,
+                    "edge_score": 10_000,
+                    "word_score": 10_000,
+                    "final_score": 10_000,
+                    "exact": false,
+                    "role_compatible": true,
+                    "old_changed_tokens": 1,
+                    "new_changed_tokens": 0,
+                    "edit_distance": 1,
+                    "edits": [{
+                        "old_start": 5,
+                        "old_end": 6,
+                        "new_start": 5,
+                        "new_end": 5,
+                        "old_scalars": [44],
+                        "new_scalars": []
+                    }]
+                }
             })
         );
     }
@@ -6574,6 +6898,7 @@ mod tests {
                     }],
                     segment_pair: None,
                     granular_pair: None,
+                    quote_local_pair: None,
                 }],
                 ..RecoveryWatchDiagnostics::default()
             },
@@ -6659,6 +6984,57 @@ mod tests {
                 }],
                 "near_scope": "cross_span"
             }])
+        );
+    }
+
+    #[test]
+    fn quote_local_report_preserves_nonavailable_mapping_status() {
+        let report =
+            RecoveryWatchQuoteLocalPairEvidenceReport::from(RecoveryWatchQuoteLocalPairEvidence {
+                status: RecoveryWatchQuoteLocalStatus::Unmapped,
+                old: RecoveryWatchQuoteLocalSideEvidence {
+                    status: RecoveryWatchQuoteLocalStatus::Available,
+                    unit: Some(RecoveryWatchQuoteLocalUnitEvidence {
+                        parent_byte_start: 4,
+                        parent_byte_end: 8,
+                        parent_token_start: 3,
+                        parent_token_end: 7,
+                        token_count: 4,
+                        parent_token_count: 10,
+                        starts_parent: false,
+                        ends_parent: false,
+                    }),
+                },
+                new: RecoveryWatchQuoteLocalSideEvidence {
+                    status: RecoveryWatchQuoteLocalStatus::Unmapped,
+                    unit: None,
+                },
+                score: None,
+            });
+
+        assert_eq!(
+            serde_json::to_value(report).expect("quote-local report serializes"),
+            serde_json::json!({
+                "status": "unmapped",
+                "old": {
+                    "status": "available",
+                    "unit": {
+                        "parent_byte_start": 4,
+                        "parent_byte_end": 8,
+                        "parent_token_start": 3,
+                        "parent_token_end": 7,
+                        "token_count": 4,
+                        "parent_token_count": 10,
+                        "starts_parent": false,
+                        "ends_parent": false
+                    }
+                },
+                "new": {
+                    "status": "unmapped",
+                    "unit": null
+                },
+                "score": null
+            })
         );
     }
 
@@ -6757,6 +7133,58 @@ mod tests {
             assert_eq!(
                 serde_json::to_value(RecoveryWatchGranularStopReasonReport::from(reason))
                     .expect("granular stop reason serializes"),
+                expected
+            );
+        }
+
+        let quote_local_statuses = [
+            (RecoveryWatchQuoteLocalStatus::Available, "available"),
+            (RecoveryWatchQuoteLocalStatus::Unfound, "unfound"),
+            (RecoveryWatchQuoteLocalStatus::Ambiguous, "ambiguous"),
+            (RecoveryWatchQuoteLocalStatus::Unmapped, "unmapped"),
+            (
+                RecoveryWatchQuoteLocalStatus::EditDistanceLimit,
+                "edit_distance_limit",
+            ),
+        ];
+        for (status, expected) in quote_local_statuses {
+            assert_eq!(
+                serde_json::to_value(RecoveryWatchQuoteLocalStatusReport::from(status))
+                    .expect("quote-local status serializes"),
+                expected
+            );
+        }
+
+        let quote_local_stop_reasons = [
+            (
+                RecoveryWatchQuoteLocalStopReason::TokenByteLimit,
+                "token_byte_limit",
+            ),
+            (
+                RecoveryWatchQuoteLocalStopReason::ComparisonLimit,
+                "comparison_limit",
+            ),
+            (
+                RecoveryWatchQuoteLocalStopReason::OutputLimit,
+                "output_limit",
+            ),
+            (
+                RecoveryWatchQuoteLocalStopReason::AuxiliaryLimit,
+                "auxiliary_limit",
+            ),
+            (
+                RecoveryWatchQuoteLocalStopReason::EditWorkLimit,
+                "edit_work_limit",
+            ),
+            (
+                RecoveryWatchQuoteLocalStopReason::AllocationFailure,
+                "allocation_failure",
+            ),
+        ];
+        for (reason, expected) in quote_local_stop_reasons {
+            assert_eq!(
+                serde_json::to_value(RecoveryWatchQuoteLocalStopReasonReport::from(reason))
+                    .expect("quote-local stop reason serializes"),
                 expected
             );
         }
@@ -7264,12 +7692,19 @@ mod tests {
                 granular_new_units: 0,
                 granular_pair_comparisons: 0,
                 granular_stop_reason: None,
+                quote_local_complete: true,
+                quote_local_pairs: 0,
+                quote_local_comparisons: 0,
+                quote_local_output_items: 0,
+                quote_local_output_scalars: 0,
+                quote_local_edit_work: 0,
+                quote_local_stop_reason: None,
                 records: Vec::new(),
             }),
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 36);
+        assert_eq!(completed["schema_version"], 37);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -7299,6 +7734,13 @@ mod tests {
                     "granular_new_units": 0,
                     "granular_pair_comparisons": 0,
                     "granular_stop_reason": null,
+                    "quote_local_complete": true,
+                    "quote_local_pairs": 0,
+                    "quote_local_comparisons": 0,
+                    "quote_local_output_items": 0,
+                    "quote_local_output_scalars": 0,
+                    "quote_local_edit_work": 0,
+                    "quote_local_stop_reason": null,
                     "records": []
                 }
             })
@@ -7312,7 +7754,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 36);
+        assert_eq!(legacy_summary["schema_version"], 37);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -7886,7 +8328,7 @@ mod tests {
             ChangeKind::Replacement,
             Some("pay an annual\nfee  of fifty dollars to"),
             Some("pay an annual fee of sixty dollars to"),
-            Some(36),
+            Some(37),
             Some(37),
         )];
         let quality = compute_quality(Annotation::Complete, &expected, &actuals);
@@ -8522,7 +8964,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 36);
+        assert_eq!(json["schema_version"], 37);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -11561,7 +12003,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 36);
+        assert_eq!(value["schema_version"], 37);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

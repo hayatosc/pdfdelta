@@ -51,9 +51,12 @@ use super::{
     RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope, RecoveryWatchOccurrence,
     RecoveryWatchOccurrenceEvidence, RecoveryWatchOccurrences,
     RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
-    RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchRecord, RecoveryWatchRelation,
-    RecoveryWatchSegmentPairEvidence, RecoveryWatchSide, RecoveryWatchUnitKind,
-    RunSignatureStopReason, SegmentStopReason, SentenceEdgeFilterStopReason,
+    RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchQuoteLocalEditEvidence,
+    RecoveryWatchQuoteLocalPairEvidence, RecoveryWatchQuoteLocalScoreEvidence,
+    RecoveryWatchQuoteLocalSideEvidence, RecoveryWatchQuoteLocalStatus,
+    RecoveryWatchQuoteLocalStopReason, RecoveryWatchQuoteLocalUnitEvidence, RecoveryWatchRecord,
+    RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence, RecoveryWatchSide,
+    RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason, SentenceEdgeFilterStopReason,
     SentenceEdgeGateShadowMetrics, SentenceEdgeGateShadowStopReason,
     SentenceEdgeSignatureDirectExecution, SentenceEdgeSignatureDirectShadowMetrics,
     SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureShadowMetrics,
@@ -758,6 +761,13 @@ struct RecoveryWatchState {
     granular_new_units: usize,
     granular_pair_comparisons: usize,
     granular_stop_reason: Option<RecoveryWatchGranularStopReason>,
+    quote_local_complete: bool,
+    quote_local_pairs: usize,
+    quote_local_comparisons: usize,
+    quote_local_edit_work: usize,
+    quote_local_output_items: usize,
+    quote_local_output_scalars: usize,
+    quote_local_stop_reason: Option<RecoveryWatchQuoteLocalStopReason>,
     records: Vec<RecoveryWatchStateRecord>,
     pair_by_occurrences: HashMap<(usize, usize), Vec<usize>>,
     old_pair_partners: HashMap<usize, Vec<usize>>,
@@ -2399,6 +2409,565 @@ fn granular_pair_evidence(
     }))
 }
 
+#[derive(Default)]
+struct QuoteLocalDiagnosticBudget {
+    token_bytes: usize,
+    comparisons: usize,
+    edit_work: usize,
+    outputs: usize,
+    output_scalars: usize,
+    auxiliary_items: usize,
+    auxiliary_bytes: usize,
+}
+
+impl QuoteLocalDiagnosticBudget {
+    const TOKEN_BYTE_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_BYTES / 16;
+    const COMPARISON_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS * 16;
+    const EDIT_WORK_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS * 64;
+    const OUTPUT_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS / 16;
+    const OUTPUT_SCALAR_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_BYTES / 16;
+    const AUXILIARY_ITEM_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS / 4;
+    const AUXILIARY_BYTE_LIMIT: usize = MAX_SENTENCE_RECOVERY_OUTPUT_BYTES / 8;
+
+    fn charge_token_bytes(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), RecoveryWatchQuoteLocalStopReason> {
+        self.token_bytes = self
+            .token_bytes
+            .checked_add(amount)
+            .ok_or(RecoveryWatchQuoteLocalStopReason::TokenByteLimit)?;
+        (self.token_bytes <= Self::TOKEN_BYTE_LIMIT)
+            .then_some(())
+            .ok_or(RecoveryWatchQuoteLocalStopReason::TokenByteLimit)
+    }
+
+    fn charge_comparisons(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), RecoveryWatchQuoteLocalStopReason> {
+        self.comparisons = self
+            .comparisons
+            .checked_add(amount)
+            .ok_or(RecoveryWatchQuoteLocalStopReason::ComparisonLimit)?;
+        (self.comparisons <= Self::COMPARISON_LIMIT)
+            .then_some(())
+            .ok_or(RecoveryWatchQuoteLocalStopReason::ComparisonLimit)
+    }
+
+    fn charge_output(
+        &mut self,
+        items: usize,
+        scalars: usize,
+    ) -> std::result::Result<(), RecoveryWatchQuoteLocalStopReason> {
+        self.outputs = self
+            .outputs
+            .checked_add(items)
+            .ok_or(RecoveryWatchQuoteLocalStopReason::OutputLimit)?;
+        self.output_scalars = self
+            .output_scalars
+            .checked_add(scalars)
+            .ok_or(RecoveryWatchQuoteLocalStopReason::OutputLimit)?;
+        if self.outputs > Self::OUTPUT_LIMIT || self.output_scalars > Self::OUTPUT_SCALAR_LIMIT {
+            return Err(RecoveryWatchQuoteLocalStopReason::OutputLimit);
+        }
+        Ok(())
+    }
+
+    fn charge_edit_work(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), RecoveryWatchQuoteLocalStopReason> {
+        self.edit_work = self
+            .edit_work
+            .checked_add(amount)
+            .ok_or(RecoveryWatchQuoteLocalStopReason::EditWorkLimit)?;
+        (self.edit_work <= Self::EDIT_WORK_LIMIT)
+            .then_some(())
+            .ok_or(RecoveryWatchQuoteLocalStopReason::EditWorkLimit)
+    }
+
+    fn charge_auxiliary<T>(
+        &mut self,
+        amount: usize,
+    ) -> std::result::Result<(), RecoveryWatchQuoteLocalStopReason> {
+        self.auxiliary_items = self
+            .auxiliary_items
+            .checked_add(amount)
+            .ok_or(RecoveryWatchQuoteLocalStopReason::AuxiliaryLimit)?;
+        self.auxiliary_bytes = self
+            .auxiliary_bytes
+            .checked_add(
+                amount
+                    .checked_mul(std::mem::size_of::<T>())
+                    .ok_or(RecoveryWatchQuoteLocalStopReason::AuxiliaryLimit)?,
+            )
+            .ok_or(RecoveryWatchQuoteLocalStopReason::AuxiliaryLimit)?;
+        if self.auxiliary_items > Self::AUXILIARY_ITEM_LIMIT
+            || self.auxiliary_bytes > Self::AUXILIARY_BYTE_LIMIT
+        {
+            return Err(RecoveryWatchQuoteLocalStopReason::AuxiliaryLimit);
+        }
+        Ok(())
+    }
+}
+
+struct CollapsedQuoteLocalText {
+    text: String,
+    original_boundaries: Vec<usize>,
+}
+
+fn collapse_quote_local_whitespace(
+    value: &str,
+    budget: &mut QuoteLocalDiagnosticBudget,
+) -> std::result::Result<CollapsedQuoteLocalText, RecoveryWatchQuoteLocalStopReason> {
+    budget.charge_token_bytes(value.len())?;
+    budget.charge_comparisons(value.len())?;
+    budget.charge_auxiliary::<usize>(
+        value
+            .len()
+            .checked_add(1)
+            .ok_or(RecoveryWatchQuoteLocalStopReason::AuxiliaryLimit)?,
+    )?;
+    let mut text = String::new();
+    let mut original_boundaries = Vec::new();
+    text.try_reserve(value.len())
+        .map_err(|_| RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    original_boundaries
+        .try_reserve(
+            value
+                .len()
+                .checked_add(1)
+                .ok_or(RecoveryWatchQuoteLocalStopReason::AuxiliaryLimit)?,
+        )
+        .map_err(|_| RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    let mut part_start = None;
+    for (offset, character) in value
+        .char_indices()
+        .chain(std::iter::once((value.len(), ' ')))
+    {
+        if !character.is_whitespace() {
+            part_start.get_or_insert(offset);
+            continue;
+        }
+        let Some(start) = part_start.take() else {
+            continue;
+        };
+        let part = value
+            .get(start..offset)
+            .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+        if !text.is_empty() {
+            text.push(' ');
+            original_boundaries.push(start);
+        } else {
+            original_boundaries.push(start);
+        }
+        text.push_str(part);
+        original_boundaries.extend((1..=part.len()).map(|relative| start + relative));
+    }
+    if text.is_empty() {
+        original_boundaries.push(value.len());
+    }
+    Ok(CollapsedQuoteLocalText {
+        text,
+        original_boundaries,
+    })
+}
+
+struct MappedQuoteLocalUnit {
+    side: RecoveryWatchQuoteLocalSideEvidence,
+    token_range: Option<Range<usize>>,
+}
+
+fn quote_local_side_evidence(
+    quote: &str,
+    occurrence: &SentenceOccurrence,
+    budget: &mut QuoteLocalDiagnosticBudget,
+) -> std::result::Result<MappedQuoteLocalUnit, RecoveryWatchQuoteLocalStopReason> {
+    let unavailable = |status| MappedQuoteLocalUnit {
+        side: RecoveryWatchQuoteLocalSideEvidence { status, unit: None },
+        token_range: None,
+    };
+    let needle = collapse_quote_local_whitespace(quote, budget)?;
+    if needle.text.is_empty() {
+        return Ok(unavailable(RecoveryWatchQuoteLocalStatus::Unfound));
+    }
+    let haystack = collapse_quote_local_whitespace(&occurrence.key, budget)?;
+    budget.charge_comparisons(haystack.text.len())?;
+    let Some(start) = haystack.text.find(&needle.text) else {
+        return Ok(unavailable(RecoveryWatchQuoteLocalStatus::Unfound));
+    };
+    let next_start = start
+        .checked_add(
+            haystack
+                .text
+                .get(start..)
+                .and_then(|remaining| remaining.chars().next())
+                .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?
+                .len_utf8(),
+        )
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AuxiliaryLimit)?;
+    let remaining = haystack
+        .text
+        .get(next_start..)
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    budget.charge_comparisons(remaining.len())?;
+    if remaining.find(&needle.text).is_some() {
+        return Ok(unavailable(RecoveryWatchQuoteLocalStatus::Ambiguous));
+    }
+    if occurrence.tokens.iter().any(|token| !token.is_scalar()) {
+        return Ok(unavailable(RecoveryWatchQuoteLocalStatus::Unmapped));
+    }
+    let end = start
+        .checked_add(needle.text.len())
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AuxiliaryLimit)?;
+    let byte_start = *haystack
+        .original_boundaries
+        .get(start)
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    let byte_end = *haystack
+        .original_boundaries
+        .get(end)
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    let quote_text = occurrence
+        .key
+        .get(byte_start..byte_end)
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    budget.charge_comparisons(byte_start.saturating_add(quote_text.len()))?;
+    budget.charge_auxiliary::<usize>(
+        occurrence
+            .tokens
+            .len()
+            .checked_add(1)
+            .ok_or(RecoveryWatchQuoteLocalStopReason::AuxiliaryLimit)?,
+    )?;
+    let scalar_to_token = scalar_to_token_boundaries(&occurrence.tokens)
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    let scalar_start = occurrence
+        .key
+        .get(..byte_start)
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?
+        .chars()
+        .count();
+    let scalar_end = scalar_start
+        .checked_add(quote_text.chars().count())
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AuxiliaryLimit)?;
+    let token_start = *scalar_to_token
+        .get(scalar_start)
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    let token_end = *scalar_to_token
+        .get(scalar_end)
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    let token_range = token_start..token_end;
+    let token_count = token_range.len();
+    Ok(MappedQuoteLocalUnit {
+        side: RecoveryWatchQuoteLocalSideEvidence {
+            status: RecoveryWatchQuoteLocalStatus::Available,
+            unit: Some(RecoveryWatchQuoteLocalUnitEvidence {
+                parent_byte_start: byte_start,
+                parent_byte_end: byte_end,
+                parent_token_start: token_start,
+                parent_token_end: token_end,
+                token_count,
+                parent_token_count: occurrence.tokens.len(),
+                starts_parent: byte_start == 0,
+                ends_parent: byte_end == occurrence.key.len(),
+            }),
+        },
+        token_range: Some(token_range),
+    })
+}
+
+fn quote_local_pair_status(
+    old: RecoveryWatchQuoteLocalStatus,
+    new: RecoveryWatchQuoteLocalStatus,
+) -> RecoveryWatchQuoteLocalStatus {
+    for status in [old, new] {
+        if status != RecoveryWatchQuoteLocalStatus::Available {
+            return status;
+        }
+    }
+    RecoveryWatchQuoteLocalStatus::Available
+}
+
+fn quote_local_word_score(
+    old: &str,
+    new: &str,
+    budget: &mut QuoteLocalDiagnosticBudget,
+) -> std::result::Result<u16, RecoveryWatchQuoteLocalStopReason> {
+    let old_count = old.unicode_words().count();
+    let new_count = new.unicode_words().count();
+    let mut shared = 0usize;
+    for (old_index, old_word) in old.unicode_words().enumerate() {
+        let mut prior_old = 0usize;
+        for candidate in old.unicode_words().take(old_index) {
+            budget.charge_comparisons(1)?;
+            prior_old += usize::from(candidate == old_word);
+        }
+        let mut matching_new = 0usize;
+        for candidate in new.unicode_words() {
+            budget.charge_comparisons(1)?;
+            matching_new += usize::from(candidate == old_word);
+        }
+        shared += usize::from(prior_old < matching_new);
+    }
+    let total = old_count
+        .checked_add(new_count)
+        .ok_or(RecoveryWatchQuoteLocalStopReason::ComparisonLimit)?;
+    if total == 0 {
+        return Ok(0);
+    }
+    basis_points(
+        shared
+            .checked_mul(2)
+            .ok_or(RecoveryWatchQuoteLocalStopReason::ComparisonLimit)?,
+        total,
+    )
+    .ok_or(RecoveryWatchQuoteLocalStopReason::ComparisonLimit)
+}
+
+fn quote_local_scalar_payload(
+    tokens: &[SentenceEvidenceToken],
+    budget: &mut QuoteLocalDiagnosticBudget,
+) -> std::result::Result<Vec<u32>, RecoveryWatchQuoteLocalStopReason> {
+    budget.charge_output(0, tokens.len())?;
+    let mut scalars = Vec::new();
+    scalars
+        .try_reserve_exact(tokens.len())
+        .map_err(|_| RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    for token in tokens {
+        let SentenceEvidenceToken::Scalar(scalar) = token else {
+            return Err(RecoveryWatchQuoteLocalStopReason::AllocationFailure);
+        };
+        scalars.push(u32::from(*scalar));
+    }
+    Ok(scalars)
+}
+
+fn quote_local_pair_evidence(
+    old_quote: &str,
+    new_quote: &str,
+    old_occurrence: &SentenceOccurrence,
+    new_occurrence: &SentenceOccurrence,
+    budget: &mut QuoteLocalDiagnosticBudget,
+) -> std::result::Result<
+    Option<RecoveryWatchQuoteLocalPairEvidence>,
+    RecoveryWatchQuoteLocalStopReason,
+> {
+    // The private Myers trace is independently bounded per reviewed pair. Its
+    // conservative work upper bound is charged separately from textual
+    // comparisons before allocating the trace.
+    const MAX_EDIT_DISTANCE: usize = 1_024;
+
+    if old_occurrence.kind != RecoveryUnitKind::Sentence
+        || new_occurrence.kind != RecoveryUnitKind::Sentence
+    {
+        return Ok(None);
+    }
+
+    let old = quote_local_side_evidence(old_quote, old_occurrence, budget)?;
+    let new = quote_local_side_evidence(new_quote, new_occurrence, budget)?;
+    let status = quote_local_pair_status(old.side.status, new.side.status);
+    let (Some(old_range), Some(new_range)) = (old.token_range, new.token_range) else {
+        budget.charge_output(1, 0)?;
+        return Ok(Some(RecoveryWatchQuoteLocalPairEvidence {
+            status,
+            old: old.side,
+            new: new.side,
+            score: None,
+        }));
+    };
+    let old_tokens = old_occurrence
+        .tokens
+        .get(old_range.clone())
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    let new_tokens = new_occurrence
+        .tokens
+        .get(new_range.clone())
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    let shorter = old_tokens.len().min(new_tokens.len());
+    let mut prefix = 0usize;
+    while prefix < shorter {
+        budget.charge_comparisons(1)?;
+        if old_tokens[prefix] != new_tokens[prefix] {
+            break;
+        }
+        prefix += 1;
+    }
+    let mut suffix = 0usize;
+    while suffix < shorter.saturating_sub(prefix) {
+        budget.charge_comparisons(1)?;
+        if old_tokens[old_tokens.len() - suffix - 1] != new_tokens[new_tokens.len() - suffix - 1] {
+            break;
+        }
+        suffix += 1;
+    }
+    let edge_score = if shorter == 0 {
+        0
+    } else {
+        basis_points(
+            prefix
+                .checked_add(suffix)
+                .ok_or(RecoveryWatchQuoteLocalStopReason::ComparisonLimit)?,
+            shorter,
+        )
+        .ok_or(RecoveryWatchQuoteLocalStopReason::ComparisonLimit)?
+    };
+    let old_text = old_occurrence
+        .key
+        .get(
+            old.side
+                .unit
+                .as_ref()
+                .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?
+                .parent_byte_start
+                ..old
+                    .side
+                    .unit
+                    .as_ref()
+                    .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?
+                    .parent_byte_end,
+        )
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    let new_text = new_occurrence
+        .key
+        .get(
+            new.side
+                .unit
+                .as_ref()
+                .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?
+                .parent_byte_start
+                ..new
+                    .side
+                    .unit
+                    .as_ref()
+                    .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?
+                    .parent_byte_end,
+        )
+        .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    let word_score = if edge_score < MIN_WORD_SCORE_EDGE_EVIDENCE {
+        None
+    } else {
+        Some(quote_local_word_score(old_text, new_text, budget)?)
+    };
+    let role_compatible = matches!(
+        (old_occurrence.role, new_occurrence.role),
+        (Some(old), Some(new)) if old.is_alignment_compatible(new)
+    );
+    let final_score = if role_compatible {
+        edge_score.max(word_score.unwrap_or(0))
+    } else {
+        0
+    };
+    let residual_old = old_tokens
+        .len()
+        .checked_sub(prefix)
+        .and_then(|remaining| remaining.checked_sub(suffix))
+        .ok_or(RecoveryWatchQuoteLocalStopReason::ComparisonLimit)?;
+    let residual_new = new_tokens
+        .len()
+        .checked_sub(prefix)
+        .and_then(|remaining| remaining.checked_sub(suffix))
+        .ok_or(RecoveryWatchQuoteLocalStopReason::ComparisonLimit)?;
+    let residual_edit_bound = residual_old
+        .checked_add(residual_new)
+        .ok_or(RecoveryWatchQuoteLocalStopReason::EditWorkLimit)?
+        .min(MAX_EDIT_DISTANCE);
+    let trace_steps = residual_edit_bound
+        .checked_add(1)
+        .ok_or(RecoveryWatchQuoteLocalStopReason::EditWorkLimit)?;
+    let total_tokens = old_tokens
+        .len()
+        .checked_add(new_tokens.len())
+        .ok_or(RecoveryWatchQuoteLocalStopReason::EditWorkLimit)?;
+    let triangular = trace_steps
+        .checked_mul(
+            trace_steps
+                .checked_add(1)
+                .ok_or(RecoveryWatchQuoteLocalStopReason::EditWorkLimit)?,
+        )
+        .and_then(|value| value.checked_div(2))
+        .ok_or(RecoveryWatchQuoteLocalStopReason::EditWorkLimit)?;
+    let myers_work_bound = total_tokens
+        .checked_mul(trace_steps)
+        .and_then(|value| value.checked_add(triangular))
+        .ok_or(RecoveryWatchQuoteLocalStopReason::EditWorkLimit)?;
+    budget.charge_edit_work(myers_work_bound)?;
+    let edits = match super::myers::diff(old_tokens, new_tokens, MAX_EDIT_DISTANCE) {
+        Ok(Some(edits)) => edits,
+        Ok(None) | Err(_) => {
+            budget.charge_output(1, 0)?;
+            return Ok(Some(RecoveryWatchQuoteLocalPairEvidence {
+                status: RecoveryWatchQuoteLocalStatus::EditDistanceLimit,
+                old: old.side,
+                new: new.side,
+                score: None,
+            }));
+        }
+    };
+    budget.charge_output(
+        edits
+            .len()
+            .checked_add(1)
+            .ok_or(RecoveryWatchQuoteLocalStopReason::OutputLimit)?,
+        0,
+    )?;
+    let mut output_edits = Vec::new();
+    output_edits
+        .try_reserve_exact(edits.len())
+        .map_err(|_| RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
+    let mut old_changed_tokens = 0usize;
+    let mut new_changed_tokens = 0usize;
+    for edit in edits {
+        old_changed_tokens = old_changed_tokens
+            .checked_add(edit.old.len())
+            .ok_or(RecoveryWatchQuoteLocalStopReason::OutputLimit)?;
+        new_changed_tokens = new_changed_tokens
+            .checked_add(edit.new.len())
+            .ok_or(RecoveryWatchQuoteLocalStopReason::OutputLimit)?;
+        output_edits.push(RecoveryWatchQuoteLocalEditEvidence {
+            old_start: edit.old.start,
+            old_end: edit.old.end,
+            new_start: edit.new.start,
+            new_end: edit.new.end,
+            old_scalars: quote_local_scalar_payload(
+                old_tokens
+                    .get(edit.old.clone())
+                    .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?,
+                budget,
+            )?,
+            new_scalars: quote_local_scalar_payload(
+                new_tokens
+                    .get(edit.new.clone())
+                    .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?,
+                budget,
+            )?,
+        });
+    }
+    let edit_distance = old_changed_tokens
+        .checked_add(new_changed_tokens)
+        .ok_or(RecoveryWatchQuoteLocalStopReason::OutputLimit)?;
+    Ok(Some(RecoveryWatchQuoteLocalPairEvidence {
+        status: RecoveryWatchQuoteLocalStatus::Available,
+        old: old.side,
+        new: new.side,
+        score: Some(RecoveryWatchQuoteLocalScoreEvidence {
+            prefix_tokens: prefix,
+            suffix_tokens: suffix,
+            shorter_tokens: shorter,
+            edge_score,
+            word_score,
+            final_score,
+            exact: old_tokens == new_tokens,
+            role_compatible,
+            old_changed_tokens,
+            new_changed_tokens,
+            edit_distance,
+            edits: output_edits,
+        }),
+    }))
+}
+
 impl RecoveryWatchState {
     fn new(
         queries: &[RecoveryWatchQuery<'_>],
@@ -2434,6 +3003,13 @@ impl RecoveryWatchState {
             granular_new_units: 0,
             granular_pair_comparisons: 0,
             granular_stop_reason: None,
+            quote_local_complete: true,
+            quote_local_pairs: 0,
+            quote_local_comparisons: 0,
+            quote_local_edit_work: 0,
+            quote_local_output_items: 0,
+            quote_local_output_scalars: 0,
+            quote_local_stop_reason: None,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
             old_pair_partners: HashMap::new(),
@@ -2445,6 +3021,7 @@ impl RecoveryWatchState {
             retained_one_sided_occurrences: 0,
         };
         let mut granular_budget = GranularDiagnosticBudget::default();
+        let mut quote_local_budget = QuoteLocalDiagnosticBudget::default();
         state.records.try_reserve_exact(processed).ok()?;
         state.pair_by_occurrences.try_reserve(processed).ok()?;
         state.old_pair_partners.try_reserve(processed).ok()?;
@@ -2604,6 +3181,47 @@ impl RecoveryWatchState {
                 }
                 _ => None,
             };
+            let quote_local_pair = match (
+                query.old_quote,
+                query.new_quote,
+                old_occurrence,
+                new_occurrence,
+                state.quote_local_stop_reason,
+            ) {
+                (Some(old_quote), Some(new_quote), Some(old_index), Some(new_index), None) => {
+                    let old_occurrence = old_occurrences.get(old_index)?;
+                    let new_occurrence = new_occurrences.get(new_index)?;
+                    if old_occurrence.kind != RecoveryUnitKind::Sentence
+                        || new_occurrence.kind != RecoveryUnitKind::Sentence
+                    {
+                        None
+                    } else {
+                        match quote_local_pair_evidence(
+                            old_quote,
+                            new_quote,
+                            old_occurrence,
+                            new_occurrence,
+                            &mut quote_local_budget,
+                        ) {
+                            Ok(evidence) => evidence,
+                            Err(reason) => {
+                                state.stop_quote_local(reason);
+                                None
+                            }
+                        }
+                    }
+                }
+                _ => None,
+            };
+            if state.quote_local_stop_reason.is_none() {
+                if quote_local_pair.is_some() {
+                    state.quote_local_pairs = state.quote_local_pairs.checked_add(1)?;
+                }
+                state.quote_local_comparisons = quote_local_budget.comparisons;
+                state.quote_local_edit_work = quote_local_budget.edit_work;
+                state.quote_local_output_items = quote_local_budget.outputs;
+                state.quote_local_output_scalars = quote_local_budget.output_scalars;
+            }
             if state.granular_stop_reason.is_none()
                 && let Some(evidence) = granular_pair.as_ref()
             {
@@ -2627,6 +3245,7 @@ impl RecoveryWatchState {
                     pair,
                     segment_pair,
                     granular_pair,
+                    quote_local_pair,
                     one_sided_vetoes: Vec::new(),
                 },
                 old_occurrence,
@@ -2730,6 +3349,19 @@ impl RecoveryWatchState {
             segment_key: None,
             one_sided_occurrence_indices: occurrence_indices,
         })
+    }
+
+    fn stop_quote_local(&mut self, reason: RecoveryWatchQuoteLocalStopReason) {
+        self.quote_local_complete = false;
+        self.quote_local_stop_reason = Some(reason);
+        self.quote_local_pairs = 0;
+        self.quote_local_comparisons = 0;
+        self.quote_local_edit_work = 0;
+        self.quote_local_output_items = 0;
+        self.quote_local_output_scalars = 0;
+        for record in &mut self.records {
+            record.output.quote_local_pair = None;
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -3409,6 +4041,13 @@ impl RecoveryWatchState {
             granular_new_units: self.granular_new_units,
             granular_pair_comparisons: self.granular_pair_comparisons,
             granular_stop_reason: self.granular_stop_reason,
+            quote_local_complete: self.quote_local_complete,
+            quote_local_pairs: self.quote_local_pairs,
+            quote_local_comparisons: self.quote_local_comparisons,
+            quote_local_edit_work: self.quote_local_edit_work,
+            quote_local_output_items: self.quote_local_output_items,
+            quote_local_output_scalars: self.quote_local_output_scalars,
+            quote_local_stop_reason: self.quote_local_stop_reason,
             records: self
                 .records
                 .into_iter()
@@ -8046,6 +8685,13 @@ fn watch_fixed_evidence_is_preserved(
         && accepted.granular_new_units == direct.granular_new_units
         && accepted.granular_pair_comparisons == direct.granular_pair_comparisons
         && accepted.granular_stop_reason == direct.granular_stop_reason
+        && accepted.quote_local_complete == direct.quote_local_complete
+        && accepted.quote_local_pairs == direct.quote_local_pairs
+        && accepted.quote_local_comparisons == direct.quote_local_comparisons
+        && accepted.quote_local_edit_work == direct.quote_local_edit_work
+        && accepted.quote_local_output_items == direct.quote_local_output_items
+        && accepted.quote_local_output_scalars == direct.quote_local_output_scalars
+        && accepted.quote_local_stop_reason == direct.quote_local_stop_reason
         && accepted.records.len() == direct.records.len()
         && accepted
             .records
@@ -8068,6 +8714,7 @@ fn watch_record_fixed_evidence_is_preserved(
             direct.segment_pair.as_ref(),
         )
         && accepted.granular_pair == direct.granular_pair
+        && accepted.quote_local_pair == direct.quote_local_pair
 }
 
 #[cfg(test)]
@@ -14947,6 +15594,7 @@ mod tests {
                     }),
                     segment_pair: None,
                     granular_pair: None,
+                    quote_local_pair: None,
                     one_sided_vetoes: Vec::new(),
                 });
             Ok(outcome)
@@ -15015,6 +15663,13 @@ mod tests {
             granular_new_units: 0,
             granular_pair_comparisons: 0,
             granular_stop_reason: None,
+            quote_local_complete: true,
+            quote_local_pairs: 0,
+            quote_local_comparisons: 0,
+            quote_local_edit_work: 0,
+            quote_local_output_items: 0,
+            quote_local_output_scalars: 0,
+            quote_local_stop_reason: None,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
             old_pair_partners: HashMap::new(),
@@ -15057,6 +15712,13 @@ mod tests {
             granular_new_units: 0,
             granular_pair_comparisons: 0,
             granular_stop_reason: None,
+            quote_local_complete: true,
+            quote_local_pairs: 0,
+            quote_local_comparisons: 0,
+            quote_local_edit_work: 0,
+            quote_local_output_items: 0,
+            quote_local_output_scalars: 0,
+            quote_local_stop_reason: None,
             records: vec![RecoveryWatchStateRecord {
                 output: RecoveryWatchRecord {
                     id: "one-sided".to_owned(),
@@ -15075,6 +15737,7 @@ mod tests {
                     }),
                     segment_pair: None,
                     granular_pair: None,
+                    quote_local_pair: None,
                     one_sided_vetoes: Vec::new(),
                 },
                 old_occurrence: Some(0),
@@ -15158,6 +15821,7 @@ mod tests {
                 pair: None,
                 segment_pair: None,
                 granular_pair: None,
+                quote_local_pair: None,
                 one_sided_vetoes: Vec::new(),
             },
             old_occurrence: None,
@@ -15422,6 +16086,7 @@ mod tests {
                 pair: None,
                 segment_pair: None,
                 granular_pair: None,
+                quote_local_pair: None,
                 one_sided_vetoes: Vec::new(),
             },
             old_occurrence: None,
@@ -15557,6 +16222,13 @@ mod tests {
             granular_new_units: 0,
             granular_pair_comparisons: 0,
             granular_stop_reason: None,
+            quote_local_complete: true,
+            quote_local_pairs: 0,
+            quote_local_comparisons: 0,
+            quote_local_edit_work: 0,
+            quote_local_output_items: 0,
+            quote_local_output_scalars: 0,
+            quote_local_stop_reason: None,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
             old_pair_partners: HashMap::new(),
@@ -15589,6 +16261,7 @@ mod tests {
                 }),
                 segment_pair: None,
                 granular_pair: None,
+                quote_local_pair: None,
                 one_sided_vetoes: Vec::new(),
             },
             old_occurrence: Some(0),
@@ -16114,6 +16787,395 @@ mod tests {
             )
             .expect("bounded quote mapping succeeds"),
             None
+        );
+    }
+
+    #[test]
+    fn quote_local_evidence_reports_comma_deletion_with_exact_scalar_edit() {
+        let old_text = "The toolkit consists of publications specifying algorithms and guidance for their use, rather than software code.";
+        let new_text = "The toolkit consists of publications specifying algorithms and guidance for their use rather than software code.";
+        let old = granular_occurrence(
+            &format!("Unrelated old preface. {old_text} Old trailing context."),
+            RecoveryUnitKind::Sentence,
+        );
+        let new = granular_occurrence(
+            &format!("Different new preface text. {new_text} New trailing context."),
+            RecoveryUnitKind::Sentence,
+        );
+        let mut budget = QuoteLocalDiagnosticBudget::default();
+
+        let evidence = quote_local_pair_evidence(old_text, new_text, &old, &new, &mut budget)
+            .expect("quote-local diagnostic fits")
+            .expect("Sentence pair has quote-local evidence");
+        let score = evidence.score.expect("mapped quotes have score evidence");
+
+        assert_eq!(evidence.status, RecoveryWatchQuoteLocalStatus::Available);
+        assert_eq!(score.edge_score, 10_000);
+        assert_eq!(score.word_score, Some(10_000));
+        assert_eq!(score.final_score, 10_000);
+        assert!(!score.exact);
+        assert_eq!((score.old_changed_tokens, score.new_changed_tokens), (1, 0));
+        assert_eq!(score.edit_distance, 1);
+        assert_eq!(score.edits.len(), 1);
+        assert_eq!(score.edits[0].old_end - score.edits[0].old_start, 1);
+        assert_eq!(score.edits[0].new_end - score.edits[0].new_start, 0);
+        assert_eq!(score.edits[0].old_scalars, vec![u32::from(',')]);
+        assert!(score.edits[0].new_scalars.is_empty());
+        let old_unit = evidence.old.unit.expect("old quote is mapped");
+        let new_unit = evidence.new.unit.expect("new quote is mapped");
+        assert!(old_unit.token_count < old_unit.parent_token_count);
+        assert!(new_unit.token_count < new_unit.parent_token_count);
+
+        let mut budget = QuoteLocalDiagnosticBudget::default();
+        let parent_score = quote_local_pair_evidence(&old.key, &new.key, &old, &new, &mut budget)
+            .expect("parent diagnostic fits")
+            .expect("Sentence pair has parent evidence")
+            .score
+            .expect("parent score exists");
+        assert!(parent_score.final_score < 10_000);
+    }
+
+    #[test]
+    fn quote_local_mapping_preserves_unicode_whitespace_and_parent_boundaries() {
+        let occurrence = granular_occurrence(
+            "前置き。 Alpha\u{3000}β。 後置き。",
+            RecoveryUnitKind::Sentence,
+        );
+        let mut budget = QuoteLocalDiagnosticBudget::default();
+        let mapped = quote_local_side_evidence("Alpha β。", &occurrence, &mut budget)
+            .expect("unicode mapping fits");
+        let unit = mapped.side.unit.expect("partial quote is available");
+
+        assert_eq!(mapped.side.status, RecoveryWatchQuoteLocalStatus::Available);
+        assert_eq!(
+            &occurrence.key[unit.parent_byte_start..unit.parent_byte_end],
+            "Alpha\u{3000}β。"
+        );
+        assert!(!unit.starts_parent);
+        assert!(!unit.ends_parent);
+
+        let mut budget = QuoteLocalDiagnosticBudget::default();
+        let whole = quote_local_side_evidence(&occurrence.key, &occurrence, &mut budget)
+            .expect("whole-parent mapping fits")
+            .side
+            .unit
+            .expect("whole parent is available");
+        assert!(whole.starts_parent);
+        assert!(whole.ends_parent);
+        assert_eq!(whole.token_count, whole.parent_token_count);
+    }
+
+    #[test]
+    fn quote_local_mapping_distinguishes_ambiguous_and_unmapped_evidence() {
+        let duplicate = granular_occurrence("repeat repeat", RecoveryUnitKind::Sentence);
+        let mut budget = QuoteLocalDiagnosticBudget::default();
+        let ambiguous = quote_local_side_evidence("repeat", &duplicate, &mut budget)
+            .expect("duplicate mapping fits");
+        assert_eq!(
+            ambiguous.side.status,
+            RecoveryWatchQuoteLocalStatus::Ambiguous
+        );
+        assert!(ambiguous.side.unit.is_none());
+
+        let mut unmapped = granular_occurrence("mapped text", RecoveryUnitKind::Sentence);
+        unmapped.tokens[0] = SentenceEvidenceToken::Unmapped {
+            font_fingerprint: 1,
+            glyph_id: 2,
+        };
+        let mut budget = QuoteLocalDiagnosticBudget::default();
+        let evidence = quote_local_pair_evidence(
+            "mapped text",
+            "mapped text",
+            &unmapped,
+            &unmapped,
+            &mut budget,
+        )
+        .expect("unmapped evidence fails closed without stopping diagnostics")
+        .expect("Sentence pair retains mapping evidence");
+        assert_eq!(evidence.status, RecoveryWatchQuoteLocalStatus::Unmapped);
+        assert!(evidence.score.is_none());
+    }
+
+    #[test]
+    fn quote_local_mapping_detects_overlapping_matches() {
+        let occurrence = granular_occurrence("banana", RecoveryUnitKind::Sentence);
+        let mut budget = QuoteLocalDiagnosticBudget::default();
+
+        let evidence =
+            quote_local_side_evidence("ana", &occurrence, &mut budget).expect("overlap probe fits");
+
+        assert_eq!(
+            evidence.side.status,
+            RecoveryWatchQuoteLocalStatus::Ambiguous
+        );
+        assert!(evidence.side.unit.is_none());
+    }
+
+    #[test]
+    fn quote_local_score_obeys_word_evidence_cutoff() {
+        let old = granular_occurrence("abcdefghij", RecoveryUnitKind::Sentence);
+        let low = granular_occurrence("axyzuvwqrs", RecoveryUnitKind::Sentence);
+        let threshold = granular_occurrence("abcxyzuvwx", RecoveryUnitKind::Sentence);
+
+        let mut budget = QuoteLocalDiagnosticBudget::default();
+        let low_score = quote_local_pair_evidence(&old.key, &low.key, &old, &low, &mut budget)
+            .expect("low-score diagnostic fits")
+            .expect("Sentence pair has score evidence")
+            .score
+            .expect("mapped quotes have scores");
+        assert_eq!(low_score.edge_score, 1_000);
+        assert_eq!(low_score.word_score, None);
+        assert_eq!(low_score.final_score, 1_000);
+
+        let mut budget = QuoteLocalDiagnosticBudget::default();
+        let threshold_score =
+            quote_local_pair_evidence(&old.key, &threshold.key, &old, &threshold, &mut budget)
+                .expect("threshold diagnostic fits")
+                .expect("Sentence pair has score evidence")
+                .score
+                .expect("mapped quotes have scores");
+        assert_eq!(threshold_score.edge_score, MIN_WORD_SCORE_EDGE_EVIDENCE);
+        assert_eq!(threshold_score.word_score, Some(0));
+    }
+
+    #[test]
+    fn quote_local_stop_atomically_discards_sidecars_without_touching_plan() {
+        let old = granular_occurrence("old", RecoveryUnitKind::Sentence);
+        let new = granular_occurrence("new", RecoveryUnitKind::Sentence);
+        let mut budget = QuoteLocalDiagnosticBudget::default();
+        let evidence = quote_local_pair_evidence("old", "new", &old, &new, &mut budget)
+            .expect("fixture evidence fits")
+            .expect("Sentence pair has evidence");
+        let mut watch = watch_state();
+        watch.quote_local_pairs = 1;
+        watch.quote_local_comparisons = 7;
+        watch.quote_local_edit_work = 8;
+        watch.quote_local_output_items = 2;
+        watch.quote_local_output_scalars = 6;
+        watch.records.push(RecoveryWatchStateRecord {
+            output: RecoveryWatchRecord {
+                id: "quote-local".to_owned(),
+                old: RecoveryWatchOccurrenceEvidence::Unfound,
+                new: RecoveryWatchOccurrenceEvidence::Unfound,
+                pair: None,
+                segment_pair: None,
+                granular_pair: None,
+                quote_local_pair: Some(evidence),
+                one_sided_vetoes: Vec::new(),
+            },
+            old_occurrence: None,
+            new_occurrence: None,
+            old_segment: None,
+            new_segment: None,
+            old_one_sided_occurrences: Vec::new(),
+            new_one_sided_occurrences: Vec::new(),
+        });
+        watch.stop_quote_local(RecoveryWatchQuoteLocalStopReason::ComparisonLimit);
+
+        assert!(!watch.quote_local_complete);
+        assert_eq!(watch.quote_local_pairs, 0);
+        assert_eq!(watch.quote_local_comparisons, 0);
+        assert_eq!(watch.quote_local_edit_work, 0);
+        assert_eq!(watch.quote_local_output_items, 0);
+        assert_eq!(watch.quote_local_output_scalars, 0);
+        assert!(watch.records[0].output.quote_local_pair.is_none());
+    }
+
+    #[test]
+    fn quote_local_pair_reports_real_budget_stop() {
+        let old = granular_occurrence("old", RecoveryUnitKind::Sentence);
+        let new = granular_occurrence("new", RecoveryUnitKind::Sentence);
+        let mut budget = QuoteLocalDiagnosticBudget {
+            token_bytes: QuoteLocalDiagnosticBudget::TOKEN_BYTE_LIMIT,
+            ..QuoteLocalDiagnosticBudget::default()
+        };
+
+        assert_eq!(
+            quote_local_pair_evidence("old", "new", &old, &new, &mut budget),
+            Err(RecoveryWatchQuoteLocalStopReason::TokenByteLimit)
+        );
+    }
+
+    #[test]
+    fn quote_local_edit_distance_limit_is_pair_local() {
+        let old_text = "a".repeat(1_025);
+        let new_text = "b".repeat(1_025);
+        let old = granular_occurrence(&old_text, RecoveryUnitKind::Sentence);
+        let new = granular_occurrence(&new_text, RecoveryUnitKind::Sentence);
+        let mut budget = QuoteLocalDiagnosticBudget::default();
+
+        let evidence = quote_local_pair_evidence(&old_text, &new_text, &old, &new, &mut budget)
+            .expect("edit-distance exhaustion is record-local")
+            .expect("Sentence pair retains edit limit status");
+
+        assert_eq!(
+            evidence.status,
+            RecoveryWatchQuoteLocalStatus::EditDistanceLimit
+        );
+        assert!(evidence.old.unit.is_some());
+        assert!(evidence.new.unit.is_some());
+        assert!(evidence.score.is_none());
+    }
+
+    #[test]
+    fn quote_local_role_mismatch_retains_evidence_with_zero_final_score() {
+        let old = granular_occurrence("same text", RecoveryUnitKind::Sentence);
+        let mut new = granular_occurrence("same text", RecoveryUnitKind::Sentence);
+        new.role = Some(BlockRole::RepeatedFooter);
+        let mut budget = QuoteLocalDiagnosticBudget::default();
+
+        let score = quote_local_pair_evidence("same text", "same text", &old, &new, &mut budget)
+            .expect("role diagnostic fits")
+            .expect("Sentence pair retains role evidence")
+            .score
+            .expect("mapped quotes retain score evidence");
+
+        assert_eq!(score.edge_score, 10_000);
+        assert!(!score.role_compatible);
+        assert_eq!(score.final_score, 0);
+        assert!(score.exact);
+    }
+
+    #[test]
+    fn quote_local_helper_rejects_line_and_mixed_kind_pairs() {
+        let sentence = granular_occurrence("same text", RecoveryUnitKind::Sentence);
+        let line = granular_occurrence("same text", RecoveryUnitKind::Line);
+
+        for (old, new) in [(&sentence, &line), (&line, &sentence), (&line, &line)] {
+            let mut budget = QuoteLocalDiagnosticBudget::default();
+            assert!(
+                quote_local_pair_evidence("same text", "same text", old, new, &mut budget)
+                    .expect("kind guard needs no diagnostic resources")
+                    .is_none()
+            );
+            assert_eq!(budget.comparisons, 0);
+            assert_eq!(budget.edit_work, 0);
+        }
+    }
+
+    #[test]
+    fn quote_local_watch_integration_skips_line_pairs() {
+        let line = granular_occurrence("same text", RecoveryUnitKind::Line);
+        let watch = RecoveryWatchState::new(
+            &[RecoveryWatchQuery {
+                id: "line",
+                old_quote: Some("same text"),
+                new_quote: Some("same text"),
+            }],
+            std::slice::from_ref(&line),
+            std::slice::from_ref(&line),
+            &[],
+            RecoveryWatchBuildContext {
+                old_evidence: None,
+                new_evidence: None,
+                old_fully_contained: None,
+                new_fully_contained: None,
+                min_tokens: 1,
+                max_tokens: 100,
+            },
+        )
+        .expect("line watch remains available");
+
+        assert!(watch.records[0].output.quote_local_pair.is_none());
+        assert_eq!(watch.quote_local_pairs, 0);
+        assert_eq!(watch.quote_local_comparisons, 0);
+        assert_eq!(watch.quote_local_edit_work, 0);
+    }
+
+    #[test]
+    fn cumulative_edit_work_stop_atomically_discards_quote_sidecars() {
+        let old_text = "a".repeat(1_025);
+        let new_text = "b".repeat(1_025);
+        let old = granular_occurrence(&old_text, RecoveryUnitKind::Sentence);
+        let new = granular_occurrence(&new_text, RecoveryUnitKind::Sentence);
+        let trace_steps = 1_025usize;
+        let single_edit_work = (old.tokens.len() + new.tokens.len()) * trace_steps
+            + trace_steps * (trace_steps + 1) / 2;
+        let query_count = QuoteLocalDiagnosticBudget::EDIT_WORK_LIMIT / single_edit_work + 1;
+        let queries = vec![
+            RecoveryWatchQuery {
+                id: "bounded",
+                old_quote: Some(&old_text),
+                new_quote: Some(&new_text),
+            };
+            query_count
+        ];
+
+        let watch = RecoveryWatchState::new(
+            &queries,
+            std::slice::from_ref(&old),
+            std::slice::from_ref(&new),
+            &[],
+            RecoveryWatchBuildContext {
+                old_evidence: None,
+                new_evidence: None,
+                old_fully_contained: None,
+                new_fully_contained: None,
+                min_tokens: 1,
+                max_tokens: 10_000,
+            },
+        )
+        .expect("non-quote watch diagnostics remain available");
+
+        assert!(!watch.quote_local_complete);
+        assert_eq!(
+            watch.quote_local_stop_reason,
+            Some(RecoveryWatchQuoteLocalStopReason::EditWorkLimit)
+        );
+        assert_eq!(watch.quote_local_pairs, 0);
+        assert_eq!(watch.quote_local_comparisons, 0);
+        assert_eq!(watch.quote_local_edit_work, 0);
+        assert!(
+            watch
+                .records
+                .iter()
+                .all(|record| record.output.quote_local_pair.is_none())
+        );
+    }
+
+    #[test]
+    fn quote_local_build_stop_atomically_discards_preceding_records() {
+        let text = "x".repeat(512);
+        let occurrence = granular_occurrence(&text, RecoveryUnitKind::Sentence);
+        let queries = vec![
+            RecoveryWatchQuery {
+                id: "bounded",
+                old_quote: Some(&text),
+                new_quote: Some(&text),
+            };
+            1_000
+        ];
+
+        let watch = RecoveryWatchState::new(
+            &queries,
+            std::slice::from_ref(&occurrence),
+            std::slice::from_ref(&occurrence),
+            &[],
+            RecoveryWatchBuildContext {
+                old_evidence: None,
+                new_evidence: None,
+                old_fully_contained: None,
+                new_fully_contained: None,
+                min_tokens: 1,
+                max_tokens: 1_000_000,
+            },
+        )
+        .expect("watch construction retains non-quote diagnostics");
+
+        assert!(!watch.quote_local_complete);
+        assert_eq!(
+            watch.quote_local_stop_reason,
+            Some(RecoveryWatchQuoteLocalStopReason::AuxiliaryLimit)
+        );
+        assert_eq!(watch.quote_local_pairs, 0);
+        assert_eq!(watch.quote_local_comparisons, 0);
+        assert_eq!(watch.quote_local_output_items, 0);
+        assert_eq!(watch.quote_local_output_scalars, 0);
+        assert!(
+            watch
+                .records
+                .iter()
+                .all(|record| record.output.quote_local_pair.is_none())
         );
     }
 
@@ -16742,6 +17804,13 @@ mod tests {
             granular_new_units: 0,
             granular_pair_comparisons: 0,
             granular_stop_reason: None,
+            quote_local_complete: true,
+            quote_local_pairs: 0,
+            quote_local_comparisons: 0,
+            quote_local_edit_work: 0,
+            quote_local_output_items: 0,
+            quote_local_output_scalars: 0,
+            quote_local_stop_reason: None,
             records: Vec::new(),
             pair_by_occurrences: HashMap::new(),
             old_pair_partners: HashMap::new(),
