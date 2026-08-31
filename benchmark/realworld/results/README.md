@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-08-31
-- **Generator / engine commit**: [`7d34d52`](https://github.com/hayatosc/pdfdelta/commit/7d34d52)
+- **Generator / engine commit**: [`426f0a5`](https://github.com/hayatosc/pdfdelta/commit/426f0a5)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-08-31-7d34d52.json`](2026-08-31-7d34d52.json)
-  - Schema: v41
-  - Size: 1,579,566 bytes
-  - SHA-256: `672a0d0ff7f723305d1044a0a34c09c6c1b2d97f52e05c67f49d9aee95c752ac`
+  - File: [`2026-08-31-426f0a5.json`](2026-08-31-426f0a5.json)
+  - Schema: v42
+  - Size: 1,628,693 bytes
+  - SHA-256: `2197159c84f282de74d1ee0ca326de1f3e2f577441c44b560ca8686f61081d5e`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -27,7 +27,7 @@ mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
   /tmp/pdfdelta-reproduced-summary.json \
-  benchmark/realworld/results/2026-08-31-7d34d52.json
+  benchmark/realworld/results/2026-08-31-426f0a5.json
 ```
 
 The evaluation uses each pair's `limit_scale_hint` from [`manifest.tsv`](../manifest.tsv), without a global `--limit-scale` override.
@@ -38,9 +38,9 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-08-31-40f8e19.json \
   benchmark/realworld/results/2026-08-31-7d34d52.json \
-  --ignore-field local_fragment_shadow
+  benchmark/realworld/results/2026-08-31-426f0a5.json \
+  local_fragment_length_aware_shadow
 ```
 
 When reviewed annotations changed between captures, exclude only those named
@@ -88,10 +88,29 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | N/A |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 
-Schema v41 is behavior-neutral relative to schema v40. Removing only
-`sentence_recovery_metrics.local_fragment_shadow` and `schema_version`
+Schema v42 is behavior-neutral relative to schema v41. Removing only
+`sentence_recovery_metrics.local_fragment_length_aware_shadow` and
+`schema_version`
 produces exact parity for every prior comparison, quality, candidate,
 recovery-diagnostic, and scoped metric field.
+
+The length-aware local-fragment shadow is available on all 18 recovery builds.
+Three complete: arXiv and Korean W-4 have no eligible one-sided Sentence
+fragment, while IRS 1040 provides the only non-empty complete result. The other
+15 stop atomically before publishing parity sets: seven at the query limit and
+eight at the exact edge-recheck comparison limit. No partial candidate or
+parity counters survive those stops.
+
+On IRS 1040, own/all-depth signatures reduce 3,714 fixed-depth candidates to
+2,293 before exact edge recheck, a 38.26% reduction. Both paths retain the same
+1,725 pairs with zero missing pairs, extra pairs, or order mismatches. That
+complete build contains 680 fragments, reports 948,856 logical bytes and a
+1,548,320-byte capacity estimate, and has a largest posting of 61 items. This is
+not sufficient evidence to connect the index to recovery behavior: the only
+non-empty complete build is a holdout stress form, and 15 prose-heavy builds do
+not reach a complete parity result. The next step must reduce or better
+attribute shadow query and recheck work without changing thresholds, margins,
+or comparison output.
 
 The annotation-independent local-fragment shadow is available on 18 recovery
 builds. Two complete with no eligible one-sided Sentence parent. Every non-empty
