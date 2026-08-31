@@ -46,13 +46,13 @@ use super::recovery::{
 };
 use super::{
     ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
-    LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
-    LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
-    LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLengthOnlyCandidateShadowMetrics,
-    LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
-    LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
-    LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
-    LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
+    LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentGlobalLengthAwareShadowMetrics,
+    LocalFragmentLengthAwareRecheckShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
+    LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
+    LocalFragmentLengthOnlyCandidateShadowMetrics, LocalFragmentLocationEvidence,
+    LocalFragmentOrientation, LocalFragmentPairEvidence, LocalFragmentRecheckMembershipOutcomeWork,
+    LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
+    LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
     MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
     NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
     RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
@@ -12933,6 +12933,275 @@ fn collect_global_length_aware_only_boundary_candidates(
     Ok((candidates, work))
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct ExactBoundaryTransitionKey {
+    parent_node: usize,
+    token: SentenceEvidenceToken,
+}
+
+#[derive(Default)]
+struct ExactBoundaryTrie {
+    transitions: HashMap<ExactBoundaryTransitionKey, usize>,
+    fanouts: Vec<usize>,
+    token_steps: usize,
+    estimated_bytes: usize,
+    largest_fanout: usize,
+}
+
+impl ExactBoundaryTrie {
+    fn new(
+        budget: &mut LengthAwareBudget,
+    ) -> std::result::Result<Self, LocalFragmentLengthAwareShadowStopReason> {
+        budget.charge(
+            LengthAwareWorkKind::EstimatedBytes,
+            std::mem::size_of::<usize>(),
+        )?;
+        let mut fanouts = Vec::new();
+        fanouts
+            .try_reserve_exact(1)
+            .map_err(|_| LocalFragmentLengthAwareShadowStopReason::AllocationFailure)?;
+        fanouts.push(0);
+        Ok(Self {
+            transitions: HashMap::new(),
+            fanouts,
+            token_steps: 0,
+            estimated_bytes: std::mem::size_of::<usize>(),
+            largest_fanout: 0,
+        })
+    }
+
+    fn extend(
+        &mut self,
+        parent_node: usize,
+        token: SentenceEvidenceToken,
+        budget: &mut LengthAwareBudget,
+    ) -> std::result::Result<usize, LocalFragmentLengthAwareShadowStopReason> {
+        budget.charge(LengthAwareWorkKind::SignatureSteps, 1)?;
+        self.token_steps = self
+            .token_steps
+            .checked_add(1)
+            .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+        let key = ExactBoundaryTransitionKey { parent_node, token };
+        if let Some(&node) = self.transitions.get(&key) {
+            return Ok(node);
+        }
+
+        let transition_bytes = std::mem::size_of::<ExactBoundaryTransitionKey>()
+            .checked_add(std::mem::size_of::<usize>())
+            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<usize>()))
+            .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+        budget.charge(LengthAwareWorkKind::DistinctKeys, 1)?;
+        budget.charge(LengthAwareWorkKind::EstimatedBytes, transition_bytes)?;
+        self.transitions
+            .try_reserve(1)
+            .map_err(|_| LocalFragmentLengthAwareShadowStopReason::AllocationFailure)?;
+        self.fanouts
+            .try_reserve(1)
+            .map_err(|_| LocalFragmentLengthAwareShadowStopReason::AllocationFailure)?;
+        let node = self.fanouts.len();
+        self.transitions.insert(key, node);
+        self.fanouts.push(0);
+        let fanout = self
+            .fanouts
+            .get_mut(parent_node)
+            .ok_or(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure)?;
+        *fanout = fanout
+            .checked_add(1)
+            .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+        self.largest_fanout = self.largest_fanout.max(*fanout);
+        self.estimated_bytes = self
+            .estimated_bytes
+            .checked_add(transition_bytes)
+            .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+        Ok(node)
+    }
+}
+
+#[derive(Default)]
+struct ExactFragmentBoundaryNodes {
+    prefix: Vec<usize>,
+    suffix: Vec<usize>,
+}
+
+fn build_exact_fragment_boundary_nodes(
+    fragments: &[LengthAwareLocalFragment],
+    occurrences: &[SentenceOccurrence],
+    trie: &mut ExactBoundaryTrie,
+    budget: &mut LengthAwareBudget,
+) -> std::result::Result<Vec<ExactFragmentBoundaryNodes>, LocalFragmentLengthAwareShadowStopReason>
+{
+    let mut boundaries = Vec::new();
+    boundaries
+        .try_reserve_exact(fragments.len())
+        .map_err(|_| LocalFragmentLengthAwareShadowStopReason::AllocationFailure)?;
+    for fragment in fragments {
+        let depth = fragment.signatures.len();
+        let storage_bytes = depth
+            .checked_mul(2)
+            .and_then(|items| items.checked_mul(std::mem::size_of::<usize>()))
+            .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+        budget.charge(LengthAwareWorkKind::EstimatedBytes, storage_bytes)?;
+        let tokens = length_aware_fragment_tokens(fragment, occurrences)?;
+        let mut prefix = Vec::new();
+        let mut suffix = Vec::new();
+        prefix
+            .try_reserve_exact(depth)
+            .map_err(|_| LocalFragmentLengthAwareShadowStopReason::AllocationFailure)?;
+        suffix
+            .try_reserve_exact(depth)
+            .map_err(|_| LocalFragmentLengthAwareShadowStopReason::AllocationFailure)?;
+        let mut prefix_node = 0usize;
+        let mut suffix_node = 0usize;
+        for offset in 0..depth {
+            prefix_node = trie.extend(prefix_node, tokens[offset], budget)?;
+            suffix_node = trie.extend(suffix_node, tokens[tokens.len() - offset - 1], budget)?;
+            prefix.push(prefix_node);
+            suffix.push(suffix_node);
+        }
+        boundaries.push(ExactFragmentBoundaryNodes { prefix, suffix });
+    }
+    Ok(boundaries)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ExactBoundaryCertification {
+    Prefix,
+    Suffix,
+    Both,
+}
+
+fn exact_boundary_certification(
+    old: &LengthAwareLocalFragment,
+    new: &LengthAwareLocalFragment,
+    old_nodes: &ExactFragmentBoundaryNodes,
+    new_nodes: &ExactFragmentBoundaryNodes,
+) -> std::result::Result<
+    Option<(ExactBoundaryCertification, usize)>,
+    LocalFragmentLengthAwareShadowStopReason,
+> {
+    let depth = sentence_edge_signature_depth(old.token_range.len().min(new.token_range.len()))
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    let index = depth
+        .checked_sub(1)
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure)?;
+    let prefix = old_nodes.prefix.get(index) == new_nodes.prefix.get(index)
+        && old_nodes.prefix.get(index).is_some();
+    let suffix = old_nodes.suffix.get(index) == new_nodes.suffix.get(index)
+        && old_nodes.suffix.get(index).is_some();
+    Ok(match (prefix, suffix) {
+        (true, true) => Some((ExactBoundaryCertification::Both, depth)),
+        (true, false) => Some((ExactBoundaryCertification::Prefix, depth)),
+        (false, true) => Some((ExactBoundaryCertification::Suffix, depth)),
+        (false, false) => None,
+    })
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct CertifiedExactEdgeRecheck {
+    retained: bool,
+    comparisons: usize,
+    avoided_comparisons: usize,
+    credited_tokens: usize,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn certified_threshold_capped_edge_recheck(
+    old: &LengthAwareLocalFragment,
+    new: &LengthAwareLocalFragment,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    certification: ExactBoundaryCertification,
+    depth: usize,
+    budget: &mut LengthAwareBudget,
+) -> std::result::Result<CertifiedExactEdgeRecheck, LocalFragmentLengthAwareShadowStopReason> {
+    budget.charge(LengthAwareWorkKind::ExactRecheckPairs, 1)?;
+    let comparisons_before = budget.work.exact_recheck_comparisons_examined;
+    let old_tokens = length_aware_fragment_tokens(old, old_occurrences)?;
+    let new_tokens = length_aware_fragment_tokens(new, new_occurrences)?;
+    let shorter = old_tokens.len().min(new_tokens.len());
+    let reaches_threshold = |matched: usize| {
+        basis_points(matched, shorter).is_some_and(|score| score >= MIN_WORD_SCORE_EDGE_EVIDENCE)
+    };
+    let has_prefix = matches!(
+        certification,
+        ExactBoundaryCertification::Prefix | ExactBoundaryCertification::Both
+    );
+    let has_suffix = matches!(
+        certification,
+        ExactBoundaryCertification::Suffix | ExactBoundaryCertification::Both
+    );
+    let mut prefix = usize::from(has_prefix)
+        .checked_mul(depth)
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    let mut avoided = prefix;
+    if reaches_threshold(prefix) {
+        return Ok(CertifiedExactEdgeRecheck {
+            retained: true,
+            comparisons: 0,
+            avoided_comparisons: prefix,
+            credited_tokens: prefix,
+        });
+    }
+    while prefix < shorter {
+        budget.charge(LengthAwareWorkKind::ExactRecheckComparisons, 1)?;
+        if old_tokens[prefix] != new_tokens[prefix] {
+            break;
+        }
+        prefix += 1;
+        if reaches_threshold(prefix) {
+            let comparisons = budget.work.exact_recheck_comparisons_examined - comparisons_before;
+            return Ok(CertifiedExactEdgeRecheck {
+                retained: true,
+                comparisons,
+                avoided_comparisons: avoided,
+                credited_tokens: usize::from(has_prefix) * depth,
+            });
+        }
+    }
+    let available_suffix = shorter.saturating_sub(prefix);
+    let mut suffix = if has_suffix {
+        depth.min(available_suffix)
+    } else {
+        0
+    };
+    avoided = avoided
+        .checked_add(suffix)
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    let mut matched = prefix
+        .checked_add(suffix)
+        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+    if reaches_threshold(matched) {
+        return Ok(CertifiedExactEdgeRecheck {
+            retained: true,
+            comparisons: budget.work.exact_recheck_comparisons_examined - comparisons_before,
+            avoided_comparisons: avoided,
+            credited_tokens: avoided,
+        });
+    }
+    while suffix < available_suffix {
+        budget.charge(LengthAwareWorkKind::ExactRecheckComparisons, 1)?;
+        if old_tokens[old_tokens.len() - suffix - 1] != new_tokens[new_tokens.len() - suffix - 1] {
+            break;
+        }
+        suffix += 1;
+        matched = prefix
+            .checked_add(suffix)
+            .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+        if reaches_threshold(matched) {
+            break;
+        }
+    }
+    Ok(CertifiedExactEdgeRecheck {
+        retained: reaches_threshold(matched),
+        comparisons: budget.work.exact_recheck_comparisons_examined - comparisons_before,
+        avoided_comparisons: avoided,
+        credited_tokens: match certification {
+            ExactBoundaryCertification::Prefix | ExactBoundaryCertification::Suffix => depth,
+            ExactBoundaryCertification::Both => depth.saturating_mul(2).min(shorter),
+        },
+    })
+}
+
 fn collect_length_aware_postings(
     query: &LengthAwareLocalFragment,
     parent_candidate_index: usize,
@@ -15044,6 +15313,243 @@ fn analyze_local_fragment_length_only_candidate_shadow_with_limits(
     }
 }
 
+fn analyze_local_fragment_exact_boundary_trie_shadow_with_limits(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    min_tokens: usize,
+    limits: LengthAwareLimits,
+) -> LocalFragmentExactBoundaryTrieShadowMetrics {
+    let fixed_depth = sentence_edge_signature_depth(min_tokens).unwrap_or(0);
+    let mut budget = LengthAwareBudget::new(limits);
+    let result = (|| -> std::result::Result<_, LocalFragmentLengthAwareShadowStopReason> {
+        let old_fragments = enumerate_length_aware_local_fragments(
+            old_occurrences,
+            old_candidates,
+            min_tokens,
+            &mut budget,
+        )?;
+        let new_fragments = enumerate_length_aware_local_fragments(
+            new_occurrences,
+            new_candidates,
+            min_tokens,
+            &mut budget,
+        )?;
+        let old_ranges = length_aware_parent_ranges(&old_fragments, old_candidates.len())?;
+        let new_ranges = length_aware_parent_ranges(&new_fragments, new_candidates.len())?;
+        let mut trie = ExactBoundaryTrie::new(&mut budget)?;
+        let old_boundary_nodes = build_exact_fragment_boundary_nodes(
+            &old_fragments,
+            old_occurrences,
+            &mut trie,
+            &mut budget,
+        )?;
+        let new_boundary_nodes = build_exact_fragment_boundary_nodes(
+            &new_fragments,
+            new_occurrences,
+            &mut trie,
+            &mut budget,
+        )?;
+        let (own_index, all_index) =
+            build_global_length_aware_only_boundary_indexes(&new_fragments, &mut budget)?;
+        let parent_index =
+            build_length_aware_parent_index(&new_fragments, &new_ranges, fixed_depth, &mut budget)?;
+
+        let mut metrics = LocalFragmentExactBoundaryTrieShadowMetrics {
+            complete: true,
+            min_tokens,
+            fixed_depth,
+            old_fragments: old_fragments.len(),
+            new_fragments: new_fragments.len(),
+            trie_nodes: trie.fanouts.len(),
+            trie_transitions: trie.transitions.len(),
+            trie_token_steps: trie.token_steps,
+            trie_distinct_keys: trie.transitions.len(),
+            trie_estimated_bytes: trie.estimated_bytes,
+            trie_largest_fanout: trie.largest_fanout,
+            ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+        };
+        let mut retained_stream = LocalFragmentPairStreamFingerprint::new();
+        for old_range in old_ranges.iter().cloned() {
+            if old_range.is_empty() {
+                continue;
+            }
+            let admitted_parents = collect_length_aware_parent_candidates(
+                &old_fragments,
+                old_range.clone(),
+                &parent_index,
+                fixed_depth,
+                &mut budget,
+            )?;
+            metrics.parent_admission_queries = metrics
+                .parent_admission_queries
+                .checked_add(1)
+                .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+            if admitted_parents.is_empty() {
+                for old_index in old_range {
+                    retained_stream
+                        .commit_query(old_index, LocalFragmentQueryFingerprint::new())?;
+                }
+                continue;
+            }
+            for old_index in old_range {
+                metrics.global_queries = metrics
+                    .global_queries
+                    .checked_add(1)
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                let old = old_fragments
+                    .get(old_index)
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure)?;
+                let old_nodes = old_boundary_nodes
+                    .get(old_index)
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure)?;
+                let (hash_candidates, _) = collect_global_length_aware_only_boundary_candidates(
+                    old,
+                    &admitted_parents,
+                    &new_fragments,
+                    &own_index,
+                    &all_index,
+                    &mut budget,
+                )?;
+                metrics.hash_candidates = metrics
+                    .hash_candidates
+                    .checked_add(hash_candidates.len())
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                let mut retained = Vec::new();
+                retained
+                    .try_reserve_exact(hash_candidates.len())
+                    .map_err(|_| LocalFragmentLengthAwareShadowStopReason::AllocationFailure)?;
+                for &new_index in &hash_candidates {
+                    let new = new_fragments
+                        .get(new_index)
+                        .ok_or(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure)?;
+                    let new_nodes = new_boundary_nodes
+                        .get(new_index)
+                        .ok_or(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure)?;
+                    let Some((certification, depth)) =
+                        exact_boundary_certification(old, new, old_nodes, new_nodes)?
+                    else {
+                        metrics.hash_collision_only_candidates = metrics
+                            .hash_collision_only_candidates
+                            .checked_add(1)
+                            .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                        continue;
+                    };
+                    metrics.exact_certified_candidates = metrics
+                        .exact_certified_candidates
+                        .checked_add(1)
+                        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                    match certification {
+                        ExactBoundaryCertification::Prefix => {
+                            metrics.prefix_only_candidates = metrics
+                                .prefix_only_candidates
+                                .checked_add(1)
+                                .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                        }
+                        ExactBoundaryCertification::Suffix => {
+                            metrics.suffix_only_candidates = metrics
+                                .suffix_only_candidates
+                                .checked_add(1)
+                                .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                        }
+                        ExactBoundaryCertification::Both => {
+                            metrics.both_candidates = metrics
+                                .both_candidates
+                                .checked_add(1)
+                                .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                        }
+                    }
+                    match depth_band_index(depth) {
+                        0 => checked_increment(&mut metrics.depth_1_candidates)?,
+                        1 => checked_increment(&mut metrics.depth_2_to_3_candidates)?,
+                        _ => checked_increment(&mut metrics.depth_4_plus_candidates)?,
+                    }
+                    metrics.recheck_pairs_started = metrics
+                        .recheck_pairs_started
+                        .checked_add(1)
+                        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                    let recheck = certified_threshold_capped_edge_recheck(
+                        old,
+                        new,
+                        old_occurrences,
+                        new_occurrences,
+                        certification,
+                        depth,
+                        &mut budget,
+                    )?;
+                    metrics.recheck_pairs_completed = metrics
+                        .recheck_pairs_completed
+                        .checked_add(1)
+                        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                    metrics.certified_tokens_credited = metrics
+                        .certified_tokens_credited
+                        .checked_add(recheck.credited_tokens)
+                        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                    metrics.projected_avoided_comparisons = metrics
+                        .projected_avoided_comparisons
+                        .checked_add(recheck.avoided_comparisons)
+                        .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                    if recheck.retained {
+                        retained.push(new_index);
+                    }
+                }
+                retained_stream
+                    .commit_query(old_index, local_fragment_query_fingerprint(&retained)?)?;
+                metrics.retained_pairs = metrics
+                    .retained_pairs
+                    .checked_add(retained.len())
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+                metrics.compared_queries = metrics
+                    .compared_queries
+                    .checked_add(1)
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?;
+            }
+        }
+        metrics.recheck_comparisons = budget.work.exact_recheck_comparisons_examined;
+        if metrics.hash_candidates
+            != metrics
+                .exact_certified_candidates
+                .checked_add(metrics.hash_collision_only_candidates)
+                .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
+            || metrics.exact_certified_candidates
+                != metrics
+                    .prefix_only_candidates
+                    .checked_add(metrics.suffix_only_candidates)
+                    .and_then(|count| count.checked_add(metrics.both_candidates))
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
+            || metrics.recheck_pairs_started != metrics.exact_certified_candidates
+            || metrics.recheck_pairs_completed != metrics.exact_certified_candidates
+            || budget.work.exact_recheck_pairs_examined != metrics.exact_certified_candidates
+            || metrics.compared_queries != metrics.global_queries
+            || budget.work.queries_examined
+                != metrics
+                    .parent_admission_queries
+                    .checked_add(metrics.global_queries)
+                    .ok_or(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)?
+        {
+            return Err(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure);
+        }
+        metrics.retained_fingerprint = retained_stream.finish();
+        Ok(metrics)
+    })();
+    let work = budget.work;
+    match result {
+        Ok(mut metrics) => {
+            metrics.work = work;
+            metrics
+        }
+        Err(reason) => LocalFragmentExactBoundaryTrieShadowMetrics {
+            complete: false,
+            stop_reason: Some(reason),
+            work,
+            min_tokens,
+            fixed_depth,
+            ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+        },
+    }
+}
+
 fn depth_band_index(depth: usize) -> usize {
     match depth {
         0 | 1 => 0,
@@ -15320,6 +15826,73 @@ fn record_local_fragment_length_only_candidate_shadow(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn record_local_fragment_exact_boundary_trie_shadow(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    min_tokens: usize,
+    candidate_generation_complete: bool,
+) {
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    let fixed_depth = sentence_edge_signature_depth(min_tokens).unwrap_or(0);
+    diagnostics
+        .metrics
+        .local_fragment_exact_boundary_trie_shadow = Some(if !candidate_generation_complete {
+        LocalFragmentExactBoundaryTrieShadowMetrics {
+            complete: false,
+            stop_reason: Some(
+                LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete,
+            ),
+            min_tokens,
+            fixed_depth,
+            ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+        }
+    } else if let Some(eligible_tokens) = old_candidates
+        .iter()
+        .filter_map(|candidate| old_occurrences.get(candidate.occurrence_index))
+        .chain(
+            new_candidates
+                .iter()
+                .filter_map(|candidate| new_occurrences.get(candidate.occurrence_index)),
+        )
+        .filter(|parent| local_fragment_parent_eligible(parent, min_tokens))
+        .try_fold(0usize, |total, parent| {
+            total.checked_add(parent.tokens.len())
+        })
+    {
+        match LengthAwareLimits::for_tokens(eligible_tokens) {
+            Some(limits) => analyze_local_fragment_exact_boundary_trie_shadow_with_limits(
+                old_occurrences,
+                new_occurrences,
+                old_candidates,
+                new_candidates,
+                min_tokens,
+                limits,
+            ),
+            None => LocalFragmentExactBoundaryTrieShadowMetrics {
+                complete: false,
+                stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::CounterOverflow),
+                min_tokens,
+                fixed_depth,
+                ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+            },
+        }
+    } else {
+        LocalFragmentExactBoundaryTrieShadowMetrics {
+            complete: false,
+            stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::CounterOverflow),
+            min_tokens,
+            fixed_depth,
+            ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+        }
+    });
+}
+
+#[allow(clippy::too_many_arguments)]
 fn record_local_fragment_length_aware_shadow(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     old_occurrences: &[SentenceOccurrence],
@@ -15533,6 +16106,42 @@ fn record_local_fragment_length_only_candidate_v47_parity(
         usize::from(length_only.retained_fingerprint != v47.retained_fingerprint);
 }
 
+fn record_local_fragment_exact_boundary_trie_v48_parity(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+) {
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    let Some(v48) = diagnostics
+        .metrics
+        .local_fragment_length_only_candidate_shadow
+    else {
+        return;
+    };
+    let Some(exact) = diagnostics
+        .metrics
+        .local_fragment_exact_boundary_trie_shadow
+    else {
+        return;
+    };
+    if !v48.complete || !exact.complete {
+        return;
+    }
+    let exact = diagnostics
+        .metrics
+        .local_fragment_exact_boundary_trie_shadow
+        .as_mut()
+        .expect("exact boundary trie shadow was present above");
+    exact.v48_parity_available = true;
+    exact.retained_count_mismatches = usize::from(exact.retained_pairs != v48.retained_pairs);
+    exact.retained_fingerprint_mismatches =
+        usize::from(exact.retained_fingerprint != v48.retained_fingerprint);
+    exact.retained_order_mismatches = usize::from(
+        exact.retained_pairs == v48.retained_pairs
+            && exact.retained_fingerprint != v48.retained_fingerprint,
+    );
+}
+
 #[allow(clippy::too_many_arguments)]
 fn record_local_fragment_shadow(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
@@ -15589,10 +16198,20 @@ fn record_local_fragment_shadow(
         min_tokens,
         candidate_generation_complete,
     );
+    record_local_fragment_exact_boundary_trie_shadow(
+        diagnostics,
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        min_tokens,
+        candidate_generation_complete,
+    );
     record_local_fragment_global_parent_scoped_parity(diagnostics);
     record_local_fragment_recheck_global_parity(diagnostics);
     record_local_fragment_length_aware_recheck_reuse_parity(diagnostics);
     record_local_fragment_length_only_candidate_v47_parity(diagnostics);
+    record_local_fragment_exact_boundary_trie_v48_parity(diagnostics);
     let Some(diagnostics) = diagnostics.as_mut() else {
         return;
     };
@@ -32740,6 +33359,34 @@ mod tests {
         )
     }
 
+    fn exact_boundary_trie_analysis_metrics(
+        old: Vec<SentenceOccurrence>,
+        new: Vec<SentenceOccurrence>,
+        min_tokens: usize,
+        limits: LengthAwareLimits,
+    ) -> LocalFragmentExactBoundaryTrieShadowMetrics {
+        let old_candidates = (0..old.len())
+            .map(|occurrence_index| RecoveryCandidate {
+                occurrence_index,
+                span_index: old[occurrence_index].span_index.expect("old span exists"),
+            })
+            .collect::<Vec<_>>();
+        let new_candidates = (0..new.len())
+            .map(|occurrence_index| RecoveryCandidate {
+                occurrence_index,
+                span_index: new[occurrence_index].span_index.expect("new span exists"),
+            })
+            .collect::<Vec<_>>();
+        analyze_local_fragment_exact_boundary_trie_shadow_with_limits(
+            &old,
+            &new,
+            &old_candidates,
+            &new_candidates,
+            min_tokens,
+            limits,
+        )
+    }
+
     #[test]
     fn length_aware_local_fragment_shadow_preserves_fixed_retained_order() {
         let old = vec![
@@ -33058,6 +33705,327 @@ mod tests {
             v47.pre_recheck_fingerprint
         );
         assert_eq!(length_only.retained_fingerprint, v47.retained_fingerprint);
+    }
+
+    #[test]
+    fn exact_boundary_trie_shadow_preserves_v48_retained_stream() {
+        let documents = || {
+            (
+                vec![local_fragment_parent("abcdefghijklmnopqrst tail", 1, 1)],
+                vec![
+                    local_fragment_parent("abcdefghijklmnopqrst tail", 2, 2),
+                    local_fragment_parent("abcdefghZZZZZZZZZZZZ tail", 3, 3),
+                    local_fragment_parent("ZZZZZZZZZZZZklmnopqrst tail", 4, 4),
+                ],
+            )
+        };
+        let (old, new) = documents();
+        let v48 = length_only_candidate_analysis_metrics(old, new, 8, length_aware_limits());
+        let (old, new) = documents();
+        let exact = exact_boundary_trie_analysis_metrics(old, new, 8, length_aware_limits());
+        assert!(v48.complete, "{:?}", v48.stop_reason);
+        assert!(exact.complete, "{:?}", exact.stop_reason);
+        assert_eq!(exact.retained_pairs, v48.retained_pairs);
+        assert_eq!(exact.retained_fingerprint, v48.retained_fingerprint);
+        assert_eq!(
+            exact.hash_candidates,
+            exact.exact_certified_candidates + exact.hash_collision_only_candidates
+        );
+        assert_eq!(
+            exact.exact_certified_candidates,
+            exact.prefix_only_candidates + exact.suffix_only_candidates + exact.both_candidates
+        );
+        assert!(exact.projected_avoided_comparisons > 0);
+        assert!(exact.recheck_comparisons < v48.recheck_comparisons);
+    }
+
+    #[test]
+    fn certified_boundary_scan_matches_full_scan_exhaustively() {
+        let sequence = |length: usize, bits: usize| {
+            (0..length)
+                .map(|offset| {
+                    SentenceEvidenceToken::Scalar(if bits & (1 << offset) == 0 { 'a' } else { 'b' })
+                })
+                .collect::<Vec<_>>()
+        };
+        for old_len in 1..=7 {
+            for new_len in 1..=7 {
+                for old_bits in 0..(1 << old_len) {
+                    for new_bits in 0..(1 << new_len) {
+                        let old_occurrences = [SentenceOccurrence {
+                            tokens: sequence(old_len, old_bits),
+                            ..local_fragment_parent("placeholder words", 1, 1)
+                        }];
+                        let new_occurrences = [SentenceOccurrence {
+                            tokens: sequence(new_len, new_bits),
+                            ..local_fragment_parent("placeholder words", 2, 2)
+                        }];
+                        let old = test_length_aware_fragment(
+                            0,
+                            &old_occurrences[0],
+                            LocalFragmentOrientation::Prefix,
+                            0..old_len,
+                        );
+                        let new = test_length_aware_fragment(
+                            0,
+                            &new_occurrences[0],
+                            LocalFragmentOrientation::Prefix,
+                            0..new_len,
+                        );
+                        let mut trie_budget = LengthAwareBudget::new(length_aware_limits());
+                        let mut trie = ExactBoundaryTrie::new(&mut trie_budget).expect("trie root");
+                        let old_nodes = build_exact_fragment_boundary_nodes(
+                            std::slice::from_ref(&old),
+                            &old_occurrences,
+                            &mut trie,
+                            &mut trie_budget,
+                        )
+                        .expect("old exact nodes");
+                        let new_nodes = build_exact_fragment_boundary_nodes(
+                            std::slice::from_ref(&new),
+                            &new_occurrences,
+                            &mut trie,
+                            &mut trie_budget,
+                        )
+                        .expect("new exact nodes");
+                        let Some((certification, depth)) =
+                            exact_boundary_certification(&old, &new, &old_nodes[0], &new_nodes[0])
+                                .expect("certification succeeds")
+                        else {
+                            continue;
+                        };
+                        let mut full_budget = LengthAwareBudget::new(length_aware_limits());
+                        let full = length_aware_exact_edge_recheck_with_cost(
+                            &old,
+                            &new,
+                            &old_occurrences,
+                            &new_occurrences,
+                            &mut full_budget,
+                        )
+                        .expect("full recheck succeeds");
+                        let mut certified_budget = LengthAwareBudget::new(length_aware_limits());
+                        let certified = certified_threshold_capped_edge_recheck(
+                            &old,
+                            &new,
+                            &old_occurrences,
+                            &new_occurrences,
+                            certification,
+                            depth,
+                            &mut certified_budget,
+                        )
+                        .expect("certified recheck succeeds");
+                        assert_eq!(certified.retained, full.retained);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn exact_boundary_trie_compares_unmapped_tokens_exactly() {
+        let unmapped = SentenceEvidenceToken::Unmapped {
+            font_fingerprint: 7,
+            glyph_id: 11,
+        };
+        let mut old = local_fragment_parent("abcdefghijklmnopqrst tail", 1, 1);
+        let mut new = local_fragment_parent("abcdefghijklmnopqrst tail", 2, 2);
+        old.tokens[0] = unmapped;
+        new.tokens[0] = unmapped;
+        let old_fragment = test_length_aware_fragment(
+            0,
+            &old,
+            LocalFragmentOrientation::Prefix,
+            0..old.tokens.len(),
+        );
+        let new_fragment = test_length_aware_fragment(
+            0,
+            &new,
+            LocalFragmentOrientation::Prefix,
+            0..new.tokens.len(),
+        );
+        let mut budget = LengthAwareBudget::new(length_aware_limits());
+        let mut trie = ExactBoundaryTrie::new(&mut budget).expect("trie root");
+        let old_nodes = build_exact_fragment_boundary_nodes(
+            std::slice::from_ref(&old_fragment),
+            std::slice::from_ref(&old),
+            &mut trie,
+            &mut budget,
+        )
+        .expect("old exact nodes");
+        let new_nodes = build_exact_fragment_boundary_nodes(
+            std::slice::from_ref(&new_fragment),
+            std::slice::from_ref(&new),
+            &mut trie,
+            &mut budget,
+        )
+        .expect("new exact nodes");
+        assert_eq!(
+            exact_boundary_certification(
+                &old_fragment,
+                &new_fragment,
+                &old_nodes[0],
+                &new_nodes[0],
+            )
+            .expect("certification succeeds")
+            .map(|(certification, _)| certification),
+            Some(ExactBoundaryCertification::Both)
+        );
+    }
+
+    #[test]
+    fn exact_boundary_trie_rejects_forced_hash_collision() {
+        let old_occurrences = [local_fragment_parent("abcdefghijklmnopqrst tail", 1, 1)];
+        let new_occurrences = [local_fragment_parent("zzzzzzzzzzzzzzzzzzzz tail", 2, 2)];
+        let old = test_length_aware_fragment(
+            0,
+            &old_occurrences[0],
+            LocalFragmentOrientation::Prefix,
+            0..20,
+        );
+        let mut new = test_length_aware_fragment(
+            0,
+            &new_occurrences[0],
+            LocalFragmentOrientation::Prefix,
+            0..20,
+        );
+        new.signatures.clone_from(&old.signatures);
+        let mut budget = LengthAwareBudget::new(length_aware_limits());
+        let mut trie = ExactBoundaryTrie::new(&mut budget).expect("trie root");
+        let old_nodes = build_exact_fragment_boundary_nodes(
+            std::slice::from_ref(&old),
+            &old_occurrences,
+            &mut trie,
+            &mut budget,
+        )
+        .expect("old exact nodes");
+        let new_nodes = build_exact_fragment_boundary_nodes(
+            std::slice::from_ref(&new),
+            &new_occurrences,
+            &mut trie,
+            &mut budget,
+        )
+        .expect("new exact nodes");
+        assert!(
+            exact_boundary_certification(&old, &new, &old_nodes[0], &new_nodes[0])
+                .expect("certification succeeds")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn exact_boundary_trie_distinguishes_certified_sides() {
+        let old_occurrences = [local_fragment_parent("abcdefghijklmnopqrst", 1, 1)];
+        let new_occurrences = [
+            local_fragment_parent("abcZZZZZZZZZZZZZZZZZ", 2, 2),
+            local_fragment_parent("ZZZZZZZZZZZZZZZZZrst", 3, 3),
+            local_fragment_parent("abcZZZZZZZZZZZZZZrst", 4, 4),
+        ];
+        let old = test_length_aware_fragment(
+            0,
+            &old_occurrences[0],
+            LocalFragmentOrientation::Prefix,
+            0..20,
+        );
+        let new_fragments = new_occurrences
+            .iter()
+            .enumerate()
+            .map(|(index, occurrence)| {
+                test_length_aware_fragment(
+                    index,
+                    occurrence,
+                    LocalFragmentOrientation::Prefix,
+                    0..20,
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut budget = LengthAwareBudget::new(length_aware_limits());
+        let mut trie = ExactBoundaryTrie::new(&mut budget).expect("trie root");
+        let old_nodes = build_exact_fragment_boundary_nodes(
+            std::slice::from_ref(&old),
+            &old_occurrences,
+            &mut trie,
+            &mut budget,
+        )
+        .expect("old exact nodes");
+        let new_nodes = build_exact_fragment_boundary_nodes(
+            &new_fragments,
+            &new_occurrences,
+            &mut trie,
+            &mut budget,
+        )
+        .expect("new exact nodes");
+        let certifications = new_fragments
+            .iter()
+            .zip(&new_nodes)
+            .map(|(new, nodes)| {
+                exact_boundary_certification(&old, new, &old_nodes[0], nodes)
+                    .expect("certification succeeds")
+                    .map(|(certification, _)| certification)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            certifications,
+            vec![
+                Some(ExactBoundaryCertification::Prefix),
+                Some(ExactBoundaryCertification::Suffix),
+                Some(ExactBoundaryCertification::Both),
+            ]
+        );
+    }
+
+    #[test]
+    fn exact_boundary_trie_shadow_is_sentence_only() {
+        let mut old = local_fragment_parent("abcdefghijklmnopqrst tail", 1, 1);
+        let mut new = local_fragment_parent("abcdefghijklmnopqrst tail", 2, 2);
+        old.kind = RecoveryUnitKind::Line;
+        new.kind = RecoveryUnitKind::Line;
+        let exact =
+            exact_boundary_trie_analysis_metrics(vec![old], vec![new], 8, length_aware_limits());
+        assert!(exact.complete, "{:?}", exact.stop_reason);
+        assert_eq!(exact.old_fragments, 0);
+        assert_eq!(exact.new_fragments, 0);
+        assert_eq!(exact.hash_candidates, 0);
+        assert_eq!(exact.retained_pairs, 0);
+    }
+
+    #[test]
+    fn exact_boundary_trie_shadow_publishes_only_work_on_stop() {
+        type LimitCase = (
+            LocalFragmentLengthAwareShadowStopReason,
+            fn(&mut LengthAwareLimits),
+        );
+        let cases: &[LimitCase] = &[
+            (
+                LocalFragmentLengthAwareShadowStopReason::DistinctKeyLimit,
+                |limits| limits.distinct_keys = 0,
+            ),
+            (
+                LocalFragmentLengthAwareShadowStopReason::QueryLimit,
+                |limits| limits.queries = 0,
+            ),
+            (
+                LocalFragmentLengthAwareShadowStopReason::ExactRecheckComparisonLimit,
+                |limits| limits.exact_recheck_comparisons = 0,
+            ),
+        ];
+        for &(expected, mutate) in cases {
+            let mut limits = length_aware_limits();
+            mutate(&mut limits);
+            let metrics = exact_boundary_trie_analysis_metrics(
+                vec![local_fragment_parent("abcdefghijklmnopXXX tail", 1, 1)],
+                vec![local_fragment_parent("abcdefghZZZZZZZZZZZ tail", 2, 2)],
+                8,
+                limits,
+            );
+            assert!(!metrics.complete);
+            assert_eq!(metrics.stop_reason, Some(expected));
+            assert_eq!(metrics.old_fragments, 0);
+            assert_eq!(metrics.new_fragments, 0);
+            assert_eq!(metrics.trie_nodes, 0);
+            assert_eq!(metrics.hash_candidates, 0);
+            assert_eq!(metrics.retained_pairs, 0);
+            assert_eq!(metrics.retained_fingerprint, [0; 32]);
+        }
     }
 
     #[test]
@@ -34541,6 +35509,63 @@ mod tests {
                 std::array::from_fn(|position| usize::from(position == index))
             );
         }
+    }
+
+    #[test]
+    fn exact_boundary_trie_v48_parity_requires_complete_siblings() {
+        let fingerprint = |value| [value; 32];
+        let diagnostics = |v48_complete, exact_complete, v48_count, exact_count, exact_hash| {
+            let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+                metrics: SentenceRecoveryMetrics {
+                    local_fragment_length_only_candidate_shadow: Some(
+                        LocalFragmentLengthOnlyCandidateShadowMetrics {
+                            complete: v48_complete,
+                            retained_pairs: v48_count,
+                            retained_fingerprint: fingerprint(1),
+                            ..LocalFragmentLengthOnlyCandidateShadowMetrics::default()
+                        },
+                    ),
+                    local_fragment_exact_boundary_trie_shadow: Some(
+                        LocalFragmentExactBoundaryTrieShadowMetrics {
+                            complete: exact_complete,
+                            retained_pairs: exact_count,
+                            retained_fingerprint: fingerprint(exact_hash),
+                            ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+                        },
+                    ),
+                    ..SentenceRecoveryMetrics::default()
+                },
+                eligible_old_source_tokens: 0,
+                eligible_new_source_tokens: 0,
+                signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+                signature_retained_fingerprint_valid: false,
+            });
+            record_local_fragment_exact_boundary_trie_v48_parity(&mut diagnostics);
+            diagnostics
+                .expect("diagnostics remain available")
+                .metrics
+                .local_fragment_exact_boundary_trie_shadow
+                .expect("exact shadow remains available")
+        };
+
+        for (v48_complete, exact_complete) in [(false, false), (true, false), (false, true)] {
+            assert!(!diagnostics(v48_complete, exact_complete, 5, 5, 1).v48_parity_available);
+        }
+        let parity = diagnostics(true, true, 5, 5, 1);
+        assert!(parity.v48_parity_available);
+        assert_eq!(parity.retained_count_mismatches, 0);
+        assert_eq!(parity.retained_order_mismatches, 0);
+        assert_eq!(parity.retained_fingerprint_mismatches, 0);
+
+        let count_mismatch = diagnostics(true, true, 5, 6, 1);
+        assert_eq!(count_mismatch.retained_count_mismatches, 1);
+        assert_eq!(count_mismatch.retained_order_mismatches, 0);
+        assert_eq!(count_mismatch.retained_fingerprint_mismatches, 0);
+
+        let order_mismatch = diagnostics(true, true, 5, 5, 2);
+        assert_eq!(order_mismatch.retained_count_mismatches, 0);
+        assert_eq!(order_mismatch.retained_order_mismatches, 1);
+        assert_eq!(order_mismatch.retained_fingerprint_mismatches, 1);
     }
 
     #[test]

@@ -22,10 +22,11 @@ use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
         ChangeKind, Comparison, ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
-        LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
-        LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
-        LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLengthOnlyCandidateShadowMetrics,
-        LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
+        LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentGlobalLengthAwareShadowMetrics,
+        LocalFragmentLengthAwareRecheckShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
+        LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
+        LocalFragmentLengthOnlyCandidateShadowMetrics, LocalFragmentLocationEvidence,
+        LocalFragmentOrientation, LocalFragmentPairEvidence,
         LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
         LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
         LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, NearRelationStopReason,
@@ -682,6 +683,8 @@ pub struct SentenceRecoveryMetricsReport {
         Option<LocalFragmentLengthAwareRecheckShadowMetricsReport>,
     pub local_fragment_length_only_candidate_shadow:
         Option<LocalFragmentLengthOnlyCandidateShadowMetricsReport>,
+    pub local_fragment_exact_boundary_trie_shadow:
+        Option<LocalFragmentExactBoundaryTrieShadowMetricsReport>,
     pub sentence_edge_filter_complete: bool,
     pub sentence_edge_filter_pairs_examined: usize,
     pub sentence_edge_filter_pairs_attempted: usize,
@@ -832,6 +835,45 @@ pub struct LocalFragmentLengthOnlyCandidateShadowMetricsReport {
     pub recheck_comparison_count_mismatches: usize,
     pub retained_pair_count_mismatches: usize,
     pub pre_recheck_fingerprint_mismatches: usize,
+    pub retained_fingerprint_mismatches: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LocalFragmentExactBoundaryTrieShadowMetricsReport {
+    pub complete: bool,
+    pub stop_reason: Option<LocalFragmentLengthAwareShadowStopReasonReport>,
+    pub work: LocalFragmentLengthAwareShadowWorkMetricsReport,
+    pub min_tokens: usize,
+    pub fixed_depth: usize,
+    pub old_fragments: usize,
+    pub new_fragments: usize,
+    pub parent_admission_queries: usize,
+    pub global_queries: usize,
+    pub compared_queries: usize,
+    pub trie_nodes: usize,
+    pub trie_transitions: usize,
+    pub trie_token_steps: usize,
+    pub trie_distinct_keys: usize,
+    pub trie_estimated_bytes: usize,
+    pub trie_largest_fanout: usize,
+    pub hash_candidates: usize,
+    pub exact_certified_candidates: usize,
+    pub hash_collision_only_candidates: usize,
+    pub prefix_only_candidates: usize,
+    pub suffix_only_candidates: usize,
+    pub both_candidates: usize,
+    pub certified_tokens_credited: usize,
+    pub recheck_pairs_started: usize,
+    pub recheck_pairs_completed: usize,
+    pub recheck_comparisons: usize,
+    pub projected_avoided_comparisons: usize,
+    pub retained_pairs: usize,
+    pub depth_1_candidates: usize,
+    pub depth_2_to_3_candidates: usize,
+    pub depth_4_plus_candidates: usize,
+    pub v48_parity_available: bool,
+    pub retained_count_mismatches: usize,
+    pub retained_order_mismatches: usize,
     pub retained_fingerprint_mismatches: usize,
 }
 
@@ -2467,6 +2509,50 @@ impl From<LocalFragmentLengthOnlyCandidateShadowMetrics>
     }
 }
 
+impl From<LocalFragmentExactBoundaryTrieShadowMetrics>
+    for LocalFragmentExactBoundaryTrieShadowMetricsReport
+{
+    fn from(metrics: LocalFragmentExactBoundaryTrieShadowMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            stop_reason: metrics.stop_reason.map(Into::into),
+            work: metrics.work.into(),
+            min_tokens: metrics.min_tokens,
+            fixed_depth: metrics.fixed_depth,
+            old_fragments: metrics.old_fragments,
+            new_fragments: metrics.new_fragments,
+            parent_admission_queries: metrics.parent_admission_queries,
+            global_queries: metrics.global_queries,
+            compared_queries: metrics.compared_queries,
+            trie_nodes: metrics.trie_nodes,
+            trie_transitions: metrics.trie_transitions,
+            trie_token_steps: metrics.trie_token_steps,
+            trie_distinct_keys: metrics.trie_distinct_keys,
+            trie_estimated_bytes: metrics.trie_estimated_bytes,
+            trie_largest_fanout: metrics.trie_largest_fanout,
+            hash_candidates: metrics.hash_candidates,
+            exact_certified_candidates: metrics.exact_certified_candidates,
+            hash_collision_only_candidates: metrics.hash_collision_only_candidates,
+            prefix_only_candidates: metrics.prefix_only_candidates,
+            suffix_only_candidates: metrics.suffix_only_candidates,
+            both_candidates: metrics.both_candidates,
+            certified_tokens_credited: metrics.certified_tokens_credited,
+            recheck_pairs_started: metrics.recheck_pairs_started,
+            recheck_pairs_completed: metrics.recheck_pairs_completed,
+            recheck_comparisons: metrics.recheck_comparisons,
+            projected_avoided_comparisons: metrics.projected_avoided_comparisons,
+            retained_pairs: metrics.retained_pairs,
+            depth_1_candidates: metrics.depth_1_candidates,
+            depth_2_to_3_candidates: metrics.depth_2_to_3_candidates,
+            depth_4_plus_candidates: metrics.depth_4_plus_candidates,
+            v48_parity_available: metrics.v48_parity_available,
+            retained_count_mismatches: metrics.retained_count_mismatches,
+            retained_order_mismatches: metrics.retained_order_mismatches,
+            retained_fingerprint_mismatches: metrics.retained_fingerprint_mismatches,
+        }
+    }
+}
+
 impl From<LocalFragmentGlobalLengthAwareShadowMetrics>
     for LocalFragmentGlobalLengthAwareShadowMetricsReport
 {
@@ -2919,6 +3005,9 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
                 .map(Into::into),
             local_fragment_length_only_candidate_shadow: metrics
                 .local_fragment_length_only_candidate_shadow
+                .map(Into::into),
+            local_fragment_exact_boundary_trie_shadow: metrics
+                .local_fragment_exact_boundary_trie_shadow
                 .map(Into::into),
             sentence_edge_filter_complete: metrics.sentence_edge_filter_complete,
             sentence_edge_filter_pairs_examined: metrics.sentence_edge_filter_pairs_examined,
@@ -5017,6 +5106,9 @@ fn validate_sentence_recovery_metrics(
     validate_local_fragment_length_only_candidate_shadow_metrics(
         metrics.local_fragment_length_only_candidate_shadow,
     )?;
+    validate_local_fragment_exact_boundary_trie_shadow_metrics(
+        metrics.local_fragment_exact_boundary_trie_shadow,
+    )?;
     validate_local_fragment_sibling_parity(
         metrics.local_fragment_length_aware_shadow,
         metrics.local_fragment_global_length_aware_shadow,
@@ -5032,6 +5124,10 @@ fn validate_sentence_recovery_metrics(
     validate_local_fragment_length_only_candidate_sibling_parity(
         metrics.local_fragment_length_aware_recheck_shadow,
         metrics.local_fragment_length_only_candidate_shadow,
+    )?;
+    validate_local_fragment_exact_boundary_trie_sibling_parity(
+        metrics.local_fragment_length_only_candidate_shadow,
+        metrics.local_fragment_exact_boundary_trie_shadow,
     )?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
@@ -5222,6 +5318,98 @@ fn validate_local_fragment_length_only_candidate_shadow_metrics(
         || metrics.retained_pairs > metrics.recheck_pairs
     {
         return Err("local-fragment length-only candidate accounting is inconsistent".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_local_fragment_exact_boundary_trie_shadow_metrics(
+    metrics: Option<LocalFragmentExactBoundaryTrieShadowMetrics>,
+) -> std::result::Result<(), String> {
+    let Some(metrics) = metrics else {
+        return Ok(());
+    };
+    if metrics.complete != metrics.stop_reason.is_none() {
+        return Err(
+            "local-fragment exact-boundary trie completion and stop reason disagree".to_owned(),
+        );
+    }
+    let expected_fixed_depth = local_fragment_signature_depth(metrics.min_tokens)
+        .ok_or_else(|| "local-fragment exact-boundary trie depth overflows".to_owned())?;
+    if metrics.min_tokens == 0
+        || metrics.fixed_depth == 0
+        || metrics.fixed_depth != expected_fixed_depth
+    {
+        return Err("local-fragment exact-boundary trie depth is inconsistent".to_owned());
+    }
+    validate_local_fragment_length_aware_shadow_work(
+        metrics.work,
+        metrics.complete,
+        metrics.stop_reason,
+    )?;
+    if !metrics.complete {
+        let expected = LocalFragmentExactBoundaryTrieShadowMetrics {
+            complete: false,
+            stop_reason: metrics.stop_reason,
+            work: metrics.work,
+            min_tokens: metrics.min_tokens,
+            fixed_depth: metrics.fixed_depth,
+            ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+        };
+        if metrics != expected {
+            return Err("stopped exact-boundary trie shadow exposes partial metrics".to_owned());
+        }
+        return Ok(());
+    }
+
+    let fragment_total = metrics
+        .old_fragments
+        .checked_add(metrics.new_fragments)
+        .ok_or_else(|| "exact-boundary trie fragment counters overflow".to_owned())?;
+    let query_total = metrics
+        .parent_admission_queries
+        .checked_add(metrics.global_queries)
+        .ok_or_else(|| "exact-boundary trie query counters overflow".to_owned())?;
+    let candidate_partition = metrics
+        .exact_certified_candidates
+        .checked_add(metrics.hash_collision_only_candidates)
+        .ok_or_else(|| "exact-boundary trie candidate counters overflow".to_owned())?;
+    let orientation_partition = metrics
+        .prefix_only_candidates
+        .checked_add(metrics.suffix_only_candidates)
+        .and_then(|value| value.checked_add(metrics.both_candidates))
+        .ok_or_else(|| "exact-boundary trie orientation counters overflow".to_owned())?;
+    let depth_partition = metrics
+        .depth_1_candidates
+        .checked_add(metrics.depth_2_to_3_candidates)
+        .and_then(|value| value.checked_add(metrics.depth_4_plus_candidates))
+        .ok_or_else(|| "exact-boundary trie depth counters overflow".to_owned())?;
+    if metrics.work.enumeration_examined != fragment_total
+        || metrics.work.queries_examined != query_total
+        || metrics.parent_admission_queries > metrics.old_fragments
+        || metrics.global_queries > metrics.old_fragments
+        || (metrics.global_queries > 0 && metrics.parent_admission_queries == 0)
+        || metrics.compared_queries != metrics.global_queries
+        || metrics.work.candidate_union_examined != metrics.hash_candidates
+        || candidate_partition != metrics.hash_candidates
+        || orientation_partition != metrics.exact_certified_candidates
+        || depth_partition != metrics.exact_certified_candidates
+        || metrics.work.exact_recheck_pairs_examined != metrics.recheck_pairs_started
+        || metrics.recheck_pairs_started != metrics.exact_certified_candidates
+        || metrics.recheck_pairs_completed != metrics.recheck_pairs_started
+        || metrics.work.exact_recheck_comparisons_examined != metrics.recheck_comparisons
+        || metrics.retained_pairs > metrics.recheck_pairs_completed
+        || metrics
+            .trie_transitions
+            .checked_add(1)
+            .is_none_or(|nodes| nodes != metrics.trie_nodes)
+        || metrics.trie_distinct_keys != metrics.trie_transitions
+        || metrics.trie_token_steps < metrics.trie_transitions
+        || metrics.trie_distinct_keys > metrics.work.distinct_keys_examined
+        || metrics.trie_estimated_bytes > metrics.work.estimated_bytes_examined
+        || metrics.trie_largest_fanout > metrics.trie_transitions
+        || metrics.projected_avoided_comparisons != metrics.certified_tokens_credited
+    {
+        return Err("local-fragment exact-boundary trie accounting is inconsistent".to_owned());
     }
     Ok(())
 }
@@ -5549,6 +5737,45 @@ fn validate_local_fragment_length_only_candidate_sibling_parity(
     ];
     if actual_mismatches != expected_mismatches {
         return Err("length-only candidate parity counters disagree".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_local_fragment_exact_boundary_trie_sibling_parity(
+    v48: Option<LocalFragmentLengthOnlyCandidateShadowMetrics>,
+    exact_trie: Option<LocalFragmentExactBoundaryTrieShadowMetrics>,
+) -> std::result::Result<(), String> {
+    let (Some(v48), Some(exact_trie)) = (v48, exact_trie) else {
+        if v48.is_none() && exact_trie.is_none() {
+            return Ok(());
+        }
+        return Err(
+            "length-only candidate and exact-boundary trie shadows must coexist".to_owned(),
+        );
+    };
+    let expected_available = v48.complete && exact_trie.complete;
+    if exact_trie.v48_parity_available != expected_available {
+        return Err("exact-boundary trie parity availability is inconsistent".to_owned());
+    }
+    let expected_mismatches = if expected_available {
+        let count_mismatch = usize::from(exact_trie.retained_pairs != v48.retained_pairs);
+        let fingerprint_mismatch =
+            usize::from(exact_trie.retained_fingerprint != v48.retained_fingerprint);
+        [
+            count_mismatch,
+            usize::from(count_mismatch == 0 && fingerprint_mismatch != 0),
+            fingerprint_mismatch,
+        ]
+    } else {
+        [0; 3]
+    };
+    let actual_mismatches = [
+        exact_trie.retained_count_mismatches,
+        exact_trie.retained_order_mismatches,
+        exact_trie.retained_fingerprint_mismatches,
+    ];
+    if actual_mismatches != expected_mismatches {
+        return Err("exact-boundary trie parity counters disagree".to_owned());
     }
     Ok(())
 }
@@ -8329,7 +8556,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 48;
+    pub const SCHEMA_VERSION: u32 = 49;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -10028,7 +10255,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 48);
+        assert_eq!(completed["schema_version"], 49);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -10078,7 +10305,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 48);
+        assert_eq!(legacy_summary["schema_version"], 49);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -11288,7 +11515,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 48);
+        assert_eq!(json["schema_version"], 49);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -11664,6 +11891,71 @@ mod tests {
         }
     }
 
+    fn complete_exact_boundary_trie_shadow() -> LocalFragmentExactBoundaryTrieShadowMetrics {
+        LocalFragmentExactBoundaryTrieShadowMetrics {
+            complete: true,
+            stop_reason: None,
+            work: LocalFragmentLengthAwareShadowWorkMetrics {
+                enumeration_examined: 4,
+                enumeration_attempted: 4,
+                posting_items_examined: 12,
+                posting_items_attempted: 12,
+                distinct_keys_examined: 6,
+                distinct_keys_attempted: 6,
+                estimated_bytes_examined: 100,
+                estimated_bytes_attempted: 100,
+                queries_examined: 3,
+                queries_attempted: 3,
+                candidate_union_examined: 2,
+                candidate_union_attempted: 2,
+                exact_recheck_pairs_examined: 2,
+                exact_recheck_pairs_attempted: 2,
+                exact_recheck_comparisons_examined: 2,
+                exact_recheck_comparisons_attempted: 2,
+                ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+            },
+            min_tokens: 8,
+            fixed_depth: 2,
+            old_fragments: 2,
+            new_fragments: 2,
+            parent_admission_queries: 1,
+            global_queries: 2,
+            compared_queries: 2,
+            trie_nodes: 5,
+            trie_transitions: 4,
+            trie_token_steps: 8,
+            trie_distinct_keys: 4,
+            trie_estimated_bytes: 96,
+            trie_largest_fanout: 2,
+            hash_candidates: 2,
+            exact_certified_candidates: 2,
+            prefix_only_candidates: 1,
+            both_candidates: 1,
+            certified_tokens_credited: 4,
+            recheck_pairs_started: 2,
+            recheck_pairs_completed: 2,
+            recheck_comparisons: 2,
+            projected_avoided_comparisons: 4,
+            retained_pairs: 1,
+            depth_2_to_3_candidates: 2,
+            v48_parity_available: true,
+            retained_fingerprint: [3; 32],
+            ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+        }
+    }
+
+    fn incomplete_exact_boundary_trie_shadow() -> LocalFragmentExactBoundaryTrieShadowMetrics {
+        LocalFragmentExactBoundaryTrieShadowMetrics {
+            complete: false,
+            stop_reason: Some(
+                LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete,
+            ),
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+        }
+    }
+
     #[test]
     fn serializes_absent_complete_and_stopped_recheck_reuse_shadow() {
         let absent = serde_json::to_value(SentenceRecoveryMetricsReport::default())
@@ -11688,6 +11980,9 @@ mod tests {
                 ),
                 local_fragment_length_only_candidate_shadow: Some(
                     incomplete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -11727,22 +12022,28 @@ mod tests {
             fixed_depth: 2,
             ..LocalFragmentRecheckReuseShadowMetrics::default()
         };
-        let stopped = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
-            local_fragment_length_aware_shadow: Some(complete_length_aware_local_fragment_shadow()),
-            local_fragment_global_length_aware_shadow: Some(
-                complete_global_length_aware_local_fragment_shadow(),
-            ),
-            local_fragment_recheck_reuse_shadow: Some(stopped),
-            local_fragment_length_aware_recheck_shadow: Some(
-                incomplete_length_aware_recheck_shadow(),
-            ),
-            local_fragment_length_only_candidate_shadow: Some(
-                incomplete_length_only_candidate_shadow(),
-            ),
-            sentence_edge_filter_complete: true,
-            ..SentenceRecoveryMetrics::default()
-        })
-        .expect("stopped reuse shadow validates");
+        let stopped =
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(
+                    complete_global_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_recheck_reuse_shadow: Some(stopped),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    incomplete_length_aware_recheck_shadow(),
+                ),
+                local_fragment_length_only_candidate_shadow: Some(
+                    incomplete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
+                ),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("stopped reuse shadow validates");
         assert_eq!(
             stopped.local_fragment_recheck_reuse_shadow,
             Some(LocalFragmentRecheckReuseShadowMetricsReport {
@@ -11805,6 +12106,9 @@ mod tests {
                 local_fragment_length_only_candidate_shadow: Some(
                     incomplete_length_only_candidate_shadow(),
                 ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -11829,20 +12133,26 @@ mod tests {
         );
 
         let complete_metrics = complete_length_aware_recheck_shadow();
-        let complete = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
-            local_fragment_length_aware_shadow: Some(complete_length_aware_local_fragment_shadow()),
-            local_fragment_global_length_aware_shadow: Some(
-                complete_global_length_aware_local_fragment_shadow(),
-            ),
-            local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
-            local_fragment_length_aware_recheck_shadow: Some(complete_metrics),
-            local_fragment_length_only_candidate_shadow: Some(
-                incomplete_length_only_candidate_shadow(),
-            ),
-            sentence_edge_filter_complete: true,
-            ..SentenceRecoveryMetrics::default()
-        })
-        .expect("complete length-aware recheck shadow validates");
+        let complete =
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(
+                    complete_global_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(complete_metrics),
+                local_fragment_length_only_candidate_shadow: Some(
+                    incomplete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
+                ),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("complete length-aware recheck shadow validates");
         assert_eq!(
             complete.local_fragment_length_aware_recheck_shadow,
             Some(complete_metrics.into())
@@ -11867,20 +12177,26 @@ mod tests {
             fixed_depth: 2,
             ..LocalFragmentLengthAwareRecheckShadowMetrics::default()
         };
-        let stopped = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
-            local_fragment_length_aware_shadow: Some(complete_length_aware_local_fragment_shadow()),
-            local_fragment_global_length_aware_shadow: Some(
-                complete_global_length_aware_local_fragment_shadow(),
-            ),
-            local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
-            local_fragment_length_aware_recheck_shadow: Some(stopped),
-            local_fragment_length_only_candidate_shadow: Some(
-                incomplete_length_only_candidate_shadow(),
-            ),
-            sentence_edge_filter_complete: true,
-            ..SentenceRecoveryMetrics::default()
-        })
-        .expect("stopped length-aware recheck shadow validates");
+        let stopped =
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(
+                    complete_global_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(stopped),
+                local_fragment_length_only_candidate_shadow: Some(
+                    incomplete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
+                ),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("stopped length-aware recheck shadow validates");
         assert_eq!(
             stopped.local_fragment_length_aware_recheck_shadow,
             Some(LocalFragmentLengthAwareRecheckShadowMetricsReport {
@@ -11978,6 +12294,9 @@ mod tests {
                     local_fragment_length_only_candidate_shadow: Some(
                         incomplete_length_only_candidate_shadow(),
                     ),
+                    local_fragment_exact_boundary_trie_shadow: Some(
+                        incomplete_exact_boundary_trie_shadow(),
+                    ),
                     sentence_edge_filter_complete: true,
                     ..SentenceRecoveryMetrics::default()
                 })
@@ -12002,6 +12321,9 @@ mod tests {
                 local_fragment_length_aware_recheck_shadow: Some(observable_mismatch),
                 local_fragment_length_only_candidate_shadow: Some(
                     incomplete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -12033,6 +12355,9 @@ mod tests {
                     complete_length_aware_recheck_shadow(),
                 ),
                 local_fragment_length_only_candidate_shadow: Some(complete_metrics),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -12074,6 +12399,9 @@ mod tests {
                     complete_length_aware_recheck_shadow(),
                 ),
                 local_fragment_length_only_candidate_shadow: Some(stopped_metrics),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -12109,6 +12437,9 @@ mod tests {
                     complete_length_aware_recheck_shadow(),
                 ),
                 local_fragment_length_only_candidate_shadow: Some(shadow),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -12224,6 +12555,176 @@ mod tests {
             })
             .is_err()
         );
+    }
+
+    #[test]
+    fn serializes_and_validates_exact_boundary_trie_shadow() {
+        let absent = serde_json::to_value(SentenceRecoveryMetricsReport::default())
+            .expect("absent exact-boundary trie shadow serializes");
+        assert_eq!(
+            absent["local_fragment_exact_boundary_trie_shadow"],
+            serde_json::Value::Null
+        );
+
+        let exact_trie = complete_exact_boundary_trie_shadow();
+        let complete =
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(
+                    complete_global_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    complete_length_aware_recheck_shadow(),
+                ),
+                local_fragment_length_only_candidate_shadow: Some(
+                    complete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(exact_trie),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("complete exact-boundary trie shadow validates");
+        assert_eq!(
+            complete.local_fragment_exact_boundary_trie_shadow,
+            Some(exact_trie.into())
+        );
+        let serialized = serde_json::to_value(
+            complete
+                .local_fragment_exact_boundary_trie_shadow
+                .expect("exact-boundary trie report exists"),
+        )
+        .expect("exact-boundary trie report serializes");
+        assert!(serialized.get("retained_fingerprint").is_none());
+
+        let stopped = LocalFragmentExactBoundaryTrieShadowMetrics {
+            complete: false,
+            stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::QueryLimit),
+            work: LocalFragmentLengthAwareShadowWorkMetrics {
+                queries_attempted: 1,
+                ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+            },
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+        };
+        let stopped =
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(
+                    complete_global_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    complete_length_aware_recheck_shadow(),
+                ),
+                local_fragment_length_only_candidate_shadow: Some(
+                    complete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(stopped),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("stopped exact-boundary trie shadow validates");
+        assert_eq!(
+            stopped.local_fragment_exact_boundary_trie_shadow,
+            Some(LocalFragmentExactBoundaryTrieShadowMetricsReport {
+                stop_reason: Some(LocalFragmentLengthAwareShadowStopReasonReport::QueryLimit),
+                work: LocalFragmentLengthAwareShadowWorkMetricsReport {
+                    queries_attempted: 1,
+                    ..LocalFragmentLengthAwareShadowWorkMetricsReport::default()
+                },
+                min_tokens: 8,
+                fixed_depth: 2,
+                ..LocalFragmentExactBoundaryTrieShadowMetricsReport::default()
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_exact_boundary_trie_accounting_and_parity() {
+        let complete = complete_exact_boundary_trie_shadow();
+        let validate = |shadow| {
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(
+                    complete_global_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_recheck_reuse_shadow: Some(complete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    complete_length_aware_recheck_shadow(),
+                ),
+                local_fragment_length_only_candidate_shadow: Some(
+                    complete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(shadow),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+        };
+        let invalid = [
+            LocalFragmentExactBoundaryTrieShadowMetrics {
+                hash_collision_only_candidates: 1,
+                ..complete
+            },
+            LocalFragmentExactBoundaryTrieShadowMetrics {
+                prefix_only_candidates: 2,
+                ..complete
+            },
+            LocalFragmentExactBoundaryTrieShadowMetrics {
+                depth_2_to_3_candidates: 1,
+                ..complete
+            },
+            LocalFragmentExactBoundaryTrieShadowMetrics {
+                recheck_pairs_completed: 1,
+                ..complete
+            },
+            LocalFragmentExactBoundaryTrieShadowMetrics {
+                retained_pairs: 3,
+                ..complete
+            },
+            LocalFragmentExactBoundaryTrieShadowMetrics {
+                trie_distinct_keys: 3,
+                ..complete
+            },
+            LocalFragmentExactBoundaryTrieShadowMetrics {
+                v48_parity_available: false,
+                ..complete
+            },
+            LocalFragmentExactBoundaryTrieShadowMetrics {
+                retained_count_mismatches: 1,
+                ..complete
+            },
+            LocalFragmentExactBoundaryTrieShadowMetrics {
+                complete: false,
+                stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::QueryLimit),
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    queries_attempted: 1,
+                    ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+                },
+                min_tokens: 8,
+                fixed_depth: 2,
+                retained_pairs: 1,
+                ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
+            },
+        ];
+        for shadow in invalid {
+            assert!(validate(shadow).is_err());
+        }
+
+        let observable_order_mismatch = LocalFragmentExactBoundaryTrieShadowMetrics {
+            retained_order_mismatches: 1,
+            retained_fingerprint_mismatches: 1,
+            retained_fingerprint: [9; 32],
+            ..complete
+        };
+        assert!(validate(observable_order_mismatch).is_ok());
     }
 
     #[test]
@@ -12565,6 +13066,9 @@ mod tests {
                 local_fragment_length_only_candidate_shadow: Some(
                     incomplete_length_only_candidate_shadow(),
                 ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -12603,20 +13107,26 @@ mod tests {
             fixed_depth: 2,
             ..LocalFragmentGlobalLengthAwareShadowMetrics::default()
         };
-        let stopped = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
-            local_fragment_length_aware_shadow: Some(complete_length_aware_local_fragment_shadow()),
-            local_fragment_global_length_aware_shadow: Some(stopped_metrics),
-            local_fragment_recheck_reuse_shadow: Some(incomplete_recheck_reuse_shadow()),
-            local_fragment_length_aware_recheck_shadow: Some(
-                incomplete_length_aware_recheck_shadow(),
-            ),
-            local_fragment_length_only_candidate_shadow: Some(
-                incomplete_length_only_candidate_shadow(),
-            ),
-            sentence_edge_filter_complete: true,
-            ..SentenceRecoveryMetrics::default()
-        })
-        .expect("stopped global length-aware shadow validates");
+        let stopped =
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(
+                    complete_length_aware_local_fragment_shadow(),
+                ),
+                local_fragment_global_length_aware_shadow: Some(stopped_metrics),
+                local_fragment_recheck_reuse_shadow: Some(incomplete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    incomplete_length_aware_recheck_shadow(),
+                ),
+                local_fragment_length_only_candidate_shadow: Some(
+                    incomplete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
+                ),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("stopped global length-aware shadow validates");
         assert_eq!(
             stopped.local_fragment_global_length_aware_shadow,
             Some(LocalFragmentGlobalLengthAwareShadowMetricsReport {
@@ -12730,6 +13240,9 @@ mod tests {
             local_fragment_length_only_candidate_shadow: Some(
                 incomplete_length_only_candidate_shadow(),
             ),
+            local_fragment_exact_boundary_trie_shadow: Some(
+                incomplete_exact_boundary_trie_shadow(),
+            ),
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         })
@@ -12790,6 +13303,9 @@ mod tests {
             ),
             local_fragment_length_only_candidate_shadow: Some(
                 incomplete_length_only_candidate_shadow(),
+            ),
+            local_fragment_exact_boundary_trie_shadow: Some(
+                incomplete_exact_boundary_trie_shadow(),
             ),
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
@@ -12904,6 +13420,9 @@ mod tests {
                 local_fragment_length_only_candidate_shadow: Some(
                     incomplete_length_only_candidate_shadow(),
                 ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
+                ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
             })
@@ -12924,30 +13443,34 @@ mod tests {
             fixed_depth: 2,
             ..LocalFragmentLengthAwareShadowMetrics::default()
         };
-        let stopped = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
-            local_fragment_length_aware_shadow: Some(stopped_metrics),
-            local_fragment_global_length_aware_shadow: Some(
-                LocalFragmentGlobalLengthAwareShadowMetrics {
-                    complete: false,
-                    stop_reason: Some(
-                        LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete,
-                    ),
-                    min_tokens: 8,
-                    fixed_depth: 2,
-                    ..LocalFragmentGlobalLengthAwareShadowMetrics::default()
-                },
-            ),
-            local_fragment_recheck_reuse_shadow: Some(incomplete_recheck_reuse_shadow()),
-            local_fragment_length_aware_recheck_shadow: Some(
-                incomplete_length_aware_recheck_shadow(),
-            ),
-            local_fragment_length_only_candidate_shadow: Some(
-                incomplete_length_only_candidate_shadow(),
-            ),
-            sentence_edge_filter_complete: true,
-            ..SentenceRecoveryMetrics::default()
-        })
-        .expect("stopped length-aware local-fragment shadow validates");
+        let stopped =
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(stopped_metrics),
+                local_fragment_global_length_aware_shadow: Some(
+                    LocalFragmentGlobalLengthAwareShadowMetrics {
+                        complete: false,
+                        stop_reason: Some(
+                            LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete,
+                        ),
+                        min_tokens: 8,
+                        fixed_depth: 2,
+                        ..LocalFragmentGlobalLengthAwareShadowMetrics::default()
+                    },
+                ),
+                local_fragment_recheck_reuse_shadow: Some(incomplete_recheck_reuse_shadow()),
+                local_fragment_length_aware_recheck_shadow: Some(
+                    incomplete_length_aware_recheck_shadow(),
+                ),
+                local_fragment_length_only_candidate_shadow: Some(
+                    incomplete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
+                ),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("stopped length-aware local-fragment shadow validates");
         assert_eq!(
             serde_json::to_value(stopped.local_fragment_length_aware_shadow)
                 .expect("stopped length-aware local-fragment shadow serializes"),
@@ -13104,6 +13627,9 @@ mod tests {
                 ),
                 local_fragment_length_only_candidate_shadow: Some(
                     incomplete_length_only_candidate_shadow(),
+                ),
+                local_fragment_exact_boundary_trie_shadow: Some(
+                    incomplete_exact_boundary_trie_shadow(),
                 ),
                 sentence_edge_filter_complete: true,
                 ..SentenceRecoveryMetrics::default()
@@ -16451,7 +16977,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 48);
+        assert_eq!(value["schema_version"], 49);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -16588,6 +17114,7 @@ mod tests {
             "local_fragment_recheck_reuse_shadow".to_owned(),
             "local_fragment_length_aware_recheck_shadow".to_owned(),
             "local_fragment_length_only_candidate_shadow".to_owned(),
+            "local_fragment_exact_boundary_trie_shadow".to_owned(),
             "sentence_edge_filter_complete".to_owned(),
             "sentence_edge_filter_pairs_examined".to_owned(),
             "sentence_edge_filter_pairs_attempted".to_owned(),

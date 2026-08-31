@@ -1392,6 +1392,50 @@ pub struct LocalFragmentLengthOnlyCandidateShadowMetrics {
     pub retained_fingerprint: [u8; 32],
 }
 
+/// Behavior-neutral diagnostics for exact boundary certification of fragment candidates.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LocalFragmentExactBoundaryTrieShadowMetrics {
+    pub complete: bool,
+    pub stop_reason: Option<LocalFragmentLengthAwareShadowStopReason>,
+    pub work: LocalFragmentLengthAwareShadowWorkMetrics,
+    pub min_tokens: usize,
+    pub fixed_depth: usize,
+    pub old_fragments: usize,
+    pub new_fragments: usize,
+    pub parent_admission_queries: usize,
+    pub global_queries: usize,
+    pub compared_queries: usize,
+    pub trie_nodes: usize,
+    pub trie_transitions: usize,
+    pub trie_token_steps: usize,
+    pub trie_distinct_keys: usize,
+    pub trie_estimated_bytes: usize,
+    pub trie_largest_fanout: usize,
+    pub hash_candidates: usize,
+    pub exact_certified_candidates: usize,
+    pub hash_collision_only_candidates: usize,
+    pub prefix_only_candidates: usize,
+    pub suffix_only_candidates: usize,
+    pub both_candidates: usize,
+    pub certified_tokens_credited: usize,
+    pub recheck_pairs_started: usize,
+    pub recheck_pairs_completed: usize,
+    pub recheck_comparisons: usize,
+    pub projected_avoided_comparisons: usize,
+    pub retained_pairs: usize,
+    pub depth_1_candidates: usize,
+    pub depth_2_to_3_candidates: usize,
+    pub depth_4_plus_candidates: usize,
+    /// Whether retained output was compared with a complete v48 sibling.
+    pub v48_parity_available: bool,
+    pub retained_count_mismatches: usize,
+    pub retained_order_mismatches: usize,
+    pub retained_fingerprint_mismatches: usize,
+    /// Canonical ordered retained-pair digest used only for sibling parity checks.
+    #[doc(hidden)]
+    pub retained_fingerprint: [u8; 32],
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -1477,6 +1521,8 @@ pub struct SentenceRecoveryMetrics {
         Option<LocalFragmentLengthAwareRecheckShadowMetrics>,
     pub local_fragment_length_only_candidate_shadow:
         Option<LocalFragmentLengthOnlyCandidateShadowMetrics>,
+    pub local_fragment_exact_boundary_trie_shadow:
+        Option<LocalFragmentExactBoundaryTrieShadowMetrics>,
     /// Whether the production Sentence edge filter classified every query.
     /// A false value always has [`Self::sentence_edge_filter_stop_reason`].
     pub sentence_edge_filter_complete: bool,
