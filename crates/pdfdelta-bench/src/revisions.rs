@@ -936,6 +936,7 @@ pub struct LocalFragmentFlatExactBoundaryShadowMetricsReport {
     pub recheck_pairs_started: usize,
     pub recheck_pairs_completed: usize,
     pub recheck_comparisons: usize,
+    pub rank_comparisons: usize,
     pub projected_avoided_comparisons: usize,
     pub retained_pairs: usize,
     pub depth_1_candidates: usize,
@@ -1091,6 +1092,12 @@ pub enum LocalFragmentFlatExactBoundaryStopReasonReport {
     CandidateUnionLimit,
     ExactRecheckPairLimit,
     ExactRecheckComparisonLimit,
+    ExactRankComparisonLimit,
+    ExactJoinPostingLimit,
+    ExactJoinIntersectionLimit,
+    ExactJoinAdmissionLimit,
+    ExactJoinSortLimit,
+    ExactJoinEstimatedByteLimit,
     OffsetItemLimit,
     ClassSlotLimit,
     RadixRecordLimit,
@@ -1142,6 +1149,18 @@ pub struct LocalFragmentFlatExactBoundaryWorkMetricsReport {
     pub radix_work_attempted: usize,
     pub class_ids_examined: usize,
     pub class_ids_attempted: usize,
+    pub exact_rank_comparisons_examined: usize,
+    pub exact_rank_comparisons_attempted: usize,
+    pub exact_join_postings_examined: usize,
+    pub exact_join_postings_attempted: usize,
+    pub exact_join_intersections_examined: usize,
+    pub exact_join_intersections_attempted: usize,
+    pub exact_join_admissions_examined: usize,
+    pub exact_join_admissions_attempted: usize,
+    pub exact_join_sort_items_examined: usize,
+    pub exact_join_sort_items_attempted: usize,
+    pub exact_join_estimated_bytes_examined: usize,
+    pub exact_join_estimated_bytes_attempted: usize,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -2710,6 +2729,7 @@ impl From<LocalFragmentFlatExactBoundaryShadowMetrics>
             recheck_pairs_started: metrics.recheck_pairs_started,
             recheck_pairs_completed: metrics.recheck_pairs_completed,
             recheck_comparisons: metrics.recheck_comparisons,
+            rank_comparisons: metrics.rank_comparisons,
             projected_avoided_comparisons: metrics.projected_avoided_comparisons,
             retained_pairs: metrics.retained_pairs,
             depth_1_candidates: metrics.depth_1_candidates,
@@ -2906,6 +2926,24 @@ impl From<LocalFragmentFlatExactBoundaryStopReason>
             LocalFragmentFlatExactBoundaryStopReason::ExactRecheckComparisonLimit => {
                 Self::ExactRecheckComparisonLimit
             }
+            LocalFragmentFlatExactBoundaryStopReason::ExactRankComparisonLimit => {
+                Self::ExactRankComparisonLimit
+            }
+            LocalFragmentFlatExactBoundaryStopReason::ExactJoinPostingLimit => {
+                Self::ExactJoinPostingLimit
+            }
+            LocalFragmentFlatExactBoundaryStopReason::ExactJoinIntersectionLimit => {
+                Self::ExactJoinIntersectionLimit
+            }
+            LocalFragmentFlatExactBoundaryStopReason::ExactJoinAdmissionLimit => {
+                Self::ExactJoinAdmissionLimit
+            }
+            LocalFragmentFlatExactBoundaryStopReason::ExactJoinSortLimit => {
+                Self::ExactJoinSortLimit
+            }
+            LocalFragmentFlatExactBoundaryStopReason::ExactJoinEstimatedByteLimit => {
+                Self::ExactJoinEstimatedByteLimit
+            }
             LocalFragmentFlatExactBoundaryStopReason::OffsetItemLimit => Self::OffsetItemLimit,
             LocalFragmentFlatExactBoundaryStopReason::ClassSlotLimit => Self::ClassSlotLimit,
             LocalFragmentFlatExactBoundaryStopReason::RadixRecordLimit => Self::RadixRecordLimit,
@@ -2971,6 +3009,18 @@ impl From<LocalFragmentFlatExactBoundaryWorkMetrics>
             radix_work_attempted: work.radix_work_attempted,
             class_ids_examined: work.class_ids_examined,
             class_ids_attempted: work.class_ids_attempted,
+            exact_rank_comparisons_examined: work.exact_rank_comparisons_examined,
+            exact_rank_comparisons_attempted: work.exact_rank_comparisons_attempted,
+            exact_join_postings_examined: work.exact_join_postings_examined,
+            exact_join_postings_attempted: work.exact_join_postings_attempted,
+            exact_join_intersections_examined: work.exact_join_intersections_examined,
+            exact_join_intersections_attempted: work.exact_join_intersections_attempted,
+            exact_join_admissions_examined: work.exact_join_admissions_examined,
+            exact_join_admissions_attempted: work.exact_join_admissions_attempted,
+            exact_join_sort_items_examined: work.exact_join_sort_items_examined,
+            exact_join_sort_items_attempted: work.exact_join_sort_items_attempted,
+            exact_join_estimated_bytes_examined: work.exact_join_estimated_bytes_examined,
+            exact_join_estimated_bytes_attempted: work.exact_join_estimated_bytes_attempted,
         }
     }
 }
@@ -6640,6 +6690,7 @@ fn validate_local_fragment_flat_exact_boundary_shadow_metrics(
                 metrics.recheck_pairs_started,
                 metrics.recheck_pairs_completed,
                 metrics.recheck_comparisons,
+                metrics.rank_comparisons,
                 metrics.projected_avoided_comparisons,
                 metrics.retained_pairs,
                 metrics.depth_1_candidates,
@@ -6689,8 +6740,10 @@ fn validate_local_fragment_flat_exact_boundary_shadow_metrics(
         || metrics.recheck_pairs_started != metrics.exact_certified_candidates
         || metrics.recheck_pairs_completed != metrics.recheck_pairs_started
         || metrics.work.common.exact_recheck_comparisons_examined != metrics.recheck_comparisons
+        || metrics.recheck_comparisons != 0
+        || metrics.work.exact_rank_comparisons_examined != metrics.rank_comparisons
         || metrics.retained_pairs > metrics.recheck_pairs_completed
-        || metrics.projected_avoided_comparisons != metrics.certified_tokens_credited
+        || metrics.projected_avoided_comparisons < metrics.certified_tokens_credited
         || empty_record_has_counters
     {
         return Err("local-fragment flat exact-boundary accounting is inconsistent".to_owned());
@@ -7591,6 +7644,30 @@ fn validate_local_fragment_flat_exact_boundary_work(
         ),
         (work.radix_work_examined, work.radix_work_attempted),
         (work.class_ids_examined, work.class_ids_attempted),
+        (
+            work.exact_rank_comparisons_examined,
+            work.exact_rank_comparisons_attempted,
+        ),
+        (
+            work.exact_join_postings_examined,
+            work.exact_join_postings_attempted,
+        ),
+        (
+            work.exact_join_intersections_examined,
+            work.exact_join_intersections_attempted,
+        ),
+        (
+            work.exact_join_admissions_examined,
+            work.exact_join_admissions_attempted,
+        ),
+        (
+            work.exact_join_sort_items_examined,
+            work.exact_join_sort_items_attempted,
+        ),
+        (
+            work.exact_join_estimated_bytes_examined,
+            work.exact_join_estimated_bytes_attempted,
+        ),
     ];
     if counters
         .iter()
@@ -7616,6 +7693,12 @@ fn validate_local_fragment_flat_exact_boundary_work(
         Some(LocalFragmentFlatExactBoundaryStopReason::ActiveFragmentVisitLimit) => Some(3),
         Some(LocalFragmentFlatExactBoundaryStopReason::RadixWorkLimit) => Some(4),
         Some(LocalFragmentFlatExactBoundaryStopReason::ClassIdLimit) => Some(5),
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactRankComparisonLimit) => Some(6),
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactJoinPostingLimit) => Some(7),
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactJoinIntersectionLimit) => Some(8),
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactJoinAdmissionLimit) => Some(9),
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactJoinSortLimit) => Some(10),
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactJoinEstimatedByteLimit) => Some(11),
         _ => None,
     };
     if let Some(expected) = expected_deficit {
@@ -7653,7 +7736,48 @@ fn validate_local_fragment_flat_exact_boundary_work(
         && work.offset_items_attempted == 0
         && work.class_slots_examined == 0
         && work.class_slots_attempted == 0
-        && class_tail_is_zero;
+        && class_tail_is_zero
+        && work.exact_rank_comparisons_examined == 0
+        && work.exact_rank_comparisons_attempted == 0
+        && work.exact_join_postings_examined == 0
+        && work.exact_join_postings_attempted == 0
+        && work.exact_join_intersections_examined == 0
+        && work.exact_join_intersections_attempted == 0
+        && work.exact_join_admissions_examined == 0
+        && work.exact_join_admissions_attempted == 0
+        && work.exact_join_sort_items_examined == 0
+        && work.exact_join_sort_items_attempted == 0
+        && work.exact_join_estimated_bytes_examined == 0
+        && work.exact_join_estimated_bytes_attempted == 0;
+    let exact_rank_work_is_zero =
+        work.exact_rank_comparisons_examined == 0 && work.exact_rank_comparisons_attempted == 0;
+    let exact_join_work_is_zero = work.exact_join_postings_examined == 0
+        && work.exact_join_postings_attempted == 0
+        && work.exact_join_intersections_examined == 0
+        && work.exact_join_intersections_attempted == 0
+        && work.exact_join_admissions_examined == 0
+        && work.exact_join_admissions_attempted == 0
+        && work.exact_join_sort_items_examined == 0
+        && work.exact_join_sort_items_attempted == 0
+        && work.exact_join_estimated_bytes_examined == 0
+        && work.exact_join_estimated_bytes_attempted == 0;
+    let post_join_common_work_is_zero = work.common.candidate_union_examined == 0
+        && work.common.candidate_union_attempted == 0
+        && work.common.exact_recheck_pairs_examined == 0
+        && work.common.exact_recheck_pairs_attempted == 0
+        && work.common.exact_recheck_comparisons_examined == 0
+        && work.common.exact_recheck_comparisons_attempted == 0;
+    let exact_join_postings_complete = work.exact_join_postings_examined > 0
+        && work.exact_join_postings_examined == work.exact_join_postings_attempted;
+    let exact_join_work_is_complete = exact_join_postings_complete
+        && work.exact_join_intersections_examined == work.exact_join_intersections_attempted
+        && work.exact_join_admissions_examined == work.exact_join_admissions_attempted
+        && work.exact_join_sort_items_examined == work.exact_join_sort_items_attempted
+        && work.exact_join_estimated_bytes_examined == work.exact_join_estimated_bytes_attempted;
+    let candidate_union_is_complete = work.common.candidate_union_examined > 0
+        && work.common.candidate_union_examined == work.common.candidate_union_attempted;
+    let exact_recheck_pairs_started = work.common.exact_recheck_pairs_examined > 0
+        && work.common.exact_recheck_pairs_examined == work.common.exact_recheck_pairs_attempted;
     let offset_stage_complete =
         work.offset_items_examined > 0 && work.offset_items_examined == work.offset_items_attempted;
     let class_slots_complete = work.class_slots_examined > 0
@@ -7680,12 +7804,17 @@ fn validate_local_fragment_flat_exact_boundary_work(
         Some(LocalFragmentFlatExactBoundaryStopReason::OffsetItemLimit)
             if work.class_slots_examined != 0
                 || work.class_slots_attempted != 0
-                || !class_tail_is_zero =>
+                || !class_tail_is_zero
+                || !exact_rank_work_is_zero
+                || !exact_join_work_is_zero =>
         {
             return Err("offset stop has unreachable class construction work".to_owned());
         }
         Some(LocalFragmentFlatExactBoundaryStopReason::ClassSlotLimit)
-            if !offset_stage_complete || !class_tail_is_zero =>
+            if !offset_stage_complete
+                || !class_tail_is_zero
+                || !exact_rank_work_is_zero
+                || !exact_join_work_is_zero =>
         {
             return Err("class-slot stop has unreachable later work".to_owned());
         }
@@ -7693,7 +7822,9 @@ fn validate_local_fragment_flat_exact_boundary_work(
             if !flat_work_is_zero
                 && !(offset_stage_complete
                     && class_slots_complete
-                    && (class_tail_is_zero || class_construction_complete)) =>
+                    && (class_tail_is_zero || class_construction_complete)
+                    && exact_rank_work_is_zero
+                    && exact_join_work_is_zero) =>
         {
             return Err("estimated-byte stop has unreachable class construction work".to_owned());
         }
@@ -7704,9 +7835,67 @@ fn validate_local_fragment_flat_exact_boundary_work(
             | LocalFragmentFlatExactBoundaryStopReason::PostingVisitLimit
             | LocalFragmentFlatExactBoundaryStopReason::CandidateUnionLimit
             | LocalFragmentFlatExactBoundaryStopReason::ExactRecheckPairLimit
-            | LocalFragmentFlatExactBoundaryStopReason::ExactRecheckComparisonLimit,
+            | LocalFragmentFlatExactBoundaryStopReason::ExactRecheckComparisonLimit
+            | LocalFragmentFlatExactBoundaryStopReason::ExactRankComparisonLimit
+            | LocalFragmentFlatExactBoundaryStopReason::ExactJoinPostingLimit
+            | LocalFragmentFlatExactBoundaryStopReason::ExactJoinIntersectionLimit
+            | LocalFragmentFlatExactBoundaryStopReason::ExactJoinAdmissionLimit
+            | LocalFragmentFlatExactBoundaryStopReason::ExactJoinSortLimit
+            | LocalFragmentFlatExactBoundaryStopReason::ExactJoinEstimatedByteLimit,
         ) if !class_construction_complete => {
             return Err("post-class stop lacks completed class construction work".to_owned());
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactRankComparisonLimit)
+            if !exact_join_work_is_complete
+                || !candidate_union_is_complete
+                || !exact_recheck_pairs_started =>
+        {
+            return Err("exact-rank stop lacks completed prerequisite work".to_owned());
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactJoinPostingLimit)
+            if !post_join_common_work_is_zero
+                || !exact_rank_work_is_zero
+                || work.exact_join_sort_items_examined != 0
+                || work.exact_join_sort_items_attempted != 0 =>
+        {
+            return Err("exact-join posting stop has unreachable post-join work".to_owned());
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactJoinIntersectionLimit)
+            if !post_join_common_work_is_zero
+                || !exact_rank_work_is_zero
+                || !exact_join_postings_complete
+                || work.exact_join_sort_items_examined != 0
+                || work.exact_join_sort_items_attempted != 0 =>
+        {
+            return Err("exact-join intersection stop has unreachable post-join work".to_owned());
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactJoinAdmissionLimit)
+            if !post_join_common_work_is_zero
+                || !exact_rank_work_is_zero
+                || !exact_join_postings_complete
+                || work.exact_join_sort_items_examined != 0
+                || work.exact_join_sort_items_attempted != 0 =>
+        {
+            return Err("exact-join admission stop has unreachable post-join work".to_owned());
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactJoinSortLimit)
+            if !post_join_common_work_is_zero
+                || !exact_rank_work_is_zero
+                || !exact_join_postings_complete
+                || work.exact_join_intersections_examined
+                    != work.exact_join_intersections_attempted
+                || work.exact_join_admissions_examined != work.exact_join_admissions_attempted =>
+        {
+            return Err("exact-join sort stop has unreachable work".to_owned());
+        }
+        Some(LocalFragmentFlatExactBoundaryStopReason::ExactJoinEstimatedByteLimit)
+            if !post_join_common_work_is_zero
+                || !exact_rank_work_is_zero
+                || !exact_join_postings_complete
+                || work.exact_join_sort_items_examined != 0
+                || work.exact_join_sort_items_attempted != 0 =>
+        {
+            return Err("exact-join memory stop has unreachable post-join work".to_owned());
         }
         _ => {}
     }
@@ -10095,7 +10284,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 50;
+    pub const SCHEMA_VERSION: u32 = 51;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -11866,7 +12055,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 50);
+        assert_eq!(completed["schema_version"], 51);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -11916,7 +12105,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 50);
+        assert_eq!(legacy_summary["schema_version"], 51);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -13602,7 +13791,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 50);
+        assert_eq!(json["schema_version"], 51);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -14064,8 +14253,6 @@ mod tests {
                     candidate_union_attempted: 2,
                     exact_recheck_pairs_examined: 2,
                     exact_recheck_pairs_attempted: 2,
-                    exact_recheck_comparisons_examined: 2,
-                    exact_recheck_comparisons_attempted: 2,
                     ..LocalFragmentLengthAwareShadowWorkMetrics::default()
                 },
                 offset_items_examined: 5,
@@ -14080,6 +14267,18 @@ mod tests {
                 radix_work_attempted: 480,
                 class_ids_examined: 16,
                 class_ids_attempted: 16,
+                exact_rank_comparisons_examined: 4,
+                exact_rank_comparisons_attempted: 4,
+                exact_join_postings_examined: 20,
+                exact_join_postings_attempted: 20,
+                exact_join_intersections_examined: 2,
+                exact_join_intersections_attempted: 2,
+                exact_join_admissions_examined: 4,
+                exact_join_admissions_attempted: 4,
+                exact_join_sort_items_examined: 4,
+                exact_join_sort_items_attempted: 4,
+                exact_join_estimated_bytes_examined: 256,
+                exact_join_estimated_bytes_attempted: 256,
             },
             min_tokens: 8,
             fixed_depth: 2,
@@ -14106,11 +14305,12 @@ mod tests {
             certified_tokens_credited: 4,
             recheck_pairs_started: 2,
             recheck_pairs_completed: 2,
-            recheck_comparisons: 2,
+            rank_comparisons: 4,
             projected_avoided_comparisons: 4,
             retained_pairs: 1,
             depth_2_to_3_candidates: 2,
             v49_parity_available: true,
+            recheck_comparison_mismatches: 1,
             retained_fingerprint: [3; 32],
             ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
         }
@@ -14142,6 +14342,18 @@ mod tests {
                 radix_work_attempted: 300,
                 class_ids_examined: 10,
                 class_ids_attempted: 10,
+                exact_rank_comparisons_examined: 0,
+                exact_rank_comparisons_attempted: 0,
+                exact_join_postings_examined: 0,
+                exact_join_postings_attempted: 0,
+                exact_join_intersections_examined: 0,
+                exact_join_intersections_attempted: 0,
+                exact_join_admissions_examined: 0,
+                exact_join_admissions_attempted: 0,
+                exact_join_sort_items_examined: 0,
+                exact_join_sort_items_attempted: 0,
+                exact_join_estimated_bytes_examined: 0,
+                exact_join_estimated_bytes_attempted: 0,
             },
             min_tokens: 8,
             fixed_depth: 2,
@@ -15064,8 +15276,90 @@ mod tests {
                 .expect("flat exact-boundary report exists"),
         )
         .expect("flat exact-boundary report serializes");
+        assert_eq!(serialized["recheck_comparisons"], 0);
+        assert_eq!(serialized["rank_comparisons"], 4);
+        assert_eq!(serialized["work"]["exact_rank_comparisons_examined"], 4);
+        assert_eq!(serialized["work"]["exact_rank_comparisons_attempted"], 4);
+        assert_eq!(
+            serialized["work"]["exact_join_estimated_bytes_examined"],
+            256
+        );
+        assert_eq!(
+            serialized["work"]["exact_join_estimated_bytes_attempted"],
+            256
+        );
+        let work_keys = serialized["work"]
+            .as_object()
+            .expect("flat exact-boundary work is an object")
+            .keys()
+            .map(String::as_str)
+            .collect::<HashSet<_>>();
+        assert_eq!(
+            work_keys,
+            HashSet::from([
+                "common",
+                "offset_items_examined",
+                "offset_items_attempted",
+                "class_slots_examined",
+                "class_slots_attempted",
+                "radix_records_examined",
+                "radix_records_attempted",
+                "active_fragment_visits_examined",
+                "active_fragment_visits_attempted",
+                "radix_work_examined",
+                "radix_work_attempted",
+                "class_ids_examined",
+                "class_ids_attempted",
+                "exact_rank_comparisons_examined",
+                "exact_rank_comparisons_attempted",
+                "exact_join_postings_examined",
+                "exact_join_postings_attempted",
+                "exact_join_intersections_examined",
+                "exact_join_intersections_attempted",
+                "exact_join_admissions_examined",
+                "exact_join_admissions_attempted",
+                "exact_join_sort_items_examined",
+                "exact_join_sort_items_attempted",
+                "exact_join_estimated_bytes_examined",
+                "exact_join_estimated_bytes_attempted",
+            ])
+        );
         assert!(serialized.get("certification_fingerprint").is_none());
         assert!(serialized.get("retained_fingerprint").is_none());
+        assert_eq!(
+            serde_json::to_value(
+                LocalFragmentFlatExactBoundaryStopReasonReport::ExactRankComparisonLimit
+            )
+            .expect("rank comparison stop reason serializes"),
+            "exact_rank_comparison_limit"
+        );
+        for (reason, expected) in [
+            (
+                LocalFragmentFlatExactBoundaryStopReasonReport::ExactJoinPostingLimit,
+                "exact_join_posting_limit",
+            ),
+            (
+                LocalFragmentFlatExactBoundaryStopReasonReport::ExactJoinIntersectionLimit,
+                "exact_join_intersection_limit",
+            ),
+            (
+                LocalFragmentFlatExactBoundaryStopReasonReport::ExactJoinAdmissionLimit,
+                "exact_join_admission_limit",
+            ),
+            (
+                LocalFragmentFlatExactBoundaryStopReasonReport::ExactJoinSortLimit,
+                "exact_join_sort_limit",
+            ),
+            (
+                LocalFragmentFlatExactBoundaryStopReasonReport::ExactJoinEstimatedByteLimit,
+                "exact_join_estimated_byte_limit",
+            ),
+        ] {
+            assert_eq!(
+                serde_json::to_value(reason).expect("exact join stop reason serializes"),
+                expected
+            );
+        }
 
         let empty = LocalFragmentFlatExactBoundaryShadowMetrics {
             complete: true,
@@ -15224,6 +15518,44 @@ mod tests {
                 ..complete
             },
             LocalFragmentFlatExactBoundaryShadowMetrics {
+                work: LocalFragmentFlatExactBoundaryWorkMetrics {
+                    common: LocalFragmentLengthAwareShadowWorkMetrics {
+                        exact_recheck_comparisons_examined: 1,
+                        exact_recheck_comparisons_attempted: 1,
+                        ..complete.work.common
+                    },
+                    ..complete.work
+                },
+                recheck_comparisons: 1,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                rank_comparisons: complete.rank_comparisons + 1,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                work: LocalFragmentFlatExactBoundaryWorkMetrics {
+                    exact_join_admissions_attempted: complete.work.exact_join_admissions_examined
+                        + 1,
+                    ..complete.work
+                },
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                work: LocalFragmentFlatExactBoundaryWorkMetrics {
+                    exact_join_estimated_bytes_attempted: complete
+                        .work
+                        .exact_join_estimated_bytes_examined
+                        + 1,
+                    ..complete.work
+                },
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                projected_avoided_comparisons: complete.certified_tokens_credited - 1,
+                ..complete
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
                 v49_parity_available: false,
                 ..complete
             },
@@ -15239,6 +15571,20 @@ mod tests {
                 retained_pairs: 1,
                 ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
             },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                complete: false,
+                stop_reason: Some(
+                    LocalFragmentFlatExactBoundaryStopReason::ExactRankComparisonLimit,
+                ),
+                work: LocalFragmentFlatExactBoundaryWorkMetrics {
+                    exact_rank_comparisons_attempted: 1,
+                    ..LocalFragmentFlatExactBoundaryWorkMetrics::default()
+                },
+                min_tokens: 8,
+                fixed_depth: 2,
+                rank_comparisons: 1,
+                ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+            },
         ] {
             assert!(validate(invalid).is_err());
         }
@@ -15250,6 +15596,17 @@ mod tests {
             ..complete
         };
         assert!(validate(observable_mismatch).is_ok());
+
+        let extra_legacy_comparisons_avoided = LocalFragmentFlatExactBoundaryShadowMetrics {
+            projected_avoided_comparisons: complete.certified_tokens_credited + 1,
+            ..complete
+        };
+        assert!(
+            validate_local_fragment_flat_exact_boundary_shadow_metrics(Some(
+                extra_legacy_comparisons_avoided
+            ))
+            .is_ok()
+        );
     }
 
     #[test]
@@ -15271,6 +15628,10 @@ mod tests {
                     class_ids_attempted: 1,
                     ..LocalFragmentFlatExactBoundaryWorkMetrics::default()
                 },
+                ..empty
+            },
+            LocalFragmentFlatExactBoundaryShadowMetrics {
+                rank_comparisons: 1,
                 ..empty
             },
         ] {
@@ -15448,6 +15809,195 @@ mod tests {
             Some(LocalFragmentFlatExactBoundaryStopReason::IndexPostingLimit),
         )
         .expect("post-class common work may stop after class construction completes");
+
+        let pre_join = LocalFragmentFlatExactBoundaryWorkMetrics {
+            common: LocalFragmentLengthAwareShadowWorkMetrics {
+                candidate_union_examined: 0,
+                candidate_union_attempted: 0,
+                exact_recheck_pairs_examined: 0,
+                exact_recheck_pairs_attempted: 0,
+                exact_recheck_comparisons_examined: 0,
+                exact_recheck_comparisons_attempted: 0,
+                ..complete.common
+            },
+            exact_rank_comparisons_examined: 0,
+            exact_rank_comparisons_attempted: 0,
+            exact_join_postings_examined: 0,
+            exact_join_postings_attempted: 0,
+            exact_join_intersections_examined: 0,
+            exact_join_intersections_attempted: 0,
+            exact_join_admissions_examined: 0,
+            exact_join_admissions_attempted: 0,
+            exact_join_sort_items_examined: 0,
+            exact_join_sort_items_attempted: 0,
+            exact_join_estimated_bytes_examined: 0,
+            exact_join_estimated_bytes_attempted: 0,
+            ..complete
+        };
+        let join_stops = [
+            (
+                LocalFragmentFlatExactBoundaryWorkMetrics {
+                    exact_join_postings_attempted: 1,
+                    ..pre_join
+                },
+                LocalFragmentFlatExactBoundaryStopReason::ExactJoinPostingLimit,
+            ),
+            (
+                LocalFragmentFlatExactBoundaryWorkMetrics {
+                    exact_join_postings_examined: complete.exact_join_postings_examined,
+                    exact_join_postings_attempted: complete.exact_join_postings_examined,
+                    exact_join_intersections_attempted: 1,
+                    ..pre_join
+                },
+                LocalFragmentFlatExactBoundaryStopReason::ExactJoinIntersectionLimit,
+            ),
+            (
+                LocalFragmentFlatExactBoundaryWorkMetrics {
+                    exact_join_postings_examined: complete.exact_join_postings_examined,
+                    exact_join_postings_attempted: complete.exact_join_postings_examined,
+                    exact_join_intersections_examined: complete.exact_join_intersections_examined,
+                    exact_join_intersections_attempted: complete.exact_join_intersections_examined,
+                    exact_join_admissions_attempted: 1,
+                    ..pre_join
+                },
+                LocalFragmentFlatExactBoundaryStopReason::ExactJoinAdmissionLimit,
+            ),
+            (
+                LocalFragmentFlatExactBoundaryWorkMetrics {
+                    exact_join_postings_examined: complete.exact_join_postings_examined,
+                    exact_join_postings_attempted: complete.exact_join_postings_examined,
+                    exact_join_intersections_examined: complete.exact_join_intersections_examined,
+                    exact_join_intersections_attempted: complete.exact_join_intersections_examined,
+                    exact_join_admissions_examined: complete.exact_join_admissions_examined,
+                    exact_join_admissions_attempted: complete.exact_join_admissions_examined,
+                    exact_join_sort_items_attempted: 1,
+                    ..pre_join
+                },
+                LocalFragmentFlatExactBoundaryStopReason::ExactJoinSortLimit,
+            ),
+            (
+                LocalFragmentFlatExactBoundaryWorkMetrics {
+                    exact_join_postings_examined: 1,
+                    exact_join_postings_attempted: 1,
+                    exact_join_estimated_bytes_attempted: 1,
+                    ..pre_join
+                },
+                LocalFragmentFlatExactBoundaryStopReason::ExactJoinEstimatedByteLimit,
+            ),
+        ];
+        for (work, reason) in join_stops {
+            validate_local_fragment_flat_exact_boundary_work(work, false, Some(reason))
+                .expect("exact join stop keeps only completed prior-stage work");
+            let stopped = LocalFragmentFlatExactBoundaryShadowMetrics {
+                complete: false,
+                stop_reason: Some(reason),
+                work,
+                min_tokens: 8,
+                fixed_depth: 2,
+                ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+            };
+            validate_local_fragment_flat_exact_boundary_shadow_metrics(Some(stopped))
+                .expect("exact join stop exposes only stop-safe work");
+            assert!(
+                validate_local_fragment_flat_exact_boundary_shadow_metrics(Some(
+                    LocalFragmentFlatExactBoundaryShadowMetrics {
+                        retained_pairs: 1,
+                        ..stopped
+                    }
+                ))
+                .is_err()
+            );
+        }
+
+        let interleaved_before_join_stop = LocalFragmentFlatExactBoundaryWorkMetrics {
+            exact_join_postings_attempted: 1,
+            exact_join_intersections_examined: 1,
+            exact_join_intersections_attempted: 1,
+            exact_join_admissions_examined: 1,
+            exact_join_admissions_attempted: 1,
+            ..pre_join
+        };
+        validate_local_fragment_flat_exact_boundary_work(
+            interleaved_before_join_stop,
+            false,
+            Some(LocalFragmentFlatExactBoundaryStopReason::ExactJoinPostingLimit),
+        )
+        .expect("posting, intersection, and admission work may interleave before a join stop");
+
+        let unreachable_after_join_stop = LocalFragmentFlatExactBoundaryWorkMetrics {
+            exact_join_sort_items_examined: 1,
+            exact_join_sort_items_attempted: 1,
+            ..interleaved_before_join_stop
+        };
+        assert!(
+            validate_local_fragment_flat_exact_boundary_work(
+                unreachable_after_join_stop,
+                false,
+                Some(LocalFragmentFlatExactBoundaryStopReason::ExactJoinPostingLimit),
+            )
+            .is_err()
+        );
+
+        let unreachable_after_join_memory_stop = LocalFragmentFlatExactBoundaryWorkMetrics {
+            exact_join_postings_examined: 1,
+            exact_join_postings_attempted: 1,
+            exact_join_sort_items_examined: 1,
+            exact_join_sort_items_attempted: 1,
+            exact_join_estimated_bytes_attempted: 1,
+            ..pre_join
+        };
+        assert!(
+            validate_local_fragment_flat_exact_boundary_work(
+                unreachable_after_join_memory_stop,
+                false,
+                Some(LocalFragmentFlatExactBoundaryStopReason::ExactJoinEstimatedByteLimit),
+            )
+            .is_err()
+        );
+
+        let rank_without_prerequisites = LocalFragmentFlatExactBoundaryWorkMetrics {
+            exact_rank_comparisons_attempted: 1,
+            ..pre_join
+        };
+        assert!(
+            validate_local_fragment_flat_exact_boundary_work(
+                rank_without_prerequisites,
+                false,
+                Some(LocalFragmentFlatExactBoundaryStopReason::ExactRankComparisonLimit),
+            )
+            .is_err()
+        );
+
+        let rank_stop = LocalFragmentFlatExactBoundaryWorkMetrics {
+            exact_rank_comparisons_attempted: complete.exact_rank_comparisons_examined + 1,
+            ..complete
+        };
+        validate_local_fragment_flat_exact_boundary_work(
+            rank_stop,
+            false,
+            Some(LocalFragmentFlatExactBoundaryStopReason::ExactRankComparisonLimit),
+        )
+        .expect("exact rank comparison work may stop after class construction completes");
+
+        let stopped_rank_shadow = LocalFragmentFlatExactBoundaryShadowMetrics {
+            complete: false,
+            stop_reason: Some(LocalFragmentFlatExactBoundaryStopReason::ExactRankComparisonLimit),
+            work: rank_stop,
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+        };
+        validate_local_fragment_flat_exact_boundary_shadow_metrics(Some(stopped_rank_shadow))
+            .expect("rank-limited shadow keeps only stop-safe work");
+        assert!(
+            validate_local_fragment_flat_exact_boundary_shadow_metrics(Some(
+                LocalFragmentFlatExactBoundaryShadowMetrics {
+                    rank_comparisons: rank_stop.exact_rank_comparisons_examined,
+                    ..stopped_rank_shadow
+                }
+            ))
+            .is_err()
+        );
     }
 
     #[test]
@@ -19721,7 +20271,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 50);
+        assert_eq!(value["schema_version"], 51);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
