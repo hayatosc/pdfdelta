@@ -1063,6 +1063,105 @@ pub struct LocalFragmentShadowMetrics {
     pub best_sampled_suffix_nonexact_pair: Option<LocalFragmentPairEvidence>,
 }
 
+/// Reason the length-aware local-fragment shadow stopped before parity was evaluable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LocalFragmentLengthAwareShadowStopReason {
+    EnumerationLimit,
+    SignatureTokenStepLimit,
+    IndexPostingLimit,
+    DistinctKeyLimit,
+    EstimatedByteLimit,
+    QueryLimit,
+    PostingVisitLimit,
+    CandidateUnionLimit,
+    ExactRecheckPairLimit,
+    ExactRecheckComparisonLimit,
+    CandidateGenerationIncomplete,
+    AllocationFailure,
+    CounterOverflow,
+    DiagnosticFailure,
+}
+
+/// Bounded work retained when the length-aware local-fragment shadow stops atomically.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LocalFragmentLengthAwareShadowWorkMetrics {
+    pub enumeration_examined: usize,
+    pub enumeration_attempted: usize,
+    pub signature_token_steps_examined: usize,
+    pub signature_token_steps_attempted: usize,
+    pub posting_items_examined: usize,
+    pub posting_items_attempted: usize,
+    pub distinct_keys_examined: usize,
+    pub distinct_keys_attempted: usize,
+    pub estimated_bytes_examined: usize,
+    pub estimated_bytes_attempted: usize,
+    pub queries_examined: usize,
+    pub queries_attempted: usize,
+    pub posting_visits_examined: usize,
+    pub posting_visits_attempted: usize,
+    pub candidate_union_examined: usize,
+    pub candidate_union_attempted: usize,
+    pub exact_recheck_pairs_examined: usize,
+    pub exact_recheck_pairs_attempted: usize,
+    pub exact_recheck_comparisons_examined: usize,
+    pub exact_recheck_comparisons_attempted: usize,
+}
+
+/// Behavior-neutral parity diagnostics for length-aware local-fragment signatures.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LocalFragmentLengthAwareShadowMetrics {
+    pub complete: bool,
+    pub stop_reason: Option<LocalFragmentLengthAwareShadowStopReason>,
+    pub work: LocalFragmentLengthAwareShadowWorkMetrics,
+    pub min_tokens: usize,
+    pub fixed_depth: usize,
+    pub max_own_depth: usize,
+    pub fixed_distinct_keys: usize,
+    pub own_distinct_keys: usize,
+    pub all_distinct_keys: usize,
+    pub parent_distinct_keys: usize,
+    pub fixed_posting_items: usize,
+    pub own_posting_items: usize,
+    pub all_posting_items: usize,
+    pub parent_posting_items: usize,
+    pub fixed_key_capacity: usize,
+    pub own_key_capacity: usize,
+    pub all_key_capacity: usize,
+    pub parent_key_capacity: usize,
+    pub posting_capacity_items: usize,
+    pub fragment_capacity_items: usize,
+    pub signature_capacity_items: usize,
+    pub peak_temporary_capacity_items: usize,
+    /// Cumulative logical bytes charged for persistent fragment and index entries.
+    pub estimated_logical_bytes: usize,
+    /// Capacity-based estimate for retained structures and peak candidate/retained query scratch.
+    ///
+    /// Hash-table control bytes, allocator metadata, and short-lived signature-key vectors are
+    /// excluded.
+    pub estimated_capacity_bytes: usize,
+    pub largest_posting: usize,
+    pub depth_1_fragments: usize,
+    pub depth_2_to_3_fragments: usize,
+    pub depth_4_plus_fragments: usize,
+    pub depth_1_posting_items: usize,
+    pub depth_2_to_3_posting_items: usize,
+    pub depth_4_plus_posting_items: usize,
+    pub depth_1_queries: usize,
+    pub depth_2_to_3_queries: usize,
+    pub depth_4_plus_queries: usize,
+    pub depth_1_candidate_union: usize,
+    pub depth_2_to_3_candidate_union: usize,
+    pub depth_4_plus_candidate_union: usize,
+    pub fixed_pre_recheck_candidates: usize,
+    pub length_aware_pre_recheck_candidates: usize,
+    pub fixed_exact_retained_pairs: usize,
+    pub length_aware_exact_retained_pairs: usize,
+    pub missing_retained_pairs: usize,
+    pub extra_retained_pairs: usize,
+    pub order_mismatches: usize,
+    pub compared_queries: usize,
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -1140,6 +1239,7 @@ pub struct SentenceRecoveryMetrics {
     pub sentence_edge_signature_reference_oracle:
         Option<SentenceEdgeSignatureReferenceOracleMetrics>,
     pub local_fragment_shadow: Option<LocalFragmentShadowMetrics>,
+    pub local_fragment_length_aware_shadow: Option<LocalFragmentLengthAwareShadowMetrics>,
     /// Whether the production Sentence edge filter classified every query.
     /// A false value always has [`Self::sentence_edge_filter_stop_reason`].
     pub sentence_edge_filter_complete: bool,

@@ -22,10 +22,12 @@ use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
         ChangeKind, Comparison, ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
-        LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
-        LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
-        NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
-        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
+        LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
+        LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLocationEvidence,
+        LocalFragmentOrientation, LocalFragmentPairEvidence, LocalFragmentShadowMetrics,
+        LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, NearRelationStopReason,
+        NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
+        RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
         RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
         RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
         RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
@@ -669,6 +671,7 @@ pub struct SentenceRecoveryMetricsReport {
     pub sentence_edge_signature_reference_oracle:
         Option<SentenceEdgeSignatureReferenceOracleMetricsReport>,
     pub local_fragment_shadow: Option<LocalFragmentShadowMetricsReport>,
+    pub local_fragment_length_aware_shadow: Option<LocalFragmentLengthAwareShadowMetricsReport>,
     pub sentence_edge_filter_complete: bool,
     pub sentence_edge_filter_pairs_examined: usize,
     pub sentence_edge_filter_pairs_attempted: usize,
@@ -705,6 +708,98 @@ pub struct SentenceRecoveryMetricsReport {
     pub recovered_insertion_tokens: usize,
     pub unresolved_remainder_old_source_tokens: usize,
     pub unresolved_remainder_new_source_tokens: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LocalFragmentLengthAwareShadowMetricsReport {
+    pub complete: bool,
+    pub stop_reason: Option<LocalFragmentLengthAwareShadowStopReasonReport>,
+    pub work: LocalFragmentLengthAwareShadowWorkMetricsReport,
+    pub min_tokens: usize,
+    pub fixed_depth: usize,
+    pub max_own_depth: usize,
+    pub fixed_distinct_keys: usize,
+    pub own_distinct_keys: usize,
+    pub all_distinct_keys: usize,
+    pub parent_distinct_keys: usize,
+    pub fixed_posting_items: usize,
+    pub own_posting_items: usize,
+    pub all_posting_items: usize,
+    pub parent_posting_items: usize,
+    pub fixed_key_capacity: usize,
+    pub own_key_capacity: usize,
+    pub all_key_capacity: usize,
+    pub parent_key_capacity: usize,
+    pub posting_capacity_items: usize,
+    pub fragment_capacity_items: usize,
+    pub signature_capacity_items: usize,
+    pub peak_temporary_capacity_items: usize,
+    pub estimated_logical_bytes: usize,
+    pub estimated_capacity_bytes: usize,
+    pub largest_posting: usize,
+    pub depth_1_fragments: usize,
+    pub depth_2_to_3_fragments: usize,
+    pub depth_4_plus_fragments: usize,
+    pub depth_1_posting_items: usize,
+    pub depth_2_to_3_posting_items: usize,
+    pub depth_4_plus_posting_items: usize,
+    pub depth_1_queries: usize,
+    pub depth_2_to_3_queries: usize,
+    pub depth_4_plus_queries: usize,
+    pub depth_1_candidate_union: usize,
+    pub depth_2_to_3_candidate_union: usize,
+    pub depth_4_plus_candidate_union: usize,
+    pub fixed_pre_recheck_candidates: usize,
+    pub length_aware_pre_recheck_candidates: usize,
+    pub fixed_exact_retained_pairs: usize,
+    pub length_aware_exact_retained_pairs: usize,
+    pub missing_retained_pairs: usize,
+    pub extra_retained_pairs: usize,
+    pub order_mismatches: usize,
+    pub compared_queries: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LocalFragmentLengthAwareShadowStopReasonReport {
+    EnumerationLimit,
+    SignatureTokenStepLimit,
+    IndexPostingLimit,
+    DistinctKeyLimit,
+    EstimatedByteLimit,
+    QueryLimit,
+    PostingVisitLimit,
+    CandidateUnionLimit,
+    ExactRecheckPairLimit,
+    ExactRecheckComparisonLimit,
+    CandidateGenerationIncomplete,
+    AllocationFailure,
+    CounterOverflow,
+    DiagnosticFailure,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LocalFragmentLengthAwareShadowWorkMetricsReport {
+    pub enumeration_examined: usize,
+    pub enumeration_attempted: usize,
+    pub signature_token_steps_examined: usize,
+    pub signature_token_steps_attempted: usize,
+    pub posting_items_examined: usize,
+    pub posting_items_attempted: usize,
+    pub distinct_keys_examined: usize,
+    pub distinct_keys_attempted: usize,
+    pub estimated_bytes_examined: usize,
+    pub estimated_bytes_attempted: usize,
+    pub queries_examined: usize,
+    pub queries_attempted: usize,
+    pub posting_visits_examined: usize,
+    pub posting_visits_attempted: usize,
+    pub candidate_union_examined: usize,
+    pub candidate_union_attempted: usize,
+    pub exact_recheck_pairs_examined: usize,
+    pub exact_recheck_pairs_attempted: usize,
+    pub exact_recheck_comparisons_examined: usize,
+    pub exact_recheck_comparisons_attempted: usize,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -2048,6 +2143,122 @@ impl From<RunSignatureStopReason> for RunSignatureStopReasonReport {
     }
 }
 
+impl From<LocalFragmentLengthAwareShadowMetrics> for LocalFragmentLengthAwareShadowMetricsReport {
+    fn from(metrics: LocalFragmentLengthAwareShadowMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            stop_reason: metrics.stop_reason.map(Into::into),
+            work: metrics.work.into(),
+            min_tokens: metrics.min_tokens,
+            fixed_depth: metrics.fixed_depth,
+            max_own_depth: metrics.max_own_depth,
+            fixed_distinct_keys: metrics.fixed_distinct_keys,
+            own_distinct_keys: metrics.own_distinct_keys,
+            all_distinct_keys: metrics.all_distinct_keys,
+            parent_distinct_keys: metrics.parent_distinct_keys,
+            fixed_posting_items: metrics.fixed_posting_items,
+            own_posting_items: metrics.own_posting_items,
+            all_posting_items: metrics.all_posting_items,
+            parent_posting_items: metrics.parent_posting_items,
+            fixed_key_capacity: metrics.fixed_key_capacity,
+            own_key_capacity: metrics.own_key_capacity,
+            all_key_capacity: metrics.all_key_capacity,
+            parent_key_capacity: metrics.parent_key_capacity,
+            posting_capacity_items: metrics.posting_capacity_items,
+            fragment_capacity_items: metrics.fragment_capacity_items,
+            signature_capacity_items: metrics.signature_capacity_items,
+            peak_temporary_capacity_items: metrics.peak_temporary_capacity_items,
+            estimated_logical_bytes: metrics.estimated_logical_bytes,
+            estimated_capacity_bytes: metrics.estimated_capacity_bytes,
+            largest_posting: metrics.largest_posting,
+            depth_1_fragments: metrics.depth_1_fragments,
+            depth_2_to_3_fragments: metrics.depth_2_to_3_fragments,
+            depth_4_plus_fragments: metrics.depth_4_plus_fragments,
+            depth_1_posting_items: metrics.depth_1_posting_items,
+            depth_2_to_3_posting_items: metrics.depth_2_to_3_posting_items,
+            depth_4_plus_posting_items: metrics.depth_4_plus_posting_items,
+            depth_1_queries: metrics.depth_1_queries,
+            depth_2_to_3_queries: metrics.depth_2_to_3_queries,
+            depth_4_plus_queries: metrics.depth_4_plus_queries,
+            depth_1_candidate_union: metrics.depth_1_candidate_union,
+            depth_2_to_3_candidate_union: metrics.depth_2_to_3_candidate_union,
+            depth_4_plus_candidate_union: metrics.depth_4_plus_candidate_union,
+            fixed_pre_recheck_candidates: metrics.fixed_pre_recheck_candidates,
+            length_aware_pre_recheck_candidates: metrics.length_aware_pre_recheck_candidates,
+            fixed_exact_retained_pairs: metrics.fixed_exact_retained_pairs,
+            length_aware_exact_retained_pairs: metrics.length_aware_exact_retained_pairs,
+            missing_retained_pairs: metrics.missing_retained_pairs,
+            extra_retained_pairs: metrics.extra_retained_pairs,
+            order_mismatches: metrics.order_mismatches,
+            compared_queries: metrics.compared_queries,
+        }
+    }
+}
+
+impl From<LocalFragmentLengthAwareShadowStopReason>
+    for LocalFragmentLengthAwareShadowStopReasonReport
+{
+    fn from(reason: LocalFragmentLengthAwareShadowStopReason) -> Self {
+        match reason {
+            LocalFragmentLengthAwareShadowStopReason::EnumerationLimit => Self::EnumerationLimit,
+            LocalFragmentLengthAwareShadowStopReason::SignatureTokenStepLimit => {
+                Self::SignatureTokenStepLimit
+            }
+            LocalFragmentLengthAwareShadowStopReason::IndexPostingLimit => Self::IndexPostingLimit,
+            LocalFragmentLengthAwareShadowStopReason::DistinctKeyLimit => Self::DistinctKeyLimit,
+            LocalFragmentLengthAwareShadowStopReason::EstimatedByteLimit => {
+                Self::EstimatedByteLimit
+            }
+            LocalFragmentLengthAwareShadowStopReason::QueryLimit => Self::QueryLimit,
+            LocalFragmentLengthAwareShadowStopReason::PostingVisitLimit => Self::PostingVisitLimit,
+            LocalFragmentLengthAwareShadowStopReason::CandidateUnionLimit => {
+                Self::CandidateUnionLimit
+            }
+            LocalFragmentLengthAwareShadowStopReason::ExactRecheckPairLimit => {
+                Self::ExactRecheckPairLimit
+            }
+            LocalFragmentLengthAwareShadowStopReason::ExactRecheckComparisonLimit => {
+                Self::ExactRecheckComparisonLimit
+            }
+            LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete => {
+                Self::CandidateGenerationIncomplete
+            }
+            LocalFragmentLengthAwareShadowStopReason::AllocationFailure => Self::AllocationFailure,
+            LocalFragmentLengthAwareShadowStopReason::CounterOverflow => Self::CounterOverflow,
+            LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure => Self::DiagnosticFailure,
+        }
+    }
+}
+
+impl From<LocalFragmentLengthAwareShadowWorkMetrics>
+    for LocalFragmentLengthAwareShadowWorkMetricsReport
+{
+    fn from(work: LocalFragmentLengthAwareShadowWorkMetrics) -> Self {
+        Self {
+            enumeration_examined: work.enumeration_examined,
+            enumeration_attempted: work.enumeration_attempted,
+            signature_token_steps_examined: work.signature_token_steps_examined,
+            signature_token_steps_attempted: work.signature_token_steps_attempted,
+            posting_items_examined: work.posting_items_examined,
+            posting_items_attempted: work.posting_items_attempted,
+            distinct_keys_examined: work.distinct_keys_examined,
+            distinct_keys_attempted: work.distinct_keys_attempted,
+            estimated_bytes_examined: work.estimated_bytes_examined,
+            estimated_bytes_attempted: work.estimated_bytes_attempted,
+            queries_examined: work.queries_examined,
+            queries_attempted: work.queries_attempted,
+            posting_visits_examined: work.posting_visits_examined,
+            posting_visits_attempted: work.posting_visits_attempted,
+            candidate_union_examined: work.candidate_union_examined,
+            candidate_union_attempted: work.candidate_union_attempted,
+            exact_recheck_pairs_examined: work.exact_recheck_pairs_examined,
+            exact_recheck_pairs_attempted: work.exact_recheck_pairs_attempted,
+            exact_recheck_comparisons_examined: work.exact_recheck_comparisons_examined,
+            exact_recheck_comparisons_attempted: work.exact_recheck_comparisons_attempted,
+        }
+    }
+}
+
 impl From<LocalFragmentShadowMetrics> for LocalFragmentShadowMetricsReport {
     fn from(metrics: LocalFragmentShadowMetrics) -> Self {
         Self {
@@ -2308,6 +2519,9 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
                 .sentence_edge_signature_reference_oracle
                 .map(Into::into),
             local_fragment_shadow: metrics.local_fragment_shadow.map(Into::into),
+            local_fragment_length_aware_shadow: metrics
+                .local_fragment_length_aware_shadow
+                .map(Into::into),
             sentence_edge_filter_complete: metrics.sentence_edge_filter_complete,
             sentence_edge_filter_pairs_examined: metrics.sentence_edge_filter_pairs_examined,
             sentence_edge_filter_pairs_attempted: metrics.sentence_edge_filter_pairs_attempted,
@@ -4390,6 +4604,9 @@ fn validate_sentence_recovery_metrics(
     validate_sentence_edge_signature_reference_oracle_metrics(metrics)?;
     validate_sentence_edge_filter_metrics(metrics)?;
     validate_local_fragment_shadow_metrics(metrics.local_fragment_shadow)?;
+    validate_local_fragment_length_aware_shadow_metrics(
+        metrics.local_fragment_length_aware_shadow,
+    )?;
     if metrics.near_pair_visits_examined > metrics.near_pair_visits_attempted {
         return Err(format!(
             "examined near pair visits {} exceed attempted visits {}",
@@ -4516,6 +4733,246 @@ fn validate_sentence_recovery_metrics(
         .checked_add(metrics.unresolved_remainder_new_source_tokens)
         .ok_or_else(|| "new eligible source token counters overflow".to_owned())?;
     Ok(metrics.into())
+}
+
+fn validate_local_fragment_length_aware_shadow_metrics(
+    metrics: Option<LocalFragmentLengthAwareShadowMetrics>,
+) -> std::result::Result<(), String> {
+    let Some(metrics) = metrics else {
+        return Ok(());
+    };
+    if metrics.complete != metrics.stop_reason.is_none() {
+        return Err("length-aware local-fragment completion and stop reason disagree".to_owned());
+    }
+    let expected_fixed_depth = local_fragment_signature_depth(metrics.min_tokens)
+        .ok_or_else(|| "length-aware local-fragment signature depth overflows".to_owned())?;
+    if metrics.min_tokens == 0
+        || metrics.fixed_depth == 0
+        || metrics.fixed_depth != expected_fixed_depth
+    {
+        return Err("length-aware local-fragment fixed depth is inconsistent".to_owned());
+    }
+    validate_local_fragment_length_aware_shadow_work(
+        metrics.work,
+        metrics.complete,
+        metrics.stop_reason,
+    )?;
+    if !metrics.complete {
+        let expected = LocalFragmentLengthAwareShadowMetrics {
+            complete: false,
+            stop_reason: metrics.stop_reason,
+            work: metrics.work,
+            min_tokens: metrics.min_tokens,
+            fixed_depth: metrics.fixed_depth,
+            ..LocalFragmentLengthAwareShadowMetrics::default()
+        };
+        if metrics != expected {
+            return Err(
+                "stopped length-aware local-fragment shadow exposes partial metrics".to_owned(),
+            );
+        }
+        return Ok(());
+    }
+
+    let fragment_total = metrics
+        .depth_1_fragments
+        .checked_add(metrics.depth_2_to_3_fragments)
+        .and_then(|value| value.checked_add(metrics.depth_4_plus_fragments))
+        .ok_or_else(|| "length-aware fragment band counters overflow".to_owned())?;
+    let posting_total = metrics
+        .depth_1_posting_items
+        .checked_add(metrics.depth_2_to_3_posting_items)
+        .and_then(|value| value.checked_add(metrics.depth_4_plus_posting_items))
+        .ok_or_else(|| "length-aware posting band counters overflow".to_owned())?;
+    let query_total = metrics
+        .depth_1_queries
+        .checked_add(metrics.depth_2_to_3_queries)
+        .and_then(|value| value.checked_add(metrics.depth_4_plus_queries))
+        .ok_or_else(|| "length-aware query band counters overflow".to_owned())?;
+    let candidate_total = metrics
+        .depth_1_candidate_union
+        .checked_add(metrics.depth_2_to_3_candidate_union)
+        .and_then(|value| value.checked_add(metrics.depth_4_plus_candidate_union))
+        .ok_or_else(|| "length-aware candidate band counters overflow".to_owned())?;
+    if metrics
+        .own_posting_items
+        .checked_add(metrics.all_posting_items)
+        != Some(posting_total)
+        || metrics.compared_queries != query_total
+        || metrics.length_aware_pre_recheck_candidates != candidate_total
+    {
+        return Err("length-aware local-fragment depth bands disagree with totals".to_owned());
+    }
+    if metrics.work.enumeration_examined != fragment_total {
+        return Err(
+            "length-aware local-fragment enumeration disagrees with fragment bands".to_owned(),
+        );
+    }
+    if metrics.estimated_logical_bytes != metrics.work.estimated_bytes_examined {
+        return Err(
+            "length-aware local-fragment estimated bytes disagree with bounded work".to_owned(),
+        );
+    }
+    let pre_recheck_total = metrics
+        .fixed_pre_recheck_candidates
+        .checked_add(metrics.length_aware_pre_recheck_candidates)
+        .ok_or_else(|| "length-aware pre-recheck candidate counters overflow".to_owned())?;
+    if metrics.work.candidate_union_examined != pre_recheck_total
+        || metrics.work.exact_recheck_pairs_examined != pre_recheck_total
+    {
+        return Err(
+            "length-aware local-fragment pre-recheck candidates disagree with bounded work"
+                .to_owned(),
+        );
+    }
+    if metrics.fixed_exact_retained_pairs > metrics.fixed_pre_recheck_candidates
+        || metrics.length_aware_exact_retained_pairs > metrics.length_aware_pre_recheck_candidates
+    {
+        return Err(
+            "length-aware local-fragment retained pairs exceed pre-recheck candidates".to_owned(),
+        );
+    }
+    if metrics.missing_retained_pairs > metrics.fixed_exact_retained_pairs
+        || metrics.extra_retained_pairs > metrics.length_aware_exact_retained_pairs
+    {
+        return Err(
+            "length-aware local-fragment parity differences exceed retained pairs".to_owned(),
+        );
+    }
+    let expected_length_aware_retained = metrics
+        .fixed_exact_retained_pairs
+        .checked_sub(metrics.missing_retained_pairs)
+        .and_then(|value| value.checked_add(metrics.extra_retained_pairs))
+        .ok_or_else(|| "length-aware retained-set equation overflows".to_owned())?;
+    if metrics.length_aware_exact_retained_pairs != expected_length_aware_retained {
+        return Err("length-aware local-fragment retained-set equation disagrees".to_owned());
+    }
+    if metrics.order_mismatches > metrics.compared_queries {
+        return Err("length-aware local-fragment order mismatches exceed queries".to_owned());
+    }
+    if fragment_total == 0 && metrics.max_own_depth != 0
+        || fragment_total != 0 && metrics.max_own_depth < metrics.fixed_depth
+    {
+        return Err("length-aware local-fragment maximum depth is inconsistent".to_owned());
+    }
+    let all_posting_items = metrics
+        .fixed_posting_items
+        .checked_add(metrics.own_posting_items)
+        .and_then(|value| value.checked_add(metrics.all_posting_items))
+        .and_then(|value| value.checked_add(metrics.parent_posting_items))
+        .ok_or_else(|| "length-aware total posting items overflow".to_owned())?;
+    let all_distinct_keys = metrics
+        .fixed_distinct_keys
+        .checked_add(metrics.own_distinct_keys)
+        .and_then(|value| value.checked_add(metrics.all_distinct_keys))
+        .and_then(|value| value.checked_add(metrics.parent_distinct_keys))
+        .ok_or_else(|| "length-aware total distinct keys overflow".to_owned())?;
+    if metrics.largest_posting > metrics.posting_capacity_items
+        || metrics.fixed_distinct_keys > metrics.fixed_key_capacity
+        || metrics.own_distinct_keys > metrics.own_key_capacity
+        || metrics.all_distinct_keys > metrics.all_key_capacity
+        || metrics.parent_distinct_keys > metrics.parent_key_capacity
+        || all_posting_items > metrics.posting_capacity_items
+        || all_distinct_keys > metrics.work.distinct_keys_examined
+        || all_posting_items > metrics.work.posting_items_examined
+        || metrics.estimated_capacity_bytes < metrics.estimated_logical_bytes
+    {
+        return Err("length-aware local-fragment index capacity is inconsistent".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_local_fragment_length_aware_shadow_work(
+    work: LocalFragmentLengthAwareShadowWorkMetrics,
+    complete: bool,
+    stop_reason: Option<LocalFragmentLengthAwareShadowStopReason>,
+) -> std::result::Result<(), String> {
+    let counters = [
+        (work.enumeration_examined, work.enumeration_attempted),
+        (
+            work.signature_token_steps_examined,
+            work.signature_token_steps_attempted,
+        ),
+        (work.posting_items_examined, work.posting_items_attempted),
+        (work.distinct_keys_examined, work.distinct_keys_attempted),
+        (
+            work.estimated_bytes_examined,
+            work.estimated_bytes_attempted,
+        ),
+        (work.queries_examined, work.queries_attempted),
+        (work.posting_visits_examined, work.posting_visits_attempted),
+        (
+            work.candidate_union_examined,
+            work.candidate_union_attempted,
+        ),
+        (
+            work.exact_recheck_pairs_examined,
+            work.exact_recheck_pairs_attempted,
+        ),
+        (
+            work.exact_recheck_comparisons_examined,
+            work.exact_recheck_comparisons_attempted,
+        ),
+    ];
+    if counters
+        .iter()
+        .any(|(examined, attempted)| examined > attempted)
+    {
+        return Err("length-aware local-fragment examined work exceeds attempted work".to_owned());
+    }
+    let deficits = counters
+        .iter()
+        .enumerate()
+        .filter_map(|(index, (examined, attempted))| (examined < attempted).then_some(index))
+        .collect::<Vec<_>>();
+    if complete && !deficits.is_empty() {
+        return Err("complete length-aware local-fragment shadow has unfinished work".to_owned());
+    }
+    if deficits.len() > 1 {
+        return Err("length-aware local-fragment shadow has multiple unfinished stages".to_owned());
+    }
+    let expected_deficit = match stop_reason {
+        Some(LocalFragmentLengthAwareShadowStopReason::EnumerationLimit) => Some(0),
+        Some(LocalFragmentLengthAwareShadowStopReason::SignatureTokenStepLimit) => Some(1),
+        Some(LocalFragmentLengthAwareShadowStopReason::IndexPostingLimit) => Some(2),
+        Some(LocalFragmentLengthAwareShadowStopReason::DistinctKeyLimit) => Some(3),
+        Some(LocalFragmentLengthAwareShadowStopReason::EstimatedByteLimit) => Some(4),
+        Some(LocalFragmentLengthAwareShadowStopReason::QueryLimit) => Some(5),
+        Some(LocalFragmentLengthAwareShadowStopReason::PostingVisitLimit) => Some(6),
+        Some(LocalFragmentLengthAwareShadowStopReason::CandidateUnionLimit) => Some(7),
+        Some(LocalFragmentLengthAwareShadowStopReason::ExactRecheckPairLimit) => Some(8),
+        Some(LocalFragmentLengthAwareShadowStopReason::ExactRecheckComparisonLimit) => Some(9),
+        _ => None,
+    };
+    if let Some(expected) = expected_deficit {
+        if deficits.as_slice() != [expected] {
+            return Err(
+                "length-aware local-fragment stop reason disagrees with unfinished work".to_owned(),
+            );
+        }
+    } else if !deficits.is_empty()
+        && stop_reason != Some(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)
+    {
+        return Err(
+            "length-aware local-fragment unfinished work lacks a matching stop reason".to_owned(),
+        );
+    }
+    if stop_reason == Some(LocalFragmentLengthAwareShadowStopReason::CounterOverflow)
+        && deficits
+            .first()
+            .is_some_and(|index| counters[*index].1 != usize::MAX)
+    {
+        return Err(
+            "length-aware local-fragment counter overflow lacks a saturated attempted counter"
+                .to_owned(),
+        );
+    }
+    if stop_reason == Some(LocalFragmentLengthAwareShadowStopReason::CandidateGenerationIncomplete)
+        && work != LocalFragmentLengthAwareShadowWorkMetrics::default()
+    {
+        return Err("candidate-generation stop has length-aware local-fragment work".to_owned());
+    }
+    Ok(())
 }
 
 fn validate_local_fragment_shadow_metrics(
@@ -6789,7 +7246,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 41;
+    pub const SCHEMA_VERSION: u32 = 42;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -8488,7 +8945,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 41);
+        assert_eq!(completed["schema_version"], 42);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -8538,7 +8995,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 41);
+        assert_eq!(legacy_summary["schema_version"], 42);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -9748,7 +10205,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 41);
+        assert_eq!(json["schema_version"], 42);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -9905,6 +10362,276 @@ mod tests {
         assert_eq!(
             validated.run_signature_stop_reason,
             Some(RunSignatureStopReasonReport::CandidatePairLimit)
+        );
+    }
+
+    fn complete_length_aware_local_fragment_shadow() -> LocalFragmentLengthAwareShadowMetrics {
+        LocalFragmentLengthAwareShadowMetrics {
+            complete: true,
+            stop_reason: None,
+            work: LocalFragmentLengthAwareShadowWorkMetrics {
+                enumeration_examined: 4,
+                enumeration_attempted: 4,
+                signature_token_steps_examined: 12,
+                signature_token_steps_attempted: 12,
+                posting_items_examined: 20,
+                posting_items_attempted: 20,
+                distinct_keys_examined: 8,
+                distinct_keys_attempted: 8,
+                estimated_bytes_examined: 100,
+                estimated_bytes_attempted: 100,
+                queries_examined: 3,
+                queries_attempted: 3,
+                posting_visits_examined: 4,
+                posting_visits_attempted: 4,
+                candidate_union_examined: 5,
+                candidate_union_attempted: 5,
+                exact_recheck_pairs_examined: 5,
+                exact_recheck_pairs_attempted: 5,
+                exact_recheck_comparisons_examined: 10,
+                exact_recheck_comparisons_attempted: 10,
+            },
+            min_tokens: 8,
+            fixed_depth: 2,
+            max_own_depth: 3,
+            fixed_distinct_keys: 2,
+            own_distinct_keys: 2,
+            all_distinct_keys: 2,
+            parent_distinct_keys: 2,
+            fixed_posting_items: 5,
+            own_posting_items: 4,
+            all_posting_items: 6,
+            parent_posting_items: 5,
+            fixed_key_capacity: 4,
+            own_key_capacity: 4,
+            all_key_capacity: 4,
+            parent_key_capacity: 4,
+            posting_capacity_items: 24,
+            fragment_capacity_items: 4,
+            signature_capacity_items: 12,
+            peak_temporary_capacity_items: 6,
+            estimated_logical_bytes: 100,
+            estimated_capacity_bytes: 200,
+            largest_posting: 3,
+            depth_1_fragments: 0,
+            depth_2_to_3_fragments: 4,
+            depth_4_plus_fragments: 0,
+            depth_1_posting_items: 0,
+            depth_2_to_3_posting_items: 10,
+            depth_4_plus_posting_items: 0,
+            depth_1_queries: 0,
+            depth_2_to_3_queries: 3,
+            depth_4_plus_queries: 0,
+            depth_1_candidate_union: 0,
+            depth_2_to_3_candidate_union: 2,
+            depth_4_plus_candidate_union: 0,
+            fixed_pre_recheck_candidates: 3,
+            length_aware_pre_recheck_candidates: 2,
+            fixed_exact_retained_pairs: 1,
+            length_aware_exact_retained_pairs: 1,
+            missing_retained_pairs: 1,
+            extra_retained_pairs: 1,
+            order_mismatches: 1,
+            compared_queries: 3,
+        }
+    }
+
+    #[test]
+    fn serializes_absent_complete_and_stopped_length_aware_local_fragment_shadow() {
+        let absent = serde_json::to_value(SentenceRecoveryMetricsReport::default())
+            .expect("absent length-aware local-fragment shadow serializes");
+        assert_eq!(
+            absent["local_fragment_length_aware_shadow"],
+            serde_json::Value::Null
+        );
+
+        let complete_metrics = complete_length_aware_local_fragment_shadow();
+        let complete = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+            local_fragment_length_aware_shadow: Some(complete_metrics),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        })
+        .expect("complete length-aware local-fragment shadow validates");
+        assert_eq!(
+            complete.local_fragment_length_aware_shadow,
+            Some(complete_metrics.into())
+        );
+
+        let stopped_metrics = LocalFragmentLengthAwareShadowMetrics {
+            complete: false,
+            stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::PostingVisitLimit),
+            work: LocalFragmentLengthAwareShadowWorkMetrics {
+                posting_visits_attempted: 1,
+                ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+            },
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentLengthAwareShadowMetrics::default()
+        };
+        let stopped = validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+            local_fragment_length_aware_shadow: Some(stopped_metrics),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        })
+        .expect("stopped length-aware local-fragment shadow validates");
+        assert_eq!(
+            serde_json::to_value(stopped.local_fragment_length_aware_shadow)
+                .expect("stopped length-aware local-fragment shadow serializes"),
+            serde_json::to_value(LocalFragmentLengthAwareShadowMetricsReport {
+                stop_reason: Some(
+                    LocalFragmentLengthAwareShadowStopReasonReport::PostingVisitLimit,
+                ),
+                work: LocalFragmentLengthAwareShadowWorkMetricsReport {
+                    posting_visits_attempted: 1,
+                    ..LocalFragmentLengthAwareShadowWorkMetricsReport::default()
+                },
+                min_tokens: 8,
+                fixed_depth: 2,
+                ..LocalFragmentLengthAwareShadowMetricsReport::default()
+            })
+            .expect("expected stopped length-aware local-fragment shadow serializes")
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_length_aware_local_fragment_shadow_metrics() {
+        let complete = complete_length_aware_local_fragment_shadow();
+        let invalid = [
+            LocalFragmentLengthAwareShadowMetrics {
+                stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::DiagnosticFailure),
+                ..complete
+            },
+            LocalFragmentLengthAwareShadowMetrics {
+                fixed_depth: 1,
+                ..complete
+            },
+            LocalFragmentLengthAwareShadowMetrics {
+                fixed_exact_retained_pairs: 4,
+                ..complete
+            },
+            LocalFragmentLengthAwareShadowMetrics {
+                length_aware_exact_retained_pairs: 0,
+                ..complete
+            },
+            LocalFragmentLengthAwareShadowMetrics {
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    candidate_union_examined: 4,
+                    candidate_union_attempted: 4,
+                    ..complete.work
+                },
+                ..complete
+            },
+            LocalFragmentLengthAwareShadowMetrics {
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    enumeration_examined: 3,
+                    enumeration_attempted: 3,
+                    ..complete.work
+                },
+                ..complete
+            },
+            LocalFragmentLengthAwareShadowMetrics {
+                own_key_capacity: 1,
+                ..complete
+            },
+            LocalFragmentLengthAwareShadowMetrics {
+                fixed_key_capacity: 1,
+                ..complete
+            },
+            LocalFragmentLengthAwareShadowMetrics {
+                parent_key_capacity: 1,
+                ..complete
+            },
+            LocalFragmentLengthAwareShadowMetrics {
+                posting_capacity_items: 19,
+                ..complete
+            },
+            LocalFragmentLengthAwareShadowMetrics {
+                estimated_capacity_bytes: 99,
+                ..complete
+            },
+            LocalFragmentLengthAwareShadowMetrics {
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    queries_examined: 4,
+                    queries_attempted: 3,
+                    ..complete.work
+                },
+                ..complete
+            },
+            LocalFragmentLengthAwareShadowMetrics {
+                complete: false,
+                stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::QueryLimit),
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    posting_visits_attempted: 1,
+                    ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+                },
+                min_tokens: 8,
+                fixed_depth: 2,
+                ..LocalFragmentLengthAwareShadowMetrics::default()
+            },
+            LocalFragmentLengthAwareShadowMetrics {
+                complete: false,
+                stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::QueryLimit),
+                work: LocalFragmentLengthAwareShadowWorkMetrics {
+                    queries_attempted: 1,
+                    ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+                },
+                min_tokens: 8,
+                fixed_depth: 2,
+                compared_queries: 1,
+                ..LocalFragmentLengthAwareShadowMetrics::default()
+            },
+        ];
+        for metrics in invalid {
+            assert!(
+                validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                    local_fragment_length_aware_shadow: Some(metrics),
+                    sentence_edge_filter_complete: true,
+                    ..SentenceRecoveryMetrics::default()
+                })
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn validates_length_aware_local_fragment_counter_overflow_work() {
+        let stopped = |work| LocalFragmentLengthAwareShadowMetrics {
+            complete: false,
+            stop_reason: Some(LocalFragmentLengthAwareShadowStopReason::CounterOverflow),
+            work,
+            min_tokens: 8,
+            fixed_depth: 2,
+            ..LocalFragmentLengthAwareShadowMetrics::default()
+        };
+        for work in [
+            LocalFragmentLengthAwareShadowWorkMetrics::default(),
+            LocalFragmentLengthAwareShadowWorkMetrics {
+                queries_examined: 3,
+                queries_attempted: usize::MAX,
+                ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+            },
+        ] {
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(stopped(work)),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .expect("counter overflow work is valid");
+        }
+
+        assert!(
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                local_fragment_length_aware_shadow: Some(stopped(
+                    LocalFragmentLengthAwareShadowWorkMetrics {
+                        queries_examined: 3,
+                        queries_attempted: 4,
+                        ..LocalFragmentLengthAwareShadowWorkMetrics::default()
+                    },
+                )),
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .is_err()
         );
     }
 
@@ -13214,7 +13941,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 41);
+        assert_eq!(value["schema_version"], 42);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -13346,6 +14073,7 @@ mod tests {
             "sentence_edge_signature_direct_execution".to_owned(),
             "sentence_edge_signature_reference_oracle".to_owned(),
             "local_fragment_shadow".to_owned(),
+            "local_fragment_length_aware_shadow".to_owned(),
             "sentence_edge_filter_complete".to_owned(),
             "sentence_edge_filter_pairs_examined".to_owned(),
             "sentence_edge_filter_pairs_attempted".to_owned(),
