@@ -300,7 +300,7 @@ ended `LIMIT`/`FAIL`; low quality scores never fail a run because the dated
 captures serve as calibration evidence and current fragmentation and recall
 remain too unstable for rigid quality-gate thresholds (confidence calibration
 has landed, but broader large-document alignment quality remains ongoing work).
-Compact revision summaries use schema version 50 and include optional nested
+Compact revision summaries use schema version 55 and include optional nested
 sentence-recovery diagnostics, near-search examined and attempted work,
 Sentence/Line, search-scope, and known/ambiguous-span work attribution,
 diagnostic-only Sentence shadow relations, paired-anchor cross-span locality,
@@ -330,6 +330,9 @@ annotation-independent range-backed prefix/suffix fragment diagnostics with
 exact Sentence edge-signature candidates, reciprocal relation counts, bounded
 sampled edit evidence, parent recovery overlap, and fail-closed typed work
 limits,
+source-backed recovery ownership partitions with typed gaps, committed
+change-origin event and token attribution, deterministic local-fragment review
+bundles with exact edit and source evidence,
 bounded Clause/ListItem unit boundaries, locations, best-partner relations,
 tie and exactness evidence, aggregate work counts, completion, and typed stops,
 optional exact expected occurrence counts with bounded deterministic event
@@ -367,7 +370,7 @@ files without overwriting existing destinations). If the second publication fail
 exit code 2 is returned and the first published artifact remains in place without
 pairwise rollback across distinct paths. Dated compact evaluation summaries are
 recorded under [`benchmark/realworld/results/`](benchmark/realworld/results/README.md)
-(latest: [`2026-08-31-40f8e19.json`](benchmark/realworld/results/2026-08-31-40f8e19.json)).
+(latest: [`2026-09-02-3ec54e5.json`](benchmark/realworld/results/2026-09-02-3ec54e5.json)).
 
 ## License
 

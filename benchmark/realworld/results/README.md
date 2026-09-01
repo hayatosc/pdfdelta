@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-02
-- **Generator / engine commit**: [`46d4b9e`](https://github.com/hayatosc/pdfdelta/commit/46d4b9e)
+- **Generator / engine commit**: [`3ec54e5`](https://github.com/hayatosc/pdfdelta/commit/3ec54e5)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-02-46d4b9e.json`](2026-09-02-46d4b9e.json)
-  - Schema: v54
-  - Size: 1,997,804 bytes
-  - SHA-256: `dbe4fd906aaf80dc5c15d0caf46feffe7d03f7db5b6fab906694b7cf8e4217f7`
+  - File: [`2026-09-02-3ec54e5.json`](2026-09-02-3ec54e5.json)
+  - Schema: v55
+  - Size: 8,364,040 bytes
+  - SHA-256: `df4c20c6c05ffc65d092c1bbb2a8e0d7afae23e5779a93ce29d0ca4e8d10a5b3`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-02-46d4b9e.json \
+cp benchmark/realworld/results/2026-09-02-3ec54e5.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 46d4b9e
+git switch --detach 3ec54e5
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -103,6 +103,30 @@ still apply only to their recorded review items.
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
 
+Schema v55 adds behavior-neutral, source-backed recovery ownership, committed
+change-origin attribution, and a deterministic local-fragment review bundle.
+All 18 available recovery builds partition their eligible evidence without a
+stop: 5,737,957 tokens split into 2,839,962 accepted tokens, 2,741,232
+unselected leaf tokens, and 156,763 typed-gap tokens. Trusted-run residuals are
+the largest actionable leaf class at 1,253,366 tokens across 47,244 ranges.
+The bundle validates all 66 finally committed local-fragment replacements and
+their source evidence; 68 proposals were considered, while two SP 800-57
+proposals were correctly removed by exact diff or span projection before the
+atomic output commit. Removing the v55-only fields and the corrected final
+commit counter produces exact behavior parity with schema v54.
+
+```bash
+mise run bench-revisions-schema-parity -- \
+  benchmark/realworld/results/2026-09-02-46d4b9e.json \
+  benchmark/realworld/results/2026-09-02-3ec54e5.json \
+  --ignore-field local_fragment_proposals_committed \
+  change_origins \
+  recovery_leaf_partition_complete \
+  recovery_leaf_partition_stop_reason \
+  recovery_ownership_partition \
+  local_fragment_review_bundle
+```
+
 Relative to `d6ad8c3`, a secondary exact-only pass now recovers globally unique
 completed sentences from clean source-backed ranges inside blocks whose other
 ranges carry normalization or unmapped evidence. The primary relation graph is
@@ -128,8 +152,8 @@ their stale remainder attribution is therefore marked `analysis_incomplete`.
 No resource-limit, near-relation, or fallback outcome changes.
 
 Relative to `8d80c64`, production fragment recovery no longer stops after
-three otherwise accepted proposals in one recovery build. All 68 strict
-proposals are now committed instead of 19. Four pairs change: FIPS gains 0.21
+three otherwise accepted proposals in one recovery build. It selects all 68
+strict proposals and finally commits 66 instead of 19. Four pairs change: FIPS gains 0.21
 coverage points, SP 800-57 gains 0.68, EDPB Dark Patterns gains 1.21, and
 LibreOffice gains 0.03. Mean coverage across the 19 comparable pairs rises
 from 54.89% to 55.00%, while the 56.68% median remains unchanged. The extra
@@ -857,10 +881,14 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v54)
+## Current Writer Schema (v55)
 
-The benchmark writer and latest committed capture use schema v54. Older
-captures retain their recorded schemas. The latest capture also uses the
+The benchmark writer and latest committed capture use schema v55. Older
+captures retain their recorded schemas. Schema v55 records source-backed
+recovery ownership partitions, per-origin committed event and token totals,
+and bounded deterministic review traces for committed local-fragment edits.
+Every ownership range is accepted, an unselected leaf, or a typed gap; stopped
+analysis publishes no partial partition. The latest capture also uses the
 existing exact-match and remainder-attribution fields for isolated range-local
 exact recovery; it does not add a schema field. Schema v54 records
 behavior-changing, isolated exact-tail recovery: global multiplicity census
