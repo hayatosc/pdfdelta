@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-01
-- **Generator / engine commit**: [`82c882c`](https://github.com/hayatosc/pdfdelta/commit/82c882c)
+- **Generator / engine commit**: [`8d80c64`](https://github.com/hayatosc/pdfdelta/commit/8d80c64)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-01-82c882c.json`](2026-09-01-82c882c.json)
-  - Schema: v53
-  - Size: 1,992,547 bytes
-  - SHA-256: `591825cb51631e2b987e1fbb7a95f9ef264ebbaeb1e50fc52a7f00e82f93e07a`
+  - File: [`2026-09-01-8d80c64.json`](2026-09-01-8d80c64.json)
+  - Schema: v54
+  - Size: 2,002,802 bytes
+  - SHA-256: `67b79ffeaa0770da3781a7b0c0565b4537933c16ef9eed30376bca0900b5c8f3`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-01-82c882c.json \
+cp benchmark/realworld/results/2026-09-01-8d80c64.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 82c882c
+git switch --detach 8d80c64
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -89,29 +89,29 @@ still apply only to their recorded review items.
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
 | `nist-fips-186-4-to-5` | dev | standard | 51.75% | 2,118 | 1,051 | 0.857 | 1.000 | 212.833 | 107 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.50% | 5,175 | 1,578 | 1.000 | 1.000 | 339.875 | 103 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.52% | 5,182 | 1,578 | 1.000 | 1.000 | 339.875 | 103 |
 | `irs-form-1040-2024-to-2025` | holdout | stress | 44.13% | 81 | 31 | 0.200 | 1.000 | 40.000 | 1 |
-| `edpb-right-of-access-v1-to-final` | holdout | standard | 75.51% | 2,143 | 493 | 0.750 | 1.000 | 284.000 | 56 |
-| `arxiv-attention-v6-to-v7` | dev | stress | 89.35% | 48 | 1 | 1.000 | 1.000 | 2.000 | 0 |
+| `edpb-right-of-access-v1-to-final` | holdout | standard | 75.54% | 2,145 | 493 | 0.750 | 1.000 | 284.000 | 56 |
+| `arxiv-attention-v6-to-v7` | dev | stress | 89.50% | 46 | 1 | 1.000 | 1.000 | 2.000 | 0 |
 | `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.68% | 290 | 143 | 1.000 | 1.000 | 1.000 | 0 |
 | `ecma-109-ed10-to-ed11` | dev | stress | 75.20% | 420 | 87 | 0.667 | 0.500 | 66.000 | 5 |
 | `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.25% | 519 | 475 | 1.000 | 1.000 | 167.000 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
 | `bis-operational-risk-2011-to-2021` | dev | standard | 76.24% | 672 | 365 | 1.000 | 1.000 | 14.000 | 0 |
-| `oasis-mqtt-311-to-50` | dev | standard | 42.34% | 3,470 | 1,593 | 1.000 | N/A | N/A | 0 |
+| `oasis-mqtt-311-to-50` | dev | standard | 42.40% | 3,484 | 1,593 | 1.000 | N/A | N/A | 0 |
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 68.39% | 1,142 | 841 | 0.333 | 1.000 | 861.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
 
-All 18 available recovery builds complete the schema-v53 unresolved-token
-partition. Of 2,946,558 unresolved source tokens, 1,446,367 (49.09%) are not
-owned by a located recovery unit and 1,147,194 (38.93%) remain behind a
-near-relation veto. Together these two classes account for 88.02% of the
-recovery remainder. The dominant unlocated mass is concentrated in
-LibreOffice (474,101 tokens), QGIS English (190,446), SP 800-57 (126,701),
-EDPB Dark Patterns (122,643), and OASIS CSAF (109,618). The next coverage work
-must therefore distinguish safe trusted-stream fragments from genuinely
-unlocated evidence before changing near-relation thresholds.
+All 18 available recovery builds complete the unresolved-token partition. Of
+2,935,058 unresolved source tokens, 1,434,867 (48.89%) are not owned by a
+located recovery unit and 1,147,194 (39.09%) remain behind a near-relation
+veto. Together these two classes account for 87.97% of the recovery remainder.
+The dominant unlocated mass is concentrated in LibreOffice (471,969 tokens),
+QGIS English (182,774), SP 800-57 (126,499), EDPB Dark Patterns (122,643), and
+OASIS CSAF (109,618). The next coverage work must therefore distinguish safe
+trusted-stream fragments from genuinely unlocated evidence before changing
+near-relation thresholds.
 
 | Pair with a complete scope | Event P / R / F1 | Token P / R / F1 | Span IoU | FP tokens / 10k unchanged |
 |---|---:|---:|---:|---:|
@@ -122,21 +122,26 @@ unlocated evidence before changing near-relation thresholds.
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 
-Relative to the preceding `0363ab5` capture, mean comparison coverage across
-the 19 comparable pairs rises from 51.73% to 54.78%, and the median rises from
-53.22% to 56.68%. Dev mean coverage rises from 55.40% to 57.86%; holdout mean
-coverage rises from 47.65% to 51.35%. The largest pair gains are NIST CSF
-(+15.17 points), MQTT (+11.91), SP 800-171 (+8.49), BIS Operational Risk
-(+8.12), and IRS 1040 (+7.80). SP 800-57 is the only regression at -0.22
-points.
+Relative to the schema-v53 `82c882c` capture, isolated exact-tail recovery
+commits 91 globally unique matches and resolves 5,750 tokens on each side.
+Mean comparison coverage across the 19 comparable pairs rises from 54.78% to
+54.89%, while the median remains 56.68%. Seven pairs improve; the largest gains
+are QGIS English (+1.29 points), QGIS Spanish (+0.49), arXiv Attention (+0.15),
+and LibreOffice (+0.12). Content-event counts and every reviewed event/token
+quality metric remain unchanged. Unresolved region count rises by 83 because
+removing exact tails splits some remaining regions.
 
-Old/new unresolved recovery remainder falls from 3,100,870 to 2,946,558
-source tokens. All existing complete-scope event and token metrics are
-unchanged, while reviewed recall improves from 0.333 to 0.667 for ECMA-109 and
-from 0.000 to 0.200 for IRS 1040. The number of expected-change failures
-classified as `reading_order_unresolved` falls from nine to six. Kind accuracy
-also rises from 0.000 to 0.500 for ECMA-109 and becomes 1.000 for the newly
-matched IRS 1040 item.
+The global multiplicity census examines 61,271 units and 7,235,556 evidence
+tokens before verifying 5,833 candidate tokens. This is deliberately isolated
+from ordinary exact and near relations, but its cost is large relative to the
+0.11-point mean coverage gain. Future work should reuse an existing exact index
+or narrow the census without weakening the global uniqueness proof.
+
+The preceding trusted-tail promotion from `0363ab5` to `82c882c` raised mean
+comparison coverage from 51.73% to 54.78% and the median from 53.22% to 56.68%.
+That larger step also improved reviewed recall for ECMA-109 and IRS 1040. The
+schema-v54 tail enrichment is intentionally narrower and does not alter those
+relation decisions.
 
 These coverage gains do not establish corpus-wide precision. Across the same
 19 extraction-complete pairs, unresolved regions rise from 25,193 to 27,743
@@ -814,10 +819,15 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v53)
+## Current Writer Schema (v54)
 
-The benchmark writer and latest committed capture use schema v53. Older
-captures retain their recorded schemas. Schema v53 partitions every unresolved
+The benchmark writer and latest committed capture use schema v54. Older
+captures retain their recorded schemas. Schema v54 records behavior-changing,
+isolated exact-tail recovery: global multiplicity census work, normal-unit
+conflicts, exact token verification, typed stops, candidate classification, and
+committed matches. The tail stage never participates in ordinary anchor or
+near-relation selection, and incomplete work publishes no partial result
+counters. Schema v53 partitions every unresolved
 sentence-recovery source token into one mutually exclusive cause when the
 bounded analysis completes. Incomplete attribution publishes no partial
 counts and records a typed stop reason; diagnostic allocation or invariant
