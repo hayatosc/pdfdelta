@@ -809,7 +809,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 54);
+    assert_eq!(val["schema_version"], 55);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 
@@ -831,6 +831,12 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
         rec["sentence_recovery_metrics"]["near_relation_complete"],
         true
     );
+    assert_eq!(
+        rec["sentence_recovery_metrics"]["recovery_leaf_partition_complete"],
+        true
+    );
+    assert!(rec["sentence_recovery_metrics"]["recovery_ownership_partition"].is_object());
+    assert!(rec["sentence_recovery_metrics"]["change_origins"].is_object());
     for field in [
         "exact_tail_recovery_complete",
         "exact_tail_recovery_stop_reason",

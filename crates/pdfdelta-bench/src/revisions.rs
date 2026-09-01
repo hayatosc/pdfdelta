@@ -21,8 +21,8 @@ use std::{
 use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
-        ChangeKind, ChangeOccurrence, Comparison, ExactSegmentRelation,
-        ExactTailRecoveryStopReason, KnownSpanSentenceShadowMetrics,
+        ChangeKind, ChangeOccurrence, ChangeOriginMetric, ChangeOriginMetrics, Comparison,
+        ExactSegmentRelation, ExactTailRecoveryStopReason, KnownSpanSentenceShadowMetrics,
         LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentFlatExactBoundaryShadowMetrics,
         LocalFragmentFlatExactBoundaryStopReason, LocalFragmentFlatExactBoundaryWorkMetrics,
         LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
@@ -33,22 +33,27 @@ use pdfdelta_core::{
         LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
         LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
         MatchedAtomicDiff, NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
-        RecoveredAtomicDiff, RecoveryRemainderAttributionMetrics,
-        RecoveryRemainderAttributionStopReason, RecoveryRemainderCauseMetrics,
-        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
-        RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
-        RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
-        RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
-        RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchQuoteLocalEditEvidence,
-        RecoveryWatchQuoteLocalPairEvidence, RecoveryWatchQuoteLocalScoreEvidence,
-        RecoveryWatchQuoteLocalSideEvidence, RecoveryWatchQuoteLocalStatus,
-        RecoveryWatchQuoteLocalStopReason, RecoveryWatchQuoteLocalUnitEvidence,
-        RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence, RecoveryWatchSide,
-        RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
-        SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
-        SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
-        SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
-        SentenceEdgeSignatureReferenceOracleMetrics,
+        RecoveredAtomicDiff, RecoveryGapReason, RecoveryLeafKind, RecoveryOwnership,
+        RecoveryOwnershipBlockError, RecoveryOwnershipContext, RecoveryOwnershipError,
+        RecoveryOwnershipInvariant, RecoveryOwnershipMetrics, RecoveryOwnershipPartitionAnalysis,
+        RecoveryOwnershipRangeError, RecoveryOwnershipRect, RecoveryOwnershipResource,
+        RecoveryOwnershipRole, RecoveryOwnershipRoleMetrics, RecoveryOwnershipSample,
+        RecoveryOwnershipSideMetrics, RecoveryOwnershipTrustMetrics,
+        RecoveryRemainderAttributionMetrics, RecoveryRemainderAttributionStopReason,
+        RecoveryRemainderCauseMetrics, RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence,
+        RecoveryWatchGranularRelation, RecoveryWatchGranularStopReason,
+        RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope, RecoveryWatchOccurrence,
+        RecoveryWatchOccurrenceEvidence, RecoveryWatchOneSidedOpponentEvidence,
+        RecoveryWatchOneSidedVetoEvidence, RecoveryWatchPairEvidence, RecoveryWatchQuery,
+        RecoveryWatchQuoteLocalEditEvidence, RecoveryWatchQuoteLocalPairEvidence,
+        RecoveryWatchQuoteLocalScoreEvidence, RecoveryWatchQuoteLocalSideEvidence,
+        RecoveryWatchQuoteLocalStatus, RecoveryWatchQuoteLocalStopReason,
+        RecoveryWatchQuoteLocalUnitEvidence, RecoveryWatchRelation,
+        RecoveryWatchSegmentPairEvidence, RecoveryWatchSide, RecoveryWatchUnitKind,
+        RunSignatureStopReason, SegmentStopReason, SentenceEdgeFilterStopReason,
+        SentenceEdgeGateShadowMetrics, SentenceEdgeGateShadowStopReason,
+        SentenceEdgeSignatureDirectExecution, SentenceEdgeSignatureDirectShadowMetrics,
+        SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureReferenceOracleMetrics,
         SentenceEdgeSignatureReferenceOracleStopReason, SentenceEdgeSignatureShadowMetrics,
         SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics, TextSpan,
     },
@@ -76,11 +81,17 @@ use crate::{
     candidate_eval::{CandidateVisitPressure, evaluate_candidate_visit_pressure},
 };
 
+#[path = "revisions/fragment_review.rs"]
+mod fragment_review;
 #[path = "revision_diagnostics.rs"]
 mod revision_diagnostics;
 #[path = "revision_scopes.rs"]
 mod revision_scopes;
 
+use fragment_review::{
+    LocalFragmentReviewBundleReport, build_local_fragment_review_bundle,
+    validate_local_fragment_review_bundle_contract,
+};
 use revision_diagnostics::{ComparisonDiagnosticInput, evaluate_reviewed_diagnostics};
 use revision_scopes::{
     SCOPED_CHANGE_INDETERMINATE, classify_scoped_changes, evaluate_scoped_token_metrics,
@@ -733,7 +744,527 @@ impl From<ExactTailRecoveryStopReason> for ExactTailRecoveryStopReasonReport {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct ChangeOriginMetricReport {
+    pub event_count: usize,
+    pub old_changed_tokens: usize,
+    pub new_changed_tokens: usize,
+    pub old_resolved_context_tokens: usize,
+    pub new_resolved_context_tokens: usize,
+}
+
+impl From<ChangeOriginMetric> for ChangeOriginMetricReport {
+    fn from(metric: ChangeOriginMetric) -> Self {
+        Self {
+            event_count: metric.event_count,
+            old_changed_tokens: metric.old_changed_tokens,
+            new_changed_tokens: metric.new_changed_tokens,
+            old_resolved_context_tokens: metric.old_resolved_context_tokens,
+            new_resolved_context_tokens: metric.new_resolved_context_tokens,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct ChangeOriginMetricsReport {
+    pub ordered_alignment: ChangeOriginMetricReport,
+    pub sentence_near: ChangeOriginMetricReport,
+    pub local_fragment: ChangeOriginMetricReport,
+    pub cross_granularity: ChangeOriginMetricReport,
+    pub trusted_tail: ChangeOriginMetricReport,
+    pub exact_tail: ChangeOriginMetricReport,
+    pub running_matter: ChangeOriginMetricReport,
+    pub range_local_exact: ChangeOriginMetricReport,
+}
+
+impl From<ChangeOriginMetrics> for ChangeOriginMetricsReport {
+    fn from(metrics: ChangeOriginMetrics) -> Self {
+        Self {
+            ordered_alignment: metrics.ordered_alignment.into(),
+            sentence_near: metrics.sentence_near.into(),
+            local_fragment: metrics.local_fragment.into(),
+            cross_granularity: metrics.cross_granularity.into(),
+            trusted_tail: metrics.trusted_tail.into(),
+            exact_tail: metrics.exact_tail.into(),
+            running_matter: metrics.running_matter.into(),
+            range_local_exact: metrics.range_local_exact.into(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryOwnershipRoleReport {
+    Body,
+    RepeatedHeader,
+    RepeatedFooter,
+}
+
+impl From<RecoveryOwnershipRole> for RecoveryOwnershipRoleReport {
+    fn from(role: RecoveryOwnershipRole) -> Self {
+        match role {
+            RecoveryOwnershipRole::Body => Self::Body,
+            RecoveryOwnershipRole::RepeatedHeader => Self::RepeatedHeader,
+            RecoveryOwnershipRole::RepeatedFooter => Self::RepeatedFooter,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryLeafKindReport {
+    SentenceBody,
+    LineBody,
+    TrustedRunResidual,
+    Heading,
+    ListItem,
+    Footnote,
+    CodeLine,
+    TableCell,
+}
+
+impl From<RecoveryLeafKind> for RecoveryLeafKindReport {
+    fn from(kind: RecoveryLeafKind) -> Self {
+        match kind {
+            RecoveryLeafKind::SentenceBody => Self::SentenceBody,
+            RecoveryLeafKind::LineBody => Self::LineBody,
+            RecoveryLeafKind::TrustedRunResidual => Self::TrustedRunResidual,
+            RecoveryLeafKind::Heading => Self::Heading,
+            RecoveryLeafKind::ListItem => Self::ListItem,
+            RecoveryLeafKind::Footnote => Self::Footnote,
+            RecoveryLeafKind::CodeLine => Self::CodeLine,
+            RecoveryLeafKind::TableCell => Self::TableCell,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryGapReasonReport {
+    NoTrustedRun,
+    MixedTrustedRuns,
+    OrdinalGap,
+    RoleBoundary,
+    LocationProjectionFailed,
+    NormalizationIssue,
+    UnmappedChangedEvidence,
+    UnsupportedLinePolicy,
+}
+
+impl From<RecoveryGapReason> for RecoveryGapReasonReport {
+    fn from(reason: RecoveryGapReason) -> Self {
+        match reason {
+            RecoveryGapReason::NoTrustedRun => Self::NoTrustedRun,
+            RecoveryGapReason::MixedTrustedRuns => Self::MixedTrustedRuns,
+            RecoveryGapReason::OrdinalGap => Self::OrdinalGap,
+            RecoveryGapReason::RoleBoundary => Self::RoleBoundary,
+            RecoveryGapReason::LocationProjectionFailed => Self::LocationProjectionFailed,
+            RecoveryGapReason::NormalizationIssue => Self::NormalizationIssue,
+            RecoveryGapReason::UnmappedChangedEvidence => Self::UnmappedChangedEvidence,
+            RecoveryGapReason::UnsupportedLinePolicy => Self::UnsupportedLinePolicy,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryOwnershipResourceReport {
+    Blocks,
+    Ranges,
+    CanonicalTokens,
+    ComparableTokens,
+    NormalizationIssues,
+    ProjectionEvidenceItems,
+    IssueProjectionWork,
+}
+
+impl From<RecoveryOwnershipResource> for RecoveryOwnershipResourceReport {
+    fn from(resource: RecoveryOwnershipResource) -> Self {
+        match resource {
+            RecoveryOwnershipResource::Blocks => Self::Blocks,
+            RecoveryOwnershipResource::Ranges => Self::Ranges,
+            RecoveryOwnershipResource::CanonicalTokens => Self::CanonicalTokens,
+            RecoveryOwnershipResource::ComparableTokens => Self::ComparableTokens,
+            RecoveryOwnershipResource::NormalizationIssues => Self::NormalizationIssues,
+            RecoveryOwnershipResource::ProjectionEvidenceItems => Self::ProjectionEvidenceItems,
+            RecoveryOwnershipResource::IssueProjectionWork => Self::IssueProjectionWork,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryOwnershipBlockErrorReport {
+    BoundaryCount,
+    FirstBoundary,
+    LastBoundary,
+    NonMonotoneBoundary,
+    BoundaryStepTooLarge,
+}
+
+impl From<RecoveryOwnershipBlockError> for RecoveryOwnershipBlockErrorReport {
+    fn from(error: RecoveryOwnershipBlockError) -> Self {
+        match error {
+            RecoveryOwnershipBlockError::BoundaryCount => Self::BoundaryCount,
+            RecoveryOwnershipBlockError::FirstBoundary => Self::FirstBoundary,
+            RecoveryOwnershipBlockError::LastBoundary => Self::LastBoundary,
+            RecoveryOwnershipBlockError::NonMonotoneBoundary => Self::NonMonotoneBoundary,
+            RecoveryOwnershipBlockError::BoundaryStepTooLarge => Self::BoundaryStepTooLarge,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryOwnershipRangeErrorReport {
+    Empty,
+    CanonicalReversed,
+    CanonicalOutOfBounds,
+    ComparableOutOfBounds,
+    CanonicalBoundaryMismatch,
+}
+
+impl From<RecoveryOwnershipRangeError> for RecoveryOwnershipRangeErrorReport {
+    fn from(error: RecoveryOwnershipRangeError) -> Self {
+        match error {
+            RecoveryOwnershipRangeError::Empty => Self::Empty,
+            RecoveryOwnershipRangeError::CanonicalReversed => Self::CanonicalReversed,
+            RecoveryOwnershipRangeError::CanonicalOutOfBounds => Self::CanonicalOutOfBounds,
+            RecoveryOwnershipRangeError::ComparableOutOfBounds => Self::ComparableOutOfBounds,
+            RecoveryOwnershipRangeError::CanonicalBoundaryMismatch => {
+                Self::CanonicalBoundaryMismatch
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryOwnershipInvariantReport {
+    RangeBlockOrder,
+    CanonicalCoverage,
+    ComparableCoverage,
+    MissingEligibleBlock,
+    OverlappingOwnership,
+    UnsafeAcceptedRange,
+}
+
+impl From<RecoveryOwnershipInvariant> for RecoveryOwnershipInvariantReport {
+    fn from(invariant: RecoveryOwnershipInvariant) -> Self {
+        match invariant {
+            RecoveryOwnershipInvariant::RangeBlockOrder => Self::RangeBlockOrder,
+            RecoveryOwnershipInvariant::CanonicalCoverage => Self::CanonicalCoverage,
+            RecoveryOwnershipInvariant::ComparableCoverage => Self::ComparableCoverage,
+            RecoveryOwnershipInvariant::MissingEligibleBlock => Self::MissingEligibleBlock,
+            RecoveryOwnershipInvariant::OverlappingOwnership => Self::OverlappingOwnership,
+            RecoveryOwnershipInvariant::UnsafeAcceptedRange => Self::UnsafeAcceptedRange,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum RecoveryOwnershipErrorReport {
+    ResourceLimit {
+        resource: RecoveryOwnershipResourceReport,
+        actual: usize,
+        limit: usize,
+    },
+    AllocationFailure,
+    CounterOverflow,
+    InvalidBlock {
+        block_index: usize,
+        error: RecoveryOwnershipBlockErrorReport,
+    },
+    InvalidRange {
+        range_index: usize,
+        error: RecoveryOwnershipRangeErrorReport,
+    },
+    InvariantViolation {
+        block_index: Option<usize>,
+        range_index: Option<usize>,
+        invariant: RecoveryOwnershipInvariantReport,
+    },
+    CommittedTokenMismatch,
+}
+
+impl From<RecoveryOwnershipError> for RecoveryOwnershipErrorReport {
+    fn from(error: RecoveryOwnershipError) -> Self {
+        match error {
+            RecoveryOwnershipError::ResourceLimit {
+                resource,
+                actual,
+                limit,
+            } => Self::ResourceLimit {
+                resource: resource.into(),
+                actual,
+                limit,
+            },
+            RecoveryOwnershipError::AllocationFailure => Self::AllocationFailure,
+            RecoveryOwnershipError::CounterOverflow => Self::CounterOverflow,
+            RecoveryOwnershipError::InvalidBlock { block_index, error } => Self::InvalidBlock {
+                block_index,
+                error: error.into(),
+            },
+            RecoveryOwnershipError::InvalidRange { range_index, error } => Self::InvalidRange {
+                range_index,
+                error: error.into(),
+            },
+            RecoveryOwnershipError::InvariantViolation {
+                block_index,
+                range_index,
+                invariant,
+            } => Self::InvariantViolation {
+                block_index,
+                range_index,
+                invariant: invariant.into(),
+            },
+            RecoveryOwnershipError::CommittedTokenMismatch => Self::CommittedTokenMismatch,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct RecoveryOwnershipTrustMetricsReport {
+    pub trusted_tokens: usize,
+    pub untrusted_tokens: usize,
+}
+
+impl From<RecoveryOwnershipTrustMetrics> for RecoveryOwnershipTrustMetricsReport {
+    fn from(metrics: RecoveryOwnershipTrustMetrics) -> Self {
+        Self {
+            trusted_tokens: metrics.trusted_tokens,
+            untrusted_tokens: metrics.untrusted_tokens,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct RecoveryOwnershipRoleMetricsReport {
+    pub body_tokens: usize,
+    pub repeated_header_tokens: usize,
+    pub repeated_footer_tokens: usize,
+}
+
+impl From<RecoveryOwnershipRoleMetrics> for RecoveryOwnershipRoleMetricsReport {
+    fn from(metrics: RecoveryOwnershipRoleMetrics) -> Self {
+        Self {
+            body_tokens: metrics.body_tokens,
+            repeated_header_tokens: metrics.repeated_header_tokens,
+            repeated_footer_tokens: metrics.repeated_footer_tokens,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct RecoveryOwnershipMetricsReport {
+    pub ranges: usize,
+    pub canonical_tokens: usize,
+    pub comparable_tokens: usize,
+    pub max_range_tokens: usize,
+    pub trust: RecoveryOwnershipTrustMetricsReport,
+    pub roles: RecoveryOwnershipRoleMetricsReport,
+}
+
+impl From<RecoveryOwnershipMetrics> for RecoveryOwnershipMetricsReport {
+    fn from(metrics: RecoveryOwnershipMetrics) -> Self {
+        Self {
+            ranges: metrics.ranges,
+            canonical_tokens: metrics.canonical_tokens,
+            comparable_tokens: metrics.comparable_tokens,
+            max_range_tokens: metrics.max_comparable_tokens,
+            trust: metrics.trust.into(),
+            roles: metrics.roles.into(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct RecoveryLeafMetricsReport {
+    pub sentence_body: RecoveryOwnershipMetricsReport,
+    pub line_body: RecoveryOwnershipMetricsReport,
+    pub trusted_run_residual: RecoveryOwnershipMetricsReport,
+    pub heading: RecoveryOwnershipMetricsReport,
+    pub list_item: RecoveryOwnershipMetricsReport,
+    pub footnote: RecoveryOwnershipMetricsReport,
+    pub code_line: RecoveryOwnershipMetricsReport,
+    pub table_cell: RecoveryOwnershipMetricsReport,
+}
+
+impl From<[RecoveryOwnershipMetrics; 8]> for RecoveryLeafMetricsReport {
+    fn from(metrics: [RecoveryOwnershipMetrics; 8]) -> Self {
+        let [
+            sentence_body,
+            line_body,
+            trusted_run_residual,
+            heading,
+            list_item,
+            footnote,
+            code_line,
+            table_cell,
+        ] = metrics;
+        Self {
+            sentence_body: sentence_body.into(),
+            line_body: line_body.into(),
+            trusted_run_residual: trusted_run_residual.into(),
+            heading: heading.into(),
+            list_item: list_item.into(),
+            footnote: footnote.into(),
+            code_line: code_line.into(),
+            table_cell: table_cell.into(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct RecoveryGapMetricsReport {
+    pub no_trusted_run: RecoveryOwnershipMetricsReport,
+    pub mixed_trusted_runs: RecoveryOwnershipMetricsReport,
+    pub ordinal_gap: RecoveryOwnershipMetricsReport,
+    pub role_boundary: RecoveryOwnershipMetricsReport,
+    pub location_projection_failed: RecoveryOwnershipMetricsReport,
+    pub normalization_issue: RecoveryOwnershipMetricsReport,
+    pub unmapped_changed_evidence: RecoveryOwnershipMetricsReport,
+    pub unsupported_line_policy: RecoveryOwnershipMetricsReport,
+}
+
+impl From<[RecoveryOwnershipMetrics; 8]> for RecoveryGapMetricsReport {
+    fn from(metrics: [RecoveryOwnershipMetrics; 8]) -> Self {
+        let [
+            no_trusted_run,
+            mixed_trusted_runs,
+            ordinal_gap,
+            role_boundary,
+            location_projection_failed,
+            normalization_issue,
+            unmapped_changed_evidence,
+            unsupported_line_policy,
+        ] = metrics;
+        Self {
+            no_trusted_run: no_trusted_run.into(),
+            mixed_trusted_runs: mixed_trusted_runs.into(),
+            ordinal_gap: ordinal_gap.into(),
+            role_boundary: role_boundary.into(),
+            location_projection_failed: location_projection_failed.into(),
+            normalization_issue: normalization_issue.into(),
+            unmapped_changed_evidence: unmapped_changed_evidence.into(),
+            unsupported_line_policy: unsupported_line_policy.into(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryOwnershipReport {
+    Accepted,
+    Leaf(RecoveryLeafKindReport),
+    Gap(RecoveryGapReasonReport),
+}
+
+impl From<RecoveryOwnership> for RecoveryOwnershipReport {
+    fn from(ownership: RecoveryOwnership) -> Self {
+        match ownership {
+            RecoveryOwnership::Accepted => Self::Accepted,
+            RecoveryOwnership::Leaf(kind) => Self::Leaf(kind.into()),
+            RecoveryOwnership::Gap(reason) => Self::Gap(reason.into()),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct RecoveryOwnershipRectReport {
+    pub min: RecoveryWatchPointReport,
+    pub max: RecoveryWatchPointReport,
+}
+
+impl From<RecoveryOwnershipRect> for RecoveryOwnershipRectReport {
+    fn from(rect: RecoveryOwnershipRect) -> Self {
+        Self {
+            min: RecoveryWatchPointReport {
+                x: f64::from_bits(rect.min_x_bits),
+                y: f64::from_bits(rect.min_y_bits),
+            },
+            max: RecoveryWatchPointReport {
+                x: f64::from_bits(rect.max_x_bits),
+                y: f64::from_bits(rect.max_y_bits),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize)]
+pub struct RecoveryOwnershipContextReport {
+    pub trusted_run_id: Option<u64>,
+    pub ordinal_start: Option<usize>,
+    pub ordinal_end: Option<usize>,
+    pub region_id: Option<u64>,
+    pub page: Option<u32>,
+    pub bbox: Option<RecoveryOwnershipRectReport>,
+}
+
+impl From<RecoveryOwnershipContext> for RecoveryOwnershipContextReport {
+    fn from(context: RecoveryOwnershipContext) -> Self {
+        Self {
+            trusted_run_id: context.trusted_run_id,
+            ordinal_start: context.ordinal_start,
+            ordinal_end: context.ordinal_end,
+            region_id: context.region_id,
+            page: context.page,
+            bbox: context.bbox.map(Into::into),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct RecoveryOwnershipSampleReport {
+    pub block_id: u64,
+    pub canonical_start: usize,
+    pub canonical_end: usize,
+    pub comparable_start: usize,
+    pub comparable_end: usize,
+    pub ownership: RecoveryOwnershipReport,
+    pub trusted: bool,
+    pub role: RecoveryOwnershipRoleReport,
+    pub context: RecoveryOwnershipContextReport,
+}
+
+impl From<RecoveryOwnershipSample> for RecoveryOwnershipSampleReport {
+    fn from(sample: RecoveryOwnershipSample) -> Self {
+        Self {
+            block_id: sample.block_id,
+            canonical_start: sample.canonical_start,
+            canonical_end: sample.canonical_end,
+            comparable_start: sample.comparable_start,
+            comparable_end: sample.comparable_end,
+            ownership: sample.ownership.into(),
+            trusted: sample.trusted,
+            role: sample.role.into(),
+            context: sample.context.into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct RecoveryOwnershipSideReport {
+    pub total: RecoveryOwnershipMetricsReport,
+    pub accepted: RecoveryOwnershipMetricsReport,
+    pub leaves: RecoveryLeafMetricsReport,
+    pub gaps: RecoveryGapMetricsReport,
+    pub samples: Vec<RecoveryOwnershipSampleReport>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct RecoveryOwnershipPartitionReport {
+    pub old: RecoveryOwnershipSideReport,
+    pub new: RecoveryOwnershipSideReport,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct SentenceRecoveryMetricsReport {
+    pub change_origins: ChangeOriginMetricsReport,
+    pub local_fragment_review_bundle: LocalFragmentReviewBundleReport,
+    pub recovery_leaf_partition_complete: Option<bool>,
+    pub recovery_leaf_partition_stop_reason: Option<RecoveryOwnershipErrorReport>,
+    pub recovery_ownership_partition: Option<RecoveryOwnershipPartitionReport>,
     pub old_trusted_run_source_tokens: usize,
     pub new_trusted_run_source_tokens: usize,
     pub structural_pairing_available: bool,
@@ -3397,6 +3928,13 @@ impl From<LocalFragmentPairEvidence> for LocalFragmentPairEvidenceReport {
 impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
     fn from(metrics: SentenceRecoveryMetrics) -> Self {
         Self {
+            change_origins: metrics.change_origins.into(),
+            local_fragment_review_bundle: LocalFragmentReviewBundleReport::default(),
+            recovery_leaf_partition_complete: metrics.recovery_leaf_partition_complete,
+            recovery_leaf_partition_stop_reason: metrics
+                .recovery_leaf_partition_stop_reason
+                .map(Into::into),
+            recovery_ownership_partition: None,
             old_trusted_run_source_tokens: metrics.old_trusted_run_source_tokens,
             new_trusted_run_source_tokens: metrics.new_trusted_run_source_tokens,
             structural_pairing_available: metrics.structural_pairing_available,
@@ -6478,9 +7016,461 @@ fn validate_exact_tail_recovery_metrics(
     Ok(())
 }
 
+fn validate_recovery_ownership_metric(
+    metric: RecoveryOwnershipMetrics,
+) -> std::result::Result<(), String> {
+    let trusted = metric
+        .trust
+        .trusted_tokens
+        .checked_add(metric.trust.untrusted_tokens)
+        .ok_or_else(|| "recovery ownership trust partition overflows".to_owned())?;
+    if trusted != metric.comparable_tokens {
+        return Err(
+            "recovery ownership trust partition does not equal comparable tokens".to_owned(),
+        );
+    }
+    let roles = metric
+        .roles
+        .body_tokens
+        .checked_add(metric.roles.repeated_header_tokens)
+        .and_then(|tokens| tokens.checked_add(metric.roles.repeated_footer_tokens))
+        .ok_or_else(|| "recovery ownership role partition overflows".to_owned())?;
+    if roles != metric.comparable_tokens {
+        return Err(
+            "recovery ownership role partition does not equal comparable tokens".to_owned(),
+        );
+    }
+    if metric.max_comparable_tokens > metric.comparable_tokens {
+        return Err("recovery ownership maximum range exceeds comparable tokens".to_owned());
+    }
+    if metric.ranges == 0 {
+        if metric != RecoveryOwnershipMetrics::default() {
+            return Err("empty recovery ownership class exposes token metrics".to_owned());
+        }
+    } else if metric.comparable_tokens == 0 || metric.max_comparable_tokens == 0 {
+        return Err("non-empty recovery ownership class has no comparable tokens".to_owned());
+    }
+    Ok(())
+}
+
+fn add_recovery_ownership_metric(
+    total: &mut RecoveryOwnershipMetrics,
+    metric: RecoveryOwnershipMetrics,
+) -> std::result::Result<(), String> {
+    total.ranges = total
+        .ranges
+        .checked_add(metric.ranges)
+        .ok_or_else(|| "recovery ownership range total overflows".to_owned())?;
+    total.canonical_tokens = total
+        .canonical_tokens
+        .checked_add(metric.canonical_tokens)
+        .ok_or_else(|| "recovery ownership canonical token total overflows".to_owned())?;
+    total.comparable_tokens = total
+        .comparable_tokens
+        .checked_add(metric.comparable_tokens)
+        .ok_or_else(|| "recovery ownership comparable token total overflows".to_owned())?;
+    total.max_comparable_tokens = total
+        .max_comparable_tokens
+        .max(metric.max_comparable_tokens);
+    total.trust.trusted_tokens = total
+        .trust
+        .trusted_tokens
+        .checked_add(metric.trust.trusted_tokens)
+        .ok_or_else(|| "recovery ownership trusted token total overflows".to_owned())?;
+    total.trust.untrusted_tokens = total
+        .trust
+        .untrusted_tokens
+        .checked_add(metric.trust.untrusted_tokens)
+        .ok_or_else(|| "recovery ownership untrusted token total overflows".to_owned())?;
+    total.roles.body_tokens = total
+        .roles
+        .body_tokens
+        .checked_add(metric.roles.body_tokens)
+        .ok_or_else(|| "recovery ownership body token total overflows".to_owned())?;
+    total.roles.repeated_header_tokens = total
+        .roles
+        .repeated_header_tokens
+        .checked_add(metric.roles.repeated_header_tokens)
+        .ok_or_else(|| "recovery ownership header token total overflows".to_owned())?;
+    total.roles.repeated_footer_tokens = total
+        .roles
+        .repeated_footer_tokens
+        .checked_add(metric.roles.repeated_footer_tokens)
+        .ok_or_else(|| "recovery ownership footer token total overflows".to_owned())?;
+    Ok(())
+}
+
+fn recovery_ownership_class_index(ownership: RecoveryOwnership) -> usize {
+    match ownership {
+        RecoveryOwnership::Accepted => 0,
+        RecoveryOwnership::Leaf(kind) => {
+            1 + match kind {
+                RecoveryLeafKind::SentenceBody => 0,
+                RecoveryLeafKind::LineBody => 1,
+                RecoveryLeafKind::TrustedRunResidual => 2,
+                RecoveryLeafKind::Heading => 3,
+                RecoveryLeafKind::ListItem => 4,
+                RecoveryLeafKind::Footnote => 5,
+                RecoveryLeafKind::CodeLine => 6,
+                RecoveryLeafKind::TableCell => 7,
+            }
+        }
+        RecoveryOwnership::Gap(reason) => {
+            9 + match reason {
+                RecoveryGapReason::NoTrustedRun => 0,
+                RecoveryGapReason::MixedTrustedRuns => 1,
+                RecoveryGapReason::OrdinalGap => 2,
+                RecoveryGapReason::RoleBoundary => 3,
+                RecoveryGapReason::LocationProjectionFailed => 4,
+                RecoveryGapReason::NormalizationIssue => 5,
+                RecoveryGapReason::UnmappedChangedEvidence => 6,
+                RecoveryGapReason::UnsupportedLinePolicy => 7,
+            }
+        }
+    }
+}
+
+fn recovery_ownership_class_metric(
+    metrics: RecoveryOwnershipSideMetrics,
+    ownership: RecoveryOwnership,
+) -> RecoveryOwnershipMetrics {
+    match ownership {
+        RecoveryOwnership::Accepted => metrics.accepted,
+        RecoveryOwnership::Leaf(kind) => {
+            metrics.leaves[recovery_ownership_class_index(RecoveryOwnership::Leaf(kind)) - 1]
+        }
+        RecoveryOwnership::Gap(reason) => {
+            metrics.gaps[recovery_ownership_class_index(RecoveryOwnership::Gap(reason)) - 9]
+        }
+    }
+}
+
+fn validate_recovery_ownership_rect(
+    rect: RecoveryOwnershipRect,
+) -> std::result::Result<(), String> {
+    let min_x = f64::from_bits(rect.min_x_bits);
+    let min_y = f64::from_bits(rect.min_y_bits);
+    let max_x = f64::from_bits(rect.max_x_bits);
+    let max_y = f64::from_bits(rect.max_y_bits);
+    if ![min_x, min_y, max_x, max_y].into_iter().all(f64::is_finite)
+        || min_x > max_x
+        || min_y > max_y
+    {
+        return Err("recovery ownership sample has invalid geometry".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_recovery_ownership_side(
+    side: &pdfdelta_core::diff::RecoveryOwnershipSideAnalysis,
+) -> std::result::Result<(), String> {
+    validate_recovery_ownership_metric(side.metrics.total)?;
+    validate_recovery_ownership_metric(side.metrics.accepted)?;
+    let mut classified = RecoveryOwnershipMetrics::default();
+    add_recovery_ownership_metric(&mut classified, side.metrics.accepted)?;
+    for metric in side.metrics.leaves {
+        validate_recovery_ownership_metric(metric)?;
+        add_recovery_ownership_metric(&mut classified, metric)?;
+    }
+    for metric in side.metrics.gaps {
+        validate_recovery_ownership_metric(metric)?;
+        add_recovery_ownership_metric(&mut classified, metric)?;
+    }
+    if classified != side.metrics.total {
+        return Err("recovery ownership classes do not partition total metrics".to_owned());
+    }
+
+    let mut sampled_classes = [false; 17];
+    if side.samples.values.len() > sampled_classes.len() {
+        return Err("recovery ownership sample bound exceeded".to_owned());
+    }
+    for sample in &side.samples.values {
+        if sample.comparable_start >= sample.comparable_end
+            || sample.canonical_start > sample.canonical_end
+        {
+            return Err("recovery ownership sample has an invalid range".to_owned());
+        }
+        match (sample.context.ordinal_start, sample.context.ordinal_end) {
+            (Some(start), Some(end)) if start < end => {}
+            (None, None) => {}
+            _ => return Err("recovery ownership sample has an invalid ordinal range".to_owned()),
+        }
+        if let Some(rect) = sample.context.bbox {
+            validate_recovery_ownership_rect(rect)?;
+        }
+        let class_index = recovery_ownership_class_index(sample.ownership);
+        if sampled_classes[class_index] {
+            return Err("recovery ownership samples repeat one ownership class".to_owned());
+        }
+        sampled_classes[class_index] = true;
+        let metric = recovery_ownership_class_metric(side.metrics, sample.ownership);
+        let tokens = sample
+            .comparable_end
+            .checked_sub(sample.comparable_start)
+            .ok_or_else(|| "recovery ownership sample range underflows".to_owned())?;
+        if metric.ranges == 0
+            || tokens > metric.max_comparable_tokens
+            || tokens > metric.comparable_tokens
+        {
+            return Err("recovery ownership sample exceeds its class metrics".to_owned());
+        }
+        let trust_tokens = if sample.trusted {
+            metric.trust.trusted_tokens
+        } else {
+            metric.trust.untrusted_tokens
+        };
+        let role_tokens = match sample.role {
+            RecoveryOwnershipRole::Body => metric.roles.body_tokens,
+            RecoveryOwnershipRole::RepeatedHeader => metric.roles.repeated_header_tokens,
+            RecoveryOwnershipRole::RepeatedFooter => metric.roles.repeated_footer_tokens,
+        };
+        if tokens > trust_tokens || tokens > role_tokens {
+            return Err(
+                "recovery ownership sample conflicts with trust or role metrics".to_owned(),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn recovery_ownership_side_report(
+    side: &pdfdelta_core::diff::RecoveryOwnershipSideAnalysis,
+) -> std::result::Result<RecoveryOwnershipSideReport, String> {
+    validate_recovery_ownership_side(side)?;
+    let mut samples = Vec::new();
+    samples
+        .try_reserve_exact(side.samples.values.len())
+        .map_err(|_| "cannot allocate recovery ownership samples".to_owned())?;
+    samples.extend(
+        side.samples
+            .values
+            .iter()
+            .copied()
+            .map(RecoveryOwnershipSampleReport::from),
+    );
+    Ok(RecoveryOwnershipSideReport {
+        total: side.metrics.total.into(),
+        accepted: side.metrics.accepted.into(),
+        leaves: side.metrics.leaves.into(),
+        gaps: side.metrics.gaps.into(),
+        samples,
+    })
+}
+
+fn recovery_unlocated_ownership_tokens(
+    side: RecoveryOwnershipSideMetrics,
+) -> std::result::Result<usize, String> {
+    side.leaves[2..]
+        .iter()
+        .chain(side.gaps.iter())
+        .try_fold(0usize, |total, metric| {
+            total
+                .checked_add(metric.comparable_tokens)
+                .ok_or_else(|| "recovery unlocated ownership total overflows".to_owned())
+        })
+}
+
+fn validate_recovery_ownership_partition(
+    metrics: SentenceRecoveryMetrics,
+    partition: Option<&RecoveryOwnershipPartitionAnalysis>,
+) -> std::result::Result<Option<RecoveryOwnershipPartitionReport>, String> {
+    match metrics.recovery_leaf_partition_complete {
+        None => {
+            if metrics.recovery_leaf_partition_stop_reason.is_some() || partition.is_some() {
+                return Err(
+                    "unattempted recovery ownership partition exposes output or a stop reason"
+                        .to_owned(),
+                );
+            }
+            Ok(None)
+        }
+        Some(true) => {
+            if metrics.recovery_leaf_partition_stop_reason.is_some() {
+                return Err(
+                    "complete recovery ownership partition exposes a stop reason".to_owned(),
+                );
+            }
+            let partition = partition.ok_or_else(|| {
+                "complete recovery ownership partition has no verified analysis".to_owned()
+            })?;
+            if let Some(attribution) = metrics.remainder_attribution {
+                let old_unlocated =
+                    recovery_unlocated_ownership_tokens(partition.old_side().metrics)?;
+                let new_unlocated =
+                    recovery_unlocated_ownership_tokens(partition.new_side().metrics)?;
+                if old_unlocated != attribution.old.unlocated_or_unsegmented_source_tokens
+                    || new_unlocated != attribution.new.unlocated_or_unsegmented_source_tokens
+                {
+                    return Err(
+                        "recovery ownership residuals do not equal unlocated remainder tokens"
+                            .to_owned(),
+                    );
+                }
+            }
+            Ok(Some(RecoveryOwnershipPartitionReport {
+                old: recovery_ownership_side_report(partition.old_side())?,
+                new: recovery_ownership_side_report(partition.new_side())?,
+            }))
+        }
+        Some(false) => {
+            if metrics.recovery_leaf_partition_stop_reason.is_none() {
+                return Err("incomplete recovery ownership partition has no stop reason".to_owned());
+            }
+            if partition.is_some() {
+                return Err(
+                    "incomplete recovery ownership partition exposes partial output".to_owned(),
+                );
+            }
+            Ok(None)
+        }
+    }
+}
+
+fn validate_change_origin_metrics(metrics: ChangeOriginMetrics) -> std::result::Result<(), String> {
+    let origins = [
+        metrics.ordered_alignment,
+        metrics.sentence_near,
+        metrics.local_fragment,
+        metrics.cross_granularity,
+        metrics.trusted_tail,
+        metrics.exact_tail,
+        metrics.running_matter,
+        metrics.range_local_exact,
+    ];
+    for metric in origins {
+        if metric.event_count == 0
+            && (metric.old_changed_tokens != 0 || metric.new_changed_tokens != 0)
+        {
+            return Err("change origin exposes changed tokens without an event".to_owned());
+        }
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ChangeOriginTotals {
+    events: usize,
+    old_changed_tokens: usize,
+    new_changed_tokens: usize,
+    old_resolved_context_tokens: usize,
+    new_resolved_context_tokens: usize,
+}
+
+fn change_origin_totals(
+    metrics: ChangeOriginMetrics,
+) -> std::result::Result<ChangeOriginTotals, String> {
+    [
+        metrics.ordered_alignment,
+        metrics.sentence_near,
+        metrics.local_fragment,
+        metrics.cross_granularity,
+        metrics.trusted_tail,
+        metrics.exact_tail,
+        metrics.running_matter,
+        metrics.range_local_exact,
+    ]
+    .into_iter()
+    .try_fold(ChangeOriginTotals::default(), |mut total, metric| {
+        total.events = total
+            .events
+            .checked_add(metric.event_count)
+            .ok_or_else(|| "change origin event total overflows".to_owned())?;
+        total.old_changed_tokens = total
+            .old_changed_tokens
+            .checked_add(metric.old_changed_tokens)
+            .ok_or_else(|| "change origin old changed-token total overflows".to_owned())?;
+        total.new_changed_tokens = total
+            .new_changed_tokens
+            .checked_add(metric.new_changed_tokens)
+            .ok_or_else(|| "change origin new changed-token total overflows".to_owned())?;
+        total.old_resolved_context_tokens = total
+            .old_resolved_context_tokens
+            .checked_add(metric.old_resolved_context_tokens)
+            .ok_or_else(|| "change origin old resolved-context total overflows".to_owned())?;
+        total.new_resolved_context_tokens = total
+            .new_resolved_context_tokens
+            .checked_add(metric.new_resolved_context_tokens)
+            .ok_or_else(|| "change origin new resolved-context total overflows".to_owned())?;
+        Ok(total)
+    })
+}
+
+fn comparison_changed_token_totals(
+    comparison: &Comparison,
+) -> std::result::Result<(usize, usize), String> {
+    comparison.changes.iter().try_fold(
+        (0usize, 0usize),
+        |(mut old_total, mut new_total), change| {
+            for occurrence in &change.occurrences {
+                if let Some(span) = &occurrence.old_span {
+                    let tokens = span
+                        .comparable_range
+                        .end
+                        .checked_sub(span.comparable_range.start)
+                        .ok_or_else(|| "final old change span is reversed".to_owned())?;
+                    old_total = old_total
+                        .checked_add(tokens)
+                        .ok_or_else(|| "final old changed-token total overflows".to_owned())?;
+                }
+                if let Some(span) = &occurrence.new_span {
+                    let tokens = span
+                        .comparable_range
+                        .end
+                        .checked_sub(span.comparable_range.start)
+                        .ok_or_else(|| "final new change span is reversed".to_owned())?;
+                    new_total = new_total
+                        .checked_add(tokens)
+                        .ok_or_else(|| "final new changed-token total overflows".to_owned())?;
+                }
+            }
+            Ok((old_total, new_total))
+        },
+    )
+}
+
+fn validate_change_origin_parity(
+    metrics: ChangeOriginMetrics,
+    comparison: &Comparison,
+) -> std::result::Result<(), String> {
+    let origin = change_origin_totals(metrics)?;
+    let (old_changed_tokens, new_changed_tokens) = comparison_changed_token_totals(comparison)?;
+    let expected = ChangeOriginTotals {
+        events: comparison.changes.len(),
+        old_changed_tokens,
+        new_changed_tokens,
+        old_resolved_context_tokens: comparison.old_coverage.resolved_tokens,
+        new_resolved_context_tokens: comparison.new_coverage.resolved_tokens,
+    };
+    if origin != expected {
+        return Err(format!(
+            "change origin totals {origin:?} do not match final comparison {expected:?}"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_recovery_ownership_status(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<(), String> {
+    match metrics.recovery_leaf_partition_complete {
+        None if metrics.recovery_leaf_partition_stop_reason.is_some() => {
+            Err("unattempted recovery ownership partition exposes a stop reason".to_owned())
+        }
+        Some(true) if metrics.recovery_leaf_partition_stop_reason.is_some() => {
+            Err("complete recovery ownership partition exposes a stop reason".to_owned())
+        }
+        Some(false) if metrics.recovery_leaf_partition_stop_reason.is_none() => {
+            Err("incomplete recovery ownership partition has no stop reason".to_owned())
+        }
+        _ => Ok(()),
+    }
+}
+
 fn validate_sentence_recovery_metrics(
     metrics: SentenceRecoveryMetrics,
 ) -> std::result::Result<SentenceRecoveryMetricsReport, String> {
+    validate_change_origin_metrics(metrics.change_origins)?;
+    validate_recovery_ownership_status(metrics)?;
     validate_exact_tail_recovery_metrics(metrics)?;
     validate_recovery_remainder_attribution(metrics)?;
     validate_structural_pairing_metrics(metrics)?;
@@ -6665,6 +7655,16 @@ fn validate_sentence_recovery_metrics(
         .checked_add(metrics.unresolved_remainder_new_source_tokens)
         .ok_or_else(|| "new eligible source token counters overflow".to_owned())?;
     Ok(metrics.into())
+}
+
+fn validate_sentence_recovery_metrics_with_partition(
+    metrics: SentenceRecoveryMetrics,
+    partition: Option<&RecoveryOwnershipPartitionAnalysis>,
+) -> std::result::Result<SentenceRecoveryMetricsReport, String> {
+    let mut report = validate_sentence_recovery_metrics(metrics)?;
+    report.recovery_ownership_partition =
+        validate_recovery_ownership_partition(metrics, partition)?;
+    Ok(report)
 }
 
 fn validate_recovery_remainder_attribution(
@@ -10293,11 +11293,9 @@ fn validate_run_signature_metrics(
     Ok(())
 }
 
-/// Extracts the optional nested sentence-recovery metrics from the completed
-/// exact-diff diagnostic record. Real zero measurements remain present.
-fn sentence_recovery_metrics(
+fn sentence_recovery_metrics_value(
     diagnostics: &PipelineDiagnostics,
-) -> std::result::Result<Option<SentenceRecoveryMetricsReport>, String> {
+) -> std::result::Result<Option<SentenceRecoveryMetrics>, String> {
     let mut records = diagnostics
         .records()
         .iter()
@@ -10314,7 +11312,7 @@ fn sentence_recovery_metrics(
     if record.status != PipelinePhaseStatus::Completed {
         return Err("incomplete exact-diff record contains sentence recovery metrics".to_owned());
     }
-    validate_sentence_recovery_metrics(metrics).map(Some)
+    Ok(Some(metrics))
 }
 
 /// Resolves the supplementary pressure from the alignment charge and the
@@ -10398,14 +11396,21 @@ fn compare_outcomes_with_metrics(
             watched.diagnostics,
             watched.matched_atomic_diffs,
             watched.recovered_atomic_diffs,
+            watched.recovery_ownership_partition,
         )
     });
     let metrics = alignment_visit_metrics(&diagnostics).map_err(|message| {
         RevisionRunError::Other("alignment metrics contract violation", message)
     })?;
-    let sentence_recovery_metrics = sentence_recovery_metrics(&diagnostics).map_err(|message| {
-        RevisionRunError::Other("sentence recovery metrics contract violation", message)
-    })?;
+    let sentence_recovery_metrics =
+        sentence_recovery_metrics_value(&diagnostics).map_err(|message| {
+            RevisionRunError::Other("sentence recovery metrics contract violation", message)
+        })?;
+    if let Some(metrics) = sentence_recovery_metrics {
+        validate_sentence_recovery_metrics(metrics).map_err(|message| {
+            RevisionRunError::Other("sentence recovery metrics contract violation", message)
+        })?;
+    }
     let pressure = resolve_pressure(metrics.candidate_visits, pressure_required, pressure_result)?;
     let (
         outcome,
@@ -10413,6 +11418,7 @@ fn compare_outcomes_with_metrics(
         recovery_watch_diagnostics,
         matched_atomic_diffs,
         recovered_atomic_diffs,
+        recovery_ownership_partition,
     ) = result.map_err(|error| match error {
         pdfdelta_core::Error::LimitExceeded { .. } => RevisionRunError::Limit {
             message: error.to_string(),
@@ -10421,6 +11427,44 @@ fn compare_outcomes_with_metrics(
         },
         other => RevisionRunError::Other("comparison failed", other.to_string()),
     })?;
+    let sentence_recovery_metrics = match sentence_recovery_metrics {
+        Some(metrics) => {
+            validate_change_origin_parity(metrics.change_origins, &outcome.comparison).map_err(
+                |message| RevisionRunError::Other("change origin contract violation", message),
+            )?;
+            let mut report = validate_sentence_recovery_metrics_with_partition(
+                metrics,
+                recovery_ownership_partition.as_ref(),
+            )
+            .map_err(|message| {
+                RevisionRunError::Other("recovery ownership contract violation", message)
+            })?;
+            report.local_fragment_review_bundle = build_local_fragment_review_bundle(
+                &recovered_atomic_diffs,
+                &outcome.old_blocks,
+                &outcome.new_blocks,
+                &outcome.old_glyph_evidence,
+                &outcome.new_glyph_evidence,
+            );
+            validate_local_fragment_review_bundle_contract(
+                &report.local_fragment_review_bundle,
+                report.local_fragment_proposal_complete,
+                report.local_fragment_proposals_committed,
+                &recovered_atomic_diffs,
+            )
+            .map_err(|message| {
+                RevisionRunError::Other("local-fragment review contract violation", message)
+            })?;
+            Some(report)
+        }
+        None if recovery_ownership_partition.is_some() => {
+            return Err(RevisionRunError::Other(
+                "recovery ownership contract violation",
+                "recovery ownership output has no sentence recovery metrics".to_owned(),
+            ));
+        }
+        None => None,
+    };
     Ok(ComparisonWithMetrics {
         outcome,
         alignment,
@@ -10684,7 +11728,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 54;
+    pub const SCHEMA_VERSION: u32 = 55;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -10757,7 +11801,7 @@ impl RevisionSummaryRecord {
             reported_content_changes: report.reported_content_changes,
             reported_formatting_changes: report.formatting_only_changes,
             reported_uncertain_changes: report.uncertain_changes,
-            sentence_recovery_metrics: report.sentence_recovery_metrics,
+            sentence_recovery_metrics: report.sentence_recovery_metrics.clone(),
             quality: report.quality,
             quality_skipped_reason: report.quality_skipped_reason.clone(),
             scoped_event_metrics: report.scoped_event_metrics,
@@ -12455,7 +13499,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 54);
+        assert_eq!(completed["schema_version"], 55);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -12505,7 +13549,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 54);
+        assert_eq!(legacy_summary["schema_version"], 55);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -13962,6 +15006,8 @@ mod tests {
         assert_eq!(
             sentence_recovery_metrics,
             Some(SentenceRecoveryMetricsReport {
+                recovery_leaf_partition_complete: Some(true),
+                recovery_ownership_partition: Some(RecoveryOwnershipPartitionReport::default()),
                 structural_pairing_available: true,
                 near_relation_complete: true,
                 sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetricsReport {
@@ -14193,7 +15239,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 54);
+        assert_eq!(json["schema_version"], 55);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -14548,6 +15594,249 @@ mod tests {
             ..SentenceRecoveryMetrics::default()
         };
         assert!(validate_sentence_recovery_metrics(too_many_committed).is_err());
+    }
+
+    #[test]
+    fn serializes_and_validates_recovery_ownership_and_change_origins() {
+        fn ownership_metric(tokens: usize, trusted: bool) -> RecoveryOwnershipMetrics {
+            RecoveryOwnershipMetrics {
+                ranges: 1,
+                canonical_tokens: tokens,
+                comparable_tokens: tokens,
+                max_comparable_tokens: tokens,
+                trust: RecoveryOwnershipTrustMetrics {
+                    trusted_tokens: if trusted { tokens } else { 0 },
+                    untrusted_tokens: if trusted { 0 } else { tokens },
+                },
+                roles: RecoveryOwnershipRoleMetrics {
+                    body_tokens: tokens,
+                    ..RecoveryOwnershipRoleMetrics::default()
+                },
+            }
+        }
+
+        let accepted = ownership_metric(2, true);
+        let residual = ownership_metric(3, true);
+        let gap = ownership_metric(1, false);
+        let mut leaves = [RecoveryOwnershipMetrics::default(); 8];
+        leaves[2] = residual;
+        let mut gaps = [RecoveryOwnershipMetrics::default(); 8];
+        gaps[0] = gap;
+        let side = pdfdelta_core::diff::RecoveryOwnershipSideAnalysis {
+            metrics: RecoveryOwnershipSideMetrics {
+                total: RecoveryOwnershipMetrics {
+                    ranges: 3,
+                    canonical_tokens: 6,
+                    comparable_tokens: 6,
+                    max_comparable_tokens: 3,
+                    trust: RecoveryOwnershipTrustMetrics {
+                        trusted_tokens: 5,
+                        untrusted_tokens: 1,
+                    },
+                    roles: RecoveryOwnershipRoleMetrics {
+                        body_tokens: 6,
+                        ..RecoveryOwnershipRoleMetrics::default()
+                    },
+                },
+                accepted,
+                leaves,
+                gaps,
+            },
+            samples: pdfdelta_core::diff::RecoveryOwnershipSideSamples {
+                values: vec![
+                    RecoveryOwnershipSample {
+                        block_id: 7,
+                        canonical_start: 0,
+                        canonical_end: 2,
+                        comparable_start: 0,
+                        comparable_end: 2,
+                        ownership: RecoveryOwnership::Accepted,
+                        trusted: true,
+                        role: RecoveryOwnershipRole::Body,
+                        context: RecoveryOwnershipContext::default(),
+                    },
+                    RecoveryOwnershipSample {
+                        block_id: 7,
+                        canonical_start: 2,
+                        canonical_end: 5,
+                        comparable_start: 2,
+                        comparable_end: 5,
+                        ownership: RecoveryOwnership::Leaf(RecoveryLeafKind::TrustedRunResidual),
+                        trusted: true,
+                        role: RecoveryOwnershipRole::Body,
+                        context: RecoveryOwnershipContext {
+                            trusted_run_id: Some(11),
+                            ordinal_start: Some(2),
+                            ordinal_end: Some(3),
+                            bbox: Some(RecoveryOwnershipRect {
+                                min_x_bits: 1.0f64.to_bits(),
+                                min_y_bits: 2.0f64.to_bits(),
+                                max_x_bits: 3.0f64.to_bits(),
+                                max_y_bits: 4.0f64.to_bits(),
+                            }),
+                            ..RecoveryOwnershipContext::default()
+                        },
+                    },
+                    RecoveryOwnershipSample {
+                        block_id: 8,
+                        canonical_start: 0,
+                        canonical_end: 1,
+                        comparable_start: 0,
+                        comparable_end: 1,
+                        ownership: RecoveryOwnership::Gap(RecoveryGapReason::NoTrustedRun),
+                        trusted: false,
+                        role: RecoveryOwnershipRole::Body,
+                        context: RecoveryOwnershipContext::default(),
+                    },
+                ],
+            },
+        };
+        let partition = RecoveryOwnershipPartitionAnalysis::try_new(side.clone(), side)
+            .expect("two-side ownership allocation succeeds");
+        let remainder = RecoveryRemainderCauseMetrics {
+            unlocated_or_unsegmented_source_tokens: 4,
+            ..RecoveryRemainderCauseMetrics::default()
+        };
+        let metrics = SentenceRecoveryMetrics {
+            change_origins: ChangeOriginMetrics {
+                local_fragment: ChangeOriginMetric {
+                    event_count: 1,
+                    old_changed_tokens: 1,
+                    new_changed_tokens: 1,
+                    old_resolved_context_tokens: 3,
+                    new_resolved_context_tokens: 3,
+                },
+                ..ChangeOriginMetrics::default()
+            },
+            recovery_leaf_partition_complete: Some(true),
+            sentence_edge_filter_complete: true,
+            unresolved_remainder_old_source_tokens: 4,
+            unresolved_remainder_new_source_tokens: 4,
+            remainder_attribution_complete: Some(true),
+            remainder_attribution: Some(RecoveryRemainderAttributionMetrics {
+                old: remainder,
+                new: remainder,
+            }),
+            ..SentenceRecoveryMetrics::default()
+        };
+
+        let report = validate_sentence_recovery_metrics_with_partition(metrics, Some(&partition))
+            .expect("complete ownership metrics are valid");
+        assert!(validate_sentence_recovery_metrics_with_partition(metrics, None).is_err());
+        let ownership = report
+            .recovery_ownership_partition
+            .as_ref()
+            .expect("complete partition is serialized");
+        assert_eq!(ownership.old.total.comparable_tokens, 6);
+        assert_eq!(
+            ownership.old.leaves.trusted_run_residual.comparable_tokens,
+            3
+        );
+        assert_eq!(ownership.old.gaps.no_trusted_run.comparable_tokens, 1);
+        assert_eq!(ownership.old.samples.len(), 3);
+        assert_eq!(report.change_origins.local_fragment.event_count, 1);
+        assert_eq!(report.change_origins.local_fragment.old_changed_tokens, 1);
+        let json = serde_json::to_value(&report).expect("ownership report serializes");
+        assert_eq!(
+            json["recovery_ownership_partition"]["old"]["leaves"]["trusted_run_residual"]["comparable_tokens"],
+            3
+        );
+        assert_eq!(
+            json["recovery_ownership_partition"]["old"]["gaps"]["no_trusted_run"]["comparable_tokens"],
+            1
+        );
+        assert_eq!(json["change_origins"]["local_fragment"]["event_count"], 1);
+        assert_eq!(
+            json["recovery_ownership_partition"]["old"]["samples"][1]["context"]["bbox"]["min"]["x"],
+            1.0
+        );
+        assert!(
+            validate_recovery_ownership_rect(RecoveryOwnershipRect {
+                min_x_bits: f64::NAN.to_bits(),
+                min_y_bits: 0.0f64.to_bits(),
+                max_x_bits: 1.0f64.to_bits(),
+                max_y_bits: 1.0f64.to_bits(),
+            })
+            .is_err()
+        );
+        assert!(
+            validate_recovery_ownership_rect(RecoveryOwnershipRect {
+                min_x_bits: 2.0f64.to_bits(),
+                min_y_bits: 0.0f64.to_bits(),
+                max_x_bits: 1.0f64.to_bits(),
+                max_y_bits: 1.0f64.to_bits(),
+            })
+            .is_err()
+        );
+
+        let stopped = SentenceRecoveryMetrics {
+            recovery_leaf_partition_complete: Some(false),
+            recovery_leaf_partition_stop_reason: Some(RecoveryOwnershipError::AllocationFailure),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(
+            validate_sentence_recovery_metrics_with_partition(stopped, Some(&partition)).is_err()
+        );
+        let stopped = validate_sentence_recovery_metrics_with_partition(stopped, None)
+            .expect("stopped ownership analysis is valid without output");
+        assert!(stopped.recovery_ownership_partition.is_none());
+    }
+
+    #[test]
+    fn validates_change_origin_totals_against_final_comparison() {
+        let comparison = Comparison {
+            changes: vec![pdfdelta_core::diff::ChangeEvent::single_occurrence(
+                ChangeKind::Replacement,
+                Some(relation_span(
+                    vec![BlockId(1), BlockId(2)],
+                    Some(BlockSeparator::Space),
+                    5,
+                )),
+                Some(relation_span(vec![BlockId(3)], None, 3)),
+                pdfdelta_core::diff::Confidence::High,
+                Vec::new(),
+            )],
+            formatting_changes: Vec::new(),
+            unresolved_regions: Vec::new(),
+            // Multi-block span separators contribute to change coordinates but
+            // are not source-backed resolved coverage tokens.
+            old_coverage: pdfdelta_core::diff::Coverage {
+                resolved_tokens: 4,
+                total_tokens: 4,
+                ratio: Some(1.0),
+            },
+            new_coverage: pdfdelta_core::diff::Coverage {
+                resolved_tokens: 2,
+                total_tokens: 2,
+                ratio: Some(1.0),
+            },
+        };
+        let metrics = ChangeOriginMetrics {
+            ordered_alignment: ChangeOriginMetric {
+                event_count: 1,
+                old_changed_tokens: 5,
+                new_changed_tokens: 3,
+                old_resolved_context_tokens: 4,
+                new_resolved_context_tokens: 2,
+            },
+            ..ChangeOriginMetrics::default()
+        };
+
+        validate_change_origin_parity(metrics, &comparison)
+            .expect("final event, span, and coverage totals agree");
+
+        let mut wrong_events = metrics;
+        wrong_events.ordered_alignment.event_count = 0;
+        assert!(validate_change_origin_parity(wrong_events, &comparison).is_err());
+
+        let mut wrong_changed_tokens = metrics;
+        wrong_changed_tokens.ordered_alignment.old_changed_tokens = 4;
+        assert!(validate_change_origin_parity(wrong_changed_tokens, &comparison).is_err());
+
+        let mut wrong_coverage = metrics;
+        wrong_coverage.ordered_alignment.new_resolved_context_tokens = 3;
+        assert!(validate_change_origin_parity(wrong_coverage, &comparison).is_err());
     }
 
     fn complete_recheck_reuse_shadow() -> LocalFragmentRecheckReuseShadowMetrics {
@@ -20685,6 +21974,35 @@ mod tests {
 
     #[test]
     fn summary_json_exact_key_set_and_nested_schema_equality() {
+        let ownership_partition = RecoveryOwnershipPartitionReport {
+            old: RecoveryOwnershipSideReport {
+                samples: vec![RecoveryOwnershipSampleReport {
+                    block_id: 7,
+                    canonical_start: 1,
+                    canonical_end: 2,
+                    comparable_start: 1,
+                    comparable_end: 2,
+                    ownership: RecoveryOwnershipReport::Leaf(
+                        RecoveryLeafKindReport::TrustedRunResidual,
+                    ),
+                    trusted: true,
+                    role: RecoveryOwnershipRoleReport::Body,
+                    context: RecoveryOwnershipContextReport {
+                        trusted_run_id: Some(11),
+                        ordinal_start: Some(2),
+                        ordinal_end: Some(3),
+                        region_id: Some(13),
+                        page: Some(5),
+                        bbox: Some(RecoveryOwnershipRectReport {
+                            min: RecoveryWatchPointReport { x: 1.0, y: 2.0 },
+                            max: RecoveryWatchPointReport { x: 3.0, y: 4.0 },
+                        }),
+                    },
+                }],
+                ..RecoveryOwnershipSideReport::default()
+            },
+            new: RecoveryOwnershipSideReport::default(),
+        };
         let reports = vec![
             PairRunReport {
                 pair_id: "ok-pair".to_owned(),
@@ -20733,6 +22051,8 @@ mod tests {
                 candidate_visits_required_short_fallback: None,
                 max_candidate_visits: None,
                 sentence_recovery_metrics: Some(SentenceRecoveryMetricsReport {
+                    recovery_leaf_partition_complete: Some(true),
+                    recovery_ownership_partition: Some(ownership_partition),
                     old_trusted_run_source_tokens: 42,
                     near_relation_complete: true,
                     sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetricsReport {
@@ -20878,7 +22198,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 54);
+        assert_eq!(value["schema_version"], 55);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -20946,6 +22266,10 @@ mod tests {
         assert_eq!(quality_keys, expected_quality_keys);
 
         let expected_sentence_recovery_keys = HashSet::from([
+            "change_origins".to_owned(),
+            "recovery_leaf_partition_complete".to_owned(),
+            "recovery_leaf_partition_stop_reason".to_owned(),
+            "recovery_ownership_partition".to_owned(),
             "old_trusted_run_source_tokens".to_owned(),
             "new_trusted_run_source_tokens".to_owned(),
             "structural_pairing_available".to_owned(),
@@ -21033,6 +22357,7 @@ mod tests {
             "local_fragment_proposal_stop_reason".to_owned(),
             "local_fragment_proposals_considered".to_owned(),
             "local_fragment_proposals_committed".to_owned(),
+            "local_fragment_review_bundle".to_owned(),
             "sentence_edge_filter_complete".to_owned(),
             "sentence_edge_filter_pairs_examined".to_owned(),
             "sentence_edge_filter_pairs_attempted".to_owned(),
@@ -21080,6 +22405,270 @@ mod tests {
             .cloned()
             .collect::<HashSet<_>>();
         assert_eq!(sentence_recovery_keys, expected_sentence_recovery_keys);
+        let fragment_bundle =
+            records[0]["sentence_recovery_metrics"]["local_fragment_review_bundle"]
+                .as_object()
+                .expect("local fragment review bundle object");
+        assert_eq!(
+            fragment_bundle.keys().cloned().collect::<HashSet<_>>(),
+            HashSet::from([
+                "status".to_owned(),
+                "total_traces".to_owned(),
+                "total_occurrences".to_owned(),
+                "sample_limit".to_owned(),
+                "truncated".to_owned(),
+                "samples".to_owned(),
+            ])
+        );
+        let origins = records[0]["sentence_recovery_metrics"]["change_origins"]
+            .as_object()
+            .expect("change origin metrics object");
+        assert_eq!(
+            origins.keys().cloned().collect::<HashSet<_>>(),
+            HashSet::from([
+                "ordered_alignment".to_owned(),
+                "sentence_near".to_owned(),
+                "local_fragment".to_owned(),
+                "cross_granularity".to_owned(),
+                "trusted_tail".to_owned(),
+                "exact_tail".to_owned(),
+                "running_matter".to_owned(),
+                "range_local_exact".to_owned(),
+            ])
+        );
+        let expected_origin_metric_keys = HashSet::from([
+            "event_count".to_owned(),
+            "old_changed_tokens".to_owned(),
+            "new_changed_tokens".to_owned(),
+            "old_resolved_context_tokens".to_owned(),
+            "new_resolved_context_tokens".to_owned(),
+        ]);
+        for metric in origins.values() {
+            assert_eq!(
+                metric
+                    .as_object()
+                    .expect("one change origin metric")
+                    .keys()
+                    .cloned()
+                    .collect::<HashSet<_>>(),
+                expected_origin_metric_keys
+            );
+        }
+
+        let ownership = records[0]["sentence_recovery_metrics"]["recovery_ownership_partition"]
+            .as_object()
+            .expect("recovery ownership partition object");
+        assert_eq!(
+            ownership.keys().cloned().collect::<HashSet<_>>(),
+            HashSet::from(["old".to_owned(), "new".to_owned()])
+        );
+        let expected_side_keys = HashSet::from([
+            "total".to_owned(),
+            "accepted".to_owned(),
+            "leaves".to_owned(),
+            "gaps".to_owned(),
+            "samples".to_owned(),
+        ]);
+        for side in ["old", "new"] {
+            assert_eq!(
+                ownership[side]
+                    .as_object()
+                    .expect("recovery ownership side object")
+                    .keys()
+                    .cloned()
+                    .collect::<HashSet<_>>(),
+                expected_side_keys
+            );
+        }
+        let expected_metric_keys = HashSet::from([
+            "ranges".to_owned(),
+            "canonical_tokens".to_owned(),
+            "comparable_tokens".to_owned(),
+            "max_range_tokens".to_owned(),
+            "trust".to_owned(),
+            "roles".to_owned(),
+        ]);
+        for class in ["total", "accepted"] {
+            assert_eq!(
+                ownership["old"][class]
+                    .as_object()
+                    .expect("recovery ownership metric object")
+                    .keys()
+                    .cloned()
+                    .collect::<HashSet<_>>(),
+                expected_metric_keys
+            );
+        }
+        assert_eq!(
+            ownership["old"]["leaves"]
+                .as_object()
+                .expect("recovery leaf metrics object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>(),
+            HashSet::from([
+                "sentence_body".to_owned(),
+                "line_body".to_owned(),
+                "trusted_run_residual".to_owned(),
+                "heading".to_owned(),
+                "list_item".to_owned(),
+                "footnote".to_owned(),
+                "code_line".to_owned(),
+                "table_cell".to_owned(),
+            ])
+        );
+        assert_eq!(
+            ownership["old"]["gaps"]
+                .as_object()
+                .expect("recovery gap metrics object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>(),
+            HashSet::from([
+                "no_trusted_run".to_owned(),
+                "mixed_trusted_runs".to_owned(),
+                "ordinal_gap".to_owned(),
+                "role_boundary".to_owned(),
+                "location_projection_failed".to_owned(),
+                "normalization_issue".to_owned(),
+                "unmapped_changed_evidence".to_owned(),
+                "unsupported_line_policy".to_owned(),
+            ])
+        );
+        for group in ["leaves", "gaps"] {
+            for metric in ownership["old"][group]
+                .as_object()
+                .expect("recovery ownership metric group")
+                .values()
+            {
+                assert_eq!(
+                    metric
+                        .as_object()
+                        .expect("recovery ownership class metric")
+                        .keys()
+                        .cloned()
+                        .collect::<HashSet<_>>(),
+                    expected_metric_keys
+                );
+            }
+        }
+        assert_eq!(
+            ownership["old"]["total"]["trust"]
+                .as_object()
+                .expect("recovery trust metrics object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>(),
+            HashSet::from(["trusted_tokens".to_owned(), "untrusted_tokens".to_owned()])
+        );
+        assert_eq!(
+            ownership["old"]["total"]["roles"]
+                .as_object()
+                .expect("recovery role metrics object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>(),
+            HashSet::from([
+                "body_tokens".to_owned(),
+                "repeated_header_tokens".to_owned(),
+                "repeated_footer_tokens".to_owned(),
+            ])
+        );
+        let sample = ownership["old"]["samples"][0]
+            .as_object()
+            .expect("recovery ownership sample object");
+        assert_eq!(
+            sample.keys().cloned().collect::<HashSet<_>>(),
+            HashSet::from([
+                "block_id".to_owned(),
+                "canonical_start".to_owned(),
+                "canonical_end".to_owned(),
+                "comparable_start".to_owned(),
+                "comparable_end".to_owned(),
+                "ownership".to_owned(),
+                "trusted".to_owned(),
+                "role".to_owned(),
+                "context".to_owned(),
+            ])
+        );
+        assert_eq!(
+            sample["context"]
+                .as_object()
+                .expect("recovery ownership context object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>(),
+            HashSet::from([
+                "trusted_run_id".to_owned(),
+                "ordinal_start".to_owned(),
+                "ordinal_end".to_owned(),
+                "region_id".to_owned(),
+                "page".to_owned(),
+                "bbox".to_owned(),
+            ])
+        );
+        assert_eq!(
+            sample["context"]["bbox"]
+                .as_object()
+                .expect("recovery ownership bbox object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>(),
+            HashSet::from(["min".to_owned(), "max".to_owned()])
+        );
+        for point in ["min", "max"] {
+            assert_eq!(
+                sample["context"]["bbox"][point]
+                    .as_object()
+                    .expect("recovery ownership bbox point")
+                    .keys()
+                    .cloned()
+                    .collect::<HashSet<_>>(),
+                HashSet::from(["x".to_owned(), "y".to_owned()])
+            );
+        }
+        assert_eq!(sample["context"]["bbox"]["min"]["x"], 1.0);
+        let stop_reason = serde_json::to_value(RecoveryOwnershipErrorReport::ResourceLimit {
+            resource: RecoveryOwnershipResourceReport::ComparableTokens,
+            actual: 11,
+            limit: 10,
+        })
+        .expect("recovery ownership stop reason serializes");
+        assert_eq!(
+            stop_reason
+                .as_object()
+                .expect("recovery ownership resource stop object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>(),
+            HashSet::from([
+                "kind".to_owned(),
+                "resource".to_owned(),
+                "actual".to_owned(),
+                "limit".to_owned(),
+            ])
+        );
+        let invariant_stop =
+            serde_json::to_value(RecoveryOwnershipErrorReport::InvariantViolation {
+                block_index: Some(1),
+                range_index: Some(2),
+                invariant: RecoveryOwnershipInvariantReport::OverlappingOwnership,
+            })
+            .expect("recovery ownership invariant stop serializes");
+        assert_eq!(
+            invariant_stop
+                .as_object()
+                .expect("recovery ownership invariant stop object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>(),
+            HashSet::from([
+                "kind".to_owned(),
+                "block_index".to_owned(),
+                "range_index".to_owned(),
+                "invariant".to_owned(),
+            ])
+        );
         let remainder_attribution =
             records[0]["sentence_recovery_metrics"]["remainder_attribution"]
                 .as_object()
