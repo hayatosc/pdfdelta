@@ -469,6 +469,115 @@ pub struct BlockText {
 }
 
 impl BlockText {
+    /// Projects every normalization issue to a verified canonical range.
+    ///
+    /// Unlike [`Self::raw_to_canonical_range`], this method has no positional
+    /// fallback. Every issue atom must be backed by evidence inside its raw
+    /// range and by canonical source-map, unmapped-token, or normalization-event
+    /// evidence. Any malformed or ambiguous correspondence fails the complete
+    /// projection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when mapped-text ranges are invalid, issue evidence is
+    /// empty or inconsistent, projected evidence is missing, or a projected
+    /// range falls outside the canonical text.
+    pub(crate) fn checked_normalization_issue_ranges(&self) -> Result<Vec<ScalarRange>> {
+        let (raw_scalars, _) = self.raw.validated_token_counts()?;
+        let (canonical_scalars, _) = self.canonical.validated_token_counts()?;
+        self.raw.validate_source_map(raw_scalars)?;
+        self.canonical.validate_source_map(canonical_scalars)?;
+
+        let mut ranges = Vec::new();
+        ranges
+            .try_reserve_exact(self.issues.len())
+            .map_err(|_| Error::LimitExceeded {
+                resource: "normalization issue projections",
+                limit: self.issues.len(),
+            })?;
+        for issue in &self.issues {
+            if issue.raw_range.start >= issue.raw_range.end
+                || issue.raw_range.end > raw_scalars
+                || issue.source.atoms.is_empty()
+                || has_duplicate_source_atoms(&issue.source)
+            {
+                return Err(invalid_issue_projection());
+            }
+            if !issue_raw_source_is_exact(self, issue) {
+                return Err(invalid_issue_projection());
+            }
+
+            let mut start = usize::MAX;
+            let mut end = 0usize;
+            let mut found = false;
+            let mut matched_atoms = Vec::new();
+            matched_atoms
+                .try_reserve_exact(issue.source.atoms.len())
+                .map_err(|_| Error::LimitExceeded {
+                    resource: "normalization issue source atoms",
+                    limit: issue.source.atoms.len(),
+                })?;
+            for entry in &self.canonical.source_map {
+                if sources_intersect(&entry.source, &issue.source) {
+                    include_projection_range(
+                        entry.output_range,
+                        canonical_scalars,
+                        &mut start,
+                        &mut end,
+                        &mut found,
+                    )?;
+                    append_matching_atoms(&mut matched_atoms, &entry.source, &issue.source)?;
+                }
+            }
+            for token in &self.canonical.unmapped {
+                if sources_intersect(&token.source, &issue.source) {
+                    include_projection_range(
+                        ScalarRange {
+                            start: token.scalar_index,
+                            end: token.scalar_index,
+                        },
+                        canonical_scalars,
+                        &mut start,
+                        &mut end,
+                        &mut found,
+                    )?;
+                    append_matching_atoms(&mut matched_atoms, &token.source, &issue.source)?;
+                }
+            }
+            for event in &self.normalization_events {
+                if !sources_intersect(&event.source, &issue.source) {
+                    continue;
+                }
+                if event.source.atoms.is_empty()
+                    || event.raw_range.start > event.raw_range.end
+                    || event.raw_range.end > raw_scalars
+                    || !scalar_range_contains_or_touches(issue.raw_range, event.raw_range)
+                {
+                    return Err(invalid_issue_projection());
+                }
+                include_projection_range(
+                    event.canonical_range,
+                    canonical_scalars,
+                    &mut start,
+                    &mut end,
+                    &mut found,
+                )?;
+                append_matching_atoms(&mut matched_atoms, &event.source, &issue.source)?;
+            }
+            if !found
+                || issue
+                    .source
+                    .atoms
+                    .iter()
+                    .any(|atom| !matched_atoms.contains(atom))
+            {
+                return Err(invalid_issue_projection());
+            }
+            ranges.push(ScalarRange { start, end });
+        }
+        Ok(ranges)
+    }
+
     /// Projects a canonical `ScalarRange` to the corresponding raw `ScalarRange` in `self.raw`.
     pub fn canonical_to_raw_range(&self, canonical_range: ScalarRange) -> ScalarRange {
         if canonical_range.start == canonical_range.end {
@@ -676,6 +785,107 @@ impl BlockText {
             end: clamped,
         }
     }
+}
+
+fn invalid_issue_projection() -> Error {
+    Error::Unresolved("normalization issue source projection is incomplete".to_owned())
+}
+
+fn has_duplicate_source_atoms(source: &TextSource) -> bool {
+    source
+        .atoms
+        .iter()
+        .enumerate()
+        .any(|(index, atom)| source.atoms[..index].contains(atom))
+}
+
+fn scalar_range_contains_or_touches(container: ScalarRange, candidate: ScalarRange) -> bool {
+    if container.start == container.end {
+        candidate.start <= container.start && container.start <= candidate.end
+    } else if candidate.start == candidate.end {
+        container.start <= candidate.start && candidate.start < container.end
+    } else {
+        container.start < candidate.end && candidate.start < container.end
+    }
+}
+
+fn issue_raw_source_is_exact(block: &BlockText, issue: &NormalizationIssue) -> bool {
+    let all_atoms_belong_to_issue = |source: &TextSource| {
+        !source.atoms.is_empty()
+            && source
+                .atoms
+                .iter()
+                .all(|atom| issue.source.atoms.contains(atom))
+    };
+    for entry in &block.raw.source_map {
+        if scalar_range_contains_or_touches(issue.raw_range, entry.output_range)
+            && !all_atoms_belong_to_issue(&entry.source)
+        {
+            return false;
+        }
+    }
+    for token in &block.raw.unmapped {
+        let point = ScalarRange {
+            start: token.scalar_index,
+            end: token.scalar_index,
+        };
+        if scalar_range_contains_or_touches(issue.raw_range, point)
+            && !all_atoms_belong_to_issue(&token.source)
+        {
+            return false;
+        }
+    }
+    issue.source.atoms.iter().all(|atom| {
+        block.raw.source_map.iter().any(|entry| {
+            scalar_range_contains_or_touches(issue.raw_range, entry.output_range)
+                && entry.source.atoms.contains(atom)
+        }) || block.raw.unmapped.iter().any(|token| {
+            scalar_range_contains_or_touches(
+                issue.raw_range,
+                ScalarRange {
+                    start: token.scalar_index,
+                    end: token.scalar_index,
+                },
+            ) && token.source.atoms.contains(atom)
+        })
+    })
+}
+
+fn sources_intersect(left: &TextSource, right: &TextSource) -> bool {
+    left.atoms.iter().any(|atom| right.atoms.contains(atom))
+}
+
+fn append_matching_atoms(
+    output: &mut Vec<TextSourceAtom>,
+    evidence: &TextSource,
+    issue: &TextSource,
+) -> Result<()> {
+    for atom in &evidence.atoms {
+        if issue.atoms.contains(atom) && !output.contains(atom) {
+            output.try_reserve(1).map_err(|_| Error::LimitExceeded {
+                resource: "normalization issue source atoms",
+                limit: issue.atoms.len(),
+            })?;
+            output.push(atom.clone());
+        }
+    }
+    Ok(())
+}
+
+fn include_projection_range(
+    range: ScalarRange,
+    canonical_scalars: usize,
+    start: &mut usize,
+    end: &mut usize,
+    found: &mut bool,
+) -> Result<()> {
+    if range.start > range.end || range.end > canonical_scalars {
+        return Err(invalid_issue_projection());
+    }
+    *start = (*start).min(range.start);
+    *end = (*end).max(range.end);
+    *found = true;
+    Ok(())
 }
 
 pub fn normalize_blocks(

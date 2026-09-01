@@ -16,7 +16,7 @@ use crate::{
         TrustedRunId, TrustedRunInterval,
     },
     model::PageId,
-    normalize::{ComparableToken, ScalarRange},
+    normalize::{BlockText, ComparableToken, ScalarRange},
 };
 
 use super::recovery::candidate::{
@@ -7159,6 +7159,390 @@ struct StreamBlock {
     side_index: usize,
     scalar_range: Range<usize>,
     scalar_to_token: Vec<usize>,
+    uncertainty: Option<BlockUncertaintyIndex>,
+}
+
+struct BlockUncertaintyIndex {
+    issue_ranges: Vec<ScalarRange>,
+    unmapped_token_indices: Vec<usize>,
+    projection_complete: bool,
+}
+
+#[derive(Clone, Copy)]
+struct BlockUncertaintyBudget {
+    build_work: usize,
+    index_items: usize,
+    query_work: usize,
+    build_work_limit: usize,
+    index_item_limit: usize,
+    query_work_limit: usize,
+    exhausted: bool,
+}
+
+impl BlockUncertaintyBudget {
+    fn new(token_limit: usize) -> Self {
+        const BUILD_WORK_SCALE: usize = 32;
+        const QUERY_WORK_SCALE: usize = 8;
+        let build_cap = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS.saturating_mul(BUILD_WORK_SCALE);
+        let query_cap = MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS.saturating_mul(QUERY_WORK_SCALE);
+        let Some(build_work_limit) = token_limit.checked_mul(BUILD_WORK_SCALE) else {
+            return Self::exhausted();
+        };
+        let Some(query_work_limit) = token_limit.checked_mul(QUERY_WORK_SCALE) else {
+            return Self::exhausted();
+        };
+        Self {
+            build_work: 0,
+            index_items: 0,
+            query_work: 0,
+            build_work_limit: build_work_limit.min(build_cap),
+            index_item_limit: token_limit.min(MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS),
+            query_work_limit: query_work_limit.min(query_cap),
+            exhausted: false,
+        }
+    }
+
+    fn exhausted() -> Self {
+        Self {
+            build_work: 0,
+            index_items: 0,
+            query_work: 0,
+            build_work_limit: 0,
+            index_item_limit: 0,
+            query_work_limit: 0,
+            exhausted: true,
+        }
+    }
+
+    fn charge_block(&mut self, block: &BlockText) -> bool {
+        let Some(build_remaining) = self.build_work_limit.checked_sub(self.build_work) else {
+            self.exhausted = true;
+            return false;
+        };
+        let Some(index_remaining) = self.index_item_limit.checked_sub(self.index_items) else {
+            self.exhausted = true;
+            return false;
+        };
+        let Some(index_items) = block
+            .issues
+            .len()
+            .checked_add(block.canonical.unmapped.len())
+        else {
+            self.exhausted = true;
+            return false;
+        };
+        if index_items > index_remaining {
+            self.exhausted = true;
+            return false;
+        }
+        if block.issues.is_empty() {
+            let charged = Self::charge(
+                &mut self.build_work,
+                block.canonical.unmapped.len(),
+                self.build_work_limit,
+            ) && Self::charge(
+                &mut self.index_items,
+                block.canonical.unmapped.len(),
+                self.index_item_limit,
+            );
+            if !charged {
+                self.exhausted = true;
+            }
+            return charged;
+        }
+        let evidence_items = block
+            .raw
+            .source_map
+            .len()
+            .checked_add(block.raw.unmapped.len())
+            .and_then(|count| count.checked_add(block.canonical.source_map.len()))
+            .and_then(|count| count.checked_add(block.canonical.unmapped.len()))
+            .and_then(|count| count.checked_add(block.normalization_events.len()));
+        let Some(evidence_items) = evidence_items else {
+            self.exhausted = true;
+            return false;
+        };
+        let base_work = block
+            .issues
+            .len()
+            .checked_add(1)
+            .and_then(|work| {
+                block
+                    .issues
+                    .len()
+                    .checked_mul(evidence_items)
+                    .and_then(|evidence_work| work.checked_add(evidence_work))
+            })
+            .and_then(|work| {
+                block
+                    .issues
+                    .len()
+                    .checked_mul(partition_point_work(block.issues.len()))
+                    .and_then(|sort_work| work.checked_add(sort_work))
+            });
+        let Some(mut work) = base_work.filter(|work| *work <= build_remaining) else {
+            self.exhausted = true;
+            return false;
+        };
+
+        let mut issue_atoms = 0usize;
+        for issue in &block.issues {
+            let atoms = issue.source.atoms.len();
+            let Some(next_issue_atoms) = issue_atoms.checked_add(atoms) else {
+                self.exhausted = true;
+                return false;
+            };
+            let Some(next_work) = atoms
+                .checked_mul(atoms)
+                .and_then(|atom_work| work.checked_add(atom_work))
+            else {
+                self.exhausted = true;
+                return false;
+            };
+            if next_work > build_remaining {
+                self.exhausted = true;
+                return false;
+            }
+            issue_atoms = next_issue_atoms;
+            work = next_work;
+        }
+
+        let comparison_factor = issue_atoms.max(block.issues.len());
+        let atom_budget = build_remaining
+            .checked_sub(work)
+            .map(|remaining| remaining / comparison_factor)
+            .unwrap_or(0);
+        let evidence_atom_lengths = block
+            .raw
+            .source_map
+            .iter()
+            .map(|entry| entry.source.atoms.len())
+            .chain(
+                block
+                    .raw
+                    .unmapped
+                    .iter()
+                    .map(|token| token.source.atoms.len()),
+            )
+            .chain(
+                block
+                    .canonical
+                    .source_map
+                    .iter()
+                    .map(|entry| entry.source.atoms.len()),
+            )
+            .chain(
+                block
+                    .canonical
+                    .unmapped
+                    .iter()
+                    .map(|token| token.source.atoms.len()),
+            )
+            .chain(
+                block
+                    .normalization_events
+                    .iter()
+                    .map(|event| event.source.atoms.len()),
+            );
+        let mut evidence_atoms = 0usize;
+        for atoms in evidence_atom_lengths {
+            let Some(next) = evidence_atoms.checked_add(atoms) else {
+                self.exhausted = true;
+                return false;
+            };
+            if next > atom_budget {
+                self.exhausted = true;
+                return false;
+            }
+            evidence_atoms = next;
+        }
+        let Some(work) = evidence_atoms
+            .checked_mul(comparison_factor)
+            .and_then(|atom_work| work.checked_add(atom_work))
+        else {
+            self.exhausted = true;
+            return false;
+        };
+        if !Self::charge(&mut self.build_work, work, self.build_work_limit)
+            || !Self::charge(&mut self.index_items, index_items, self.index_item_limit)
+        {
+            self.exhausted = true;
+            return false;
+        }
+        true
+    }
+
+    fn charge_query(&mut self, issue_count: usize, unmapped_count: usize) -> bool {
+        let work =
+            partition_point_work(issue_count).checked_add(partition_point_work(unmapped_count));
+        let Some(work) = work else {
+            self.exhausted = true;
+            return false;
+        };
+        if !Self::charge(&mut self.query_work, work, self.query_work_limit) {
+            self.exhausted = true;
+            return false;
+        }
+        true
+    }
+
+    fn charge(counter: &mut usize, amount: usize, limit: usize) -> bool {
+        let Some(next) = counter.checked_add(amount) else {
+            return false;
+        };
+        if next > limit {
+            return false;
+        }
+        *counter = next;
+        true
+    }
+}
+
+fn partition_point_work(len: usize) -> usize {
+    if len == 0 {
+        0
+    } else {
+        usize::BITS as usize - len.leading_zeros() as usize
+    }
+}
+
+impl BlockUncertaintyIndex {
+    fn build(
+        block: &BlockText,
+        tokens: &[ComparableToken],
+        budget: &mut BlockUncertaintyBudget,
+    ) -> Self {
+        if block.issues.is_empty() && block.canonical.unmapped.is_empty() {
+            return Self {
+                issue_ranges: Vec::new(),
+                unmapped_token_indices: Vec::new(),
+                projection_complete: true,
+            };
+        }
+        if budget.exhausted {
+            return Self::fully_uncertain();
+        }
+        let mut trial = *budget;
+        if !trial.charge_block(block) {
+            *budget = trial;
+            return Self::fully_uncertain();
+        }
+        let mut issue_ranges = if block.issues.is_empty() {
+            Vec::new()
+        } else {
+            match block.checked_normalization_issue_ranges() {
+                Ok(ranges) => ranges,
+                Err(crate::Error::LimitExceeded { .. }) => {
+                    trial.exhausted = true;
+                    *budget = trial;
+                    return Self::fully_uncertain();
+                }
+                Err(_) => {
+                    *budget = trial;
+                    return Self::fully_uncertain();
+                }
+            }
+        };
+        // Cardinality and n-log-n sort work were precharged against fixed caps.
+        issue_ranges.sort_unstable_by_key(|range| (range.start, range.end));
+        let mut merged_ranges = Vec::<ScalarRange>::new();
+        if merged_ranges.try_reserve_exact(issue_ranges.len()).is_err() {
+            trial.exhausted = true;
+            *budget = trial;
+            return Self::fully_uncertain();
+        }
+        for range in issue_ranges {
+            if let Some(previous) = merged_ranges.last_mut()
+                && range.start <= previous.end
+            {
+                previous.end = previous.end.max(range.end);
+            } else {
+                merged_ranges.push(range);
+            }
+        }
+        let mut unmapped_token_indices = Vec::new();
+        if unmapped_token_indices
+            .try_reserve_exact(block.canonical.unmapped.len())
+            .is_err()
+        {
+            trial.exhausted = true;
+            *budget = trial;
+            return Self::fully_uncertain();
+        }
+        for (ordinal, unmapped) in block.canonical.unmapped.iter().enumerate() {
+            let Some(token_index) = unmapped.scalar_index.checked_add(ordinal) else {
+                *budget = trial;
+                return Self::fully_uncertain();
+            };
+            match tokens.get(token_index) {
+                Some(ComparableToken::Unmapped {
+                    font_hash,
+                    glyph_id,
+                }) if font_hash == &unmapped.font_hash && *glyph_id == unmapped.glyph_id => {}
+                _ => {
+                    *budget = trial;
+                    return Self::fully_uncertain();
+                }
+            }
+            unmapped_token_indices.push(token_index);
+        }
+        if !unmapped_token_indices
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
+        {
+            *budget = trial;
+            return Self::fully_uncertain();
+        }
+        *budget = trial;
+        Self {
+            issue_ranges: merged_ranges,
+            unmapped_token_indices,
+            projection_complete: true,
+        }
+    }
+
+    fn fully_uncertain() -> Self {
+        Self {
+            issue_ranges: Vec::new(),
+            unmapped_token_indices: Vec::new(),
+            projection_complete: false,
+        }
+    }
+
+    fn range_is_uncertain(
+        &self,
+        canonical: ScalarRange,
+        comparable: TokenRange,
+        budget: &mut BlockUncertaintyBudget,
+    ) -> bool {
+        if !self.projection_complete {
+            return true;
+        }
+        if self.issue_ranges.is_empty() && self.unmapped_token_indices.is_empty() {
+            return false;
+        }
+        if budget.exhausted
+            || !budget.charge_query(self.issue_ranges.len(), self.unmapped_token_indices.len())
+        {
+            return true;
+        }
+        let issue_index = self
+            .issue_ranges
+            .partition_point(|issue| issue.end < canonical.start);
+        if self
+            .issue_ranges
+            .get(issue_index)
+            .is_some_and(|issue| issue.start <= canonical.end)
+        {
+            return true;
+        }
+        let unmapped_index = self
+            .unmapped_token_indices
+            .partition_point(|token| *token < comparable.start);
+        self.unmapped_token_indices
+            .get(unmapped_index)
+            .is_some_and(|token| *token < comparable.end)
+    }
 }
 
 struct Stream {
@@ -8429,7 +8813,436 @@ pub(super) fn build_sentence_recovery_plan(
             Err(_) => record_sentence_edge_signature_replay_failure(&mut accepted),
         }
     }
+    append_secondary_range_local_exact_matches(
+        &mut accepted,
+        old,
+        new,
+        alignment,
+        input,
+        max_tokens,
+    );
     Ok(accepted)
+}
+
+struct SecondaryExactOccurrence {
+    tokens: Vec<SentenceEvidenceToken>,
+    role: Option<BlockRole>,
+    legacy_location_available: bool,
+    location: Option<SentenceLocation>,
+}
+
+fn append_secondary_range_local_exact_matches(
+    accepted: &mut SentenceRecoveryBuildOutcome,
+    old: &Side<'_>,
+    new: &Side<'_>,
+    alignment: &Alignment,
+    input: SentenceRecoveryInput<'_>,
+    max_tokens: usize,
+) {
+    let Some(batch) = secondary_range_local_exact_batch(
+        old,
+        new,
+        alignment,
+        input,
+        max_tokens,
+        accepted.plan.as_ref(),
+    ) else {
+        return;
+    };
+    commit_secondary_exact_batch(accepted, batch);
+}
+
+fn commit_secondary_exact_batch(
+    accepted: &mut SentenceRecoveryBuildOutcome,
+    batch: SentenceRecoveryPlan,
+) {
+    if !batch.has_exact_matches() {
+        return;
+    }
+
+    let Some(deletion_consumed) = merged_consumed_ranges(
+        accepted
+            .plan
+            .as_ref()
+            .map_or(&[][..], |plan| plan.deletion_consumed.as_slice()),
+        &batch.deletion_consumed,
+    ) else {
+        return;
+    };
+    let Some(insertion_consumed) = merged_consumed_ranges(
+        accepted
+            .plan
+            .as_ref()
+            .map_or(&[][..], |plan| plan.insertion_consumed.as_slice()),
+        &batch.insertion_consumed,
+    ) else {
+        return;
+    };
+    let had_primary = accepted.plan.is_some();
+    let mut plan = accepted.plan.take().unwrap_or_default();
+    if plan.matches.try_reserve_exact(batch.matches.len()).is_err()
+        || plan
+            .cross_span_match_old
+            .try_reserve_exact(batch.cross_span_match_old.len())
+            .is_err()
+        || plan
+            .cross_span_match_new
+            .try_reserve_exact(batch.cross_span_match_new.len())
+            .is_err()
+    {
+        accepted.plan = had_primary.then_some(plan);
+        return;
+    }
+    plan.matches.extend(batch.matches);
+    plan.cross_span_match_old.extend(batch.cross_span_match_old);
+    plan.cross_span_match_new.extend(batch.cross_span_match_new);
+    plan.deletion_consumed = deletion_consumed;
+    plan.insertion_consumed = insertion_consumed;
+    plan.matches
+        .sort_unstable_by_key(|matched| matched.old.span_index);
+    plan.cross_span_match_old
+        .sort_unstable_by_key(|recovery| recovery.span_index);
+    plan.cross_span_match_new
+        .sort_unstable_by_key(|recovery| recovery.span_index);
+    accepted.plan = Some(plan);
+    if let Some(diagnostics) = accepted.diagnostics.as_mut() {
+        if diagnostics.metrics.remainder_attribution_complete == Some(true) {
+            diagnostics.metrics.remainder_attribution_complete = Some(false);
+            diagnostics.metrics.remainder_attribution_stop_reason =
+                Some(RecoveryRemainderAttributionStopReason::AnalysisIncomplete);
+        }
+        diagnostics.metrics.remainder_attribution = None;
+    }
+    // Candidate diagnostics describe the frozen primary relation graph; this
+    // isolated exact-only stage intentionally leaves those counters unchanged.
+}
+
+fn merged_consumed_ranges(
+    primary: &[LocalSentenceRange],
+    secondary: &[LocalSentenceRange],
+) -> Option<Vec<LocalSentenceRange>> {
+    let capacity = primary.len().checked_add(secondary.len())?;
+    let mut merged = Vec::new();
+    merged.try_reserve_exact(capacity).ok()?;
+    merged.extend_from_slice(primary);
+    merged.extend_from_slice(secondary);
+    normalize_ranges(&mut merged).then_some(merged)
+}
+
+fn secondary_range_local_exact_batch(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    alignment: &Alignment,
+    input: SentenceRecoveryInput<'_>,
+    max_tokens: usize,
+    primary: Option<&SentenceRecoveryPlan>,
+) -> Option<SentenceRecoveryPlan> {
+    let membership = span_membership(alignment)?;
+    let mut recovery_budget = RecoveryBudget::new(
+        old.total_tokens,
+        new.total_tokens,
+        max_tokens,
+        input.min_tokens,
+    )?;
+    let total_tokens = old.total_tokens.checked_add(new.total_tokens)?;
+    let mut uncertainty_budget = BlockUncertaintyBudget::new(total_tokens);
+    let old_occurrences = collect_secondary_exact_occurrences(
+        old,
+        input.old_trusted_run_intervals,
+        &membership.old,
+        &membership.recovery_spans,
+        &mut recovery_budget,
+        &mut uncertainty_budget,
+    )?;
+    let new_occurrences = collect_secondary_exact_occurrences(
+        new,
+        input.new_trusted_run_intervals,
+        &membership.new,
+        &membership.recovery_spans,
+        &mut recovery_budget,
+        &mut uncertainty_budget,
+    )?;
+    if uncertainty_budget.exhausted {
+        return None;
+    }
+    build_secondary_exact_batch(
+        old_occurrences,
+        new_occurrences,
+        primary,
+        input.min_tokens,
+        &mut recovery_budget,
+    )
+}
+
+fn collect_secondary_exact_occurrences(
+    side: &Side<'_>,
+    trusted_run_intervals: &[Option<TrustedRunInterval>],
+    span_by_block: &HashMap<BlockId, usize>,
+    recovery_spans: &[bool],
+    recovery_budget: &mut RecoveryBudget,
+    uncertainty_budget: &mut BlockUncertaintyBudget,
+) -> Option<Vec<SecondaryExactOccurrence>> {
+    let plans = stream_plans(trusted_run_intervals)?;
+    let mut occurrences = Vec::new();
+    for (stream_index, plan) in plans.into_iter().enumerate() {
+        let stream = build_stream(side, &plan, Some(uncertainty_budget))?;
+        if uncertainty_budget.exhausted {
+            return None;
+        }
+        let boundaries = sentence_boundaries(
+            &stream.text,
+            &stream.forced_sentence_boundaries,
+            recovery_budget,
+        )?;
+        let completed_sentence_count = boundaries.len();
+        let fragment_boundary = if stream.trusted {
+            trailing_fragment_boundary(&stream.text, &boundaries, recovery_budget)?
+        } else {
+            None
+        };
+        for boundary in boundaries {
+            let touched_blocks = sentence_stream_block_range(&stream, boundary)?;
+            let role = sentence_role(side, &stream, touched_blocks.clone())?;
+            let span_index =
+                sentence_span_index(side, &stream, touched_blocks.clone(), span_by_block)?;
+            let tokens = sentence_tokens(&stream, boundary, recovery_budget)?;
+            let legacy_location_available = plan.trusted
+                && stream
+                    .blocks
+                    .get(touched_blocks.clone())?
+                    .iter()
+                    .all(|stream_block| {
+                        side.blocks
+                            .get(stream_block.side_index)
+                            .is_some_and(|block| {
+                                block.issues.is_empty() && block.canonical.unmapped.is_empty()
+                            })
+                    });
+            let location = match (plan.trusted, span_index, role, legacy_location_available) {
+                (true, Some(span_index), Some(role), false)
+                    if recovery_spans.get(span_index).copied()? =>
+                {
+                    let location = range_local_sentence_location(
+                        side,
+                        &stream,
+                        boundary,
+                        touched_blocks,
+                        span_index,
+                        role,
+                        (recovery_budget, uncertainty_budget),
+                    )?;
+                    if uncertainty_budget.exhausted {
+                        return None;
+                    }
+                    location
+                }
+                _ => None,
+            };
+            occurrences.try_reserve(1).ok()?;
+            occurrences.push(SecondaryExactOccurrence {
+                tokens,
+                role,
+                legacy_location_available,
+                location,
+            });
+        }
+        if let Some(boundary) = fragment_boundary {
+            let touched_blocks = sentence_stream_block_range(&stream, boundary)?;
+            let uncertain = sentence_fragment_is_uncertain(side, &stream, touched_blocks.clone())?;
+            let promoted_tail = completed_sentence_count == 0 && !stream.atomic_line && !uncertain;
+            let isolated_exact_tail = completed_sentence_count > 0 && !uncertain;
+            if promoted_tail || isolated_exact_tail {
+                let occurrence = build_sentence_occurrence(
+                    side,
+                    &stream,
+                    &plan,
+                    boundary,
+                    RecoveryUnitKind::Sentence,
+                    stream_index,
+                    completed_sentence_count,
+                    None,
+                    span_by_block,
+                    recovery_spans,
+                    recovery_budget,
+                )?;
+                if isolated_exact_tail && occurrence.location.is_none() {
+                    continue;
+                }
+                occurrences.try_reserve(1).ok()?;
+                occurrences.push(SecondaryExactOccurrence {
+                    tokens: occurrence.tokens,
+                    role: occurrence.role,
+                    legacy_location_available: true,
+                    location: None,
+                });
+            }
+        }
+    }
+    Some(occurrences)
+}
+
+fn secondary_exact_postings(
+    occurrences: &[SecondaryExactOccurrence],
+) -> Option<HashMap<ExactHash, Vec<usize>>> {
+    let mut postings = HashMap::<ExactHash, Vec<usize>>::new();
+    postings.try_reserve(occurrences.len()).ok()?;
+    for (index, occurrence) in occurrences.iter().enumerate() {
+        let posting = postings
+            .entry(exact_segment_hash(&occurrence.tokens))
+            .or_default();
+        posting.try_reserve(1).ok()?;
+        posting.push(index);
+    }
+    Some(postings)
+}
+
+fn secondary_exact_occurrences_in_posting(
+    occurrence: &SecondaryExactOccurrence,
+    posting: &[usize],
+    occurrences: &[SecondaryExactOccurrence],
+    budget: &mut RecoveryBudget,
+) -> Option<Vec<usize>> {
+    if !budget.charge_pair_visits_in_scope(
+        posting.len(),
+        RecoveryUnitKind::Sentence,
+        NearSearchScope::CrossSpan,
+    ) {
+        return None;
+    }
+    let mut exact = Vec::new();
+    exact.try_reserve_exact(posting.len()).ok()?;
+    for index in posting {
+        let candidate = occurrences.get(*index)?;
+        let comparisons = occurrence
+            .tokens
+            .len()
+            .checked_add(candidate.tokens.len())?;
+        if !budget.charge_comparisons_in_scope_split(
+            comparisons,
+            RecoveryUnitKind::Sentence,
+            NearSearchScope::CrossSpan,
+            NearSearchWorkSplit::shared(comparisons),
+        ) {
+            return None;
+        }
+        if occurrence.tokens == candidate.tokens {
+            exact.push(*index);
+        }
+    }
+    Some(exact)
+}
+
+fn secondary_location_overlaps(
+    location: &SentenceLocation,
+    consumed: &[LocalSentenceRange],
+) -> bool {
+    location
+        .consumed
+        .iter()
+        .any(|range| local_sentence_ranges_overlap(range, consumed))
+}
+
+fn build_secondary_exact_batch(
+    mut old: Vec<SecondaryExactOccurrence>,
+    mut new: Vec<SecondaryExactOccurrence>,
+    primary: Option<&SentenceRecoveryPlan>,
+    min_tokens: usize,
+    budget: &mut RecoveryBudget,
+) -> Option<SentenceRecoveryPlan> {
+    let old_postings = secondary_exact_postings(&old)?;
+    let new_postings = secondary_exact_postings(&new)?;
+    let mut candidates = Vec::<(usize, usize)>::new();
+    candidates
+        .try_reserve_exact(old.len().min(new.len()))
+        .ok()?;
+    for (old_index, occurrence) in old.iter().enumerate() {
+        if occurrence.legacy_location_available
+            || occurrence.location.is_none()
+            || occurrence.tokens.len() < min_tokens
+        {
+            continue;
+        }
+        let hash = exact_segment_hash(&occurrence.tokens);
+        let Some(old_posting) = old_postings.get(&hash) else {
+            continue;
+        };
+        let Some(new_posting) = new_postings.get(&hash) else {
+            continue;
+        };
+        let old_exact =
+            secondary_exact_occurrences_in_posting(occurrence, old_posting, &old, budget)?;
+        let new_exact =
+            secondary_exact_occurrences_in_posting(occurrence, new_posting, &new, budget)?;
+        let ([unique_old], [new_index]) = (old_exact.as_slice(), new_exact.as_slice()) else {
+            continue;
+        };
+        let candidate = new.get(*new_index)?;
+        if *unique_old != old_index
+            || candidate.legacy_location_available
+            || candidate.location.is_none()
+            || !matches!(
+                (occurrence.role, candidate.role),
+                (Some(old_role), Some(new_role))
+                    if old_role.is_alignment_compatible(new_role)
+            )
+        {
+            continue;
+        }
+        candidates.try_reserve(1).ok()?;
+        candidates.push((old_index, *new_index));
+    }
+
+    let mut batch = SentenceRecoveryPlan::default();
+    for (old_index, new_index) in candidates {
+        let old_location = old.get(old_index)?.location.as_ref()?;
+        let new_location = new.get(new_index)?.location.as_ref()?;
+        if primary.is_some_and(|plan| {
+            secondary_location_overlaps(old_location, &plan.deletion_consumed)
+                || secondary_location_overlaps(new_location, &plan.insertion_consumed)
+        }) {
+            continue;
+        }
+        if secondary_location_overlaps(old_location, &batch.deletion_consumed)
+            || secondary_location_overlaps(new_location, &batch.insertion_consumed)
+        {
+            return None;
+        }
+        let source_tokens = old_location
+            .recovery
+            .source_tokens
+            .checked_add(new_location.recovery.source_tokens)?;
+        if !budget.charge_outputs(2, source_tokens) {
+            return None;
+        }
+        batch
+            .deletion_consumed
+            .try_reserve_exact(old_location.consumed.len())
+            .ok()?;
+        batch
+            .insertion_consumed
+            .try_reserve_exact(new_location.consumed.len())
+            .ok()?;
+        if old_location.recovery.span_index == new_location.recovery.span_index {
+            batch.matches.try_reserve(1).ok()?;
+        } else {
+            batch.cross_span_match_old.try_reserve(1).ok()?;
+            batch.cross_span_match_new.try_reserve(1).ok()?;
+        }
+        let old_location = old.get_mut(old_index)?.location.take()?;
+        let new_location = new.get_mut(new_index)?.location.take()?;
+        if old_location.recovery.span_index == new_location.recovery.span_index {
+            batch.matches.push(RecoveredExactMatch {
+                old: old_location.recovery,
+                new: new_location.recovery,
+            });
+        } else {
+            batch.cross_span_match_old.push(old_location.recovery);
+            batch.cross_span_match_new.push(new_location.recovery);
+        }
+        batch.deletion_consumed.extend(old_location.consumed);
+        batch.insertion_consumed.extend(new_location.consumed);
+    }
+    normalize_recovery_ranges(&mut batch).then_some(batch)
 }
 
 #[cfg(test)]
@@ -10517,7 +11330,7 @@ fn collect_occurrences(
             (Some(run_id), Some(evidence)) => Some(evidence.descriptor_index(run_id)?),
             _ => None,
         };
-        let stream = build_stream(side, &plan)?;
+        let stream = build_stream(side, &plan, None)?;
         let sentence_boundaries =
             sentence_boundaries(&stream.text, &stream.forced_sentence_boundaries, budget)?;
         let completed_sentence_count = sentence_boundaries.len();
@@ -10711,6 +11524,31 @@ fn sentence_fragment_is_uncertain(
         })
 }
 
+fn sentence_local_ranges(
+    stream_block: &StreamBlock,
+    boundary: SentenceBoundary,
+) -> Option<Option<(ScalarRange, TokenRange)>> {
+    let overlap_start = boundary.scalar_start.max(stream_block.scalar_range.start);
+    let overlap_end = boundary.scalar_end.min(stream_block.scalar_range.end);
+    if overlap_start >= overlap_end {
+        return Some(None);
+    }
+    let local_scalar_start = overlap_start.checked_sub(stream_block.scalar_range.start)?;
+    let local_scalar_end = overlap_end.checked_sub(stream_block.scalar_range.start)?;
+    let token_start = *stream_block.scalar_to_token.get(local_scalar_start)?;
+    let token_end = *stream_block.scalar_to_token.get(local_scalar_end)?;
+    (token_start < token_end).then_some(Some((
+        ScalarRange {
+            start: local_scalar_start,
+            end: local_scalar_end,
+        },
+        TokenRange {
+            start: token_start,
+            end: token_end,
+        },
+    )))
+}
+
 fn sentence_page(side: &Side<'_>, stream: &Stream, touched_blocks: Range<usize>) -> Option<u32> {
     let mut page = None;
     for stream_block in stream.blocks.get(touched_blocks)? {
@@ -10897,7 +11735,11 @@ fn append_evidence_tokens(
     Some(insert_space)
 }
 
-fn build_stream(side: &Side<'_>, plan: &StreamPlan) -> Option<Stream> {
+fn build_stream(
+    side: &Side<'_>,
+    plan: &StreamPlan,
+    mut uncertainty_budget: Option<&mut BlockUncertaintyBudget>,
+) -> Option<Stream> {
     let mut text_capacity = plan.block_indices.len().saturating_sub(1);
     let mut token_capacity = plan.block_indices.len().saturating_sub(1);
     for side_index in &plan.block_indices {
@@ -10957,6 +11799,9 @@ fn build_stream(side: &Side<'_>, plan: &StreamPlan) -> Option<Stream> {
             side_index,
             scalar_range: scalar_start..scalar_count,
             scalar_to_token: scalar_to_token_boundaries(tokens.get(block_token_start..)?)?,
+            uncertainty: uncertainty_budget
+                .as_deref_mut()
+                .map(|budget| BlockUncertaintyIndex::build(block, next, budget)),
         });
         previous_ended_terminal = is_true_sentence_terminal(block.canonical.text.trim());
         previous_role = Some(block.role);
@@ -11112,6 +11957,99 @@ fn sentence_location(
         recovery: RecoveredSentence {
             span_index,
             kind,
+            role: role.into(),
+            separator: (block_ids.len() > 1).then_some(BlockSeparator::Space),
+            blocks: block_ids,
+            canonical: ScalarRange {
+                start: canonical_start,
+                end: canonical_end,
+            },
+            comparable: TokenRange {
+                start: comparable_start,
+                end: comparable_end,
+            },
+            source_tokens,
+        },
+        consumed,
+    }))
+}
+
+fn range_local_sentence_location(
+    side: &Side<'_>,
+    stream: &Stream,
+    boundary: SentenceBoundary,
+    touched_blocks: Range<usize>,
+    span_index: usize,
+    role: BlockRole,
+    budgets: (&mut RecoveryBudget, &mut BlockUncertaintyBudget),
+) -> Option<Option<SentenceLocation>> {
+    if !stream.trusted {
+        return Some(None);
+    }
+    let (budget, uncertainty_budget) = budgets;
+    let stream_blocks = stream.blocks.get(touched_blocks)?;
+    let first = stream_blocks.first()?;
+    let canonical_start = boundary
+        .scalar_start
+        .checked_sub(first.scalar_range.start)?;
+    let canonical_end = boundary.scalar_end.checked_sub(first.scalar_range.start)?;
+    let token_origin = *stream.scalar_to_token.get(first.scalar_range.start)?;
+    let comparable_start = stream
+        .scalar_to_token
+        .get(boundary.scalar_start)?
+        .checked_sub(token_origin)?;
+    let comparable_end = stream
+        .scalar_to_token
+        .get(boundary.scalar_end)?
+        .checked_sub(token_origin)?;
+    if comparable_start >= comparable_end {
+        return None;
+    }
+
+    let mut source_tokens = 0usize;
+    let mut consumed_count = 0usize;
+    for stream_block in stream_blocks {
+        let tokens = side.canonical.get(stream_block.side_index)?;
+        let Some((canonical, comparable)) = sentence_local_ranges(stream_block, boundary)? else {
+            continue;
+        };
+        if comparable.end > tokens.len() {
+            return None;
+        }
+        if stream_block.uncertainty.as_ref()?.range_is_uncertain(
+            canonical,
+            comparable,
+            uncertainty_budget,
+        ) {
+            return Some(None);
+        }
+        consumed_count = consumed_count.checked_add(1)?;
+        source_tokens = source_tokens.checked_add(comparable.end.checked_sub(comparable.start)?)?;
+    }
+    if source_tokens == 0 || !budget.charge_location_metadata(stream_blocks.len(), consumed_count) {
+        return None;
+    }
+
+    let mut block_ids = Vec::new();
+    let mut consumed = Vec::new();
+    block_ids.try_reserve_exact(stream_blocks.len()).ok()?;
+    consumed.try_reserve_exact(consumed_count).ok()?;
+    for stream_block in stream_blocks {
+        let block = side.blocks.get(stream_block.side_index)?;
+        block_ids.push(block.block);
+        let Some((canonical, comparable)) = sentence_local_ranges(stream_block, boundary)? else {
+            continue;
+        };
+        consumed.push(LocalSentenceRange {
+            block: block.block,
+            canonical,
+            comparable,
+        });
+    }
+    Some(Some(SentenceLocation {
+        recovery: RecoveredSentence {
+            span_index,
+            kind: RecoveryUnitKind::Sentence,
             role: role.into(),
             separator: (block_ids.len() > 1).then_some(BlockSeparator::Space),
             blocks: block_ids,
@@ -24703,7 +25641,11 @@ mod tests {
     use super::*;
     use crate::{
         layout::{RegionId, RegionRelation},
-        model::{FontProgramHash, PageId, Rect, Vec2},
+        model::{FontProgramHash, GlyphId, PageId, Rect, Vec2},
+        normalize::{
+            MappedText, NormalizationEvent, NormalizationIssue, NormalizationIssueKind,
+            NormalizationKind, SourceMapEntry, TextSource, TextSourceAtom, UnmappedToken,
+        },
     };
 
     const TEST_NEAR_SCOPE: NearSearchScope = NearSearchScope::SameOrAmbiguousSpan;
@@ -25814,9 +26756,22 @@ mod tests {
         text: &str,
         line_breaks: Option<Vec<usize>>,
     ) -> crate::normalize::BlockText {
-        let mapped = crate::normalize::MappedText {
+        let source_map = text
+            .chars()
+            .enumerate()
+            .map(|(index, _)| SourceMapEntry {
+                output_range: ScalarRange {
+                    start: index,
+                    end: index + 1,
+                },
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(index as u64 + 1))],
+                },
+            })
+            .collect();
+        let mapped = MappedText {
             text: text.to_owned(),
-            source_map: Vec::new(),
+            source_map,
             unmapped: Vec::new(),
         };
         crate::normalize::BlockText {
@@ -25834,6 +26789,158 @@ mod tests {
             position_signatures: None,
             line_breaks,
             page_breaks: Some(Vec::new()),
+        }
+    }
+
+    fn collect_test_blocks(
+        blocks: Vec<BlockText>,
+        trusted: bool,
+        budget: &mut RecoveryBudget,
+    ) -> Option<OccurrenceCollection> {
+        let canonical = blocks
+            .iter()
+            .map(|block| block.matching_tokens.clone())
+            .collect::<Vec<_>>();
+        let total_tokens = canonical.iter().map(Vec::len).sum();
+        let index = blocks
+            .iter()
+            .enumerate()
+            .map(|(index, block)| (block.block, index))
+            .collect();
+        let side = Side {
+            blocks: &blocks,
+            index,
+            canonical,
+            total_tokens,
+        };
+        let intervals = blocks
+            .iter()
+            .enumerate()
+            .map(|(ordinal, _)| {
+                if trusted {
+                    interval(1, ordinal, ordinal + 1)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        let span_by_block = blocks.iter().map(|block| (block.block, 0)).collect();
+        let mut exact_tail_budget = *budget;
+
+        collect_occurrences(
+            &side,
+            &intervals,
+            None,
+            &span_by_block,
+            &[true],
+            budget,
+            &mut exact_tail_budget,
+        )
+    }
+
+    fn collect_test_secondary_blocks(
+        blocks: Vec<BlockText>,
+        trusted: bool,
+    ) -> Option<Vec<SecondaryExactOccurrence>> {
+        collect_test_secondary_blocks_with_occurrence_limit(blocks, trusted, None)
+    }
+
+    fn collect_test_secondary_blocks_with_occurrence_limit(
+        blocks: Vec<BlockText>,
+        trusted: bool,
+        occurrence_limit: Option<usize>,
+    ) -> Option<Vec<SecondaryExactOccurrence>> {
+        let canonical = blocks
+            .iter()
+            .map(|block| block.matching_tokens.clone())
+            .collect::<Vec<_>>();
+        let total_tokens = canonical.iter().map(Vec::len).sum();
+        let side = Side {
+            blocks: &blocks,
+            index: blocks
+                .iter()
+                .enumerate()
+                .map(|(index, block)| (block.block, index))
+                .collect(),
+            canonical,
+            total_tokens,
+        };
+        let intervals = blocks
+            .iter()
+            .enumerate()
+            .map(|(ordinal, _)| trusted.then(|| interval(1, ordinal, ordinal + 1)).flatten())
+            .collect::<Vec<_>>();
+        let span_by_block = blocks.iter().map(|block| (block.block, 0)).collect();
+        let mut recovery_budget = RecoveryBudget::new(total_tokens, 0, total_tokens * 2, 1)?;
+        if let Some(occurrence_limit) = occurrence_limit {
+            recovery_budget.token_limit = occurrence_limit;
+        }
+        let mut uncertainty_budget = test_uncertainty_budget();
+        collect_secondary_exact_occurrences(
+            &side,
+            &intervals,
+            &span_by_block,
+            &[true],
+            &mut recovery_budget,
+            &mut uncertainty_budget,
+        )
+    }
+
+    fn add_test_issue(block: &mut BlockText, raw_range: ScalarRange, source_index: usize) {
+        block.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range,
+            source: block.raw.source_map[source_index].source.clone(),
+        });
+    }
+
+    fn test_uncertainty_budget() -> BlockUncertaintyBudget {
+        BlockUncertaintyBudget::new(10_000)
+    }
+
+    fn secondary_test_occurrence(
+        text: &str,
+        block: u64,
+        span_index: usize,
+        range: Range<usize>,
+    ) -> SecondaryExactOccurrence {
+        let tokens = text
+            .chars()
+            .map(SentenceEvidenceToken::Scalar)
+            .collect::<Vec<_>>();
+        SecondaryExactOccurrence {
+            tokens,
+            role: Some(BlockRole::Body),
+            legacy_location_available: false,
+            location: Some(SentenceLocation {
+                recovery: RecoveredSentence {
+                    span_index,
+                    kind: RecoveryUnitKind::Sentence,
+                    role: OccurrenceRole::Body,
+                    blocks: vec![BlockId(block)],
+                    separator: None,
+                    canonical: ScalarRange {
+                        start: range.start,
+                        end: range.end,
+                    },
+                    comparable: TokenRange {
+                        start: range.start,
+                        end: range.end,
+                    },
+                    source_tokens: range.len(),
+                },
+                consumed: vec![LocalSentenceRange {
+                    block: BlockId(block),
+                    canonical: ScalarRange {
+                        start: range.start,
+                        end: range.end,
+                    },
+                    comparable: TokenRange {
+                        start: range.start,
+                        end: range.end,
+                    },
+                }],
+            }),
         }
     }
 
@@ -25860,45 +26967,7 @@ mod tests {
                     source: crate::normalize::TextSource { atoms: Vec::new() },
                 });
         }
-        let canonical = blocks
-            .iter()
-            .map(|block| block.matching_tokens.clone())
-            .collect::<Vec<_>>();
-        let total_tokens = canonical.iter().map(Vec::len).sum();
-        let index = blocks
-            .iter()
-            .enumerate()
-            .map(|(index, block)| (block.block, index))
-            .collect();
-        let side = Side {
-            blocks: &blocks,
-            index,
-            canonical,
-            total_tokens,
-        };
-        let intervals = parts
-            .iter()
-            .enumerate()
-            .map(|(ordinal, _)| {
-                if trusted {
-                    interval(1, ordinal, ordinal + 1)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        let span_by_block = blocks.iter().map(|block| (block.block, 0)).collect();
-        let mut exact_tail_budget = *budget;
-
-        collect_occurrences(
-            &side,
-            &intervals,
-            None,
-            &span_by_block,
-            &[true],
-            budget,
-            &mut exact_tail_budget,
-        )
+        collect_test_blocks(blocks, trusted, budget)
     }
 
     fn test_location(range: LocalSentenceRange, span_index: usize) -> SentenceLocation {
@@ -31611,6 +32680,932 @@ mod tests {
     }
 
     #[test]
+    fn block_uncertainty_rejects_only_ranges_touching_projected_issue() {
+        let mut block = collection_test_block(1, "abcdef", None);
+        add_test_issue(&mut block, ScalarRange { start: 1, end: 2 }, 1);
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("test text is valid");
+        let mut budget = test_uncertainty_budget();
+        let index = BlockUncertaintyIndex::build(&block, &tokens, &mut budget);
+
+        assert!(index.projection_complete);
+        assert!(index.range_is_uncertain(
+            ScalarRange { start: 0, end: 1 },
+            TokenRange { start: 0, end: 1 },
+            &mut budget,
+        ));
+        assert!(index.range_is_uncertain(
+            ScalarRange { start: 2, end: 3 },
+            TokenRange { start: 2, end: 3 },
+            &mut budget,
+        ));
+        assert!(!index.range_is_uncertain(
+            ScalarRange { start: 3, end: 4 },
+            TokenRange { start: 3, end: 4 },
+            &mut budget,
+        ));
+    }
+
+    #[test]
+    fn checked_issue_projection_unions_event_and_source_evidence() {
+        let mut block = collection_test_block(1, "abcdef", None);
+        add_test_issue(&mut block, ScalarRange { start: 1, end: 2 }, 1);
+        block.normalization_events.push(NormalizationEvent {
+            kind: NormalizationKind::WhitespaceCollapse,
+            raw_range: ScalarRange { start: 1, end: 2 },
+            canonical_range: ScalarRange { start: 4, end: 4 },
+            source: block.issues[0].source.clone(),
+        });
+
+        assert_eq!(
+            block
+                .checked_normalization_issue_ranges()
+                .expect("complete source evidence projects"),
+            [ScalarRange { start: 1, end: 4 }]
+        );
+    }
+
+    #[test]
+    fn checked_issue_projection_rejects_incomplete_source_correspondence() {
+        let mut block = collection_test_block(1, "abcdef", None);
+        block.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 1, end: 2 },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(999))],
+            },
+        });
+
+        assert!(block.checked_normalization_issue_ranges().is_err());
+    }
+
+    #[test]
+    fn malformed_issue_projection_keeps_the_whole_block_uncertain() {
+        let mut blocks = [
+            collection_test_block(1, "abcdef", None),
+            collection_test_block(2, "abcdef", None),
+            collection_test_block(3, "abcdef", None),
+            collection_test_block(4, "abcdef", None),
+        ];
+        blocks[0].issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource { atoms: Vec::new() },
+        });
+        add_test_issue(&mut blocks[1], ScalarRange { start: 0, end: 7 }, 0);
+        blocks[2].canonical.source_map.clear();
+        add_test_issue(&mut blocks[2], ScalarRange { start: 0, end: 1 }, 0);
+        add_test_issue(&mut blocks[3], ScalarRange { start: 2, end: 2 }, 2);
+
+        for block in &blocks {
+            let tokens = block
+                .canonical
+                .comparable_tokens()
+                .expect("test text is valid");
+            let mut budget = test_uncertainty_budget();
+            let index = BlockUncertaintyIndex::build(block, &tokens, &mut budget);
+            assert!(!index.projection_complete);
+            assert!(index.range_is_uncertain(
+                ScalarRange { start: 4, end: 5 },
+                TokenRange { start: 4, end: 5 },
+                &mut budget,
+            ));
+        }
+    }
+
+    #[test]
+    fn uncertainty_index_merges_touching_issue_ranges() {
+        let mut block = collection_test_block(1, "abcdef", None);
+        add_test_issue(&mut block, ScalarRange { start: 1, end: 2 }, 1);
+        add_test_issue(&mut block, ScalarRange { start: 2, end: 3 }, 2);
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("test text is valid");
+        let mut budget = test_uncertainty_budget();
+        let index = BlockUncertaintyIndex::build(&block, &tokens, &mut budget);
+
+        assert_eq!(index.issue_ranges, [ScalarRange { start: 1, end: 3 }]);
+    }
+
+    #[test]
+    fn uncertainty_index_merges_zero_width_canonical_issue_at_contact() {
+        let mut block = collection_test_block(1, "abcdef", None);
+        add_test_issue(&mut block, ScalarRange { start: 1, end: 2 }, 1);
+        add_test_issue(&mut block, ScalarRange { start: 2, end: 3 }, 2);
+        let zero_width_source = block.issues[0].source.clone();
+        block.canonical.source_map.remove(1);
+        block.normalization_events.push(NormalizationEvent {
+            kind: NormalizationKind::SoftLineBreak,
+            raw_range: ScalarRange { start: 1, end: 2 },
+            canonical_range: ScalarRange { start: 2, end: 2 },
+            source: zero_width_source,
+        });
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("test text is valid");
+        let mut budget = test_uncertainty_budget();
+        let index = BlockUncertaintyIndex::build(&block, &tokens, &mut budget);
+
+        assert!(index.projection_complete);
+        assert_eq!(index.issue_ranges, [ScalarRange { start: 2, end: 3 }]);
+        assert!(index.range_is_uncertain(
+            ScalarRange { start: 1, end: 2 },
+            TokenRange { start: 1, end: 2 },
+            &mut budget,
+        ));
+    }
+
+    #[test]
+    fn uncertainty_budget_exhaustion_discards_current_and_later_indices() {
+        let mut block = collection_test_block(1, "abcdef", None);
+        add_test_issue(&mut block, ScalarRange { start: 1, end: 2 }, 1);
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("test text is valid");
+        let mut budget = BlockUncertaintyBudget::new(0);
+
+        let current = BlockUncertaintyIndex::build(&block, &tokens, &mut budget);
+        let later = BlockUncertaintyIndex::build(&block, &tokens, &mut budget);
+
+        assert!(budget.exhausted);
+        assert!(!current.projection_complete);
+        assert!(!later.projection_complete);
+    }
+
+    #[test]
+    fn unmapped_only_budget_failure_marks_the_budget_exhausted() {
+        let mut block = collection_test_block(1, "abc", None);
+        let unmapped = UnmappedToken {
+            scalar_index: 1,
+            font_hash: FontProgramHash(vec![1]),
+            glyph_id: 7,
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(99))],
+            },
+        };
+        block.canonical.unmapped.push(unmapped);
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("test text is valid");
+        let mut budget = BlockUncertaintyBudget::new(0);
+
+        let index = BlockUncertaintyIndex::build(&block, &tokens, &mut budget);
+
+        assert!(budget.exhausted);
+        assert!(!index.projection_complete);
+    }
+
+    #[test]
+    fn uncertainty_query_budget_exhaustion_fails_closed() {
+        let mut block = collection_test_block(1, "abcdef", None);
+        add_test_issue(&mut block, ScalarRange { start: 1, end: 2 }, 1);
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("test text is valid");
+        let mut budget = test_uncertainty_budget();
+        let index = BlockUncertaintyIndex::build(&block, &tokens, &mut budget);
+        budget.query_work_limit = 0;
+
+        assert!(index.range_is_uncertain(
+            ScalarRange { start: 4, end: 5 },
+            TokenRange { start: 4, end: 5 },
+            &mut budget,
+        ));
+        assert!(budget.exhausted);
+    }
+
+    #[test]
+    fn secondary_unique_exact_pair_adds_only_an_exact_match() {
+        let old = vec![secondary_test_occurrence("exact", 1, 0, 0..5)];
+        let new = vec![secondary_test_occurrence("exact", 2, 0, 0..5)];
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+
+        let batch = build_secondary_exact_batch(old, new, None, 1, &mut budget)
+            .expect("exact secondary batch is complete");
+
+        assert_eq!(batch.matches.len(), 1);
+        assert!(batch.replacements.is_empty());
+        assert!(batch.deletions.is_empty());
+        assert!(batch.insertions.is_empty());
+    }
+
+    #[test]
+    fn malformed_secondary_census_does_not_block_an_independent_exact_pair() {
+        let mut old_malformed = collection_test_block(3, "Malformed.", None);
+        add_test_issue(
+            &mut old_malformed,
+            ScalarRange {
+                start: 100,
+                end: 101,
+            },
+            0,
+        );
+        let mut new_malformed = collection_test_block(4, "Malformed.", None);
+        add_test_issue(
+            &mut new_malformed,
+            ScalarRange {
+                start: 100,
+                end: 101,
+            },
+            0,
+        );
+        let mut old = collect_test_secondary_blocks(vec![old_malformed], true)
+            .expect("malformed old evidence remains census-only");
+        let mut new = collect_test_secondary_blocks(vec![new_malformed], true)
+            .expect("malformed new evidence remains census-only");
+        assert_eq!(old.len(), 1);
+        assert_eq!(new.len(), 1);
+        assert!(old[0].location.is_none());
+        assert!(new[0].location.is_none());
+
+        let mut old_localized = collection_test_block(1, "Uncertain. Exact.", None);
+        add_test_issue(&mut old_localized, ScalarRange { start: 0, end: 1 }, 0);
+        let mut new_localized = collection_test_block(2, "Uncertain. Exact.", None);
+        add_test_issue(&mut new_localized, ScalarRange { start: 0, end: 1 }, 0);
+        old.extend(
+            collect_test_secondary_blocks(vec![old_localized], true)
+                .expect("old localized evidence is complete"),
+        );
+        new.extend(
+            collect_test_secondary_blocks(vec![new_localized], true)
+                .expect("new localized evidence is complete"),
+        );
+        let mut budget = RecoveryBudget::new(100, 100, 200, 1).expect("budget is valid");
+
+        let batch = build_secondary_exact_batch(old, new, None, 1, &mut budget)
+            .expect("malformed census evidence does not abort the batch");
+
+        assert_eq!(batch.matches.len(), 1);
+    }
+
+    #[test]
+    fn malformed_secondary_census_competitor_vetoes_exact_uniqueness() {
+        let mut old_localized = collection_test_block(1, "Uncertain. Exact.", None);
+        add_test_issue(&mut old_localized, ScalarRange { start: 0, end: 1 }, 0);
+        let mut new_localized = collection_test_block(2, "Uncertain. Exact.", None);
+        add_test_issue(&mut new_localized, ScalarRange { start: 0, end: 1 }, 0);
+        let old = collect_test_secondary_blocks(vec![old_localized], true)
+            .expect("old localized evidence is complete");
+        let mut new = collect_test_secondary_blocks(vec![new_localized], true)
+            .expect("new localized evidence is complete");
+        let mut malformed_competitor = collection_test_block(3, "Exact.", None);
+        add_test_issue(
+            &mut malformed_competitor,
+            ScalarRange {
+                start: 100,
+                end: 101,
+            },
+            0,
+        );
+        let competitor = collect_test_secondary_blocks(vec![malformed_competitor], true)
+            .expect("malformed competitor remains census evidence");
+        assert_eq!(competitor.len(), 1);
+        assert!(competitor[0].location.is_none());
+        new.extend(competitor);
+        let mut budget = RecoveryBudget::new(100, 100, 200, 1).expect("budget is valid");
+
+        let batch = build_secondary_exact_batch(old, new, None, 1, &mut budget)
+            .expect("multiplicity veto is complete");
+
+        assert!(!batch.has_exact_matches());
+    }
+
+    #[test]
+    fn secondary_commit_preserves_primary_event_fields() {
+        let old = vec![secondary_test_occurrence("exact", 1, 0, 0..5)];
+        let new = vec![secondary_test_occurrence("exact", 2, 0, 0..5)];
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+        let batch = build_secondary_exact_batch(old, new, None, 1, &mut budget)
+            .expect("exact secondary batch is complete");
+        let mut accepted = SentenceRecoveryBuildOutcome {
+            plan: Some(fallback_test_plan(42)),
+            ..SentenceRecoveryBuildOutcome::default()
+        };
+
+        commit_secondary_exact_batch(&mut accepted, batch);
+
+        let plan = accepted.plan.expect("primary and secondary plan remain");
+        assert_eq!(
+            plan.cross_span_replacement_new_spans,
+            [plan_block_marker(42)]
+        );
+        assert_eq!(plan.deletions.len(), 1);
+        assert_eq!(plan.deletions[0].span_index, 42);
+        assert!(plan.replacements.is_empty());
+        assert!(plan.insertions.is_empty());
+        assert_eq!(plan.matches.len(), 1);
+    }
+
+    #[test]
+    fn secondary_duplicate_census_does_not_change_the_primary_plan() {
+        let old = vec![secondary_test_occurrence("exact", 1, 0, 0..5)];
+        let new = vec![
+            secondary_test_occurrence("exact", 2, 0, 0..5),
+            secondary_test_occurrence("exact", 3, 1, 0..5),
+        ];
+        let mut budget = RecoveryBudget::new(5, 10, 15, 1).expect("budget is valid");
+        let mut accepted = SentenceRecoveryBuildOutcome {
+            plan: Some(fallback_test_plan(42)),
+            ..SentenceRecoveryBuildOutcome::default()
+        };
+        let before = accepted.plan.as_ref().map(primary_event_fingerprint);
+
+        let batch = build_secondary_exact_batch(old, new, None, 1, &mut budget)
+            .expect("multiplicity veto is a complete secondary batch");
+        commit_secondary_exact_batch(&mut accepted, batch);
+
+        assert_eq!(
+            accepted.plan.as_ref().map(primary_event_fingerprint),
+            before
+        );
+    }
+
+    fn primary_event_fingerprint(
+        plan: &SentenceRecoveryPlan,
+    ) -> (Vec<usize>, Vec<usize>, usize, usize, usize) {
+        (
+            plan.cross_span_replacement_new_spans.clone(),
+            plan.deletions
+                .iter()
+                .map(|recovery| recovery.span_index)
+                .collect(),
+            plan.replacements.len(),
+            plan.insertions.len(),
+            plan.matches.len(),
+        )
+    }
+
+    #[test]
+    fn secondary_exact_pair_overlapping_primary_is_vetoed_atomically() {
+        let old = vec![secondary_test_occurrence("exact", 1, 0, 0..5)];
+        let new = vec![secondary_test_occurrence("exact", 2, 0, 0..5)];
+        let primary = SentenceRecoveryPlan {
+            deletion_consumed: vec![LocalSentenceRange {
+                block: BlockId(1),
+                canonical: ScalarRange { start: 2, end: 3 },
+                comparable: TokenRange { start: 2, end: 3 },
+            }],
+            ..SentenceRecoveryPlan::default()
+        };
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+
+        let batch = build_secondary_exact_batch(old, new, Some(&primary), 1, &mut budget)
+            .expect("primary overlap is a complete candidate veto");
+        assert!(!batch.has_exact_matches());
+        assert_eq!(primary.deletion_consumed.len(), 1);
+        assert!(primary.matches.is_empty());
+    }
+
+    #[test]
+    fn secondary_exact_pair_overlapping_new_primary_range_is_vetoed_atomically() {
+        let old = vec![secondary_test_occurrence("exact", 1, 0, 0..5)];
+        let new = vec![secondary_test_occurrence("exact", 2, 0, 0..5)];
+        let primary = SentenceRecoveryPlan {
+            insertion_consumed: vec![LocalSentenceRange {
+                block: BlockId(2),
+                canonical: ScalarRange { start: 2, end: 3 },
+                comparable: TokenRange { start: 2, end: 3 },
+            }],
+            ..SentenceRecoveryPlan::default()
+        };
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+
+        let batch = build_secondary_exact_batch(old, new, Some(&primary), 1, &mut budget)
+            .expect("new-side primary overlap is a complete candidate veto");
+        assert!(!batch.has_exact_matches());
+        assert_eq!(primary.insertion_consumed.len(), 1);
+        assert!(primary.matches.is_empty());
+    }
+
+    #[test]
+    fn primary_overlap_veto_keeps_a_disjoint_secondary_exact_pair() {
+        let old = vec![
+            secondary_test_occurrence("overlap", 1, 0, 0..7),
+            secondary_test_occurrence("disjoint", 3, 0, 0..8),
+        ];
+        let new = vec![
+            secondary_test_occurrence("overlap", 2, 0, 0..7),
+            secondary_test_occurrence("disjoint", 4, 0, 0..8),
+        ];
+        let primary = SentenceRecoveryPlan {
+            deletion_consumed: vec![LocalSentenceRange {
+                block: BlockId(1),
+                canonical: ScalarRange { start: 2, end: 3 },
+                comparable: TokenRange { start: 2, end: 3 },
+            }],
+            ..fallback_test_plan(42)
+        };
+        let before = primary_event_fingerprint(&primary);
+        let mut budget = RecoveryBudget::new(15, 15, 30, 1).expect("budget is valid");
+
+        let batch = build_secondary_exact_batch(old, new, Some(&primary), 1, &mut budget)
+            .expect("primary overlap does not abort disjoint candidates");
+
+        assert_eq!(batch.matches.len(), 1);
+        assert_eq!(batch.matches[0].old.blocks, [BlockId(3)]);
+        assert_eq!(primary_event_fingerprint(&primary), before);
+    }
+
+    #[test]
+    fn secondary_commit_normalizes_reverse_block_order_for_block_queries() {
+        let old = vec![secondary_test_occurrence("exact", 1, 0, 0..5)];
+        let new = vec![secondary_test_occurrence("exact", 2, 0, 0..5)];
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+        let batch = build_secondary_exact_batch(old, new, None, 1, &mut budget)
+            .expect("exact secondary batch is complete");
+        let mut accepted = SentenceRecoveryBuildOutcome {
+            plan: Some(SentenceRecoveryPlan {
+                deletion_consumed: vec![LocalSentenceRange {
+                    block: BlockId(9),
+                    canonical: ScalarRange { start: 0, end: 1 },
+                    comparable: TokenRange { start: 0, end: 1 },
+                }],
+                insertion_consumed: vec![LocalSentenceRange {
+                    block: BlockId(10),
+                    canonical: ScalarRange { start: 0, end: 1 },
+                    comparable: TokenRange { start: 0, end: 1 },
+                }],
+                ..SentenceRecoveryPlan::default()
+            }),
+            ..SentenceRecoveryBuildOutcome::default()
+        };
+
+        commit_secondary_exact_batch(&mut accepted, batch);
+
+        let plan = accepted.plan.expect("secondary batch commits");
+        assert_eq!(
+            plan.deletion_consumed
+                .iter()
+                .map(|range| range.block)
+                .collect::<Vec<_>>(),
+            [BlockId(1), BlockId(9)]
+        );
+        assert_eq!(
+            ranges_for_block(&plan.deletion_consumed, BlockId(1)).len(),
+            1
+        );
+        assert_eq!(
+            ranges_for_block(&plan.deletion_consumed, BlockId(9)).len(),
+            1
+        );
+        assert_eq!(
+            plan.insertion_consumed
+                .iter()
+                .map(|range| range.block)
+                .collect::<Vec<_>>(),
+            [BlockId(2), BlockId(10)]
+        );
+        assert_eq!(
+            ranges_for_block(&plan.insertion_consumed, BlockId(2)).len(),
+            1
+        );
+        assert_eq!(
+            ranges_for_block(&plan.insertion_consumed, BlockId(10)).len(),
+            1
+        );
+    }
+
+    #[test]
+    fn secondary_commit_marks_remainder_attribution_incomplete() {
+        let old = vec![secondary_test_occurrence("exact", 1, 0, 0..5)];
+        let new = vec![secondary_test_occurrence("exact", 2, 0, 0..5)];
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+        let batch = build_secondary_exact_batch(old, new, None, 1, &mut budget)
+            .expect("exact secondary batch is complete");
+        let mut accepted = fallback_test_outcome(true, 42, 0);
+        let metrics = &mut accepted
+            .diagnostics
+            .as_mut()
+            .expect("test diagnostics exist")
+            .metrics;
+        metrics.remainder_attribution_complete = Some(true);
+        metrics.remainder_attribution = Some(RecoveryRemainderAttributionMetrics::default());
+
+        commit_secondary_exact_batch(&mut accepted, batch);
+
+        let metrics = accepted
+            .diagnostics
+            .expect("diagnostics remain available")
+            .metrics;
+        assert_eq!(metrics.remainder_attribution_complete, Some(false));
+        assert_eq!(
+            metrics.remainder_attribution_stop_reason,
+            Some(RecoveryRemainderAttributionStopReason::AnalysisIncomplete)
+        );
+        assert_eq!(metrics.remainder_attribution, None);
+    }
+
+    #[test]
+    fn secondary_commit_preserves_existing_remainder_stop_reason() {
+        let old = vec![secondary_test_occurrence("exact", 1, 0, 0..5)];
+        let new = vec![secondary_test_occurrence("exact", 2, 0, 0..5)];
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+        let batch = build_secondary_exact_batch(old, new, None, 1, &mut budget)
+            .expect("exact secondary batch is complete");
+        let mut accepted = fallback_test_outcome(true, 42, 0);
+        let metrics = &mut accepted
+            .diagnostics
+            .as_mut()
+            .expect("test diagnostics exist")
+            .metrics;
+        metrics.remainder_attribution_complete = Some(false);
+        metrics.remainder_attribution_stop_reason =
+            Some(RecoveryRemainderAttributionStopReason::RangeLimit);
+        metrics.remainder_attribution = Some(RecoveryRemainderAttributionMetrics::default());
+
+        commit_secondary_exact_batch(&mut accepted, batch);
+
+        let metrics = accepted
+            .diagnostics
+            .expect("diagnostics remain available")
+            .metrics;
+        assert_eq!(metrics.remainder_attribution_complete, Some(false));
+        assert_eq!(
+            metrics.remainder_attribution_stop_reason,
+            Some(RecoveryRemainderAttributionStopReason::RangeLimit)
+        );
+        assert_eq!(metrics.remainder_attribution, None);
+    }
+
+    #[test]
+    fn secondary_completed_sentences_use_boundary_occurrence_charges_once() {
+        let collected = collect_test_secondary_blocks_with_occurrence_limit(
+            vec![collection_test_block(7, "Alpha! Beta! Gamma! Delta!", None)],
+            true,
+            Some(4),
+        )
+        .expect("four sentence boundaries fit four occurrence charges");
+
+        assert_eq!(collected.len(), 4);
+    }
+
+    #[test]
+    fn trusted_promoted_tail_is_locationless_secondary_multiplicity_evidence() {
+        let mut tail =
+            collect_test_secondary_blocks(vec![collection_test_block(7, "Duplicate", None)], true)
+                .expect("trusted tail census is complete");
+        assert_eq!(tail.len(), 1);
+        let tail = tail.pop().expect("promoted tail is collected");
+        assert!(tail.legacy_location_available);
+        assert!(tail.location.is_none());
+
+        let old = vec![secondary_test_occurrence("Duplicate", 1, 0, 0..9)];
+        let new = vec![secondary_test_occurrence("Duplicate", 2, 0, 0..9), tail];
+        let mut budget = RecoveryBudget::new(9, 18, 27, 1).expect("budget is valid");
+        let batch = build_secondary_exact_batch(old, new, None, 1, &mut budget)
+            .expect("duplicate census veto is complete");
+
+        assert!(!batch.has_exact_matches());
+    }
+
+    #[test]
+    fn trusted_post_sentence_tail_is_locationless_secondary_multiplicity_evidence() {
+        let mut collected = collect_test_secondary_blocks_with_occurrence_limit(
+            vec![collection_test_block(
+                7,
+                "One sentence. \"Another one!\" isolated tail",
+                None,
+            )],
+            true,
+            Some(3),
+        )
+        .expect("trusted exact-tail census is complete");
+
+        assert_eq!(collected.len(), 3);
+        assert!(
+            collected
+                .iter()
+                .all(|occurrence| occurrence.location.is_none())
+        );
+        assert!(
+            collected
+                .iter()
+                .all(|occurrence| occurrence.legacy_location_available)
+        );
+
+        let tail = collected.pop().expect("isolated tail is collected last");
+        let old = vec![secondary_test_occurrence("isolated tail", 1, 0, 0..13)];
+        let new = vec![
+            secondary_test_occurrence("isolated tail", 2, 0, 0..13),
+            tail,
+        ];
+        let mut budget = RecoveryBudget::new(13, 26, 39, 1).expect("budget is valid");
+        let batch = build_secondary_exact_batch(old, new, None, 1, &mut budget)
+            .expect("exact-tail multiplicity veto is complete");
+        assert!(!batch.has_exact_matches());
+    }
+
+    #[test]
+    fn overlapping_secondary_pairs_fail_the_complete_batch() {
+        let old = vec![
+            secondary_test_occurrence("first", 1, 0, 0..5),
+            secondary_test_occurrence("second", 1, 0, 4..10),
+        ];
+        let new = vec![
+            secondary_test_occurrence("first", 2, 0, 0..5),
+            secondary_test_occurrence("second", 2, 0, 4..10),
+        ];
+        let mut budget = RecoveryBudget::new(11, 11, 22, 1).expect("budget is valid");
+
+        assert!(build_secondary_exact_batch(old, new, None, 1, &mut budget).is_none());
+    }
+
+    #[test]
+    fn secondary_budget_exhaustion_between_pairs_returns_no_partial_batch() {
+        let old = vec![
+            secondary_test_occurrence("first", 1, 0, 0..5),
+            secondary_test_occurrence("second", 1, 0, 6..12),
+        ];
+        let new = vec![
+            secondary_test_occurrence("first", 2, 0, 0..5),
+            secondary_test_occurrence("second", 2, 0, 6..12),
+        ];
+        let mut budget = RecoveryBudget::new(11, 11, 22, 1).expect("budget is valid");
+        budget.output_range_limit = 2;
+
+        assert!(build_secondary_exact_batch(old, new, None, 1, &mut budget).is_none());
+    }
+
+    #[test]
+    fn unmapped_uncertainty_uses_half_open_comparable_ranges() {
+        let mut block = collection_test_block(1, "abc", None);
+        let source = TextSource {
+            atoms: vec![TextSourceAtom::Glyph(GlyphId(99))],
+        };
+        let unmapped = UnmappedToken {
+            scalar_index: 1,
+            font_hash: FontProgramHash(vec![1, 2, 3]),
+            glyph_id: 7,
+            source: source.clone(),
+        };
+        let second_unmapped = UnmappedToken {
+            scalar_index: 1,
+            font_hash: FontProgramHash(vec![4, 5, 6]),
+            glyph_id: 8,
+            source,
+        };
+        block
+            .raw
+            .unmapped
+            .extend([unmapped.clone(), second_unmapped.clone()]);
+        block.canonical.unmapped.extend([unmapped, second_unmapped]);
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("test text is valid");
+        let mut budget = test_uncertainty_budget();
+        let index = BlockUncertaintyIndex::build(&block, &tokens, &mut budget);
+
+        assert!(!index.range_is_uncertain(
+            ScalarRange { start: 0, end: 1 },
+            TokenRange { start: 0, end: 1 },
+            &mut budget,
+        ));
+        assert!(index.range_is_uncertain(
+            ScalarRange { start: 1, end: 2 },
+            TokenRange { start: 1, end: 2 },
+            &mut budget,
+        ));
+        assert!(index.range_is_uncertain(
+            ScalarRange { start: 0, end: 2 },
+            TokenRange { start: 0, end: 3 },
+            &mut budget,
+        ));
+        assert!(index.range_is_uncertain(
+            ScalarRange { start: 1, end: 2 },
+            TokenRange { start: 2, end: 3 },
+            &mut budget,
+        ));
+        assert!(!index.range_is_uncertain(
+            ScalarRange { start: 1, end: 2 },
+            TokenRange { start: 3, end: 4 },
+            &mut budget,
+        ));
+    }
+
+    #[test]
+    fn primary_trusted_tail_keeps_legacy_block_wide_uncertainty() {
+        let text = "One sentence. \"Another one!\" trusted tail";
+        let mut outside = collection_test_block(1, text, None);
+        add_test_issue(&mut outside, ScalarRange { start: 0, end: 1 }, 0);
+        assert_eq!(
+            outside
+                .checked_normalization_issue_ranges()
+                .expect("issue projection is valid"),
+            [ScalarRange { start: 0, end: 1 }]
+        );
+        let mut budget = RecoveryBudget::new(text.chars().count(), 0, text.len() * 2, 1)
+            .expect("trusted run budget is valid");
+        let outside = collect_test_blocks(vec![outside], true, &mut budget)
+            .expect("trusted run collection fits budget");
+        assert!(outside.fragments[0].uncertain);
+        assert!(outside.exact_tail_occurrences.is_empty());
+
+        let mut touching = collection_test_block(1, text, None);
+        let fragment_start = text.find("trusted").expect("fixture contains fragment");
+        add_test_issue(
+            &mut touching,
+            ScalarRange {
+                start: fragment_start - 1,
+                end: fragment_start,
+            },
+            fragment_start - 1,
+        );
+        let mut budget = RecoveryBudget::new(text.chars().count(), 0, text.len() * 2, 1)
+            .expect("trusted run budget is valid");
+        let touching = collect_test_blocks(vec![touching], true, &mut budget)
+            .expect("trusted run collection fits budget");
+        assert!(touching.fragments[0].uncertain);
+        assert!(touching.exact_tail_occurrences.is_empty());
+    }
+
+    #[test]
+    fn primary_completed_sentences_keep_legacy_block_wide_uncertainty() {
+        let text = "First sentence. Second sentence.";
+        let mut block = collection_test_block(1, text, None);
+        add_test_issue(&mut block, ScalarRange { start: 0, end: 1 }, 0);
+        let mut budget = RecoveryBudget::new(text.chars().count(), 0, text.len() * 2, 1)
+            .expect("trusted run budget is valid");
+        let collected = collect_test_blocks(vec![block], true, &mut budget)
+            .expect("trusted sentence collection fits budget");
+
+        assert_eq!(collected.occurrences.len(), 2);
+        assert!(collected.occurrences[0].location.is_none());
+        assert!(collected.occurrences[1].location.is_none());
+    }
+
+    #[test]
+    fn secondary_completed_sentence_outside_issue_gets_isolated_location() {
+        let text = "First sentence. Second sentence.";
+        let mut block = collection_test_block(1, text, None);
+        add_test_issue(&mut block, ScalarRange { start: 0, end: 1 }, 0);
+
+        let collected = collect_test_secondary_blocks(vec![block], true)
+            .expect("secondary sentence collection is complete");
+
+        assert_eq!(collected.len(), 2);
+        assert!(collected[0].location.is_none());
+        assert!(collected[1].location.is_some());
+    }
+
+    #[test]
+    fn primary_completed_sentences_keep_legacy_unmapped_policy() {
+        let text = "First sentence. Second sentence.";
+        let mut block = collection_test_block(1, text, None);
+        let unmapped = [
+            UnmappedToken {
+                scalar_index: 0,
+                font_hash: FontProgramHash(vec![1]),
+                glyph_id: 7,
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(100))],
+                },
+            },
+            UnmappedToken {
+                scalar_index: 0,
+                font_hash: FontProgramHash(vec![2]),
+                glyph_id: 8,
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(101))],
+                },
+            },
+        ];
+        block.raw.unmapped.extend(unmapped.iter().cloned());
+        block.canonical.unmapped.extend(unmapped);
+        block.matching_tokens = block
+            .canonical
+            .comparable_tokens()
+            .expect("test text is valid");
+        let token_count = block.matching_tokens.len();
+        let mut budget = RecoveryBudget::new(token_count, 0, token_count * 2, 1)
+            .expect("trusted run budget is valid");
+        let collected = collect_test_blocks(vec![block], true, &mut budget)
+            .expect("trusted sentence collection fits budget");
+
+        assert_eq!(collected.occurrences.len(), 2);
+        assert!(collected.occurrences[0].location.is_none());
+        assert!(collected.occurrences[1].location.is_none());
+    }
+
+    #[test]
+    fn completed_sentence_touching_an_issue_has_no_location() {
+        let text = "First sentence. Second sentence.";
+        let second_start = text
+            .find("Second")
+            .expect("fixture contains second sentence");
+        let mut block = collection_test_block(1, text, None);
+        add_test_issue(
+            &mut block,
+            ScalarRange {
+                start: second_start - 1,
+                end: second_start,
+            },
+            second_start - 1,
+        );
+        let mut budget = RecoveryBudget::new(text.chars().count(), 0, text.len() * 2, 1)
+            .expect("trusted run budget is valid");
+        let collected = collect_test_blocks(vec![block], true, &mut budget)
+            .expect("trusted sentence collection fits budget");
+
+        assert_eq!(collected.occurrences.len(), 2);
+        assert!(collected.occurrences[1].location.is_none());
+
+        let mut block = collection_test_block(1, text, None);
+        add_test_issue(
+            &mut block,
+            ScalarRange {
+                start: second_start - 1,
+                end: second_start,
+            },
+            second_start - 1,
+        );
+        let secondary = collect_test_secondary_blocks(vec![block], true)
+            .expect("secondary sentence collection is complete");
+        assert!(secondary[1].location.is_none());
+    }
+
+    #[test]
+    fn untrusted_completed_sentence_still_has_no_location() {
+        let text = "Untrusted completed sentence.";
+        let block = collection_test_block(1, text, None);
+        let mut budget = RecoveryBudget::new(text.chars().count(), 0, text.len() * 2, 1)
+            .expect("untrusted stream budget is valid");
+        let collected = collect_test_blocks(vec![block], false, &mut budget)
+            .expect("untrusted sentence collection fits budget");
+
+        assert_eq!(collected.occurrences.len(), 1);
+        assert!(collected.occurrences[0].location.is_none());
+
+        let block = collection_test_block(1, text, None);
+        let secondary = collect_test_secondary_blocks(vec![block], false)
+            .expect("untrusted secondary collection is complete");
+        assert_eq!(secondary.len(), 1);
+        assert!(secondary[0].location.is_none());
+    }
+
+    #[test]
+    fn one_uncertain_local_range_rejects_a_multiblock_sentence_location() {
+        let mut blocks = vec![
+            collection_test_block(1, "Clean prefix", None),
+            collection_test_block(2, "dirty suffix.", None),
+        ];
+        add_test_issue(&mut blocks[1], ScalarRange { start: 0, end: 1 }, 0);
+        let token_count = blocks.iter().map(|block| block.matching_tokens.len()).sum();
+        let canonical = blocks
+            .iter()
+            .map(|block| block.matching_tokens.clone())
+            .collect::<Vec<_>>();
+        let side = Side {
+            blocks: &blocks,
+            index: blocks
+                .iter()
+                .enumerate()
+                .map(|(index, block)| (block.block, index))
+                .collect(),
+            canonical,
+            total_tokens: token_count,
+        };
+        let mut uncertainty_budget = test_uncertainty_budget();
+        let stream = build_stream(
+            &side,
+            &StreamPlan {
+                block_indices: vec![0, 1],
+                trusted: true,
+                run_id: Some(TrustedRunId(1)),
+            },
+            Some(&mut uncertainty_budget),
+        )
+        .expect("trusted stream is valid");
+        let boundary = SentenceBoundary {
+            byte_start: 0,
+            byte_end: stream.text.len(),
+            scalar_start: 0,
+            scalar_end: stream.text.chars().count(),
+        };
+        let mut budget = RecoveryBudget::new(token_count * 4, 0, token_count * 8, 1)
+            .expect("trusted run budget is valid");
+        let location = range_local_sentence_location(
+            &side,
+            &stream,
+            boundary,
+            0..2,
+            0,
+            BlockRole::Body,
+            (&mut budget, &mut uncertainty_budget),
+        )
+        .expect("location projection completes");
+
+        assert!(location.is_none());
+    }
+
+    #[test]
     fn untrusted_atomic_line_behavior_is_unchanged() {
         let text = "10th Edition / December 2020";
         let token_count = text.chars().count();
@@ -32919,6 +34914,8 @@ mod tests {
             line_breaks: None,
             page_breaks: None,
         };
+        let mut uncertainty_budget = test_uncertainty_budget();
+        let uncertainty = BlockUncertaintyIndex::build(&block, &canonical, &mut uncertainty_budget);
         let side = Side {
             blocks: std::slice::from_ref(&block),
             index: HashMap::from([(BlockId(1), 0)]),
@@ -32934,6 +34931,7 @@ mod tests {
                 side_index: 0,
                 scalar_range: 0..text.chars().count(),
                 scalar_to_token: boundaries,
+                uncertainty: Some(uncertainty),
             }],
             forced_sentence_boundaries: Vec::new(),
             atomic_line: false,
