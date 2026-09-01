@@ -3,13 +3,15 @@ use std::sync::Arc;
 use lopdf::{Document as LopdfDocument, Object, ObjectId, Stream, dictionary};
 use pdfdelta_core::{
     Error, Result,
-    diff::ChangeKind,
+    diff::{ChangeKind, Confidence, TextSpan, TokenRange},
     extraction_conformance::{
         GeometryTolerance, PrimitiveExtractionSnapshot, SnapshotGlyph, compare_snapshots,
     },
+    layout::BlockId,
     model::{
         DecodedText, Document, Glyph, GlyphCropStatus, GlyphPathClipStatus, PageId, Rect, Vec2,
     },
+    normalize::ScalarRange,
     pdf::{LopdfParser, ParseLimits, PdfParser},
     pipeline::{PipelineOptions, compare_glyph_documents},
     source::{
@@ -688,13 +690,35 @@ fn ruled_two_column_pdf_reports_one_exact_cell_replacement() -> Result<()> {
 
     let old_without_rules = Document::new(old.items().to_vec());
     let new_without_rules = Document::new(new.items().to_vec());
-    let ambiguous = compare_glyph_documents(
+    let without_rules = compare_glyph_documents(
         &old_without_rules,
         &new_without_rules,
         PipelineOptions::default(),
     )?;
-    assert!(ambiguous.changes.is_empty());
-    assert!(!ambiguous.unresolved_regions.is_empty());
+    assert_eq!(without_rules.changes.len(), 1, "{without_rules:#?}");
+    assert_eq!(without_rules.changes[0].kind, ChangeKind::Replacement);
+    assert_eq!(without_rules.changes[0].confidence, Confidence::Medium);
+    assert_eq!(
+        without_rules.changes[0].occurrences[0].old_span,
+        Some(TextSpan {
+            blocks: vec![BlockId(4)],
+            separator: None,
+            canonical_range: ScalarRange { start: 8, end: 10 },
+            comparable_range: TokenRange { start: 8, end: 10 },
+        })
+    );
+    assert_eq!(
+        without_rules.changes[0].occurrences[0].new_span,
+        Some(TextSpan {
+            blocks: vec![BlockId(4)],
+            separator: None,
+            canonical_range: ScalarRange { start: 8, end: 10 },
+            comparable_range: TokenRange { start: 8, end: 10 },
+        })
+    );
+    assert!(without_rules.unresolved_regions.is_empty());
+    assert_eq!(without_rules.old_coverage.ratio, Some(1.0));
+    assert_eq!(without_rules.new_coverage.ratio, Some(1.0));
 
     let comparison = compare_glyph_documents(&old, &new, PipelineOptions::default())?;
     assert_eq!(comparison.changes.len(), 1, "{comparison:#?}");

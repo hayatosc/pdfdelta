@@ -9904,7 +9904,13 @@ mod tests {
             assert_eq!(result.new_coverage.resolved_tokens, 0);
         }
 
-        let fragment_only = vec![sentence_block(201, prefix)];
+        let mut fragment_only = sentence_block(201, prefix);
+        fragment_only.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource { atoms: Vec::new() },
+        });
+        let fragment_only = vec![fragment_only];
         let result = compare_sentence_recovery(
             &fragment_only,
             &[],
@@ -9915,6 +9921,52 @@ mod tests {
         );
         assert!(result.changes.is_empty());
         assert_eq!(result.old_coverage.resolved_tokens, 0);
+    }
+
+    #[test]
+    fn clean_trusted_tail_recovers_inside_unknown_order_run() {
+        let old = vec![
+            sentence_block(1, "One"),
+            sentence_block(2, "VersionTwoStable"),
+            sentence_block(3, "Three"),
+        ];
+        let new = vec![
+            sentence_block(101, "One"),
+            sentence_block(102, "VersionTenStable"),
+            sentence_block(103, "Three"),
+        ];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[
+                Some(TrustedRunId(1)),
+                Some(TrustedRunId(1)),
+                Some(TrustedRunId(1)),
+            ],
+            &[
+                Some(TrustedRunId(2)),
+                Some(TrustedRunId(2)),
+                Some(TrustedRunId(2)),
+            ],
+            4,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), 1, "{result:#?}");
+        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(result.changes[0].confidence, Confidence::Medium);
+        assert_eq!(
+            result.changes[0].occurrences[0].old_span,
+            Some(test_span(2, 8, 10))
+        );
+        assert_eq!(
+            result.changes[0].occurrences[0].new_span,
+            Some(test_span(102, 8, 10))
+        );
+        assert!(result.unresolved_regions.is_empty());
+        assert_eq!(result.old_coverage.ratio, Some(1.0));
+        assert_eq!(result.new_coverage.ratio, Some(1.0));
     }
 
     #[test]
@@ -10751,11 +10803,12 @@ mod tests {
         let prefix = "As a result, information has";
         let suffix = "to be provided about all personal data covered by the request.";
         let full = format!("{prefix} {suffix}");
+        let fragment_only_tail = format!("Anchor sentence. {prefix}");
         let old = vec![sentence_block(92_001, &full)];
         let new = vec![
-            sentence_block(92_101, prefix),
+            sentence_block(92_101, &fragment_only_tail),
             line_block(92_102, "17 Adopted"),
-            sentence_block(92_103, prefix),
+            sentence_block(92_103, &fragment_only_tail),
             sentence_block(92_104, suffix),
         ];
         let alignment =

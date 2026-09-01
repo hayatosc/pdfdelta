@@ -393,10 +393,9 @@ fn complete_unknown_order_recovers_unique_modified_sentences() -> Result<()> {
             ),
         ]
     );
-    assert!(!comparison.unresolved_regions.is_empty());
-    assert!(comparison.unresolved_regions.iter().all(|region| {
-        region.evidence == [pdfdelta_core::alignment::AlignmentEvidence::ReadingOrderUnknown]
-    }));
+    assert!(comparison.unresolved_regions.is_empty());
+    assert_eq!(comparison.old_coverage.ratio, Some(1.0));
+    assert_eq!(comparison.new_coverage.ratio, Some(1.0));
     Ok(())
 }
 
@@ -667,13 +666,17 @@ fn unsupported_line_keeps_partial_row_major_order_uncertain() -> Result<()> {
         PipelineOptions::default(),
     )?;
 
-    assert!(outcome.comparison.changes.is_empty());
-    assert_eq!(outcome.comparison.unresolved_regions.len(), 1);
-    let unresolved_blocks = &outcome.comparison.unresolved_regions[0]
-        .old_span
-        .as_ref()
-        .expect("old-side unresolved evidence should be retained")
-        .blocks;
+    assert_eq!(outcome.comparison.changes.len(), 1, "{outcome:#?}");
+    assert_eq!(outcome.comparison.changes[0].kind, ChangeKind::Replacement);
+    assert_eq!(outcome.comparison.changes[0].confidence, Confidence::Medium);
+    assert_eq!(outcome.comparison.unresolved_regions.len(), 2);
+    let unresolved_blocks = outcome
+        .comparison
+        .unresolved_regions
+        .iter()
+        .filter_map(|region| region.old_span.as_ref())
+        .flat_map(|span| span.blocks.iter().copied())
+        .collect::<Vec<_>>();
     let unresolved_text = outcome
         .old_blocks
         .iter()
@@ -681,8 +684,8 @@ fn unsupported_line_keeps_partial_row_major_order_uncertain() -> Result<()> {
         .map(|block| block.canonical.text.as_str())
         .collect::<Vec<_>>()
         .join(" ");
-    assert!(unresolved_text.contains("Release 10"));
     assert!(unresolved_text.contains("Side A"));
+    assert!(!unresolved_text.contains("Release 10"));
     Ok(())
 }
 

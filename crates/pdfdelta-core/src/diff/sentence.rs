@@ -10106,11 +10106,32 @@ fn collect_occurrences(
         } else {
             None
         };
+        let promotion_fragment_uncertain = if stream.trusted && sentence_boundaries.is_empty() {
+            match fragment_boundary {
+                Some(boundary) => {
+                    let touched_blocks = sentence_stream_block_range(&stream, boundary)?;
+                    Some(sentence_fragment_is_uncertain(
+                        side,
+                        &stream,
+                        touched_blocks,
+                    )?)
+                }
+                None => None,
+            }
+        } else {
+            None
+        };
+        let promote_trusted_trailing_fragment = promotion_fragment_uncertain == Some(false);
         let (boundaries, kind) = if stream.atomic_line && sentence_boundaries.is_empty() {
             (
                 atomic_line_boundaries(&stream.text, budget)?,
                 RecoveryUnitKind::Line,
             )
+        } else if promote_trusted_trailing_fragment {
+            let mut boundaries = Vec::new();
+            boundaries.try_reserve_exact(1).ok()?;
+            boundaries.push(fragment_boundary?);
+            (boundaries, RecoveryUnitKind::Sentence)
         } else {
             (sentence_boundaries, RecoveryUnitKind::Sentence)
         };
@@ -10172,17 +10193,12 @@ fn collect_occurrences(
             if let (Some(span_index), Some(role)) = (span_index, role)
                 && recovery_spans.get(span_index).copied()?
             {
-                let uncertain = stream.blocks.get(touched_blocks)?.iter().try_fold(
-                    false,
-                    |uncertain, stream_block| {
-                        let block = side.blocks.get(stream_block.side_index)?;
-                        Some(
-                            uncertain
-                                || !block.issues.is_empty()
-                                || !block.canonical.unmapped.is_empty(),
-                        )
-                    },
-                )?;
+                let uncertain = match promotion_fragment_uncertain {
+                    Some(uncertain) => uncertain,
+                    None => sentence_fragment_is_uncertain(side, &stream, touched_blocks.clone())?,
+                };
+                // A promoted tail remains independent fragment-veto evidence;
+                // this second owned token copy is charged to the same budget.
                 let tokens = sentence_tokens(&stream, boundary, budget)?;
                 fragments.try_reserve(1).ok()?;
                 fragments.push(SentenceFragment {
@@ -10196,6 +10212,21 @@ fn collect_occurrences(
     }
     occurrences.sort_unstable_by_key(|occurrence| occurrence.span_index);
     Some((occurrences, fragments))
+}
+
+fn sentence_fragment_is_uncertain(
+    side: &Side<'_>,
+    stream: &Stream,
+    touched_blocks: Range<usize>,
+) -> Option<bool> {
+    stream
+        .blocks
+        .get(touched_blocks)?
+        .iter()
+        .try_fold(false, |uncertain, stream_block| {
+            let block = side.blocks.get(stream_block.side_index)?;
+            Some(uncertain || !block.issues.is_empty() || !block.canonical.unmapped.is_empty())
+        })
 }
 
 fn sentence_page(side: &Side<'_>, stream: &Stream, touched_blocks: Range<usize>) -> Option<u32> {
@@ -10773,6 +10804,8 @@ struct LocalFragmentLimits {
     output: usize,
 }
 
+// This conservative launch throttle limits the blast radius while reviewed
+// scopes remain sparse. Raise it only after broader scoped precision evidence.
 const MAX_LOCAL_FRAGMENT_REPLACEMENTS: usize = 3;
 
 impl LocalFragmentLimits {
@@ -24466,6 +24499,89 @@ mod tests {
             .collect()
     }
 
+    fn collection_test_block(
+        block: u64,
+        text: &str,
+        line_breaks: Option<Vec<usize>>,
+    ) -> crate::normalize::BlockText {
+        let mapped = crate::normalize::MappedText {
+            text: text.to_owned(),
+            source_map: Vec::new(),
+            unmapped: Vec::new(),
+        };
+        crate::normalize::BlockText {
+            block: BlockId(block),
+            role: BlockRole::Body,
+            raw: mapped.clone(),
+            canonical: mapped,
+            matching: text.to_owned(),
+            matching_tokens: text.chars().map(ComparableToken::Scalar).collect(),
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: Vec::new(),
+            pages: vec![1],
+            font_size_signatures: None,
+            position_signatures: None,
+            line_breaks,
+            page_breaks: Some(Vec::new()),
+        }
+    }
+
+    fn collect_test_occurrences(
+        parts: &[(&str, Option<Vec<usize>>)],
+        trusted: bool,
+        uncertain: bool,
+        budget: &mut RecoveryBudget,
+    ) -> Option<(Vec<SentenceOccurrence>, Vec<SentenceFragment>)> {
+        let mut blocks = parts
+            .iter()
+            .enumerate()
+            .map(|(index, (text, line_breaks))| {
+                collection_test_block(index as u64 + 1, text, line_breaks.clone())
+            })
+            .collect::<Vec<_>>();
+        if uncertain {
+            blocks
+                .first_mut()?
+                .issues
+                .push(crate::normalize::NormalizationIssue {
+                    kind: crate::normalize::NormalizationIssueKind::AmbiguousLineBreak,
+                    raw_range: ScalarRange { start: 0, end: 1 },
+                    source: crate::normalize::TextSource { atoms: Vec::new() },
+                });
+        }
+        let canonical = blocks
+            .iter()
+            .map(|block| block.matching_tokens.clone())
+            .collect::<Vec<_>>();
+        let total_tokens = canonical.iter().map(Vec::len).sum();
+        let index = blocks
+            .iter()
+            .enumerate()
+            .map(|(index, block)| (block.block, index))
+            .collect();
+        let side = Side {
+            blocks: &blocks,
+            index,
+            canonical,
+            total_tokens,
+        };
+        let intervals = parts
+            .iter()
+            .enumerate()
+            .map(|(ordinal, _)| {
+                if trusted {
+                    interval(1, ordinal, ordinal + 1)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        let span_by_block = blocks.iter().map(|block| (block.block, 0)).collect();
+
+        collect_occurrences(&side, &intervals, None, &span_by_block, &[true], budget)
+    }
+
     fn test_location(range: LocalSentenceRange, span_index: usize) -> SentenceLocation {
         SentenceLocation {
             recovery: RecoveredSentence {
@@ -30093,6 +30209,228 @@ mod tests {
         );
         assert_eq!(boundary.scalar_start, 2);
         assert_eq!(boundary.scalar_end, text.chars().count() - 2);
+    }
+
+    #[test]
+    fn trusted_run_without_terminal_becomes_one_located_occurrence() {
+        let parts = [("ECMA-109", None), ("10th Edition / December 2020", None)];
+        let source_tokens = parts.iter().map(|(text, _)| text.chars().count()).sum();
+        let evidence_tokens = (source_tokens + 1) * 2;
+        let mut budget = RecoveryBudget::new(source_tokens, 0, evidence_tokens, 1)
+            .expect("trusted run budget is valid");
+
+        let (occurrences, fragments) = collect_test_occurrences(&parts, true, false, &mut budget)
+            .expect("trusted run collection fits budget");
+
+        assert_eq!(occurrences.len(), 1);
+        assert_eq!(fragments.len(), 1);
+        let occurrence = &occurrences[0];
+        assert_eq!(occurrence.key, "ECMA-109 10th Edition / December 2020");
+        assert_eq!(occurrence.kind, RecoveryUnitKind::Sentence);
+        assert_eq!(
+            occurrence.trusted_position,
+            Some(TrustedStreamPosition {
+                stream_index: 0,
+                ordinal: 0,
+            })
+        );
+        let location = occurrence
+            .location
+            .as_ref()
+            .expect("trusted occurrence keeps a source location");
+        assert_eq!(location.recovery.blocks, [BlockId(1), BlockId(2)]);
+        assert_eq!(location.recovery.source_tokens, source_tokens);
+        assert_eq!(location.consumed.len(), 2);
+    }
+
+    #[test]
+    fn trusted_tail_after_completed_sentence_remains_fragment_only() {
+        let text = "One sentence. \"Another one!\" trailing fragment";
+        let token_count = text.chars().count();
+        let mut budget = RecoveryBudget::new(token_count, 0, token_count, 1)
+            .expect("trusted run budget is valid");
+
+        let (occurrences, fragments) =
+            collect_test_occurrences(&[(text, None)], true, false, &mut budget)
+                .expect("trusted run collection fits budget");
+
+        assert_eq!(occurrences.len(), 2);
+        assert_eq!(occurrences[0].key, "One sentence.");
+        assert_eq!(occurrences[1].key, "\"Another one!\"");
+        assert_eq!(fragments.len(), 1);
+        assert_eq!(
+            fragments[0].tokens,
+            "trailing fragment"
+                .chars()
+                .map(SentenceEvidenceToken::Scalar)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn untrusted_atomic_line_behavior_is_unchanged() {
+        let text = "10th Edition / December 2020";
+        let token_count = text.chars().count();
+        let mut budget = RecoveryBudget::new(token_count, 0, token_count, 1)
+            .expect("untrusted line budget is valid");
+
+        let (occurrences, fragments) =
+            collect_test_occurrences(&[(text, Some(Vec::new()))], false, false, &mut budget)
+                .expect("untrusted line collection fits budget");
+
+        assert_eq!(occurrences.len(), 1);
+        assert!(fragments.is_empty());
+        assert_eq!(occurrences[0].kind, RecoveryUnitKind::Line);
+        assert_eq!(occurrences[0].trusted_position, None);
+        assert!(occurrences[0].location.is_some());
+    }
+
+    #[test]
+    fn promoted_trusted_tail_reuses_fragment_occurrence_charge() {
+        let parts = [("ECMA-109", None), ("Edition 10", None)];
+        let source_tokens = parts.iter().map(|(text, _)| text.chars().count()).sum();
+        let evidence_tokens = (source_tokens + 1) * 2;
+        let mut budget = RecoveryBudget::new(source_tokens, 0, evidence_tokens, 1)
+            .expect("trusted run budget is valid");
+
+        let (occurrences, fragments) = collect_test_occurrences(&parts, true, false, &mut budget)
+            .expect("trusted run collection fits budget");
+
+        assert_eq!(occurrences.len(), 1);
+        assert_eq!(fragments.len(), 1);
+        assert_eq!(budget.occurrences, 1);
+        assert_eq!(
+            budget.evidence_tokens,
+            occurrences[0].tokens.len() + fragments[0].tokens.len()
+        );
+    }
+
+    #[test]
+    fn promoted_clean_fragment_still_vetoes_completed_near_replacement() {
+        let parts = [("pre", None), ("fix", None)];
+        let fragment_text = "pre fix";
+        let mut collection_budget = RecoveryBudget::new(
+            fragment_text.chars().count() - 1,
+            0,
+            fragment_text.chars().count() * 2,
+            1,
+        )
+        .expect("trusted run budget is valid");
+        let (promoted, fragments) =
+            collect_test_occurrences(&parts, true, false, &mut collection_budget)
+                .expect("trusted run collection fits budget");
+        assert_eq!(promoted.len(), 1);
+        assert_eq!(fragments.len(), 1);
+
+        let tokens = |text: &str| {
+            text.chars()
+                .map(SentenceEvidenceToken::Scalar)
+                .collect::<Vec<_>>()
+        };
+        let mut old = positioned_occurrence("full", 10, 0, 0);
+        old.tokens = tokens("pre fix suffix");
+        let mut new = positioned_occurrence("suffix", 11, 1, 0);
+        new.tokens = tokens("suffix");
+        let candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut old_relation = CandidateNearRelation::default();
+        old_relation.record_eligible(0, MIN_NEAR_SCORE);
+        let mut new_relation = CandidateNearRelation::default();
+        new_relation.record_eligible(0, MIN_NEAR_SCORE);
+        let mut relations = ModifiedSentenceRelations {
+            old: vec![old_relation],
+            new: vec![new_relation],
+            complete: true,
+            edge_gate_shadow: None,
+            edge_signature_shadow: None,
+        };
+        let mut budget = FragmentVetoBudget::new(old.tokens.len(), new.tokens.len())
+            .expect("fragment veto budget is valid");
+
+        assert!(veto_fragment_completed_replacements(
+            &[old],
+            &[new],
+            &candidates,
+            &candidates,
+            &[],
+            &fragments,
+            &mut relations,
+            &mut budget,
+        ));
+        assert!(relations.old[0].vetoed());
+        assert!(relations.new[0].vetoed());
+    }
+
+    #[test]
+    fn single_block_clean_trusted_tail_becomes_occurrence_and_veto_evidence() {
+        let text = "VersionTwoStable";
+        let token_count = text.chars().count();
+        let mut budget = RecoveryBudget::new(token_count, 0, token_count * 2, 1)
+            .expect("trusted run budget is valid");
+
+        let (occurrences, fragments) =
+            collect_test_occurrences(&[(text, None)], true, false, &mut budget)
+                .expect("trusted run collection fits budget");
+
+        assert_eq!(occurrences.len(), 1);
+        assert_eq!(fragments.len(), 1);
+        assert_eq!(occurrences[0].key, text);
+        assert_eq!(fragments[0].tokens.len(), token_count);
+    }
+
+    #[test]
+    fn uncertain_trusted_tail_remains_veto_only_and_preserves_span_veto() {
+        let fragment_text = "uncertain";
+        let mut collection_budget = RecoveryBudget::new(
+            fragment_text.chars().count(),
+            0,
+            fragment_text.chars().count() * 2,
+            1,
+        )
+        .expect("trusted run budget is valid");
+        let (promoted, fragments) =
+            collect_test_occurrences(&[(fragment_text, None)], true, true, &mut collection_budget)
+                .expect("trusted run collection fits budget");
+        assert!(promoted.is_empty());
+        assert_eq!(fragments.len(), 1);
+        assert!(fragments[0].uncertain);
+
+        let mut old = positioned_occurrence("longer", 20, 0, 0);
+        old.tokens = vec![SentenceEvidenceToken::Scalar('a'); 6];
+        let mut new = positioned_occurrence("shorter", 21, 1, 0);
+        new.tokens = vec![SentenceEvidenceToken::Scalar('b'); 5];
+        let candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut old_relation = CandidateNearRelation::default();
+        old_relation.record_eligible(0, MIN_NEAR_SCORE);
+        let mut new_relation = CandidateNearRelation::default();
+        new_relation.record_eligible(0, MIN_NEAR_SCORE);
+        let mut relations = ModifiedSentenceRelations {
+            old: vec![old_relation],
+            new: vec![new_relation],
+            complete: true,
+            edge_gate_shadow: None,
+            edge_signature_shadow: None,
+        };
+        let mut budget = FragmentVetoBudget::new(old.tokens.len(), new.tokens.len())
+            .expect("fragment veto budget is valid");
+
+        assert!(veto_fragment_completed_replacements(
+            &[old],
+            &[new],
+            &candidates,
+            &candidates,
+            &[],
+            &fragments,
+            &mut relations,
+            &mut budget,
+        ));
+        assert!(relations.old[0].vetoed());
+        assert!(relations.new[0].vetoed());
     }
 
     #[test]
