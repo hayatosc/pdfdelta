@@ -1,5 +1,6 @@
 mod extraction_svg;
 mod json;
+mod source;
 mod svg;
 mod text;
 
@@ -17,6 +18,10 @@ use crate::{
 
 pub use extraction_svg::render_extraction_mismatch_svg;
 pub use json::write_json;
+pub use source::{
+    SpanSourceEvidence, SpanSourceProjectionLimits, SpanSourceProjector, project_span_sources,
+    project_span_sources_with_limits,
+};
 pub use svg::{render_glyph_overlay_svg, write_glyph_overlay_svg};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -279,15 +284,6 @@ impl<'a> SideIndex<'a> {
             text,
             unmapped,
             pages,
-        })
-    }
-
-    pub(crate) fn block(&self, block: BlockId) -> Result<&'a BlockText> {
-        self.blocks.get(&block.0).copied().ok_or_else(|| {
-            Error::InvalidConfiguration(format!(
-                "text span references block {} that has no normalized evidence",
-                block.0
-            ))
         })
     }
 

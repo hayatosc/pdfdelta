@@ -16,9 +16,10 @@ use pdfdelta_core::{
     },
     pdf::ObjectRef,
     report::{
-        DocumentSide, ExitStatus, ExtractionIssueRecord, ExtractionStatus, TextReportOptions,
-        exit_status, render_glyph_overlay_svg, render_text, summarize, write_glyph_overlay_svg,
-        write_json,
+        DocumentSide, ExitStatus, ExtractionIssueRecord, ExtractionStatus, SpanSourceEvidence,
+        SpanSourceProjectionLimits, TextReportOptions, exit_status, project_span_sources,
+        project_span_sources_with_limits, render_glyph_overlay_svg, render_text, summarize,
+        write_glyph_overlay_svg, write_json,
     },
     source::{ExtractionIssueKind, ExtractionScope},
 };
@@ -813,6 +814,269 @@ fn json_report_rejects_duplicate_and_unknown_glyph_evidence() {
     assert!(
         matches!(unknown, Err(Error::Report(message)) if message.contains("missing glyph evidence"))
     );
+}
+
+#[test]
+fn source_projection_matches_json_source_order_and_fields() -> Result<()> {
+    let blocks = [sourced_block(
+        1,
+        " ",
+        vec![SourceMapEntry {
+            output_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::SyntheticSpace {
+                    preceding: GlyphId(1),
+                    following: GlyphId(2),
+                }],
+            },
+        }],
+    )];
+    let glyphs = [glyph_evidence(1), glyph_evidence(2)];
+    let span = full_span(1, " ");
+    let sources = project_span_sources(&blocks, &glyphs, &span)?;
+
+    assert_eq!(
+        sources,
+        vec![
+            SpanSourceEvidence::SyntheticSpace {
+                preceding_glyph_id: GlyphId(1),
+                following_glyph_id: GlyphId(2),
+            },
+            SpanSourceEvidence::Glyph {
+                glyph_id: GlyphId(1),
+                page: PageId(0),
+                bbox: glyphs[0].bbox,
+                content_stream: glyphs[0].provenance.content_stream,
+                operator_index: glyphs[0].provenance.operator_index,
+            },
+            SpanSourceEvidence::Glyph {
+                glyph_id: GlyphId(2),
+                page: PageId(0),
+                bbox: glyphs[1].bbox,
+                content_stream: glyphs[1].provenance.content_stream,
+                operator_index: glyphs[1].provenance.operator_index,
+            },
+        ]
+    );
+
+    let mut comparison = empty_comparison();
+    comparison.unresolved_regions.push(UnresolvedRegion {
+        old_span: Some(span),
+        new_span: None,
+        evidence: vec![AlignmentEvidence::TextSimilarity],
+    });
+    let mut output = Vec::new();
+    write_json(
+        &mut output,
+        &blocks,
+        &[],
+        &glyphs,
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
+    let json_sources = json["unresolved_regions"][0]["old_span"]["sources"]
+        .as_array()
+        .expect("sources array");
+    assert_eq!(json_sources.len(), sources.len());
+    assert_eq!(json_sources[0]["kind"], "synthetic_space");
+    assert_eq!(json_sources[1]["kind"], "glyph");
+    assert_eq!(json_sources[1]["glyph_id"], 1);
+    assert_eq!(json_sources[2]["kind"], "glyph");
+    assert_eq!(json_sources[2]["glyph_id"], 2);
+    Ok(())
+}
+
+#[test]
+fn source_projection_rejects_invalid_ranges_duplicates_and_limits() {
+    let blocks = [sourced_block(1, "a", vec![glyph_entry(0, 1, 1)])];
+    let glyphs = [glyph_evidence(1)];
+    let invalid_span = TextSpan {
+        canonical_range: ScalarRange { start: 0, end: 0 },
+        ..full_span(1, "a")
+    };
+    let reversed_span = TextSpan {
+        comparable_range: TokenRange { start: 1, end: 0 },
+        ..full_span(1, "a")
+    };
+    let out_of_bounds_span = TextSpan {
+        comparable_range: TokenRange { start: 2, end: 2 },
+        ..full_span(1, "a")
+    };
+    let duplicate_blocks = [blocks[0].clone(), blocks[0].clone()];
+    let duplicate_glyphs = [glyphs[0], glyphs[0]];
+    let limited_block = sourced_block(
+        2,
+        " ",
+        vec![SourceMapEntry {
+            output_range: ScalarRange { start: 0, end: 1 },
+            source: TextSource {
+                atoms: vec![TextSourceAtom::SyntheticSpace {
+                    preceding: GlyphId(1),
+                    following: GlyphId(2),
+                }],
+            },
+        }],
+    );
+    let limits = SpanSourceProjectionLimits {
+        max_comparable_tokens: 1,
+        max_evidence_items: 2,
+    };
+
+    assert!(matches!(
+        project_span_sources(&blocks, &glyphs, &invalid_span),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("canonical and comparable ranges")
+    ));
+    assert!(matches!(
+        project_span_sources(&blocks, &glyphs, &reversed_span),
+        Err(Error::InvalidConfiguration(message)) if message.contains("ranges must be ordered")
+    ));
+    assert!(matches!(
+        project_span_sources(&blocks, &glyphs, &out_of_bounds_span),
+        Err(Error::InvalidConfiguration(message)) if message.contains("range exceeds")
+    ));
+    assert!(matches!(
+        project_span_sources(&duplicate_blocks, &glyphs, &full_span(1, "a")),
+        Err(Error::InvalidConfiguration(message)) if message.contains("duplicate block id")
+    ));
+    assert!(matches!(
+        project_span_sources(&blocks, &duplicate_glyphs, &full_span(1, "a")),
+        Err(Error::Report(message)) if message.contains("duplicate glyph evidence")
+    ));
+    assert!(matches!(
+        project_span_sources_with_limits(
+            &[limited_block],
+            &[glyph_evidence(1), glyph_evidence(2)],
+            &full_span(2, " "),
+            limits,
+        ),
+        Err(Error::LimitExceeded {
+            resource: "span source output evidence",
+            limit: 2
+        })
+    ));
+
+    let atom_heavy_block = sourced_block(3, "abc", vec![glyph_entry(0, 3, 1)]);
+    assert!(matches!(
+        project_span_sources_with_limits(
+            &[atom_heavy_block],
+            &[glyph_evidence(1)],
+            &full_span(3, "abc"),
+            SpanSourceProjectionLimits {
+                max_comparable_tokens: 3,
+                max_evidence_items: 2,
+            },
+        ),
+        Err(Error::LimitExceeded {
+            resource: "span source atom traversal",
+            limit: 2
+        })
+    ));
+}
+
+#[test]
+fn source_projection_preserves_boundary_event_order_without_stable_sort() -> Result<()> {
+    let mut first = sourced_block(1, "a", Vec::new());
+    first.normalization_events.push(NormalizationEvent {
+        kind: NormalizationKind::SoftLineBreak,
+        raw_range: ScalarRange { start: 1, end: 1 },
+        canonical_range: ScalarRange { start: 1, end: 1 },
+        source: TextSource {
+            atoms: vec![TextSourceAtom::LineBreak {
+                preceding: GlyphId(1),
+                following: GlyphId(2),
+            }],
+        },
+    });
+    let mut second = sourced_block(2, "b", Vec::new());
+    second.normalization_events.push(NormalizationEvent {
+        kind: NormalizationKind::SoftLineBreak,
+        raw_range: ScalarRange { start: 0, end: 0 },
+        canonical_range: ScalarRange { start: 0, end: 0 },
+        source: TextSource {
+            atoms: vec![TextSourceAtom::SyntheticSpace {
+                preceding: GlyphId(3),
+                following: GlyphId(4),
+            }],
+        },
+    });
+    let sources = project_span_sources(
+        &[first, second],
+        &[
+            glyph_evidence(1),
+            glyph_evidence(2),
+            glyph_evidence(3),
+            glyph_evidence(4),
+        ],
+        &TextSpan {
+            blocks: vec![BlockId(1), BlockId(2)],
+            separator: Some(BlockSeparator::Concatenate),
+            canonical_range: ScalarRange { start: 0, end: 2 },
+            comparable_range: TokenRange { start: 0, end: 2 },
+        },
+    )?;
+
+    assert!(matches!(sources[0], SpanSourceEvidence::LineBreak { .. }));
+    assert!(matches!(
+        sources[1],
+        SpanSourceEvidence::Glyph {
+            glyph_id: GlyphId(1),
+            ..
+        }
+    ));
+    assert!(matches!(
+        sources[2],
+        SpanSourceEvidence::Glyph {
+            glyph_id: GlyphId(2),
+            ..
+        }
+    ));
+    assert!(matches!(
+        sources[3],
+        SpanSourceEvidence::SyntheticSpace { .. }
+    ));
+    assert!(matches!(
+        sources[4],
+        SpanSourceEvidence::Glyph {
+            glyph_id: GlyphId(3),
+            ..
+        }
+    ));
+    assert!(matches!(
+        sources[5],
+        SpanSourceEvidence::Glyph {
+            glyph_id: GlyphId(4),
+            ..
+        }
+    ));
+    Ok(())
+}
+
+#[test]
+fn source_projection_separator_preflight_accepts_exact_token_limit() -> Result<()> {
+    let blocks = [
+        sourced_block(1, "a", vec![glyph_entry(0, 1, 1)]),
+        sourced_block(2, "b", vec![glyph_entry(0, 1, 2)]),
+    ];
+    let sources = project_span_sources_with_limits(
+        &blocks,
+        &[glyph_evidence(1), glyph_evidence(2)],
+        &TextSpan {
+            blocks: vec![BlockId(1), BlockId(2)],
+            separator: Some(BlockSeparator::Concatenate),
+            canonical_range: ScalarRange { start: 0, end: 2 },
+            comparable_range: TokenRange { start: 0, end: 2 },
+        },
+        SpanSourceProjectionLimits {
+            max_comparable_tokens: 2,
+            max_evidence_items: 8,
+        },
+    )?;
+
+    assert_eq!(sources.len(), 2);
+    Ok(())
 }
 
 #[test]

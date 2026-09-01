@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    io::Write,
-};
+use std::io::Write;
 
 use serde::Serialize;
 
@@ -12,14 +9,15 @@ use crate::{
         ChangeEvent, Comparison, Coverage, FormattingChange, FormattingReason, TextSpan,
         UnresolvedRegion,
     },
-    model::{GlyphEvidence, GlyphId, Rect},
-    normalize::{BlockText, ComparableToken, ScalarRange, TextSource, TextSourceAtom},
+    model::{GlyphEvidence, Rect},
+    normalize::BlockText,
     source::ExtractionScope,
 };
 
 use super::{
-    ExtractionStatus, ReportSummary, SideIndex, change_kind, change_tag, confidence,
-    issue_kind_name, lowercase_hex, side_name, summarize,
+    ExtractionStatus, ReportSummary, SideIndex, SpanSourceEvidence, SpanSourceProjectionLimits,
+    SpanSourceProjector, change_kind, change_tag, confidence, issue_kind_name, lowercase_hex,
+    side_name, summarize,
 };
 
 const SCHEMA_VERSION: u32 = 8;
@@ -36,16 +34,24 @@ pub fn write_json<W: Write>(
     let summary = summarize(comparison, extraction)?;
     let old = SideIndex::new(old_blocks)?;
     let new = SideIndex::new(new_blocks)?;
-    let old_glyphs = GlyphEvidenceIndex::new(old_glyph_evidence)?;
-    let new_glyphs = GlyphEvidenceIndex::new(new_glyph_evidence)?;
+    let old_sources = SpanSourceProjector::new(
+        old_blocks,
+        old_glyph_evidence,
+        SpanSourceProjectionLimits::default(),
+    )?;
+    let new_sources = SpanSourceProjector::new(
+        new_blocks,
+        new_glyph_evidence,
+        SpanSourceProjectionLimits::default(),
+    )?;
     let report = JsonReport::new(
         comparison,
         extraction,
         summary,
         &old,
         &new,
-        &old_glyphs,
-        &new_glyphs,
+        &old_sources,
+        &new_sources,
     )?;
     serde_json::to_writer_pretty(&mut writer, &report)
         .map_err(|error| Error::Report(error.to_string()))?;
@@ -71,23 +77,23 @@ impl<'a> JsonReport<'a> {
         summary: ReportSummary,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
-        old_glyphs: &GlyphEvidenceIndex<'_>,
-        new_glyphs: &GlyphEvidenceIndex<'_>,
+        old_sources: &SpanSourceProjector<'_>,
+        new_sources: &SpanSourceProjector<'_>,
     ) -> Result<Self> {
         let changes = comparison
             .changes
             .iter()
-            .map(|change| JsonChange::new(change, old, new, old_glyphs, new_glyphs))
+            .map(|change| JsonChange::new(change, old, new, old_sources, new_sources))
             .collect::<Result<Vec<_>>>()?;
         let formatting_only_changes = comparison
             .formatting_changes
             .iter()
-            .map(|change| JsonFormattingChange::new(change, old, new, old_glyphs, new_glyphs))
+            .map(|change| JsonFormattingChange::new(change, old, new, old_sources, new_sources))
             .collect::<Result<Vec<_>>>()?;
         let unresolved_regions = comparison
             .unresolved_regions
             .iter()
-            .map(|region| JsonUnresolvedRegion::new(region, old, new, old_glyphs, new_glyphs))
+            .map(|region| JsonUnresolvedRegion::new(region, old, new, old_sources, new_sources))
             .collect::<Result<Vec<_>>>()?;
         Ok(Self {
             schema_version: SCHEMA_VERSION,
@@ -230,8 +236,8 @@ impl JsonChange {
         change: &ChangeEvent,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
-        old_glyphs: &GlyphEvidenceIndex<'_>,
-        new_glyphs: &GlyphEvidenceIndex<'_>,
+        old_sources: &SpanSourceProjector<'_>,
+        new_sources: &SpanSourceProjector<'_>,
     ) -> Result<Self> {
         Ok(Self {
             kind: change_kind(change.kind),
@@ -243,12 +249,12 @@ impl JsonChange {
                         old_span: occurrence
                             .old_span
                             .as_ref()
-                            .map(|span| JsonTextSpan::new(span, old, old_glyphs))
+                            .map(|span| JsonTextSpan::new(span, old, old_sources))
                             .transpose()?,
                         new_span: occurrence
                             .new_span
                             .as_ref()
-                            .map(|span| JsonTextSpan::new(span, new, new_glyphs))
+                            .map(|span| JsonTextSpan::new(span, new, new_sources))
                             .transpose()?,
                     })
                 })
@@ -272,12 +278,12 @@ impl JsonFormattingChange {
         change: &FormattingChange,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
-        old_glyphs: &GlyphEvidenceIndex<'_>,
-        new_glyphs: &GlyphEvidenceIndex<'_>,
+        old_sources: &SpanSourceProjector<'_>,
+        new_sources: &SpanSourceProjector<'_>,
     ) -> Result<Self> {
         Ok(Self {
-            old_span: JsonTextSpan::new(&change.old_span, old, old_glyphs)?,
-            new_span: JsonTextSpan::new(&change.new_span, new, new_glyphs)?,
+            old_span: JsonTextSpan::new(&change.old_span, old, old_sources)?,
+            new_span: JsonTextSpan::new(&change.new_span, new, new_sources)?,
             confidence: confidence(change.confidence),
             reasons: change
                 .reasons
@@ -301,19 +307,19 @@ impl JsonUnresolvedRegion {
         region: &UnresolvedRegion,
         old: &SideIndex<'_>,
         new: &SideIndex<'_>,
-        old_glyphs: &GlyphEvidenceIndex<'_>,
-        new_glyphs: &GlyphEvidenceIndex<'_>,
+        old_sources: &SpanSourceProjector<'_>,
+        new_sources: &SpanSourceProjector<'_>,
     ) -> Result<Self> {
         Ok(Self {
             old_span: region
                 .old_span
                 .as_ref()
-                .map(|span| JsonTextSpan::new(span, old, old_glyphs))
+                .map(|span| JsonTextSpan::new(span, old, old_sources))
                 .transpose()?,
             new_span: region
                 .new_span
                 .as_ref()
-                .map(|span| JsonTextSpan::new(span, new, new_glyphs))
+                .map(|span| JsonTextSpan::new(span, new, new_sources))
                 .transpose()?,
             evidence: region.evidence.iter().copied().map(evidence).collect(),
         })
@@ -333,9 +339,17 @@ struct JsonTextSpan {
 }
 
 impl JsonTextSpan {
-    fn new(span: &TextSpan, side: &SideIndex<'_>, glyphs: &GlyphEvidenceIndex<'_>) -> Result<Self> {
+    fn new(
+        span: &TextSpan,
+        side: &SideIndex<'_>,
+        sources: &SpanSourceProjector<'_>,
+    ) -> Result<Self> {
         let resolved = side.resolve(span)?;
-        let sources = project_span_sources(span, side, glyphs)?;
+        let sources = sources
+            .project(span)?
+            .into_iter()
+            .map(JsonSpanSource::from)
+            .collect();
         Ok(Self {
             blocks: span.blocks.iter().map(|block| block.0).collect(),
             pages: resolved.pages,
@@ -363,252 +377,6 @@ impl JsonTextSpan {
     }
 }
 
-struct GlyphEvidenceIndex<'a> {
-    glyphs: HashMap<GlyphId, &'a GlyphEvidence>,
-}
-
-impl<'a> GlyphEvidenceIndex<'a> {
-    fn new(evidence: &'a [GlyphEvidence]) -> Result<Self> {
-        let mut glyphs = HashMap::with_capacity(evidence.len());
-        for glyph in evidence {
-            if glyphs.insert(glyph.id, glyph).is_some() {
-                return Err(Error::Report(format!(
-                    "duplicate glyph evidence id {}",
-                    glyph.id.0
-                )));
-            }
-        }
-        Ok(Self { glyphs })
-    }
-
-    fn resolve(&self, id: GlyphId) -> Result<&GlyphEvidence> {
-        self.glyphs
-            .get(&id)
-            .copied()
-            .ok_or_else(|| Error::Report(format!("missing glyph evidence for id {}", id.0)))
-    }
-}
-
-enum ProjectedTokenSource {
-    Text(TextSource),
-    BlockSeparatorSpace,
-}
-
-struct ProjectedToken {
-    token: ComparableToken,
-    canonical_position: usize,
-    source: ProjectedTokenSource,
-}
-
-struct PositionedSource {
-    canonical_position: usize,
-    tie_break: u8,
-    sequence: usize,
-    source: ProjectedTokenSource,
-}
-
-fn project_span_sources(
-    span: &TextSpan,
-    side: &SideIndex<'_>,
-    glyphs: &GlyphEvidenceIndex<'_>,
-) -> Result<Vec<JsonSpanSource>> {
-    let mut tokens = Vec::new();
-    let mut event_sources = Vec::new();
-    let mut canonical_offset = 0;
-    for (position, block_id) in span.blocks.iter().copied().enumerate() {
-        let block = side.block(block_id)?;
-        let block_tokens = block.canonical.comparable_tokens_with_sources()?;
-        if position > 0
-            && separator_inserts_space(
-                span.separator.unwrap_or(BlockSeparator::Concatenate),
-                tokens.last().map(|token: &ProjectedToken| &token.token),
-                block_tokens.first().map(|(token, _)| token),
-            )
-        {
-            tokens.push(ProjectedToken {
-                token: ComparableToken::Scalar(' '),
-                canonical_position: canonical_offset,
-                source: ProjectedTokenSource::BlockSeparatorSpace,
-            });
-            canonical_offset += 1;
-        }
-        let block_scalar_count = block.canonical.text.chars().count();
-        let block_start = canonical_offset;
-        for (token, source) in block_tokens {
-            let is_scalar = token.is_scalar();
-            tokens.push(ProjectedToken {
-                canonical_position: canonical_offset,
-                source: ProjectedTokenSource::Text(source),
-                token,
-            });
-            if is_scalar {
-                canonical_offset += 1;
-            }
-        }
-        for (sequence, event) in block.normalization_events.iter().enumerate() {
-            if event.canonical_range.start > event.canonical_range.end
-                || event.canonical_range.end > block_scalar_count
-            {
-                return Err(Error::InvalidConfiguration(
-                    "normalization event range exceeds its normalized block".to_owned(),
-                ));
-            }
-            let event_range = ScalarRange {
-                start: block_start + event.canonical_range.start,
-                end: block_start + event.canonical_range.end,
-            };
-            if normalization_event_selected(event_range, span.canonical_range) {
-                event_sources.push(PositionedSource {
-                    canonical_position: event_range.start,
-                    tie_break: if event_range.start == event_range.end {
-                        0
-                    } else {
-                        2
-                    },
-                    sequence,
-                    source: ProjectedTokenSource::Text(event.source.clone()),
-                });
-            }
-        }
-    }
-    if span.comparable_range.end > tokens.len() {
-        return Err(Error::InvalidConfiguration(
-            "text span range exceeds the normalized block evidence".to_owned(),
-        ));
-    }
-    let canonical_start = tokens[..span.comparable_range.start]
-        .iter()
-        .filter(|token| token.token.is_scalar())
-        .count();
-    let canonical_end = tokens[..span.comparable_range.end]
-        .iter()
-        .filter(|token| token.token.is_scalar())
-        .count();
-    if canonical_start != span.canonical_range.start || canonical_end != span.canonical_range.end {
-        return Err(Error::InvalidConfiguration(
-            "text span canonical and comparable ranges select different scalar evidence".to_owned(),
-        ));
-    }
-
-    let mut positioned = tokens[span.comparable_range.start..span.comparable_range.end]
-        .iter()
-        .enumerate()
-        .map(|(sequence, token)| PositionedSource {
-            canonical_position: token.canonical_position,
-            tie_break: 1,
-            sequence,
-            source: match &token.source {
-                ProjectedTokenSource::Text(source) => ProjectedTokenSource::Text(source.clone()),
-                ProjectedTokenSource::BlockSeparatorSpace => {
-                    ProjectedTokenSource::BlockSeparatorSpace
-                }
-            },
-        })
-        .chain(event_sources)
-        .collect::<Vec<_>>();
-    positioned.sort_by_key(|source| (source.canonical_position, source.tie_break, source.sequence));
-
-    let mut output = Vec::new();
-    let mut seen_atoms = HashSet::new();
-    let mut seen_glyphs = HashSet::new();
-    for positioned_source in positioned {
-        match positioned_source.source {
-            ProjectedTokenSource::BlockSeparatorSpace => {
-                output.push(JsonSpanSource::BlockSeparatorSpace);
-            }
-            ProjectedTokenSource::Text(source) => {
-                for atom in source.atoms {
-                    if seen_atoms.insert(atom.clone()) {
-                        match atom {
-                            TextSourceAtom::Glyph(id) => {
-                                push_glyph_source(&mut output, &mut seen_glyphs, id, glyphs)?;
-                            }
-                            TextSourceAtom::SyntheticSpace {
-                                preceding,
-                                following,
-                            } => {
-                                output.push(JsonSpanSource::SyntheticSpace {
-                                    preceding_glyph_id: preceding.0,
-                                    following_glyph_id: following.0,
-                                });
-                                push_glyph_source(
-                                    &mut output,
-                                    &mut seen_glyphs,
-                                    preceding,
-                                    glyphs,
-                                )?;
-                                push_glyph_source(
-                                    &mut output,
-                                    &mut seen_glyphs,
-                                    following,
-                                    glyphs,
-                                )?;
-                            }
-                            TextSourceAtom::LineBreak {
-                                preceding,
-                                following,
-                            } => {
-                                output.push(JsonSpanSource::LineBreak {
-                                    preceding_glyph_id: preceding.0,
-                                    following_glyph_id: following.0,
-                                });
-                                push_glyph_source(
-                                    &mut output,
-                                    &mut seen_glyphs,
-                                    preceding,
-                                    glyphs,
-                                )?;
-                                push_glyph_source(
-                                    &mut output,
-                                    &mut seen_glyphs,
-                                    following,
-                                    glyphs,
-                                )?;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Ok(output)
-}
-
-fn separator_inserts_space(
-    separator: BlockSeparator,
-    previous: Option<&ComparableToken>,
-    next: Option<&ComparableToken>,
-) -> bool {
-    let mut boundary = previous.cloned().into_iter().collect::<Vec<_>>();
-    let unseparated_len = boundary.len() + usize::from(next.is_some());
-    separator.append(&mut boundary, next.map_or(&[], std::slice::from_ref));
-    boundary.len() > unseparated_len
-}
-
-/// Selects deleted or transformed normalization evidence without attributing
-/// a boundary-only event to an adjacent nonempty change.
-fn normalization_event_selected(event: ScalarRange, span: ScalarRange) -> bool {
-    if span.start == span.end {
-        return span.start == event.start || span.start == event.end;
-    }
-    if event.start == event.end {
-        return span.start < event.start && event.start < span.end;
-    }
-    event.start < span.end && event.end > span.start
-}
-
-fn push_glyph_source(
-    output: &mut Vec<JsonSpanSource>,
-    seen: &mut HashSet<GlyphId>,
-    id: GlyphId,
-    glyphs: &GlyphEvidenceIndex<'_>,
-) -> Result<()> {
-    if seen.insert(id) {
-        output.push(JsonSpanSource::glyph(glyphs.resolve(id)?));
-    }
-    Ok(())
-}
-
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum JsonSpanSource {
@@ -630,17 +398,40 @@ enum JsonSpanSource {
     BlockSeparatorSpace,
 }
 
-impl JsonSpanSource {
-    fn glyph(glyph: &GlyphEvidence) -> Self {
-        Self::Glyph {
-            glyph_id: glyph.id.0,
-            page: glyph.page.0,
-            bbox: glyph.bbox.into(),
-            content_stream: JsonObjectRef {
-                object_number: glyph.provenance.content_stream.object_number,
-                generation: glyph.provenance.content_stream.generation,
+impl From<SpanSourceEvidence> for JsonSpanSource {
+    fn from(source: SpanSourceEvidence) -> Self {
+        match source {
+            SpanSourceEvidence::Glyph {
+                glyph_id,
+                page,
+                bbox,
+                content_stream,
+                operator_index,
+            } => Self::Glyph {
+                glyph_id: glyph_id.0,
+                page: page.0,
+                bbox: bbox.into(),
+                content_stream: JsonObjectRef {
+                    object_number: content_stream.object_number,
+                    generation: content_stream.generation,
+                },
+                operator_index,
             },
-            operator_index: glyph.provenance.operator_index,
+            SpanSourceEvidence::SyntheticSpace {
+                preceding_glyph_id,
+                following_glyph_id,
+            } => Self::SyntheticSpace {
+                preceding_glyph_id: preceding_glyph_id.0,
+                following_glyph_id: following_glyph_id.0,
+            },
+            SpanSourceEvidence::LineBreak {
+                preceding_glyph_id,
+                following_glyph_id,
+            } => Self::LineBreak {
+                preceding_glyph_id: preceding_glyph_id.0,
+                following_glyph_id: following_glyph_id.0,
+            },
+            SpanSourceEvidence::BlockSeparatorSpace => Self::BlockSeparatorSpace,
         }
     }
 }
