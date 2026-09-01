@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-01
-- **Generator / engine commit**: [`0fe4e85`](https://github.com/hayatosc/pdfdelta/commit/0fe4e85)
+- **Generator / engine commit**: [`82c882c`](https://github.com/hayatosc/pdfdelta/commit/82c882c)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-01-0fe4e85.json`](2026-09-01-0fe4e85.json)
-  - Schema: v52
-  - Size: 1,971,702 bytes
-  - SHA-256: `9c2ec42fc7f90d5a21f6f40dd9f7b1e57a58ea93d8a39afaf018d1a8894cd262`
+  - File: [`2026-09-01-82c882c.json`](2026-09-01-82c882c.json)
+  - Schema: v53
+  - Size: 1,992,547 bytes
+  - SHA-256: `591825cb51631e2b987e1fbb7a95f9ef264ebbaeb1e50fc52a7f00e82f93e07a`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-01-0fe4e85.json \
+cp benchmark/realworld/results/2026-09-01-82c882c.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 0fe4e85
+git switch --detach 82c882c
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -102,6 +102,16 @@ still apply only to their recorded review items.
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 68.39% | 1,142 | 841 | 0.333 | 1.000 | 861.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
+
+All 18 available recovery builds complete the schema-v53 unresolved-token
+partition. Of 2,946,558 unresolved source tokens, 1,446,367 (49.09%) are not
+owned by a located recovery unit and 1,147,194 (38.93%) remain behind a
+near-relation veto. Together these two classes account for 88.02% of the
+recovery remainder. The dominant unlocated mass is concentrated in
+LibreOffice (474,101 tokens), QGIS English (190,446), SP 800-57 (126,701),
+EDPB Dark Patterns (122,643), and OASIS CSAF (109,618). The next coverage work
+must therefore distinguish safe trusted-stream fragments from genuinely
+unlocated evidence before changing near-relation thresholds.
 
 | Pair with a complete scope | Event P / R / F1 | Token P / R / F1 | Span IoU | FP tokens / 10k unchanged |
 |---|---:|---:|---:|---:|
@@ -804,10 +814,14 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v52)
+## Current Writer Schema (v53)
 
-The benchmark writer and latest committed capture use schema v52. Older
-captures retain their recorded schemas. Schema v52 records production
+The benchmark writer and latest committed capture use schema v53. Older
+captures retain their recorded schemas. Schema v53 partitions every unresolved
+sentence-recovery source token into one mutually exclusive cause when the
+bounded analysis completes. Incomplete attribution publishes no partial
+counts and records a typed stop reason; diagnostic allocation or invariant
+failure never discards the production recovery plan. Schema v52 records production
 local-fragment proposal completion, typed stops, considered candidates, and
 committed replacements. It promotes only exact interior one-token edits after
 the schema-v51 flat exact-boundary analysis completes. Schema v50 preserves the
@@ -1097,12 +1111,16 @@ Each record includes:
   opponent when present, actual near-search scope, and up to two observed
   opponents;
 - `candidate_recall` for reviewed replacement counterparts;
-- `sentence_recovery_metrics`, including exact matches, near replacements, recovered insertions/deletions, vetoes, remainders, structural and exact-signature trusted-run evidence, and whether bounded searches completed within their budgets.
+- `sentence_recovery_metrics`, including exact matches, near replacements,
+  recovered insertions/deletions, vetoes, an exhaustive typed remainder
+  attribution when available, structural and exact-signature trusted-run
+  evidence, and whether bounded searches completed within their budgets.
 
 `null` means the metric is unavailable for that record, not zero. Incomplete extraction suppresses comparison-wide coverage and quality claims; available per-side coverage may still be retained.
 
 ## Historical Captures
 
+- [`2026-09-01-0fe4e85.json`](2026-09-01-0fe4e85.json): schema-v52 trusted-run tail recovery before unresolved-token cause attribution.
 - [`2026-09-01-9fcaee6.json`](2026-09-01-9fcaee6.json): schema-v50 recovered replacements emit bounded-Myers atomic spans before exact local-fragment edits were promoted.
 - [`2026-09-01-9ce4bfe.json`](2026-09-01-9ce4bfe.json): schema-v50 flat exact-boundary diagnostics before recovered replacements began emitting exact atomic spans.
 - [`2026-08-31-87aa0bb.json`](2026-08-31-87aa0bb.json): schema-v49 shared exact-boundary trie before flat exact-class interning.
