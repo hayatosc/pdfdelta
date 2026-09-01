@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-01
-- **Generator / engine commit**: [`8d80c64`](https://github.com/hayatosc/pdfdelta/commit/8d80c64)
+- **Generator / engine commit**: [`d6ad8c3`](https://github.com/hayatosc/pdfdelta/commit/d6ad8c3)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-01-8d80c64.json`](2026-09-01-8d80c64.json)
+  - File: [`2026-09-01-d6ad8c3.json`](2026-09-01-d6ad8c3.json)
   - Schema: v54
-  - Size: 2,002,802 bytes
-  - SHA-256: `67b79ffeaa0770da3781a7b0c0565b4537933c16ef9eed30376bca0900b5c8f3`
+  - Size: 2,002,792 bytes
+  - SHA-256: `6400b45eb5ffba8c0c9ef5d886c24b88be0c5f9c96654749d1336a9463d14817`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-01-8d80c64.json \
+cp benchmark/realworld/results/2026-09-01-d6ad8c3.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 8d80c64
+git switch --detach d6ad8c3
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -88,8 +88,8 @@ still apply only to their recorded review items.
 
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `nist-fips-186-4-to-5` | dev | standard | 51.75% | 2,118 | 1,051 | 0.857 | 1.000 | 212.833 | 107 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.52% | 5,182 | 1,578 | 1.000 | 1.000 | 339.875 | 103 |
+| `nist-fips-186-4-to-5` | dev | standard | 51.96% | 2,125 | 1,055 | 0.857 | 1.000 | 213.500 | 107 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 53.20% | 5,213 | 1,600 | 1.000 | 1.000 | 342.625 | 103 |
 | `irs-form-1040-2024-to-2025` | holdout | stress | 44.13% | 81 | 31 | 0.200 | 1.000 | 40.000 | 1 |
 | `edpb-right-of-access-v1-to-final` | holdout | standard | 75.54% | 2,145 | 493 | 0.750 | 1.000 | 284.000 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 89.50% | 46 | 1 | 1.000 | 1.000 | 2.000 | 0 |
@@ -103,10 +103,23 @@ still apply only to their recorded review items.
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
 
+Relative to `8d80c64`, production fragment recovery no longer stops after
+three otherwise accepted proposals in one recovery build. All 68 strict
+proposals are now committed instead of 19. Four pairs change: FIPS gains 0.21
+coverage points, SP 800-57 gains 0.68, EDPB Dark Patterns gains 1.21, and
+LibreOffice gains 0.03. Mean coverage across the 19 comparable pairs rises
+from 54.89% to 55.00%, while the 56.68% median remains unchanged. The extra
+49 proposals resolve 12,325 source tokens, only 0.42% of the preceding
+2,935,058-token recovery remainder. Reported content events rise by 47 and
+unresolved regions by 78 because the recovered fragments partition remaining
+regions. Reviewed recall, kind accuracy, and every complete-scope event/token
+metric remain unchanged; the newly reported events outside complete scopes do
+not establish corpus-wide precision.
+
 All 18 available recovery builds complete the unresolved-token partition. Of
-2,935,058 unresolved source tokens, 1,434,867 (48.89%) are not owned by a
-located recovery unit and 1,147,194 (39.09%) remain behind a near-relation
-veto. Together these two classes account for 87.97% of the recovery remainder.
+2,922,733 unresolved source tokens, 1,434,867 (49.09%) are not owned by a
+located recovery unit and 1,134,433 (38.81%) remain behind a near-relation
+veto. Together these two classes account for 87.91% of the recovery remainder.
 The dominant unlocated mass is concentrated in LibreOffice (471,969 tokens),
 QGIS English (182,774), SP 800-57 (126,499), EDPB Dark Patterns (122,643), and
 OASIS CSAF (109,618). The next coverage work must therefore distinguish safe
@@ -122,8 +135,9 @@ near-relation thresholds.
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 
-Relative to the schema-v53 `82c882c` capture, isolated exact-tail recovery
-commits 91 globally unique matches and resolves 5,750 tokens on each side.
+In the preceding `8d80c64` capture, relative to schema-v53 `82c882c`, isolated
+exact-tail recovery commits 91 globally unique matches and resolves 5,750
+tokens on each side.
 Mean comparison coverage across the 19 comparable pairs rises from 54.78% to
 54.89%, while the median remains 56.68%. Seven pairs improve; the largest gains
 are QGIS English (+1.29 points), QGIS Spanish (+0.49), arXiv Attention (+0.15),
@@ -1130,6 +1144,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-09-01-8d80c64.json`](2026-09-01-8d80c64.json): schema-v54 isolated exact-tail recovery before lifting the three-proposal production fragment throttle.
 - [`2026-09-01-0fe4e85.json`](2026-09-01-0fe4e85.json): schema-v52 trusted-run tail recovery before unresolved-token cause attribution.
 - [`2026-09-01-9fcaee6.json`](2026-09-01-9fcaee6.json): schema-v50 recovered replacements emit bounded-Myers atomic spans before exact local-fragment edits were promoted.
 - [`2026-09-01-9ce4bfe.json`](2026-09-01-9ce4bfe.json): schema-v50 flat exact-boundary diagnostics before recovered replacements began emitting exact atomic spans.
