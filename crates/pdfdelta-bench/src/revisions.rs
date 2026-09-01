@@ -206,6 +206,15 @@ pub struct ActualSemanticHunk {
     pub new_text: Option<String>,
     pub old_atomic_changed_tokens: usize,
     pub new_atomic_changed_tokens: usize,
+    atomic_fragments: Option<Vec<ActualAtomicFragment>>,
+}
+
+#[derive(Clone, Debug)]
+struct ActualAtomicFragment {
+    old_text: String,
+    new_text: String,
+    old_changed_tokens: usize,
+    new_changed_tokens: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -5338,7 +5347,10 @@ fn build_block_map(blocks: &[BlockText]) -> HashMap<u64, &BlockText> {
     blocks.iter().map(|block| (block.block.0, block)).collect()
 }
 
-fn resolve_span(map: &HashMap<u64, &BlockText>, span: &TextSpan) -> Option<(String, usize)> {
+fn span_group_comparable_tokens(
+    map: &HashMap<u64, &BlockText>,
+    span: &TextSpan,
+) -> Option<Vec<ComparableToken>> {
     if span.blocks.is_empty() {
         return None;
     }
@@ -5351,6 +5363,11 @@ fn resolve_span(map: &HashMap<u64, &BlockText>, span: &TextSpan) -> Option<(Stri
         }
         append_with_separator(&mut tokens, span.separator? == BlockSeparator::Space, &next);
     }
+    Some(tokens)
+}
+
+fn resolve_span(map: &HashMap<u64, &BlockText>, span: &TextSpan) -> Option<(String, usize)> {
+    let tokens = span_group_comparable_tokens(map, span)?;
     if span.comparable_range.end > tokens.len()
         || span.comparable_range.start > span.comparable_range.end
     {
@@ -5374,6 +5391,55 @@ fn resolve_span(map: &HashMap<u64, &BlockText>, span: &TextSpan) -> Option<(Stri
         .take(span.canonical_range.end - span.canonical_range.start)
         .collect();
     Some((selected, comparable_len))
+}
+
+fn resolve_atomic_text(
+    map: &HashMap<u64, &BlockText>,
+    context: &TextSpan,
+    local_range: &std::ops::Range<usize>,
+) -> Option<String> {
+    let context_len = context
+        .comparable_range
+        .end
+        .checked_sub(context.comparable_range.start)?;
+    if local_range.start > local_range.end || local_range.end > context_len {
+        return None;
+    }
+    let start = context
+        .comparable_range
+        .start
+        .checked_add(local_range.start)?;
+    let end = context
+        .comparable_range
+        .start
+        .checked_add(local_range.end)?;
+    span_group_comparable_tokens(map, context)?
+        .get(start..end)?
+        .iter()
+        .map(|token| match token {
+            ComparableToken::Scalar(scalar) => Some(*scalar),
+            ComparableToken::Unmapped { .. } => None,
+        })
+        .collect()
+}
+
+fn resolve_atomic_fragments(
+    edits: &[pdfdelta_core::diff::AtomicEdit],
+    old_context: &TextSpan,
+    new_context: &TextSpan,
+    blocks_by_side: [&HashMap<u64, &BlockText>; 2],
+) -> Option<Vec<ActualAtomicFragment>> {
+    edits
+        .iter()
+        .map(|edit| {
+            Some(ActualAtomicFragment {
+                old_text: resolve_atomic_text(blocks_by_side[0], old_context, &edit.old)?,
+                new_text: resolve_atomic_text(blocks_by_side[1], new_context, &edit.new)?,
+                old_changed_tokens: edit.old.end.checked_sub(edit.old.start)?,
+                new_changed_tokens: edit.new.end.checked_sub(edit.new.start)?,
+            })
+        })
+        .collect()
 }
 
 /// Mirrors the core block-separator concatenation rule without exposing the
@@ -5558,6 +5624,12 @@ fn recovered_event_evidence(
                     new_text,
                     old_atomic_changed_tokens,
                     new_atomic_changed_tokens,
+                    atomic_fragments: resolve_atomic_fragments(
+                        edits,
+                        &trace.old_context,
+                        &trace.new_context,
+                        blocks_by_side,
+                    ),
                 })
             })
             .collect::<Option<Vec<_>>>();
@@ -5730,6 +5802,7 @@ fn matched_semantic_hunk(
     let old_range = span_range_within_context(occurrence.old_span.as_ref(), &trace.old_context)?;
     let new_range = span_range_within_context(occurrence.new_span.as_ref(), &trace.new_context)?;
     let mut matched_edit = false;
+    let mut matching_edits = Vec::new();
     let mut old_atomic_changed_tokens = 0usize;
     let mut new_atomic_changed_tokens = 0usize;
     for edit in &trace.edits {
@@ -5744,6 +5817,7 @@ fn matched_semantic_hunk(
             return None;
         }
         matched_edit = true;
+        matching_edits.push(edit.clone());
         old_atomic_changed_tokens =
             old_atomic_changed_tokens.checked_add(edit.old.end.checked_sub(edit.old.start)?)?;
         new_atomic_changed_tokens =
@@ -5762,6 +5836,12 @@ fn matched_semantic_hunk(
         new_text: resolve(1, occurrence.new_span.as_ref())?,
         old_atomic_changed_tokens,
         new_atomic_changed_tokens,
+        atomic_fragments: resolve_atomic_fragments(
+            &matching_edits,
+            &trace.old_context,
+            &trace.new_context,
+            blocks_by_side,
+        ),
     })
 }
 
@@ -5978,6 +6058,125 @@ fn occurrence_matches_quotes(
     old_matches && new_matches
 }
 
+fn occurrence_matches_expected_kind(
+    occurrence: &ActualChangeOccurrence,
+    needles: &NormalizedExpectedQuotes,
+    expected_kind: ExpectedKind,
+    actual_kind: ChangeKind,
+) -> bool {
+    occurrence_matches_quotes(occurrence, needles)
+        && (expected_kind.agrees_with(actual_kind)
+            || wrong_kind_semantic_hunk_matches(occurrence, needles, expected_kind))
+}
+
+fn wrong_kind_semantic_hunk_matches(
+    occurrence: &ActualChangeOccurrence,
+    needles: &NormalizedExpectedQuotes,
+    expected_kind: ExpectedKind,
+) -> bool {
+    let Some(hunks) = occurrence.semantic_hunks.as_deref() else {
+        return false;
+    };
+    match expected_kind {
+        ExpectedKind::Insertion => hunks.iter().any(|hunk| {
+            hunk.atomic_fragments.as_deref().is_some_and(|fragments| {
+                atomic_fragments_match_selected_quote(fragments, needles, false, true)
+            })
+        }),
+        ExpectedKind::Deletion => hunks.iter().any(|hunk| {
+            hunk.atomic_fragments.as_deref().is_some_and(|fragments| {
+                atomic_fragments_match_selected_quote(fragments, needles, true, true)
+            })
+        }),
+        ExpectedKind::Replacement => hunks.iter().any(|hunk| {
+            hunk.atomic_fragments.as_deref().is_some_and(|fragments| {
+                atomic_fragments_match_selected_quote(fragments, needles, true, true)
+                    && atomic_fragments_match_selected_quote(fragments, needles, false, true)
+            })
+        }),
+        ExpectedKind::Move => false,
+    }
+}
+
+enum SelectedQuoteEvidence<'a> {
+    OrderedFragments(&'a [String]),
+    Single(&'a str),
+}
+
+fn selected_quote_evidence<'a>(
+    needles: &'a NormalizedExpectedQuotes,
+    old_side: bool,
+) -> Option<SelectedQuoteEvidence<'a>> {
+    let (range_fragments, changed, context) = if old_side {
+        (
+            needles.old_changed_range_fragments.as_deref(),
+            needles.old_changed.as_deref(),
+            needles.old_context.as_deref(),
+        )
+    } else {
+        (
+            needles.new_changed_range_fragments.as_deref(),
+            needles.new_changed.as_deref(),
+            needles.new_context.as_deref(),
+        )
+    };
+    match range_fragments {
+        Some([]) => None,
+        Some(fragments) => Some(SelectedQuoteEvidence::OrderedFragments(fragments)),
+        None => changed.or(context).map(SelectedQuoteEvidence::Single),
+    }
+}
+
+fn atomic_fragments_match_selected_quote(
+    fragments: &[ActualAtomicFragment],
+    needles: &NormalizedExpectedQuotes,
+    old_side: bool,
+    opposite_must_be_empty: bool,
+) -> bool {
+    let Some(selected) = selected_quote_evidence(needles, old_side) else {
+        return false;
+    };
+    match selected {
+        SelectedQuoteEvidence::Single(needle) => fragments.iter().any(|fragment| {
+            let (changed_tokens, opposite_tokens, text) = atomic_fragment_side(fragment, old_side);
+            changed_tokens != 0
+                && (!opposite_must_be_empty || opposite_tokens == 0)
+                && text.contains(needle)
+        }),
+        SelectedQuoteEvidence::OrderedFragments(expected) => {
+            let mut matched = 0usize;
+            for fragment in fragments {
+                let (changed_tokens, opposite_tokens, text) =
+                    atomic_fragment_side(fragment, old_side);
+                if changed_tokens == 0 || (opposite_must_be_empty && opposite_tokens != 0) {
+                    continue;
+                }
+                matched += matching_fragment_prefix_len(text, &expected[matched..]);
+                if matched == expected.len() {
+                    return true;
+                }
+            }
+            false
+        }
+    }
+}
+
+fn atomic_fragment_side(fragment: &ActualAtomicFragment, old_side: bool) -> (usize, usize, &str) {
+    if old_side {
+        (
+            fragment.old_changed_tokens,
+            fragment.new_changed_tokens,
+            &fragment.old_text,
+        )
+    } else {
+        (
+            fragment.new_changed_tokens,
+            fragment.old_changed_tokens,
+            &fragment.new_text,
+        )
+    }
+}
+
 fn changed_range_fragments_match(
     occurrence: &ActualChangeOccurrence,
     needles: &NormalizedExpectedQuotes,
@@ -6176,6 +6375,7 @@ fn normalized_expected_quotes(change: &ExpectedChange) -> NormalizedExpectedQuot
 fn actual_matches_quotes(
     actual: &ActualChange,
     needles: &NormalizedExpectedQuotes,
+    expected_kind: ExpectedKind,
     all: bool,
     budget: &mut MatchingScanBudget,
     limits: MatchingLimits,
@@ -6186,7 +6386,7 @@ fn actual_matches_quotes(
         }
         for occurrence in &actual.occurrences {
             budget.charge_occurrence(occurrence, needles, limits)?;
-            if !occurrence_matches_quotes(occurrence, needles) {
+            if !occurrence_matches_expected_kind(occurrence, needles, expected_kind, actual.kind) {
                 return Ok(false);
             }
         }
@@ -6194,7 +6394,7 @@ fn actual_matches_quotes(
     } else {
         for occurrence in &actual.occurrences {
             budget.charge_occurrence(occurrence, needles, limits)?;
-            if occurrence_matches_quotes(occurrence, needles) {
+            if occurrence_matches_expected_kind(occurrence, needles, expected_kind, actual.kind) {
                 return Ok(true);
             }
         }
@@ -6211,14 +6411,15 @@ fn actual_matches_expected(
 ) -> MatchingResult<(bool, bool)> {
     match change.occurrence_count {
         Some(count) => {
-            let quotes_match = actual_matches_quotes(actual, needles, true, budget, limits)?;
+            let quotes_match =
+                actual_matches_quotes(actual, needles, change.kind, true, budget, limits)?;
             Ok((
                 quotes_match && actual.occurrences.len() == count,
                 quotes_match,
             ))
         }
         None => Ok((
-            actual_matches_quotes(actual, needles, false, budget, limits)?,
+            actual_matches_quotes(actual, needles, change.kind, false, budget, limits)?,
             false,
         )),
     }
@@ -13909,7 +14110,7 @@ mod tests {
             ),
             expected_change("c2", ExpectedKind::Deletion, Some("obsolete section"), None),
         ];
-        let actuals = vec![
+        let mut actuals = vec![
             actual_change(
                 ChangeKind::Replacement,
                 Some("within ten days of receipt"),
@@ -13925,6 +14126,18 @@ mod tests {
                 Some(7),
             ),
         ];
+        actuals[1].occurrences[0].semantic_hunks = Some(vec![ActualSemanticHunk {
+            old_text: Some("obsolete section".to_owned()),
+            new_text: Some(String::new()),
+            old_atomic_changed_tokens: 16,
+            new_atomic_changed_tokens: 0,
+            atomic_fragments: Some(vec![ActualAtomicFragment {
+                old_text: "obsolete section".to_owned(),
+                new_text: String::new(),
+                old_changed_tokens: 16,
+                new_changed_tokens: 0,
+            }]),
+        }]);
         let partial = compute_quality(Annotation::Partial, &expected, &actuals);
         assert_eq!(partial.expected_changes, 2);
         assert_eq!(partial.reported_changes, 2);
@@ -14529,12 +14742,14 @@ mod tests {
                 new_text: Some("label".to_owned()),
                 old_atomic_changed_tokens: 5,
                 new_atomic_changed_tokens: 5,
+                atomic_fragments: None,
             },
             ActualSemanticHunk {
                 old_text: Some(",".to_owned()),
                 new_text: Some(String::new()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 0,
+                atomic_fragments: None,
             },
         ]);
 
@@ -14569,6 +14784,7 @@ mod tests {
             new_text: Some(";".to_owned()),
             old_atomic_changed_tokens: 1,
             new_atomic_changed_tokens: 1,
+            atomic_fragments: None,
         }]);
 
         let quality = compute_quality(Annotation::Complete, &[expected], &[actual]);
@@ -14625,12 +14841,14 @@ mod tests {
                 new_text: Some("C".to_owned()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 1,
+                atomic_fragments: None,
             },
             ActualSemanticHunk {
                 old_text: Some("B".to_owned()),
                 new_text: Some("D".to_owned()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 1,
+                atomic_fragments: None,
             },
         ]);
 
@@ -14661,12 +14879,14 @@ mod tests {
                 new_text: Some(String::new()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 0,
+                atomic_fragments: None,
             },
             ActualSemanticHunk {
                 old_text: Some(String::new()),
                 new_text: Some("B".to_owned()),
                 old_atomic_changed_tokens: 0,
                 new_atomic_changed_tokens: 1,
+                atomic_fragments: None,
             },
         ]);
 
@@ -14697,12 +14917,14 @@ mod tests {
                 new_text: Some("B".to_owned()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 1,
+                atomic_fragments: None,
             },
             ActualSemanticHunk {
                 old_text: Some("C".to_owned()),
                 new_text: Some("D".to_owned()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 1,
+                atomic_fragments: None,
             },
         ]);
 
@@ -14737,12 +14959,14 @@ mod tests {
                 new_text: Some("B".to_owned()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 1,
+                atomic_fragments: None,
             },
             ActualSemanticHunk {
                 old_text: Some("C".to_owned()),
                 new_text: Some(String::new()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 0,
+                atomic_fragments: None,
             },
         ]);
 
@@ -14785,6 +15009,15 @@ mod tests {
         assert_eq!(hunk.new_text.as_deref(), Some(""));
         assert_eq!(hunk.old_atomic_changed_tokens, 1);
         assert_eq!(hunk.new_atomic_changed_tokens, 0);
+        assert!(matches!(
+            hunk.atomic_fragments.as_deref(),
+            Some([ActualAtomicFragment {
+                old_text,
+                new_text,
+                old_changed_tokens: 1,
+                new_changed_tokens: 0,
+            }]) if old_text == "," && new_text.is_empty()
+        ));
     }
 
     #[test]
@@ -14830,6 +15063,7 @@ mod tests {
             new_text: Some("new hunk".to_owned()),
             old_atomic_changed_tokens: 1,
             new_atomic_changed_tokens: 1,
+            atomic_fragments: None,
         }]);
         let mut budget = MatchingScanBudget::default();
         let mut expected =
@@ -15069,6 +15303,346 @@ mod tests {
         assert_eq!(quality.reported_changes, 1);
         assert_eq!(quality.reported_hunks_per_matched_change, Some(2.0));
         assert_eq!(quality.review_hunks_per_expected_change, Some(2.0));
+    }
+
+    #[test]
+    fn wrong_kind_matching_requires_kind_specific_semantic_hunks() {
+        let insertion = [expected_change(
+            "insert",
+            ExpectedKind::Insertion,
+            None,
+            Some("added"),
+        )];
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("base"),
+            Some("prefix added suffix"),
+            Some(4),
+            Some(19),
+        );
+        assert_eq!(
+            match_changes(&insertion, std::slice::from_ref(&actual)).matched,
+            0
+        );
+        actual.occurrences[0].semantic_hunks = Some(vec![ActualSemanticHunk {
+            old_text: Some("old".to_owned()),
+            new_text: Some("added".to_owned()),
+            old_atomic_changed_tokens: 3,
+            new_atomic_changed_tokens: 1,
+            atomic_fragments: Some(vec![
+                ActualAtomicFragment {
+                    old_text: "old".to_owned(),
+                    new_text: String::new(),
+                    old_changed_tokens: 3,
+                    new_changed_tokens: 0,
+                },
+                ActualAtomicFragment {
+                    old_text: String::new(),
+                    new_text: "x".to_owned(),
+                    old_changed_tokens: 0,
+                    new_changed_tokens: 1,
+                },
+            ]),
+        }]);
+        assert_eq!(
+            match_changes(&insertion, std::slice::from_ref(&actual)).matched,
+            0
+        );
+        actual.occurrences[0].semantic_hunks = Some(vec![ActualSemanticHunk {
+            old_text: Some(String::new()),
+            new_text: Some("added".to_owned()),
+            old_atomic_changed_tokens: 0,
+            new_atomic_changed_tokens: 5,
+            atomic_fragments: Some(vec![ActualAtomicFragment {
+                old_text: String::new(),
+                new_text: "added".to_owned(),
+                old_changed_tokens: 0,
+                new_changed_tokens: 5,
+            }]),
+        }]);
+        assert_eq!(
+            match_changes(&insertion, std::slice::from_ref(&actual)).matched,
+            1
+        );
+
+        let deletion = [expected_change(
+            "delete",
+            ExpectedKind::Deletion,
+            Some("removed"),
+            None,
+        )];
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("removed"),
+            Some("base"),
+            Some(7),
+            Some(4),
+        );
+        assert_eq!(
+            match_changes(&deletion, std::slice::from_ref(&actual)).matched,
+            0
+        );
+        actual.occurrences[0].semantic_hunks = Some(vec![ActualSemanticHunk {
+            old_text: Some("removed".to_owned()),
+            new_text: Some(String::new()),
+            old_atomic_changed_tokens: 7,
+            new_atomic_changed_tokens: 0,
+            atomic_fragments: Some(vec![ActualAtomicFragment {
+                old_text: "removed".to_owned(),
+                new_text: String::new(),
+                old_changed_tokens: 7,
+                new_changed_tokens: 0,
+            }]),
+        }]);
+        assert_eq!(match_changes(&deletion, &[actual]).matched, 1);
+
+        let replacement = [expected_change(
+            "replace",
+            ExpectedKind::Replacement,
+            Some("old"),
+            Some("new"),
+        )];
+        let mut actual =
+            actual_change(ChangeKind::Move, Some("old"), Some("new"), Some(3), Some(3));
+        actual.occurrences[0].semantic_hunks = Some(vec![
+            ActualSemanticHunk {
+                old_text: Some("old".to_owned()),
+                new_text: Some(String::new()),
+                old_atomic_changed_tokens: 3,
+                new_atomic_changed_tokens: 0,
+                atomic_fragments: Some(vec![ActualAtomicFragment {
+                    old_text: "old".to_owned(),
+                    new_text: String::new(),
+                    old_changed_tokens: 3,
+                    new_changed_tokens: 0,
+                }]),
+            },
+            ActualSemanticHunk {
+                old_text: Some(String::new()),
+                new_text: Some("new".to_owned()),
+                old_atomic_changed_tokens: 0,
+                new_atomic_changed_tokens: 3,
+                atomic_fragments: Some(vec![ActualAtomicFragment {
+                    old_text: String::new(),
+                    new_text: "new".to_owned(),
+                    old_changed_tokens: 0,
+                    new_changed_tokens: 3,
+                }]),
+            },
+        ]);
+        assert_eq!(
+            match_changes(&replacement, std::slice::from_ref(&actual)).matched,
+            0
+        );
+        let old_blocks = [relation_block(1, "old")];
+        let new_blocks = [relation_block(2, "new")];
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+        let trace = MatchedAtomicDiff {
+            alignment_span_index: 0,
+            old_context: relation_span(vec![BlockId(1)], None, 3),
+            new_context: relation_span(vec![BlockId(2)], None, 3),
+            edits: vec![
+                pdfdelta_core::diff::AtomicEdit {
+                    old: 0..3,
+                    new: 0..0,
+                },
+                pdfdelta_core::diff::AtomicEdit {
+                    old: 3..3,
+                    new: 0..3,
+                },
+            ],
+        };
+        let occurrence = ChangeOccurrence {
+            old_span: Some(trace.old_context.clone()),
+            new_span: Some(trace.new_context.clone()),
+        };
+        actual.occurrences[0].semantic_hunks = Some(vec![
+            matched_semantic_hunk(&occurrence, &trace, [&old_map, &new_map])
+                .expect("one replacement hunk"),
+        ]);
+        assert_eq!(match_changes(&replacement, &[actual]).matched, 1);
+
+        let moved = [expected_change(
+            "move",
+            ExpectedKind::Move,
+            Some("old"),
+            Some("new"),
+        )];
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("old"),
+            Some("new"),
+            Some(3),
+            Some(3),
+        );
+        actual.occurrences[0].semantic_hunks = Some(vec![ActualSemanticHunk {
+            old_text: Some("old".to_owned()),
+            new_text: Some("new".to_owned()),
+            old_atomic_changed_tokens: 3,
+            new_atomic_changed_tokens: 3,
+            atomic_fragments: Some(vec![
+                ActualAtomicFragment {
+                    old_text: "old".to_owned(),
+                    new_text: String::new(),
+                    old_changed_tokens: 3,
+                    new_changed_tokens: 0,
+                },
+                ActualAtomicFragment {
+                    old_text: String::new(),
+                    new_text: "new".to_owned(),
+                    old_changed_tokens: 0,
+                    new_changed_tokens: 3,
+                },
+            ]),
+        }]);
+        assert_eq!(match_changes(&moved, &[actual]).matched, 0);
+    }
+
+    #[test]
+    fn wrong_kind_matching_uses_atomic_fragments_not_presentation_spans() {
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("Version"),
+            Some("Version"),
+            Some(7),
+            Some(7),
+        );
+        actual.occurrences[0].new_relation_context = Some("Version".to_owned());
+        actual.occurrences[0].semantic_hunks = Some(vec![ActualSemanticHunk {
+            old_text: Some(String::new()),
+            new_text: Some("Version".to_owned()),
+            old_atomic_changed_tokens: 0,
+            new_atomic_changed_tokens: 1,
+            atomic_fragments: Some(vec![ActualAtomicFragment {
+                old_text: String::new(),
+                new_text: "n".to_owned(),
+                old_changed_tokens: 0,
+                new_changed_tokens: 1,
+            }]),
+        }]);
+
+        let full_word = [expected_change(
+            "full-word",
+            ExpectedKind::Insertion,
+            None,
+            Some("Version"),
+        )];
+        assert_eq!(
+            match_changes(&full_word, std::slice::from_ref(&actual)).matched,
+            0
+        );
+
+        let mut outside_range = full_word[0].clone();
+        outside_range.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 4 }]);
+        assert_eq!(
+            match_changes(
+                std::slice::from_ref(&outside_range),
+                std::slice::from_ref(&actual)
+            )
+            .matched,
+            0
+        );
+
+        let mut context_only_changed = full_word[0].clone();
+        context_only_changed.new_changed_quote = Some("Version".to_owned());
+        assert_eq!(
+            match_changes(
+                std::slice::from_ref(&context_only_changed),
+                std::slice::from_ref(&actual)
+            )
+            .matched,
+            0
+        );
+
+        let too_long = [expected_change(
+            "too-long",
+            ExpectedKind::Insertion,
+            None,
+            Some("on"),
+        )];
+        assert_eq!(
+            match_changes(&too_long, std::slice::from_ref(&actual)).matched,
+            0
+        );
+
+        let exact = [expected_change(
+            "exact",
+            ExpectedKind::Insertion,
+            None,
+            Some("n"),
+        )];
+        assert_eq!(match_changes(&exact, &[actual]).matched, 1);
+    }
+
+    #[test]
+    fn same_kind_and_occurrence_count_matching_use_the_shared_predicate() {
+        let same_kind = [expected_change(
+            "insert",
+            ExpectedKind::Insertion,
+            None,
+            Some("added"),
+        )];
+        let actual = actual_change(ChangeKind::Insertion, None, Some("added"), None, Some(5));
+        assert_eq!(
+            match_changes(&same_kind, std::slice::from_ref(&actual)).matched,
+            1
+        );
+
+        let mut counted = same_kind[0].clone();
+        counted.occurrence_count = Some(2);
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("base"),
+            Some("added"),
+            Some(4),
+            Some(5),
+        );
+        actual.occurrences[0].semantic_hunks = Some(vec![ActualSemanticHunk {
+            old_text: Some(String::new()),
+            new_text: Some("added".to_owned()),
+            old_atomic_changed_tokens: 0,
+            new_atomic_changed_tokens: 5,
+            atomic_fragments: Some(vec![ActualAtomicFragment {
+                old_text: String::new(),
+                new_text: "added".to_owned(),
+                old_changed_tokens: 0,
+                new_changed_tokens: 5,
+            }]),
+        }]);
+        let mut context_only = actual.occurrences[0].clone();
+        context_only.semantic_hunks = Some(vec![ActualSemanticHunk {
+            old_text: Some("base".to_owned()),
+            new_text: Some("other".to_owned()),
+            old_atomic_changed_tokens: 4,
+            new_atomic_changed_tokens: 5,
+            atomic_fragments: Some(vec![
+                ActualAtomicFragment {
+                    old_text: "base".to_owned(),
+                    new_text: String::new(),
+                    old_changed_tokens: 4,
+                    new_changed_tokens: 0,
+                },
+                ActualAtomicFragment {
+                    old_text: String::new(),
+                    new_text: "other".to_owned(),
+                    old_changed_tokens: 0,
+                    new_changed_tokens: 5,
+                },
+            ]),
+        }]);
+        actual.occurrences.push(context_only);
+        assert_eq!(
+            match_changes(
+                std::slice::from_ref(&counted),
+                std::slice::from_ref(&actual)
+            )
+            .matched,
+            0
+        );
+
+        actual.occurrences[1].semantic_hunks = actual.occurrences[0].semantic_hunks.clone();
+        assert_eq!(match_changes(&[counted], &[actual]).matched, 1);
     }
 
     #[test]

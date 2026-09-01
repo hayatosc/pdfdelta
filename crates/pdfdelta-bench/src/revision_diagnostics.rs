@@ -17,7 +17,8 @@ use super::{
     ExpectedChangeFailureReason, ExpectedKind, MAX_EXPECTED_CHANGE_DIAGNOSTICS, MatchOutcome,
     MissSide, WrongChangeKindDiagnostic, WrongChangeKindDiagnosticStopReason,
     WrongChangeKindSemanticHunkReport, WrongChangeKindTraceReport, build_block_map,
-    change_kind_name, is_space_token, normalized_expected_quotes, occurrence_matches_quotes, ratio,
+    change_kind_name, is_space_token, normalized_expected_quotes, occurrence_matches_expected_kind,
+    ratio,
 };
 
 #[derive(Clone, Copy)]
@@ -1329,7 +1330,7 @@ fn wrong_kind_diagnostic(
                 stop_reason: WrongChangeKindDiagnosticStopReason::ScanLimit,
             });
         }
-        if occurrence_matches_quotes(occurrence, &needles) {
+        if occurrence_matches_expected_kind(occurrence, &needles, change.kind, actual.kind) {
             let Some(next) = quote_matching_occurrences.checked_add(1) else {
                 budget.limited = true;
                 return Ok(WrongChangeKindDiagnostic::Limited {
@@ -2919,13 +2920,34 @@ mod tests {
             Some("old reviewed text"),
             Some("new reviewed text"),
         )];
-        let actuals = [actual_change(
+        let mut actual = actual_change(
             ChangeKind::Move,
             Some("old reviewed text"),
             Some("new reviewed text"),
             Some(17),
             Some(17),
-        )];
+        );
+        actual.occurrences[0].semantic_hunks = Some(vec![crate::revisions::ActualSemanticHunk {
+            old_text: Some("old reviewed text".to_owned()),
+            new_text: Some("new reviewed text".to_owned()),
+            old_atomic_changed_tokens: 17,
+            new_atomic_changed_tokens: 17,
+            atomic_fragments: Some(vec![
+                crate::revisions::ActualAtomicFragment {
+                    old_text: "old reviewed text".to_owned(),
+                    new_text: String::new(),
+                    old_changed_tokens: 17,
+                    new_changed_tokens: 0,
+                },
+                crate::revisions::ActualAtomicFragment {
+                    old_text: String::new(),
+                    new_text: "new reviewed text".to_owned(),
+                    old_changed_tokens: 0,
+                    new_changed_tokens: 17,
+                },
+            ]),
+        }]);
+        let actuals = [actual];
         let before = compute_quality(Annotation::Complete, &expected, &actuals);
         let outcome = match_changes(&expected, &actuals);
         let after = quality_from_match_outcome(Annotation::Complete, &expected, &actuals, &outcome);
@@ -2981,13 +3003,19 @@ mod tests {
         occurrence.new_relation_context_len = Some(29);
         occurrence.old_atomic_changed_tokens = Some(1);
         occurrence.new_atomic_changed_tokens = Some(1);
-        occurrence.old_semantic_changed_tokens = Some(1);
-        occurrence.new_semantic_changed_tokens = Some(1);
+        occurrence.old_semantic_changed_tokens = Some(0);
+        occurrence.new_semantic_changed_tokens = Some(16);
         occurrence.semantic_hunks = Some(vec![crate::revisions::ActualSemanticHunk {
-            old_text: Some("4".to_owned()),
-            new_text: Some("5".to_owned()),
-            old_atomic_changed_tokens: 1,
-            new_atomic_changed_tokens: 1,
+            old_text: Some(String::new()),
+            new_text: Some("copyright notice".to_owned()),
+            old_atomic_changed_tokens: 0,
+            new_atomic_changed_tokens: 16,
+            atomic_fragments: Some(vec![crate::revisions::ActualAtomicFragment {
+                old_text: String::new(),
+                new_text: "copyright notice".to_owned(),
+                old_changed_tokens: 0,
+                new_changed_tokens: 16,
+            }]),
         }]);
         occurrence.relation_trace =
             ActualRelationTraceStatus::Available(crate::revisions::ActualRelationTrace {
@@ -3061,12 +3089,12 @@ mod tests {
         };
         assert_eq!(
             (*old_reported_semantic_tokens, *new_reported_semantic_tokens),
-            (Some(1), Some(1))
+            (Some(0), Some(16))
         );
-        assert_eq!((*replacement_hunks, *insertion_only_hunks), (1, 0));
+        assert_eq!((*replacement_hunks, *insertion_only_hunks), (0, 1));
         assert_eq!(*expected_new_quote_in_relation_context, Some(true));
-        assert_eq!(*expected_new_quote_in_semantic_hunk, Some(false));
-        assert_eq!(*expected_new_quote_in_insertion_only_hunk, Some(false));
+        assert_eq!(*expected_new_quote_in_semantic_hunk, Some(true));
+        assert_eq!(*expected_new_quote_in_insertion_only_hunk, Some(true));
         assert_eq!(
             (*old_best_score, *old_second_score),
             (Some(9_814), Some(7_100))
@@ -3087,7 +3115,7 @@ mod tests {
     }
 
     #[test]
-    fn wrong_kind_diagnostic_reports_ordered_insertion_hunk_and_ambiguity() {
+    fn wrong_kind_diagnostic_selects_the_same_occurrence_as_matching() {
         let expected = expected_change("insert", ExpectedKind::Insertion, None, Some("added"));
         let mut actual = actual_change(
             ChangeKind::Replacement,
@@ -3106,6 +3134,12 @@ mod tests {
             new_text: Some("added".to_owned()),
             old_atomic_changed_tokens: 0,
             new_atomic_changed_tokens: 5,
+            atomic_fragments: Some(vec![crate::revisions::ActualAtomicFragment {
+                old_text: String::new(),
+                new_text: "added".to_owned(),
+                old_changed_tokens: 0,
+                new_changed_tokens: 5,
+            }]),
         }]);
         occurrence.relation_trace =
             ActualRelationTraceStatus::Available(crate::revisions::ActualRelationTrace {
@@ -3145,20 +3179,41 @@ mod tests {
             }
         ));
 
-        actual.occurrences.push(actual.occurrences[0].clone());
-        let ambiguous = wrong_kind_diagnostic(
+        let matching_occurrence = actual.occurrences[0].clone();
+        actual.occurrences[0].semantic_hunks = Some(vec![crate::revisions::ActualSemanticHunk {
+            old_text: Some("old".to_owned()),
+            new_text: Some("other".to_owned()),
+            old_atomic_changed_tokens: 3,
+            new_atomic_changed_tokens: 5,
+            atomic_fragments: Some(vec![crate::revisions::ActualAtomicFragment {
+                old_text: "old".to_owned(),
+                new_text: "other".to_owned(),
+                old_changed_tokens: 3,
+                new_changed_tokens: 5,
+            }]),
+        }]);
+        actual.occurrences.push(matching_occurrence);
+        let outcome = match_changes(
+            std::slice::from_ref(&expected),
+            std::slice::from_ref(&actual),
+        );
+        assert_eq!(outcome.claimed_actual_by_expected, vec![Some(0)]);
+        let selected = wrong_kind_diagnostic(
             &expected,
             0,
             &actual,
             &mut DiagnosticBudget::default(),
             DiagnosticLimits::default(),
         )
-        .expect("ambiguous diagnostic succeeds");
+        .expect("diagnostic succeeds");
         assert!(matches!(
-            ambiguous,
+            selected,
             WrongChangeKindDiagnostic::Complete {
-                quote_matching_occurrences: 2,
-                trace: WrongChangeKindTraceReport::Ambiguous,
+                quote_matching_occurrences: 1,
+                trace: WrongChangeKindTraceReport::Available {
+                    occurrence_index: 1,
+                    ..
+                },
                 ..
             }
         ));
@@ -3173,13 +3228,26 @@ mod tests {
             Some("target"),
         )];
         let long_text = format!("target {}", "x".repeat(512));
-        let actuals = [actual_change(
+        let mut actual = actual_change(
             ChangeKind::Replacement,
             Some("old"),
             Some(&long_text),
             Some(3),
             Some(long_text.chars().count()),
-        )];
+        );
+        actual.occurrences[0].semantic_hunks = Some(vec![crate::revisions::ActualSemanticHunk {
+            old_text: Some(String::new()),
+            new_text: Some("target".to_owned()),
+            old_atomic_changed_tokens: 0,
+            new_atomic_changed_tokens: 6,
+            atomic_fragments: Some(vec![crate::revisions::ActualAtomicFragment {
+                old_text: String::new(),
+                new_text: "target".to_owned(),
+                old_changed_tokens: 0,
+                new_changed_tokens: 6,
+            }]),
+        }]);
+        let actuals = [actual];
         let outcome = match_changes(&expected, &actuals);
         let diagnostics = evaluate_reviewed_diagnostics_with_limits(
             &expected,
@@ -3215,7 +3283,7 @@ mod tests {
     fn wrong_kind_unavailable_projection_is_not_reported_as_zero_or_false() {
         let expected = expected_change("insert", ExpectedKind::Insertion, None, Some("added"));
         let mut actual = actual_change(
-            ChangeKind::Replacement,
+            ChangeKind::Insertion,
             Some("old"),
             Some("added"),
             Some(3),
