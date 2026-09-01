@@ -4,17 +4,17 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 
 ## Latest Capture
 
-- **Capture date**: 2026-09-01
-- **Generator / engine commit**: [`d6ad8c3`](https://github.com/hayatosc/pdfdelta/commit/d6ad8c3)
+- **Capture date**: 2026-09-02
+- **Generator / engine commit**: [`46d4b9e`](https://github.com/hayatosc/pdfdelta/commit/46d4b9e)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-01-d6ad8c3.json`](2026-09-01-d6ad8c3.json)
+  - File: [`2026-09-02-46d4b9e.json`](2026-09-02-46d4b9e.json)
   - Schema: v54
-  - Size: 2,002,792 bytes
-  - SHA-256: `6400b45eb5ffba8c0c9ef5d886c24b88be0c5f9c96654749d1336a9463d14817`
+  - Size: 1,997,804 bytes
+  - SHA-256: `dbe4fd906aaf80dc5c15d0caf46feffe7d03f7db5b6fab906694b7cf8e4217f7`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-01-d6ad8c3.json \
+cp benchmark/realworld/results/2026-09-02-46d4b9e.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach d6ad8c3
+git switch --detach 46d4b9e
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -92,16 +92,40 @@ still apply only to their recorded review items.
 | `nist-sp800-57-part1-r4-to-r5` | dev | standard | 53.20% | 5,213 | 1,600 | 1.000 | 1.000 | 342.625 | 103 |
 | `irs-form-1040-2024-to-2025` | holdout | stress | 44.13% | 81 | 31 | 0.200 | 1.000 | 40.000 | 1 |
 | `edpb-right-of-access-v1-to-final` | holdout | standard | 75.54% | 2,145 | 493 | 0.750 | 1.000 | 284.000 | 56 |
-| `arxiv-attention-v6-to-v7` | dev | stress | 89.50% | 46 | 1 | 1.000 | 1.000 | 2.000 | 0 |
-| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.68% | 290 | 143 | 1.000 | 1.000 | 1.000 | 0 |
+| `arxiv-attention-v6-to-v7` | dev | stress | 92.11% | 59 | 1 | 1.000 | 1.000 | 2.000 | 0 |
+| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.81% | 293 | 143 | 1.000 | 1.000 | 1.000 | 0 |
 | `ecma-109-ed10-to-ed11` | dev | stress | 75.20% | 420 | 87 | 0.667 | 0.500 | 66.000 | 5 |
-| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.25% | 519 | 475 | 1.000 | 1.000 | 167.000 | 65 |
+| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 66.57% | 569 | 475 | 1.000 | 1.000 | 167.000 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
 | `bis-operational-risk-2011-to-2021` | dev | standard | 76.24% | 672 | 365 | 1.000 | 1.000 | 14.000 | 0 |
 | `oasis-mqtt-311-to-50` | dev | standard | 42.40% | 3,484 | 1,593 | 1.000 | N/A | N/A | 0 |
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 68.39% | 1,142 | 841 | 0.333 | 1.000 | 861.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
+
+Relative to `d6ad8c3`, a secondary exact-only pass now recovers globally unique
+completed sentences from clean source-backed ranges inside blocks whose other
+ranges carry normalization or unmapped evidence. The primary relation graph is
+frozen before this pass, so these matches add resolved context without changing
+content events or relation decisions. Exact-match coverage increases in five
+pairs:
+
+| Pair | Coverage change | Exact tokens added per side |
+|---|---:|---:|
+| `arxiv-attention-v6-to-v7` | 89.50% -> 92.11% | 1,012 |
+| `w3c-ws-policy-attach-20060927-to-20061102` | 56.68% -> 56.81% | 128 |
+| `oasis-csaf-v2-cs01-to-csd02` | 65.25% -> 66.57% | 3,704 |
+| `qgis-pyqgis-en-328-to-334` | 58.80% -> 60.78% | 5,925 |
+| `qgis-doc-guidelines-es-328-to-334` | 63.20% -> 64.99% | 1,600 |
+
+Across the 19 completely extracted pairs, mean coverage rises from 55.00% to
+55.42% and the median rises from 56.68% to 56.81%. The pass resolves 12,369
+additional exact tokens on each side. All 29 pairs preserve their content,
+formatting, and uncertain event counts, quality metrics, complete-scope metrics,
+and candidate recall. The five changed pairs add 205 unresolved regions because
+recovering interior exact ranges partitions the remaining unresolved spans;
+their stale remainder attribution is therefore marked `analysis_incomplete`.
+No resource-limit, near-relation, or fallback outcome changes.
 
 Relative to `8d80c64`, production fragment recovery no longer stops after
 three otherwise accepted proposals in one recovery build. All 68 strict
@@ -836,12 +860,14 @@ occurrences have no alignment-span location.
 ## Current Writer Schema (v54)
 
 The benchmark writer and latest committed capture use schema v54. Older
-captures retain their recorded schemas. Schema v54 records behavior-changing,
-isolated exact-tail recovery: global multiplicity census work, normal-unit
-conflicts, exact token verification, typed stops, candidate classification, and
-committed matches. The tail stage never participates in ordinary anchor or
-near-relation selection, and incomplete work publishes no partial result
-counters. Schema v53 partitions every unresolved
+captures retain their recorded schemas. The latest capture also uses the
+existing exact-match and remainder-attribution fields for isolated range-local
+exact recovery; it does not add a schema field. Schema v54 records
+behavior-changing, isolated exact-tail recovery: global multiplicity census
+work, normal-unit conflicts, exact token verification, typed stops, candidate
+classification, and committed matches. Neither isolated exact stage
+participates in ordinary anchor or near-relation selection, and incomplete work
+publishes no partial result counters. Schema v53 partitions every unresolved
 sentence-recovery source token into one mutually exclusive cause when the
 bounded analysis completes. Incomplete attribution publishes no partial
 counts and records a typed stop reason; diagnostic allocation or invariant
