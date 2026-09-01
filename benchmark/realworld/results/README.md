@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-02
-- **Generator / engine commit**: [`0c06365`](https://github.com/hayatosc/pdfdelta/commit/0c06365)
+- **Generator / engine commit**: [`61981dc`](https://github.com/hayatosc/pdfdelta/commit/61981dc)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-02-0c06365.json`](2026-09-02-0c06365.json)
-  - Schema: v56
-  - Size: 8,364,216 bytes
-  - SHA-256: `fe8c9d523f8a2ca73a9aeafb956a07270760dac36e4741110e21da7018c3d2a5`
+  - File: [`2026-09-02-61981dc.json`](2026-09-02-61981dc.json)
+  - Schema: v57
+  - Size: 8,365,754 bytes
+  - SHA-256: `ff3de575a97d10f849a0c6e090f8f25a223b68105b75ed0c2c61ab7e219f6dc7`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-02-0c06365.json \
+cp benchmark/realworld/results/2026-09-02-61981dc.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 0c06365
+git switch --detach 61981dc
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -102,6 +102,19 @@ still apply only to their recorded review items.
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 68.39% | 1,142 | 841 | 0.333 | 1.000 | 861.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
+
+Schema v57 preserves every comparison, coverage, change, quality, complete-
+scope, and candidate-recall field from schema v56. It adds a bounded relation
+trace only when a reviewed expected change claims an actual event of the wrong
+kind. The trace records origin, alignment spans, token counts, exact-edit hunk
+shape, and score evidence without serializing PDF text. ECMA-109's expected
+copyright-notice insertion claims a `sentence_near` replacement whose old/new
+relation contexts contain 355/354 tokens. The emitted semantic change contains
+two old tokens and one new token, split into one deletion-only hunk and one
+replacement hunk; the expected notice occurs in the relation context but in no
+semantic or insertion-only hunk. This proves the current wrong-kind result is
+an over-broad evaluation claim, not evidence that the insertion was detected.
+It does not yet prove a safe containment relation for production alignment.
 
 Schema v56 uses the v55 recovery-leaf inventory to recover globally unique,
 token-verified `TrustedRunResidual` ranges as unchanged exact matches. All 18
@@ -900,10 +913,14 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v56)
+## Current Writer Schema (v57)
 
-The benchmark writer and latest committed capture use schema v56. Older
-captures retain their recorded schemas. Schema v56 records bounded exact
+The benchmark writer and latest committed capture use schema v57. Older
+captures retain their recorded schemas. Schema v57 adds typed, bounded
+wrong-kind relation evidence to reviewed failure diagnostics. A scan stop marks
+the diagnostic incomplete without failing the benchmark pair or publishing
+partial evidence; unavailable source projection remains distinct from zero
+changed tokens. Schema v56 records bounded exact
 trusted-residual candidate counts, selected matches, completion, a typed stop
 reason, and resolved context under the `trusted_residual_exact` origin. The
 stage consumes the verified v55 ownership inventory, requires globally unique
@@ -1223,6 +1240,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-09-02-0c06365.json`](2026-09-02-0c06365.json): schema-v56 exact trusted-residual recovery before wrong-kind relation tracing.
 - [`2026-09-01-8d80c64.json`](2026-09-01-8d80c64.json): schema-v54 isolated exact-tail recovery before lifting the three-proposal production fragment throttle.
 - [`2026-09-01-0fe4e85.json`](2026-09-01-0fe4e85.json): schema-v52 trusted-run tail recovery before unresolved-token cause attribution.
 - [`2026-09-01-9fcaee6.json`](2026-09-01-9fcaee6.json): schema-v50 recovered replacements emit bounded-Myers atomic spans before exact local-fragment edits were promoted.
