@@ -21,39 +21,40 @@ use std::{
 use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
-        ChangeKind, ChangeOccurrence, ChangeOriginMetric, ChangeOriginMetrics, Comparison,
-        ExactSegmentRelation, ExactTailRecoveryStopReason, KnownSpanSentenceShadowMetrics,
-        LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentFlatExactBoundaryShadowMetrics,
-        LocalFragmentFlatExactBoundaryStopReason, LocalFragmentFlatExactBoundaryWorkMetrics,
-        LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
-        LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
-        LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLengthOnlyCandidateShadowMetrics,
-        LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
-        LocalFragmentProposalStopReason, LocalFragmentRecheckMembershipOutcomeWork,
-        LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
-        LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
-        MatchedAtomicDiff, NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
-        RecoveredAtomicDiff, RecoveryGapReason, RecoveryLeafKind, RecoveryOwnership,
-        RecoveryOwnershipBlockError, RecoveryOwnershipContext, RecoveryOwnershipError,
-        RecoveryOwnershipInvariant, RecoveryOwnershipMetrics, RecoveryOwnershipPartitionAnalysis,
-        RecoveryOwnershipRangeError, RecoveryOwnershipRect, RecoveryOwnershipResource,
-        RecoveryOwnershipRole, RecoveryOwnershipRoleMetrics, RecoveryOwnershipSample,
-        RecoveryOwnershipSideMetrics, RecoveryOwnershipTrustMetrics,
-        RecoveryRemainderAttributionMetrics, RecoveryRemainderAttributionStopReason,
-        RecoveryRemainderCauseMetrics, RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence,
-        RecoveryWatchGranularRelation, RecoveryWatchGranularStopReason,
-        RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope, RecoveryWatchOccurrence,
-        RecoveryWatchOccurrenceEvidence, RecoveryWatchOneSidedOpponentEvidence,
-        RecoveryWatchOneSidedVetoEvidence, RecoveryWatchPairEvidence, RecoveryWatchQuery,
-        RecoveryWatchQuoteLocalEditEvidence, RecoveryWatchQuoteLocalPairEvidence,
-        RecoveryWatchQuoteLocalScoreEvidence, RecoveryWatchQuoteLocalSideEvidence,
-        RecoveryWatchQuoteLocalStatus, RecoveryWatchQuoteLocalStopReason,
-        RecoveryWatchQuoteLocalUnitEvidence, RecoveryWatchRelation,
-        RecoveryWatchSegmentPairEvidence, RecoveryWatchSide, RecoveryWatchUnitKind,
-        RunSignatureStopReason, SegmentStopReason, SentenceEdgeFilterStopReason,
-        SentenceEdgeGateShadowMetrics, SentenceEdgeGateShadowStopReason,
-        SentenceEdgeSignatureDirectExecution, SentenceEdgeSignatureDirectShadowMetrics,
-        SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureReferenceOracleMetrics,
+        ChangeKind, ChangeOccurrence, ChangeOrigin, ChangeOriginMetric, ChangeOriginMetrics,
+        Comparison, ExactSegmentRelation, ExactTailRecoveryStopReason,
+        KnownSpanSentenceShadowMetrics, LocalFragmentExactBoundaryTrieShadowMetrics,
+        LocalFragmentFlatExactBoundaryShadowMetrics, LocalFragmentFlatExactBoundaryStopReason,
+        LocalFragmentFlatExactBoundaryWorkMetrics, LocalFragmentGlobalLengthAwareShadowMetrics,
+        LocalFragmentLengthAwareRecheckShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
+        LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
+        LocalFragmentLengthOnlyCandidateShadowMetrics, LocalFragmentLocationEvidence,
+        LocalFragmentOrientation, LocalFragmentPairEvidence, LocalFragmentProposalStopReason,
+        LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
+        LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
+        LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, MatchedAtomicDiff,
+        NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveredAtomicDiff,
+        RecoveryGapReason, RecoveryLeafKind, RecoveryOwnership, RecoveryOwnershipBlockError,
+        RecoveryOwnershipContext, RecoveryOwnershipError, RecoveryOwnershipInvariant,
+        RecoveryOwnershipMetrics, RecoveryOwnershipPartitionAnalysis, RecoveryOwnershipRangeError,
+        RecoveryOwnershipRect, RecoveryOwnershipResource, RecoveryOwnershipRole,
+        RecoveryOwnershipRoleMetrics, RecoveryOwnershipSample, RecoveryOwnershipSideMetrics,
+        RecoveryOwnershipTrustMetrics, RecoveryRemainderAttributionMetrics,
+        RecoveryRemainderAttributionStopReason, RecoveryRemainderCauseMetrics,
+        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
+        RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
+        RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
+        RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
+        RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchQuoteLocalEditEvidence,
+        RecoveryWatchQuoteLocalPairEvidence, RecoveryWatchQuoteLocalScoreEvidence,
+        RecoveryWatchQuoteLocalSideEvidence, RecoveryWatchQuoteLocalStatus,
+        RecoveryWatchQuoteLocalStopReason, RecoveryWatchQuoteLocalUnitEvidence,
+        RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence, RecoveryWatchSide,
+        RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
+        SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
+        SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
+        SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
+        SentenceEdgeSignatureReferenceOracleMetrics,
         SentenceEdgeSignatureReferenceOracleStopReason, SentenceEdgeSignatureShadowMetrics,
         SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics, TextSpan,
         TrustedResidualExactStopReason,
@@ -166,6 +167,8 @@ pub struct ActualChangeOccurrence {
     pub new_text: Option<String>,
     pub old_relation_context: Option<String>,
     pub new_relation_context: Option<String>,
+    pub old_relation_context_len: Option<usize>,
+    pub new_relation_context_len: Option<usize>,
     pub old_comparable_len: Option<usize>,
     pub new_comparable_len: Option<usize>,
     pub old_atomic_changed_tokens: Option<usize>,
@@ -173,7 +176,28 @@ pub struct ActualChangeOccurrence {
     pub old_semantic_changed_tokens: Option<usize>,
     pub new_semantic_changed_tokens: Option<usize>,
     pub semantic_hunks: Option<Vec<ActualSemanticHunk>>,
+    relation_trace: ActualRelationTraceStatus,
     pub resolvable: bool,
+}
+
+#[derive(Clone, Debug)]
+enum ActualRelationTraceStatus {
+    Available(ActualRelationTrace),
+    Ambiguous,
+    Untraced,
+}
+
+#[derive(Clone, Debug)]
+struct ActualRelationTrace {
+    origin: ChangeOrigin,
+    old_alignment_span_index: usize,
+    new_alignment_span_index: usize,
+    old_best_score: Option<u16>,
+    old_second_score: Option<u16>,
+    old_best_scope: Option<RecoveryWatchNearScopeReport>,
+    new_best_score: Option<u16>,
+    new_second_score: Option<u16>,
+    new_best_scope: Option<RecoveryWatchNearScopeReport>,
 }
 
 #[derive(Clone, Debug)]
@@ -252,19 +276,37 @@ pub enum MissSide {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "reason", rename_all = "snake_case")]
 pub enum ExpectedChangeFailureReason {
-    QuoteNotExtracted { side: MissSide },
-    UnitSegmentationFailure { side: MissSide },
+    QuoteNotExtracted {
+        side: MissSide,
+    },
+    UnitSegmentationFailure {
+        side: MissSide,
+    },
     CandidateNotGenerated,
     CandidateScoringRejected,
     AlignmentAmbiguous,
     AlignmentSpanMismatch,
-    ReadingOrderUnresolved { side: MissSide },
+    ReadingOrderUnresolved {
+        side: MissSide,
+    },
     DiffEditDistanceExceeded,
     DiffRejectedAsImplausible,
-    WrongChangeKind { expected: String, actual: String },
-    OccurrenceCountMismatch { expected: usize, actual: usize },
-    FragmentedAcrossHunks { old_hunks: usize, new_hunks: usize },
-    AlignmentOrCandidate { diagnostic_limited: bool },
+    WrongChangeKind {
+        expected: String,
+        actual: String,
+        diagnostic: Box<WrongChangeKindDiagnostic>,
+    },
+    OccurrenceCountMismatch {
+        expected: usize,
+        actual: usize,
+    },
+    FragmentedAcrossHunks {
+        old_hunks: usize,
+        new_hunks: usize,
+    },
+    AlignmentOrCandidate {
+        diagnostic_limited: bool,
+    },
 }
 
 /// Failure diagnosis for one reviewed expected change.
@@ -273,6 +315,98 @@ pub struct ExpectedChangeFailure {
     pub expected_id: String,
     #[serde(flatten)]
     pub reason: ExpectedChangeFailureReason,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum WrongChangeKindDiagnostic {
+    Complete {
+        actual_index: usize,
+        quote_matching_occurrences: usize,
+        trace: WrongChangeKindTraceReport,
+    },
+    Limited {
+        actual_index: usize,
+        stop_reason: WrongChangeKindDiagnosticStopReason,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WrongChangeKindDiagnosticStopReason {
+    ScanLimit,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum WrongChangeKindTraceReport {
+    Available {
+        occurrence_index: usize,
+        origin: ChangeOriginReport,
+        old_alignment_span_index: usize,
+        new_alignment_span_index: usize,
+        old_relation_context_tokens: Option<usize>,
+        new_relation_context_tokens: Option<usize>,
+        expected_old_quote_in_relation_context: Option<bool>,
+        expected_new_quote_in_relation_context: Option<bool>,
+        semantic_hunks: WrongChangeKindSemanticHunkReport,
+        old_best_score: Option<u16>,
+        old_second_score: Option<u16>,
+        old_best_scope: Option<RecoveryWatchNearScopeReport>,
+        new_best_score: Option<u16>,
+        new_second_score: Option<u16>,
+        new_best_scope: Option<RecoveryWatchNearScopeReport>,
+    },
+    Ambiguous,
+    Untraced,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum WrongChangeKindSemanticHunkReport {
+    Available {
+        old_reported_semantic_tokens: Option<usize>,
+        new_reported_semantic_tokens: Option<usize>,
+        old_atomic_changed_tokens: usize,
+        new_atomic_changed_tokens: usize,
+        insertion_only_hunks: usize,
+        deletion_only_hunks: usize,
+        replacement_hunks: usize,
+        expected_old_quote_in_semantic_hunk: Option<bool>,
+        expected_new_quote_in_semantic_hunk: Option<bool>,
+        expected_new_quote_in_insertion_only_hunk: Option<bool>,
+    },
+    Unavailable,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChangeOriginReport {
+    OrderedAlignment,
+    SentenceNear,
+    LocalFragment,
+    CrossGranularity,
+    TrustedTail,
+    ExactTail,
+    RunningMatter,
+    RangeLocalExact,
+    TrustedResidualExact,
+}
+
+impl From<ChangeOrigin> for ChangeOriginReport {
+    fn from(origin: ChangeOrigin) -> Self {
+        match origin {
+            ChangeOrigin::OrderedAlignment => Self::OrderedAlignment,
+            ChangeOrigin::SentenceNear => Self::SentenceNear,
+            ChangeOrigin::LocalFragment => Self::LocalFragment,
+            ChangeOrigin::CrossGranularity => Self::CrossGranularity,
+            ChangeOrigin::TrustedTail => Self::TrustedTail,
+            ChangeOrigin::ExactTail => Self::ExactTail,
+            ChangeOrigin::RunningMatter => Self::RunningMatter,
+            ChangeOrigin::RangeLocalExact => Self::RangeLocalExact,
+            ChangeOrigin::TrustedResidualExact => Self::TrustedResidualExact,
+        }
+    }
 }
 
 /// Bounded failure diagnostics for reviewed expected changes.
@@ -5316,6 +5450,7 @@ struct RecoveredOccurrenceEvidence {
     context: Option<RelationContext>,
     old_atomic_changed_tokens: usize,
     new_atomic_changed_tokens: usize,
+    trace: ActualRelationTrace,
 }
 
 #[derive(Clone)]
@@ -5326,6 +5461,21 @@ struct RecoveredEventEvidence {
     old_semantic_changed_tokens: usize,
     new_semantic_changed_tokens: usize,
     semantic_hunks: Vec<ActualSemanticHunk>,
+    trace: ActualRelationTrace,
+}
+
+fn recovered_relation_trace(trace: &RecoveredAtomicDiff) -> ActualRelationTrace {
+    ActualRelationTrace {
+        origin: trace.origin,
+        old_alignment_span_index: trace.old_alignment_span_index,
+        new_alignment_span_index: trace.new_alignment_span_index,
+        old_best_score: Some(trace.old_best_score),
+        old_second_score: Some(trace.old_second_score),
+        old_best_scope: trace.old_best_scope.map(Into::into),
+        new_best_score: Some(trace.new_best_score),
+        new_second_score: Some(trace.new_second_score),
+        new_best_scope: trace.new_best_scope.map(Into::into),
+    }
 }
 
 fn recovered_event_evidence(
@@ -5430,6 +5580,7 @@ fn recovered_event_evidence(
                         old_semantic_changed_tokens,
                         new_semantic_changed_tokens,
                         semantic_hunks,
+                        trace: recovered_relation_trace(trace),
                     }
                 },
             );
@@ -5475,6 +5626,7 @@ fn recovered_occurrence_evidence(
                     context: context.clone(),
                     old_atomic_changed_tokens,
                     new_atomic_changed_tokens,
+                    trace: recovered_relation_trace(trace),
                 }
             });
             insert_relation_context(&mut contexts, changed.occurrence.clone(), evidence);
@@ -5487,6 +5639,7 @@ fn recovered_occurrence_evidence(
 struct MatchedRelationEvidence {
     context: RelationContext,
     trace_index: usize,
+    trace: ActualRelationTrace,
 }
 
 fn matched_relation_contexts(
@@ -5508,6 +5661,17 @@ fn matched_relation_contexts(
             .map(|context| MatchedRelationEvidence {
                 context,
                 trace_index,
+                trace: ActualRelationTrace {
+                    origin: ChangeOrigin::OrderedAlignment,
+                    old_alignment_span_index: trace.alignment_span_index,
+                    new_alignment_span_index: trace.alignment_span_index,
+                    old_best_score: None,
+                    old_second_score: None,
+                    old_best_scope: None,
+                    new_best_score: None,
+                    new_second_score: None,
+                    new_best_scope: None,
+                },
             });
         for key in [
             relation_group_key(Some(&trace.old_context), Some(&trace.new_context)),
@@ -5624,6 +5788,8 @@ fn flatten_actual_changes(
                         new_text: Some(evidence.context.new.clone()),
                         old_relation_context: Some(evidence.context.old.clone()),
                         new_relation_context: Some(evidence.context.new.clone()),
+                        old_relation_context_len: Some(evidence.context.old_comparable_len),
+                        new_relation_context_len: Some(evidence.context.new_comparable_len),
                         old_comparable_len: Some(evidence.context.old_comparable_len),
                         new_comparable_len: Some(evidence.context.new_comparable_len),
                         old_atomic_changed_tokens: Some(evidence.old_atomic_changed_tokens),
@@ -5631,6 +5797,9 @@ fn flatten_actual_changes(
                         old_semantic_changed_tokens: Some(evidence.old_semantic_changed_tokens),
                         new_semantic_changed_tokens: Some(evidence.new_semantic_changed_tokens),
                         semantic_hunks: Some(evidence.semantic_hunks.clone()),
+                        relation_trace: ActualRelationTraceStatus::Available(
+                            evidence.trace.clone(),
+                        ),
                         resolvable: true,
                     }],
                 };
@@ -5640,16 +5809,31 @@ fn flatten_actual_changes(
                 .iter()
                 .map(|occurrence| {
                     let recovered = recovered_evidence.get(occurrence);
-                    let matched_context = matched_contexts
-                        .get(&relation_group_key(
-                            occurrence.old_span.as_ref(),
-                            occurrence.new_span.as_ref(),
-                        ))
-                        .and_then(Option::as_ref);
+                    let matched_context = matched_contexts.get(&relation_group_key(
+                        occurrence.old_span.as_ref(),
+                        occurrence.new_span.as_ref(),
+                    ));
                     let relation_context = match (recovered, matched_context) {
                         (Some(Some(evidence)), None) => evidence.context.as_ref(),
-                        (None, Some(evidence)) => Some(&evidence.context),
-                        (Some(None), _) | (Some(Some(_)), Some(_)) | (None, None) => None,
+                        (None, Some(Some(evidence))) => Some(&evidence.context),
+                        (Some(None), _)
+                        | (Some(Some(_)), Some(_))
+                        | (None, Some(None))
+                        | (None, None) => None,
+                    };
+                    let relation_context_lengths = relation_context
+                        .map(|context| (context.old_comparable_len, context.new_comparable_len));
+                    let relation_trace = match (recovered, matched_context) {
+                        (Some(Some(evidence)), None) => {
+                            ActualRelationTraceStatus::Available(evidence.trace.clone())
+                        }
+                        (None, Some(Some(evidence))) => {
+                            ActualRelationTraceStatus::Available(evidence.trace.clone())
+                        }
+                        (Some(None), _) | (Some(Some(_)), Some(_)) | (None, Some(None)) => {
+                            ActualRelationTraceStatus::Ambiguous
+                        }
+                        (None, None) => ActualRelationTraceStatus::Untraced,
                     };
                     let (old_atomic_changed_tokens, new_atomic_changed_tokens) = recovered
                         .and_then(Option::as_ref)
@@ -5677,7 +5861,7 @@ fn flatten_actual_changes(
                     let (old_text, old_comparable_len) = unwrap_resolved(old_resolved);
                     let (new_text, new_comparable_len) = unwrap_resolved(new_resolved);
                     let semantic_hunks = match (recovered, matched_context) {
-                        (None, Some(evidence)) => matched_atomic_diffs
+                        (None, Some(Some(evidence))) => matched_atomic_diffs
                             .get(evidence.trace_index)
                             .and_then(|trace| {
                                 matched_semantic_hunk(occurrence, trace, blocks_by_side)
@@ -5690,6 +5874,8 @@ fn flatten_actual_changes(
                         new_text,
                         old_relation_context: relation_context.map(|context| context.old.clone()),
                         new_relation_context: relation_context.map(|context| context.new.clone()),
+                        old_relation_context_len: relation_context_lengths.map(|lengths| lengths.0),
+                        new_relation_context_len: relation_context_lengths.map(|lengths| lengths.1),
                         old_comparable_len,
                         new_comparable_len,
                         old_atomic_changed_tokens,
@@ -5697,6 +5883,7 @@ fn flatten_actual_changes(
                         old_semantic_changed_tokens: old_comparable_len,
                         new_semantic_changed_tokens: new_comparable_len,
                         semantic_hunks,
+                        relation_trace,
                         resolvable,
                     }
                 })
@@ -11820,7 +12007,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 56;
+    pub const SCHEMA_VERSION: u32 = 57;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -13404,6 +13591,8 @@ mod tests {
                 new_text: new_text.map(collapse_whitespace),
                 old_relation_context: None,
                 new_relation_context: None,
+                old_relation_context_len: None,
+                new_relation_context_len: None,
                 old_comparable_len: old_len,
                 new_comparable_len: new_len,
                 old_atomic_changed_tokens: None,
@@ -13411,6 +13600,7 @@ mod tests {
                 old_semantic_changed_tokens: old_len,
                 new_semantic_changed_tokens: new_len,
                 semantic_hunks: None,
+                relation_trace: ActualRelationTraceStatus::Untraced,
                 resolvable: true,
             }],
         }
@@ -13427,6 +13617,8 @@ mod tests {
                     new_text: Some(collapse_whitespace(new)),
                     old_relation_context: None,
                     new_relation_context: None,
+                    old_relation_context_len: None,
+                    new_relation_context_len: None,
                     old_comparable_len: Some(old.chars().count()),
                     new_comparable_len: Some(new.chars().count()),
                     old_atomic_changed_tokens: None,
@@ -13434,6 +13626,7 @@ mod tests {
                     old_semantic_changed_tokens: Some(old.chars().count()),
                     new_semantic_changed_tokens: Some(new.chars().count()),
                     semantic_hunks: None,
+                    relation_trace: ActualRelationTraceStatus::Untraced,
                     resolvable: true,
                 })
                 .collect(),
@@ -13453,7 +13646,7 @@ mod tests {
     }
 
     #[test]
-    fn diagnostic_json_uses_exact_stable_tags_without_internal_evidence() {
+    fn diagnostic_json_uses_exact_stable_tags() {
         let cases = [
             (
                 ExpectedChangeFailureReason::QuoteNotExtracted {
@@ -13497,8 +13690,24 @@ mod tests {
                 ExpectedChangeFailureReason::WrongChangeKind {
                     expected: "replacement".to_owned(),
                     actual: "move".to_owned(),
+                    diagnostic: Box::new(WrongChangeKindDiagnostic::Complete {
+                        actual_index: 0,
+                        quote_matching_occurrences: 1,
+                        trace: WrongChangeKindTraceReport::Untraced,
+                    }),
                 },
-                serde_json::json!({"expected_id":"c","reason":"wrong_change_kind","expected":"replacement","actual":"move"}),
+                serde_json::json!({
+                    "expected_id":"c",
+                    "reason":"wrong_change_kind",
+                    "expected":"replacement",
+                    "actual":"move",
+                    "diagnostic":{
+                        "status":"complete",
+                        "actual_index":0,
+                        "quote_matching_occurrences":1,
+                        "trace":{"status":"untraced"}
+                    }
+                }),
             ),
             (
                 ExpectedChangeFailureReason::OccurrenceCountMismatch {
@@ -13591,7 +13800,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 56);
+        assert_eq!(completed["schema_version"], 57);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -13641,7 +13850,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 56);
+        assert_eq!(legacy_summary["schema_version"], 57);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -14665,10 +14874,144 @@ mod tests {
                 .expect("each event shape resolves one trace");
             assert_eq!(context.context.old, "old relation context");
             assert_eq!(context.context.new, "new relation context");
+            assert_eq!(context.trace.origin, ChangeOrigin::OrderedAlignment);
+            assert_eq!(context.trace.old_alignment_span_index, 0);
+            assert_eq!(context.trace.new_alignment_span_index, 0);
         }
 
         let duplicates = matched_relation_contexts(&[trace.clone(), trace], [&old_map, &new_map]);
         assert!(duplicates.values().all(Option::is_none));
+    }
+
+    #[test]
+    fn actual_occurrence_trace_distinguishes_available_ambiguous_and_untraced() {
+        let old_blocks = [relation_block(1, "abc")];
+        let new_blocks = [relation_block(2, "axc")];
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+        let old_context = relation_span(vec![BlockId(1)], None, 3);
+        let new_context = relation_span(vec![BlockId(2)], None, 3);
+        let trace = MatchedAtomicDiff {
+            alignment_span_index: 7,
+            old_context: old_context.clone(),
+            new_context: new_context.clone(),
+            edits: vec![pdfdelta_core::diff::AtomicEdit {
+                old: 1..2,
+                new: 1..2,
+            }],
+        };
+        let occurrence = ChangeOccurrence {
+            old_span: Some(old_context.clone()),
+            new_span: Some(new_context.clone()),
+        };
+        let comparison = Comparison {
+            changes: vec![pdfdelta_core::diff::ChangeEvent::single_occurrence(
+                ChangeKind::Replacement,
+                occurrence.old_span.clone(),
+                occurrence.new_span.clone(),
+                pdfdelta_core::diff::Confidence::High,
+                Vec::new(),
+            )],
+            formatting_changes: Vec::new(),
+            unresolved_regions: Vec::new(),
+            old_coverage: pdfdelta_core::diff::Coverage {
+                resolved_tokens: 3,
+                total_tokens: 3,
+                ratio: Some(1.0),
+            },
+            new_coverage: pdfdelta_core::diff::Coverage {
+                resolved_tokens: 3,
+                total_tokens: 3,
+                ratio: Some(1.0),
+            },
+        };
+
+        let available = flatten_actual_changes(
+            &comparison,
+            [&old_map, &new_map],
+            std::slice::from_ref(&trace),
+            &[],
+        );
+        assert!(matches!(
+            available[0].occurrences[0].relation_trace,
+            ActualRelationTraceStatus::Available(ActualRelationTrace {
+                origin: ChangeOrigin::OrderedAlignment,
+                old_alignment_span_index: 7,
+                new_alignment_span_index: 7,
+                ..
+            })
+        ));
+
+        let ambiguous = flatten_actual_changes(
+            &comparison,
+            [&old_map, &new_map],
+            &[trace.clone(), trace],
+            &[],
+        );
+        assert!(matches!(
+            ambiguous[0].occurrences[0].relation_trace,
+            ActualRelationTraceStatus::Ambiguous
+        ));
+
+        let untraced = flatten_actual_changes(&comparison, [&old_map, &new_map], &[], &[]);
+        assert!(matches!(
+            untraced[0].occurrences[0].relation_trace,
+            ActualRelationTraceStatus::Untraced
+        ));
+    }
+
+    #[test]
+    fn recovered_event_evidence_carries_scores_scopes_and_span_indices() {
+        let old_blocks = [relation_block(1, "abc")];
+        let new_blocks = [relation_block(2, "axc")];
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+        let old_context = relation_span(vec![BlockId(1)], None, 3);
+        let new_context = relation_span(vec![BlockId(2)], None, 3);
+        let changed = pdfdelta_core::diff::RecoveredAtomicOccurrence {
+            occurrence: ChangeOccurrence {
+                old_span: Some(old_context.clone()),
+                new_span: Some(new_context.clone()),
+            },
+            edit_range: 0..1,
+        };
+        let trace = RecoveredAtomicDiff {
+            origin: ChangeOrigin::SentenceNear,
+            old_alignment_span_index: 11,
+            new_alignment_span_index: 17,
+            old_context,
+            new_context,
+            changed_occurrences: vec![changed.clone()],
+            edits: vec![pdfdelta_core::diff::AtomicEdit {
+                old: 1..2,
+                new: 1..2,
+            }],
+            old_best_score: 9_100,
+            old_second_score: 7_000,
+            old_best_scope: Some(RecoveryWatchNearScope::PairedStream),
+            new_best_score: 9_200,
+            new_second_score: 7_100,
+            new_best_scope: Some(RecoveryWatchNearScope::CrossSpan),
+        };
+
+        let evidence = recovered_event_evidence(&[trace], [&old_map, &new_map]);
+        let evidence = evidence
+            .get(&vec![changed.occurrence])
+            .and_then(Option::as_ref)
+            .expect("one recovered event trace");
+        assert_eq!(evidence.trace.origin, ChangeOrigin::SentenceNear);
+        assert_eq!(evidence.trace.old_alignment_span_index, 11);
+        assert_eq!(evidence.trace.new_alignment_span_index, 17);
+        assert_eq!(evidence.trace.old_best_score, Some(9_100));
+        assert_eq!(evidence.trace.old_second_score, Some(7_000));
+        assert_eq!(
+            evidence.trace.old_best_scope,
+            Some(RecoveryWatchNearScopeReport::PairedStream)
+        );
+        assert_eq!(
+            evidence.trace.new_best_scope,
+            Some(RecoveryWatchNearScopeReport::CrossSpan)
+        );
     }
 
     #[test]
@@ -14705,6 +15048,8 @@ mod tests {
             new_text: Some("prefix target new text suffix".to_owned()),
             old_relation_context: None,
             new_relation_context: None,
+            old_relation_context_len: None,
+            new_relation_context_len: None,
             old_comparable_len: Some(29),
             new_comparable_len: Some(29),
             old_atomic_changed_tokens: None,
@@ -14712,6 +15057,7 @@ mod tests {
             old_semantic_changed_tokens: Some(29),
             new_semantic_changed_tokens: Some(29),
             semantic_hunks: None,
+            relation_trace: ActualRelationTraceStatus::Untraced,
             resolvable: true,
         });
         actual.reported_hunk_count = actual.occurrences.len();
@@ -15331,7 +15677,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 56);
+        assert_eq!(json["schema_version"], 57);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -22290,7 +22636,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 56);
+        assert_eq!(value["schema_version"], 57);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

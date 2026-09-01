@@ -12,10 +12,12 @@ use pdfdelta_core::{
 };
 
 use super::{
-    ActualChange, CandidateRecallMetrics, ExpectedChange, ExpectedChangeDiagnostics,
-    ExpectedChangeFailure, ExpectedChangeFailureReason, ExpectedKind,
-    MAX_EXPECTED_CHANGE_DIAGNOSTICS, MatchOutcome, MissSide, build_block_map, change_kind_name,
-    is_space_token, ratio,
+    ActualChange, ActualChangeOccurrence, ActualRelationTraceStatus, CandidateRecallMetrics,
+    ChangeOriginReport, ExpectedChange, ExpectedChangeDiagnostics, ExpectedChangeFailure,
+    ExpectedChangeFailureReason, ExpectedKind, MAX_EXPECTED_CHANGE_DIAGNOSTICS, MatchOutcome,
+    MissSide, WrongChangeKindDiagnostic, WrongChangeKindDiagnosticStopReason,
+    WrongChangeKindSemanticHunkReport, WrongChangeKindTraceReport, build_block_map,
+    change_kind_name, is_space_token, normalized_expected_quotes, occurrence_matches_quotes, ratio,
 };
 
 #[derive(Clone, Copy)]
@@ -1275,6 +1277,200 @@ struct FailureContext<'a> {
     limits: DiagnosticLimits,
 }
 
+fn optional_quote_presence(text: Option<&str>, quote: Option<&str>) -> Option<bool> {
+    text.zip(quote).map(|(text, quote)| text.contains(quote))
+}
+
+fn wrong_kind_scan_work(occurrence: &ActualChangeOccurrence) -> Option<usize> {
+    let mut work = 1usize;
+    for text in [
+        occurrence.old_text.as_deref(),
+        occurrence.new_text.as_deref(),
+        occurrence.old_relation_context.as_deref(),
+        occurrence.new_relation_context.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        work = work.checked_add(text.len())?;
+    }
+    for hunk in occurrence.semantic_hunks.as_deref().unwrap_or_default() {
+        for text in [hunk.old_text.as_deref(), hunk.new_text.as_deref()]
+            .into_iter()
+            .flatten()
+        {
+            work = work.checked_add(text.len())?;
+        }
+    }
+    Some(work)
+}
+
+fn wrong_kind_diagnostic(
+    change: &ExpectedChange,
+    actual_index: usize,
+    actual: &ActualChange,
+    budget: &mut DiagnosticBudget,
+    limits: DiagnosticLimits,
+) -> DiagnosticScanResult<WrongChangeKindDiagnostic> {
+    let needles = normalized_expected_quotes(change);
+    let mut quote_matching_occurrences = 0usize;
+    let mut matching_occurrence_index = None;
+    for (index, occurrence) in actual.occurrences.iter().enumerate() {
+        let Some(scan_work) = wrong_kind_scan_work(occurrence) else {
+            budget.limited = true;
+            return Ok(WrongChangeKindDiagnostic::Limited {
+                actual_index,
+                stop_reason: WrongChangeKindDiagnosticStopReason::ScanLimit,
+            });
+        };
+        if budget.charge_scan(scan_work, limits).is_err() {
+            return Ok(WrongChangeKindDiagnostic::Limited {
+                actual_index,
+                stop_reason: WrongChangeKindDiagnosticStopReason::ScanLimit,
+            });
+        }
+        if occurrence_matches_quotes(occurrence, &needles) {
+            let Some(next) = quote_matching_occurrences.checked_add(1) else {
+                budget.limited = true;
+                return Ok(WrongChangeKindDiagnostic::Limited {
+                    actual_index,
+                    stop_reason: WrongChangeKindDiagnosticStopReason::ScanLimit,
+                });
+            };
+            quote_matching_occurrences = next;
+            matching_occurrence_index.get_or_insert(index);
+        }
+    }
+
+    let trace = if quote_matching_occurrences != 1 {
+        WrongChangeKindTraceReport::Ambiguous
+    } else {
+        let occurrence_index = matching_occurrence_index.ok_or_else(|| {
+            DiagnosticScanError::Invalid(
+                "wrong-kind quote-match count lacks an occurrence index".to_owned(),
+            )
+        })?;
+        let occurrence = &actual.occurrences[occurrence_index];
+        match &occurrence.relation_trace {
+            ActualRelationTraceStatus::Available(trace) => {
+                let semantic_hunks = match occurrence.semantic_hunks.as_deref() {
+                    Some(hunks) => match wrong_kind_semantic_hunks(occurrence, hunks, &needles) {
+                        Ok(report) => report,
+                        Err(DiagnosticScanError::Limited) => {
+                            budget.limited = true;
+                            return Ok(WrongChangeKindDiagnostic::Limited {
+                                actual_index,
+                                stop_reason: WrongChangeKindDiagnosticStopReason::ScanLimit,
+                            });
+                        }
+                        Err(error @ DiagnosticScanError::Invalid(_)) => return Err(error),
+                    },
+                    None => WrongChangeKindSemanticHunkReport::Unavailable,
+                };
+                WrongChangeKindTraceReport::Available {
+                    occurrence_index,
+                    origin: ChangeOriginReport::from(trace.origin),
+                    old_alignment_span_index: trace.old_alignment_span_index,
+                    new_alignment_span_index: trace.new_alignment_span_index,
+                    old_relation_context_tokens: occurrence.old_relation_context_len,
+                    new_relation_context_tokens: occurrence.new_relation_context_len,
+                    expected_old_quote_in_relation_context: optional_quote_presence(
+                        occurrence.old_relation_context.as_deref(),
+                        needles.old_context.as_deref(),
+                    ),
+                    expected_new_quote_in_relation_context: optional_quote_presence(
+                        occurrence.new_relation_context.as_deref(),
+                        needles.new_context.as_deref(),
+                    ),
+                    semantic_hunks,
+                    old_best_score: trace.old_best_score,
+                    old_second_score: trace.old_second_score,
+                    old_best_scope: trace.old_best_scope,
+                    new_best_score: trace.new_best_score,
+                    new_second_score: trace.new_second_score,
+                    new_best_scope: trace.new_best_scope,
+                }
+            }
+            ActualRelationTraceStatus::Ambiguous => WrongChangeKindTraceReport::Ambiguous,
+            ActualRelationTraceStatus::Untraced => WrongChangeKindTraceReport::Untraced,
+        }
+    };
+    Ok(WrongChangeKindDiagnostic::Complete {
+        actual_index,
+        quote_matching_occurrences,
+        trace,
+    })
+}
+
+fn wrong_kind_semantic_hunks(
+    occurrence: &ActualChangeOccurrence,
+    hunks: &[super::ActualSemanticHunk],
+    needles: &super::NormalizedExpectedQuotes,
+) -> DiagnosticScanResult<WrongChangeKindSemanticHunkReport> {
+    if hunks.iter().any(|hunk| {
+        (hunk.old_atomic_changed_tokens != 0 && hunk.old_text.is_none())
+            || (hunk.new_atomic_changed_tokens != 0 && hunk.new_text.is_none())
+    }) {
+        return Ok(WrongChangeKindSemanticHunkReport::Unavailable);
+    }
+    let mut insertion_only_hunks = 0usize;
+    let mut deletion_only_hunks = 0usize;
+    let mut replacement_hunks = 0usize;
+    let mut old_atomic_changed_tokens = 0usize;
+    let mut new_atomic_changed_tokens = 0usize;
+    for hunk in hunks {
+        old_atomic_changed_tokens = old_atomic_changed_tokens
+            .checked_add(hunk.old_atomic_changed_tokens)
+            .ok_or(DiagnosticScanError::Limited)?;
+        new_atomic_changed_tokens = new_atomic_changed_tokens
+            .checked_add(hunk.new_atomic_changed_tokens)
+            .ok_or(DiagnosticScanError::Limited)?;
+        let count = match (
+            hunk.old_atomic_changed_tokens != 0,
+            hunk.new_atomic_changed_tokens != 0,
+        ) {
+            (false, true) => &mut insertion_only_hunks,
+            (true, false) => &mut deletion_only_hunks,
+            (true, true) => &mut replacement_hunks,
+            (false, false) => continue,
+        };
+        *count = count.checked_add(1).ok_or(DiagnosticScanError::Limited)?;
+    }
+    Ok(WrongChangeKindSemanticHunkReport::Available {
+        old_reported_semantic_tokens: occurrence.old_semantic_changed_tokens,
+        new_reported_semantic_tokens: occurrence.new_semantic_changed_tokens,
+        old_atomic_changed_tokens,
+        new_atomic_changed_tokens,
+        insertion_only_hunks,
+        deletion_only_hunks,
+        replacement_hunks,
+        expected_old_quote_in_semantic_hunk: needles.old_context.as_deref().map(|quote| {
+            hunks.iter().any(|hunk| {
+                hunk.old_text
+                    .as_deref()
+                    .is_some_and(|text| text.contains(quote))
+            })
+        }),
+        expected_new_quote_in_semantic_hunk: needles.new_context.as_deref().map(|quote| {
+            hunks.iter().any(|hunk| {
+                hunk.new_text
+                    .as_deref()
+                    .is_some_and(|text| text.contains(quote))
+            })
+        }),
+        expected_new_quote_in_insertion_only_hunk: needles.new_context.as_deref().map(|quote| {
+            hunks.iter().any(|hunk| {
+                hunk.old_atomic_changed_tokens == 0
+                    && hunk.new_atomic_changed_tokens != 0
+                    && hunk
+                        .new_text
+                        .as_deref()
+                        .is_some_and(|text| text.contains(quote))
+            })
+        }),
+    })
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct ComparisonDiagnosticInput<'a> {
     pub(super) alignment: Option<&'a Alignment>,
@@ -1628,6 +1824,25 @@ fn evaluate_reviewed_diagnostics_with_limits(
             Some(actual_index) => ExpectedChangeFailureReason::WrongChangeKind {
                 expected: change.kind.name().to_owned(),
                 actual: change_kind_name(actuals[actual_index].kind).to_owned(),
+                diagnostic: Box::new(
+                    match wrong_kind_diagnostic(
+                        change,
+                        actual_index,
+                        &actuals[actual_index],
+                        context.budget,
+                        limits,
+                    ) {
+                        Ok(diagnostic) => diagnostic,
+                        Err(DiagnosticScanError::Limited) => {
+                            context.budget.limited = true;
+                            WrongChangeKindDiagnostic::Limited {
+                                actual_index,
+                                stop_reason: WrongChangeKindDiagnosticStopReason::ScanLimit,
+                            }
+                        }
+                        Err(DiagnosticScanError::Invalid(error)) => return Err(error),
+                    },
+                ),
             },
             None => match outcome.occurrence_count_mismatch_by_expected[index] {
                 Some((expected, actual)) => {
@@ -1714,8 +1929,8 @@ mod tests {
     };
 
     use super::super::{
-        Annotation, compute_quality, match_changes, match_changes_with_scopes,
-        quality_from_match_outcome,
+        Annotation, RecoveryWatchNearScopeReport, compute_quality, match_changes,
+        match_changes_with_scopes, quality_from_match_outcome,
     };
     use super::*;
 
@@ -1755,6 +1970,8 @@ mod tests {
                 new_text: new_text.map(str::to_owned),
                 old_relation_context: None,
                 new_relation_context: None,
+                old_relation_context_len: None,
+                new_relation_context_len: None,
                 old_comparable_len: old_len,
                 new_comparable_len: new_len,
                 old_atomic_changed_tokens: None,
@@ -1762,6 +1979,7 @@ mod tests {
                 old_semantic_changed_tokens: old_len,
                 new_semantic_changed_tokens: new_len,
                 semantic_hunks: None,
+                relation_trace: ActualRelationTraceStatus::Untraced,
                 resolvable: true,
             }],
         }
@@ -2732,6 +2950,343 @@ mod tests {
             ExpectedChangeFailureReason::WrongChangeKind {
                 expected: "replacement".to_owned(),
                 actual: "move".to_owned(),
+                diagnostic: Box::new(WrongChangeKindDiagnostic::Complete {
+                    actual_index: 0,
+                    quote_matching_occurrences: 1,
+                    trace: WrongChangeKindTraceReport::Untraced,
+                }),
+            }
+        );
+    }
+
+    #[test]
+    fn wrong_kind_diagnostic_reports_recovery_context_without_serializing_text() {
+        let expected = expected_change(
+            "insert",
+            ExpectedKind::Insertion,
+            None,
+            Some("copyright notice"),
+        );
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("old relation context"),
+            Some("prefix copyright notice suffix"),
+            Some(20),
+            Some(29),
+        );
+        let occurrence = &mut actual.occurrences[0];
+        occurrence.old_relation_context = Some("old relation context".to_owned());
+        occurrence.new_relation_context = Some("prefix copyright notice suffix".to_owned());
+        occurrence.old_relation_context_len = Some(20);
+        occurrence.new_relation_context_len = Some(29);
+        occurrence.old_atomic_changed_tokens = Some(1);
+        occurrence.new_atomic_changed_tokens = Some(1);
+        occurrence.old_semantic_changed_tokens = Some(1);
+        occurrence.new_semantic_changed_tokens = Some(1);
+        occurrence.semantic_hunks = Some(vec![crate::revisions::ActualSemanticHunk {
+            old_text: Some("4".to_owned()),
+            new_text: Some("5".to_owned()),
+            old_atomic_changed_tokens: 1,
+            new_atomic_changed_tokens: 1,
+        }]);
+        occurrence.relation_trace =
+            ActualRelationTraceStatus::Available(crate::revisions::ActualRelationTrace {
+                origin: pdfdelta_core::diff::ChangeOrigin::SentenceNear,
+                old_alignment_span_index: 12,
+                new_alignment_span_index: 19,
+                old_best_score: Some(9_814),
+                old_second_score: Some(7_100),
+                old_best_scope: Some(RecoveryWatchNearScopeReport::PairedStream),
+                new_best_score: Some(9_700),
+                new_second_score: Some(7_000),
+                new_best_scope: Some(RecoveryWatchNearScopeReport::CrossSpan),
+            });
+
+        let diagnostic = wrong_kind_diagnostic(
+            &expected,
+            3,
+            &actual,
+            &mut DiagnosticBudget::default(),
+            DiagnosticLimits::default(),
+        )
+        .expect("diagnostic succeeds");
+
+        let WrongChangeKindDiagnostic::Complete {
+            actual_index,
+            quote_matching_occurrences,
+            trace,
+        } = &diagnostic
+        else {
+            panic!("expected a complete diagnostic")
+        };
+        assert_eq!(*actual_index, 3);
+        assert_eq!(*quote_matching_occurrences, 1);
+        let WrongChangeKindTraceReport::Available {
+            origin,
+            old_alignment_span_index,
+            new_alignment_span_index,
+            old_relation_context_tokens,
+            new_relation_context_tokens,
+            expected_new_quote_in_relation_context,
+            semantic_hunks,
+            old_best_score,
+            old_second_score,
+            old_best_scope,
+            new_best_scope,
+            ..
+        } = trace
+        else {
+            panic!("expected one available recovery trace")
+        };
+        assert_eq!(*origin, ChangeOriginReport::SentenceNear);
+        assert_eq!(
+            (*old_alignment_span_index, *new_alignment_span_index),
+            (12, 19)
+        );
+        assert_eq!(
+            (*old_relation_context_tokens, *new_relation_context_tokens),
+            (Some(20), Some(29))
+        );
+        let WrongChangeKindSemanticHunkReport::Available {
+            old_reported_semantic_tokens,
+            new_reported_semantic_tokens,
+            replacement_hunks,
+            insertion_only_hunks,
+            expected_new_quote_in_semantic_hunk,
+            expected_new_quote_in_insertion_only_hunk,
+            ..
+        } = semantic_hunks
+        else {
+            panic!("expected available semantic hunk evidence")
+        };
+        assert_eq!(
+            (*old_reported_semantic_tokens, *new_reported_semantic_tokens),
+            (Some(1), Some(1))
+        );
+        assert_eq!((*replacement_hunks, *insertion_only_hunks), (1, 0));
+        assert_eq!(*expected_new_quote_in_relation_context, Some(true));
+        assert_eq!(*expected_new_quote_in_semantic_hunk, Some(false));
+        assert_eq!(*expected_new_quote_in_insertion_only_hunk, Some(false));
+        assert_eq!(
+            (*old_best_score, *old_second_score),
+            (Some(9_814), Some(7_100))
+        );
+        assert_eq!(
+            *old_best_scope,
+            Some(RecoveryWatchNearScopeReport::PairedStream)
+        );
+        assert_eq!(
+            *new_best_scope,
+            Some(RecoveryWatchNearScopeReport::CrossSpan)
+        );
+        assert!(
+            !serde_json::to_string(&diagnostic)
+                .expect("diagnostic serializes")
+                .contains("copyright notice")
+        );
+    }
+
+    #[test]
+    fn wrong_kind_diagnostic_reports_ordered_insertion_hunk_and_ambiguity() {
+        let expected = expected_change("insert", ExpectedKind::Insertion, None, Some("added"));
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("context"),
+            Some("added"),
+            Some(7),
+            Some(5),
+        );
+        let occurrence = &mut actual.occurrences[0];
+        occurrence.old_relation_context = Some("context".to_owned());
+        occurrence.new_relation_context = Some("added".to_owned());
+        occurrence.old_relation_context_len = Some(7);
+        occurrence.new_relation_context_len = Some(5);
+        occurrence.semantic_hunks = Some(vec![crate::revisions::ActualSemanticHunk {
+            old_text: Some(String::new()),
+            new_text: Some("added".to_owned()),
+            old_atomic_changed_tokens: 0,
+            new_atomic_changed_tokens: 5,
+        }]);
+        occurrence.relation_trace =
+            ActualRelationTraceStatus::Available(crate::revisions::ActualRelationTrace {
+                origin: pdfdelta_core::diff::ChangeOrigin::OrderedAlignment,
+                old_alignment_span_index: 4,
+                new_alignment_span_index: 4,
+                old_best_score: None,
+                old_second_score: None,
+                old_best_scope: None,
+                new_best_score: None,
+                new_second_score: None,
+                new_best_scope: None,
+            });
+
+        let diagnostic = wrong_kind_diagnostic(
+            &expected,
+            0,
+            &actual,
+            &mut DiagnosticBudget::default(),
+            DiagnosticLimits::default(),
+        )
+        .expect("diagnostic succeeds");
+        assert!(matches!(
+            diagnostic,
+            WrongChangeKindDiagnostic::Complete {
+                trace: WrongChangeKindTraceReport::Available {
+                    origin: ChangeOriginReport::OrderedAlignment,
+                    semantic_hunks: WrongChangeKindSemanticHunkReport::Available {
+                        insertion_only_hunks: 1,
+                        expected_new_quote_in_insertion_only_hunk: Some(true),
+                        ..
+                    },
+                    old_best_score: None,
+                    ..
+                },
+                ..
+            }
+        ));
+
+        actual.occurrences.push(actual.occurrences[0].clone());
+        let ambiguous = wrong_kind_diagnostic(
+            &expected,
+            0,
+            &actual,
+            &mut DiagnosticBudget::default(),
+            DiagnosticLimits::default(),
+        )
+        .expect("ambiguous diagnostic succeeds");
+        assert!(matches!(
+            ambiguous,
+            WrongChangeKindDiagnostic::Complete {
+                quote_matching_occurrences: 2,
+                trace: WrongChangeKindTraceReport::Ambiguous,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn wrong_kind_scan_limit_is_typed_and_marks_outer_diagnostics_incomplete() {
+        let expected = [expected_change(
+            "insert",
+            ExpectedKind::Insertion,
+            None,
+            Some("target"),
+        )];
+        let long_text = format!("target {}", "x".repeat(512));
+        let actuals = [actual_change(
+            ChangeKind::Replacement,
+            Some("old"),
+            Some(&long_text),
+            Some(3),
+            Some(long_text.chars().count()),
+        )];
+        let outcome = match_changes(&expected, &actuals);
+        let diagnostics = evaluate_reviewed_diagnostics_with_limits(
+            &expected,
+            &[diagnostic_block(1, "old")],
+            &[diagnostic_block(2, "target")],
+            ComparisonDiagnosticInput {
+                alignment: None,
+                comparison: &diagnostic_comparison(Vec::new(), Vec::new()),
+                actual_scopes: None,
+            },
+            &actuals,
+            &outcome,
+            DiagnosticLimits::default().with_max_scan_work(128),
+        )
+        .expect("diagnostic limit is not a pair failure");
+
+        assert!(!diagnostics.expected_change_diagnostics.complete);
+        let ExpectedChangeFailureReason::WrongChangeKind { diagnostic, .. } =
+            &diagnostics.expected_change_diagnostics.failures[0].reason
+        else {
+            panic!("expected a wrong-kind failure")
+        };
+        assert!(matches!(
+            diagnostic.as_ref(),
+            WrongChangeKindDiagnostic::Limited {
+                actual_index: 0,
+                stop_reason: WrongChangeKindDiagnosticStopReason::ScanLimit,
+            }
+        ));
+    }
+
+    #[test]
+    fn wrong_kind_unavailable_projection_is_not_reported_as_zero_or_false() {
+        let expected = expected_change("insert", ExpectedKind::Insertion, None, Some("added"));
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("old"),
+            Some("added"),
+            Some(3),
+            Some(5),
+        );
+        let occurrence = &mut actual.occurrences[0];
+        occurrence.relation_trace =
+            ActualRelationTraceStatus::Available(crate::revisions::ActualRelationTrace {
+                origin: pdfdelta_core::diff::ChangeOrigin::OrderedAlignment,
+                old_alignment_span_index: 1,
+                new_alignment_span_index: 1,
+                old_best_score: None,
+                old_second_score: None,
+                old_best_scope: None,
+                new_best_score: None,
+                new_second_score: None,
+                new_best_scope: None,
+            });
+
+        let diagnostic = wrong_kind_diagnostic(
+            &expected,
+            0,
+            &actual,
+            &mut DiagnosticBudget::default(),
+            DiagnosticLimits::default(),
+        )
+        .expect("diagnostic succeeds");
+        assert!(matches!(
+            diagnostic,
+            WrongChangeKindDiagnostic::Complete {
+                trace: WrongChangeKindTraceReport::Available {
+                    old_relation_context_tokens: None,
+                    new_relation_context_tokens: None,
+                    expected_new_quote_in_relation_context: None,
+                    semantic_hunks: WrongChangeKindSemanticHunkReport::Unavailable,
+                    ..
+                },
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn wrong_kind_multi_occurrence_limit_publishes_no_partial_count() {
+        let expected = expected_change("insert", ExpectedKind::Insertion, None, Some("target"));
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("old"),
+            Some("target"),
+            Some(3),
+            Some(6),
+        );
+        let mut second = actual.occurrences[0].clone();
+        second.new_text = Some(format!("target {}", "x".repeat(512)));
+        actual.occurrences.push(second);
+        let mut budget = DiagnosticBudget::default();
+        let diagnostic = wrong_kind_diagnostic(
+            &expected,
+            4,
+            &actual,
+            &mut budget,
+            DiagnosticLimits::default().with_max_scan_work(128),
+        )
+        .expect("limit returns a typed diagnostic");
+
+        assert!(budget.limited);
+        assert_eq!(
+            diagnostic,
+            WrongChangeKindDiagnostic::Limited {
+                actual_index: 4,
+                stop_reason: WrongChangeKindDiagnosticStopReason::ScanLimit,
             }
         );
     }
