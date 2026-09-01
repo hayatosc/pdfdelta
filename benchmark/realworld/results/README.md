@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-02
-- **Generator / engine commit**: [`3ec54e5`](https://github.com/hayatosc/pdfdelta/commit/3ec54e5)
+- **Generator / engine commit**: [`0c06365`](https://github.com/hayatosc/pdfdelta/commit/0c06365)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-02-3ec54e5.json`](2026-09-02-3ec54e5.json)
-  - Schema: v55
-  - Size: 8,364,040 bytes
-  - SHA-256: `df4c20c6c05ffc65d092c1bbb2a8e0d7afae23e5779a93ce29d0ca4e8d10a5b3`
+  - File: [`2026-09-02-0c06365.json`](2026-09-02-0c06365.json)
+  - Schema: v56
+  - Size: 8,364,216 bytes
+  - SHA-256: `fe8c9d523f8a2ca73a9aeafb956a07270760dac36e4741110e21da7018c3d2a5`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-02-3ec54e5.json \
+cp benchmark/realworld/results/2026-09-02-0c06365.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 3ec54e5
+git switch --detach 0c06365
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -88,20 +88,39 @@ still apply only to their recorded review items.
 
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `nist-fips-186-4-to-5` | dev | standard | 51.96% | 2,125 | 1,055 | 0.857 | 1.000 | 213.500 | 107 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 53.20% | 5,213 | 1,600 | 1.000 | 1.000 | 342.625 | 103 |
-| `irs-form-1040-2024-to-2025` | holdout | stress | 44.13% | 81 | 31 | 0.200 | 1.000 | 40.000 | 1 |
-| `edpb-right-of-access-v1-to-final` | holdout | standard | 75.54% | 2,145 | 493 | 0.750 | 1.000 | 284.000 | 56 |
-| `arxiv-attention-v6-to-v7` | dev | stress | 92.11% | 59 | 1 | 1.000 | 1.000 | 2.000 | 0 |
-| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.81% | 293 | 143 | 1.000 | 1.000 | 1.000 | 0 |
+| `nist-fips-186-4-to-5` | dev | standard | 52.56% | 2,130 | 1,055 | 0.857 | 1.000 | 213.500 | 107 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 53.76% | 5,189 | 1,600 | 1.000 | 1.000 | 342.625 | 103 |
+| `irs-form-1040-2024-to-2025` | holdout | stress | 45.31% | 79 | 31 | 0.200 | 1.000 | 40.000 | 1 |
+| `edpb-right-of-access-v1-to-final` | holdout | standard | 76.21% | 2,142 | 493 | 0.750 | 1.000 | 284.000 | 56 |
+| `arxiv-attention-v6-to-v7` | dev | stress | 95.33% | 63 | 1 | 1.000 | 1.000 | 2.000 | 0 |
+| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 62.32% | 457 | 143 | 1.000 | 1.000 | 1.000 | 0 |
 | `ecma-109-ed10-to-ed11` | dev | stress | 75.20% | 420 | 87 | 0.667 | 0.500 | 66.000 | 5 |
-| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 66.57% | 569 | 475 | 1.000 | 1.000 | 167.000 | 65 |
+| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 73.60% | 837 | 475 | 1.000 | 1.000 | 167.000 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
-| `bis-operational-risk-2011-to-2021` | dev | standard | 76.24% | 672 | 365 | 1.000 | 1.000 | 14.000 | 0 |
-| `oasis-mqtt-311-to-50` | dev | standard | 42.40% | 3,484 | 1,593 | 1.000 | N/A | N/A | 0 |
+| `bis-operational-risk-2011-to-2021` | dev | standard | 76.28% | 674 | 365 | 1.000 | 1.000 | 14.000 | 0 |
+| `oasis-mqtt-311-to-50` | dev | standard | 42.44% | 3,486 | 1,593 | 1.000 | N/A | N/A | 0 |
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 68.39% | 1,142 | 841 | 0.333 | 1.000 | 861.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
+
+Schema v56 uses the v55 recovery-leaf inventory to recover globally unique,
+token-verified `TrustedRunResidual` ranges as unchanged exact matches. All 18
+available recovery builds complete this stage without a typed stop. The stage
+selects 2,767 matches and resolves 192,030 additional source tokens on each
+side without emitting a content event. Across the 19 completely extracted
+pairs, mean comparison coverage rises from 55.42% to 59.00% and the median
+rises from 56.81% to 62.32%. Of those 19 pairs, 14 improve, five remain
+unchanged, and none regress; the 10 extraction-incomplete pairs retain
+unavailable comparison coverage. The largest gains are QGIS English (+22.91
+points), QGIS Spanish (+17.57), LibreOffice (+8.81), OASIS CSAF (+7.03), and
+W3C WS-Policy (+5.51).
+
+All 29 pairs preserve their content, formatting, and uncertain event counts,
+reviewed quality metrics, complete-scope metrics, and candidate recall. The
+exact matches split some remaining unresolved spans, so the unresolved-region
+count rises by 2,819 even though resolved token coverage increases. Comparison
+therefore remains incomplete for all pairs; the higher region count is a
+representation effect, not evidence that more source tokens became unresolved.
 
 Schema v55 adds behavior-neutral, source-backed recovery ownership, committed
 change-origin attribution, and a deterministic local-fragment review bundle.
@@ -881,10 +900,16 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v55)
+## Current Writer Schema (v56)
 
-The benchmark writer and latest committed capture use schema v55. Older
-captures retain their recorded schemas. Schema v55 records source-backed
+The benchmark writer and latest committed capture use schema v56. Older
+captures retain their recorded schemas. Schema v56 records bounded exact
+trusted-residual candidate counts, selected matches, completion, a typed stop
+reason, and resolved context under the `trusted_residual_exact` origin. The
+stage consumes the verified v55 ownership inventory, requires globally unique
+full-token equality inside one compatible alignment span and role, and rolls
+back atomically if output preparation cannot commit the complete secondary
+batch. Schema v55 records source-backed
 recovery ownership partitions, per-origin committed event and token totals,
 and bounded deterministic review traces for committed local-fragment edits.
 Every ownership range is accepted, an unselected leaf, or a typed gap; stopped
