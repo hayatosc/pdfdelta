@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-02
-- **Generator / engine commit**: [`61981dc`](https://github.com/hayatosc/pdfdelta/commit/61981dc)
+- **Generator / engine commit**: [`47e699a`](https://github.com/hayatosc/pdfdelta/commit/47e699a)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-02-61981dc.json`](2026-09-02-61981dc.json)
+  - File: [`2026-09-02-47e699a.json`](2026-09-02-47e699a.json)
   - Schema: v57
-  - Size: 8,365,754 bytes
-  - SHA-256: `ff3de575a97d10f849a0c6e090f8f25a223b68105b75ed0c2c61ab7e219f6dc7`
+  - Size: 8,364,189 bytes
+  - SHA-256: `01a729c9819f9a6742aa23bd2de3bb9960020e760b73a884a1a23ceb008e7532`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-02-61981dc.json \
+cp benchmark/realworld/results/2026-09-02-47e699a.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 61981dc
+git switch --detach 47e699a
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -94,7 +94,7 @@ still apply only to their recorded review items.
 | `edpb-right-of-access-v1-to-final` | holdout | standard | 76.21% | 2,142 | 493 | 0.750 | 1.000 | 284.000 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 95.33% | 63 | 1 | 1.000 | 1.000 | 2.000 | 0 |
 | `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 62.32% | 457 | 143 | 1.000 | 1.000 | 1.000 | 0 |
-| `ecma-109-ed10-to-ed11` | dev | stress | 75.20% | 420 | 87 | 0.667 | 0.500 | 66.000 | 5 |
+| `ecma-109-ed10-to-ed11` | dev | stress | 75.20% | 420 | 87 | 0.333 | 1.000 | 132.000 | 5 |
 | `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 73.60% | 837 | 475 | 1.000 | 1.000 | 167.000 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
 | `bis-operational-risk-2011-to-2021` | dev | standard | 76.28% | 674 | 365 | 1.000 | 1.000 | 14.000 | 0 |
@@ -102,6 +102,18 @@ still apply only to their recorded review items.
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 68.39% | 1,142 | 841 | 0.333 | 1.000 | 861.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
+
+The latest schema-v57 capture tightens reviewed cross-kind matching without
+changing comparison behavior. An actual event whose kind differs from the
+expected annotation may now claim it only when source-backed `AtomicEdit`
+evidence of that expected kind contains the expected quote. Replacement
+evidence must come from the same semantic hunk; relation context and
+word-completed display spans are not accepted as edit evidence. All 28
+non-ECMA records are field-identical to `61981dc`. ECMA preserves every
+comparison field, but its copyright-notice insertion is now honestly reported
+as `alignment_or_candidate`: recall changes from 0.667 to 0.333, while kind
+accuracy changes from 0.500 to 1.000 because the unrelated replacement no
+longer claims the missed insertion.
 
 Schema v57 preserves every comparison, coverage, change, quality, complete-
 scope, and candidate-recall field from schema v56. It adds a bounded relation
@@ -1240,6 +1252,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-09-02-61981dc.json`](2026-09-02-61981dc.json): schema-v57 wrong-kind relation tracing before cross-kind evaluation required source-backed atomic evidence.
 - [`2026-09-02-0c06365.json`](2026-09-02-0c06365.json): schema-v56 exact trusted-residual recovery before wrong-kind relation tracing.
 - [`2026-09-01-8d80c64.json`](2026-09-01-8d80c64.json): schema-v54 isolated exact-tail recovery before lifting the three-proposal production fragment throttle.
 - [`2026-09-01-0fe4e85.json`](2026-09-01-0fe4e85.json): schema-v52 trusted-run tail recovery before unresolved-token cause attribution.
