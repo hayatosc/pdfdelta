@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-01
-- **Generator / engine commit**: [`9fcaee6`](https://github.com/hayatosc/pdfdelta/commit/9fcaee6)
+- **Generator / engine commit**: [`7cca56e`](https://github.com/hayatosc/pdfdelta/commit/7cca56e)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-01-9fcaee6.json`](2026-09-01-9fcaee6.json)
-  - Schema: v50
-  - Size: 1,926,586 bytes
-  - SHA-256: `417bd75b8357bffd094aa77529aff3679b4140af4ec7f2bc3d4688fe1a527475`
+  - File: [`2026-09-01-7cca56e.json`](2026-09-01-7cca56e.json)
+  - Schema: v52
+  - Size: 1,943,248 bytes
+  - SHA-256: `e3565f1ae025fca25d0e084976b2cdb8cc76f89e9083b715539bdc4cc4268a9c`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-01-9fcaee6.json \
+cp benchmark/realworld/results/2026-09-01-7cca56e.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 9fcaee6
+git switch --detach 7cca56e
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -88,17 +88,17 @@ still apply only to their recorded review items.
 
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `nist-fips-186-4-to-5` | dev | standard | 51.20% | 2,014 | 1,003 | 0.857 | 1.000 | 205.500 | 107 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.60% | 5,098 | 1,562 | 0.750 | 1.000 | 454.333 | 103 |
+| `nist-fips-186-4-to-5` | dev | standard | 51.40% | 2,019 | 1,006 | 0.857 | 1.000 | 206.000 | 107 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.71% | 5,107 | 1,565 | 0.875 | 1.000 | 389.857 | 103 |
 | `irs-form-1040-2024-to-2025` | holdout | stress | 36.33% | 71 | 19 | 0.000 | N/A | N/A | 1 |
-| `edpb-right-of-access-v1-to-final` | holdout | standard | 74.81% | 2,091 | 477 | 0.750 | 1.000 | 277.333 | 56 |
+| `edpb-right-of-access-v1-to-final` | holdout | standard | 75.09% | 2,097 | 480 | 0.750 | 1.000 | 278.333 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 2.000 | 0 |
 | `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 55.99% | 267 | 127 | 1.000 | 1.000 | 1.000 | 0 |
 | `ecma-109-ed10-to-ed11` | dev | stress | 73.27% | 369 | 78 | 0.333 | 0.000 | 122.000 | 5 |
 | `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.10% | 515 | 473 | 1.000 | 1.000 | 166.333 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
 | `bis-operational-risk-2011-to-2021` | dev | standard | 68.12% | 656 | 351 | 1.000 | 1.000 | 14.000 | 0 |
-| `oasis-mqtt-311-to-50` | dev | standard | 30.39% | 2,307 | 1,133 | 1.000 | N/A | N/A | 0 |
+| `oasis-mqtt-311-to-50` | dev | standard | 30.44% | 2,311 | 1,134 | 1.000 | N/A | N/A | 0 |
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 53.22% | 788 | 648 | 0.333 | 1.000 | 668.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
@@ -111,6 +111,26 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | `w3c-ws-policy-attach-20060927-to-20061102` | 1.000 / 1.000 / 1.000 | 0.984 / 1.000 / 0.992 | 0.984 | 68.027 |
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
+
+Schema v52 promotes only reciprocal, role-compatible local fragments with one
+exact interior token edit. Existing recovery ranges and the shared output
+budget are checked before the three-proposal cap is applied; allocation,
+projection, or analysis failure commits no partial fragment plan. All 18
+available proposal analyses complete in this capture. They consider 66 ranked
+proposals and commit 18 across eight pairs.
+
+Relative to schema v50, mean comparison coverage across the 19 comparable
+pairs moves from 51.6715% to 51.7270%, total content events move from 11,789 to
+11,807, and comparison completion remains 0/29. The reviewed change is SP
+800-57's `toolkit-footnote-comma-removed`: its global reviewed recall rises
+from 0.750 to 0.875 while kind accuracy remains 1.000. The other reviewed-pair
+recall and kind values do not change. SP 800-57's hunks-per-matched value falls
+because one more expected item is matched; the capture does not show a global
+hunk-count reduction. Unresolved-region counts rise where one recovered
+interior fragment partitions the remaining unresolved range, even though
+resolved token coverage increases. Most of the 18 new events are outside
+complete scopes, so this result establishes the reviewed recall gain but not
+corpus-wide precision.
 
 The latest engine resolves a recovered near relation over its full unit while
 reporting only bounded-Myers atomic edit hunks as changed spans. Diff,
@@ -745,12 +765,15 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v50)
+## Current Writer Schema (v52)
 
-The benchmark writer and latest committed capture use schema v50. Older
-captures retain their recorded schemas. Schema v50 preserves the exact-token
-certification and retained stream while replacing transition-trie storage with
-bounded, depth-local exact classes. Schema v49 preserves the global
+The benchmark writer and latest committed capture use schema v52. Older
+captures retain their recorded schemas. Schema v52 records production
+local-fragment proposal completion, typed stops, considered candidates, and
+committed replacements. It promotes only exact interior one-token edits after
+the schema-v51 flat exact-boundary analysis completes. Schema v50 preserves the
+exact-token certification and retained stream while replacing transition-trie
+storage with bounded, depth-local exact classes. Schema v49 preserves the global
 length-aware candidate stream and adds a shared exact-token trie that certifies
 prefix and suffix comparisons without changing retained-pair behavior. Schema
 v48 builds only the global
@@ -1041,6 +1064,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-09-01-9fcaee6.json`](2026-09-01-9fcaee6.json): schema-v50 recovered replacements emit bounded-Myers atomic spans before exact local-fragment edits were promoted.
 - [`2026-09-01-9ce4bfe.json`](2026-09-01-9ce4bfe.json): schema-v50 flat exact-boundary diagnostics before recovered replacements began emitting exact atomic spans.
 - [`2026-08-31-87aa0bb.json`](2026-08-31-87aa0bb.json): schema-v49 shared exact-boundary trie before flat exact-class interning.
 - [`2026-08-31-4a77cb4.json`](2026-08-31-4a77cb4.json): schema-v48 global length-aware fragment candidates before exact boundary certification.
