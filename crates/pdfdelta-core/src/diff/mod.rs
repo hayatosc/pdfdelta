@@ -580,7 +580,7 @@ pub enum RunSignatureStopReason {
     CandidatePairLimit,
 }
 
-/// Constant-space diagnostics for sentence recovery inside uncertain spans.
+/// Bounded near-search work attributed to one recovery unit kind.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NearSearchWorkMetrics {
     pub edge_posting_visits_examined: usize,
@@ -1652,6 +1652,38 @@ pub struct LocalFragmentFlatExactBoundaryShadowMetrics {
 
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RecoveryRemainderCauseMetrics {
+    pub selected_but_uncommitted_source_tokens: usize,
+    pub below_minimum_source_tokens: usize,
+    pub exact_multiplicity_source_tokens: usize,
+    pub one_sided_multiplicity_source_tokens: usize,
+    pub paired_stream_veto_source_tokens: usize,
+    pub near_relation_veto_source_tokens: usize,
+    pub line_policy_source_tokens: usize,
+    pub other_located_source_tokens: usize,
+    pub unlocated_or_unsegmented_source_tokens: usize,
+}
+
+/// Exhaustive cause partition for source tokens left unresolved after recovery.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RecoveryRemainderAttributionMetrics {
+    pub old: RecoveryRemainderCauseMetrics,
+    pub new: RecoveryRemainderCauseMetrics,
+}
+
+/// Reason unresolved-token attribution could not be completed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RecoveryRemainderAttributionStopReason {
+    AnalysisIncomplete,
+    AllocationFailure,
+    CounterOverflow,
+    RangeLimit,
+    OverlappingOccurrenceRanges,
+    InvalidState,
+}
+
+/// Constant-space diagnostics for sentence recovery inside uncertain spans.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
     pub old_trusted_run_source_tokens: usize,
     pub new_trusted_run_source_tokens: usize,
@@ -1782,6 +1814,11 @@ pub struct SentenceRecoveryMetrics {
     pub recovered_insertion_tokens: usize,
     pub unresolved_remainder_old_source_tokens: usize,
     pub unresolved_remainder_new_source_tokens: usize,
+    /// `Some(true)` only when every unresolved source token has one cause.
+    pub remainder_attribution_complete: Option<bool>,
+    pub remainder_attribution_stop_reason: Option<RecoveryRemainderAttributionStopReason>,
+    /// Present only when each unresolved source token has one verified cause.
+    pub remainder_attribution: Option<RecoveryRemainderAttributionMetrics>,
 }
 
 pub(crate) struct ComparisonWithSentenceRecoveryMetrics {
@@ -9526,6 +9563,8 @@ mod tests {
                     SentenceEdgeSignatureDirectExecution::ProductionAccepted,
                 ),
                 sentence_edge_filter_complete: true,
+                remainder_attribution_complete: Some(true),
+                remainder_attribution: Some(RecoveryRemainderAttributionMetrics::default()),
                 ..SentenceRecoveryMetrics::default()
             })
         );

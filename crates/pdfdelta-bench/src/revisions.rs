@@ -33,20 +33,21 @@ use pdfdelta_core::{
         LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
         LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, MatchedAtomicDiff,
         NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveredAtomicDiff,
-        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
-        RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
-        RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
-        RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
-        RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchQuoteLocalEditEvidence,
-        RecoveryWatchQuoteLocalPairEvidence, RecoveryWatchQuoteLocalScoreEvidence,
-        RecoveryWatchQuoteLocalSideEvidence, RecoveryWatchQuoteLocalStatus,
-        RecoveryWatchQuoteLocalStopReason, RecoveryWatchQuoteLocalUnitEvidence,
-        RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence, RecoveryWatchSide,
-        RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
-        SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
-        SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
-        SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
-        SentenceEdgeSignatureReferenceOracleMetrics,
+        RecoveryRemainderAttributionMetrics, RecoveryRemainderAttributionStopReason,
+        RecoveryRemainderCauseMetrics, RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence,
+        RecoveryWatchGranularRelation, RecoveryWatchGranularStopReason,
+        RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope, RecoveryWatchOccurrence,
+        RecoveryWatchOccurrenceEvidence, RecoveryWatchOneSidedOpponentEvidence,
+        RecoveryWatchOneSidedVetoEvidence, RecoveryWatchPairEvidence, RecoveryWatchQuery,
+        RecoveryWatchQuoteLocalEditEvidence, RecoveryWatchQuoteLocalPairEvidence,
+        RecoveryWatchQuoteLocalScoreEvidence, RecoveryWatchQuoteLocalSideEvidence,
+        RecoveryWatchQuoteLocalStatus, RecoveryWatchQuoteLocalStopReason,
+        RecoveryWatchQuoteLocalUnitEvidence, RecoveryWatchRelation,
+        RecoveryWatchSegmentPairEvidence, RecoveryWatchSide, RecoveryWatchUnitKind,
+        RunSignatureStopReason, SegmentStopReason, SentenceEdgeFilterStopReason,
+        SentenceEdgeGateShadowMetrics, SentenceEdgeGateShadowStopReason,
+        SentenceEdgeSignatureDirectExecution, SentenceEdgeSignatureDirectShadowMetrics,
+        SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureReferenceOracleMetrics,
         SentenceEdgeSignatureReferenceOracleStopReason, SentenceEdgeSignatureShadowMetrics,
         SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics, TextSpan,
     },
@@ -631,6 +632,76 @@ fn truncate_preview(text: &str) -> String {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct RecoveryRemainderCauseMetricsReport {
+    pub selected_but_uncommitted_source_tokens: usize,
+    pub below_minimum_source_tokens: usize,
+    pub exact_multiplicity_source_tokens: usize,
+    pub one_sided_multiplicity_source_tokens: usize,
+    pub paired_stream_veto_source_tokens: usize,
+    pub near_relation_veto_source_tokens: usize,
+    pub line_policy_source_tokens: usize,
+    pub other_located_source_tokens: usize,
+    pub unlocated_or_unsegmented_source_tokens: usize,
+}
+
+impl From<RecoveryRemainderCauseMetrics> for RecoveryRemainderCauseMetricsReport {
+    fn from(metrics: RecoveryRemainderCauseMetrics) -> Self {
+        Self {
+            selected_but_uncommitted_source_tokens: metrics.selected_but_uncommitted_source_tokens,
+            below_minimum_source_tokens: metrics.below_minimum_source_tokens,
+            exact_multiplicity_source_tokens: metrics.exact_multiplicity_source_tokens,
+            one_sided_multiplicity_source_tokens: metrics.one_sided_multiplicity_source_tokens,
+            paired_stream_veto_source_tokens: metrics.paired_stream_veto_source_tokens,
+            near_relation_veto_source_tokens: metrics.near_relation_veto_source_tokens,
+            line_policy_source_tokens: metrics.line_policy_source_tokens,
+            other_located_source_tokens: metrics.other_located_source_tokens,
+            unlocated_or_unsegmented_source_tokens: metrics.unlocated_or_unsegmented_source_tokens,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct RecoveryRemainderAttributionMetricsReport {
+    pub old: RecoveryRemainderCauseMetricsReport,
+    pub new: RecoveryRemainderCauseMetricsReport,
+}
+
+impl From<RecoveryRemainderAttributionMetrics> for RecoveryRemainderAttributionMetricsReport {
+    fn from(metrics: RecoveryRemainderAttributionMetrics) -> Self {
+        Self {
+            old: metrics.old.into(),
+            new: metrics.new.into(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryRemainderAttributionStopReasonReport {
+    AnalysisIncomplete,
+    AllocationFailure,
+    CounterOverflow,
+    RangeLimit,
+    OverlappingOccurrenceRanges,
+    InvalidState,
+}
+
+impl From<RecoveryRemainderAttributionStopReason> for RecoveryRemainderAttributionStopReasonReport {
+    fn from(reason: RecoveryRemainderAttributionStopReason) -> Self {
+        match reason {
+            RecoveryRemainderAttributionStopReason::AnalysisIncomplete => Self::AnalysisIncomplete,
+            RecoveryRemainderAttributionStopReason::AllocationFailure => Self::AllocationFailure,
+            RecoveryRemainderAttributionStopReason::CounterOverflow => Self::CounterOverflow,
+            RecoveryRemainderAttributionStopReason::RangeLimit => Self::RangeLimit,
+            RecoveryRemainderAttributionStopReason::OverlappingOccurrenceRanges => {
+                Self::OverlappingOccurrenceRanges
+            }
+            RecoveryRemainderAttributionStopReason::InvalidState => Self::InvalidState,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct SentenceRecoveryMetricsReport {
     pub old_trusted_run_source_tokens: usize,
     pub new_trusted_run_source_tokens: usize,
@@ -751,6 +822,9 @@ pub struct SentenceRecoveryMetricsReport {
     pub recovered_insertion_tokens: usize,
     pub unresolved_remainder_old_source_tokens: usize,
     pub unresolved_remainder_new_source_tokens: usize,
+    pub remainder_attribution_complete: Option<bool>,
+    pub remainder_attribution_stop_reason: Option<RecoveryRemainderAttributionStopReasonReport>,
+    pub remainder_attribution: Option<RecoveryRemainderAttributionMetricsReport>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -3434,6 +3508,11 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             recovered_insertion_tokens: metrics.recovered_insertion_tokens,
             unresolved_remainder_old_source_tokens: metrics.unresolved_remainder_old_source_tokens,
             unresolved_remainder_new_source_tokens: metrics.unresolved_remainder_new_source_tokens,
+            remainder_attribution_complete: metrics.remainder_attribution_complete,
+            remainder_attribution_stop_reason: metrics
+                .remainder_attribution_stop_reason
+                .map(Into::into),
+            remainder_attribution: metrics.remainder_attribution.map(Into::into),
         }
     }
 }
@@ -6270,6 +6349,7 @@ fn alignment_visit_metrics(
 fn validate_sentence_recovery_metrics(
     metrics: SentenceRecoveryMetrics,
 ) -> std::result::Result<SentenceRecoveryMetricsReport, String> {
+    validate_recovery_remainder_attribution(metrics)?;
     validate_structural_pairing_metrics(metrics)?;
     validate_run_signature_metrics(metrics)?;
     validate_near_search_work_metrics(metrics)?;
@@ -6452,6 +6532,78 @@ fn validate_sentence_recovery_metrics(
         .checked_add(metrics.unresolved_remainder_new_source_tokens)
         .ok_or_else(|| "new eligible source token counters overflow".to_owned())?;
     Ok(metrics.into())
+}
+
+fn validate_recovery_remainder_attribution(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<(), String> {
+    match metrics.remainder_attribution_complete {
+        None => {
+            if metrics.remainder_attribution_stop_reason.is_some()
+                || metrics.remainder_attribution.is_some()
+            {
+                return Err(
+                    "unobserved recovery remainder attribution has status or values".to_owned(),
+                );
+            }
+        }
+        Some(true) => {
+            if metrics.remainder_attribution_stop_reason.is_some()
+                || metrics.remainder_attribution.is_none()
+            {
+                return Err(
+                    "complete recovery remainder attribution lacks values or has a stop reason"
+                        .to_owned(),
+                );
+            }
+        }
+        Some(false) => {
+            if metrics.remainder_attribution_stop_reason.is_none()
+                || metrics.remainder_attribution.is_some()
+            {
+                return Err(
+                    "incomplete recovery remainder attribution lacks a stop reason or has values"
+                        .to_owned(),
+                );
+            }
+        }
+    }
+    let Some(attribution) = metrics.remainder_attribution else {
+        return Ok(());
+    };
+    for (side, causes, unresolved) in [
+        (
+            "old",
+            attribution.old,
+            metrics.unresolved_remainder_old_source_tokens,
+        ),
+        (
+            "new",
+            attribution.new,
+            metrics.unresolved_remainder_new_source_tokens,
+        ),
+    ] {
+        let attributed = [
+            causes.selected_but_uncommitted_source_tokens,
+            causes.below_minimum_source_tokens,
+            causes.exact_multiplicity_source_tokens,
+            causes.one_sided_multiplicity_source_tokens,
+            causes.paired_stream_veto_source_tokens,
+            causes.near_relation_veto_source_tokens,
+            causes.line_policy_source_tokens,
+            causes.other_located_source_tokens,
+            causes.unlocated_or_unsegmented_source_tokens,
+        ]
+        .into_iter()
+        .try_fold(0_usize, usize::checked_add)
+        .ok_or_else(|| format!("{side} recovery remainder attribution overflows"))?;
+        if attributed != unresolved {
+            return Err(format!(
+                "{side} recovery remainder attribution {attributed} does not equal unresolved remainder {unresolved}"
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn validate_local_fragment_length_only_candidate_shadow_metrics(
@@ -10399,7 +10551,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 52;
+    pub const SCHEMA_VERSION: u32 = 53;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -12170,7 +12322,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 52);
+        assert_eq!(completed["schema_version"], 53);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -12220,7 +12372,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 52);
+        assert_eq!(legacy_summary["schema_version"], 53);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -13700,6 +13852,8 @@ mod tests {
                     SentenceEdgeSignatureDirectExecutionReport::ProductionAccepted,
                 ),
                 sentence_edge_filter_complete: true,
+                remainder_attribution_complete: Some(true),
+                remainder_attribution: Some(RecoveryRemainderAttributionMetricsReport::default(),),
                 ..SentenceRecoveryMetricsReport::default()
             })
         );
@@ -13906,7 +14060,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 52);
+        assert_eq!(json["schema_version"], 53);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -13926,6 +14080,19 @@ mod tests {
                 ..SentenceRecoveryMetricsReport::default()
             })
         );
+        let empty_json = serde_json::to_value(
+            validate_sentence_recovery_metrics(empty).expect("zero metrics are valid"),
+        )
+        .expect("zero metrics serialize");
+        assert_eq!(
+            empty_json["remainder_attribution_complete"],
+            serde_json::Value::Null
+        );
+        assert_eq!(
+            empty_json["remainder_attribution_stop_reason"],
+            serde_json::Value::Null
+        );
+        assert_eq!(empty_json["remainder_attribution"], serde_json::Value::Null);
 
         let populated = SentenceRecoveryMetrics {
             old_trusted_run_source_tokens: 30,
@@ -14023,6 +14190,21 @@ mod tests {
             recovered_insertion_tokens: 6,
             unresolved_remainder_old_source_tokens: 15,
             unresolved_remainder_new_source_tokens: 22,
+            remainder_attribution_complete: Some(true),
+            remainder_attribution: Some(RecoveryRemainderAttributionMetrics {
+                old: RecoveryRemainderCauseMetrics {
+                    selected_but_uncommitted_source_tokens: 3,
+                    below_minimum_source_tokens: 5,
+                    near_relation_veto_source_tokens: 7,
+                    ..RecoveryRemainderCauseMetrics::default()
+                },
+                new: RecoveryRemainderCauseMetrics {
+                    exact_multiplicity_source_tokens: 9,
+                    one_sided_multiplicity_source_tokens: 6,
+                    unlocated_or_unsegmented_source_tokens: 7,
+                    ..RecoveryRemainderCauseMetrics::default()
+                },
+            }),
             sentence_edge_filter_complete: true,
             ..SentenceRecoveryMetrics::default()
         };
@@ -14044,6 +14226,58 @@ mod tests {
         assert_eq!(validated.relation_floor_potential_saved_word_comparisons, 7);
         assert_eq!(validated.recovered_replacement_new_tokens, 12);
         assert_eq!(validated.vetoed_near_pairs, 1);
+        let attribution = validated
+            .remainder_attribution
+            .expect("populated attribution is preserved");
+        assert_eq!(attribution.old.below_minimum_source_tokens, 5);
+        assert_eq!(attribution.new.exact_multiplicity_source_tokens, 9);
+
+        let mismatched_attribution = SentenceRecoveryMetrics {
+            unresolved_remainder_old_source_tokens: 2,
+            remainder_attribution_complete: Some(true),
+            remainder_attribution: Some(RecoveryRemainderAttributionMetrics {
+                old: RecoveryRemainderCauseMetrics {
+                    other_located_source_tokens: 1,
+                    ..RecoveryRemainderCauseMetrics::default()
+                },
+                ..RecoveryRemainderAttributionMetrics::default()
+            }),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(mismatched_attribution).is_err());
+
+        let overflowing_attribution = SentenceRecoveryMetrics {
+            unresolved_remainder_old_source_tokens: usize::MAX,
+            remainder_attribution_complete: Some(true),
+            remainder_attribution: Some(RecoveryRemainderAttributionMetrics {
+                old: RecoveryRemainderCauseMetrics {
+                    selected_but_uncommitted_source_tokens: usize::MAX,
+                    below_minimum_source_tokens: 1,
+                    ..RecoveryRemainderCauseMetrics::default()
+                },
+                ..RecoveryRemainderAttributionMetrics::default()
+            }),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(overflowing_attribution).is_err());
+
+        let stopped_attribution = SentenceRecoveryMetrics {
+            remainder_attribution_complete: Some(false),
+            remainder_attribution_stop_reason: Some(
+                RecoveryRemainderAttributionStopReason::AllocationFailure,
+            ),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        let validated = validate_sentence_recovery_metrics(stopped_attribution)
+            .expect("a typed attribution stop is valid");
+        assert_eq!(validated.remainder_attribution_complete, Some(false));
+        assert_eq!(
+            validated.remainder_attribution_stop_reason,
+            Some(RecoveryRemainderAttributionStopReasonReport::AllocationFailure)
+        );
 
         let candidate_stop = SentenceRecoveryMetrics {
             run_signature_available: true,
@@ -20276,6 +20510,14 @@ mod tests {
                     vetoed_near_pairs: 2,
                     recovered_deletion_tokens: 18,
                     unresolved_remainder_old_source_tokens: 24,
+                    remainder_attribution_complete: Some(true),
+                    remainder_attribution: Some(RecoveryRemainderAttributionMetricsReport {
+                        old: RecoveryRemainderCauseMetricsReport {
+                            near_relation_veto_source_tokens: 24,
+                            ..RecoveryRemainderCauseMetricsReport::default()
+                        },
+                        ..RecoveryRemainderAttributionMetricsReport::default()
+                    }),
                     ..SentenceRecoveryMetricsReport::default()
                 }),
                 candidate_visit_pressure: None,
@@ -20386,7 +20628,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 52);
+        assert_eq!(value["schema_version"], 53);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -20565,6 +20807,9 @@ mod tests {
             "recovered_insertion_tokens".to_owned(),
             "unresolved_remainder_old_source_tokens".to_owned(),
             "unresolved_remainder_new_source_tokens".to_owned(),
+            "remainder_attribution_complete".to_owned(),
+            "remainder_attribution_stop_reason".to_owned(),
+            "remainder_attribution".to_owned(),
         ]);
         let sentence_recovery_keys = records[0]["sentence_recovery_metrics"]
             .as_object()
@@ -20573,6 +20818,37 @@ mod tests {
             .cloned()
             .collect::<HashSet<_>>();
         assert_eq!(sentence_recovery_keys, expected_sentence_recovery_keys);
+        let remainder_attribution =
+            records[0]["sentence_recovery_metrics"]["remainder_attribution"]
+                .as_object()
+                .expect("remainder attribution object");
+        assert_eq!(
+            remainder_attribution
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>(),
+            HashSet::from(["old".to_owned(), "new".to_owned()])
+        );
+        let expected_remainder_cause_keys = HashSet::from([
+            "selected_but_uncommitted_source_tokens".to_owned(),
+            "below_minimum_source_tokens".to_owned(),
+            "exact_multiplicity_source_tokens".to_owned(),
+            "one_sided_multiplicity_source_tokens".to_owned(),
+            "paired_stream_veto_source_tokens".to_owned(),
+            "near_relation_veto_source_tokens".to_owned(),
+            "line_policy_source_tokens".to_owned(),
+            "other_located_source_tokens".to_owned(),
+            "unlocated_or_unsegmented_source_tokens".to_owned(),
+        ]);
+        for side in ["old", "new"] {
+            let keys = remainder_attribution[side]
+                .as_object()
+                .expect("remainder cause object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>();
+            assert_eq!(keys, expected_remainder_cause_keys);
+        }
         let expected_edge_gate_shadow_keys = HashSet::from([
             "complete".to_owned(),
             "stop_reason".to_owned(),

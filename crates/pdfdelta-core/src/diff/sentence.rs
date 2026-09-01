@@ -65,8 +65,9 @@ use super::{
     LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
     LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
     MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
-    NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
-    RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
+    NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryRemainderAttributionMetrics,
+    RecoveryRemainderAttributionStopReason, RecoveryRemainderCauseMetrics,
+    RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
     RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
     RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence, RecoveryWatchOccurrences,
     RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
@@ -350,10 +351,77 @@ impl SentenceRecoveryBuildOutcome {
             metrics.unresolved_remainder_new_source_tokens = diagnostics
                 .eligible_new_source_tokens
                 .checked_sub(recovered_new)?;
+            if let Some(mut attribution) = metrics.remainder_attribution {
+                let attribution_result = (|| {
+                    attribution.old.selected_but_uncommitted_source_tokens = attribution
+                        .old
+                        .selected_but_uncommitted_source_tokens
+                        .checked_sub(recovered_old)
+                        .ok_or(RecoveryRemainderAttributionStopReason::InvalidState)?;
+                    attribution.new.selected_but_uncommitted_source_tokens = attribution
+                        .new
+                        .selected_but_uncommitted_source_tokens
+                        .checked_sub(recovered_new)
+                        .ok_or(RecoveryRemainderAttributionStopReason::InvalidState)?;
+                    let old_total = remainder_cause_total(attribution.old)
+                        .ok_or(RecoveryRemainderAttributionStopReason::CounterOverflow)?;
+                    let new_total = remainder_cause_total(attribution.new)
+                        .ok_or(RecoveryRemainderAttributionStopReason::CounterOverflow)?;
+                    if old_total != metrics.unresolved_remainder_old_source_tokens
+                        || new_total != metrics.unresolved_remainder_new_source_tokens
+                    {
+                        return Err(RecoveryRemainderAttributionStopReason::InvalidState);
+                    }
+                    Ok(attribution)
+                })();
+                match attribution_result {
+                    Ok(attribution) => metrics.remainder_attribution = Some(attribution),
+                    Err(reason) => {
+                        metrics.remainder_attribution_complete = Some(false);
+                        metrics.remainder_attribution_stop_reason = Some(reason);
+                        metrics.remainder_attribution = None;
+                    }
+                }
+            }
             Some(metrics)
         });
         (metrics, self.watch_diagnostics)
     }
+}
+
+fn remainder_cause_total(metrics: RecoveryRemainderCauseMetrics) -> Option<usize> {
+    metrics
+        .selected_but_uncommitted_source_tokens
+        .checked_add(metrics.below_minimum_source_tokens)?
+        .checked_add(metrics.exact_multiplicity_source_tokens)?
+        .checked_add(metrics.one_sided_multiplicity_source_tokens)?
+        .checked_add(metrics.paired_stream_veto_source_tokens)?
+        .checked_add(metrics.near_relation_veto_source_tokens)?
+        .checked_add(metrics.line_policy_source_tokens)?
+        .checked_add(metrics.other_located_source_tokens)?
+        .checked_add(metrics.unlocated_or_unsegmented_source_tokens)
+}
+
+fn add_remainder_cause_tokens(
+    metrics: &mut RecoveryRemainderCauseMetrics,
+    cause: RecoveryRemainderCause,
+    tokens: usize,
+) -> RemainderAttributionResult<()> {
+    let counter = match cause {
+        RecoveryRemainderCause::BelowMinimum => &mut metrics.below_minimum_source_tokens,
+        RecoveryRemainderCause::ExactMultiplicity => &mut metrics.exact_multiplicity_source_tokens,
+        RecoveryRemainderCause::OneSidedMultiplicity => {
+            &mut metrics.one_sided_multiplicity_source_tokens
+        }
+        RecoveryRemainderCause::PairedStreamVeto => &mut metrics.paired_stream_veto_source_tokens,
+        RecoveryRemainderCause::NearRelationVeto => &mut metrics.near_relation_veto_source_tokens,
+        RecoveryRemainderCause::LinePolicy => &mut metrics.line_policy_source_tokens,
+        RecoveryRemainderCause::OtherLocated => &mut metrics.other_located_source_tokens,
+    };
+    *counter = counter
+        .checked_add(tokens)
+        .ok_or(RecoveryRemainderAttributionStopReason::CounterOverflow)?;
+    Ok(())
 }
 
 fn checked_committed_metrics(
@@ -538,6 +606,41 @@ struct SentenceLocation {
     consumed: Vec<LocalSentenceRange>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum RecoveryRemainderCause {
+    BelowMinimum,
+    ExactMultiplicity,
+    OneSidedMultiplicity,
+    PairedStreamVeto,
+    NearRelationVeto,
+    LinePolicy,
+    #[default]
+    OtherLocated,
+}
+
+type RemainderAttributionResult<T> = std::result::Result<T, RecoveryRemainderAttributionStopReason>;
+
+#[derive(Clone, Copy)]
+struct AttributedTokenRange {
+    block: BlockId,
+    start: usize,
+    end: usize,
+    cause: RecoveryRemainderCause,
+}
+
+fn mark_remainder_causes(
+    causes: &mut [RecoveryRemainderCause],
+    occurrence_indices: &[usize],
+    cause: RecoveryRemainderCause,
+) -> RemainderAttributionResult<()> {
+    for index in occurrence_indices {
+        *causes
+            .get_mut(*index)
+            .ok_or(RecoveryRemainderAttributionStopReason::InvalidState)? = cause;
+    }
+    Ok(())
+}
+
 #[derive(Default)]
 struct OccurrenceCount {
     old: usize,
@@ -556,6 +659,35 @@ struct RecoveryCandidate {
 struct RecoveryCandidates {
     values: Vec<RecoveryCandidate>,
     complete: bool,
+}
+
+fn classify_candidate_remainder_causes(
+    occurrences: &[SentenceOccurrence],
+    candidates: &[RecoveryCandidate],
+    relations: &[CandidateNearRelation],
+    causes: &mut [RecoveryRemainderCause],
+) -> RemainderAttributionResult<()> {
+    if candidates.len() != relations.len() {
+        return Err(RecoveryRemainderAttributionStopReason::InvalidState);
+    }
+    for (candidate, relation) in candidates.iter().zip(relations) {
+        let occurrence = occurrences
+            .get(candidate.occurrence_index)
+            .ok_or(RecoveryRemainderAttributionStopReason::InvalidState)?;
+        let cause = if relation.vetoed() {
+            RecoveryRemainderCause::NearRelationVeto
+        } else if occurrence.kind == RecoveryUnitKind::Line
+            && occurrence.role == Some(BlockRole::Body)
+        {
+            RecoveryRemainderCause::LinePolicy
+        } else {
+            continue;
+        };
+        *causes
+            .get_mut(candidate.occurrence_index)
+            .ok_or(RecoveryRemainderAttributionStopReason::InvalidState)? = cause;
+    }
+    Ok(())
 }
 
 #[derive(Default)]
@@ -9276,6 +9408,7 @@ fn build_sentence_recovery_plan_inner_impl(
     });
     record_structural_pairing_plan(&mut diagnostics, structural_pairing.as_ref());
     if !membership.recovery_spans.iter().any(|eligible| *eligible) {
+        complete_empty_remainder_attribution(&mut diagnostics);
         if input.enable_sentence_edge_gate_shadow
             && let Some(diagnostics) = diagnostics.as_mut()
         {
@@ -9330,6 +9463,27 @@ fn build_sentence_recovery_plan_inner_impl(
     }
     let Some(counts) = occurrence_counts(&old_occurrences, &new_occurrences) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
+    };
+    let mut remainder_causes = match initial_remainder_causes(
+        &old_occurrences,
+        &counts,
+        OccurrenceSide::Old,
+        input.min_tokens,
+    )
+    .and_then(|old| {
+        initial_remainder_causes(
+            &new_occurrences,
+            &counts,
+            OccurrenceSide::New,
+            input.min_tokens,
+        )
+        .map(|new| (old, new))
+    }) {
+        Ok(causes) => Some(causes),
+        Err(reason) => {
+            stop_remainder_attribution(&mut diagnostics, reason);
+            None
+        }
     };
     let Some(mut exact_match_candidates) = exact_match_candidates(
         &old_occurrences,
@@ -9543,6 +9697,23 @@ fn build_sentence_recovery_plan_inner_impl(
         }
         return Ok(SentenceRecoveryBuildOutcome::default());
     }
+    if let Some((old_causes, new_causes)) = remainder_causes.as_mut()
+        && let Err(reason) = mark_remainder_causes(
+            old_causes,
+            &paired_vetoes.old_occurrences,
+            RecoveryRemainderCause::PairedStreamVeto,
+        )
+        .and_then(|()| {
+            mark_remainder_causes(
+                new_causes,
+                &paired_vetoes.new_occurrences,
+                RecoveryRemainderCause::PairedStreamVeto,
+            )
+        })
+    {
+        stop_remainder_attribution(&mut diagnostics, reason);
+        remainder_causes = None;
+    }
     old_candidates.retain(|candidate| {
         old_occurrences[candidate.occurrence_index]
             .location
@@ -9644,6 +9815,25 @@ fn build_sentence_recovery_plan_inner_impl(
         );
     }
     record_vetoed_near_pairs(&mut diagnostics, &relations, near_pair_start);
+    if let Some((old_causes, new_causes)) = remainder_causes.as_mut()
+        && let Err(reason) = classify_candidate_remainder_causes(
+            &old_occurrences,
+            &old_candidates,
+            &relations.old,
+            old_causes,
+        )
+        .and_then(|()| {
+            classify_candidate_remainder_causes(
+                &new_occurrences,
+                &new_candidates,
+                &relations.new,
+                new_causes,
+            )
+        })
+    {
+        stop_remainder_attribution(&mut diagnostics, reason);
+        remainder_causes = None;
+    }
     if watch.as_mut().is_some_and(|watch| {
         watch
             .record_relations(&old_candidates, &new_candidates, &relations)
@@ -9812,6 +10002,19 @@ fn build_sentence_recovery_plan_inner_impl(
         || !normalize_ranges(&mut plan.insertion_consumed)
     {
         return Ok(SentenceRecoveryBuildOutcome::default());
+    }
+    if near_relation_complete
+        && fragment_veto_complete
+        && let Some((old_causes, new_causes)) = remainder_causes.as_ref()
+    {
+        record_remainder_attribution(
+            &mut diagnostics,
+            &old_occurrences,
+            &new_occurrences,
+            old_causes,
+            new_causes,
+            &plan,
+        );
     }
     finalize_reference_observer(
         &mut diagnostics,
@@ -9997,6 +10200,10 @@ fn sentence_recovery_diagnostics(
             )?,
             near_relation_complete: true,
             sentence_edge_filter_complete: true,
+            remainder_attribution_complete: Some(false),
+            remainder_attribution_stop_reason: Some(
+                RecoveryRemainderAttributionStopReason::AnalysisIncomplete,
+            ),
             ..SentenceRecoveryMetrics::default()
         },
         eligible_old_source_tokens: eligible_source_tokens(old, alignment, recovery_spans, true)?,
@@ -10004,6 +10211,28 @@ fn sentence_recovery_diagnostics(
         signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
         signature_retained_fingerprint_valid: false,
     })
+}
+
+fn stop_remainder_attribution(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    reason: RecoveryRemainderAttributionStopReason,
+) {
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    diagnostics.metrics.remainder_attribution_complete = Some(false);
+    diagnostics.metrics.remainder_attribution_stop_reason = Some(reason);
+    diagnostics.metrics.remainder_attribution = None;
+}
+
+fn complete_empty_remainder_attribution(diagnostics: &mut Option<SentenceRecoveryDiagnostics>) {
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    diagnostics.metrics.remainder_attribution_complete = Some(true);
+    diagnostics.metrics.remainder_attribution_stop_reason = None;
+    diagnostics.metrics.remainder_attribution =
+        Some(RecoveryRemainderAttributionMetrics::default());
 }
 
 fn trusted_run_source_tokens(
@@ -10695,6 +10924,42 @@ fn occurrence_counts<'a>(
     count_occurrences(&mut counts, old, OccurrenceSide::Old)?;
     count_occurrences(&mut counts, new, OccurrenceSide::New)?;
     Some(counts)
+}
+
+fn initial_remainder_causes(
+    occurrences: &[SentenceOccurrence],
+    counts: &HashMap<OccurrenceKey<'_>, OccurrenceCount>,
+    side: OccurrenceSide,
+    min_tokens: usize,
+) -> RemainderAttributionResult<Vec<RecoveryRemainderCause>> {
+    let mut causes = Vec::new();
+    causes
+        .try_reserve_exact(occurrences.len())
+        .map_err(|_| RecoveryRemainderAttributionStopReason::AllocationFailure)?;
+    for occurrence in occurrences {
+        let cause = if occurrence.tokens.len() < min_tokens {
+            RecoveryRemainderCause::BelowMinimum
+        } else if let Some(role) = occurrence.role {
+            let count = counts
+                .get(&(occurrence.key.as_str(), occurrence.kind, role.into()))
+                .ok_or(RecoveryRemainderAttributionStopReason::InvalidState)?;
+            let (same_side, other_side) = match side {
+                OccurrenceSide::Old => (count.old, count.new),
+                OccurrenceSide::New => (count.new, count.old),
+            };
+            if other_side > 0 && (same_side != 1 || other_side != 1) {
+                RecoveryRemainderCause::ExactMultiplicity
+            } else if other_side == 0 && same_side > 1 && role == BlockRole::Body {
+                RecoveryRemainderCause::OneSidedMultiplicity
+            } else {
+                RecoveryRemainderCause::OtherLocated
+            }
+        } else {
+            RecoveryRemainderCause::OtherLocated
+        };
+        causes.push(cause);
+    }
+    Ok(causes)
 }
 
 fn count_occurrences<'a>(
@@ -23077,6 +23342,188 @@ fn normalize_ranges(ranges: &mut [LocalSentenceRange]) -> bool {
     !ranges.windows(2).any(|pair| {
         pair[0].block == pair[1].block && pair[0].comparable.end > pair[1].comparable.start
     })
+}
+
+fn record_remainder_attribution(
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_causes: &[RecoveryRemainderCause],
+    new_causes: &[RecoveryRemainderCause],
+    plan: &SentenceRecoveryPlan,
+) {
+    let Some(diagnostics) = diagnostics.as_mut() else {
+        return;
+    };
+    let result = remainder_attribution_for_side(
+        old_occurrences,
+        old_causes,
+        &plan.deletion_consumed,
+        diagnostics.eligible_old_source_tokens,
+    )
+    .and_then(|(planned_old, old)| {
+        remainder_attribution_for_side(
+            new_occurrences,
+            new_causes,
+            &plan.insertion_consumed,
+            diagnostics.eligible_new_source_tokens,
+        )
+        .map(|(planned_new, new)| (planned_old, old, planned_new, new))
+    });
+    let (planned_old, mut old, planned_new, mut new) = match result {
+        Ok(attribution) => attribution,
+        Err(reason) => {
+            diagnostics.metrics.remainder_attribution_complete = Some(false);
+            diagnostics.metrics.remainder_attribution_stop_reason = Some(reason);
+            diagnostics.metrics.remainder_attribution = None;
+            return;
+        }
+    };
+    old.selected_but_uncommitted_source_tokens = planned_old;
+    new.selected_but_uncommitted_source_tokens = planned_new;
+    diagnostics.metrics.remainder_attribution_complete = Some(true);
+    diagnostics.metrics.remainder_attribution_stop_reason = None;
+    diagnostics.metrics.remainder_attribution =
+        Some(RecoveryRemainderAttributionMetrics { old, new });
+}
+
+fn remainder_attribution_for_side(
+    occurrences: &[SentenceOccurrence],
+    causes: &[RecoveryRemainderCause],
+    consumed: &[LocalSentenceRange],
+    eligible_source_tokens: usize,
+) -> RemainderAttributionResult<(usize, RecoveryRemainderCauseMetrics)> {
+    if occurrences.len() != causes.len() {
+        return Err(RecoveryRemainderAttributionStopReason::InvalidState);
+    }
+    let planned_source_tokens = consumed.iter().try_fold(0usize, |total, range| {
+        let tokens = range
+            .comparable
+            .end
+            .checked_sub(range.comparable.start)
+            .ok_or(RecoveryRemainderAttributionStopReason::InvalidState)?;
+        total
+            .checked_add(tokens)
+            .ok_or(RecoveryRemainderAttributionStopReason::CounterOverflow)
+    })?;
+    let mut attributed = Vec::new();
+    attributed
+        .try_reserve_exact(occurrences.len().min(MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS))
+        .map_err(|_| RecoveryRemainderAttributionStopReason::AllocationFailure)?;
+    for (occurrence, cause) in occurrences.iter().zip(causes) {
+        let Some(location) = occurrence.location.as_ref() else {
+            continue;
+        };
+        for range in &location.consumed {
+            append_unconsumed_attributed_ranges(
+                &mut attributed,
+                range,
+                consumed,
+                *cause,
+                MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS,
+            )?;
+        }
+    }
+    attributed.sort_unstable_by_key(|range| (range.block, range.start, range.end));
+    if attributed
+        .windows(2)
+        .any(|pair| pair[0].block == pair[1].block && pair[0].end > pair[1].start)
+    {
+        return Err(RecoveryRemainderAttributionStopReason::OverlappingOccurrenceRanges);
+    }
+    let mut metrics = RecoveryRemainderCauseMetrics::default();
+    let mut attributed_source_tokens = 0usize;
+    for range in attributed {
+        let tokens = range
+            .end
+            .checked_sub(range.start)
+            .ok_or(RecoveryRemainderAttributionStopReason::InvalidState)?;
+        attributed_source_tokens = attributed_source_tokens
+            .checked_add(tokens)
+            .ok_or(RecoveryRemainderAttributionStopReason::CounterOverflow)?;
+        add_remainder_cause_tokens(&mut metrics, range.cause, tokens)?;
+    }
+    metrics.unlocated_or_unsegmented_source_tokens = eligible_source_tokens
+        .checked_sub(planned_source_tokens)
+        .and_then(|tokens| tokens.checked_sub(attributed_source_tokens))
+        .ok_or(RecoveryRemainderAttributionStopReason::InvalidState)?;
+    Ok((planned_source_tokens, metrics))
+}
+
+fn append_unconsumed_attributed_ranges(
+    output: &mut Vec<AttributedTokenRange>,
+    candidate: &LocalSentenceRange,
+    consumed: &[LocalSentenceRange],
+    cause: RecoveryRemainderCause,
+    output_limit: usize,
+) -> RemainderAttributionResult<()> {
+    let mut cursor = candidate.comparable.start;
+    let first_possible = consumed.partition_point(|existing| {
+        existing.block < candidate.block
+            || (existing.block == candidate.block && existing.comparable.end <= cursor)
+    });
+    for existing in &consumed[first_possible..] {
+        if existing.block > candidate.block
+            || (existing.block == candidate.block
+                && existing.comparable.start >= candidate.comparable.end)
+        {
+            break;
+        }
+        if existing.block < candidate.block || existing.comparable.end <= cursor {
+            continue;
+        }
+        if cursor < existing.comparable.start {
+            push_attributed_range(
+                output,
+                candidate.block,
+                cursor,
+                existing.comparable.start.min(candidate.comparable.end),
+                cause,
+                output_limit,
+            )?;
+        }
+        cursor = cursor.max(existing.comparable.end.min(candidate.comparable.end));
+        if cursor == candidate.comparable.end {
+            break;
+        }
+    }
+    if cursor < candidate.comparable.end {
+        push_attributed_range(
+            output,
+            candidate.block,
+            cursor,
+            candidate.comparable.end,
+            cause,
+            output_limit,
+        )?;
+    }
+    Ok(())
+}
+
+fn push_attributed_range(
+    output: &mut Vec<AttributedTokenRange>,
+    block: BlockId,
+    start: usize,
+    end: usize,
+    cause: RecoveryRemainderCause,
+    output_limit: usize,
+) -> RemainderAttributionResult<()> {
+    if start >= end {
+        return Err(RecoveryRemainderAttributionStopReason::InvalidState);
+    }
+    if output.len() == output_limit {
+        return Err(RecoveryRemainderAttributionStopReason::RangeLimit);
+    }
+    output
+        .try_reserve(1)
+        .map_err(|_| RecoveryRemainderAttributionStopReason::AllocationFailure)?;
+    output.push(AttributedTokenRange {
+        block,
+        start,
+        end,
+        cause,
+    });
+    Ok(())
 }
 
 fn sentence_boundaries(
@@ -41078,5 +41525,147 @@ mod tests {
         assert!(stopped.work.signature_token_steps_attempted > limits.signature_token_steps);
         assert_eq!(stopped.reciprocal_pairs, 0);
         assert!(stopped.best_sampled_nonexact_pair.is_none());
+    }
+
+    #[test]
+    fn remainder_attribution_partitions_planned_located_and_unlocated_tokens() {
+        let mut below_minimum = positioned_occurrence("short", 1, 0, 0);
+        below_minimum.location = Some(test_location(
+            LocalSentenceRange {
+                block: BlockId(1),
+                canonical: ScalarRange { start: 0, end: 5 },
+                comparable: TokenRange { start: 0, end: 5 },
+            },
+            0,
+        ));
+        let mut near_veto = positioned_occurrence("near", 2, 0, 1);
+        near_veto.location = Some(test_location(
+            LocalSentenceRange {
+                block: BlockId(2),
+                canonical: ScalarRange { start: 0, end: 4 },
+                comparable: TokenRange { start: 0, end: 4 },
+            },
+            0,
+        ));
+        let consumed = [LocalSentenceRange {
+            block: BlockId(2),
+            canonical: ScalarRange { start: 1, end: 3 },
+            comparable: TokenRange { start: 1, end: 3 },
+        }];
+
+        let (planned, metrics) = remainder_attribution_for_side(
+            &[below_minimum, near_veto],
+            &[
+                RecoveryRemainderCause::BelowMinimum,
+                RecoveryRemainderCause::NearRelationVeto,
+            ],
+            &consumed,
+            12,
+        )
+        .expect("the source-token partition is valid");
+
+        assert_eq!(planned, 2);
+        assert_eq!(metrics.below_minimum_source_tokens, 5);
+        assert_eq!(metrics.near_relation_veto_source_tokens, 2);
+        assert_eq!(metrics.unlocated_or_unsegmented_source_tokens, 3);
+        assert_eq!(remainder_cause_total(metrics), Some(10));
+    }
+
+    #[test]
+    fn remainder_attribution_rejects_overlapping_primary_occurrences() {
+        let first = positioned_occurrence("first", 1, 0, 0);
+        let second = positioned_occurrence("second", 1, 0, 1);
+
+        assert_eq!(
+            remainder_attribution_for_side(
+                &[first, second],
+                &[
+                    RecoveryRemainderCause::OtherLocated,
+                    RecoveryRemainderCause::OtherLocated,
+                ],
+                &[],
+                10,
+            ),
+            Err(RecoveryRemainderAttributionStopReason::OverlappingOccurrenceRanges)
+        );
+    }
+
+    #[test]
+    fn finish_diagnostics_attributes_selected_output_rollback() {
+        let mut outcome = SentenceRecoveryBuildOutcome {
+            diagnostics: Some(SentenceRecoveryDiagnostics {
+                metrics: SentenceRecoveryMetrics {
+                    remainder_attribution_complete: Some(true),
+                    remainder_attribution: Some(RecoveryRemainderAttributionMetrics {
+                        old: RecoveryRemainderCauseMetrics {
+                            selected_but_uncommitted_source_tokens: 4,
+                            unlocated_or_unsegmented_source_tokens: 6,
+                            ..RecoveryRemainderCauseMetrics::default()
+                        },
+                        new: RecoveryRemainderCauseMetrics {
+                            selected_but_uncommitted_source_tokens: 3,
+                            unlocated_or_unsegmented_source_tokens: 5,
+                            ..RecoveryRemainderCauseMetrics::default()
+                        },
+                    }),
+                    ..SentenceRecoveryMetrics::default()
+                },
+                eligible_old_source_tokens: 10,
+                eligible_new_source_tokens: 8,
+                signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+                signature_retained_fingerprint_valid: false,
+            }),
+            ..SentenceRecoveryBuildOutcome::default()
+        };
+        outcome.record_committed(SentenceRecoveryCommittedTokens {
+            deletion: 2,
+            insertion: 1,
+            ..SentenceRecoveryCommittedTokens::default()
+        });
+
+        let (metrics, _) = outcome.finish_diagnostics();
+        let metrics = metrics.expect("the committed partition remains exhaustive");
+        let attribution = metrics
+            .remainder_attribution
+            .expect("attribution is available");
+        assert_eq!(metrics.unresolved_remainder_old_source_tokens, 8);
+        assert_eq!(metrics.unresolved_remainder_new_source_tokens, 7);
+        assert_eq!(attribution.old.selected_but_uncommitted_source_tokens, 2);
+        assert_eq!(attribution.new.selected_but_uncommitted_source_tokens, 2);
+    }
+
+    #[test]
+    fn finish_diagnostics_discards_only_invalid_remainder_attribution() {
+        let outcome = SentenceRecoveryBuildOutcome {
+            diagnostics: Some(SentenceRecoveryDiagnostics {
+                metrics: SentenceRecoveryMetrics {
+                    near_relation_complete: true,
+                    remainder_attribution_complete: Some(true),
+                    remainder_attribution: Some(RecoveryRemainderAttributionMetrics {
+                        old: RecoveryRemainderCauseMetrics {
+                            selected_but_uncommitted_source_tokens: 2,
+                            ..RecoveryRemainderCauseMetrics::default()
+                        },
+                        ..RecoveryRemainderAttributionMetrics::default()
+                    }),
+                    ..SentenceRecoveryMetrics::default()
+                },
+                eligible_old_source_tokens: 1,
+                eligible_new_source_tokens: 0,
+                signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+                signature_retained_fingerprint_valid: false,
+            }),
+            ..SentenceRecoveryBuildOutcome::default()
+        };
+
+        let (metrics, _) = outcome.finish_diagnostics();
+        let metrics = metrics.expect("other diagnostics remain available");
+        assert!(metrics.near_relation_complete);
+        assert_eq!(metrics.remainder_attribution_complete, Some(false));
+        assert_eq!(
+            metrics.remainder_attribution_stop_reason,
+            Some(RecoveryRemainderAttributionStopReason::InvalidState)
+        );
+        assert!(metrics.remainder_attribution.is_none());
     }
 }
