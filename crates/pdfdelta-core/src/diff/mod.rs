@@ -2415,17 +2415,33 @@ fn compare_aligned_inner(
         }
     }
 
-    if let Some(batch) = atomic_recovery
-        && let Some(committed) = commit_prepared_sentence_recovery_batch(
+    if let Some(batch) = atomic_recovery {
+        if let Some(committed) = commit_prepared_sentence_recovery_batch(
             batch,
             &mut changes,
             &mut unresolved_regions,
             &mut resolved_old,
             &mut resolved_new,
             &mut recovered_atomic_diffs,
-        )
-    {
-        sentence_recovery.record_committed(committed);
+        ) {
+            sentence_recovery.record_committed(committed);
+        } else {
+            sentence_recovery.plan = None;
+        }
+    }
+
+    // Proposal discovery runs before exact diff and projection. Recount it and
+    // build ownership only after the atomic commit has finalized the plan.
+    sentence_recovery.record_prepared_local_fragment_proposals();
+    if let Some(recovery) = recovery {
+        sentence::record_recovery_leaf_partition(
+            &mut sentence_recovery,
+            &old,
+            &new,
+            alignment,
+            recovery,
+            options.max_tokens,
+        );
     }
 
     let (mut sentence_recovery_metrics, recovery_watch_diagnostics, recovery_ownership_partition) =

@@ -357,7 +357,7 @@ fn validate_trace(
     let old_len = validate_context(&trace.old_context, block_maps[0], budget)?;
     let new_len = validate_context(&trace.new_context, block_maps[1], budget)?;
     validate_edits(&trace.edits, old_len, new_len)?;
-    validate_occurrences(trace, old_len, new_len)?;
+    validate_occurrences(trace, old_len, new_len, block_maps, budget)?;
     validate_relation(trace.old_best_score, trace.old_second_score)?;
     validate_relation(trace.new_best_score, trace.new_second_score)?;
     for (span, projector) in [
@@ -382,7 +382,7 @@ fn build_trace_report(
     let (new_len, new_context_text) =
         materialize_context(&trace.new_context, block_maps[1], budget)?;
     validate_edits(&trace.edits, old_len, new_len)?;
-    validate_occurrences(trace, old_len, new_len)?;
+    validate_occurrences(trace, old_len, new_len, block_maps, budget)?;
     validate_relation(trace.old_best_score, trace.old_second_score)?;
     validate_relation(trace.new_best_score, trace.new_second_score)?;
     let old_evidence = projectors[0]
@@ -580,22 +580,14 @@ fn validate_occurrences(
     trace: &RecoveredAtomicDiff,
     old_len: usize,
     new_len: usize,
+    block_maps: [&HashMap<u64, &BlockText>; 2],
+    budget: &mut ReviewBudget,
 ) -> Result<(), LocalFragmentReviewStopReason> {
     let mut previous_edit_end = 0;
     for changed in &trace.changed_occurrences {
         if changed.edit_range.start >= changed.edit_range.end
             || changed.edit_range.end > trace.edits.len()
             || changed.edit_range.start < previous_edit_end
-            || !span_is_within(
-                changed.occurrence.old_span.as_ref(),
-                &trace.old_context,
-                old_len,
-            )
-            || !span_is_within(
-                changed.occurrence.new_span.as_ref(),
-                &trace.new_context,
-                new_len,
-            )
         {
             return Err(LocalFragmentReviewStopReason::InvalidTrace);
         }
@@ -609,8 +601,20 @@ fn validate_occurrences(
             .new_span
             .as_ref()
             .ok_or(LocalFragmentReviewStopReason::InvalidTrace)?;
-        let old_relative = relative_range(old_span, &trace.old_context)?;
-        let new_relative = relative_range(new_span, &trace.new_context)?;
+        let old_relative = project_child_span_into_context(
+            old_span,
+            &trace.old_context,
+            old_len,
+            block_maps[0],
+            budget,
+        )?;
+        let new_relative = project_child_span_into_context(
+            new_span,
+            &trace.new_context,
+            new_len,
+            block_maps[1],
+            budget,
+        )?;
         if trace.edits[changed.edit_range.clone()].iter().any(|edit| {
             !range_is_covered(&edit.old, &old_relative)
                 || !range_is_covered(&edit.new, &new_relative)
@@ -644,20 +648,97 @@ fn validate_occurrence_projections(
     Ok(())
 }
 
-fn relative_range(
-    span: &TextSpan,
+fn project_child_span_into_context(
+    child: &TextSpan,
     context: &TextSpan,
+    context_len: usize,
+    blocks: &HashMap<u64, &BlockText>,
+    budget: &mut ReviewBudget,
 ) -> Result<Range<usize>, LocalFragmentReviewStopReason> {
-    Ok(span
-        .comparable_range
-        .start
+    if child.blocks.is_empty()
+        || child.blocks.len() > context.blocks.len()
+        || (child.blocks.len() > 1) != child.separator.is_some()
+        || (child.blocks.len() > 1 && child.separator != context.separator)
+    {
+        return Err(LocalFragmentReviewStopReason::InvalidTrace);
+    }
+    let candidate_windows = context
+        .blocks
+        .len()
+        .checked_sub(child.blocks.len())
+        .and_then(|count| count.checked_add(1))
+        .ok_or(LocalFragmentReviewStopReason::WorkLimit)?;
+    let comparison_work = candidate_windows
+        .checked_mul(child.blocks.len())
+        .ok_or(LocalFragmentReviewStopReason::WorkLimit)?;
+    budget.charge_work(comparison_work)?;
+    let mut child_block_start = None;
+    for start in 0..=context.blocks.len() - child.blocks.len() {
+        if context.blocks[start..start + child.blocks.len()] == child.blocks
+            && child_block_start.replace(start).is_some()
+        {
+            return Err(LocalFragmentReviewStopReason::InvalidTrace);
+        }
+    }
+    let child_block_start = child_block_start.ok_or(LocalFragmentReviewStopReason::InvalidTrace)?;
+    let child_tokens = collect_context_tokens(child, blocks, budget)?;
+    validate_context_ranges(child, &child_tokens)?;
+    let child_group_offset = context_block_offset(context, child_block_start, blocks, budget)?;
+    let absolute_start = child_group_offset
+        .checked_add(child.comparable_range.start)
+        .ok_or(LocalFragmentReviewStopReason::InvalidTrace)?;
+    let absolute_end = child_group_offset
+        .checked_add(child.comparable_range.end)
+        .ok_or(LocalFragmentReviewStopReason::InvalidTrace)?;
+    let relative = absolute_start
         .checked_sub(context.comparable_range.start)
         .ok_or(LocalFragmentReviewStopReason::InvalidTrace)?
-        ..span
-            .comparable_range
-            .end
+        ..absolute_end
             .checked_sub(context.comparable_range.start)
-            .ok_or(LocalFragmentReviewStopReason::InvalidTrace)?)
+            .ok_or(LocalFragmentReviewStopReason::InvalidTrace)?;
+    if !valid_range(&relative, context_len) {
+        return Err(LocalFragmentReviewStopReason::InvalidTrace);
+    }
+    Ok(relative)
+}
+
+fn context_block_offset(
+    context: &TextSpan,
+    target: usize,
+    blocks: &HashMap<u64, &BlockText>,
+    budget: &mut ReviewBudget,
+) -> Result<usize, LocalFragmentReviewStopReason> {
+    let mut offset = 0usize;
+    let mut previous_is_space = None;
+    for (index, block_id) in context.blocks.iter().enumerate().take(target + 1) {
+        let block = blocks
+            .get(&block_id.0)
+            .ok_or(LocalFragmentReviewStopReason::InvalidTrace)?;
+        let tokens = block
+            .canonical
+            .comparable_tokens()
+            .map_err(|_| LocalFragmentReviewStopReason::InvalidTrace)?;
+        budget.charge_work(tokens.len())?;
+        if index > 0
+            && context.separator == Some(BlockSeparator::Space)
+            && previous_is_space != Some(true)
+            && !tokens.first().is_some_and(is_space_token)
+        {
+            offset = offset
+                .checked_add(1)
+                .ok_or(LocalFragmentReviewStopReason::InvalidTrace)?;
+        }
+        if index == target {
+            return Ok(offset);
+        }
+        offset = offset
+            .checked_add(tokens.len())
+            .ok_or(LocalFragmentReviewStopReason::InvalidTrace)?;
+        if let Some(last) = tokens.last() {
+            previous_is_space = Some(is_space_token(last));
+        }
+    }
+    Err(LocalFragmentReviewStopReason::InvalidTrace)
 }
 
 fn range_is_covered(range: &Range<usize>, hunk: &Range<usize>) -> bool {
@@ -666,19 +747,6 @@ fn range_is_covered(range: &Range<usize>, hunk: &Range<usize>) -> bool {
     } else {
         hunk.start <= range.start && range.end <= hunk.end
     }
-}
-
-fn span_is_within(span: Option<&TextSpan>, context: &TextSpan, context_len: usize) -> bool {
-    let Some(span) = span else { return false };
-    span.blocks == context.blocks
-        && span.separator == context.separator
-        && span.canonical_range.start <= span.canonical_range.end
-        && context.canonical_range.start <= span.canonical_range.start
-        && span.canonical_range.end <= context.canonical_range.end
-        && span.comparable_range.start <= span.comparable_range.end
-        && context.comparable_range.start <= span.comparable_range.start
-        && span.comparable_range.end <= context.comparable_range.end
-        && span.comparable_range.end - context.comparable_range.start <= context_len
 }
 
 fn valid_range(range: &Range<usize>, limit: usize) -> bool {
@@ -1241,6 +1309,85 @@ mod tests {
         assert_eq!(sample_limit, 2);
         assert!(truncated);
         assert_eq!(samples.len(), 2);
+    }
+
+    #[test]
+    fn bundle_projects_subblock_occurrence_into_multiblock_context() {
+        let (mut old_blocks, mut old_glyphs) = evidence_side(1, "aaa");
+        let (mut old_tail_blocks, mut old_tail_glyphs) = evidence_side(2, "bbb");
+        old_blocks.append(&mut old_tail_blocks);
+        old_glyphs.append(&mut old_tail_glyphs);
+        let (mut new_blocks, mut new_glyphs) = evidence_side(3, "aaa");
+        let (mut new_tail_blocks, mut new_tail_glyphs) = evidence_side(4, "bXbb");
+        new_blocks.append(&mut new_tail_blocks);
+        new_glyphs.append(&mut new_tail_glyphs);
+        let old_context = TextSpan {
+            blocks: vec![BlockId(1), BlockId(2)],
+            separator: Some(BlockSeparator::Space),
+            canonical_range: ScalarRange { start: 0, end: 7 },
+            comparable_range: TokenRange { start: 0, end: 7 },
+        };
+        let new_context = TextSpan {
+            blocks: vec![BlockId(3), BlockId(4)],
+            separator: Some(BlockSeparator::Space),
+            canonical_range: ScalarRange { start: 0, end: 8 },
+            comparable_range: TokenRange { start: 0, end: 8 },
+        };
+        let trace = RecoveredAtomicDiff {
+            origin: ChangeOrigin::LocalFragment,
+            old_alignment_span_index: 1,
+            new_alignment_span_index: 2,
+            old_context,
+            new_context,
+            changed_occurrences: vec![RecoveredAtomicOccurrence {
+                occurrence: ChangeOccurrence {
+                    old_span: Some(TextSpan {
+                        blocks: vec![BlockId(2)],
+                        separator: None,
+                        canonical_range: ScalarRange { start: 1, end: 1 },
+                        comparable_range: TokenRange { start: 1, end: 1 },
+                    }),
+                    new_span: Some(TextSpan {
+                        blocks: vec![BlockId(4)],
+                        separator: None,
+                        canonical_range: ScalarRange { start: 1, end: 2 },
+                        comparable_range: TokenRange { start: 1, end: 2 },
+                    }),
+                },
+                edit_range: 0..1,
+            }],
+            edits: vec![AtomicEdit {
+                old: 5..5,
+                new: 5..6,
+            }],
+            old_best_score: 8_000,
+            old_second_score: 7_000,
+            old_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+            new_best_score: 8_100,
+            new_second_score: 7_000,
+            new_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+        };
+
+        let bundle = build_local_fragment_review_bundle(
+            std::slice::from_ref(&trace),
+            &old_blocks,
+            &new_blocks,
+            &old_glyphs,
+            &new_glyphs,
+        );
+
+        let LocalFragmentReviewBundleReport::Complete {
+            total_traces,
+            samples,
+            ..
+        } = bundle
+        else {
+            panic!("a contiguous child block projects into its recovery context");
+        };
+        assert_eq!(total_traces, 1);
+        assert_eq!(samples.len(), 1);
+        assert_eq!(samples[0].changed_occurrences[0].edit_start, 0);
+        assert_eq!(samples[0].changed_occurrences[0].edit_end, 1);
     }
 
     #[test]

@@ -341,6 +341,18 @@ struct SentenceRecoveryDiagnostics {
 }
 
 impl SentenceRecoveryBuildOutcome {
+    pub(super) fn record_prepared_local_fragment_proposals(&mut self) {
+        let committed = self.plan.as_ref().map_or(0, |plan| {
+            plan.replacements
+                .iter()
+                .filter(|replacement| replacement.origin == ChangeOrigin::LocalFragment)
+                .count()
+        });
+        if let Some(diagnostics) = self.diagnostics.as_mut() {
+            diagnostics.metrics.local_fragment_proposals_committed = committed;
+        }
+    }
+
     pub(super) fn record_committed(&mut self, committed: SentenceRecoveryCommittedTokens) {
         let Some(diagnostics) = self.diagnostics.as_mut() else {
             return;
@@ -8867,7 +8879,6 @@ pub(super) fn build_sentence_recovery_plan(
         input,
         max_tokens,
     );
-    record_recovery_leaf_partition(&mut accepted, old, new, alignment, input, max_tokens);
     Ok(accepted)
 }
 
@@ -8893,7 +8904,7 @@ impl OwnershipBlockState {
     }
 }
 
-fn record_recovery_leaf_partition(
+pub(super) fn record_recovery_leaf_partition(
     accepted: &mut SentenceRecoveryBuildOutcome,
     old: &Side<'_>,
     new: &Side<'_>,
@@ -42090,6 +42101,46 @@ mod tests {
                 1
             );
         }
+    }
+
+    #[test]
+    fn local_fragment_committed_metric_tracks_the_prepared_plan() {
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut budget = RecoveryBudget::new(1_000, 0, 1_000, 1).expect("budget is valid");
+        append_local_fragment_replacements(&mut plan, disjoint_fragment_proposals(3), &mut budget)
+            .expect("proposal append completes");
+        let diagnostics = SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics {
+                local_fragment_proposals_committed: 3,
+                ..SentenceRecoveryMetrics::default()
+            },
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+            signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+            signature_retained_fingerprint_valid: false,
+        };
+        let mut outcome = SentenceRecoveryBuildOutcome {
+            plan: Some(plan),
+            diagnostics: Some(diagnostics),
+            ..SentenceRecoveryBuildOutcome::default()
+        };
+
+        outcome
+            .plan
+            .as_mut()
+            .expect("plan remains available")
+            .replacements
+            .pop();
+        outcome.record_prepared_local_fragment_proposals();
+
+        assert_eq!(
+            outcome
+                .diagnostics
+                .expect("diagnostics remain available")
+                .metrics
+                .local_fragment_proposals_committed,
+            2
+        );
     }
 
     #[test]
