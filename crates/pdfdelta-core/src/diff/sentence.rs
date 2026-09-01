@@ -9821,6 +9821,7 @@ fn build_sentence_recovery_plan_inner_impl(
             &membership.recovery_spans,
             input.min_tokens,
             &mut exact_tail_budget,
+            &mut budget,
             exact_tail_census.as_ref(),
             exact_tail_stop_reason,
             &mut diagnostics,
@@ -9920,6 +9921,7 @@ fn build_sentence_recovery_plan_inner_impl(
             &membership.recovery_spans,
             input.min_tokens,
             &mut exact_tail_budget,
+            &mut budget,
             exact_tail_census.as_ref(),
             exact_tail_stop_reason,
             &mut diagnostics,
@@ -10156,6 +10158,20 @@ fn build_sentence_recovery_plan_inner_impl(
         }
         return Ok(SentenceRecoveryBuildOutcome::default());
     }
+    if !finalize_exact_tail_recovery(
+        &mut plan,
+        &mut old_exact_tail_occurrences,
+        &mut new_exact_tail_occurrences,
+        &membership.recovery_spans,
+        input.min_tokens,
+        &mut exact_tail_budget,
+        &mut budget,
+        exact_tail_census.as_ref(),
+        exact_tail_stop_reason,
+        &mut diagnostics,
+    ) {
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    }
     match append_local_fragment_replacements(&mut plan, local_fragment_replacements, &mut budget) {
         Ok(committed) => {
             if let Some(diagnostics) = diagnostics.as_mut() {
@@ -10171,19 +10187,6 @@ fn build_sentence_recovery_plan_inner_impl(
                     .get_or_insert(reason);
             }
         }
-    }
-    if !finalize_exact_tail_recovery(
-        &mut plan,
-        &mut old_exact_tail_occurrences,
-        &mut new_exact_tail_occurrences,
-        &membership.recovery_spans,
-        input.min_tokens,
-        &mut exact_tail_budget,
-        exact_tail_census.as_ref(),
-        exact_tail_stop_reason,
-        &mut diagnostics,
-    ) {
-        return Ok(SentenceRecoveryBuildOutcome::default());
     }
     if near_relation_complete
         && fragment_veto_complete
@@ -11317,9 +11320,7 @@ struct LocalFragmentLimits {
     output: usize,
 }
 
-// This conservative launch throttle limits the blast radius while reviewed
-// scopes remain sparse. Raise it only after broader scoped precision evidence.
-const MAX_LOCAL_FRAGMENT_REPLACEMENTS: usize = 3;
+const LOCAL_FRAGMENT_DIAGNOSTIC_SAMPLE_LIMIT: usize = 3;
 
 impl LocalFragmentLimits {
     fn for_tokens(max_tokens: usize, _min_tokens: usize) -> Option<Self> {
@@ -11337,7 +11338,7 @@ impl LocalFragmentLimits {
             candidate_pairs: max_tokens.checked_mul(4)?,
             comparisons: max_tokens.checked_mul(16)?,
             edit_work: max_tokens.checked_mul(32)?,
-            output: MAX_LOCAL_FRAGMENT_REPLACEMENTS,
+            output: LOCAL_FRAGMENT_DIAGNOSTIC_SAMPLE_LIMIT,
         })
     }
 }
@@ -18562,13 +18563,14 @@ fn append_local_fragment_replacements(
 ) -> std::result::Result<usize, LocalFragmentProposalStopReason> {
     let mut trial_budget = *budget;
     let mut selected = Vec::new();
+    let remaining_replacements = budget
+        .output_range_limit
+        .saturating_sub(budget.output_ranges)
+        / 2;
     selected
-        .try_reserve_exact(MAX_LOCAL_FRAGMENT_REPLACEMENTS)
+        .try_reserve_exact(pending.len().min(remaining_replacements))
         .map_err(|_| LocalFragmentProposalStopReason::AllocationFailure)?;
     for proposal in pending {
-        if selected.len() == MAX_LOCAL_FRAGMENT_REPLACEMENTS {
-            break;
-        }
         let disjoint = proposal
             .replacement
             .old_consumed
@@ -23546,10 +23548,14 @@ fn finalize_exact_tail_recovery(
     recovery_spans: &[bool],
     min_tokens: usize,
     budget: &mut RecoveryBudget,
+    production_budget: &mut RecoveryBudget,
     census: Option<&ExactTailCensus>,
     prior_stop_reason: Option<ExactTailRecoveryStopReason>,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
 ) -> bool {
+    budget.output_range_limit = production_budget.output_range_limit;
+    budget.output_ranges = production_budget.output_ranges;
+    budget.output_tokens = production_budget.output_tokens;
     let census_units_examined = census.map_or(budget.pair_visits, |census| census.units_examined);
     let census_token_comparisons =
         census.map_or(budget.comparisons, |census| census.token_comparisons);
@@ -23608,6 +23614,8 @@ fn finalize_exact_tail_recovery(
         (Some(_), None) => *diagnostics = None,
         _ => {}
     }
+    production_budget.output_ranges = budget.output_ranges;
+    production_budget.output_tokens = budget.output_tokens;
     normalize_ranges(&mut plan.deletion_consumed) && normalize_ranges(&mut plan.insertion_consumed)
 }
 
@@ -32429,6 +32437,7 @@ mod tests {
         let mut new_occurrences = [positioned_occurrence("same tail", 2, 1, 0)];
         let mut plan = SentenceRecoveryPlan::default();
         let mut budget = RecoveryBudget::new(9, 9, 18, 1).expect("budget is valid");
+        let mut production_budget = budget;
         let census =
             build_exact_tail_census(&[], &[], &old_occurrences, &new_occurrences, &mut budget)
                 .expect("census fits budget");
@@ -32447,6 +32456,7 @@ mod tests {
             &[true],
             1,
             &mut budget,
+            &mut production_budget,
             Some(&census),
             None,
             &mut diagnostics,
@@ -32462,6 +32472,45 @@ mod tests {
         assert_eq!(metrics.exact_tail_verification_vetoed_candidates, 0);
         assert!(metrics.exact_tail_token_verification_comparisons > 0);
         assert_eq!(metrics.exact_shared_units, 1);
+    }
+
+    #[test]
+    fn exact_tail_precedes_fragment_proposals_under_shared_output_budget() {
+        let mut old_tail = [positioned_occurrence("same tail", 1_000, 0, 0)];
+        let mut new_tail = [positioned_occurrence("same tail", 1_001, 1, 0)];
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut exact_tail_budget =
+            RecoveryBudget::new(50, 50, 100, 1).expect("tail budget is valid");
+        let census =
+            build_exact_tail_census(&[], &[], &old_tail, &new_tail, &mut exact_tail_budget)
+                .expect("census fits budget");
+        let mut production_budget =
+            RecoveryBudget::new(50, 50, 100, 1).expect("production budget is valid");
+        production_budget.output_range_limit = 8;
+
+        assert!(finalize_exact_tail_recovery(
+            &mut plan,
+            &mut old_tail,
+            &mut new_tail,
+            &[true],
+            1,
+            &mut exact_tail_budget,
+            &mut production_budget,
+            Some(&census),
+            None,
+            &mut None,
+        ));
+        let committed = append_local_fragment_replacements(
+            &mut plan,
+            disjoint_fragment_proposals(5),
+            &mut production_budget,
+        )
+        .expect("fragment append completes");
+
+        assert_eq!(plan.matches.len(), 1);
+        assert_eq!(committed, 3);
+        assert_eq!(plan.replacements.len(), 3);
+        assert_eq!(production_budget.output_ranges, 8);
     }
 
     #[test]
@@ -38596,6 +38645,43 @@ mod tests {
         .expect("proposal analysis completes")
     }
 
+    fn disjoint_fragment_proposals(count: usize) -> Vec<PendingLocalFragmentReplacement> {
+        let mut pending = Vec::new();
+        for index in 0..count {
+            let old = vec![local_fragment_parent(
+                "use, rather",
+                index as u64 + 1,
+                index + 1,
+            )];
+            let new = vec![local_fragment_parent(
+                "use rather",
+                index as u64 + 101,
+                index + 101,
+            )];
+            let old_fragment = test_length_aware_fragment(
+                0,
+                &old[0],
+                LocalFragmentOrientation::Prefix,
+                0..old[0].tokens.len(),
+            );
+            let new_fragment = test_length_aware_fragment(
+                0,
+                &new[0],
+                LocalFragmentOrientation::Prefix,
+                0..new[0].tokens.len(),
+            );
+            pending.extend(fragment_proposal_batch(
+                &old,
+                &new,
+                &[old_fragment],
+                &[new_fragment],
+                &[(0, 0)],
+                &vetoed_fragment_parent_relations(1, 1),
+            ));
+        }
+        pending
+    }
+
     #[test]
     fn local_fragment_proposal_recovers_comma_deletion_with_fragment_coverage() {
         let old = vec![local_fragment_parent("use, rather", 1, 0)];
@@ -38902,41 +38988,9 @@ mod tests {
     }
 
     #[test]
-    fn local_fragment_append_fills_cap_after_existing_recovery_overlap() {
-        let mut pending = Vec::new();
-        for index in 0..=MAX_LOCAL_FRAGMENT_REPLACEMENTS {
-            let old = vec![local_fragment_parent(
-                "use, rather",
-                index as u64 + 1,
-                index + 1,
-            )];
-            let new = vec![local_fragment_parent(
-                "use rather",
-                index as u64 + 101,
-                index + 101,
-            )];
-            let old_fragment = test_length_aware_fragment(
-                0,
-                &old[0],
-                LocalFragmentOrientation::Prefix,
-                0..old[0].tokens.len(),
-            );
-            let new_fragment = test_length_aware_fragment(
-                0,
-                &new[0],
-                LocalFragmentOrientation::Prefix,
-                0..new[0].tokens.len(),
-            );
-            pending.extend(fragment_proposal_batch(
-                &old,
-                &new,
-                &[old_fragment],
-                &[new_fragment],
-                &[(0, 0)],
-                &vetoed_fragment_parent_relations(1, 1),
-            ));
-        }
-        assert_eq!(pending.len(), MAX_LOCAL_FRAGMENT_REPLACEMENTS + 1);
+    fn local_fragment_append_commits_all_disjoint_proposals_after_overlap() {
+        let pending = disjoint_fragment_proposals(5);
+        assert_eq!(pending.len(), 5);
 
         let mut plan = SentenceRecoveryPlan {
             deletion_consumed: pending[0].replacement.old_consumed.clone(),
@@ -38947,14 +39001,48 @@ mod tests {
         let committed = append_local_fragment_replacements(&mut plan, pending, &mut budget)
             .expect("proposal append completes");
 
-        assert_eq!(committed, MAX_LOCAL_FRAGMENT_REPLACEMENTS);
+        assert_eq!(committed, 4);
         assert_eq!(
             plan.replacements
                 .iter()
                 .map(|replacement| replacement.old.span_index)
                 .collect::<Vec<_>>(),
-            vec![2, 3, 4]
+            vec![2, 3, 4, 5]
         );
+    }
+
+    #[test]
+    fn local_fragment_append_rejects_output_budget_per_proposal() {
+        let mut pending = disjoint_fragment_proposals(3);
+        pending[0].replacement.old.source_tokens = 101;
+        let expected_span = pending[1].replacement.old.span_index;
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut budget = RecoveryBudget::new(100, 0, 100, 1).expect("budget is valid");
+
+        let committed = append_local_fragment_replacements(&mut plan, pending, &mut budget)
+            .expect("proposal append completes");
+
+        assert_eq!(committed, 2);
+        assert_eq!(plan.replacements[0].old.span_index, expected_span);
+        assert_eq!(budget.output_ranges, 4);
+    }
+
+    #[test]
+    fn local_fragment_append_counter_failure_is_atomic() {
+        let mut pending = disjoint_fragment_proposals(2);
+        pending[1].replacement.old.source_tokens = usize::MAX;
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut budget = RecoveryBudget::new(100, 0, 100, 1).expect("budget is valid");
+        let before_ranges = budget.output_ranges;
+        let before_tokens = budget.output_tokens;
+
+        assert_eq!(
+            append_local_fragment_replacements(&mut plan, pending, &mut budget),
+            Err(LocalFragmentProposalStopReason::CounterOverflow)
+        );
+        assert!(plan == SentenceRecoveryPlan::default());
+        assert_eq!(budget.output_ranges, before_ranges);
+        assert_eq!(budget.output_tokens, before_tokens);
     }
 
     #[test]
