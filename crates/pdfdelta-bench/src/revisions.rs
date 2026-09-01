@@ -56,6 +56,7 @@ use pdfdelta_core::{
         SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureReferenceOracleMetrics,
         SentenceEdgeSignatureReferenceOracleStopReason, SentenceEdgeSignatureShadowMetrics,
         SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics, TextSpan,
+        TrustedResidualExactStopReason,
     },
     layout::BlockRole,
     model::Document,
@@ -743,6 +744,38 @@ impl From<ExactTailRecoveryStopReason> for ExactTailRecoveryStopReasonReport {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrustedResidualExactStopReasonReport {
+    OwnershipResourceLimit,
+    CandidateLimit,
+    ComparableTokenLimit,
+    PairLimit,
+    OutputLimit,
+    AllocationFailure,
+    CounterOverflow,
+    InvalidEvidence,
+    OverlappingRanges,
+    OutputCommitFailed,
+}
+
+impl From<TrustedResidualExactStopReason> for TrustedResidualExactStopReasonReport {
+    fn from(reason: TrustedResidualExactStopReason) -> Self {
+        match reason {
+            TrustedResidualExactStopReason::OwnershipResourceLimit => Self::OwnershipResourceLimit,
+            TrustedResidualExactStopReason::CandidateLimit => Self::CandidateLimit,
+            TrustedResidualExactStopReason::ComparableTokenLimit => Self::ComparableTokenLimit,
+            TrustedResidualExactStopReason::PairLimit => Self::PairLimit,
+            TrustedResidualExactStopReason::OutputLimit => Self::OutputLimit,
+            TrustedResidualExactStopReason::AllocationFailure => Self::AllocationFailure,
+            TrustedResidualExactStopReason::CounterOverflow => Self::CounterOverflow,
+            TrustedResidualExactStopReason::InvalidEvidence => Self::InvalidEvidence,
+            TrustedResidualExactStopReason::OverlappingRanges => Self::OverlappingRanges,
+            TrustedResidualExactStopReason::OutputCommitFailed => Self::OutputCommitFailed,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct ChangeOriginMetricReport {
     pub event_count: usize,
@@ -774,6 +807,7 @@ pub struct ChangeOriginMetricsReport {
     pub exact_tail: ChangeOriginMetricReport,
     pub running_matter: ChangeOriginMetricReport,
     pub range_local_exact: ChangeOriginMetricReport,
+    pub trusted_residual_exact: ChangeOriginMetricReport,
 }
 
 impl From<ChangeOriginMetrics> for ChangeOriginMetricsReport {
@@ -787,6 +821,7 @@ impl From<ChangeOriginMetrics> for ChangeOriginMetricsReport {
             exact_tail: metrics.exact_tail.into(),
             running_matter: metrics.running_matter.into(),
             range_local_exact: metrics.range_local_exact.into(),
+            trusted_residual_exact: metrics.trusted_residual_exact.into(),
         }
     }
 }
@@ -1320,6 +1355,11 @@ pub struct SentenceRecoveryMetricsReport {
     pub exact_tail_verification_vetoed_candidates: usize,
     pub exact_tail_candidates: usize,
     pub exact_tail_matches_committed: usize,
+    pub trusted_residual_exact_complete: Option<bool>,
+    pub trusted_residual_exact_stop_reason: Option<TrustedResidualExactStopReasonReport>,
+    pub trusted_residual_exact_old_candidates: usize,
+    pub trusted_residual_exact_new_candidates: usize,
+    pub trusted_residual_exact_matches_selected: usize,
     pub near_relation_complete: bool,
     pub relation_floor_pairs_considered: usize,
     pub relation_floor_word_scans: usize,
@@ -3999,6 +4039,14 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
                 .exact_tail_verification_vetoed_candidates,
             exact_tail_candidates: metrics.exact_tail_candidates,
             exact_tail_matches_committed: metrics.exact_tail_matches_committed,
+            trusted_residual_exact_complete: metrics.trusted_residual_exact_complete,
+            trusted_residual_exact_stop_reason: metrics
+                .trusted_residual_exact_stop_reason
+                .map(Into::into),
+            trusted_residual_exact_old_candidates: metrics.trusted_residual_exact_old_candidates,
+            trusted_residual_exact_new_candidates: metrics.trusted_residual_exact_new_candidates,
+            trusted_residual_exact_matches_selected: metrics
+                .trusted_residual_exact_matches_selected,
             near_relation_complete: metrics.near_relation_complete,
             relation_floor_pairs_considered: metrics.relation_floor_pairs_considered,
             relation_floor_word_scans: metrics.relation_floor_word_scans,
@@ -7016,6 +7064,47 @@ fn validate_exact_tail_recovery_metrics(
     Ok(())
 }
 
+fn validate_trusted_residual_exact_metrics(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<(), String> {
+    let counters_are_zero = metrics.trusted_residual_exact_old_candidates == 0
+        && metrics.trusted_residual_exact_new_candidates == 0
+        && metrics.trusted_residual_exact_matches_selected == 0;
+    match metrics.trusted_residual_exact_complete {
+        None => {
+            if metrics.trusted_residual_exact_stop_reason.is_some() || !counters_are_zero {
+                return Err(
+                    "unattempted trusted-residual exact recovery exposes a stop reason or results"
+                        .to_owned(),
+                );
+            }
+            return Ok(());
+        }
+        Some(true) if metrics.trusted_residual_exact_stop_reason.is_some() => {
+            return Err(
+                "complete trusted-residual exact recovery exposes a stop reason".to_owned(),
+            );
+        }
+        Some(false) if metrics.trusted_residual_exact_stop_reason.is_none() => {
+            return Err("incomplete trusted-residual exact recovery has no stop reason".to_owned());
+        }
+        Some(_) => {}
+    }
+    if metrics.trusted_residual_exact_complete == Some(false) && !counters_are_zero {
+        return Err(
+            "incomplete trusted-residual exact recovery exposes partial results".to_owned(),
+        );
+    }
+    if metrics.trusted_residual_exact_matches_selected
+        > metrics.trusted_residual_exact_old_candidates
+        || metrics.trusted_residual_exact_matches_selected
+            > metrics.trusted_residual_exact_new_candidates
+    {
+        return Err("trusted-residual exact matches exceed available candidates".to_owned());
+    }
+    Ok(())
+}
+
 fn validate_recovery_ownership_metric(
     metric: RecoveryOwnershipMetrics,
 ) -> std::result::Result<(), String> {
@@ -7336,6 +7425,7 @@ fn validate_change_origin_metrics(metrics: ChangeOriginMetrics) -> std::result::
         metrics.exact_tail,
         metrics.running_matter,
         metrics.range_local_exact,
+        metrics.trusted_residual_exact,
     ];
     for metric in origins {
         if metric.event_count == 0
@@ -7368,6 +7458,7 @@ fn change_origin_totals(
         metrics.exact_tail,
         metrics.running_matter,
         metrics.range_local_exact,
+        metrics.trusted_residual_exact,
     ]
     .into_iter()
     .try_fold(ChangeOriginTotals::default(), |mut total, metric| {
@@ -7472,6 +7563,7 @@ fn validate_sentence_recovery_metrics(
     validate_change_origin_metrics(metrics.change_origins)?;
     validate_recovery_ownership_status(metrics)?;
     validate_exact_tail_recovery_metrics(metrics)?;
+    validate_trusted_residual_exact_metrics(metrics)?;
     validate_recovery_remainder_attribution(metrics)?;
     validate_structural_pairing_metrics(metrics)?;
     validate_run_signature_metrics(metrics)?;
@@ -11728,7 +11820,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 55;
+    pub const SCHEMA_VERSION: u32 = 56;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -13499,7 +13591,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 55);
+        assert_eq!(completed["schema_version"], 56);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -13549,7 +13641,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 55);
+        assert_eq!(legacy_summary["schema_version"], 56);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -15239,7 +15331,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 55);
+        assert_eq!(json["schema_version"], 56);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -22198,7 +22290,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 55);
+        assert_eq!(value["schema_version"], 56);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -22325,6 +22417,11 @@ mod tests {
             "exact_tail_verification_vetoed_candidates".to_owned(),
             "exact_tail_candidates".to_owned(),
             "exact_tail_matches_committed".to_owned(),
+            "trusted_residual_exact_complete".to_owned(),
+            "trusted_residual_exact_stop_reason".to_owned(),
+            "trusted_residual_exact_old_candidates".to_owned(),
+            "trusted_residual_exact_new_candidates".to_owned(),
+            "trusted_residual_exact_matches_selected".to_owned(),
             "near_relation_complete".to_owned(),
             "relation_floor_pairs_considered".to_owned(),
             "relation_floor_word_scans".to_owned(),
@@ -22434,6 +22531,7 @@ mod tests {
                 "exact_tail".to_owned(),
                 "running_matter".to_owned(),
                 "range_local_exact".to_owned(),
+                "trusted_residual_exact".to_owned(),
             ])
         );
         let expected_origin_metric_keys = HashSet::from([

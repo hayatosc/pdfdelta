@@ -231,6 +231,7 @@ pub enum ChangeOrigin {
     ExactTail,
     RunningMatter,
     RangeLocalExact,
+    TrustedResidualExact,
 }
 
 /// Counts committed output and resolved context for one [`ChangeOrigin`].
@@ -254,6 +255,7 @@ pub struct ChangeOriginMetrics {
     pub exact_tail: ChangeOriginMetric,
     pub running_matter: ChangeOriginMetric,
     pub range_local_exact: ChangeOriginMetric,
+    pub trusted_residual_exact: ChangeOriginMetric,
 }
 
 impl ChangeOriginMetrics {
@@ -267,6 +269,7 @@ impl ChangeOriginMetrics {
             ChangeOrigin::ExactTail => &mut self.exact_tail,
             ChangeOrigin::RunningMatter => &mut self.running_matter,
             ChangeOrigin::RangeLocalExact => &mut self.range_local_exact,
+            ChangeOrigin::TrustedResidualExact => &mut self.trusted_residual_exact,
         }
     }
 }
@@ -1764,6 +1767,21 @@ pub enum ExactTailRecoveryStopReason {
     InvalidEvidence,
 }
 
+/// Reason exact trusted-residual recovery could not be evaluated atomically.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TrustedResidualExactStopReason {
+    OwnershipResourceLimit,
+    CandidateLimit,
+    ComparableTokenLimit,
+    PairLimit,
+    OutputLimit,
+    AllocationFailure,
+    CounterOverflow,
+    InvalidEvidence,
+    OverlappingRanges,
+    OutputCommitFailed,
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -1826,6 +1844,12 @@ pub struct SentenceRecoveryMetrics {
     pub exact_tail_verification_vetoed_candidates: usize,
     pub exact_tail_candidates: usize,
     pub exact_tail_matches_committed: usize,
+    /// Present when exact trusted-residual recovery was attempted.
+    pub trusted_residual_exact_complete: Option<bool>,
+    pub trusted_residual_exact_stop_reason: Option<TrustedResidualExactStopReason>,
+    pub trusted_residual_exact_old_candidates: usize,
+    pub trusted_residual_exact_new_candidates: usize,
+    pub trusted_residual_exact_matches_selected: usize,
     pub near_relation_complete: bool,
     pub relation_floor_pairs_considered: usize,
     pub relation_floor_word_scans: usize,
@@ -2262,6 +2286,20 @@ fn compare_aligned_inner(
             sentence_recovery.plan = None;
         }
     }
+    let trusted_residual_rollback = if sentence_recovery.plan.is_some()
+        && let Some(recovery) = recovery
+    {
+        sentence::append_trusted_residual_exact_matches(
+            &mut sentence_recovery,
+            &old,
+            &new,
+            alignment,
+            recovery,
+            options.max_tokens,
+        )
+    } else {
+        None
+    };
     let requires_atomic_recovery = sentence_recovery.plan.is_some();
     let mut atomic_recovery = requires_atomic_recovery
         .then(|| {
@@ -2276,7 +2314,22 @@ fn compare_aligned_inner(
         })
         .flatten();
     if requires_atomic_recovery && atomic_recovery.is_none() {
-        sentence_recovery.plan = None;
+        if let Some(rollback) = trusted_residual_rollback
+            && sentence::rollback_trusted_residual_exact_matches(&mut sentence_recovery, rollback)
+            && let Some(plan) = sentence_recovery.plan.as_ref()
+        {
+            atomic_recovery = prepare_sentence_recovery_batch(
+                &old,
+                &new,
+                alignment,
+                plan,
+                &mut sentence_recovery_output_budget,
+                retain_atomic_edits,
+            );
+        }
+        if atomic_recovery.is_none() {
+            sentence_recovery.plan = None;
+        }
     }
     let mut atomic_recovery_cursor = 0usize;
 
@@ -2506,6 +2559,7 @@ fn apply_ordered_alignment_origin(
         metrics.change_origins.exact_tail,
         metrics.change_origins.running_matter,
         metrics.change_origins.range_local_exact,
+        metrics.change_origins.trusted_residual_exact,
     ] {
         recovery.event_count = recovery.event_count.checked_add(metric.event_count)?;
         recovery.old_changed_tokens = recovery
@@ -2698,6 +2752,7 @@ pub(super) fn checked_add_origin_metrics(
         ChangeOrigin::ExactTail,
         ChangeOrigin::RunningMatter,
         ChangeOrigin::RangeLocalExact,
+        ChangeOrigin::TrustedResidualExact,
     ] {
         let right = *match origin {
             ChangeOrigin::OrderedAlignment => &right.ordered_alignment,
@@ -2708,6 +2763,7 @@ pub(super) fn checked_add_origin_metrics(
             ChangeOrigin::ExactTail => &right.exact_tail,
             ChangeOrigin::RunningMatter => &right.running_matter,
             ChangeOrigin::RangeLocalExact => &right.range_local_exact,
+            ChangeOrigin::TrustedResidualExact => &right.trusted_residual_exact,
         };
         let left = left.get_mut(origin);
         left.event_count = left.event_count.checked_add(right.event_count)?;
@@ -6080,9 +6136,10 @@ mod tests {
     use crate::{
         alignment::{Alignment, ExactAnchor},
         layout::{BlockRole, RegionId, TrustedRunDescriptor, TrustedRunId},
-        model::{FontProgramHash, PageId, Rect, Vec2},
+        model::{FontProgramHash, GlyphId, PageId, Rect, Vec2},
         normalize::{
-            MappedText, NormalizationIssue, NormalizationIssueKind, TextSource, UnmappedToken,
+            MappedText, NormalizationIssue, NormalizationIssueKind, SourceMapEntry, TextSource,
+            TextSourceAtom, UnmappedToken,
         },
     };
 
@@ -10469,6 +10526,139 @@ mod tests {
     }
 
     #[test]
+    fn exact_trusted_residuals_resolve_clean_context_around_uncertain_evidence() {
+        let old =
+            sentence_block_with_source_issue(301, "AlphaXBravo", ScalarRange { start: 5, end: 6 });
+        let new =
+            sentence_block_with_source_issue(302, "AlphaXBravo", ScalarRange { start: 5, end: 6 });
+
+        let outcome = compare_sentence_recovery_with_metrics(
+            &[old],
+            &[new],
+            &[Some(TrustedRunId(301))],
+            &[Some(TrustedRunId(302))],
+            4,
+        );
+
+        assert!(outcome.comparison.changes.is_empty());
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("trusted residual recovery records metrics");
+        assert_eq!(
+            metrics.trusted_residual_exact_complete,
+            Some(true),
+            "metrics={metrics:?}, ownership={:?}",
+            outcome
+                .recovery_ownership_partition
+                .as_ref()
+                .map(RecoveryOwnershipPartitionAnalysis::metrics)
+        );
+        assert_eq!(
+            metrics.trusted_residual_exact_matches_selected,
+            2,
+            "metrics={metrics:?}, ownership={:?}",
+            outcome
+                .recovery_ownership_partition
+                .as_ref()
+                .map(RecoveryOwnershipPartitionAnalysis::metrics)
+        );
+        assert_eq!(outcome.comparison.old_coverage.resolved_tokens, 10);
+        assert_eq!(outcome.comparison.new_coverage.resolved_tokens, 10);
+        assert_eq!(
+            metrics
+                .change_origins
+                .trusted_residual_exact
+                .old_resolved_context_tokens,
+            10
+        );
+        assert_eq!(
+            metrics
+                .change_origins
+                .trusted_residual_exact
+                .new_resolved_context_tokens,
+            10
+        );
+    }
+
+    #[test]
+    fn trusted_residual_output_fallback_preserves_primary_recovery() {
+        let stable = "Stable sentence.";
+        let residual = "AlphaXBravoYCharlie";
+        let old_stable = sentence_block_with_sources(311, stable);
+        let new_stable = sentence_block_with_sources(321, stable);
+        let mut old_residual =
+            sentence_block_with_source_issue(312, residual, ScalarRange { start: 5, end: 6 });
+        let mut new_residual =
+            sentence_block_with_source_issue(322, residual, ScalarRange { start: 5, end: 6 });
+        for block in [&mut old_residual, &mut new_residual] {
+            block.issues.push(NormalizationIssue {
+                kind: NormalizationIssueKind::AmbiguousLineBreak,
+                raw_range: ScalarRange { start: 11, end: 12 },
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(12))],
+                },
+            });
+        }
+        let old = vec![old_stable, old_residual];
+        let new = vec![new_stable, new_residual];
+        let alignment =
+            unresolved_alignment(&old, &new, vec![AlignmentEvidence::ReadingOrderUnknown]);
+        let old_intervals =
+            trusted_run_intervals(&[Some(TrustedRunId(311)), Some(TrustedRunId(312))]);
+        let new_intervals =
+            trusted_run_intervals(&[Some(TrustedRunId(321)), Some(TrustedRunId(322))]);
+
+        let outcome = compare_aligned_inner(
+            &old,
+            &new,
+            &alignment,
+            CompareAlignedConfig {
+                options: DiffOptions::default(),
+                recovery: Some(SentenceRecoveryInput {
+                    old_trusted_run_intervals: &old_intervals,
+                    new_trusted_run_intervals: &new_intervals,
+                    old_trusted_run_evidence: None,
+                    new_trusted_run_evidence: None,
+                    min_tokens: 4,
+                    enable_known_span_sentence_shadow: false,
+                    enable_sentence_edge_gate_shadow: false,
+                }),
+                watch_queries: None,
+                recovery_output_limits: RecoveryOutputLimits {
+                    max_items: 8,
+                    max_bytes: usize::MAX,
+                },
+                retain_atomic_edits: false,
+            },
+        )
+        .expect("bounded recovery comparison succeeds");
+
+        assert!(outcome.comparison.changes.is_empty());
+        assert_eq!(
+            outcome.comparison.old_coverage.resolved_tokens,
+            stable.len()
+        );
+        assert_eq!(
+            outcome.comparison.new_coverage.resolved_tokens,
+            stable.len()
+        );
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("primary recovery diagnostics remain available");
+        assert_eq!(metrics.trusted_residual_exact_complete, Some(false));
+        assert_eq!(
+            metrics.trusted_residual_exact_stop_reason,
+            Some(TrustedResidualExactStopReason::OutputCommitFailed)
+        );
+        assert_eq!(metrics.trusted_residual_exact_matches_selected, 0);
+        assert_eq!(metrics.recovered_exact_match_old_tokens, stable.len());
+        assert_eq!(metrics.recovered_exact_match_new_tokens, stable.len());
+        assert_eq!(metrics.remainder_attribution_complete, Some(true));
+        assert_eq!(metrics.remainder_attribution_stop_reason, None);
+        assert!(metrics.remainder_attribution.is_some());
+    }
+
+    #[test]
     fn clean_trusted_tail_recovers_inside_unknown_order_run() {
         let old = vec![
             sentence_block(1, "One"),
@@ -12585,6 +12775,42 @@ mod tests {
             line_breaks: None,
             page_breaks: None,
         }
+    }
+
+    fn sentence_block_with_sources(id: u64, text: &str) -> BlockText {
+        let mut block = sentence_block(id, text);
+        let source_map = text
+            .chars()
+            .enumerate()
+            .map(|(index, _)| SourceMapEntry {
+                output_range: ScalarRange {
+                    start: index,
+                    end: index + 1,
+                },
+                source: TextSource {
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId((index + 1) as u64))],
+                },
+            })
+            .collect::<Vec<_>>();
+        block.raw.source_map = source_map.clone();
+        block.canonical.source_map = source_map;
+        block
+    }
+
+    fn sentence_block_with_source_issue(
+        id: u64,
+        text: &str,
+        issue_range: ScalarRange,
+    ) -> BlockText {
+        let mut block = sentence_block_with_sources(id, text);
+        block.issues.push(NormalizationIssue {
+            kind: NormalizationIssueKind::AmbiguousLineBreak,
+            raw_range: issue_range,
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(issue_range.start as u64 + 1))],
+            },
+        });
+        block
     }
 
     fn repeated_role_blocks<const N: usize>(

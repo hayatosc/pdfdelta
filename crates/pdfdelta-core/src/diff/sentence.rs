@@ -49,6 +49,11 @@ use super::recovery::score::{
     sentence_similarity_in_scope_attributed_from_edge_evidence,
     sentence_similarity_in_scope_attributed_from_edge_evidence_with_probe,
 };
+use super::recovery::trusted_residual::{
+    TrustedResidualCandidate, TrustedResidualRange, TrustedResidualSelectorError,
+    TrustedResidualSelectorLimits, TrustedResidualSelectorResource,
+    select_exact_trusted_residual_pairs,
+};
 #[cfg(test)]
 use super::recovery::{
     candidate::LineTrigramPosting,
@@ -92,7 +97,8 @@ use super::{
     SentenceEdgeSignatureDirectExecution, SentenceEdgeSignatureDirectShadowMetrics,
     SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureShadowMetrics,
     SentenceEdgeSignatureShadowStopReason, SentenceRecoveryCommittedTokens, SentenceRecoveryInput,
-    SentenceRecoveryMetrics, Side, TokenRange, TrustedRunRecoveryInput,
+    SentenceRecoveryMetrics, Side, TokenRange, TrustedResidualExactStopReason,
+    TrustedRunRecoveryInput,
 };
 #[cfg(test)]
 use super::{
@@ -8893,6 +8899,17 @@ struct OwnershipBlockState {
     next_unit_id: u32,
 }
 
+struct RecoveryOwnershipSideInventory {
+    analysis: RecoveryOwnershipSideAnalysis,
+    trusted_residuals: Vec<TrustedResidualOccurrence>,
+}
+
+struct TrustedResidualOccurrence {
+    tokens: Vec<SentenceEvidenceToken>,
+    role: BlockRole,
+    location: Option<SentenceLocation>,
+}
+
 impl OwnershipBlockState {
     fn allocate_unit_id(&mut self) -> OwnershipResult<u32> {
         let id = self.next_unit_id;
@@ -8985,6 +9002,32 @@ fn recovery_ownership_for_side(
     located: &[LocatedRecoveryRange],
     max_tokens: usize,
 ) -> OwnershipResult<RecoveryOwnershipSideAnalysis> {
+    Ok(recovery_ownership_inventory_for_side(
+        side,
+        trusted_run_intervals,
+        trusted_run_input,
+        span_by_block,
+        recovery_spans,
+        accepted,
+        located,
+        max_tokens,
+        false,
+    )?
+    .analysis)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn recovery_ownership_inventory_for_side(
+    side: &Side<'_>,
+    trusted_run_intervals: &[Option<TrustedRunInterval>],
+    trusted_run_input: Option<TrustedRunRecoveryInput<'_>>,
+    span_by_block: &HashMap<BlockId, usize>,
+    recovery_spans: &[bool],
+    accepted: &[LocalSentenceRange],
+    located: &[LocatedRecoveryRange],
+    max_tokens: usize,
+    collect_trusted_residuals: bool,
+) -> OwnershipResult<RecoveryOwnershipSideInventory> {
     if trusted_run_intervals.len() != side.blocks.len() {
         return Err(RecoveryOwnershipError::InvariantViolation {
             block_index: None,
@@ -9374,7 +9417,12 @@ fn recovery_ownership_for_side(
             role: ownership_role(block.role),
         });
     }
-    analyze_recovery_ownership_partition(
+    let trusted_residuals = if collect_trusted_residuals {
+        collect_trusted_residual_occurrences(side, span_by_block, &states, &ranges)?
+    } else {
+        Vec::new()
+    };
+    let analysis = analyze_recovery_ownership_partition(
         &blocks,
         &ranges,
         RecoveryOwnershipLimits {
@@ -9383,7 +9431,11 @@ fn recovery_ownership_for_side(
             max_canonical_tokens: max_tokens,
             max_comparable_tokens: max_tokens,
         },
-    )
+    )?;
+    Ok(RecoveryOwnershipSideInventory {
+        analysis,
+        trusted_residuals,
+    })
 }
 
 fn comparable_to_canonical_boundaries(tokens: &[ComparableToken]) -> OwnershipResult<Vec<usize>> {
@@ -9406,6 +9458,151 @@ fn comparable_to_canonical_boundaries(tokens: &[ComparableToken]) -> OwnershipRe
         boundaries.push(scalar);
     }
     Ok(boundaries)
+}
+
+fn collect_trusted_residual_occurrences(
+    side: &Side<'_>,
+    span_by_block: &HashMap<BlockId, usize>,
+    states: &[OwnershipBlockState],
+    ranges: &[RecoveryOwnershipRange],
+) -> OwnershipResult<Vec<TrustedResidualOccurrence>> {
+    let occurrence_count = ranges
+        .iter()
+        .filter(|range| {
+            range.ownership == RecoveryOwnership::Leaf(RecoveryLeafKind::TrustedRunResidual)
+        })
+        .count();
+    let mut occurrences = Vec::new();
+    occurrences
+        .try_reserve_exact(occurrence_count)
+        .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+
+    for (range_index, range) in ranges.iter().enumerate() {
+        if range.ownership != RecoveryOwnership::Leaf(RecoveryLeafKind::TrustedRunResidual) {
+            continue;
+        }
+        let state =
+            states
+                .get(range.block_index)
+                .ok_or(RecoveryOwnershipError::InvariantViolation {
+                    block_index: Some(range.block_index),
+                    range_index: Some(range_index),
+                    invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+                })?;
+        let block = side.blocks.get(state.side_index).ok_or(
+            RecoveryOwnershipError::InvariantViolation {
+                block_index: Some(range.block_index),
+                range_index: Some(range_index),
+                invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+            },
+        )?;
+        let source = side.canonical.get(state.side_index).ok_or(
+            RecoveryOwnershipError::InvariantViolation {
+                block_index: Some(range.block_index),
+                range_index: Some(range_index),
+                invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+            },
+        )?;
+        let comparable = source
+            .get(range.comparable_start..range.comparable_end)
+            .ok_or(RecoveryOwnershipError::InvalidRange {
+                range_index,
+                error: super::RecoveryOwnershipRangeError::ComparableOutOfBounds,
+            })?;
+        if comparable.is_empty() || range.canonical_start >= range.canonical_end {
+            return Err(RecoveryOwnershipError::InvalidRange {
+                range_index,
+                error: super::RecoveryOwnershipRangeError::Empty,
+            });
+        }
+        let _trusted_run_id =
+            range
+                .context
+                .trusted_run_id
+                .ok_or(RecoveryOwnershipError::InvariantViolation {
+                    block_index: Some(range.block_index),
+                    range_index: Some(range_index),
+                    invariant: RecoveryOwnershipInvariant::UnsafeAcceptedRange,
+                })?;
+        let ordinal_start =
+            range
+                .context
+                .ordinal_start
+                .ok_or(RecoveryOwnershipError::InvariantViolation {
+                    block_index: Some(range.block_index),
+                    range_index: Some(range_index),
+                    invariant: RecoveryOwnershipInvariant::UnsafeAcceptedRange,
+                })?;
+        let ordinal_end =
+            range
+                .context
+                .ordinal_end
+                .ok_or(RecoveryOwnershipError::InvariantViolation {
+                    block_index: Some(range.block_index),
+                    range_index: Some(range_index),
+                    invariant: RecoveryOwnershipInvariant::UnsafeAcceptedRange,
+                })?;
+        if ordinal_start >= ordinal_end {
+            return Err(RecoveryOwnershipError::InvariantViolation {
+                block_index: Some(range.block_index),
+                range_index: Some(range_index),
+                invariant: RecoveryOwnershipInvariant::UnsafeAcceptedRange,
+            });
+        }
+        let span_index = span_by_block.get(&block.block).copied().ok_or(
+            RecoveryOwnershipError::InvariantViolation {
+                block_index: Some(range.block_index),
+                range_index: Some(range_index),
+                invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+            },
+        )?;
+
+        let mut tokens = Vec::new();
+        tokens
+            .try_reserve_exact(comparable.len())
+            .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+        tokens.extend(comparable.iter().map(SentenceEvidenceToken::from));
+        let mut blocks = Vec::new();
+        blocks
+            .try_reserve_exact(1)
+            .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+        blocks.push(block.block);
+        let consumed_range = LocalSentenceRange {
+            block: block.block,
+            canonical: ScalarRange {
+                start: range.canonical_start,
+                end: range.canonical_end,
+            },
+            comparable: TokenRange {
+                start: range.comparable_start,
+                end: range.comparable_end,
+            },
+        };
+        let mut consumed = Vec::new();
+        consumed
+            .try_reserve_exact(1)
+            .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+        consumed.push(consumed_range);
+        occurrences.push(TrustedResidualOccurrence {
+            tokens,
+            role: block.role,
+            location: Some(SentenceLocation {
+                recovery: RecoveredSentence {
+                    origin: ChangeOrigin::TrustedResidualExact,
+                    span_index,
+                    kind: RecoveryUnitKind::Sentence,
+                    role: block.role.into(),
+                    blocks,
+                    separator: None,
+                    canonical: consumed_range.canonical,
+                    comparable: consumed_range.comparable,
+                    source_tokens: comparable.len(),
+                },
+                consumed,
+            }),
+        });
+    }
+    Ok(occurrences)
 }
 
 fn eligible_block_index(
@@ -9810,6 +10007,411 @@ fn validate_committed_recovery_leaf_partition(
     }
 }
 
+pub(super) fn append_trusted_residual_exact_matches(
+    accepted: &mut SentenceRecoveryBuildOutcome,
+    old: &Side<'_>,
+    new: &Side<'_>,
+    alignment: &Alignment,
+    input: SentenceRecoveryInput<'_>,
+    max_tokens: usize,
+) -> Option<TrustedResidualExactRollback> {
+    if !accepted.located_range_inventory_complete {
+        record_trusted_residual_exact_outcome(
+            accepted,
+            Err(TrustedResidualExactStopReason::InvalidEvidence),
+        );
+        return None;
+    }
+    let outcome = trusted_residual_exact_batch(
+        old,
+        new,
+        alignment,
+        input,
+        max_tokens,
+        accepted.plan.as_ref(),
+        &accepted.old_located_ranges,
+        &accepted.new_located_ranges,
+    );
+    let (outcome, rollback) = match outcome {
+        Ok(batch) => {
+            let counts = (
+                batch.old_candidates,
+                batch.new_candidates,
+                batch.plan.matches.len(),
+            );
+            if !batch.plan.has_exact_matches() {
+                (Ok(counts), None)
+            } else if let Some(rollback) = trusted_residual_exact_rollback(accepted) {
+                if commit_secondary_exact_batch(accepted, batch.plan) {
+                    (Ok(counts), Some(rollback))
+                } else {
+                    (
+                        Err(TrustedResidualExactStopReason::OutputCommitFailed),
+                        None,
+                    )
+                }
+            } else {
+                (Err(TrustedResidualExactStopReason::AllocationFailure), None)
+            }
+        }
+        Err(reason) => (Err(reason), None),
+    };
+    record_trusted_residual_exact_outcome(accepted, outcome);
+    rollback
+}
+
+pub(super) struct TrustedResidualExactRollback {
+    deletion_consumed: Vec<LocalSentenceRange>,
+    insertion_consumed: Vec<LocalSentenceRange>,
+    primary_match_count: usize,
+    remainder_attribution: Option<RecoveryRemainderAttributionMetrics>,
+    remainder_attribution_complete: Option<bool>,
+    remainder_attribution_stop_reason: Option<RecoveryRemainderAttributionStopReason>,
+}
+
+fn trusted_residual_exact_rollback(
+    accepted: &SentenceRecoveryBuildOutcome,
+) -> Option<TrustedResidualExactRollback> {
+    let plan = accepted.plan.as_ref()?;
+    if plan.matches.iter().any(|matched| {
+        matched.old.origin == ChangeOrigin::TrustedResidualExact
+            || matched.new.origin == ChangeOrigin::TrustedResidualExact
+    }) {
+        return None;
+    }
+    let mut deletion_consumed = Vec::new();
+    deletion_consumed
+        .try_reserve_exact(plan.deletion_consumed.len())
+        .ok()?;
+    deletion_consumed.extend_from_slice(&plan.deletion_consumed);
+    let mut insertion_consumed = Vec::new();
+    insertion_consumed
+        .try_reserve_exact(plan.insertion_consumed.len())
+        .ok()?;
+    insertion_consumed.extend_from_slice(&plan.insertion_consumed);
+    Some(TrustedResidualExactRollback {
+        deletion_consumed,
+        insertion_consumed,
+        primary_match_count: plan.matches.len(),
+        remainder_attribution: accepted
+            .diagnostics
+            .as_ref()
+            .and_then(|diagnostics| diagnostics.metrics.remainder_attribution),
+        remainder_attribution_complete: accepted
+            .diagnostics
+            .as_ref()
+            .and_then(|diagnostics| diagnostics.metrics.remainder_attribution_complete),
+        remainder_attribution_stop_reason: accepted
+            .diagnostics
+            .as_ref()
+            .and_then(|diagnostics| diagnostics.metrics.remainder_attribution_stop_reason),
+    })
+}
+
+pub(super) fn rollback_trusted_residual_exact_matches(
+    accepted: &mut SentenceRecoveryBuildOutcome,
+    rollback: TrustedResidualExactRollback,
+) -> bool {
+    let Some(plan) = accepted.plan.as_mut() else {
+        record_trusted_residual_exact_outcome(
+            accepted,
+            Err(TrustedResidualExactStopReason::InvalidEvidence),
+        );
+        return false;
+    };
+    plan.matches.retain(|matched| {
+        matched.old.origin != ChangeOrigin::TrustedResidualExact
+            && matched.new.origin != ChangeOrigin::TrustedResidualExact
+    });
+    if plan.matches.len() != rollback.primary_match_count {
+        accepted.plan = None;
+        record_trusted_residual_exact_outcome(
+            accepted,
+            Err(TrustedResidualExactStopReason::InvalidEvidence),
+        );
+        return false;
+    }
+    plan.deletion_consumed = rollback.deletion_consumed;
+    plan.insertion_consumed = rollback.insertion_consumed;
+    if let Some(diagnostics) = accepted.diagnostics.as_mut() {
+        diagnostics.metrics.remainder_attribution = rollback.remainder_attribution;
+        diagnostics.metrics.remainder_attribution_complete =
+            rollback.remainder_attribution_complete;
+        diagnostics.metrics.remainder_attribution_stop_reason =
+            rollback.remainder_attribution_stop_reason;
+    }
+    record_trusted_residual_exact_outcome(
+        accepted,
+        Err(TrustedResidualExactStopReason::OutputCommitFailed),
+    );
+    true
+}
+
+struct TrustedResidualExactBatch {
+    plan: SentenceRecoveryPlan,
+    old_candidates: usize,
+    new_candidates: usize,
+}
+
+fn record_trusted_residual_exact_outcome(
+    accepted: &mut SentenceRecoveryBuildOutcome,
+    outcome: std::result::Result<(usize, usize, usize), TrustedResidualExactStopReason>,
+) {
+    let Some(diagnostics) = accepted.diagnostics.as_mut() else {
+        return;
+    };
+    match outcome {
+        Ok((old_candidates, new_candidates, matches)) => {
+            diagnostics.metrics.trusted_residual_exact_complete = Some(true);
+            diagnostics.metrics.trusted_residual_exact_stop_reason = None;
+            diagnostics.metrics.trusted_residual_exact_old_candidates = old_candidates;
+            diagnostics.metrics.trusted_residual_exact_new_candidates = new_candidates;
+            diagnostics.metrics.trusted_residual_exact_matches_selected = matches;
+        }
+        Err(reason) => {
+            diagnostics.metrics.trusted_residual_exact_complete = Some(false);
+            diagnostics.metrics.trusted_residual_exact_stop_reason = Some(reason);
+            diagnostics.metrics.trusted_residual_exact_old_candidates = 0;
+            diagnostics.metrics.trusted_residual_exact_new_candidates = 0;
+            diagnostics.metrics.trusted_residual_exact_matches_selected = 0;
+        }
+    }
+}
+
+fn trusted_residual_ownership_stop_reason(
+    reason: RecoveryOwnershipError,
+) -> TrustedResidualExactStopReason {
+    match reason {
+        RecoveryOwnershipError::ResourceLimit { .. } => {
+            TrustedResidualExactStopReason::OwnershipResourceLimit
+        }
+        RecoveryOwnershipError::AllocationFailure => {
+            TrustedResidualExactStopReason::AllocationFailure
+        }
+        RecoveryOwnershipError::CounterOverflow => TrustedResidualExactStopReason::CounterOverflow,
+        RecoveryOwnershipError::InvalidBlock { .. }
+        | RecoveryOwnershipError::InvalidRange { .. }
+        | RecoveryOwnershipError::InvariantViolation { .. }
+        | RecoveryOwnershipError::CommittedTokenMismatch => {
+            TrustedResidualExactStopReason::InvalidEvidence
+        }
+    }
+}
+
+fn trusted_residual_selector_stop_reason(
+    reason: TrustedResidualSelectorError,
+) -> TrustedResidualExactStopReason {
+    match reason {
+        TrustedResidualSelectorError::Limit(resource) => match resource {
+            TrustedResidualSelectorResource::Candidates => {
+                TrustedResidualExactStopReason::CandidateLimit
+            }
+            TrustedResidualSelectorResource::ComparableTokens => {
+                TrustedResidualExactStopReason::ComparableTokenLimit
+            }
+            TrustedResidualSelectorResource::Pairs => TrustedResidualExactStopReason::PairLimit,
+            TrustedResidualSelectorResource::Allocation => {
+                TrustedResidualExactStopReason::AllocationFailure
+            }
+        },
+        TrustedResidualSelectorError::InvalidCandidate { .. } => {
+            TrustedResidualExactStopReason::InvalidEvidence
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn trusted_residual_exact_batch(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    alignment: &Alignment,
+    input: SentenceRecoveryInput<'_>,
+    max_tokens: usize,
+    primary: Option<&SentenceRecoveryPlan>,
+    old_located: &[LocatedRecoveryRange],
+    new_located: &[LocatedRecoveryRange],
+) -> std::result::Result<TrustedResidualExactBatch, TrustedResidualExactStopReason> {
+    let membership =
+        span_membership(alignment).ok_or(TrustedResidualExactStopReason::InvalidEvidence)?;
+    let empty: &[LocalSentenceRange] = &[];
+    let old_accepted = primary.map_or(empty, |plan| plan.deletion_consumed.as_slice());
+    let new_accepted = primary.map_or(empty, |plan| plan.insertion_consumed.as_slice());
+    let old_inventory = recovery_ownership_inventory_for_side(
+        old,
+        input.old_trusted_run_intervals,
+        input.old_trusted_run_evidence,
+        &membership.old,
+        &membership.recovery_spans,
+        old_accepted,
+        old_located,
+        max_tokens,
+        true,
+    )
+    .map_err(trusted_residual_ownership_stop_reason)?;
+    let new_inventory = recovery_ownership_inventory_for_side(
+        new,
+        input.new_trusted_run_intervals,
+        input.new_trusted_run_evidence,
+        &membership.new,
+        &membership.recovery_spans,
+        new_accepted,
+        new_located,
+        max_tokens,
+        true,
+    )
+    .map_err(trusted_residual_ownership_stop_reason)?;
+    build_trusted_residual_exact_batch(
+        old_inventory.trusted_residuals,
+        new_inventory.trusted_residuals,
+        primary,
+        input.min_tokens,
+        max_tokens,
+        old.total_tokens,
+        new.total_tokens,
+    )
+}
+
+fn trusted_residual_candidates(
+    occurrences: &[TrustedResidualOccurrence],
+    min_tokens: usize,
+) -> std::result::Result<
+    Vec<TrustedResidualCandidate<'_, SentenceEvidenceToken>>,
+    TrustedResidualExactStopReason,
+> {
+    let candidate_count = occurrences
+        .iter()
+        .filter(|occurrence| occurrence.tokens.len() >= min_tokens)
+        .count();
+    let mut candidates = Vec::new();
+    candidates
+        .try_reserve_exact(candidate_count)
+        .map_err(|_| TrustedResidualExactStopReason::AllocationFailure)?;
+    for (candidate_id, occurrence) in occurrences.iter().enumerate() {
+        if occurrence.tokens.len() < min_tokens {
+            continue;
+        }
+        let location = occurrence
+            .location
+            .as_ref()
+            .ok_or(TrustedResidualExactStopReason::InvalidEvidence)?;
+        let [block] = location.recovery.blocks.as_slice() else {
+            return Err(TrustedResidualExactStopReason::InvalidEvidence);
+        };
+        candidates.push(TrustedResidualCandidate {
+            range: TrustedResidualRange {
+                candidate_id,
+                block_id: block.0,
+                comparable: location.recovery.comparable.start..location.recovery.comparable.end,
+            },
+            role: occurrence.role,
+            alignment_span: location.recovery.span_index,
+            exact_hash: exact_segment_hash(&occurrence.tokens).0,
+            source_tokens: location.recovery.source_tokens,
+            comparable_tokens: &occurrence.tokens,
+        });
+    }
+    Ok(candidates)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_trusted_residual_exact_batch(
+    mut old: Vec<TrustedResidualOccurrence>,
+    mut new: Vec<TrustedResidualOccurrence>,
+    primary: Option<&SentenceRecoveryPlan>,
+    min_tokens: usize,
+    max_tokens: usize,
+    old_total_tokens: usize,
+    new_total_tokens: usize,
+) -> std::result::Result<TrustedResidualExactBatch, TrustedResidualExactStopReason> {
+    let pairs = {
+        let old_candidates = trusted_residual_candidates(&old, min_tokens)?;
+        let new_candidates = trusted_residual_candidates(&new, min_tokens)?;
+        let old_candidate_count = old_candidates.len();
+        let new_candidate_count = new_candidates.len();
+        let pairs = select_exact_trusted_residual_pairs(
+            &old_candidates,
+            &new_candidates,
+            TrustedResidualSelectorLimits {
+                max_candidates_per_side: max_tokens,
+                max_comparable_tokens: max_tokens,
+                max_pairs: MAX_SENTENCE_RECOVERY_RANGES,
+            },
+        )
+        .map_err(trusted_residual_selector_stop_reason)?;
+        (pairs, old_candidate_count, new_candidate_count)
+    };
+    let (pairs, old_candidate_count, new_candidate_count) = pairs;
+    let mut budget =
+        RecoveryBudget::new(old_total_tokens, new_total_tokens, max_tokens, min_tokens)
+            .ok_or(TrustedResidualExactStopReason::CounterOverflow)?;
+    let mut batch = SentenceRecoveryPlan::default();
+    for pair in pairs {
+        let old_location = old
+            .get(pair.old.candidate_id)
+            .and_then(|occurrence| occurrence.location.as_ref())
+            .ok_or(TrustedResidualExactStopReason::InvalidEvidence)?;
+        let new_location = new
+            .get(pair.new.candidate_id)
+            .and_then(|occurrence| occurrence.location.as_ref())
+            .ok_or(TrustedResidualExactStopReason::InvalidEvidence)?;
+        if primary.is_some_and(|plan| {
+            secondary_location_overlaps(old_location, &plan.deletion_consumed)
+                || secondary_location_overlaps(new_location, &plan.insertion_consumed)
+        }) {
+            continue;
+        }
+        if secondary_location_overlaps(old_location, &batch.deletion_consumed)
+            || secondary_location_overlaps(new_location, &batch.insertion_consumed)
+        {
+            return Err(TrustedResidualExactStopReason::OverlappingRanges);
+        }
+        let source_tokens = pair
+            .old_source_tokens
+            .checked_add(pair.new_source_tokens)
+            .ok_or(TrustedResidualExactStopReason::CounterOverflow)?;
+        if !budget.charge_outputs(2, source_tokens) {
+            return Err(TrustedResidualExactStopReason::OutputLimit);
+        }
+        batch
+            .matches
+            .try_reserve(1)
+            .map_err(|_| TrustedResidualExactStopReason::AllocationFailure)?;
+        batch
+            .deletion_consumed
+            .try_reserve_exact(1)
+            .map_err(|_| TrustedResidualExactStopReason::AllocationFailure)?;
+        batch
+            .insertion_consumed
+            .try_reserve_exact(1)
+            .map_err(|_| TrustedResidualExactStopReason::AllocationFailure)?;
+        let old_location = old
+            .get_mut(pair.old.candidate_id)
+            .and_then(|occurrence| occurrence.location.take())
+            .ok_or(TrustedResidualExactStopReason::InvalidEvidence)?;
+        let new_location = new
+            .get_mut(pair.new.candidate_id)
+            .and_then(|occurrence| occurrence.location.take())
+            .ok_or(TrustedResidualExactStopReason::InvalidEvidence)?;
+        if old_location.recovery.span_index != new_location.recovery.span_index {
+            return Err(TrustedResidualExactStopReason::InvalidEvidence);
+        }
+        batch.matches.push(RecoveredExactMatch {
+            old: old_location.recovery,
+            new: new_location.recovery,
+        });
+        batch.deletion_consumed.extend(old_location.consumed);
+        batch.insertion_consumed.extend(new_location.consumed);
+    }
+    if !normalize_recovery_ranges(&mut batch) {
+        return Err(TrustedResidualExactStopReason::OverlappingRanges);
+    }
+    Ok(TrustedResidualExactBatch {
+        plan: batch,
+        old_candidates: old_candidate_count,
+        new_candidates: new_candidate_count,
+    })
+}
+
 struct SecondaryExactOccurrence {
     tokens: Vec<SentenceEvidenceToken>,
     role: Option<BlockRole>,
@@ -9835,15 +10437,15 @@ fn append_secondary_range_local_exact_matches(
     ) else {
         return;
     };
-    commit_secondary_exact_batch(accepted, batch);
+    let _ = commit_secondary_exact_batch(accepted, batch);
 }
 
 fn commit_secondary_exact_batch(
     accepted: &mut SentenceRecoveryBuildOutcome,
     batch: SentenceRecoveryPlan,
-) {
+) -> bool {
     if !batch.has_exact_matches() {
-        return;
+        return true;
     }
 
     let Some(deletion_consumed) = merged_consumed_ranges(
@@ -9853,7 +10455,7 @@ fn commit_secondary_exact_batch(
             .map_or(&[][..], |plan| plan.deletion_consumed.as_slice()),
         &batch.deletion_consumed,
     ) else {
-        return;
+        return false;
     };
     let Some(insertion_consumed) = merged_consumed_ranges(
         accepted
@@ -9862,7 +10464,7 @@ fn commit_secondary_exact_batch(
             .map_or(&[][..], |plan| plan.insertion_consumed.as_slice()),
         &batch.insertion_consumed,
     ) else {
-        return;
+        return false;
     };
     let had_primary = accepted.plan.is_some();
     let mut plan = accepted.plan.take().unwrap_or_default();
@@ -9877,7 +10479,7 @@ fn commit_secondary_exact_batch(
             .is_err()
     {
         accepted.plan = had_primary.then_some(plan);
-        return;
+        return false;
     }
     plan.matches.extend(batch.matches);
     plan.cross_span_match_old.extend(batch.cross_span_match_old);
@@ -9901,6 +10503,7 @@ fn commit_secondary_exact_batch(
     }
     // Candidate diagnostics describe the frozen primary relation graph; this
     // isolated exact-only stage intentionally leaves those counters unchanged.
+    true
 }
 
 fn merged_consumed_ranges(
@@ -26722,6 +27325,45 @@ mod tests {
     };
 
     const TEST_NEAR_SCOPE: NearSearchScope = NearSearchScope::SameOrAmbiguousSpan;
+
+    fn trusted_residual_occurrence(
+        block: u64,
+        comparable: Range<usize>,
+        span_index: usize,
+        text: &str,
+    ) -> TrustedResidualOccurrence {
+        assert_eq!(comparable.len(), text.chars().count());
+        let canonical = ScalarRange {
+            start: comparable.start,
+            end: comparable.end,
+        };
+        let comparable_range = TokenRange {
+            start: comparable.start,
+            end: comparable.end,
+        };
+        TrustedResidualOccurrence {
+            tokens: text.chars().map(SentenceEvidenceToken::Scalar).collect(),
+            role: BlockRole::Body,
+            location: Some(SentenceLocation {
+                recovery: RecoveredSentence {
+                    origin: ChangeOrigin::TrustedResidualExact,
+                    span_index,
+                    kind: RecoveryUnitKind::Sentence,
+                    role: OccurrenceRole::Body,
+                    blocks: vec![BlockId(block)],
+                    separator: None,
+                    canonical,
+                    comparable: comparable_range,
+                    source_tokens: comparable.len(),
+                },
+                consumed: vec![LocalSentenceRange {
+                    block: BlockId(block),
+                    canonical,
+                    comparable: comparable_range,
+                }],
+            }),
+        }
+    }
 
     fn fallback_test_plan(block: u64) -> SentenceRecoveryPlan {
         SentenceRecoveryPlan {
@@ -46000,6 +46642,43 @@ mod tests {
     }
 
     #[test]
+    fn trusted_residual_exact_batch_resolves_context_without_changes() {
+        let old = vec![trusted_residual_occurrence(1, 2..8, 4, "stable")];
+        let new = vec![trusted_residual_occurrence(2, 5..11, 4, "stable")];
+
+        let batch = build_trusted_residual_exact_batch(old, new, None, 4, 64, 16, 16)
+            .expect("bounded exact selection completes");
+
+        assert_eq!(batch.old_candidates, 1);
+        assert_eq!(batch.new_candidates, 1);
+        assert_eq!(batch.plan.matches.len(), 1);
+        assert!(batch.plan.deletions.is_empty());
+        assert!(batch.plan.insertions.is_empty());
+        assert!(batch.plan.replacements.is_empty());
+        assert_eq!(
+            batch.plan.deletion_consumed[0].comparable,
+            TokenRange { start: 2, end: 8 }
+        );
+        assert_eq!(
+            batch.plan.insertion_consumed[0].comparable,
+            TokenRange { start: 5, end: 11 }
+        );
+        assert_eq!(batch.plan.matches[0].old.source_tokens, 6);
+        assert_eq!(batch.plan.matches[0].new.source_tokens, 6);
+    }
+
+    #[test]
+    fn trusted_residual_exact_batch_is_atomic_when_limits_stop_selection() {
+        let old = vec![trusted_residual_occurrence(1, 0..6, 4, "stable")];
+        let new = vec![trusted_residual_occurrence(2, 0..6, 4, "stable")];
+
+        assert!(matches!(
+            build_trusted_residual_exact_batch(old, new, None, 4, 5, 16, 16),
+            Err(TrustedResidualExactStopReason::ComparableTokenLimit)
+        ));
+    }
+
+    #[test]
     fn recovery_leaf_partition_separates_accepted_located_and_trusted_residual_tokens() {
         let blocks = vec![collection_test_block(1, "abcdef", Some(Vec::new()))];
         let canonical = vec![
@@ -46030,7 +46709,7 @@ mod tests {
             comparable: TokenRange { start: 1, end: 2 },
         }];
 
-        let analysis = recovery_ownership_for_side(
+        let inventory = recovery_ownership_inventory_for_side(
             &side,
             &trusted,
             None,
@@ -46039,9 +46718,10 @@ mod tests {
             &accepted,
             &located,
             32,
+            true,
         )
         .expect("the ownership partition is complete");
-        let metrics = analysis.metrics;
+        let metrics = inventory.analysis.metrics;
 
         assert_eq!(metrics.total.comparable_tokens, 6);
         assert_eq!(metrics.accepted.comparable_tokens, 1);
@@ -46058,7 +46738,8 @@ mod tests {
             3
         );
         assert_eq!(
-            analysis
+            inventory
+                .analysis
                 .samples
                 .values
                 .iter()
@@ -46071,6 +46752,25 @@ mod tests {
                 .trusted_run_id,
             Some(9)
         );
+        assert_eq!(inventory.trusted_residuals.len(), 1);
+        let residual = &inventory.trusted_residuals[0];
+        assert_eq!(
+            residual.tokens,
+            "def"
+                .chars()
+                .map(SentenceEvidenceToken::Scalar)
+                .collect::<Vec<_>>()
+        );
+        let location = residual
+            .location
+            .as_ref()
+            .expect("residual is source-backed");
+        assert_eq!(location.recovery.span_index, 0);
+        assert_eq!(
+            location.recovery.comparable,
+            TokenRange { start: 3, end: 6 }
+        );
+        assert_eq!(location.consumed.len(), 1);
     }
 
     #[test]
@@ -46103,7 +46803,7 @@ mod tests {
             canonical,
         };
 
-        let metrics = recovery_ownership_for_side(
+        let inventory = recovery_ownership_inventory_for_side(
             &side,
             &[interval(9, 0, 1)],
             None,
@@ -46112,9 +46812,10 @@ mod tests {
             &[],
             &[],
             32,
+            true,
         )
-        .expect("typed gaps still form a complete partition")
-        .metrics;
+        .expect("typed gaps still form a complete partition");
+        let metrics = inventory.analysis.metrics;
 
         assert_eq!(metrics.total.comparable_tokens, 5);
         assert_eq!(
@@ -46140,6 +46841,22 @@ mod tests {
                 .gap(RecoveryGapReason::LocationProjectionFailed)
                 .comparable_tokens,
             1
+        );
+        assert_eq!(inventory.trusted_residuals.len(), 2);
+        assert_eq!(
+            inventory
+                .trusted_residuals
+                .iter()
+                .map(|occurrence| occurrence.tokens.len())
+                .sum::<usize>(),
+            2
+        );
+        assert!(
+            inventory
+                .trusted_residuals
+                .iter()
+                .flat_map(|occurrence| &occurrence.tokens)
+                .all(|token| matches!(token, SentenceEvidenceToken::Scalar(_)))
         );
     }
 
