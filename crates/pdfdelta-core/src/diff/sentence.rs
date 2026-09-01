@@ -10145,8 +10145,7 @@ fn build_sentence_recovery_plan_inner_impl(
             &mut budget,
         )
         .is_none()
-        || !normalize_ranges(&mut plan.deletion_consumed)
-        || !normalize_ranges(&mut plan.insertion_consumed)
+        || !normalize_recovery_ranges(&mut plan)
     {
         if watch.is_some() {
             return Ok(SentenceRecoveryBuildOutcome {
@@ -10187,6 +10186,9 @@ fn build_sentence_recovery_plan_inner_impl(
                     .get_or_insert(reason);
             }
         }
+    }
+    if !normalize_recovery_ranges(&mut plan) {
+        return Ok(SentenceRecoveryBuildOutcome::default());
     }
     if near_relation_complete
         && fragment_veto_complete
@@ -23616,7 +23618,7 @@ fn finalize_exact_tail_recovery(
     }
     production_budget.output_ranges = budget.output_ranges;
     production_budget.output_tokens = budget.output_tokens;
-    normalize_ranges(&mut plan.deletion_consumed) && normalize_ranges(&mut plan.insertion_consumed)
+    normalize_recovery_ranges(plan)
 }
 
 /// Adds exact trusted-tail matches without changing ordinary relation state.
@@ -24197,6 +24199,12 @@ fn normalize_ranges(ranges: &mut [LocalSentenceRange]) -> bool {
     !ranges.windows(2).any(|pair| {
         pair[0].block == pair[1].block && pair[0].comparable.end > pair[1].comparable.start
     })
+}
+
+fn normalize_recovery_ranges(plan: &mut SentenceRecoveryPlan) -> bool {
+    let old_normalized = normalize_ranges(&mut plan.deletion_consumed);
+    let new_normalized = normalize_ranges(&mut plan.insertion_consumed);
+    old_normalized && new_normalized
 }
 
 fn record_remainder_attribution(
@@ -38985,6 +38993,31 @@ mod tests {
         assert_eq!(replacements_for_span(&plan.replacements, 1).len(), 1);
         assert_eq!(replacements_for_span(&plan.replacements, 9).len(), 1);
         assert_eq!(plan.cross_span_replacement_new_spans, vec![2, 10]);
+    }
+
+    #[test]
+    fn local_fragment_finalization_normalizes_ranked_consumed_ranges() {
+        let mut pending = disjoint_fragment_proposals(5);
+        pending.reverse();
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut budget = RecoveryBudget::new(1_000, 0, 1_000, 1).expect("budget is valid");
+
+        let committed = append_local_fragment_replacements(&mut plan, pending, &mut budget)
+            .expect("proposal append completes");
+        assert_eq!(committed, 5);
+        assert!(normalize_recovery_ranges(&mut plan));
+
+        for replacement in &plan.replacements {
+            assert!(plan.has_recovery(replacement.old.span_index));
+            assert_eq!(
+                ranges_for_block(&plan.deletion_consumed, replacement.old.blocks[0]).len(),
+                1
+            );
+            assert_eq!(
+                ranges_for_block(&plan.insertion_consumed, replacement.new.blocks[0]).len(),
+                1
+            );
+        }
     }
 
     #[test]
