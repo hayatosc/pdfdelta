@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+#[cfg(test)]
+use pdfdelta_core::diff::ChangeOrigin;
 use pdfdelta_core::{
     alignment::BlockSeparator,
     diff::{Change, RecoveredAtomicDiff, TextSpan, TokenRange},
@@ -1745,6 +1747,7 @@ mod tests {
             Some(new_event_span.clone()),
         )];
         let traces = [RecoveredAtomicDiff {
+            origin: ChangeOrigin::SentenceNear,
             old_alignment_span_index: 0,
             new_alignment_span_index: 0,
             old_context,
@@ -1766,6 +1769,12 @@ mod tests {
                     new: 2..5,
                 },
             ],
+            old_best_score: 0,
+            old_second_score: 0,
+            old_best_scope: None,
+            new_best_score: 0,
+            new_second_score: 0,
+            new_best_scope: None,
         }];
 
         let metrics = scoped_metrics_with_recovery(

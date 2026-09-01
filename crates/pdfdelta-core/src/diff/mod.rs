@@ -193,6 +193,7 @@ pub struct MatchedAtomicDiff {
 /// contract.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecoveredAtomicDiff {
+    pub origin: ChangeOrigin,
     pub old_alignment_span_index: usize,
     pub new_alignment_span_index: usize,
     pub old_context: TextSpan,
@@ -200,6 +201,63 @@ pub struct RecoveredAtomicDiff {
     /// Emitted semantic hunks and the exact edit subsequence behind each one.
     pub changed_occurrences: Vec<RecoveredAtomicOccurrence>,
     pub edits: Vec<AtomicEdit>,
+    pub old_best_score: u16,
+    pub old_second_score: u16,
+    pub old_best_scope: Option<RecoveryWatchNearScope>,
+    pub new_best_score: u16,
+    pub new_second_score: u16,
+    pub new_best_scope: Option<RecoveryWatchNearScope>,
+}
+
+/// Internal producer that resolved a content range or emitted a change.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChangeOrigin {
+    OrderedAlignment,
+    SentenceNear,
+    LocalFragment,
+    CrossGranularity,
+    TrustedTail,
+    ExactTail,
+    RunningMatter,
+    RangeLocalExact,
+}
+
+/// Counts committed output and resolved context for one [`ChangeOrigin`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ChangeOriginMetric {
+    pub event_count: usize,
+    pub old_changed_tokens: usize,
+    pub new_changed_tokens: usize,
+    pub old_resolved_context_tokens: usize,
+    pub new_resolved_context_tokens: usize,
+}
+
+/// Fixed-size origin attribution for a comparison.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ChangeOriginMetrics {
+    pub ordered_alignment: ChangeOriginMetric,
+    pub sentence_near: ChangeOriginMetric,
+    pub local_fragment: ChangeOriginMetric,
+    pub cross_granularity: ChangeOriginMetric,
+    pub trusted_tail: ChangeOriginMetric,
+    pub exact_tail: ChangeOriginMetric,
+    pub running_matter: ChangeOriginMetric,
+    pub range_local_exact: ChangeOriginMetric,
+}
+
+impl ChangeOriginMetrics {
+    fn get_mut(&mut self, origin: ChangeOrigin) -> &mut ChangeOriginMetric {
+        match origin {
+            ChangeOrigin::OrderedAlignment => &mut self.ordered_alignment,
+            ChangeOrigin::SentenceNear => &mut self.sentence_near,
+            ChangeOrigin::LocalFragment => &mut self.local_fragment,
+            ChangeOrigin::CrossGranularity => &mut self.cross_granularity,
+            ChangeOrigin::TrustedTail => &mut self.trusted_tail,
+            ChangeOrigin::ExactTail => &mut self.exact_tail,
+            ChangeOrigin::RunningMatter => &mut self.running_matter,
+            ChangeOrigin::RangeLocalExact => &mut self.range_local_exact,
+        }
+    }
 }
 
 /// One emitted recovered hunk and its range within [`RecoveredAtomicDiff::edits`].
@@ -1698,6 +1756,7 @@ pub enum ExactTailRecoveryStopReason {
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
+    pub change_origins: ChangeOriginMetrics,
     pub old_trusted_run_source_tokens: usize,
     pub new_trusted_run_source_tokens: usize,
     pub structural_pairing_available: bool,
@@ -2161,7 +2220,7 @@ fn compare_aligned_inner(
     };
     let (moves_by_old, moves_by_new) = promotable_moves(&old, &new, alignment);
 
-    let mut changes = Vec::new();
+    let mut changes = Vec::<ChangeEvent>::new();
     let mut formatting_changes = Vec::new();
     let mut unresolved_regions = Vec::new();
     let mut matched_atomic_diffs = retain_atomic_edits.then(Vec::new);
@@ -2355,8 +2414,13 @@ fn compare_aligned_inner(
         sentence_recovery.record_committed(committed);
     }
 
-    let (sentence_recovery_metrics, recovery_watch_diagnostics) =
+    let (mut sentence_recovery_metrics, recovery_watch_diagnostics) =
         sentence_recovery.finish_diagnostics();
+    if let Some(metrics) = sentence_recovery_metrics.as_mut()
+        && apply_ordered_alignment_origin(metrics, &changes, resolved_old, resolved_new).is_none()
+    {
+        sentence_recovery_metrics = None;
+    }
     Ok(ComparisonWithSentenceRecoveryMetrics {
         comparison: Comparison {
             changes,
@@ -2370,6 +2434,78 @@ fn compare_aligned_inner(
         matched_atomic_diffs,
         recovered_atomic_diffs,
     })
+}
+
+fn apply_ordered_alignment_origin(
+    metrics: &mut SentenceRecoveryMetrics,
+    changes: &[ChangeEvent],
+    resolved_old: usize,
+    resolved_new: usize,
+) -> Option<()> {
+    let mut total = ChangeOriginMetric {
+        event_count: changes.len(),
+        old_resolved_context_tokens: resolved_old,
+        new_resolved_context_tokens: resolved_new,
+        ..ChangeOriginMetric::default()
+    };
+    for change in changes {
+        for occurrence in &change.occurrences {
+            if let Some(span) = &occurrence.old_span {
+                total.old_changed_tokens = total.old_changed_tokens.checked_add(
+                    span.comparable_range
+                        .end
+                        .checked_sub(span.comparable_range.start)?,
+                )?;
+            }
+            if let Some(span) = &occurrence.new_span {
+                total.new_changed_tokens = total.new_changed_tokens.checked_add(
+                    span.comparable_range
+                        .end
+                        .checked_sub(span.comparable_range.start)?,
+                )?;
+            }
+        }
+    }
+    let mut recovery = ChangeOriginMetric::default();
+    for metric in [
+        metrics.change_origins.sentence_near,
+        metrics.change_origins.local_fragment,
+        metrics.change_origins.cross_granularity,
+        metrics.change_origins.trusted_tail,
+        metrics.change_origins.exact_tail,
+        metrics.change_origins.running_matter,
+        metrics.change_origins.range_local_exact,
+    ] {
+        recovery.event_count = recovery.event_count.checked_add(metric.event_count)?;
+        recovery.old_changed_tokens = recovery
+            .old_changed_tokens
+            .checked_add(metric.old_changed_tokens)?;
+        recovery.new_changed_tokens = recovery
+            .new_changed_tokens
+            .checked_add(metric.new_changed_tokens)?;
+        recovery.old_resolved_context_tokens = recovery
+            .old_resolved_context_tokens
+            .checked_add(metric.old_resolved_context_tokens)?;
+        recovery.new_resolved_context_tokens = recovery
+            .new_resolved_context_tokens
+            .checked_add(metric.new_resolved_context_tokens)?;
+    }
+    metrics.change_origins.ordered_alignment = ChangeOriginMetric {
+        event_count: total.event_count.checked_sub(recovery.event_count)?,
+        old_changed_tokens: total
+            .old_changed_tokens
+            .checked_sub(recovery.old_changed_tokens)?,
+        new_changed_tokens: total
+            .new_changed_tokens
+            .checked_sub(recovery.new_changed_tokens)?,
+        old_resolved_context_tokens: total
+            .old_resolved_context_tokens
+            .checked_sub(recovery.old_resolved_context_tokens)?,
+        new_resolved_context_tokens: total
+            .new_resolved_context_tokens
+            .checked_sub(recovery.new_resolved_context_tokens)?,
+    };
+    Some(())
 }
 
 fn push_matched_atomic_diff(
@@ -2469,12 +2605,17 @@ impl RecoveryOutputBudget {
 }
 
 struct PreparedSentenceRecovery {
-    changes: Vec<ChangeEvent>,
+    changes: Vec<OriginatedChange>,
     recovered_atomic_diffs: Vec<RecoveredAtomicDiff>,
     unresolved_regions: Vec<UnresolvedRegion>,
     resolved_old: usize,
     resolved_new: usize,
     committed: SentenceRecoveryCommittedTokens,
+}
+
+struct OriginatedChange {
+    event: ChangeEvent,
+    origin: ChangeOrigin,
 }
 
 struct PreparedSentenceRecoveryBatch {
@@ -2496,6 +2637,7 @@ struct SentenceRecoveryCommittedTokens {
     replacement_new: usize,
     deletion: usize,
     insertion: usize,
+    change_origins: ChangeOriginMetrics,
 }
 
 impl SentenceRecoveryCommittedTokens {
@@ -2507,8 +2649,51 @@ impl SentenceRecoveryCommittedTokens {
             replacement_new: self.replacement_new.checked_add(other.replacement_new)?,
             deletion: self.deletion.checked_add(other.deletion)?,
             insertion: self.insertion.checked_add(other.insertion)?,
+            change_origins: checked_add_origin_metrics(self.change_origins, other.change_origins)?,
         })
     }
+}
+
+pub(super) fn checked_add_origin_metrics(
+    mut left: ChangeOriginMetrics,
+    right: ChangeOriginMetrics,
+) -> Option<ChangeOriginMetrics> {
+    for origin in [
+        ChangeOrigin::OrderedAlignment,
+        ChangeOrigin::SentenceNear,
+        ChangeOrigin::LocalFragment,
+        ChangeOrigin::CrossGranularity,
+        ChangeOrigin::TrustedTail,
+        ChangeOrigin::ExactTail,
+        ChangeOrigin::RunningMatter,
+        ChangeOrigin::RangeLocalExact,
+    ] {
+        let right = *match origin {
+            ChangeOrigin::OrderedAlignment => &right.ordered_alignment,
+            ChangeOrigin::SentenceNear => &right.sentence_near,
+            ChangeOrigin::LocalFragment => &right.local_fragment,
+            ChangeOrigin::CrossGranularity => &right.cross_granularity,
+            ChangeOrigin::TrustedTail => &right.trusted_tail,
+            ChangeOrigin::ExactTail => &right.exact_tail,
+            ChangeOrigin::RunningMatter => &right.running_matter,
+            ChangeOrigin::RangeLocalExact => &right.range_local_exact,
+        };
+        let left = left.get_mut(origin);
+        left.event_count = left.event_count.checked_add(right.event_count)?;
+        left.old_changed_tokens = left
+            .old_changed_tokens
+            .checked_add(right.old_changed_tokens)?;
+        left.new_changed_tokens = left
+            .new_changed_tokens
+            .checked_add(right.new_changed_tokens)?;
+        left.old_resolved_context_tokens = left
+            .old_resolved_context_tokens
+            .checked_add(right.old_resolved_context_tokens)?;
+        left.new_resolved_context_tokens = left
+            .new_resolved_context_tokens
+            .checked_add(right.new_resolved_context_tokens)?;
+    }
+    Some(left)
 }
 
 fn prepare_sentence_recovery_batch(
@@ -2546,6 +2731,9 @@ fn prepare_sentence_recovery_batch(
         });
     }
     group_repeated_recovered_changes(old, new, recovery, &mut entries, &mut tentative_budget)?;
+    for entry in &mut entries {
+        record_prepared_change_metrics(&mut entry.prepared)?;
+    }
     *output_budget = tentative_budget;
     Some(PreparedSentenceRecoveryBatch { entries })
 }
@@ -2591,7 +2779,7 @@ fn group_repeated_recovered_changes(
         count.checked_add(entry.prepared.changes.len())
     })?;
     let flat_bytes = change_count
-        .checked_mul(std::mem::size_of::<(usize, ChangeEvent)>())?
+        .checked_mul(std::mem::size_of::<(usize, OriginatedChange)>())?
         .checked_mul(2)?;
     if !output_budget.charge_many(change_count, flat_bytes) {
         return None;
@@ -2619,15 +2807,15 @@ fn group_repeated_recovered_changes(
     for entry in entries.iter() {
         for change in &entry.prepared.changes {
             if let Some(recovered) =
-                repeated_recovery_for_change(&recovery_lookup, change, output_budget)?
+                repeated_recovery_for_change(&recovery_lookup, &change.event, output_budget)?
             {
-                let side = match change.kind {
+                let side = match change.event.kind {
                     ChangeKind::Deletion => old,
                     ChangeKind::Insertion => new,
                     ChangeKind::Replacement | ChangeKind::Move => return None,
                 };
                 let key = RepeatedRecoveryKey {
-                    deletion: change.kind == ChangeKind::Deletion,
+                    deletion: change.event.kind == ChangeKind::Deletion,
                     unit_kind: recovered.kind,
                     role: recovered.role,
                     tokens: try_recovered_tokens(side, recovered, output_budget)?,
@@ -2673,7 +2861,7 @@ fn group_repeated_recovered_changes(
                 .map(|change| (entry_index, change)),
         );
     }
-    let mut grouped = Vec::<(usize, ChangeEvent)>::new();
+    let mut grouped = Vec::<(usize, OriginatedChange)>::new();
     grouped.try_reserve_exact(change_count).ok()?;
     let mut candidate_cursor = 0usize;
     for (change_index, (entry_index, mut change)) in flat.into_iter().enumerate() {
@@ -2689,16 +2877,22 @@ fn group_repeated_recovered_changes(
         if group.count == 1 {
             grouped.push((entry_index, change));
         } else if let Some(output_index) = group.output_index {
-            if change.occurrences.len() != 1 {
+            if change.event.occurrences.len() != 1 {
                 return None;
             }
-            grouped
-                .get_mut(output_index)?
-                .1
+            let grouped_change = &mut grouped.get_mut(output_index)?.1;
+            // Repeated non-body content is one semantic running-matter event
+            // even when its occurrences were collected through different
+            // recovery primitives. Origin attribution must not split or veto
+            // the pre-existing event grouping.
+            grouped_change.origin = ChangeOrigin::RunningMatter;
+            grouped_change
+                .event
                 .occurrences
-                .push(change.occurrences.pop()?);
+                .push(change.event.occurrences.pop()?);
         } else {
             change
+                .event
                 .occurrences
                 .try_reserve_exact(group.count.checked_sub(1)?)
                 .ok()?;
@@ -3140,7 +3334,7 @@ fn commit_prepared_sentence_recovery_batch(
                     .1,
             );
         }
-        merged_changes.append(&mut entry.prepared.changes);
+        merged_changes.extend(entry.prepared.changes.drain(..).map(|change| change.event));
     }
     merged_changes.extend(fallback_changes.map(|(_, change)| change));
 
@@ -3244,6 +3438,7 @@ fn append_sentence_recovery(
         &mut tentative_budget,
         retain_atomic_edits,
     )?;
+    record_prepared_change_metrics(&mut prepared)?;
     let next_resolved_old = resolved_old.checked_add(prepared.resolved_old)?;
     let next_resolved_new = resolved_new.checked_add(prepared.resolved_new)?;
     if changes.try_reserve_exact(prepared.changes.len()).is_err()
@@ -3262,7 +3457,7 @@ fn append_sentence_recovery(
     }
 
     let committed = prepared.committed;
-    changes.extend(prepared.changes);
+    changes.extend(prepared.changes.drain(..).map(|change| change.event));
     unresolved_regions.extend(prepared.unresolved_regions);
     if let Some(output) = recovered_atomic_diffs.as_mut() {
         output.append(&mut prepared.recovered_atomic_diffs);
@@ -3307,7 +3502,7 @@ fn prepare_sentence_recovery(
     if !reservation_budget.charge_many(reservation_items, reservation_bytes) {
         return None;
     }
-    let mut changes = Vec::new();
+    let mut changes = Vec::<OriginatedChange>::new();
     let mut recovered_atomic_diffs = Vec::new();
     let mut unresolved_regions = Vec::new();
     changes.try_reserve_exact(change_capacity).ok()?;
@@ -3315,11 +3510,18 @@ fn prepare_sentence_recovery(
         .try_reserve_exact(unresolved_capacity)
         .ok()?;
 
-    let (same_span_match_old, same_span_match_new) = recovered_exact_match_tokens(matches)?;
-    let exact_match_old =
-        same_span_match_old.checked_add(recovered_sentence_tokens(cross_span_match_old)?)?;
-    let exact_match_new =
-        same_span_match_new.checked_add(recovered_sentence_tokens(cross_span_match_new)?)?;
+    let (same_span_match_old, same_span_match_new, same_span_origins) =
+        recovered_exact_match_tokens(matches)?;
+    let (cross_span_match_old_tokens, cross_span_old_origins) =
+        recovered_sentence_tokens(cross_span_match_old, true)?;
+    let (cross_span_match_new_tokens, cross_span_new_origins) =
+        recovered_sentence_tokens(cross_span_match_new, false)?;
+    let exact_match_old = same_span_match_old.checked_add(cross_span_match_old_tokens)?;
+    let exact_match_new = same_span_match_new.checked_add(cross_span_match_new_tokens)?;
+    let mut change_origins = checked_add_origin_metrics(
+        same_span_origins,
+        checked_add_origin_metrics(cross_span_old_origins, cross_span_new_origins)?,
+    )?;
     let (replacement_old, replacement_new) = prepare_recovered_replacements(
         old,
         new,
@@ -3329,18 +3531,22 @@ fn prepare_sentence_recovery(
         output_budget,
         retain_atomic_edits,
     )?;
-    let deletion =
+    let (deletion, deletion_origins) =
         prepare_recovered_changes(deletions, ChangeKind::Deletion, &mut changes, output_budget)?;
+    change_origins = checked_add_origin_metrics(change_origins, deletion_origins)?;
     let resolved_old = exact_match_old
         .checked_add(replacement_old)?
         .checked_add(deletion)?;
     sort_recovered_changes(old, new, &mut changes)?;
-    let insertion = prepare_recovered_changes(
+    let (insertion, insertion_origins) = prepare_recovered_changes(
         insertions,
         ChangeKind::Insertion,
         &mut changes,
         output_budget,
     )?;
+    change_origins = checked_add_origin_metrics(change_origins, insertion_origins)?;
+    change_origins =
+        checked_add_origin_metrics(change_origins, replacement_origin_contexts(replacements)?)?;
     let resolved_new = exact_match_new
         .checked_add(replacement_new)?
         .checked_add(insertion)?;
@@ -3378,36 +3584,63 @@ fn prepare_sentence_recovery(
             replacement_new,
             deletion,
             insertion,
+            change_origins,
         },
     })
 }
 
 fn recovered_exact_match_tokens(
     matches: &[sentence::RecoveredExactMatch],
-) -> Option<(usize, usize)> {
-    matches
-        .iter()
-        .try_fold((0usize, 0usize), |(resolved_old, resolved_new), matched| {
+) -> Option<(usize, usize, ChangeOriginMetrics)> {
+    matches.iter().try_fold(
+        (0usize, 0usize, ChangeOriginMetrics::default()),
+        |(resolved_old, resolved_new, mut origins), matched| {
             if matched.old.span_index != matched.new.span_index
                 || !valid_recovered_sentence(&matched.old)
                 || !valid_recovered_sentence(&matched.new)
             {
                 return None;
             }
+            let old_metric = origins.get_mut(matched.old.origin);
+            old_metric.old_resolved_context_tokens = old_metric
+                .old_resolved_context_tokens
+                .checked_add(matched.old.source_tokens)?;
+            let new_metric = origins.get_mut(matched.new.origin);
+            new_metric.new_resolved_context_tokens = new_metric
+                .new_resolved_context_tokens
+                .checked_add(matched.new.source_tokens)?;
             Some((
                 resolved_old.checked_add(matched.old.source_tokens)?,
                 resolved_new.checked_add(matched.new.source_tokens)?,
+                origins,
             ))
-        })
+        },
+    )
 }
 
-fn recovered_sentence_tokens(recovered: &[sentence::RecoveredSentence]) -> Option<usize> {
-    recovered.iter().try_fold(0usize, |resolved, recovery| {
-        if !valid_recovered_sentence(recovery) {
-            return None;
-        }
-        resolved.checked_add(recovery.source_tokens)
-    })
+fn recovered_sentence_tokens(
+    recovered: &[sentence::RecoveredSentence],
+    old_side: bool,
+) -> Option<(usize, ChangeOriginMetrics)> {
+    recovered.iter().try_fold(
+        (0usize, ChangeOriginMetrics::default()),
+        |(resolved, mut origins), recovery| {
+            if !valid_recovered_sentence(recovery) {
+                return None;
+            }
+            let metric = origins.get_mut(recovery.origin);
+            if old_side {
+                metric.old_resolved_context_tokens = metric
+                    .old_resolved_context_tokens
+                    .checked_add(recovery.source_tokens)?;
+            } else {
+                metric.new_resolved_context_tokens = metric
+                    .new_resolved_context_tokens
+                    .checked_add(recovery.source_tokens)?;
+            }
+            Some((resolved.checked_add(recovery.source_tokens)?, origins))
+        },
+    )
 }
 
 fn recovered_range_count(
@@ -3422,10 +3655,11 @@ fn recovered_range_count(
 fn prepare_recovered_changes(
     recovered: &[sentence::RecoveredSentence],
     kind: ChangeKind,
-    changes: &mut Vec<ChangeEvent>,
+    changes: &mut Vec<OriginatedChange>,
     output_budget: &mut RecoveryOutputBudget,
-) -> Option<usize> {
+) -> Option<(usize, ChangeOriginMetrics)> {
     let mut resolved = 0usize;
+    let mut origins = ChangeOriginMetrics::default();
     for recovery in recovered {
         if !valid_recovered_sentence(recovery) {
             return None;
@@ -3445,22 +3679,39 @@ fn prepare_recovered_changes(
             ChangeKind::Insertion => (None, Some(span)),
             ChangeKind::Replacement | ChangeKind::Move => return None,
         };
-        changes.push(ChangeEvent::single_occurrence(
-            kind,
-            old_span,
-            new_span,
-            Confidence::High,
-            Vec::new(),
-        ));
+        changes.push(OriginatedChange {
+            event: ChangeEvent::single_occurrence(
+                kind,
+                old_span,
+                new_span,
+                Confidence::High,
+                Vec::new(),
+            ),
+            origin: recovery.origin,
+        });
+        let metric = origins.get_mut(recovery.origin);
+        match kind {
+            ChangeKind::Deletion => {
+                metric.old_resolved_context_tokens = metric
+                    .old_resolved_context_tokens
+                    .checked_add(recovery.source_tokens)?
+            }
+            ChangeKind::Insertion => {
+                metric.new_resolved_context_tokens = metric
+                    .new_resolved_context_tokens
+                    .checked_add(recovery.source_tokens)?
+            }
+            ChangeKind::Replacement | ChangeKind::Move => return None,
+        }
     }
-    Some(resolved)
+    Some((resolved, origins))
 }
 
 fn prepare_recovered_replacements(
     old_side: &Side<'_>,
     new_side: &Side<'_>,
     replacements: &[sentence::RecoveredReplacement],
-    changes: &mut Vec<ChangeEvent>,
+    changes: &mut Vec<OriginatedChange>,
     recovered_atomic_diffs: &mut Vec<RecoveredAtomicDiff>,
     output_budget: &mut RecoveryOutputBudget,
     retain_atomic_edits: bool,
@@ -3509,20 +3760,70 @@ fn prepare_recovered_replacements(
             retained_edits.extend(edits.iter().cloned());
             recovered_atomic_diffs.try_reserve_exact(1).ok()?;
             recovered_atomic_diffs.push(RecoveredAtomicDiff {
+                origin: replacement.origin,
                 old_alignment_span_index: replacement.old.span_index,
                 new_alignment_span_index: replacement.new.span_index,
                 old_context: old.try_span(0, old.tokens.len())?,
                 new_context: new.try_span(0, new.tokens.len())?,
                 changed_occurrences,
                 edits: retained_edits,
+                old_best_score: replacement.relation.old_best_score,
+                old_second_score: replacement.relation.old_second_score,
+                old_best_scope: replacement.relation.old_best_scope,
+                new_best_score: replacement.relation.new_best_score,
+                new_second_score: replacement.relation.new_second_score,
+                new_best_scope: replacement.relation.new_best_scope,
             });
         }
         changes.try_reserve_exact(1).ok()?;
-        changes.push(replacement_change);
+        changes.push(OriginatedChange {
+            event: replacement_change,
+            origin: replacement.origin,
+        });
         resolved_old = resolved_old.checked_add(replacement.old.source_tokens)?;
         resolved_new = resolved_new.checked_add(replacement.new.source_tokens)?;
     }
     Some((resolved_old, resolved_new))
+}
+
+fn replacement_origin_contexts(
+    replacements: &[sentence::RecoveredReplacement],
+) -> Option<ChangeOriginMetrics> {
+    let mut origins = ChangeOriginMetrics::default();
+    for replacement in replacements {
+        let metric = origins.get_mut(replacement.origin);
+        metric.old_resolved_context_tokens = metric
+            .old_resolved_context_tokens
+            .checked_add(replacement.old.source_tokens)?;
+        metric.new_resolved_context_tokens = metric
+            .new_resolved_context_tokens
+            .checked_add(replacement.new.source_tokens)?;
+    }
+    Some(origins)
+}
+
+fn record_prepared_change_metrics(prepared: &mut PreparedSentenceRecovery) -> Option<()> {
+    for change in &prepared.changes {
+        let metric = prepared.committed.change_origins.get_mut(change.origin);
+        metric.event_count = metric.event_count.checked_add(1)?;
+        for occurrence in &change.event.occurrences {
+            if let Some(span) = &occurrence.old_span {
+                metric.old_changed_tokens = metric.old_changed_tokens.checked_add(
+                    span.comparable_range
+                        .end
+                        .checked_sub(span.comparable_range.start)?,
+                )?;
+            }
+            if let Some(span) = &occurrence.new_span {
+                metric.new_changed_tokens = metric.new_changed_tokens.checked_add(
+                    span.comparable_range
+                        .end
+                        .checked_sub(span.comparable_range.start)?,
+                )?;
+            }
+        }
+    }
+    Some(())
 }
 
 fn recovered_group_text(
@@ -3998,15 +4299,15 @@ fn recovered_scalar_boundaries(
 fn sort_recovered_changes(
     old: &Side<'_>,
     new: &Side<'_>,
-    changes: &mut [ChangeEvent],
+    changes: &mut [OriginatedChange],
 ) -> Option<()> {
     if changes
         .iter()
-        .any(|change| recovered_change_key(old, new, change).is_none())
+        .any(|change| recovered_change_key(old, new, &change.event).is_none())
     {
         return None;
     }
-    changes.sort_unstable_by_key(|change| recovered_change_key(old, new, change));
+    changes.sort_unstable_by_key(|change| recovered_change_key(old, new, &change.event));
     Some(())
 }
 
@@ -4265,7 +4566,7 @@ fn try_copy_slice<T: Copy>(source: &[T]) -> Option<Vec<T>> {
 }
 
 fn estimated_change_bytes(block_count: usize) -> Option<usize> {
-    std::mem::size_of::<ChangeEvent>()
+    std::mem::size_of::<OriginatedChange>()
         .checked_add(block_count.checked_mul(std::mem::size_of::<BlockId>())?)?
         .checked_mul(2)
 }
@@ -4275,7 +4576,7 @@ fn estimated_recovery_reservation_bytes(
     unresolved_count: usize,
 ) -> Option<usize> {
     change_count
-        .checked_mul(std::mem::size_of::<ChangeEvent>())?
+        .checked_mul(std::mem::size_of::<OriginatedChange>())?
         .checked_add(unresolved_count.checked_mul(std::mem::size_of::<UnresolvedRegion>())?)?
         .checked_mul(2)
 }
@@ -7010,19 +7311,25 @@ mod tests {
             "Acme security standard 2024.",
             BlockRole::RepeatedFooter,
         );
-        let result = compare_sentence_recovery(
-            &old,
-            &[],
-            &[Some(TrustedRunId(1)); 3],
-            &[],
-            5,
-            vec![AlignmentEvidence::ReadingOrderUnknown],
-        );
+        let outcome =
+            compare_sentence_recovery_with_metrics(&old, &[], &[Some(TrustedRunId(1)); 3], &[], 5);
+        let result = outcome.comparison;
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("running-matter diagnostics complete");
 
         assert_eq!(result.changes.len(), 1);
         assert_eq!(result.changes[0].kind, ChangeKind::Deletion);
         assert_eq!(result.changes[0].occurrences.len(), 3);
         assert!(result.unresolved_regions.is_empty());
+        assert_eq!(metrics.change_origins.running_matter.event_count, 1);
+        assert_eq!(
+            metrics
+                .change_origins
+                .running_matter
+                .old_resolved_context_tokens,
+            source_tokens(&old)
+        );
     }
 
     #[test]
@@ -7045,6 +7352,37 @@ mod tests {
         assert_eq!(result.changes[0].kind, ChangeKind::Insertion);
         assert_eq!(result.changes[0].occurrences.len(), 3);
         assert!(result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn running_matter_replacement_keeps_running_matter_origin() {
+        let old = vec![role_block(
+            1,
+            "Acme security standard 2024.",
+            BlockRole::RepeatedFooter,
+        )];
+        let new = vec![role_block(
+            2,
+            "Acme security standard 2025.",
+            BlockRole::RepeatedFooter,
+        )];
+        let outcome = compare_sentence_recovery_with_metrics(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2))],
+            5,
+        );
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("running-matter diagnostics complete");
+
+        assert_eq!(outcome.comparison.changes.len(), 1);
+        assert_eq!(outcome.comparison.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(metrics.change_origins.running_matter.event_count, 1);
+        assert_eq!(metrics.change_origins.sentence_near.event_count, 0);
+        assert!(metrics.change_origins.running_matter.old_changed_tokens > 0);
+        assert!(metrics.change_origins.running_matter.new_changed_tokens > 0);
     }
 
     #[test]
@@ -7457,6 +7795,13 @@ mod tests {
         assert!(outcome.comparison.changes.is_empty());
         assert_eq!(outcome.comparison.unresolved_regions.len(), 3);
         assert_eq!(outcome.comparison.old_coverage.resolved_tokens, 0);
+        assert_eq!(
+            outcome
+                .sentence_recovery_metrics
+                .expect("pre-commit diagnostics remain available")
+                .change_origins,
+            ChangeOriginMetrics::default()
+        );
     }
 
     #[test]
@@ -7493,6 +7838,27 @@ mod tests {
         );
         assert_eq!(metrics.unresolved_remainder_old_source_tokens, 0);
         assert_eq!(metrics.unresolved_remainder_new_source_tokens, 0);
+        assert_eq!(metrics.change_origins.sentence_near.event_count, 0);
+        assert_eq!(
+            metrics
+                .change_origins
+                .sentence_near
+                .old_resolved_context_tokens,
+            source_tokens(&old)
+        );
+        assert_eq!(
+            metrics
+                .change_origins
+                .sentence_near
+                .new_resolved_context_tokens,
+            source_tokens(&new)
+        );
+        assert_eq!(metrics.change_origins.sentence_near.old_changed_tokens, 0);
+        assert_eq!(metrics.change_origins.sentence_near.new_changed_tokens, 0);
+        assert_eq!(
+            metrics.change_origins.ordered_alignment,
+            ChangeOriginMetric::default()
+        );
     }
 
     #[test]
@@ -8713,6 +9079,7 @@ mod tests {
             .collect::<Vec<_>>();
         let recovery = sentence::SentenceRecoveryPlan {
             deletions: vec![sentence::RecoveredSentence {
+                origin: ChangeOrigin::SentenceNear,
                 span_index: 0,
                 kind: sentence::RecoveryUnitKind::Sentence,
                 role: sentence::OccurrenceRole::Body,
@@ -9007,6 +9374,7 @@ mod tests {
             .materialize()
             .expect("source materializes");
         let recovery = sentence::RecoveredSentence {
+            origin: ChangeOrigin::SentenceNear,
             span_index: 0,
             kind: sentence::RecoveryUnitKind::Sentence,
             role: sentence::OccurrenceRole::Body,
@@ -9041,6 +9409,7 @@ mod tests {
             .materialize()
             .expect("source materializes");
         let recovery = sentence::RecoveredSentence {
+            origin: ChangeOrigin::SentenceNear,
             span_index: 0,
             kind: sentence::RecoveryUnitKind::Sentence,
             role: sentence::OccurrenceRole::Body,
@@ -9083,7 +9452,9 @@ mod tests {
             .materialize()
             .expect("new source materializes");
         let replacement = sentence::RecoveredReplacement {
+            origin: ChangeOrigin::SentenceNear,
             old: sentence::RecoveredSentence {
+                origin: ChangeOrigin::SentenceNear,
                 span_index: 0,
                 kind: sentence::RecoveryUnitKind::Sentence,
                 role: sentence::OccurrenceRole::Body,
@@ -9094,6 +9465,7 @@ mod tests {
                 source_tokens: 9,
             },
             new: sentence::RecoveredSentence {
+                origin: ChangeOrigin::SentenceNear,
                 span_index: 0,
                 kind: sentence::RecoveryUnitKind::Sentence,
                 role: sentence::OccurrenceRole::Body,
@@ -9171,6 +9543,7 @@ mod tests {
         };
         let recovery =
             |span_index, blocks: Vec<BlockId>, end, source_tokens| sentence::RecoveredSentence {
+                origin: ChangeOrigin::SentenceNear,
                 span_index,
                 kind: sentence::RecoveryUnitKind::Sentence,
                 role: sentence::OccurrenceRole::Body,
@@ -9195,6 +9568,7 @@ mod tests {
         let mut plan = sentence::SentenceRecoveryPlan {
             replacements: vec![
                 sentence::RecoveredReplacement {
+                    origin: ChangeOrigin::SentenceNear,
                     old: recovery(0, vec![BlockId(40), BlockId(41)], 10, 9),
                     new: recovery(0, vec![BlockId(42)], 10, 10),
                     old_consumed: invalid_old.clone(),
@@ -9204,6 +9578,7 @@ mod tests {
                     edits: None,
                 },
                 sentence::RecoveredReplacement {
+                    origin: ChangeOrigin::SentenceNear,
                     old: recovery(1, vec![BlockId(50)], 28, 28),
                     new: recovery(1, vec![BlockId(51)], 27, 27),
                     old_consumed: valid_old.clone(),
@@ -9230,6 +9605,7 @@ mod tests {
 
         let mut valid_only = sentence::SentenceRecoveryPlan {
             replacements: vec![sentence::RecoveredReplacement {
+                origin: ChangeOrigin::SentenceNear,
                 old: recovery(1, vec![BlockId(50)], 28, 28),
                 new: recovery(1, vec![BlockId(51)], 27, 27),
                 old_consumed: valid_old.clone(),
@@ -9268,6 +9644,7 @@ mod tests {
             .materialize()
             .expect("source materializes");
         let recovery = sentence::RecoveredSentence {
+            origin: ChangeOrigin::SentenceNear,
             span_index: 0,
             kind: sentence::RecoveryUnitKind::Sentence,
             role: sentence::OccurrenceRole::Body,
@@ -9302,6 +9679,7 @@ mod tests {
             .materialize()
             .expect("source materializes");
         let recovery = sentence::RecoveredSentence {
+            origin: ChangeOrigin::SentenceNear,
             span_index: 0,
             kind: sentence::RecoveryUnitKind::Sentence,
             role: sentence::OccurrenceRole::Body,
@@ -9485,6 +9863,69 @@ mod tests {
         assert_eq!(metrics.recovered_insertion_tokens, 0);
         assert_eq!(metrics.unresolved_remainder_old_source_tokens, 0);
         assert_eq!(metrics.unresolved_remainder_new_source_tokens, 0);
+        assert_eq!(metrics.change_origins.sentence_near.event_count, 1);
+        assert_eq!(
+            metrics
+                .change_origins
+                .sentence_near
+                .old_resolved_context_tokens,
+            definition.chars().count() + old_parameter.chars().count()
+        );
+        assert_eq!(
+            metrics
+                .change_origins
+                .sentence_near
+                .new_resolved_context_tokens,
+            definition.chars().count() + new_parameter.chars().count()
+        );
+        assert!(metrics.change_origins.sentence_near.old_changed_tokens > 0);
+        assert!(metrics.change_origins.sentence_near.new_changed_tokens > 0);
+        assert_eq!(
+            metrics.change_origins.ordered_alignment,
+            ChangeOriginMetric::default()
+        );
+    }
+
+    #[test]
+    fn ordered_alignment_origin_is_the_checked_final_residual() {
+        let mut metrics = SentenceRecoveryMetrics::default();
+        metrics.change_origins.sentence_near = ChangeOriginMetric {
+            event_count: 1,
+            old_changed_tokens: 1,
+            new_changed_tokens: 2,
+            old_resolved_context_tokens: 8,
+            new_resolved_context_tokens: 9,
+        };
+        let changes = vec![
+            ChangeEvent::single_occurrence(
+                ChangeKind::Replacement,
+                Some(test_span(1, 0, 1)),
+                Some(test_span(2, 0, 2)),
+                Confidence::High,
+                Vec::new(),
+            ),
+            ChangeEvent::single_occurrence(
+                ChangeKind::Deletion,
+                Some(test_span(3, 0, 3)),
+                None,
+                Confidence::High,
+                Vec::new(),
+            ),
+        ];
+
+        apply_ordered_alignment_origin(&mut metrics, &changes, 13, 9)
+            .expect("the totals contain the committed recovery subset");
+
+        assert_eq!(
+            metrics.change_origins.ordered_alignment,
+            ChangeOriginMetric {
+                event_count: 1,
+                old_changed_tokens: 3,
+                new_changed_tokens: 0,
+                old_resolved_context_tokens: 5,
+                new_resolved_context_tokens: 0,
+            }
+        );
     }
 
     #[test]
@@ -10001,7 +10442,7 @@ mod tests {
             sentence_block(103, "Three"),
         ];
 
-        let result = compare_sentence_recovery(
+        let outcome = compare_sentence_recovery_with_metrics(
             &old,
             &new,
             &[
@@ -10015,8 +10456,11 @@ mod tests {
                 Some(TrustedRunId(2)),
             ],
             4,
-            vec![AlignmentEvidence::ReadingOrderUnknown],
         );
+        let result = outcome.comparison;
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("trusted-tail diagnostics complete");
 
         assert_eq!(result.changes.len(), 1, "{result:#?}");
         assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
@@ -10030,6 +10474,7 @@ mod tests {
             Some(test_span(102, 8, 10))
         );
         assert!(result.unresolved_regions.is_empty());
+        assert_eq!(metrics.change_origins.trusted_tail.event_count, 1);
         assert_eq!(result.old_coverage.ratio, Some(1.0));
         assert_eq!(result.new_coverage.ratio, Some(1.0));
     }
@@ -10796,6 +11241,9 @@ mod tests {
             .recovered_atomic_diffs
             .expect("recovery atomic retention was requested");
         assert_eq!(recovered.len(), 1);
+        assert_eq!(recovered[0].origin, ChangeOrigin::SentenceNear);
+        assert!(recovered[0].old_best_score >= 7_000);
+        assert!(recovered[0].new_best_score >= 7_000);
         assert_eq!(recovered[0].old_alignment_span_index, 0);
         assert_eq!(recovered[0].new_alignment_span_index, 0);
         assert_eq!(
@@ -12160,6 +12608,7 @@ mod tests {
         span_index: usize,
     ) -> sentence::RecoveredSentence {
         sentence::RecoveredSentence {
+            origin: ChangeOrigin::SentenceNear,
             span_index,
             kind: sentence::RecoveryUnitKind::Sentence,
             role: sentence::OccurrenceRole::Body,

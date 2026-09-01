@@ -249,6 +249,7 @@ fn cross_granularity_segment_location(
     };
     Some(SentenceLocation {
         recovery: RecoveredSentence {
+            origin: ChangeOrigin::CrossGranularity,
             span_index: segment.span_index,
             kind: RecoveryUnitKind::Sentence,
             role: segment.role.into(),
@@ -286,6 +287,7 @@ fn cross_granularity_singleton_location(
     };
     Some(SentenceLocation {
         recovery: RecoveredSentence {
+            origin: ChangeOrigin::CrossGranularity,
             span_index: location.recovery.span_index,
             kind: occurrence.kind,
             role: location.recovery.role,
@@ -1025,6 +1027,7 @@ pub(super) fn append_cross_granularity_replacements(
                 continue;
             }
             pending.push(RecoveredReplacement {
+                origin: ChangeOrigin::CrossGranularity,
                 old: old.recovery,
                 new: new.recovery,
                 old_consumed: old.consumed,
@@ -1113,6 +1116,7 @@ mod tests {
     fn test_location(range: LocalSentenceRange, span_index: usize) -> SentenceLocation {
         SentenceLocation {
             recovery: RecoveredSentence {
+                origin: ChangeOrigin::CrossGranularity,
                 span_index,
                 kind: RecoveryUnitKind::Sentence,
                 role: OccurrenceRole::Body,
@@ -1510,6 +1514,7 @@ mod tests {
         };
         let first_location = SentenceLocation {
             recovery: RecoveredSentence {
+                origin: ChangeOrigin::CrossGranularity,
                 span_index: 0,
                 kind: RecoveryUnitKind::Sentence,
                 role: OccurrenceRole::Body,

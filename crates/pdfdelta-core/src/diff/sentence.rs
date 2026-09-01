@@ -54,16 +54,17 @@ use super::recovery::{
     },
 };
 use super::{
-    AtomicEdit, ExactSegmentRelation, ExactTailRecoveryStopReason, KnownSpanSentenceShadowMetrics,
-    LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentFlatExactBoundaryShadowMetrics,
-    LocalFragmentFlatExactBoundaryStopReason, LocalFragmentFlatExactBoundaryWorkMetrics,
-    LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
-    LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
-    LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLengthOnlyCandidateShadowMetrics,
-    LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
-    LocalFragmentProposalStopReason, LocalFragmentRecheckMembershipOutcomeWork,
-    LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
-    LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
+    AtomicEdit, ChangeOrigin, ExactSegmentRelation, ExactTailRecoveryStopReason,
+    KnownSpanSentenceShadowMetrics, LocalFragmentExactBoundaryTrieShadowMetrics,
+    LocalFragmentFlatExactBoundaryShadowMetrics, LocalFragmentFlatExactBoundaryStopReason,
+    LocalFragmentFlatExactBoundaryWorkMetrics, LocalFragmentGlobalLengthAwareShadowMetrics,
+    LocalFragmentLengthAwareRecheckShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
+    LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
+    LocalFragmentLengthOnlyCandidateShadowMetrics, LocalFragmentLocationEvidence,
+    LocalFragmentOrientation, LocalFragmentPairEvidence, LocalFragmentProposalStopReason,
+    LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
+    LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
+    LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
     MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
     NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryRemainderAttributionMetrics,
     RecoveryRemainderAttributionStopReason, RecoveryRemainderCauseMetrics,
@@ -113,6 +114,7 @@ pub(super) struct LocalSentenceRange {
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct RecoveredSentence {
+    pub origin: ChangeOrigin,
     pub span_index: usize,
     pub kind: RecoveryUnitKind,
     pub role: OccurrenceRole,
@@ -125,6 +127,7 @@ pub(super) struct RecoveredSentence {
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct RecoveredReplacement {
+    pub origin: ChangeOrigin,
     pub old: RecoveredSentence,
     pub new: RecoveredSentence,
     pub old_consumed: Vec<LocalSentenceRange>,
@@ -446,6 +449,8 @@ fn checked_committed_metrics(
     metrics.recovered_insertion_tokens = metrics
         .recovered_insertion_tokens
         .checked_add(committed.insertion)?;
+    metrics.change_origins =
+        super::checked_add_origin_metrics(metrics.change_origins, committed.change_origins)?;
     Some(metrics)
 }
 
@@ -9063,6 +9068,7 @@ fn collect_secondary_exact_occurrences(
                     None,
                     span_by_block,
                     recovery_spans,
+                    ChangeOrigin::RangeLocalExact,
                     recovery_budget,
                 )?;
                 if isolated_exact_tail && occurrence.location.is_none() {
@@ -11368,6 +11374,11 @@ fn collect_occurrences(
         } else {
             (sentence_boundaries, RecoveryUnitKind::Sentence)
         };
+        let occurrence_origin = if promote_trusted_trailing_fragment {
+            ChangeOrigin::TrustedTail
+        } else {
+            ChangeOrigin::SentenceNear
+        };
         for (ordinal, boundary) in boundaries.into_iter().enumerate() {
             let occurrence = build_sentence_occurrence(
                 side,
@@ -11380,6 +11391,7 @@ fn collect_occurrences(
                 run_descriptor_index,
                 span_by_block,
                 recovery_spans,
+                occurrence_origin,
                 budget,
             )?;
             occurrences.try_reserve(1).ok()?;
@@ -11421,6 +11433,7 @@ fn collect_occurrences(
                             run_descriptor_index,
                             span_by_block,
                             recovery_spans,
+                            ChangeOrigin::ExactTail,
                             &mut trial_budget,
                         )
                         .filter(|occurrence| occurrence.location.is_some())
@@ -11459,6 +11472,7 @@ fn build_sentence_occurrence(
     run_descriptor_index: Option<usize>,
     span_by_block: &HashMap<BlockId, usize>,
     recovery_spans: &[bool],
+    origin: ChangeOrigin,
     budget: &mut RecoveryBudget,
 ) -> Option<SentenceOccurrence> {
     let key = stream.text.get(boundary.byte_start..boundary.byte_end)?;
@@ -11483,7 +11497,15 @@ fn build_sentence_occurrence(
                 boundary,
                 touched_blocks,
                 span_index,
-                (kind, role),
+                (
+                    kind,
+                    role,
+                    if role != BlockRole::Body {
+                        ChangeOrigin::RunningMatter
+                    } else {
+                        origin
+                    },
+                ),
                 budget,
             )?
         }
@@ -11866,10 +11888,10 @@ fn sentence_location(
     boundary: SentenceBoundary,
     touched_blocks: Range<usize>,
     span_index: usize,
-    unit: (RecoveryUnitKind, BlockRole),
+    unit: (RecoveryUnitKind, BlockRole, ChangeOrigin),
     budget: &mut RecoveryBudget,
 ) -> Option<Option<SentenceLocation>> {
-    let (kind, role) = unit;
+    let (kind, role, origin) = unit;
     if !stream.trusted && kind != RecoveryUnitKind::Line {
         return Some(None);
     }
@@ -11955,6 +11977,7 @@ fn sentence_location(
 
     Some(Some(SentenceLocation {
         recovery: RecoveredSentence {
+            origin,
             span_index,
             kind,
             role: role.into(),
@@ -12048,6 +12071,7 @@ fn range_local_sentence_location(
     }
     Some(Some(SentenceLocation {
         recovery: RecoveredSentence {
+            origin: ChangeOrigin::RangeLocalExact,
             span_index,
             kind: RecoveryUnitKind::Sentence,
             role: role.into(),
@@ -18727,6 +18751,7 @@ fn project_local_fragment_recovery(
         blocks.extend_from_slice(&location.recovery.blocks);
         return Ok(Some((
             RecoveredSentence {
+                origin: ChangeOrigin::LocalFragment,
                 span_index: location.recovery.span_index,
                 kind: RecoveryUnitKind::Sentence,
                 role: fragment.role,
@@ -18791,6 +18816,7 @@ fn project_local_fragment_recovery(
     consumed_ranges.push(consumed_range);
     Ok(Some((
         RecoveredSentence {
+            origin: ChangeOrigin::LocalFragment,
             span_index: location.recovery.span_index,
             kind: RecoveryUnitKind::Sentence,
             role: fragment.role,
@@ -19222,6 +19248,7 @@ fn build_local_fragment_replacement_batch(
             old_edit,
             new_edit,
             replacement: RecoveredReplacement {
+                origin: ChangeOrigin::LocalFragment,
                 old: old_recovery,
                 new: new_recovery,
                 old_consumed,
@@ -25025,7 +25052,19 @@ fn append_replacements_typed(
             .extend(old_location.consumed.iter().copied());
         plan.insertion_consumed
             .extend(new_location.consumed.iter().copied());
+        let origin = if old_location.recovery.role != OccurrenceRole::Body
+            || new_location.recovery.role != OccurrenceRole::Body
+        {
+            ChangeOrigin::RunningMatter
+        } else if old_location.recovery.origin == ChangeOrigin::TrustedTail
+            || new_location.recovery.origin == ChangeOrigin::TrustedTail
+        {
+            ChangeOrigin::TrustedTail
+        } else {
+            ChangeOrigin::SentenceNear
+        };
         plan.replacements.push(RecoveredReplacement {
+            origin,
             old: old_location.recovery,
             new: new_location.recovery,
             old_consumed: old_location.consumed,
@@ -25654,6 +25693,7 @@ mod tests {
         SentenceRecoveryPlan {
             cross_span_replacement_new_spans: vec![plan_block_marker(block)],
             deletions: vec![RecoveredSentence {
+                origin: ChangeOrigin::SentenceNear,
                 span_index: block as usize,
                 kind: RecoveryUnitKind::Sentence,
                 role: OccurrenceRole::Body,
@@ -26914,6 +26954,7 @@ mod tests {
             legacy_location_available: false,
             location: Some(SentenceLocation {
                 recovery: RecoveredSentence {
+                    origin: ChangeOrigin::RangeLocalExact,
                     span_index,
                     kind: RecoveryUnitKind::Sentence,
                     role: OccurrenceRole::Body,
@@ -26973,6 +27014,7 @@ mod tests {
     fn test_location(range: LocalSentenceRange, span_index: usize) -> SentenceLocation {
         SentenceLocation {
             recovery: RecoveredSentence {
+                origin: ChangeOrigin::SentenceNear,
                 span_index,
                 kind: RecoveryUnitKind::Sentence,
                 role: OccurrenceRole::Body,
@@ -28593,6 +28635,7 @@ mod tests {
             .expect("unique segment diagnostics fit");
         let plan = SentenceRecoveryPlan {
             deletions: vec![RecoveredSentence {
+                origin: ChangeOrigin::SentenceNear,
                 span_index: 0,
                 kind: RecoveryUnitKind::Sentence,
                 role: OccurrenceRole::Body,
@@ -34954,7 +34997,11 @@ mod tests {
                 boundary,
                 0..1,
                 0,
-                (RecoveryUnitKind::Sentence, BlockRole::Body),
+                (
+                    RecoveryUnitKind::Sentence,
+                    BlockRole::Body,
+                    ChangeOrigin::SentenceNear,
+                ),
                 &mut budget,
             )
             .is_some_and(|location| location.is_some())
@@ -34969,7 +35016,11 @@ mod tests {
                 boundary,
                 0..1,
                 0,
-                (RecoveryUnitKind::Sentence, BlockRole::Body),
+                (
+                    RecoveryUnitKind::Sentence,
+                    BlockRole::Body,
+                    ChangeOrigin::SentenceNear,
+                ),
                 &mut budget,
             )
             .is_none()
