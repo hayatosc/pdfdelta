@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-01
-- **Generator / engine commit**: [`7cca56e`](https://github.com/hayatosc/pdfdelta/commit/7cca56e)
+- **Generator / engine commit**: [`0363ab5`](https://github.com/hayatosc/pdfdelta/commit/0363ab5)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-01-7cca56e.json`](2026-09-01-7cca56e.json)
+  - File: [`2026-09-01-0363ab5.json`](2026-09-01-0363ab5.json)
   - Schema: v52
-  - Size: 1,943,248 bytes
-  - SHA-256: `e3565f1ae025fca25d0e084976b2cdb8cc76f89e9083b715539bdc4cc4268a9c`
+  - Size: 1,943,378 bytes
+  - SHA-256: `c5abf4998767a3a54384d16ceba3e1761ca9a1f05bee7fca9c316d1306463127`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-01-7cca56e.json \
+cp benchmark/realworld/results/2026-09-01-0363ab5.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 7cca56e
+git switch --detach 0363ab5
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -89,7 +89,7 @@ still apply only to their recorded review items.
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
 | `nist-fips-186-4-to-5` | dev | standard | 51.40% | 2,019 | 1,006 | 0.857 | 1.000 | 206.000 | 107 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.71% | 5,107 | 1,565 | 0.875 | 1.000 | 389.857 | 103 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.72% | 5,112 | 1,566 | 1.000 | 1.000 | 341.375 | 103 |
 | `irs-form-1040-2024-to-2025` | holdout | stress | 36.33% | 71 | 19 | 0.000 | N/A | N/A | 1 |
 | `edpb-right-of-access-v1-to-final` | holdout | standard | 75.09% | 2,097 | 480 | 0.750 | 1.000 | 278.333 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 2.000 | 0 |
@@ -106,13 +106,28 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | Pair with a complete scope | Event P / R / F1 | Token P / R / F1 | Span IoU | FP tokens / 10k unchanged |
 |---|---:|---:|---:|---:|
 | `nist-fips-186-4-to-5` | 1.000 / 0.000 / 0.000 | 0.000 / 0.000 / 0.000 | 0.000 | N/A |
-| `nist-sp800-57-part1-r4-to-r5` | 1.000 / 0.750 / 0.857 | 1.000 / 0.895 / 0.944 | 0.895 | 0.000 |
+| `nist-sp800-57-part1-r4-to-r5` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 | `arxiv-attention-v6-to-v7` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 | `w3c-ws-policy-attach-20060927-to-20061102` | 1.000 / 1.000 / 1.000 | 0.984 / 1.000 / 0.992 | 0.984 | 68.027 |
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 
-Schema v52 promotes only reciprocal, role-compatible local fragments with one
+Relative to the preceding `7cca56e` capture, only SP 800-57 changes across the
+selected comparison, quality, and complete-scope fields. Its global reviewed
+recall rises from 0.875 to 1.000. Scoped event F1 rises from 0.857 to 1.000,
+and scoped token F1 and span IoU rise from 0.944 and 0.895 to 1.000, while
+false-positive token density remains zero. The other 28 pairs retain their
+previous comparison and reviewed-quality values.
+
+The engine recovers the remaining SP 800-57 edit across a trusted pair of
+adjacent Sentence units and one Line unit. It requires compatible roles,
+bounded punctuation or ASCII-case substitutions, exact context on both sides,
+and a globally unique exact-or-near counterpart. The complete recovery plan is
+discarded on resource, allocation, projection, or overlap failure. The two
+atomic edits are reported as exact spans while their surrounding context is
+counted only as resolved coverage.
+
+The preceding schema-v52 capture promoted only reciprocal, role-compatible local fragments with one
 exact interior token edit. Existing recovery ranges and the shared output
 budget are checked before the three-proposal cap is applied; allocation,
 projection, or analysis failure commits no partial fragment plan. All 18
@@ -138,13 +153,13 @@ projection, or output-budget failure atomically returns the relation to
 unresolved instead of emitting a whole-unit fallback. Instrumented comparisons
 retain the exact recovered edit trace used by the public change event.
 
-Complete-scope annotations now distinguish stable relation context from one or
+Complete-scope annotations distinguish stable relation context from one or
 more exact changed ranges. This corrected an incomplete SP 800-57 review item:
 the existing `Approved` relation contains a 31-token lead-in rewrite in addition
 to its comma deletion. With the complete atomic ranges recorded, scoped token
-precision rises from 0.092 to 1.000, recall from 0.664 to 0.895, F1 from 0.162
-to 0.944, and false-positive density falls from 6,372.166 to zero. The remaining
-four missed tokens belong to the unresolved Association punctuation change.
+precision rose from 0.092 to 1.000, recall from 0.664 to 0.895, F1 from 0.162
+to 0.944, and false-positive density fell from 6,372.166 to zero. The current
+capture recovers the four formerly unresolved Association punctuation tokens.
 
 The preceding schema-v50 capture is behavior-neutral relative to schema v49.
 Removing the diagnostic-only
