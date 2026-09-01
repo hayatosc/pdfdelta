@@ -28,7 +28,7 @@ use pdfdelta_core::{
         LocalFragmentLengthAwareRecheckShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
         LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
         LocalFragmentLengthOnlyCandidateShadowMetrics, LocalFragmentLocationEvidence,
-        LocalFragmentOrientation, LocalFragmentPairEvidence,
+        LocalFragmentOrientation, LocalFragmentPairEvidence, LocalFragmentProposalStopReason,
         LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
         LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
         LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, MatchedAtomicDiff,
@@ -711,6 +711,10 @@ pub struct SentenceRecoveryMetricsReport {
         Option<LocalFragmentExactBoundaryTrieShadowMetricsReport>,
     pub local_fragment_flat_exact_boundary_shadow:
         Option<LocalFragmentFlatExactBoundaryShadowMetricsReport>,
+    pub local_fragment_proposal_complete: Option<bool>,
+    pub local_fragment_proposal_stop_reason: Option<LocalFragmentProposalStopReasonReport>,
+    pub local_fragment_proposals_considered: usize,
+    pub local_fragment_proposals_committed: usize,
     pub sentence_edge_filter_complete: bool,
     pub sentence_edge_filter_pairs_examined: usize,
     pub sentence_edge_filter_pairs_attempted: usize,
@@ -1105,6 +1109,31 @@ pub enum LocalFragmentFlatExactBoundaryStopReasonReport {
     RadixWorkLimit,
     ClassIdLimit,
     CandidateGenerationIncomplete,
+    AllocationFailure,
+    CounterOverflow,
+    DiagnosticFailure,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LocalFragmentProposalStopReasonReport {
+    CandidateGenerationIncomplete,
+    ParentRelationIncomplete,
+    FlatExactBoundaryIncomplete,
+    EnumerationLimit,
+    SignatureTokenStepLimit,
+    TemporarySignatureKeyLimit,
+    IndexPostingLimit,
+    QueryLimit,
+    PostingVisitLimit,
+    BoundaryIndexPostingLimit,
+    BoundaryQueryLimit,
+    BoundaryPostingVisitLimit,
+    ParentCandidatePairLimit,
+    CandidatePairLimit,
+    SimilarityComparisonLimit,
+    EditWorkLimit,
+    OutputLimit,
     AllocationFailure,
     CounterOverflow,
     DiagnosticFailure,
@@ -2962,6 +2991,51 @@ impl From<LocalFragmentFlatExactBoundaryStopReason>
     }
 }
 
+impl From<LocalFragmentProposalStopReason> for LocalFragmentProposalStopReasonReport {
+    fn from(reason: LocalFragmentProposalStopReason) -> Self {
+        match reason {
+            LocalFragmentProposalStopReason::CandidateGenerationIncomplete => {
+                Self::CandidateGenerationIncomplete
+            }
+            LocalFragmentProposalStopReason::ParentRelationIncomplete => {
+                Self::ParentRelationIncomplete
+            }
+            LocalFragmentProposalStopReason::FlatExactBoundaryIncomplete => {
+                Self::FlatExactBoundaryIncomplete
+            }
+            LocalFragmentProposalStopReason::EnumerationLimit => Self::EnumerationLimit,
+            LocalFragmentProposalStopReason::SignatureTokenStepLimit => {
+                Self::SignatureTokenStepLimit
+            }
+            LocalFragmentProposalStopReason::TemporarySignatureKeyLimit => {
+                Self::TemporarySignatureKeyLimit
+            }
+            LocalFragmentProposalStopReason::IndexPostingLimit => Self::IndexPostingLimit,
+            LocalFragmentProposalStopReason::QueryLimit => Self::QueryLimit,
+            LocalFragmentProposalStopReason::PostingVisitLimit => Self::PostingVisitLimit,
+            LocalFragmentProposalStopReason::BoundaryIndexPostingLimit => {
+                Self::BoundaryIndexPostingLimit
+            }
+            LocalFragmentProposalStopReason::BoundaryQueryLimit => Self::BoundaryQueryLimit,
+            LocalFragmentProposalStopReason::BoundaryPostingVisitLimit => {
+                Self::BoundaryPostingVisitLimit
+            }
+            LocalFragmentProposalStopReason::ParentCandidatePairLimit => {
+                Self::ParentCandidatePairLimit
+            }
+            LocalFragmentProposalStopReason::CandidatePairLimit => Self::CandidatePairLimit,
+            LocalFragmentProposalStopReason::SimilarityComparisonLimit => {
+                Self::SimilarityComparisonLimit
+            }
+            LocalFragmentProposalStopReason::EditWorkLimit => Self::EditWorkLimit,
+            LocalFragmentProposalStopReason::OutputLimit => Self::OutputLimit,
+            LocalFragmentProposalStopReason::AllocationFailure => Self::AllocationFailure,
+            LocalFragmentProposalStopReason::CounterOverflow => Self::CounterOverflow,
+            LocalFragmentProposalStopReason::DiagnosticFailure => Self::DiagnosticFailure,
+        }
+    }
+}
+
 impl From<LocalFragmentLengthAwareShadowWorkMetrics>
     for LocalFragmentLengthAwareShadowWorkMetricsReport
 {
@@ -3306,6 +3380,12 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             local_fragment_flat_exact_boundary_shadow: metrics
                 .local_fragment_flat_exact_boundary_shadow
                 .map(Into::into),
+            local_fragment_proposal_complete: metrics.local_fragment_proposal_complete,
+            local_fragment_proposal_stop_reason: metrics
+                .local_fragment_proposal_stop_reason
+                .map(Into::into),
+            local_fragment_proposals_considered: metrics.local_fragment_proposals_considered,
+            local_fragment_proposals_committed: metrics.local_fragment_proposals_committed,
             sentence_edge_filter_complete: metrics.sentence_edge_filter_complete,
             sentence_edge_filter_pairs_examined: metrics.sentence_edge_filter_pairs_examined,
             sentence_edge_filter_pairs_attempted: metrics.sentence_edge_filter_pairs_attempted,
@@ -6221,6 +6301,7 @@ fn validate_sentence_recovery_metrics(
     validate_local_fragment_flat_exact_boundary_shadow_metrics(
         metrics.local_fragment_flat_exact_boundary_shadow,
     )?;
+    validate_local_fragment_proposal_metrics(metrics)?;
     validate_local_fragment_sibling_parity(
         metrics.local_fragment_length_aware_shadow,
         metrics.local_fragment_global_length_aware_shadow,
@@ -6559,6 +6640,40 @@ fn validate_local_fragment_exact_boundary_trie_shadow_metrics(
         || metrics.projected_avoided_comparisons != metrics.certified_tokens_credited
     {
         return Err("local-fragment exact-boundary trie accounting is inconsistent".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_local_fragment_proposal_metrics(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<(), String> {
+    match (
+        metrics.local_fragment_proposal_complete,
+        metrics.local_fragment_proposal_stop_reason,
+    ) {
+        (None, None) => {
+            if metrics.local_fragment_proposals_considered != 0
+                || metrics.local_fragment_proposals_committed != 0
+            {
+                return Err(
+                    "unmeasured local-fragment proposals expose proposal counters".to_owned(),
+                );
+            }
+        }
+        (Some(true), None) => {}
+        (Some(false), Some(_)) => {
+            if metrics.local_fragment_proposals_committed != 0 {
+                return Err(
+                    "incomplete local-fragment proposals expose committed output".to_owned(),
+                );
+            }
+        }
+        _ => {
+            return Err("local-fragment proposal completion and stop reason disagree".to_owned());
+        }
+    }
+    if metrics.local_fragment_proposals_committed > metrics.local_fragment_proposals_considered {
+        return Err("committed local-fragment proposals exceed considered proposals".to_owned());
     }
     Ok(())
 }
@@ -10284,7 +10399,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 51;
+    pub const SCHEMA_VERSION: u32 = 52;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -12055,7 +12170,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 51);
+        assert_eq!(completed["schema_version"], 52);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -12105,7 +12220,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 51);
+        assert_eq!(legacy_summary["schema_version"], 52);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -13791,7 +13906,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 51);
+        assert_eq!(json["schema_version"], 52);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -20271,7 +20386,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 51);
+        assert_eq!(value["schema_version"], 52);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -20410,6 +20525,10 @@ mod tests {
             "local_fragment_length_only_candidate_shadow".to_owned(),
             "local_fragment_exact_boundary_trie_shadow".to_owned(),
             "local_fragment_flat_exact_boundary_shadow".to_owned(),
+            "local_fragment_proposal_complete".to_owned(),
+            "local_fragment_proposal_stop_reason".to_owned(),
+            "local_fragment_proposals_considered".to_owned(),
+            "local_fragment_proposals_committed".to_owned(),
             "sentence_edge_filter_complete".to_owned(),
             "sentence_edge_filter_pairs_examined".to_owned(),
             "sentence_edge_filter_pairs_attempted".to_owned(),

@@ -31,6 +31,9 @@ use super::recovery::fragment_lce::{
     BoundarySide, ExactBoundaryJoinBudget, ExactBoundaryJoinFragment, ExactBoundaryJoinLimits,
     ExactBoundaryJoinStopReason, ExactBoundaryJoinWork, ExactBoundaryRanks, exact_boundary_join,
 };
+use super::recovery::fragment_proposal::{
+    ExactSingleTokenEdit, ExactSingleTokenEditKind, exact_single_token_edit,
+};
 use super::recovery::score::{
     CachedSentenceEdgeEvidence, MIN_NEAR_SCORE, MIN_WORD_SCORE_EDGE_EVIDENCE, RelationFloorProbe,
     basis_points, cached_sentence_edge_evidence, cached_sentence_edge_evidence_from_aligned_facts,
@@ -56,9 +59,9 @@ use super::{
     LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
     LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLengthOnlyCandidateShadowMetrics,
     LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
-    LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
-    LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
-    LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
+    LocalFragmentProposalStopReason, LocalFragmentRecheckMembershipOutcomeWork,
+    LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
+    LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
     MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
     NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryWatchDiagnostics,
     RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
@@ -9688,6 +9691,42 @@ fn build_sentence_recovery_plan_inner_impl(
         input.min_tokens,
         candidate_generation_complete,
     );
+    let LocalFragmentProposalAnalysis {
+        outcome,
+        flat_metrics,
+    } = analyze_local_fragment_replacement_proposals(
+        old,
+        new,
+        &old_occurrences,
+        &new_occurrences,
+        &old_candidates,
+        &new_candidates,
+        &relations,
+        input.min_tokens,
+        candidate_generation_complete,
+    );
+    if let Some(diagnostics) = diagnostics.as_mut() {
+        diagnostics
+            .metrics
+            .local_fragment_flat_exact_boundary_shadow = Some(flat_metrics);
+    }
+    record_local_fragment_flat_exact_boundary_v49_parity(&mut diagnostics);
+    let local_fragment_replacements = match outcome {
+        LocalFragmentProposalOutcome::Complete(replacements) => {
+            if let Some(diagnostics) = diagnostics.as_mut() {
+                diagnostics.metrics.local_fragment_proposal_complete = Some(true);
+                diagnostics.metrics.local_fragment_proposals_considered = replacements.len();
+            }
+            replacements
+        }
+        LocalFragmentProposalOutcome::Unavailable(reason) => {
+            if let Some(diagnostics) = diagnostics.as_mut() {
+                diagnostics.metrics.local_fragment_proposal_complete = Some(false);
+                diagnostics.metrics.local_fragment_proposal_stop_reason = Some(reason);
+            }
+            Vec::new()
+        }
+    };
 
     if append_replacements(
         &mut plan,
@@ -9728,6 +9767,27 @@ fn build_sentence_recovery_plan_inner_impl(
                 ..SentenceRecoveryBuildOutcome::default()
             });
         }
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    }
+    match append_local_fragment_replacements(&mut plan, local_fragment_replacements, &mut budget) {
+        Ok(committed) => {
+            if let Some(diagnostics) = diagnostics.as_mut() {
+                diagnostics.metrics.local_fragment_proposals_committed = committed;
+            }
+        }
+        Err(reason) => {
+            if let Some(diagnostics) = diagnostics.as_mut() {
+                diagnostics.metrics.local_fragment_proposal_complete = Some(false);
+                diagnostics
+                    .metrics
+                    .local_fragment_proposal_stop_reason
+                    .get_or_insert(reason);
+            }
+        }
+    }
+    if !normalize_ranges(&mut plan.deletion_consumed)
+        || !normalize_ranges(&mut plan.insertion_consumed)
+    {
         return Ok(SentenceRecoveryBuildOutcome::default());
     }
     finalize_reference_observer(
@@ -10690,6 +10750,8 @@ struct LocalFragmentLimits {
     output: usize,
 }
 
+const MAX_LOCAL_FRAGMENT_REPLACEMENTS: usize = 3;
+
 impl LocalFragmentLimits {
     fn for_tokens(max_tokens: usize, _min_tokens: usize) -> Option<Self> {
         Some(Self {
@@ -10706,7 +10768,7 @@ impl LocalFragmentLimits {
             candidate_pairs: max_tokens.checked_mul(4)?,
             comparisons: max_tokens.checked_mul(16)?,
             edit_work: max_tokens.checked_mul(32)?,
-            output: 3,
+            output: MAX_LOCAL_FRAGMENT_REPLACEMENTS,
         })
     }
 }
@@ -13825,6 +13887,42 @@ fn flat_exact_join_fragments(
     Ok(joined)
 }
 
+fn scoring_local_fragment(
+    fragment: &LengthAwareLocalFragment,
+    occurrences: &[SentenceOccurrence],
+) -> Option<LocalFragment> {
+    let parent = occurrences.get(fragment.parent_occurrence_index)?;
+    let scalar_start = parent
+        .tokens
+        .get(..fragment.token_range.start)?
+        .iter()
+        .filter(|token| token.is_scalar())
+        .count();
+    let scalar_end = scalar_start.checked_add(
+        parent
+            .tokens
+            .get(fragment.token_range.clone())?
+            .iter()
+            .filter(|token| token.is_scalar())
+            .count(),
+    )?;
+    let byte_boundary = |scalar: usize| {
+        parent.key.char_indices().nth(scalar).map_or_else(
+            || (scalar == parent.key.chars().count()).then_some(parent.key.len()),
+            |v| Some(v.0),
+        )
+    };
+    Some(LocalFragment {
+        parent_candidate_index: fragment.parent_candidate_index,
+        parent_occurrence_index: fragment.parent_occurrence_index,
+        orientation: fragment.orientation,
+        token_range: fragment.token_range.clone(),
+        byte_range: byte_boundary(scalar_start)?..byte_boundary(scalar_end)?,
+        role: fragment.role,
+        signatures: *fragment.signatures.last()?,
+    })
+}
+
 fn empty_admitted_parent_table(
     parent_count: usize,
     budget: &mut LengthAwareBudget,
@@ -16534,6 +16632,7 @@ fn analyze_local_fragment_exact_boundary_trie_shadow_with_limits(
     }
 }
 
+#[cfg(test)]
 fn analyze_local_fragment_flat_exact_boundary_shadow_with_limits(
     old_occurrences: &[SentenceOccurrence],
     new_occurrences: &[SentenceOccurrence],
@@ -16541,6 +16640,31 @@ fn analyze_local_fragment_flat_exact_boundary_shadow_with_limits(
     new_candidates: &[RecoveryCandidate],
     min_tokens: usize,
     limits: FlatExactBoundaryLimits,
+) -> LocalFragmentFlatExactBoundaryShadowMetrics {
+    analyze_local_fragment_flat_exact_boundary_with_consumer(
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        min_tokens,
+        limits,
+        &mut |_, _, _| Ok(()),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn analyze_local_fragment_flat_exact_boundary_with_consumer(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    min_tokens: usize,
+    limits: FlatExactBoundaryLimits,
+    consume: &mut impl FnMut(
+        &[LengthAwareLocalFragment],
+        &[LengthAwareLocalFragment],
+        &[(usize, usize)],
+    ) -> std::result::Result<(), LocalFragmentFlatExactBoundaryStopReason>,
 ) -> LocalFragmentFlatExactBoundaryShadowMetrics {
     let fixed_depth = sentence_edge_signature_depth(min_tokens).unwrap_or(0);
     let mut budget = FlatExactBoundaryBudget::new(limits);
@@ -16680,6 +16804,7 @@ fn analyze_local_fragment_flat_exact_boundary_shadow_with_limits(
             .common
             .charge(LengthAwareWorkKind::CandidateUnion, joined.len())
             .map_err(LocalFragmentFlatExactBoundaryStopReason::from)?;
+        consume(&old_fragments, &new_fragments, &joined)?;
 
         let mut certification_stream = ExactBoundaryCertificationStreamFingerprint::new();
         let mut retained_stream = LocalFragmentPairStreamFingerprint::new();
@@ -16821,6 +16946,1140 @@ fn analyze_local_fragment_flat_exact_boundary_shadow_with_limits(
             ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
         },
     }
+}
+
+struct PendingLocalFragmentReplacement {
+    old_occurrence: usize,
+    new_occurrence: usize,
+    old_edit: Range<usize>,
+    new_edit: Range<usize>,
+    replacement: RecoveredReplacement,
+}
+
+#[derive(Clone, Copy)]
+struct ScoredLocalFragmentPair {
+    old_index: usize,
+    new_index: usize,
+    old_parent: usize,
+    new_parent: usize,
+}
+
+fn production_local_fragment_mask(
+    fragments: &[LengthAwareLocalFragment],
+    occurrences: &[SentenceOccurrence],
+    min_tokens: usize,
+) -> std::result::Result<Vec<bool>, LocalFragmentShadowStopReason> {
+    let mut mask = Vec::new();
+    let mut seen = HashMap::new();
+    mask.try_reserve_exact(fragments.len())
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    for (index, fragment) in fragments.iter().enumerate() {
+        let parent = occurrences
+            .get(fragment.parent_occurrence_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        let trim = match fragment.orientation {
+            LocalFragmentOrientation::Prefix => parent
+                .tokens
+                .len()
+                .checked_sub(fragment.token_range.end)
+                .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?,
+            LocalFragmentOrientation::Suffix => fragment.token_range.start,
+        };
+        let eligible = trim <= min_tokens;
+        mask.push(eligible);
+        if !eligible {
+            continue;
+        }
+        let key = (
+            fragment.parent_candidate_index,
+            local_fragment_orientation_key(fragment.orientation),
+            fragment.token_range.start,
+            fragment.token_range.end,
+        );
+        if let Some(&previous) = seen.get(&key) {
+            mask[previous] = false;
+            mask[index] = false;
+        } else {
+            seen.try_reserve(1)
+                .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+            seen.insert(key, index);
+        }
+    }
+    Ok(mask)
+}
+
+fn project_local_fragment_recovery(
+    side: Option<&Side<'_>>,
+    parent: &SentenceOccurrence,
+    fragment: &LengthAwareLocalFragment,
+) -> std::result::Result<
+    Option<(RecoveredSentence, Vec<LocalSentenceRange>)>,
+    LocalFragmentShadowStopReason,
+> {
+    if parent.kind != RecoveryUnitKind::Sentence
+        || parent.role.map(OccurrenceRole::from) != Some(fragment.role)
+    {
+        return Ok(None);
+    }
+    let Some(location) = parent.location.as_ref() else {
+        return Ok(None);
+    };
+    if fragment.token_range.end > parent.tokens.len()
+        || fragment.token_range.end
+            > location.recovery.comparable.end - location.recovery.comparable.start
+    {
+        return Ok(None);
+    }
+    let scalar_start = parent.tokens[..fragment.token_range.start]
+        .iter()
+        .filter(|token| token.is_scalar())
+        .count();
+    let scalar_len = parent.tokens[fragment.token_range.clone()]
+        .iter()
+        .filter(|token| token.is_scalar())
+        .count();
+    let scalar_end = scalar_start
+        .checked_add(scalar_len)
+        .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+    if scalar_end > location.recovery.canonical.end - location.recovery.canonical.start {
+        return Ok(None);
+    }
+    let canonical = ScalarRange {
+        start: location
+            .recovery
+            .canonical
+            .start
+            .checked_add(scalar_start)
+            .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?,
+        end: location
+            .recovery
+            .canonical
+            .start
+            .checked_add(scalar_end)
+            .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?,
+    };
+    let comparable = TokenRange {
+        start: location
+            .recovery
+            .comparable
+            .start
+            .checked_add(fragment.token_range.start)
+            .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?,
+        end: location
+            .recovery
+            .comparable
+            .start
+            .checked_add(fragment.token_range.end)
+            .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?,
+    };
+    if location.recovery.blocks.len() > 1 {
+        let Some(side) = side else {
+            return Ok(None);
+        };
+        if location.recovery.separator != Some(BlockSeparator::Space)
+            || location.consumed.is_empty()
+        {
+            return Ok(None);
+        }
+        let mut consumed_ranges = Vec::new();
+        consumed_ranges
+            .try_reserve_exact(location.consumed.len())
+            .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+        let mut source_tokens = 0usize;
+        let mut group_offset = 0usize;
+        let mut previous_is_space = None;
+        for (position, block) in location.recovery.blocks.iter().copied().enumerate() {
+            let block_tokens = side
+                .canonical
+                .get(
+                    *side
+                        .index
+                        .get(&block)
+                        .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?,
+                )
+                .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+            if position > 0
+                && previous_is_space != Some(true)
+                && !block_tokens
+                    .first()
+                    .is_some_and(|token| token.as_scalar().is_some_and(char::is_whitespace))
+            {
+                group_offset = group_offset
+                    .checked_add(1)
+                    .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+            }
+            if let Some(consumed) = location.consumed.iter().find(|range| range.block == block) {
+                let source_start = group_offset
+                    .checked_add(consumed.comparable.start)
+                    .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+                let source_end = group_offset
+                    .checked_add(consumed.comparable.end)
+                    .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+                let overlap_start = comparable.start.max(source_start);
+                let overlap_end = comparable.end.min(source_end);
+                if overlap_start < overlap_end {
+                    let local_start = overlap_start
+                        .checked_sub(group_offset)
+                        .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+                    let local_end = overlap_end
+                        .checked_sub(group_offset)
+                        .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+                    let scalar_prefix = block_tokens
+                        .get(consumed.comparable.start..local_start)
+                        .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?
+                        .iter()
+                        .filter(|token| token.is_scalar())
+                        .count();
+                    let scalar_len = block_tokens
+                        .get(local_start..local_end)
+                        .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?
+                        .iter()
+                        .filter(|token| token.is_scalar())
+                        .count();
+                    consumed_ranges.push(LocalSentenceRange {
+                        block,
+                        canonical: ScalarRange {
+                            start: consumed
+                                .canonical
+                                .start
+                                .checked_add(scalar_prefix)
+                                .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?,
+                            end: consumed
+                                .canonical
+                                .start
+                                .checked_add(scalar_prefix)
+                                .and_then(|start| start.checked_add(scalar_len))
+                                .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?,
+                        },
+                        comparable: TokenRange {
+                            start: local_start,
+                            end: local_end,
+                        },
+                    });
+                    source_tokens = source_tokens
+                        .checked_add(local_end - local_start)
+                        .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+                }
+            }
+            group_offset = group_offset
+                .checked_add(block_tokens.len())
+                .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+            previous_is_space = block_tokens
+                .last()
+                .and_then(ComparableToken::as_scalar)
+                .map(char::is_whitespace);
+        }
+        if source_tokens == 0 {
+            return Ok(None);
+        }
+        let expected = parent
+            .tokens
+            .get(fragment.token_range.clone())
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        let mut expected_index = 0usize;
+        let mut exact = true;
+        let walked = super::walk_recovered_group_segments(
+            side,
+            &location.recovery,
+            comparable.end,
+            |start, segment| {
+                let overlap_start = comparable.start.max(start);
+                let overlap_end = comparable.end.min(start.checked_add(segment.len())?);
+                if overlap_start >= overlap_end {
+                    return Some(());
+                }
+                let source = segment
+                    .get(overlap_start.checked_sub(start)?..overlap_end.checked_sub(start)?)?;
+                for actual in source {
+                    let Some(expected) = expected.get(expected_index) else {
+                        exact = false;
+                        return Some(());
+                    };
+                    if !matches!((actual, expected),
+                        (ComparableToken::Scalar(actual), SentenceEvidenceToken::Scalar(expected))
+                            if actual == expected)
+                    {
+                        exact = false;
+                    }
+                    expected_index = expected_index.checked_add(1)?;
+                }
+                Some(())
+            },
+        )
+        .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        if walked < comparable.end || !exact || expected_index != expected.len() {
+            return Ok(None);
+        }
+        let mut blocks = Vec::new();
+        blocks
+            .try_reserve_exact(location.recovery.blocks.len())
+            .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+        blocks.extend_from_slice(&location.recovery.blocks);
+        return Ok(Some((
+            RecoveredSentence {
+                span_index: location.recovery.span_index,
+                kind: RecoveryUnitKind::Sentence,
+                role: fragment.role,
+                blocks,
+                separator: location.recovery.separator,
+                canonical,
+                comparable,
+                source_tokens,
+            },
+            consumed_ranges,
+        )));
+    }
+    let [block] = location.recovery.blocks.as_slice() else {
+        return Ok(None);
+    };
+    let [consumed] = location.consumed.as_slice() else {
+        return Ok(None);
+    };
+    if consumed.block != *block
+        || location.recovery.separator.is_some()
+        || fragment.token_range.end > consumed.comparable.end - consumed.comparable.start
+        || scalar_end > consumed.canonical.end - consumed.canonical.start
+    {
+        return Ok(None);
+    }
+    let consumed_range = LocalSentenceRange {
+        block: *block,
+        canonical: ScalarRange {
+            start: consumed
+                .canonical
+                .start
+                .checked_add(scalar_start)
+                .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?,
+            end: consumed
+                .canonical
+                .start
+                .checked_add(scalar_end)
+                .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?,
+        },
+        comparable: TokenRange {
+            start: consumed
+                .comparable
+                .start
+                .checked_add(fragment.token_range.start)
+                .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?,
+            end: consumed
+                .comparable
+                .start
+                .checked_add(fragment.token_range.end)
+                .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?,
+        },
+    };
+    let mut blocks = Vec::new();
+    let mut consumed_ranges = Vec::new();
+    blocks
+        .try_reserve_exact(1)
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    consumed_ranges
+        .try_reserve_exact(1)
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    blocks.push(*block);
+    consumed_ranges.push(consumed_range);
+    Ok(Some((
+        RecoveredSentence {
+            span_index: location.recovery.span_index,
+            kind: RecoveryUnitKind::Sentence,
+            role: fragment.role,
+            blocks,
+            separator: None,
+            canonical,
+            comparable,
+            source_tokens: fragment.token_range.len(),
+        },
+        consumed_ranges,
+    )))
+}
+
+fn ranges_conflict(left: &Range<usize>, right: &Range<usize>) -> bool {
+    if left.is_empty() && right.is_empty() {
+        return left.start == right.start;
+    }
+    if left.is_empty() {
+        return right.start <= left.start && left.start < right.end;
+    }
+    if right.is_empty() {
+        return left.start <= right.start && right.start < left.end;
+    }
+    left.start < right.end && right.start < left.end
+}
+
+#[derive(Clone, Copy)]
+enum PendingConflictRangeKind {
+    OldEdit,
+    OldRecovery,
+    NewEdit,
+    NewRecovery,
+}
+
+#[derive(Clone, Copy)]
+struct PendingConflictRange {
+    occurrence: usize,
+    start: usize,
+    end: usize,
+    proposal: usize,
+}
+
+fn reject_pending_fragment_conflicts(
+    pending: &[PendingLocalFragmentReplacement],
+    rejected: &mut [bool],
+    budget: &mut LocalFragmentBudget,
+) -> std::result::Result<(), LocalFragmentShadowStopReason> {
+    if pending.len() != rejected.len() {
+        return Err(LocalFragmentShadowStopReason::DiagnosticFailure);
+    }
+    let mut ranges = Vec::new();
+    ranges
+        .try_reserve_exact(pending.len())
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    for kind in [
+        PendingConflictRangeKind::OldEdit,
+        PendingConflictRangeKind::OldRecovery,
+        PendingConflictRangeKind::NewEdit,
+        PendingConflictRangeKind::NewRecovery,
+    ] {
+        ranges.clear();
+        budget.charge_edit_work(pending.len())?;
+        for (proposal, pending) in pending.iter().enumerate() {
+            let (occurrence, range) = match kind {
+                PendingConflictRangeKind::OldEdit => {
+                    (pending.old_occurrence, pending.old_edit.clone())
+                }
+                PendingConflictRangeKind::OldRecovery => (
+                    pending.old_occurrence,
+                    pending.replacement.old.comparable.start
+                        ..pending.replacement.old.comparable.end,
+                ),
+                PendingConflictRangeKind::NewEdit => {
+                    (pending.new_occurrence, pending.new_edit.clone())
+                }
+                PendingConflictRangeKind::NewRecovery => (
+                    pending.new_occurrence,
+                    pending.replacement.new.comparable.start
+                        ..pending.replacement.new.comparable.end,
+                ),
+            };
+            ranges.push(PendingConflictRange {
+                occurrence,
+                start: range.start,
+                end: range.end,
+                proposal,
+            });
+        }
+        ranges.sort_unstable_by_key(|range| {
+            (range.occurrence, range.start, range.end, range.proposal)
+        });
+        let mut group_start = 0usize;
+        while group_start < ranges.len() {
+            let occurrence = ranges[group_start].occurrence;
+            let group_end = ranges[group_start..]
+                .partition_point(|range| range.occurrence == occurrence)
+                + group_start;
+            let mut previous_max_end = 0usize;
+            for index in group_start..group_end {
+                let range = ranges[index];
+                let previous_same_start = index > group_start
+                    && ranges
+                        .get(index - 1)
+                        .is_some_and(|previous| previous.start == range.start);
+                let overlaps_previous =
+                    previous_same_start || (index > group_start && previous_max_end > range.start);
+                let next_start = ranges
+                    .get(index + 1)
+                    .and_then(|next| (index + 1 < group_end).then_some(next.start));
+                let overlaps_next = if range.start == range.end {
+                    next_start == Some(range.start)
+                } else {
+                    next_start.is_some_and(|start| start < range.end)
+                };
+                if overlaps_previous || overlaps_next {
+                    *rejected
+                        .get_mut(range.proposal)
+                        .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)? = true;
+                }
+                previous_max_end = previous_max_end.max(range.end);
+            }
+            group_start = group_end;
+        }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_local_fragment_replacement_batch(
+    old_side: Option<&Side<'_>>,
+    new_side: Option<&Side<'_>>,
+    old_fragments: &[LengthAwareLocalFragment],
+    new_fragments: &[LengthAwareLocalFragment],
+    joined: &[(usize, usize)],
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    parent_relations: &ModifiedSentenceRelations,
+    min_tokens: usize,
+    budget: &mut LocalFragmentBudget,
+) -> std::result::Result<Vec<PendingLocalFragmentReplacement>, LocalFragmentShadowStopReason> {
+    if !parent_relations.complete
+        || old_candidates.len() != parent_relations.old.len()
+        || new_candidates.len() != parent_relations.new.len()
+    {
+        return Ok(Vec::new());
+    }
+    let mut old_scoring = Vec::new();
+    let mut new_scoring = Vec::new();
+    old_scoring
+        .try_reserve_exact(old_fragments.len())
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    new_scoring
+        .try_reserve_exact(new_fragments.len())
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    for fragment in old_fragments {
+        old_scoring.push(
+            scoring_local_fragment(fragment, old_occurrences)
+                .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?,
+        );
+    }
+    for fragment in new_fragments {
+        new_scoring.push(
+            scoring_local_fragment(fragment, new_occurrences)
+                .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?,
+        );
+    }
+    let old_production =
+        production_local_fragment_mask(old_fragments, old_occurrences, min_tokens)?;
+    let new_production =
+        production_local_fragment_mask(new_fragments, new_occurrences, min_tokens)?;
+    let mut exact_hypotheses = HashMap::new();
+    let mut hypothesis_old_parents = HashSet::new();
+    let mut hypothesis_new_parents = HashSet::new();
+    for &(old_index, new_index) in joined {
+        if !old_production.get(old_index).copied().unwrap_or(false)
+            || !new_production.get(new_index).copied().unwrap_or(false)
+        {
+            continue;
+        }
+        let old_fragment = old_fragments
+            .get(old_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        let new_fragment = new_fragments
+            .get(new_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        if old_fragment.orientation != new_fragment.orientation {
+            continue;
+        }
+        let old_tokens = local_fragment_tokens(&old_scoring[old_index], old_occurrences)?;
+        let new_tokens = local_fragment_tokens(&new_scoring[new_index], new_occurrences)?;
+        if old_tokens.len().abs_diff(new_tokens.len()) != 1 {
+            continue;
+        }
+        let analysis = exact_single_token_edit(old_tokens, new_tokens, |token| token.is_scalar());
+        budget.charge_edit_work(analysis.comparisons)?;
+        let Some(edit) = analysis.edit else {
+            continue;
+        };
+        if edit.old.start == 0
+            || edit.new.start == 0
+            || edit.old.end >= old_tokens.len()
+            || edit.new.end >= new_tokens.len()
+        {
+            continue;
+        }
+        if !matches!(
+            edit.kind,
+            ExactSingleTokenEditKind::Deletion { .. } | ExactSingleTokenEditKind::Insertion { .. }
+        ) {
+            continue;
+        }
+        exact_hypotheses
+            .try_reserve(1)
+            .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+        exact_hypotheses.insert((old_index, new_index), edit);
+        hypothesis_old_parents
+            .try_reserve(1)
+            .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+        hypothesis_new_parents
+            .try_reserve(1)
+            .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+        hypothesis_old_parents.insert(old_fragment.parent_candidate_index);
+        hypothesis_new_parents.insert(new_fragment.parent_candidate_index);
+    }
+    let mut parent_pair_scores = HashMap::new();
+    let mut scored_pairs = Vec::new();
+    for &(old_index, new_index) in joined {
+        if !old_production.get(old_index).copied().unwrap_or(false)
+            || !new_production.get(new_index).copied().unwrap_or(false)
+        {
+            continue;
+        }
+        let old_parent = old_fragments
+            .get(old_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?
+            .parent_candidate_index;
+        let new_parent = new_fragments
+            .get(new_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?
+            .parent_candidate_index;
+        if !hypothesis_old_parents.contains(&old_parent)
+            && !hypothesis_new_parents.contains(&new_parent)
+        {
+            continue;
+        }
+        budget.charge_candidate_pairs(1)?;
+        let Some(score) = score_local_fragment_pair(
+            old_scoring
+                .get(old_index)
+                .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?,
+            new_scoring
+                .get(new_index)
+                .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?,
+            old_occurrences,
+            new_occurrences,
+            budget,
+        )?
+        else {
+            continue;
+        };
+        if !parent_pair_scores.contains_key(&(old_parent, new_parent)) {
+            parent_pair_scores
+                .try_reserve(1)
+                .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+        }
+        parent_pair_scores
+            .entry((old_parent, new_parent))
+            .and_modify(|best: &mut u16| *best = (*best).max(score))
+            .or_insert(score);
+        scored_pairs
+            .try_reserve(1)
+            .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+        scored_pairs.push(ScoredLocalFragmentPair {
+            old_index,
+            new_index,
+            old_parent,
+            new_parent,
+        });
+    }
+
+    let mut old_relations = Vec::new();
+    let mut new_relations = Vec::new();
+    old_relations
+        .try_reserve_exact(old_candidates.len())
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    new_relations
+        .try_reserve_exact(new_candidates.len())
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    old_relations.resize(old_candidates.len(), CandidateNearRelation::default());
+    new_relations.resize(new_candidates.len(), CandidateNearRelation::default());
+    let mut ordered_parent_scores = Vec::new();
+    ordered_parent_scores
+        .try_reserve_exact(parent_pair_scores.len())
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    ordered_parent_scores.extend(
+        parent_pair_scores
+            .into_iter()
+            .map(|((old, new), score)| (old, new, score)),
+    );
+    ordered_parent_scores.sort_unstable();
+    for (old_parent, new_parent, score) in ordered_parent_scores {
+        old_relations[old_parent].record_eligible_with_scope(new_parent, score, None);
+        new_relations[new_parent].record_eligible_with_scope(old_parent, score, None);
+    }
+
+    let mut accepted_new_by_old = Vec::new();
+    accepted_new_by_old
+        .try_reserve_exact(old_candidates.len())
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    accepted_new_by_old.resize(old_candidates.len(), None);
+    for (old_parent_index, old_relation) in old_relations.iter().copied().enumerate() {
+        let Some(new_parent_index) = old_relation.unique_partner() else {
+            continue;
+        };
+        let new_relation = *new_relations
+            .get(new_parent_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        if new_relation.unique_partner() == Some(old_parent_index) {
+            accepted_new_by_old[old_parent_index] = Some(new_parent_index);
+        }
+    }
+
+    let mut pending = Vec::new();
+    for scored in scored_pairs {
+        let old_parent_index = scored.old_parent;
+        let new_parent_index = scored.new_parent;
+        if accepted_new_by_old.get(old_parent_index).copied().flatten() != Some(new_parent_index) {
+            continue;
+        }
+        let old_relation = old_relations[old_parent_index];
+        let new_relation = *new_relations
+            .get(new_parent_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        let old_parent_relation = *parent_relations
+            .old
+            .get(old_parent_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        let new_parent_relation = *parent_relations
+            .new
+            .get(new_parent_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        if !old_parent_relation.vetoed()
+            || !new_parent_relation.vetoed()
+            || mutual_replacement_partner(
+                old_parent_index,
+                old_parent_relation,
+                &parent_relations.new,
+            )
+            .is_some()
+            || parent_relations
+                .old
+                .iter()
+                .copied()
+                .enumerate()
+                .any(|(parent_index, relation)| {
+                    mutual_replacement_partner(parent_index, relation, &parent_relations.new)
+                        == Some(new_parent_index)
+                })
+        {
+            continue;
+        }
+        let old_candidate = old_candidates
+            .get(old_parent_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        let new_candidate = new_candidates
+            .get(new_parent_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        let old_parent = old_occurrences
+            .get(old_candidate.occurrence_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        let new_parent = new_occurrences
+            .get(new_candidate.occurrence_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        if !occurrence_roles_are_compatible(old_parent, new_parent) {
+            continue;
+        }
+        let old_index = scored.old_index;
+        let new_index = scored.new_index;
+        let old_fragment = old_fragments
+            .get(old_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        let new_fragment = new_fragments
+            .get(new_index)
+            .ok_or(LocalFragmentShadowStopReason::DiagnosticFailure)?;
+        if old_fragment.orientation != new_fragment.orientation {
+            continue;
+        }
+        let Some(ExactSingleTokenEdit { old, new, .. }) =
+            exact_hypotheses.remove(&(old_index, new_index))
+        else {
+            continue;
+        };
+        let old_edit = old_fragment
+            .token_range
+            .start
+            .checked_add(old.start)
+            .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?
+            ..old_fragment
+                .token_range
+                .start
+                .checked_add(old.end)
+                .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+        let new_edit = new_fragment
+            .token_range
+            .start
+            .checked_add(new.start)
+            .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?
+            ..new_fragment
+                .token_range
+                .start
+                .checked_add(new.end)
+                .ok_or(LocalFragmentShadowStopReason::CounterOverflow)?;
+        let old_projection = project_local_fragment_recovery(old_side, old_parent, old_fragment)?;
+        let new_projection = project_local_fragment_recovery(new_side, new_parent, new_fragment)?;
+        let Some((old_recovery, old_consumed)) = old_projection else {
+            continue;
+        };
+        let Some((new_recovery, new_consumed)) = new_projection else {
+            continue;
+        };
+        pending
+            .try_reserve(1)
+            .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+        pending.push(PendingLocalFragmentReplacement {
+            old_occurrence: old_candidate.occurrence_index,
+            new_occurrence: new_candidate.occurrence_index,
+            old_edit,
+            new_edit,
+            replacement: RecoveredReplacement {
+                old: old_recovery,
+                new: new_recovery,
+                old_consumed,
+                new_consumed,
+                relation: old_relation.reciprocal_evidence(new_relation),
+                edits: None,
+            },
+        });
+    }
+
+    pending.sort_unstable_by_key(|proposal| {
+        (
+            proposal.old_occurrence,
+            proposal.new_occurrence,
+            proposal.old_edit.start,
+            proposal.old_edit.end,
+            proposal.new_edit.start,
+            proposal.new_edit.end,
+            std::cmp::Reverse(
+                proposal.replacement.old.source_tokens + proposal.replacement.new.source_tokens,
+            ),
+        )
+    });
+    pending.dedup_by(|right, left| {
+        left.old_occurrence == right.old_occurrence
+            && left.new_occurrence == right.new_occurrence
+            && left.old_edit == right.old_edit
+            && left.new_edit == right.new_edit
+    });
+    let mut rejected = Vec::new();
+    rejected
+        .try_reserve_exact(pending.len())
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    rejected.resize(pending.len(), false);
+    reject_pending_fragment_conflicts(&pending, &mut rejected, budget)?;
+    let mut retained = Vec::new();
+    retained
+        .try_reserve_exact(pending.len())
+        .map_err(|_| LocalFragmentShadowStopReason::AllocationFailure)?;
+    for (proposal, rejected) in pending.into_iter().zip(rejected) {
+        if !rejected {
+            retained.push(proposal);
+        }
+    }
+    retained.sort_unstable_by(|left, right| {
+        let left_score = left
+            .replacement
+            .relation
+            .old_best_score
+            .min(left.replacement.relation.new_best_score);
+        let right_score = right
+            .replacement
+            .relation
+            .old_best_score
+            .min(right.replacement.relation.new_best_score);
+        let left_margin = left
+            .replacement
+            .relation
+            .old_best_score
+            .saturating_sub(left.replacement.relation.old_second_score)
+            .min(
+                left.replacement
+                    .relation
+                    .new_best_score
+                    .saturating_sub(left.replacement.relation.new_second_score),
+            );
+        let right_margin = right
+            .replacement
+            .relation
+            .old_best_score
+            .saturating_sub(right.replacement.relation.old_second_score)
+            .min(
+                right
+                    .replacement
+                    .relation
+                    .new_best_score
+                    .saturating_sub(right.replacement.relation.new_second_score),
+            );
+        // A second candidate below the acceptance score cannot itself become
+        // a relation. Once that separation reaches the acceptance score,
+        // prefer the proposal with more exact unchanged context.
+        let left_decision_margin = left_margin.min(MIN_NEAR_SCORE);
+        let right_decision_margin = right_margin.min(MIN_NEAR_SCORE);
+        let left_context = left
+            .replacement
+            .old
+            .source_tokens
+            .min(left.replacement.new.source_tokens);
+        let right_context = right
+            .replacement
+            .old
+            .source_tokens
+            .min(right.replacement.new.source_tokens);
+        right_score
+            .cmp(&left_score)
+            .then_with(|| right_decision_margin.cmp(&left_decision_margin))
+            .then_with(|| right_context.cmp(&left_context))
+            .then_with(|| {
+                (
+                    left.old_occurrence,
+                    left.new_occurrence,
+                    left.old_edit.start,
+                    left.new_edit.start,
+                )
+                    .cmp(&(
+                        right.old_occurrence,
+                        right.new_occurrence,
+                        right.old_edit.start,
+                        right.new_edit.start,
+                    ))
+            })
+    });
+    Ok(retained)
+}
+
+#[allow(clippy::too_many_arguments)]
+enum LocalFragmentProposalOutcome {
+    Complete(Vec<PendingLocalFragmentReplacement>),
+    Unavailable(LocalFragmentProposalStopReason),
+}
+
+struct LocalFragmentProposalAnalysis {
+    outcome: LocalFragmentProposalOutcome,
+    flat_metrics: LocalFragmentFlatExactBoundaryShadowMetrics,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn analyze_local_fragment_replacement_proposals(
+    old_side: &Side<'_>,
+    new_side: &Side<'_>,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    parent_relations: &ModifiedSentenceRelations,
+    min_tokens: usize,
+    candidate_generation_complete: bool,
+) -> LocalFragmentProposalAnalysis {
+    let fixed_depth = sentence_edge_signature_depth(min_tokens).unwrap_or(0);
+    if !candidate_generation_complete {
+        return LocalFragmentProposalAnalysis {
+            outcome: LocalFragmentProposalOutcome::Unavailable(
+                LocalFragmentProposalStopReason::CandidateGenerationIncomplete,
+            ),
+            flat_metrics: LocalFragmentFlatExactBoundaryShadowMetrics {
+                complete: false,
+                stop_reason: Some(
+                    LocalFragmentFlatExactBoundaryStopReason::CandidateGenerationIncomplete,
+                ),
+                min_tokens,
+                fixed_depth,
+                ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+            },
+        };
+    }
+    let Some(eligible_tokens) = old_candidates
+        .iter()
+        .filter_map(|candidate| old_occurrences.get(candidate.occurrence_index))
+        .chain(
+            new_candidates
+                .iter()
+                .filter_map(|candidate| new_occurrences.get(candidate.occurrence_index)),
+        )
+        .filter(|parent| local_fragment_parent_eligible(parent, min_tokens))
+        .try_fold(0usize, |total, parent| {
+            total.checked_add(parent.tokens.len())
+        })
+    else {
+        return LocalFragmentProposalAnalysis {
+            outcome: LocalFragmentProposalOutcome::Unavailable(
+                LocalFragmentProposalStopReason::CounterOverflow,
+            ),
+            flat_metrics: LocalFragmentFlatExactBoundaryShadowMetrics {
+                complete: false,
+                stop_reason: Some(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow),
+                min_tokens,
+                fixed_depth,
+                ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+            },
+        };
+    };
+    let Some(flat_limits) = FlatExactBoundaryLimits::for_tokens(eligible_tokens) else {
+        return LocalFragmentProposalAnalysis {
+            outcome: LocalFragmentProposalOutcome::Unavailable(
+                LocalFragmentProposalStopReason::CounterOverflow,
+            ),
+            flat_metrics: LocalFragmentFlatExactBoundaryShadowMetrics {
+                complete: false,
+                stop_reason: Some(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow),
+                min_tokens,
+                fixed_depth,
+                ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
+            },
+        };
+    };
+    let mut proposal_stop_reason = if parent_relations.complete {
+        None
+    } else {
+        Some(LocalFragmentProposalStopReason::ParentRelationIncomplete)
+    };
+    let mut local_budget = match LocalFragmentLimits::for_tokens(eligible_tokens, min_tokens) {
+        Some(limits) if proposal_stop_reason.is_none() => Some(LocalFragmentBudget::new(limits)),
+        Some(_) => None,
+        None => {
+            proposal_stop_reason = Some(LocalFragmentProposalStopReason::CounterOverflow);
+            None
+        }
+    };
+    let mut batch = None;
+    let flat_metrics = analyze_local_fragment_flat_exact_boundary_with_consumer(
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        min_tokens,
+        flat_limits,
+        &mut |old_fragments, new_fragments, joined| {
+            if let Some(local_budget) = local_budget.as_mut() {
+                match build_local_fragment_replacement_batch(
+                    Some(old_side),
+                    Some(new_side),
+                    old_fragments,
+                    new_fragments,
+                    joined,
+                    old_occurrences,
+                    new_occurrences,
+                    old_candidates,
+                    new_candidates,
+                    parent_relations,
+                    min_tokens,
+                    local_budget,
+                ) {
+                    Ok(replacements) => batch = Some(replacements),
+                    Err(reason) => proposal_stop_reason = Some(reason.into()),
+                }
+            }
+            Ok(())
+        },
+    );
+    let outcome = if !flat_metrics.complete {
+        LocalFragmentProposalOutcome::Unavailable(
+            LocalFragmentProposalStopReason::FlatExactBoundaryIncomplete,
+        )
+    } else if let Some(reason) = proposal_stop_reason {
+        LocalFragmentProposalOutcome::Unavailable(reason)
+    } else {
+        LocalFragmentProposalOutcome::Complete(batch.unwrap_or_default())
+    };
+    LocalFragmentProposalAnalysis {
+        outcome,
+        flat_metrics,
+    }
+}
+
+fn local_sentence_ranges_overlap(
+    candidate: &LocalSentenceRange,
+    existing: &[LocalSentenceRange],
+) -> bool {
+    existing.iter().any(|range| {
+        range.block == candidate.block
+            && ranges_conflict(
+                &(candidate.comparable.start..candidate.comparable.end),
+                &(range.comparable.start..range.comparable.end),
+            )
+    })
+}
+
+/// Appends fragment proposals after ordinary recovery has claimed its ranges.
+///
+/// Proposals that overlap an accepted replacement, deletion, or insertion are
+/// skipped individually. Allocation or counter failure leaves the existing
+/// plan and budget unchanged. The final sort restores the ordering required by
+/// the partition-point span indexes used during comparison.
+fn append_local_fragment_replacements(
+    plan: &mut SentenceRecoveryPlan,
+    pending: Vec<PendingLocalFragmentReplacement>,
+    budget: &mut RecoveryBudget,
+) -> std::result::Result<usize, LocalFragmentProposalStopReason> {
+    let mut trial_budget = *budget;
+    let mut selected = Vec::new();
+    selected
+        .try_reserve_exact(MAX_LOCAL_FRAGMENT_REPLACEMENTS)
+        .map_err(|_| LocalFragmentProposalStopReason::AllocationFailure)?;
+    for proposal in pending {
+        if selected.len() == MAX_LOCAL_FRAGMENT_REPLACEMENTS {
+            break;
+        }
+        let disjoint = proposal
+            .replacement
+            .old_consumed
+            .iter()
+            .all(|range| !local_sentence_ranges_overlap(range, &plan.deletion_consumed))
+            && proposal
+                .replacement
+                .new_consumed
+                .iter()
+                .all(|range| !local_sentence_ranges_overlap(range, &plan.insertion_consumed));
+        if !disjoint {
+            continue;
+        }
+        let source_tokens = proposal
+            .replacement
+            .old
+            .source_tokens
+            .checked_add(proposal.replacement.new.source_tokens)
+            .ok_or(LocalFragmentProposalStopReason::CounterOverflow)?;
+        let mut proposal_budget = trial_budget;
+        if !proposal_budget.charge_outputs(2, source_tokens) {
+            continue;
+        }
+        trial_budget = proposal_budget;
+        selected.push(proposal);
+    }
+
+    let old_consumed_count = selected
+        .iter()
+        .try_fold(0usize, |total, proposal| {
+            total.checked_add(proposal.replacement.old_consumed.len())
+        })
+        .ok_or(LocalFragmentProposalStopReason::CounterOverflow)?;
+    let new_consumed_count = selected
+        .iter()
+        .try_fold(0usize, |total, proposal| {
+            total.checked_add(proposal.replacement.new_consumed.len())
+        })
+        .ok_or(LocalFragmentProposalStopReason::CounterOverflow)?;
+    plan.replacements
+        .try_reserve_exact(selected.len())
+        .map_err(|_| LocalFragmentProposalStopReason::AllocationFailure)?;
+    plan.deletion_consumed
+        .try_reserve_exact(old_consumed_count)
+        .map_err(|_| LocalFragmentProposalStopReason::AllocationFailure)?;
+    plan.insertion_consumed
+        .try_reserve_exact(new_consumed_count)
+        .map_err(|_| LocalFragmentProposalStopReason::AllocationFailure)?;
+    plan.cross_span_replacement_new_spans
+        .try_reserve_exact(selected.len())
+        .map_err(|_| LocalFragmentProposalStopReason::AllocationFailure)?;
+    let committed = selected.len();
+    for proposal in selected {
+        plan.deletion_consumed
+            .extend(proposal.replacement.old_consumed.iter().copied());
+        plan.insertion_consumed
+            .extend(proposal.replacement.new_consumed.iter().copied());
+        if proposal.replacement.old.span_index != proposal.replacement.new.span_index {
+            plan.cross_span_replacement_new_spans
+                .push(proposal.replacement.new.span_index);
+        }
+        plan.replacements.push(proposal.replacement);
+    }
+    sort_replacement_recoveries(plan);
+    *budget = trial_budget;
+    Ok(committed)
+}
+
+fn sort_replacement_recoveries(plan: &mut SentenceRecoveryPlan) {
+    // Span lookups use partition points, so every producer must restore these
+    // indexes after appending replacements in evidence-ranking order.
+    plan.replacements.sort_unstable_by_key(|replacement| {
+        (
+            replacement.old.span_index,
+            replacement.new.span_index,
+            replacement.old.comparable.start,
+            replacement.new.comparable.start,
+        )
+    });
+    plan.cross_span_replacement_new_spans.sort_unstable();
+    plan.cross_span_replacement_new_spans.dedup();
 }
 
 fn depth_band_index(depth: usize) -> usize {
@@ -17161,73 +18420,6 @@ fn record_local_fragment_exact_boundary_trie_shadow(
             min_tokens,
             fixed_depth,
             ..LocalFragmentExactBoundaryTrieShadowMetrics::default()
-        }
-    });
-}
-
-#[allow(clippy::too_many_arguments)]
-fn record_local_fragment_flat_exact_boundary_shadow(
-    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
-    old_occurrences: &[SentenceOccurrence],
-    new_occurrences: &[SentenceOccurrence],
-    old_candidates: &[RecoveryCandidate],
-    new_candidates: &[RecoveryCandidate],
-    min_tokens: usize,
-    candidate_generation_complete: bool,
-) {
-    let Some(diagnostics) = diagnostics.as_mut() else {
-        return;
-    };
-    let fixed_depth = sentence_edge_signature_depth(min_tokens).unwrap_or(0);
-    diagnostics
-        .metrics
-        .local_fragment_flat_exact_boundary_shadow = Some(if !candidate_generation_complete {
-        LocalFragmentFlatExactBoundaryShadowMetrics {
-            complete: false,
-            stop_reason: Some(
-                LocalFragmentFlatExactBoundaryStopReason::CandidateGenerationIncomplete,
-            ),
-            min_tokens,
-            fixed_depth,
-            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
-        }
-    } else if let Some(eligible_tokens) = old_candidates
-        .iter()
-        .filter_map(|candidate| old_occurrences.get(candidate.occurrence_index))
-        .chain(
-            new_candidates
-                .iter()
-                .filter_map(|candidate| new_occurrences.get(candidate.occurrence_index)),
-        )
-        .filter(|parent| local_fragment_parent_eligible(parent, min_tokens))
-        .try_fold(0usize, |total, parent| {
-            total.checked_add(parent.tokens.len())
-        })
-    {
-        match FlatExactBoundaryLimits::for_tokens(eligible_tokens) {
-            Some(limits) => analyze_local_fragment_flat_exact_boundary_shadow_with_limits(
-                old_occurrences,
-                new_occurrences,
-                old_candidates,
-                new_candidates,
-                min_tokens,
-                limits,
-            ),
-            None => LocalFragmentFlatExactBoundaryShadowMetrics {
-                complete: false,
-                stop_reason: Some(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow),
-                min_tokens,
-                fixed_depth,
-                ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
-            },
-        }
-    } else {
-        LocalFragmentFlatExactBoundaryShadowMetrics {
-            complete: false,
-            stop_reason: Some(LocalFragmentFlatExactBoundaryStopReason::CounterOverflow),
-            min_tokens,
-            fixed_depth,
-            ..LocalFragmentFlatExactBoundaryShadowMetrics::default()
         }
     });
 }
@@ -17603,21 +18795,11 @@ fn record_local_fragment_shadow(
         min_tokens,
         candidate_generation_complete,
     );
-    record_local_fragment_flat_exact_boundary_shadow(
-        diagnostics,
-        old_occurrences,
-        new_occurrences,
-        old_candidates,
-        new_candidates,
-        min_tokens,
-        candidate_generation_complete,
-    );
     record_local_fragment_global_parent_scoped_parity(diagnostics);
     record_local_fragment_recheck_global_parity(diagnostics);
     record_local_fragment_length_aware_recheck_reuse_parity(diagnostics);
     record_local_fragment_length_only_candidate_v47_parity(diagnostics);
     record_local_fragment_exact_boundary_trie_v48_parity(diagnostics);
-    record_local_fragment_flat_exact_boundary_v49_parity(diagnostics);
     let Some(diagnostics) = diagnostics.as_mut() else {
         return;
     };
@@ -21743,16 +22925,7 @@ fn append_replacements_typed(
                 .push(replacement.new.span_index);
         }
     }
-    plan.replacements.sort_unstable_by_key(|replacement| {
-        (
-            replacement.old.span_index,
-            replacement.new.span_index,
-            replacement.old.comparable.start,
-            replacement.new.comparable.start,
-        )
-    });
-    plan.cross_span_replacement_new_spans.sort_unstable();
-    plan.cross_span_replacement_new_spans.dedup();
+    sort_replacement_recoveries(plan);
     Ok(())
 }
 
@@ -35374,6 +36547,518 @@ mod tests {
         );
         assert_eq!(budget.work.estimated_bytes_examined, bytes);
         assert_eq!(budget.work.estimated_bytes_attempted, bytes * 2);
+    }
+
+    fn vetoed_fragment_parent_relations(old: usize, new: usize) -> ModifiedSentenceRelations {
+        let mut old_relations = vec![CandidateNearRelation::default(); old];
+        let mut new_relations = vec![CandidateNearRelation::default(); new];
+        for relation in old_relations.iter_mut().chain(&mut new_relations) {
+            relation.veto_without_partner();
+        }
+        ModifiedSentenceRelations {
+            old: old_relations,
+            new: new_relations,
+            complete: true,
+            edge_gate_shadow: None,
+            edge_signature_shadow: None,
+        }
+    }
+
+    fn fragment_proposal_batch(
+        old: &[SentenceOccurrence],
+        new: &[SentenceOccurrence],
+        old_fragments: &[LengthAwareLocalFragment],
+        new_fragments: &[LengthAwareLocalFragment],
+        joined: &[(usize, usize)],
+        relations: &ModifiedSentenceRelations,
+    ) -> Vec<PendingLocalFragmentReplacement> {
+        let old_candidates = (0..old.len())
+            .map(|occurrence_index| RecoveryCandidate {
+                occurrence_index,
+                span_index: old[occurrence_index].span_index.expect("old span exists"),
+            })
+            .collect::<Vec<_>>();
+        let new_candidates = (0..new.len())
+            .map(|occurrence_index| RecoveryCandidate {
+                occurrence_index,
+                span_index: new[occurrence_index].span_index.expect("new span exists"),
+            })
+            .collect::<Vec<_>>();
+        let mut budget = LocalFragmentBudget::new(
+            LocalFragmentLimits::for_tokens(1_000, 1).expect("limits fit"),
+        );
+        build_local_fragment_replacement_batch(
+            None,
+            None,
+            old_fragments,
+            new_fragments,
+            joined,
+            old,
+            new,
+            &old_candidates,
+            &new_candidates,
+            relations,
+            1,
+            &mut budget,
+        )
+        .expect("proposal analysis completes")
+    }
+
+    #[test]
+    fn local_fragment_proposal_recovers_comma_deletion_with_fragment_coverage() {
+        let old = vec![local_fragment_parent("use, rather", 1, 0)];
+        let new = vec![local_fragment_parent("use rather", 2, 0)];
+        let old_fragment = test_length_aware_fragment(
+            0,
+            &old[0],
+            LocalFragmentOrientation::Prefix,
+            0..old[0].tokens.len(),
+        );
+        let new_fragment = test_length_aware_fragment(
+            0,
+            &new[0],
+            LocalFragmentOrientation::Prefix,
+            0..new[0].tokens.len(),
+        );
+
+        let batch = fragment_proposal_batch(
+            &old,
+            &new,
+            &[old_fragment],
+            &[new_fragment],
+            &[(0, 0)],
+            &vetoed_fragment_parent_relations(1, 1),
+        );
+
+        assert_eq!(batch.len(), 1);
+        assert_eq!(batch[0].old_edit, 3..4);
+        assert_eq!(batch[0].new_edit, 3..3);
+        assert_eq!(batch[0].replacement.old.source_tokens, 11);
+        assert_eq!(batch[0].replacement.new.source_tokens, 10);
+        assert_eq!(batch[0].replacement.old_consumed.len(), 1);
+        assert_eq!(batch[0].replacement.edits, None);
+    }
+
+    #[test]
+    fn local_fragment_proposal_collapses_nested_raw_ties_to_maximal_boundary() {
+        let old = vec![local_fragment_parent("xuse, rather", 1, 0)];
+        let new = vec![local_fragment_parent("xuse rather", 2, 0)];
+        let old_fragments = [
+            test_length_aware_fragment(
+                0,
+                &old[0],
+                LocalFragmentOrientation::Prefix,
+                0..old[0].tokens.len(),
+            ),
+            test_length_aware_fragment(
+                0,
+                &old[0],
+                LocalFragmentOrientation::Prefix,
+                1..old[0].tokens.len(),
+            ),
+        ];
+        let new_fragments = [
+            test_length_aware_fragment(
+                0,
+                &new[0],
+                LocalFragmentOrientation::Prefix,
+                0..new[0].tokens.len(),
+            ),
+            test_length_aware_fragment(
+                0,
+                &new[0],
+                LocalFragmentOrientation::Prefix,
+                1..new[0].tokens.len(),
+            ),
+        ];
+
+        let batch = fragment_proposal_batch(
+            &old,
+            &new,
+            &old_fragments,
+            &new_fragments,
+            &[(0, 0), (0, 1), (1, 0), (1, 1)],
+            &vetoed_fragment_parent_relations(1, 1),
+        );
+
+        assert_eq!(batch.len(), 1);
+        assert_eq!(batch[0].old_edit, 4..5);
+        assert_eq!(batch[0].new_edit, 4..4);
+    }
+
+    #[test]
+    fn local_fragment_proposal_rejects_ambiguous_unchanged_and_parent_overlap() {
+        let old = vec![local_fragment_parent("use, rather", 1, 0)];
+        let new = vec![local_fragment_parent("use rather", 2, 0)];
+        let old_fragment = test_length_aware_fragment(
+            0,
+            &old[0],
+            LocalFragmentOrientation::Prefix,
+            0..old[0].tokens.len(),
+        );
+        let new_fragment = test_length_aware_fragment(
+            0,
+            &new[0],
+            LocalFragmentOrientation::Prefix,
+            0..new[0].tokens.len(),
+        );
+        let duplicate_new = [new_fragment.clone(), new_fragment.clone()];
+        assert!(
+            fragment_proposal_batch(
+                &old,
+                &new,
+                std::slice::from_ref(&old_fragment),
+                &duplicate_new,
+                &[(0, 0), (0, 1)],
+                &vetoed_fragment_parent_relations(1, 1),
+            )
+            .is_empty()
+        );
+
+        let unchanged = vec![local_fragment_parent("use, rather", 3, 0)];
+        let unchanged_fragment = test_length_aware_fragment(
+            0,
+            &unchanged[0],
+            LocalFragmentOrientation::Prefix,
+            0..unchanged[0].tokens.len(),
+        );
+        assert!(
+            fragment_proposal_batch(
+                &old,
+                &unchanged,
+                std::slice::from_ref(&old_fragment),
+                &[unchanged_fragment],
+                &[(0, 0)],
+                &vetoed_fragment_parent_relations(1, 1),
+            )
+            .is_empty()
+        );
+
+        let mut old_parent_relation = CandidateNearRelation::default();
+        let mut new_parent_relation = CandidateNearRelation::default();
+        old_parent_relation.record_eligible(0, MIN_NEAR_SCORE);
+        new_parent_relation.record_eligible(0, MIN_NEAR_SCORE);
+        let parent_overlap = ModifiedSentenceRelations {
+            old: vec![old_parent_relation],
+            new: vec![new_parent_relation],
+            complete: true,
+            edge_gate_shadow: None,
+            edge_signature_shadow: None,
+        };
+        assert!(
+            fragment_proposal_batch(
+                &old,
+                &new,
+                &[old_fragment],
+                &[new_fragment],
+                &[(0, 0)],
+                &parent_overlap,
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn local_fragment_proposal_rejects_edit_at_fragment_boundary() {
+        let old = vec![local_fragment_parent("use rather", 1, 0)];
+        let new = vec![local_fragment_parent("use ratherb", 2, 0)];
+        let old_fragment = test_length_aware_fragment(
+            0,
+            &old[0],
+            LocalFragmentOrientation::Prefix,
+            0..old[0].tokens.len(),
+        );
+        let new_fragment = test_length_aware_fragment(
+            0,
+            &new[0],
+            LocalFragmentOrientation::Prefix,
+            0..new[0].tokens.len(),
+        );
+
+        assert!(
+            fragment_proposal_batch(
+                &old,
+                &new,
+                &[old_fragment],
+                &[new_fragment],
+                &[(0, 0)],
+                &vetoed_fragment_parent_relations(1, 1),
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn local_fragment_proposal_rejects_multiblock_and_skips_over_budget_batch() {
+        let old = vec![local_fragment_parent("use, rather", 1, 0)];
+        let new = vec![local_fragment_parent("use rather", 2, 0)];
+        let old_fragment = test_length_aware_fragment(
+            0,
+            &old[0],
+            LocalFragmentOrientation::Prefix,
+            0..old[0].tokens.len(),
+        );
+        let new_fragment = test_length_aware_fragment(
+            0,
+            &new[0],
+            LocalFragmentOrientation::Prefix,
+            0..new[0].tokens.len(),
+        );
+        let mut multiblock = old;
+        multiblock[0]
+            .location
+            .as_mut()
+            .expect("location exists")
+            .recovery
+            .blocks
+            .push(BlockId(9));
+        assert!(
+            fragment_proposal_batch(
+                &multiblock,
+                &new,
+                std::slice::from_ref(&old_fragment),
+                std::slice::from_ref(&new_fragment),
+                &[(0, 0)],
+                &vetoed_fragment_parent_relations(1, 1),
+            )
+            .is_empty()
+        );
+
+        let batch = fragment_proposal_batch(
+            &[local_fragment_parent("use, rather", 1, 0)],
+            &new,
+            &[old_fragment],
+            &[new_fragment],
+            &[(0, 0)],
+            &vetoed_fragment_parent_relations(1, 1),
+        );
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut budget = RecoveryBudget::new(1, 0, 1, 1).expect("small budget is valid");
+        let before_ranges = budget.output_ranges;
+        let before_tokens = budget.output_tokens;
+        assert!(append_local_fragment_replacements(&mut plan, batch, &mut budget).is_ok());
+        assert!(plan == SentenceRecoveryPlan::default());
+        assert_eq!(budget.output_ranges, before_ranges);
+        assert_eq!(budget.output_tokens, before_tokens);
+    }
+
+    #[test]
+    fn local_fragment_append_restores_span_lookup_order() {
+        let low_old = vec![local_fragment_parent("use, rather", 1, 1)];
+        let low_new = vec![local_fragment_parent("use rather", 2, 2)];
+        let low_old_fragment = test_length_aware_fragment(
+            0,
+            &low_old[0],
+            LocalFragmentOrientation::Prefix,
+            0..low_old[0].tokens.len(),
+        );
+        let low_new_fragment = test_length_aware_fragment(
+            0,
+            &low_new[0],
+            LocalFragmentOrientation::Prefix,
+            0..low_new[0].tokens.len(),
+        );
+        let low_batch = fragment_proposal_batch(
+            &low_old,
+            &low_new,
+            &[low_old_fragment],
+            &[low_new_fragment],
+            &[(0, 0)],
+            &vetoed_fragment_parent_relations(1, 1),
+        );
+
+        let high_old = vec![local_fragment_parent("value; changed", 3, 9)];
+        let high_new = vec![local_fragment_parent("value changed", 4, 10)];
+        let high_old_fragment = test_length_aware_fragment(
+            0,
+            &high_old[0],
+            LocalFragmentOrientation::Prefix,
+            0..high_old[0].tokens.len(),
+        );
+        let high_new_fragment = test_length_aware_fragment(
+            0,
+            &high_new[0],
+            LocalFragmentOrientation::Prefix,
+            0..high_new[0].tokens.len(),
+        );
+        let mut high_batch = fragment_proposal_batch(
+            &high_old,
+            &high_new,
+            &[high_old_fragment],
+            &[high_new_fragment],
+            &[(0, 0)],
+            &vetoed_fragment_parent_relations(1, 1),
+        );
+        let high = high_batch.pop().expect("high-span proposal exists");
+
+        let mut plan = SentenceRecoveryPlan::default();
+        plan.cross_span_replacement_new_spans.push(10);
+        plan.replacements.push(high.replacement);
+        let mut budget = RecoveryBudget::new(1_000, 0, 1_000, 1).expect("budget is valid");
+
+        assert!(append_local_fragment_replacements(&mut plan, low_batch, &mut budget).is_ok());
+        assert_eq!(
+            plan.replacements
+                .iter()
+                .map(|replacement| replacement.old.span_index)
+                .collect::<Vec<_>>(),
+            vec![1, 9]
+        );
+        assert_eq!(replacements_for_span(&plan.replacements, 1).len(), 1);
+        assert_eq!(replacements_for_span(&plan.replacements, 9).len(), 1);
+        assert_eq!(plan.cross_span_replacement_new_spans, vec![2, 10]);
+    }
+
+    #[test]
+    fn local_fragment_append_fills_cap_after_existing_recovery_overlap() {
+        let mut pending = Vec::new();
+        for index in 0..=MAX_LOCAL_FRAGMENT_REPLACEMENTS {
+            let old = vec![local_fragment_parent(
+                "use, rather",
+                index as u64 + 1,
+                index + 1,
+            )];
+            let new = vec![local_fragment_parent(
+                "use rather",
+                index as u64 + 101,
+                index + 101,
+            )];
+            let old_fragment = test_length_aware_fragment(
+                0,
+                &old[0],
+                LocalFragmentOrientation::Prefix,
+                0..old[0].tokens.len(),
+            );
+            let new_fragment = test_length_aware_fragment(
+                0,
+                &new[0],
+                LocalFragmentOrientation::Prefix,
+                0..new[0].tokens.len(),
+            );
+            pending.extend(fragment_proposal_batch(
+                &old,
+                &new,
+                &[old_fragment],
+                &[new_fragment],
+                &[(0, 0)],
+                &vetoed_fragment_parent_relations(1, 1),
+            ));
+        }
+        assert_eq!(pending.len(), MAX_LOCAL_FRAGMENT_REPLACEMENTS + 1);
+
+        let mut plan = SentenceRecoveryPlan {
+            deletion_consumed: pending[0].replacement.old_consumed.clone(),
+            ..SentenceRecoveryPlan::default()
+        };
+        let mut budget = RecoveryBudget::new(1_000, 0, 1_000, 1).expect("budget is valid");
+
+        let committed = append_local_fragment_replacements(&mut plan, pending, &mut budget)
+            .expect("proposal append completes");
+
+        assert_eq!(committed, MAX_LOCAL_FRAGMENT_REPLACEMENTS);
+        assert_eq!(
+            plan.replacements
+                .iter()
+                .map(|replacement| replacement.old.span_index)
+                .collect::<Vec<_>>(),
+            vec![2, 3, 4]
+        );
+    }
+
+    #[test]
+    fn local_fragment_proposal_rejects_orientation_role_and_location_mismatches() {
+        let old = vec![local_fragment_parent("use, rather", 1, 0)];
+        let new = vec![local_fragment_parent("use rather", 2, 0)];
+        let old_fragment = test_length_aware_fragment(
+            0,
+            &old[0],
+            LocalFragmentOrientation::Prefix,
+            0..old[0].tokens.len(),
+        );
+        let new_fragment = test_length_aware_fragment(
+            0,
+            &new[0],
+            LocalFragmentOrientation::Prefix,
+            0..new[0].tokens.len(),
+        );
+        let mut wrong_orientation = new_fragment.clone();
+        wrong_orientation.orientation = LocalFragmentOrientation::Suffix;
+        assert!(
+            fragment_proposal_batch(
+                &old,
+                &new,
+                std::slice::from_ref(&old_fragment),
+                &[wrong_orientation],
+                &[(0, 0)],
+                &vetoed_fragment_parent_relations(1, 1),
+            )
+            .is_empty()
+        );
+
+        let mut wrong_role_parent = new;
+        wrong_role_parent[0].role = Some(BlockRole::RepeatedFooter);
+        let mut wrong_role_fragment = new_fragment.clone();
+        wrong_role_fragment.role = OccurrenceRole::RepeatedFooter;
+        assert!(
+            fragment_proposal_batch(
+                &old,
+                &wrong_role_parent,
+                std::slice::from_ref(&old_fragment),
+                &[wrong_role_fragment],
+                &[(0, 0)],
+                &vetoed_fragment_parent_relations(1, 1),
+            )
+            .is_empty()
+        );
+
+        let mut missing_location = wrong_role_parent;
+        missing_location[0].role = Some(BlockRole::Body);
+        missing_location[0].location = None;
+        assert!(
+            fragment_proposal_batch(
+                &old,
+                &missing_location,
+                &[old_fragment],
+                &[new_fragment],
+                &[(0, 0)],
+                &vetoed_fragment_parent_relations(1, 1),
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn local_fragment_proposal_fails_closed_on_overlapping_distinct_edits() {
+        let old = vec![local_fragment_parent("ab,c;def", 1, 0)];
+        let new = vec![local_fragment_parent("abcdef", 2, 0)];
+        let old_fragments = [
+            test_length_aware_fragment(0, &old[0], LocalFragmentOrientation::Prefix, 0..4),
+            test_length_aware_fragment(0, &old[0], LocalFragmentOrientation::Suffix, 3..6),
+        ];
+        let new_fragments = [
+            test_length_aware_fragment(0, &new[0], LocalFragmentOrientation::Prefix, 0..3),
+            test_length_aware_fragment(0, &new[0], LocalFragmentOrientation::Suffix, 2..4),
+        ];
+
+        let batch = fragment_proposal_batch(
+            &old,
+            &new,
+            &old_fragments,
+            &new_fragments,
+            &[(0, 0), (1, 1)],
+            &vetoed_fragment_parent_relations(1, 1),
+        );
+
+        assert!(batch.is_empty());
+    }
+
+    #[test]
+    fn empty_fragment_edit_conflicts_only_inside_half_open_range() {
+        assert!(ranges_conflict(&(2..2), &(1..3)));
+        assert!(ranges_conflict(&(1..3), &(2..2)));
+        assert!(!ranges_conflict(&(3..3), &(1..3)));
+        assert!(!ranges_conflict(&(1..3), &(3..3)));
+        assert!(ranges_conflict(&(3..3), &(3..3)));
     }
 
     #[test]

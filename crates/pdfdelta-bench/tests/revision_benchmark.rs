@@ -8,8 +8,9 @@ use pdfdelta_bench::{
     renderers::{RenderLimits, RendererKind},
     revisions::{
         Annotation, MANIFEST_HEADER, PairRunStatus, PairSet, QUALITY_SKIP_INCOMPLETE_EXTRACTION,
-        ScopedEventMetrics, load_expected_document, normalize_output_destination,
-        run_revision_benchmark, write_reports_json, write_summary_json,
+        ScopedEventMetrics, collapse_whitespace, load_expected_document,
+        normalize_output_destination, run_revision_benchmark, write_reports_json,
+        write_summary_json,
     },
 };
 use sha2::{Digest, Sha256};
@@ -77,6 +78,41 @@ fn existing_expected_revision_files_remain_valid() {
         loaded += 1;
     }
     assert!(loaded > 0, "expected at least one expected-revision file");
+}
+
+#[test]
+fn nist_toolkit_footnote_range_is_the_removed_comma() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../benchmark/realworld/expected/nist-sp800-57-part1-r4-to-r5.json");
+    let contents = fs::read_to_string(path).expect("NIST SP 800-57 annotation");
+    let document = load_expected_document(&contents).expect("annotation remains valid");
+    let change = document
+        .changes
+        .iter()
+        .find(|change| change.id == "toolkit-footnote-comma-removed")
+        .expect("reviewed footnote change exists");
+    let old_quote = collapse_whitespace(change.old_quote.as_deref().expect("old context quote"));
+    let old_ranges = change
+        .old_changed_ranges
+        .as_deref()
+        .expect("old changed range");
+    let new_ranges = change
+        .new_changed_ranges
+        .as_deref()
+        .expect("new empty changed range");
+
+    assert_eq!(old_ranges.len(), 1);
+    let range = old_ranges[0];
+    assert_eq!(range.end - range.start, 1);
+    assert_eq!(
+        old_quote
+            .chars()
+            .skip(range.start)
+            .take(range.end - range.start)
+            .collect::<String>(),
+        ","
+    );
+    assert!(new_ranges.is_empty());
 }
 
 fn store(cache_dir: &Path, pair_id: &str, side: &str, bytes: &[u8]) -> String {
@@ -773,7 +809,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 51);
+    assert_eq!(val["schema_version"], 52);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 
@@ -834,6 +870,23 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
         rec["sentence_recovery_metrics"]
             .get("local_fragment_flat_exact_boundary_shadow")
             .is_some()
+    );
+    assert!(
+        rec["sentence_recovery_metrics"]
+            .get("local_fragment_proposal_complete")
+            .is_some()
+    );
+    assert_eq!(
+        rec["sentence_recovery_metrics"]["local_fragment_proposal_stop_reason"],
+        serde_json::Value::Null
+    );
+    assert!(
+        rec["sentence_recovery_metrics"]["local_fragment_proposals_committed"]
+            .as_u64()
+            .is_some_and(|committed| committed
+                <= rec["sentence_recovery_metrics"]["local_fragment_proposals_considered"]
+                    .as_u64()
+                    .expect("considered proposal count"))
     );
     assert_eq!(
         rec["sentence_recovery_metrics"]["sentence_edge_filter_complete"],

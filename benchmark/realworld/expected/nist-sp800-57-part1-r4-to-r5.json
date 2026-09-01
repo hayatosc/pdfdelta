@@ -49,6 +49,8 @@
       "kind": "replacement",
       "old_quote": "The toolkit consists of publications specifying algorithms and guidance for their use, rather than software code.",
       "new_quote": "The toolkit consists of publications specifying algorithms and guidance for their use rather than software code.",
+      "old_changed_ranges": [{ "start": 85, "end": 86 }],
+      "new_changed_ranges": [],
       "note": "The Rev. 5 footnote remains present and removes the comma before 'rather'."
     },
     {

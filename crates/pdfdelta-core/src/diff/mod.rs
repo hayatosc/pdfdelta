@@ -1496,6 +1496,71 @@ pub enum LocalFragmentFlatExactBoundaryStopReason {
     DiagnosticFailure,
 }
 
+/// Reason exact local-fragment replacement recovery was unavailable.
+///
+/// Detailed flat-boundary failures remain available through
+/// [`SentenceRecoveryMetrics::local_fragment_flat_exact_boundary_shadow`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LocalFragmentProposalStopReason {
+    CandidateGenerationIncomplete,
+    ParentRelationIncomplete,
+    FlatExactBoundaryIncomplete,
+    EnumerationLimit,
+    SignatureTokenStepLimit,
+    TemporarySignatureKeyLimit,
+    IndexPostingLimit,
+    QueryLimit,
+    PostingVisitLimit,
+    BoundaryIndexPostingLimit,
+    BoundaryQueryLimit,
+    BoundaryPostingVisitLimit,
+    ParentCandidatePairLimit,
+    CandidatePairLimit,
+    SimilarityComparisonLimit,
+    EditWorkLimit,
+    OutputLimit,
+    AllocationFailure,
+    CounterOverflow,
+    DiagnosticFailure,
+}
+
+impl From<LocalFragmentShadowStopReason> for LocalFragmentProposalStopReason {
+    fn from(reason: LocalFragmentShadowStopReason) -> Self {
+        match reason {
+            LocalFragmentShadowStopReason::EnumerationLimit => Self::EnumerationLimit,
+            LocalFragmentShadowStopReason::SignatureTokenStepLimit => Self::SignatureTokenStepLimit,
+            LocalFragmentShadowStopReason::TemporarySignatureKeyLimit => {
+                Self::TemporarySignatureKeyLimit
+            }
+            LocalFragmentShadowStopReason::IndexPostingLimit => Self::IndexPostingLimit,
+            LocalFragmentShadowStopReason::QueryLimit => Self::QueryLimit,
+            LocalFragmentShadowStopReason::PostingVisitLimit => Self::PostingVisitLimit,
+            LocalFragmentShadowStopReason::BoundaryIndexPostingLimit => {
+                Self::BoundaryIndexPostingLimit
+            }
+            LocalFragmentShadowStopReason::BoundaryQueryLimit => Self::BoundaryQueryLimit,
+            LocalFragmentShadowStopReason::BoundaryPostingVisitLimit => {
+                Self::BoundaryPostingVisitLimit
+            }
+            LocalFragmentShadowStopReason::ParentCandidatePairLimit => {
+                Self::ParentCandidatePairLimit
+            }
+            LocalFragmentShadowStopReason::CandidatePairLimit => Self::CandidatePairLimit,
+            LocalFragmentShadowStopReason::SimilarityComparisonLimit => {
+                Self::SimilarityComparisonLimit
+            }
+            LocalFragmentShadowStopReason::EditWorkLimit => Self::EditWorkLimit,
+            LocalFragmentShadowStopReason::OutputLimit => Self::OutputLimit,
+            LocalFragmentShadowStopReason::CandidateGenerationIncomplete => {
+                Self::CandidateGenerationIncomplete
+            }
+            LocalFragmentShadowStopReason::AllocationFailure => Self::AllocationFailure,
+            LocalFragmentShadowStopReason::CounterOverflow => Self::CounterOverflow,
+            LocalFragmentShadowStopReason::DiagnosticFailure => Self::DiagnosticFailure,
+        }
+    }
+}
+
 /// Stop-safe work for the flat exact-boundary shadow.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct LocalFragmentFlatExactBoundaryWorkMetrics {
@@ -1674,6 +1739,13 @@ pub struct SentenceRecoveryMetrics {
         Option<LocalFragmentExactBoundaryTrieShadowMetrics>,
     pub local_fragment_flat_exact_boundary_shadow:
         Option<LocalFragmentFlatExactBoundaryShadowMetrics>,
+    /// Whether proposal analysis and transactional adoption both completed.
+    pub local_fragment_proposal_complete: Option<bool>,
+    pub local_fragment_proposal_stop_reason: Option<LocalFragmentProposalStopReason>,
+    /// Ranked proposals available before existing recovery and shared-budget checks.
+    pub local_fragment_proposals_considered: usize,
+    /// Proposals committed after existing recovery and shared-budget checks.
+    pub local_fragment_proposals_committed: usize,
     /// Whether the production Sentence edge filter classified every query.
     /// A false value always has [`Self::sentence_edge_filter_stop_reason`].
     pub sentence_edge_filter_complete: bool,
