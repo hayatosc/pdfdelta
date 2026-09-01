@@ -22,32 +22,33 @@ use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
         ChangeKind, ChangeOccurrence, Comparison, ExactSegmentRelation,
-        KnownSpanSentenceShadowMetrics, LocalFragmentExactBoundaryTrieShadowMetrics,
-        LocalFragmentFlatExactBoundaryShadowMetrics, LocalFragmentFlatExactBoundaryStopReason,
-        LocalFragmentFlatExactBoundaryWorkMetrics, LocalFragmentGlobalLengthAwareShadowMetrics,
-        LocalFragmentLengthAwareRecheckShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
-        LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
-        LocalFragmentLengthOnlyCandidateShadowMetrics, LocalFragmentLocationEvidence,
-        LocalFragmentOrientation, LocalFragmentPairEvidence, LocalFragmentProposalStopReason,
-        LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
-        LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
-        LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, MatchedAtomicDiff,
-        NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveredAtomicDiff,
-        RecoveryRemainderAttributionMetrics, RecoveryRemainderAttributionStopReason,
-        RecoveryRemainderCauseMetrics, RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence,
-        RecoveryWatchGranularRelation, RecoveryWatchGranularStopReason,
-        RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope, RecoveryWatchOccurrence,
-        RecoveryWatchOccurrenceEvidence, RecoveryWatchOneSidedOpponentEvidence,
-        RecoveryWatchOneSidedVetoEvidence, RecoveryWatchPairEvidence, RecoveryWatchQuery,
-        RecoveryWatchQuoteLocalEditEvidence, RecoveryWatchQuoteLocalPairEvidence,
-        RecoveryWatchQuoteLocalScoreEvidence, RecoveryWatchQuoteLocalSideEvidence,
-        RecoveryWatchQuoteLocalStatus, RecoveryWatchQuoteLocalStopReason,
-        RecoveryWatchQuoteLocalUnitEvidence, RecoveryWatchRelation,
-        RecoveryWatchSegmentPairEvidence, RecoveryWatchSide, RecoveryWatchUnitKind,
-        RunSignatureStopReason, SegmentStopReason, SentenceEdgeFilterStopReason,
-        SentenceEdgeGateShadowMetrics, SentenceEdgeGateShadowStopReason,
-        SentenceEdgeSignatureDirectExecution, SentenceEdgeSignatureDirectShadowMetrics,
-        SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureReferenceOracleMetrics,
+        ExactTailRecoveryStopReason, KnownSpanSentenceShadowMetrics,
+        LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentFlatExactBoundaryShadowMetrics,
+        LocalFragmentFlatExactBoundaryStopReason, LocalFragmentFlatExactBoundaryWorkMetrics,
+        LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
+        LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
+        LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLengthOnlyCandidateShadowMetrics,
+        LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
+        LocalFragmentProposalStopReason, LocalFragmentRecheckMembershipOutcomeWork,
+        LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
+        LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
+        MatchedAtomicDiff, NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
+        RecoveredAtomicDiff, RecoveryRemainderAttributionMetrics,
+        RecoveryRemainderAttributionStopReason, RecoveryRemainderCauseMetrics,
+        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
+        RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
+        RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
+        RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
+        RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchQuoteLocalEditEvidence,
+        RecoveryWatchQuoteLocalPairEvidence, RecoveryWatchQuoteLocalScoreEvidence,
+        RecoveryWatchQuoteLocalSideEvidence, RecoveryWatchQuoteLocalStatus,
+        RecoveryWatchQuoteLocalStopReason, RecoveryWatchQuoteLocalUnitEvidence,
+        RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence, RecoveryWatchSide,
+        RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
+        SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
+        SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
+        SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
+        SentenceEdgeSignatureReferenceOracleMetrics,
         SentenceEdgeSignatureReferenceOracleStopReason, SentenceEdgeSignatureShadowMetrics,
         SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics, TextSpan,
     },
@@ -701,6 +702,36 @@ impl From<RecoveryRemainderAttributionStopReason> for RecoveryRemainderAttributi
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExactTailRecoveryStopReasonReport {
+    CollectionIncomplete,
+    AllocationFailure,
+    CounterOverflow,
+    WorkLimit,
+    CandidateGenerationIncomplete,
+    OutputCommitFailed,
+    OverlappingRanges,
+    InvalidEvidence,
+}
+
+impl From<ExactTailRecoveryStopReason> for ExactTailRecoveryStopReasonReport {
+    fn from(reason: ExactTailRecoveryStopReason) -> Self {
+        match reason {
+            ExactTailRecoveryStopReason::CollectionIncomplete => Self::CollectionIncomplete,
+            ExactTailRecoveryStopReason::AllocationFailure => Self::AllocationFailure,
+            ExactTailRecoveryStopReason::CounterOverflow => Self::CounterOverflow,
+            ExactTailRecoveryStopReason::WorkLimit => Self::WorkLimit,
+            ExactTailRecoveryStopReason::CandidateGenerationIncomplete => {
+                Self::CandidateGenerationIncomplete
+            }
+            ExactTailRecoveryStopReason::OutputCommitFailed => Self::OutputCommitFailed,
+            ExactTailRecoveryStopReason::OverlappingRanges => Self::OverlappingRanges,
+            ExactTailRecoveryStopReason::InvalidEvidence => Self::InvalidEvidence,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct SentenceRecoveryMetricsReport {
     pub old_trusted_run_source_tokens: usize,
@@ -746,6 +777,18 @@ pub struct SentenceRecoveryMetricsReport {
     pub exact_shared_units: usize,
     pub old_exact_one_sided_units: usize,
     pub new_exact_one_sided_units: usize,
+    pub exact_tail_recovery_complete: Option<bool>,
+    pub exact_tail_recovery_stop_reason: Option<ExactTailRecoveryStopReasonReport>,
+    pub exact_tail_old_units: usize,
+    pub exact_tail_new_units: usize,
+    pub exact_tail_census_units_examined: usize,
+    pub exact_tail_census_token_comparisons: usize,
+    pub exact_tail_token_verification_comparisons: usize,
+    pub exact_tail_conflicting_normal_units: usize,
+    pub exact_tail_multiplicity_vetoed_candidates: usize,
+    pub exact_tail_verification_vetoed_candidates: usize,
+    pub exact_tail_candidates: usize,
+    pub exact_tail_matches_committed: usize,
     pub near_relation_complete: bool,
     pub relation_floor_pairs_considered: usize,
     pub relation_floor_word_scans: usize,
@@ -3401,6 +3444,23 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             exact_shared_units: metrics.exact_shared_units,
             old_exact_one_sided_units: metrics.old_exact_one_sided_units,
             new_exact_one_sided_units: metrics.new_exact_one_sided_units,
+            exact_tail_recovery_complete: metrics.exact_tail_recovery_complete,
+            exact_tail_recovery_stop_reason: metrics
+                .exact_tail_recovery_stop_reason
+                .map(Into::into),
+            exact_tail_old_units: metrics.exact_tail_old_units,
+            exact_tail_new_units: metrics.exact_tail_new_units,
+            exact_tail_census_units_examined: metrics.exact_tail_census_units_examined,
+            exact_tail_census_token_comparisons: metrics.exact_tail_census_token_comparisons,
+            exact_tail_token_verification_comparisons: metrics
+                .exact_tail_token_verification_comparisons,
+            exact_tail_conflicting_normal_units: metrics.exact_tail_conflicting_normal_units,
+            exact_tail_multiplicity_vetoed_candidates: metrics
+                .exact_tail_multiplicity_vetoed_candidates,
+            exact_tail_verification_vetoed_candidates: metrics
+                .exact_tail_verification_vetoed_candidates,
+            exact_tail_candidates: metrics.exact_tail_candidates,
+            exact_tail_matches_committed: metrics.exact_tail_matches_committed,
             near_relation_complete: metrics.near_relation_complete,
             relation_floor_pairs_considered: metrics.relation_floor_pairs_considered,
             relation_floor_word_scans: metrics.relation_floor_word_scans,
@@ -6346,9 +6406,82 @@ fn alignment_visit_metrics(
     })
 }
 
+fn validate_exact_tail_recovery_metrics(
+    metrics: SentenceRecoveryMetrics,
+) -> std::result::Result<(), String> {
+    let counters_are_zero = metrics.exact_tail_old_units == 0
+        && metrics.exact_tail_new_units == 0
+        && metrics.exact_tail_census_units_examined == 0
+        && metrics.exact_tail_census_token_comparisons == 0
+        && metrics.exact_tail_token_verification_comparisons == 0
+        && metrics.exact_tail_conflicting_normal_units == 0
+        && metrics.exact_tail_multiplicity_vetoed_candidates == 0
+        && metrics.exact_tail_verification_vetoed_candidates == 0
+        && metrics.exact_tail_candidates == 0
+        && metrics.exact_tail_matches_committed == 0;
+    match metrics.exact_tail_recovery_complete {
+        None => {
+            if metrics.exact_tail_recovery_stop_reason.is_some() || !counters_are_zero {
+                return Err(
+                    "unattempted exact-tail recovery exposes a stop reason or work metrics"
+                        .to_owned(),
+                );
+            }
+            return Ok(());
+        }
+        Some(true) if metrics.exact_tail_recovery_stop_reason.is_some() => {
+            return Err("complete exact-tail recovery exposes a stop reason".to_owned());
+        }
+        Some(false) if metrics.exact_tail_recovery_stop_reason.is_none() => {
+            return Err("incomplete exact-tail recovery has no stop reason".to_owned());
+        }
+        Some(_) => {}
+    }
+
+    if metrics.exact_tail_recovery_complete == Some(false)
+        && (metrics.exact_tail_candidates != 0
+            || metrics.exact_tail_matches_committed != 0
+            || metrics.exact_tail_multiplicity_vetoed_candidates != 0
+            || metrics.exact_tail_verification_vetoed_candidates != 0)
+    {
+        return Err("incomplete exact-tail recovery exposes partial results".to_owned());
+    }
+
+    if metrics.exact_tail_candidates > metrics.exact_tail_old_units
+        || metrics.exact_tail_candidates > metrics.exact_tail_new_units
+    {
+        return Err("exact-tail candidates exceed available units".to_owned());
+    }
+    if metrics.exact_tail_matches_committed > metrics.exact_tail_candidates {
+        return Err("committed exact-tail matches exceed candidates".to_owned());
+    }
+    if metrics.exact_tail_multiplicity_vetoed_candidates > metrics.exact_tail_candidates
+        || metrics.exact_tail_verification_vetoed_candidates > metrics.exact_tail_candidates
+    {
+        return Err("exact-tail vetoed candidates exceed candidates".to_owned());
+    }
+
+    if metrics.exact_tail_recovery_complete == Some(true) {
+        let classified = metrics
+            .exact_tail_matches_committed
+            .checked_add(metrics.exact_tail_multiplicity_vetoed_candidates)
+            .and_then(|count| count.checked_add(metrics.exact_tail_verification_vetoed_candidates))
+            .ok_or_else(|| "exact-tail candidate partition overflows".to_owned())?;
+        if classified != metrics.exact_tail_candidates {
+            return Err(format!(
+                "exact-tail candidate partition {classified} does not equal {} candidates",
+                metrics.exact_tail_candidates
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 fn validate_sentence_recovery_metrics(
     metrics: SentenceRecoveryMetrics,
 ) -> std::result::Result<SentenceRecoveryMetricsReport, String> {
+    validate_exact_tail_recovery_metrics(metrics)?;
     validate_recovery_remainder_attribution(metrics)?;
     validate_structural_pairing_metrics(metrics)?;
     validate_run_signature_metrics(metrics)?;
@@ -10551,7 +10684,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 53;
+    pub const SCHEMA_VERSION: u32 = 54;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -12322,7 +12455,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 53);
+        assert_eq!(completed["schema_version"], 54);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -12372,7 +12505,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 53);
+        assert_eq!(legacy_summary["schema_version"], 54);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -14060,7 +14193,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 53);
+        assert_eq!(json["schema_version"], 54);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -14298,6 +14431,123 @@ mod tests {
             validated.run_signature_stop_reason,
             Some(RunSignatureStopReasonReport::CandidatePairLimit)
         );
+    }
+
+    #[test]
+    fn validates_exact_tail_recovery_metrics_contract() {
+        let complete = SentenceRecoveryMetrics {
+            exact_tail_recovery_complete: Some(true),
+            exact_tail_old_units: 3,
+            exact_tail_new_units: 3,
+            exact_tail_census_units_examined: 9,
+            exact_tail_census_token_comparisons: 40,
+            exact_tail_token_verification_comparisons: 12,
+            exact_tail_conflicting_normal_units: 1,
+            exact_tail_multiplicity_vetoed_candidates: 1,
+            exact_tail_verification_vetoed_candidates: 1,
+            exact_tail_candidates: 3,
+            exact_tail_matches_committed: 1,
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        let report = validate_sentence_recovery_metrics(complete)
+            .expect("complete exact-tail metrics satisfy the contract");
+        assert_eq!(report.exact_tail_token_verification_comparisons, 12);
+        assert_eq!(report.exact_tail_verification_vetoed_candidates, 1);
+        assert_eq!(report.exact_tail_matches_committed, 1);
+
+        let stopped = SentenceRecoveryMetrics {
+            exact_tail_recovery_complete: Some(false),
+            exact_tail_recovery_stop_reason: Some(ExactTailRecoveryStopReason::WorkLimit),
+            exact_tail_old_units: 2,
+            exact_tail_new_units: 2,
+            exact_tail_census_units_examined: 3,
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        let report = validate_sentence_recovery_metrics(stopped)
+            .expect("typed exact-tail stop satisfies the contract");
+        assert_eq!(report.exact_tail_recovery_complete, Some(false));
+        assert_eq!(
+            report.exact_tail_recovery_stop_reason,
+            Some(ExactTailRecoveryStopReasonReport::WorkLimit)
+        );
+
+        let unattempted_with_work = SentenceRecoveryMetrics {
+            exact_tail_old_units: 1,
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(unattempted_with_work).is_err());
+
+        let unattempted_with_reason = SentenceRecoveryMetrics {
+            exact_tail_recovery_stop_reason: Some(
+                ExactTailRecoveryStopReason::CollectionIncomplete,
+            ),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(unattempted_with_reason).is_err());
+
+        let complete_with_reason = SentenceRecoveryMetrics {
+            exact_tail_recovery_complete: Some(true),
+            exact_tail_recovery_stop_reason: Some(ExactTailRecoveryStopReason::InvalidEvidence),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(complete_with_reason).is_err());
+
+        let stopped_without_reason = SentenceRecoveryMetrics {
+            exact_tail_recovery_complete: Some(false),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(stopped_without_reason).is_err());
+
+        let stopped_with_partial_output = SentenceRecoveryMetrics {
+            exact_tail_recovery_complete: Some(false),
+            exact_tail_recovery_stop_reason: Some(ExactTailRecoveryStopReason::WorkLimit),
+            exact_tail_old_units: 1,
+            exact_tail_new_units: 1,
+            exact_tail_candidates: 1,
+            exact_tail_matches_committed: 1,
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(stopped_with_partial_output).is_err());
+
+        let invalid_partition = SentenceRecoveryMetrics {
+            exact_tail_recovery_complete: Some(true),
+            exact_tail_old_units: 2,
+            exact_tail_new_units: 2,
+            exact_tail_candidates: 2,
+            exact_tail_matches_committed: 1,
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(invalid_partition).is_err());
+
+        let too_many_candidates = SentenceRecoveryMetrics {
+            exact_tail_recovery_complete: Some(true),
+            exact_tail_old_units: 1,
+            exact_tail_new_units: 2,
+            exact_tail_candidates: 2,
+            exact_tail_matches_committed: 2,
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(too_many_candidates).is_err());
+
+        let too_many_committed = SentenceRecoveryMetrics {
+            exact_tail_recovery_complete: Some(true),
+            exact_tail_old_units: 2,
+            exact_tail_new_units: 2,
+            exact_tail_candidates: 1,
+            exact_tail_matches_committed: 2,
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(too_many_committed).is_err());
     }
 
     fn complete_recheck_reuse_shadow() -> LocalFragmentRecheckReuseShadowMetrics {
@@ -20628,7 +20878,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 53);
+        assert_eq!(value["schema_version"], 54);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -20739,6 +20989,18 @@ mod tests {
             "exact_shared_units".to_owned(),
             "old_exact_one_sided_units".to_owned(),
             "new_exact_one_sided_units".to_owned(),
+            "exact_tail_recovery_complete".to_owned(),
+            "exact_tail_recovery_stop_reason".to_owned(),
+            "exact_tail_old_units".to_owned(),
+            "exact_tail_new_units".to_owned(),
+            "exact_tail_census_units_examined".to_owned(),
+            "exact_tail_census_token_comparisons".to_owned(),
+            "exact_tail_token_verification_comparisons".to_owned(),
+            "exact_tail_conflicting_normal_units".to_owned(),
+            "exact_tail_multiplicity_vetoed_candidates".to_owned(),
+            "exact_tail_verification_vetoed_candidates".to_owned(),
+            "exact_tail_candidates".to_owned(),
+            "exact_tail_matches_committed".to_owned(),
             "near_relation_complete".to_owned(),
             "relation_floor_pairs_considered".to_owned(),
             "relation_floor_word_scans".to_owned(),

@@ -54,7 +54,7 @@ use super::recovery::{
     },
 };
 use super::{
-    AtomicEdit, ExactSegmentRelation, KnownSpanSentenceShadowMetrics,
+    AtomicEdit, ExactSegmentRelation, ExactTailRecoveryStopReason, KnownSpanSentenceShadowMetrics,
     LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentFlatExactBoundaryShadowMetrics,
     LocalFragmentFlatExactBoundaryStopReason, LocalFragmentFlatExactBoundaryWorkMetrics,
     LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
@@ -565,6 +565,47 @@ struct SentenceFragment {
     span_index: usize,
     role: BlockRole,
     uncertain: bool,
+}
+
+struct OccurrenceCollection {
+    occurrences: Vec<SentenceOccurrence>,
+    fragments: Vec<SentenceFragment>,
+    exact_tail_occurrences: Vec<SentenceOccurrence>,
+    exact_tail_complete: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct ExactTailKey {
+    hash: ExactHash,
+    kind: RecoveryUnitKind,
+    role: OccurrenceRole,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ExactTailCounts {
+    old: usize,
+    new: usize,
+}
+
+struct ExactTailCensus {
+    counts: HashMap<ExactTailKey, ExactTailCounts>,
+    old_tail_keys: Vec<ExactTailKey>,
+    new_tail_keys: Vec<ExactTailKey>,
+    old_normal_conflicts: Vec<bool>,
+    new_normal_conflicts: Vec<bool>,
+    units_examined: usize,
+    token_comparisons: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ExactTailAppendOutcome {
+    Complete {
+        candidates: usize,
+        committed: usize,
+        multiplicity_vetoed: usize,
+        verification_vetoed: usize,
+    },
+    Unavailable(ExactTailRecoveryStopReason),
 }
 
 struct FragmentIndex<'a> {
@@ -7222,6 +7263,7 @@ pub(super) struct RecoveryBudget {
     location_items: usize,
     location_bytes: usize,
     word_ranges: usize,
+    exact_tail_token_verification_comparisons: usize,
     enable_known_span_sentence_shadow: bool,
     enable_sentence_edge_gate_shadow: bool,
     sentence_edge_signature_filter_mode: SentenceEdgeSignatureFilterMode,
@@ -7303,6 +7345,7 @@ impl RecoveryBudget {
             location_items: 0,
             location_bytes: 0,
             word_ranges: 0,
+            exact_tail_token_verification_comparisons: 0,
             enable_known_span_sentence_shadow: false,
             enable_sentence_edge_gate_shadow: false,
             sentence_edge_signature_filter_mode: SentenceEdgeSignatureFilterMode::Disabled,
@@ -7320,6 +7363,56 @@ impl RecoveryBudget {
 
     fn charge_occurrences(&mut self, amount: usize) -> bool {
         Self::charge(&mut self.occurrences, amount, self.token_limit)
+    }
+
+    fn charge_exact_tail_census(
+        &mut self,
+        token_comparisons: usize,
+    ) -> std::result::Result<(), ExactTailRecoveryStopReason> {
+        self.pair_visits_attempted = self
+            .pair_visits_attempted
+            .checked_add(1)
+            .ok_or(ExactTailRecoveryStopReason::CounterOverflow)?;
+        self.comparisons_attempted = self
+            .comparisons_attempted
+            .checked_add(token_comparisons)
+            .ok_or(ExactTailRecoveryStopReason::CounterOverflow)?;
+        let pair_visits = self
+            .pair_visits
+            .checked_add(1)
+            .ok_or(ExactTailRecoveryStopReason::CounterOverflow)?;
+        let comparisons = self
+            .comparisons
+            .checked_add(token_comparisons)
+            .ok_or(ExactTailRecoveryStopReason::CounterOverflow)?;
+        if pair_visits > self.pair_visit_limit || comparisons > self.comparison_limit {
+            return Err(ExactTailRecoveryStopReason::WorkLimit);
+        }
+        self.pair_visits = pair_visits;
+        self.comparisons = comparisons;
+        Ok(())
+    }
+
+    fn charge_exact_tail_token_verification(
+        &mut self,
+    ) -> std::result::Result<(), ExactTailRecoveryStopReason> {
+        self.comparisons_attempted = self
+            .comparisons_attempted
+            .checked_add(1)
+            .ok_or(ExactTailRecoveryStopReason::CounterOverflow)?;
+        let comparisons = self
+            .comparisons
+            .checked_add(1)
+            .ok_or(ExactTailRecoveryStopReason::CounterOverflow)?;
+        if comparisons > self.comparison_limit {
+            return Err(ExactTailRecoveryStopReason::WorkLimit);
+        }
+        self.exact_tail_token_verification_comparisons = self
+            .exact_tail_token_verification_comparisons
+            .checked_add(1)
+            .ok_or(ExactTailRecoveryStopReason::CounterOverflow)?;
+        self.comparisons = comparisons;
+        Ok(())
     }
 
     fn charge_sentence_edge_filter_pair(&mut self) -> bool {
@@ -9364,6 +9457,16 @@ fn build_sentence_recovery_plan_inner_impl(
     else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    // Optional tail evidence must not consume the production relation budget:
+    // exhausting it can only suppress the isolated post-plan enrichment.
+    let Some(mut exact_tail_budget) = RecoveryBudget::new(
+        old.total_tokens,
+        new.total_tokens,
+        max_tokens,
+        input.min_tokens,
+    ) else {
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    };
     if let Some(reference_limits) = reference_limits {
         budget.apply_reference_limits(reference_limits);
         fragment_veto_budget.apply_reference_limits(reference_limits);
@@ -9435,32 +9538,65 @@ fn build_sentence_recovery_plan_inner_impl(
         });
     }
 
-    let Some((mut old_occurrences, old_fragments)) = collect_occurrences(
+    let Some(old_collection) = collect_occurrences(
         old,
         input.old_trusted_run_intervals,
         structural_evidence.old.as_ref(),
         &membership.old,
         &membership.recovery_spans,
         &mut budget,
+        &mut exact_tail_budget,
     ) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
-    let Some((mut new_occurrences, new_fragments)) = collect_occurrences(
+    let Some(new_collection) = collect_occurrences(
         new,
         input.new_trusted_run_intervals,
         structural_evidence.new.as_ref(),
         &membership.new,
         &membership.recovery_spans,
         &mut budget,
+        &mut exact_tail_budget,
     ) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    let OccurrenceCollection {
+        occurrences: mut old_occurrences,
+        fragments: old_fragments,
+        exact_tail_occurrences: mut old_exact_tail_occurrences,
+        exact_tail_complete: old_exact_tail_complete,
+    } = old_collection;
+    let OccurrenceCollection {
+        occurrences: mut new_occurrences,
+        fragments: new_fragments,
+        exact_tail_occurrences: mut new_exact_tail_occurrences,
+        exact_tail_complete: new_exact_tail_complete,
+    } = new_collection;
     if validate_occurrence_evidence(&old_occurrences, structural_evidence.old.as_ref()).is_none()
         || validate_occurrence_evidence(&new_occurrences, structural_evidence.new.as_ref())
             .is_none()
     {
         return Ok(SentenceRecoveryBuildOutcome::default());
     }
+    let mut exact_tail_stop_reason = (!old_exact_tail_complete || !new_exact_tail_complete)
+        .then_some(ExactTailRecoveryStopReason::CollectionIncomplete);
+    let mut exact_tail_census = if exact_tail_stop_reason.is_none() {
+        match build_exact_tail_census(
+            &old_occurrences,
+            &new_occurrences,
+            &old_exact_tail_occurrences,
+            &new_exact_tail_occurrences,
+            &mut exact_tail_budget,
+        ) {
+            Ok(census) => Some(census),
+            Err(reason) => {
+                exact_tail_stop_reason = Some(reason);
+                None
+            }
+        }
+    } else {
+        None
+    };
     let Some(counts) = occurrence_counts(&old_occurrences, &new_occurrences) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
@@ -9495,6 +9631,10 @@ fn build_sentence_recovery_plan_inner_impl(
     ) else {
         return Ok(SentenceRecoveryBuildOutcome::default());
     };
+    retain_exact_matches_without_tail_conflicts(
+        &mut exact_match_candidates,
+        exact_tail_census.as_ref(),
+    );
     let Some(paired_streams) =
         paired_trusted_streams(&old_occurrences, &new_occurrences, &exact_match_candidates)
     else {
@@ -9520,6 +9660,10 @@ fn build_sentence_recovery_plan_inner_impl(
         // that were already established above.
         exact_match_candidates.truncate(initial_exact_candidate_count);
     }
+    retain_exact_matches_without_tail_conflicts(
+        &mut exact_match_candidates,
+        exact_tail_census.as_ref(),
+    );
     let Some(paired_streams) =
         paired_trusted_streams(&old_occurrences, &new_occurrences, &exact_match_candidates)
     else {
@@ -9643,6 +9787,7 @@ fn build_sentence_recovery_plan_inner_impl(
         &paired_streams,
         &membership.recovery_spans,
         input.min_tokens.min(MIN_PAIRED_STREAM_NEAR_TOKENS),
+        exact_tail_census.as_ref(),
         &mut budget,
         &mut diagnostics,
         signature_checkpoint,
@@ -9669,10 +9814,18 @@ fn build_sentence_recovery_plan_inner_impl(
                 budget.near_relation_stop_reason,
             );
         }
-        if plan.has_exact_matches()
-            && normalize_ranges(&mut plan.deletion_consumed)
-            && normalize_ranges(&mut plan.insertion_consumed)
-        {
+        let exact_tail_finalized = finalize_exact_tail_recovery(
+            &mut plan,
+            &mut old_exact_tail_occurrences,
+            &mut new_exact_tail_occurrences,
+            &membership.recovery_spans,
+            input.min_tokens,
+            &mut exact_tail_budget,
+            exact_tail_census.as_ref(),
+            exact_tail_stop_reason,
+            &mut diagnostics,
+        );
+        if exact_tail_finalized && plan.has_exact_matches() {
             record_near_search_metrics(&mut diagnostics, &budget);
             let watch_diagnostics = watch.map(|watch| watch.finish(Some(&plan)));
             return Ok(SentenceRecoveryBuildOutcome {
@@ -9760,10 +9913,18 @@ fn build_sentence_recovery_plan_inner_impl(
                 budget.near_relation_stop_reason,
             );
         }
-        if plan.has_exact_matches()
-            && normalize_ranges(&mut plan.deletion_consumed)
-            && normalize_ranges(&mut plan.insertion_consumed)
-        {
+        let exact_tail_finalized = finalize_exact_tail_recovery(
+            &mut plan,
+            &mut old_exact_tail_occurrences,
+            &mut new_exact_tail_occurrences,
+            &membership.recovery_spans,
+            input.min_tokens,
+            &mut exact_tail_budget,
+            exact_tail_census.as_ref(),
+            exact_tail_stop_reason,
+            &mut diagnostics,
+        );
+        if exact_tail_finalized && plan.has_exact_matches() {
             record_near_search_metrics(&mut diagnostics, &budget);
             let watch_diagnostics = watch.map(|watch| watch.finish(Some(&plan)));
             return Ok(SentenceRecoveryBuildOutcome {
@@ -9805,6 +9966,19 @@ fn build_sentence_recovery_plan_inner_impl(
         &relations,
         budget.near_relation_stop_reason,
     );
+    let exact_tail_veto_failed = exact_tail_census.as_ref().is_some_and(|census| {
+        veto_exact_tail_conflicting_relations(
+            &mut relations,
+            &old_candidates,
+            &new_candidates,
+            census,
+        )
+        .is_none()
+    });
+    if exact_tail_veto_failed {
+        exact_tail_stop_reason = Some(ExactTailRecoveryStopReason::InvalidEvidence);
+        exact_tail_census = None;
+    }
     if !candidate_generation_complete {
         mark_sentence_edge_gate_shadow_incomplete(
             &mut diagnostics,
@@ -9998,9 +10172,17 @@ fn build_sentence_recovery_plan_inner_impl(
             }
         }
     }
-    if !normalize_ranges(&mut plan.deletion_consumed)
-        || !normalize_ranges(&mut plan.insertion_consumed)
-    {
+    if !finalize_exact_tail_recovery(
+        &mut plan,
+        &mut old_exact_tail_occurrences,
+        &mut new_exact_tail_occurrences,
+        &membership.recovery_spans,
+        input.min_tokens,
+        &mut exact_tail_budget,
+        exact_tail_census.as_ref(),
+        exact_tail_stop_reason,
+        &mut diagnostics,
+    ) {
         return Ok(SentenceRecoveryBuildOutcome::default());
     }
     if near_relation_complete
@@ -10318,10 +10500,13 @@ fn collect_occurrences(
     span_by_block: &HashMap<BlockId, usize>,
     recovery_spans: &[bool],
     budget: &mut RecoveryBudget,
-) -> Option<(Vec<SentenceOccurrence>, Vec<SentenceFragment>)> {
+    exact_tail_budget: &mut RecoveryBudget,
+) -> Option<OccurrenceCollection> {
     let plans = stream_plans(trusted_run_intervals)?;
     let mut occurrences = Vec::new();
     let mut fragments = Vec::new();
+    let mut exact_tail_occurrences = Vec::new();
+    let mut exact_tail_complete = true;
     for (stream_index, plan) in plans.into_iter().enumerate() {
         let run_descriptor_index = match (plan.run_id, run_evidence) {
             (Some(run_id), Some(evidence)) => Some(evidence.descriptor_index(run_id)?),
@@ -10330,6 +10515,7 @@ fn collect_occurrences(
         let stream = build_stream(side, &plan)?;
         let sentence_boundaries =
             sentence_boundaries(&stream.text, &stream.forced_sentence_boundaries, budget)?;
+        let completed_sentence_count = sentence_boundaries.len();
         let fragment_boundary = if stream.trusted {
             trailing_fragment_boundary(&stream.text, &sentence_boundaries, budget)?
         } else {
@@ -10365,54 +10551,21 @@ fn collect_occurrences(
             (sentence_boundaries, RecoveryUnitKind::Sentence)
         };
         for (ordinal, boundary) in boundaries.into_iter().enumerate() {
-            let key = stream.text.get(boundary.byte_start..boundary.byte_end)?;
-            if !budget.charge_key_bytes(key.len()) {
-                return None;
-            }
-            let mut owned_key = String::new();
-            owned_key.try_reserve_exact(key.len()).ok()?;
-            owned_key.push_str(key);
-            let word_ranges = sorted_word_ranges(&owned_key, budget)?;
-
-            let touched_blocks = sentence_stream_block_range(&stream, boundary)?;
-            let page = sentence_page(side, &stream, touched_blocks.clone());
-            let tokens = sentence_tokens(&stream, boundary, budget)?;
-            let role = sentence_role(side, &stream, touched_blocks.clone())?;
-            let span_index =
-                sentence_span_index(side, &stream, touched_blocks.clone(), span_by_block)?;
-            let location = match (span_index, role) {
-                (Some(span_index), Some(role)) if recovery_spans.get(span_index).copied()? => {
-                    sentence_location(
-                        side,
-                        &stream,
-                        boundary,
-                        touched_blocks,
-                        span_index,
-                        (kind, role),
-                        budget,
-                    )?
-                }
-                _ => None,
-            };
-            occurrences.try_reserve(1).ok()?;
-            occurrences.push(SentenceOccurrence {
-                key: owned_key,
-                tokens,
-                word_ranges,
+            let occurrence = build_sentence_occurrence(
+                side,
+                &stream,
+                &plan,
+                boundary,
                 kind,
-                role,
-                location,
-                span_index,
-                trusted_position: stream.trusted.then_some(TrustedStreamPosition {
-                    stream_index,
-                    ordinal,
-                }),
+                stream_index,
+                ordinal,
                 run_descriptor_index,
-                page,
-                evidence_block_index: (!plan.trusted)
-                    .then(|| plan.block_indices.first().copied())
-                    .flatten(),
-            });
+                span_by_block,
+                recovery_spans,
+                budget,
+            )?;
+            occurrences.try_reserve(1).ok()?;
+            occurrences.push(occurrence);
         }
         if let Some(boundary) = fragment_boundary {
             let touched_blocks = sentence_stream_block_range(&stream, boundary)?;
@@ -10436,11 +10589,106 @@ fn collect_occurrences(
                     role,
                     uncertain,
                 });
+                if completed_sentence_count > 0 && !uncertain {
+                    let mut trial_budget = *exact_tail_budget;
+                    let occurrence = trial_budget.charge_occurrences(1).then(|| {
+                        build_sentence_occurrence(
+                            side,
+                            &stream,
+                            &plan,
+                            boundary,
+                            RecoveryUnitKind::Sentence,
+                            stream_index,
+                            completed_sentence_count,
+                            run_descriptor_index,
+                            span_by_block,
+                            recovery_spans,
+                            &mut trial_budget,
+                        )
+                        .filter(|occurrence| occurrence.location.is_some())
+                    });
+                    if let Some(Some(occurrence)) = occurrence
+                        && exact_tail_occurrences.try_reserve(1).is_ok()
+                    {
+                        exact_tail_occurrences.push(occurrence);
+                        *exact_tail_budget = trial_budget;
+                    } else {
+                        exact_tail_complete = false;
+                    }
+                }
             }
         }
     }
     occurrences.sort_unstable_by_key(|occurrence| occurrence.span_index);
-    Some((occurrences, fragments))
+    exact_tail_occurrences.sort_unstable_by_key(|occurrence| occurrence.span_index);
+    Some(OccurrenceCollection {
+        occurrences,
+        fragments,
+        exact_tail_occurrences,
+        exact_tail_complete,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_sentence_occurrence(
+    side: &Side<'_>,
+    stream: &Stream,
+    plan: &StreamPlan,
+    boundary: SentenceBoundary,
+    kind: RecoveryUnitKind,
+    stream_index: usize,
+    ordinal: usize,
+    run_descriptor_index: Option<usize>,
+    span_by_block: &HashMap<BlockId, usize>,
+    recovery_spans: &[bool],
+    budget: &mut RecoveryBudget,
+) -> Option<SentenceOccurrence> {
+    let key = stream.text.get(boundary.byte_start..boundary.byte_end)?;
+    if !budget.charge_key_bytes(key.len()) {
+        return None;
+    }
+    let mut owned_key = String::new();
+    owned_key.try_reserve_exact(key.len()).ok()?;
+    owned_key.push_str(key);
+    let word_ranges = sorted_word_ranges(&owned_key, budget)?;
+
+    let touched_blocks = sentence_stream_block_range(stream, boundary)?;
+    let page = sentence_page(side, stream, touched_blocks.clone());
+    let tokens = sentence_tokens(stream, boundary, budget)?;
+    let role = sentence_role(side, stream, touched_blocks.clone())?;
+    let span_index = sentence_span_index(side, stream, touched_blocks.clone(), span_by_block)?;
+    let location = match (span_index, role) {
+        (Some(span_index), Some(role)) if recovery_spans.get(span_index).copied()? => {
+            sentence_location(
+                side,
+                stream,
+                boundary,
+                touched_blocks,
+                span_index,
+                (kind, role),
+                budget,
+            )?
+        }
+        _ => None,
+    };
+    Some(SentenceOccurrence {
+        key: owned_key,
+        tokens,
+        word_ranges,
+        kind,
+        role,
+        location,
+        span_index,
+        trusted_position: stream.trusted.then_some(TrustedStreamPosition {
+            stream_index,
+            ordinal,
+        }),
+        run_descriptor_index,
+        page,
+        evidence_block_index: (!plan.trusted)
+            .then(|| plan.block_indices.first().copied())
+            .flatten(),
+    })
 }
 
 fn sentence_fragment_is_uncertain(
@@ -19661,6 +19909,7 @@ fn append_paired_stream_replacements<'a>(
     pairs: &[PairedTrustedStream],
     recovery_spans: &[bool],
     min_tokens: usize,
+    exact_tail_census: Option<&ExactTailCensus>,
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
@@ -19781,6 +20030,18 @@ fn append_paired_stream_replacements<'a>(
         shadow_stop_reason,
     )?;
     record_sentence_edge_gate_shadow(diagnostics, &relations, budget.near_relation_stop_reason);
+    if exact_tail_census.is_some_and(|census| {
+        veto_exact_tail_conflicting_relations(
+            &mut relations,
+            &old_candidates.recoveries,
+            &new_candidates.recoveries,
+            census,
+        )
+        .is_none()
+    }) {
+        *shadow_stop_reason = Some(SentenceEdgeGateShadowStopReason::DiagnosticFailure);
+        return None;
+    }
     if budget.sentence_edge_signature_filter_mode != SentenceEdgeSignatureFilterMode::Disabled {
         begin_sentence_edge_signature_stage(
             diagnostics,
@@ -23014,6 +23275,592 @@ fn record_vetoed_near_pairs(
     }
 }
 
+fn exact_tail_key(
+    occurrence: &SentenceOccurrence,
+    budget: &mut RecoveryBudget,
+) -> std::result::Result<Option<ExactTailKey>, ExactTailRecoveryStopReason> {
+    let Some(role) = occurrence.role else {
+        return Ok(None);
+    };
+    budget.charge_exact_tail_census(occurrence.tokens.len())?;
+    Ok(Some(ExactTailKey {
+        hash: exact_segment_hash(&occurrence.tokens),
+        kind: occurrence.kind,
+        role: role.into(),
+    }))
+}
+
+fn exact_tail_keys(
+    occurrences: &[SentenceOccurrence],
+    budget: &mut RecoveryBudget,
+) -> std::result::Result<Vec<ExactTailKey>, ExactTailRecoveryStopReason> {
+    let mut keys = Vec::new();
+    keys.try_reserve_exact(occurrences.len())
+        .map_err(|_| ExactTailRecoveryStopReason::AllocationFailure)?;
+    for occurrence in occurrences {
+        let key = exact_tail_key(occurrence, budget)?
+            .ok_or(ExactTailRecoveryStopReason::InvalidEvidence)?;
+        keys.push(key);
+    }
+    Ok(keys)
+}
+
+fn increment_exact_tail_count(
+    counts: &mut HashMap<ExactTailKey, ExactTailCounts>,
+    key: ExactTailKey,
+    side: OccurrenceSide,
+) -> std::result::Result<(), ExactTailRecoveryStopReason> {
+    let Some(count) = counts.get_mut(&key) else {
+        return Ok(());
+    };
+    let value = match side {
+        OccurrenceSide::Old => &mut count.old,
+        OccurrenceSide::New => &mut count.new,
+    };
+    *value = value
+        .checked_add(1)
+        .ok_or(ExactTailRecoveryStopReason::CounterOverflow)?;
+    Ok(())
+}
+
+fn scan_normal_exact_tail_conflicts(
+    occurrences: &[SentenceOccurrence],
+    side: OccurrenceSide,
+    counts: &mut HashMap<ExactTailKey, ExactTailCounts>,
+    tail_sources: &HashSet<(ExactTailKey, TrustedStreamPosition)>,
+    budget: &mut RecoveryBudget,
+) -> std::result::Result<Vec<bool>, ExactTailRecoveryStopReason> {
+    let mut conflicts = Vec::new();
+    conflicts
+        .try_reserve_exact(occurrences.len())
+        .map_err(|_| ExactTailRecoveryStopReason::AllocationFailure)?;
+    conflicts.resize(occurrences.len(), false);
+    for (index, occurrence) in occurrences.iter().enumerate() {
+        let Some(key) = exact_tail_key(occurrence, budget)? else {
+            continue;
+        };
+        if counts.contains_key(&key) {
+            if occurrence
+                .trusted_position
+                .is_some_and(|position| tail_sources.contains(&(key, position)))
+            {
+                continue;
+            }
+            increment_exact_tail_count(counts, key, side)?;
+            conflicts[index] = true;
+        }
+    }
+    Ok(conflicts)
+}
+
+fn exact_tail_sources(
+    occurrences: &[SentenceOccurrence],
+    keys: &[ExactTailKey],
+) -> std::result::Result<HashSet<(ExactTailKey, TrustedStreamPosition)>, ExactTailRecoveryStopReason>
+{
+    if occurrences.len() != keys.len() {
+        return Err(ExactTailRecoveryStopReason::InvalidEvidence);
+    }
+    let mut sources = HashSet::new();
+    sources
+        .try_reserve(occurrences.len())
+        .map_err(|_| ExactTailRecoveryStopReason::AllocationFailure)?;
+    for (occurrence, key) in occurrences.iter().zip(keys) {
+        if let Some(position) = occurrence.trusted_position {
+            sources.insert((*key, position));
+        }
+    }
+    Ok(sources)
+}
+
+fn build_exact_tail_census(
+    old_normal: &[SentenceOccurrence],
+    new_normal: &[SentenceOccurrence],
+    old_tails: &[SentenceOccurrence],
+    new_tails: &[SentenceOccurrence],
+    budget: &mut RecoveryBudget,
+) -> std::result::Result<ExactTailCensus, ExactTailRecoveryStopReason> {
+    let old_tail_keys = exact_tail_keys(old_tails, budget)?;
+    let new_tail_keys = exact_tail_keys(new_tails, budget)?;
+    let tail_units = old_tail_keys
+        .len()
+        .checked_add(new_tail_keys.len())
+        .ok_or(ExactTailRecoveryStopReason::CounterOverflow)?;
+    let mut counts = HashMap::new();
+    counts
+        .try_reserve(tail_units)
+        .map_err(|_| ExactTailRecoveryStopReason::AllocationFailure)?;
+    for key in old_tail_keys.iter().chain(&new_tail_keys) {
+        counts.entry(*key).or_insert_with(ExactTailCounts::default);
+    }
+    if counts.is_empty() {
+        let mut old_normal_conflicts = Vec::new();
+        old_normal_conflicts
+            .try_reserve_exact(old_normal.len())
+            .map_err(|_| ExactTailRecoveryStopReason::AllocationFailure)?;
+        old_normal_conflicts.resize(old_normal.len(), false);
+        let mut new_normal_conflicts = Vec::new();
+        new_normal_conflicts
+            .try_reserve_exact(new_normal.len())
+            .map_err(|_| ExactTailRecoveryStopReason::AllocationFailure)?;
+        new_normal_conflicts.resize(new_normal.len(), false);
+        return Ok(ExactTailCensus {
+            counts,
+            old_tail_keys,
+            new_tail_keys,
+            old_normal_conflicts,
+            new_normal_conflicts,
+            units_examined: budget.pair_visits,
+            token_comparisons: budget.comparisons,
+        });
+    }
+
+    let old_tail_sources = exact_tail_sources(old_tails, &old_tail_keys)?;
+    let new_tail_sources = exact_tail_sources(new_tails, &new_tail_keys)?;
+
+    let old_normal_conflicts = scan_normal_exact_tail_conflicts(
+        old_normal,
+        OccurrenceSide::Old,
+        &mut counts,
+        &old_tail_sources,
+        budget,
+    )?;
+    let new_normal_conflicts = scan_normal_exact_tail_conflicts(
+        new_normal,
+        OccurrenceSide::New,
+        &mut counts,
+        &new_tail_sources,
+        budget,
+    )?;
+    for key in &old_tail_keys {
+        increment_exact_tail_count(&mut counts, *key, OccurrenceSide::Old)?;
+    }
+    for key in &new_tail_keys {
+        increment_exact_tail_count(&mut counts, *key, OccurrenceSide::New)?;
+    }
+    Ok(ExactTailCensus {
+        counts,
+        old_tail_keys,
+        new_tail_keys,
+        old_normal_conflicts,
+        new_normal_conflicts,
+        units_examined: budget.pair_visits,
+        token_comparisons: budget.comparisons,
+    })
+}
+
+impl ExactTailCensus {
+    fn globally_unique_tail(&self, side: OccurrenceSide, occurrence_index: usize) -> bool {
+        let key = match side {
+            OccurrenceSide::Old => self.old_tail_keys.get(occurrence_index),
+            OccurrenceSide::New => self.new_tail_keys.get(occurrence_index),
+        };
+        key.and_then(|key| self.counts.get(key))
+            .is_some_and(|count| count.old == 1 && count.new == 1)
+    }
+
+    fn conflicting_normal_units(&self) -> usize {
+        self.old_normal_conflicts
+            .iter()
+            .chain(&self.new_normal_conflicts)
+            .filter(|conflict| **conflict)
+            .count()
+    }
+}
+
+fn retain_exact_matches_without_tail_conflicts(
+    candidates: &mut Vec<ExactMatchCandidate>,
+    census: Option<&ExactTailCensus>,
+) {
+    let Some(census) = census else {
+        return;
+    };
+    candidates.retain(|candidate| {
+        !census
+            .old_normal_conflicts
+            .get(candidate.old_occurrence_index)
+            .copied()
+            .unwrap_or(true)
+            && !census
+                .new_normal_conflicts
+                .get(candidate.new_occurrence_index)
+                .copied()
+                .unwrap_or(true)
+    });
+}
+
+fn exact_tail_tokens_equal(
+    old: &[SentenceEvidenceToken],
+    new: &[SentenceEvidenceToken],
+    budget: &mut RecoveryBudget,
+) -> std::result::Result<bool, ExactTailRecoveryStopReason> {
+    if old.len() != new.len() {
+        return Ok(false);
+    }
+    for (old, new) in old.iter().zip(new) {
+        budget.charge_exact_tail_token_verification()?;
+        if old != new {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn veto_exact_tail_conflicting_relations(
+    relations: &mut ModifiedSentenceRelations,
+    old_candidates: &[RecoveryCandidate],
+    new_candidates: &[RecoveryCandidate],
+    census: &ExactTailCensus,
+) -> Option<()> {
+    if old_candidates.len() != relations.old.len() || new_candidates.len() != relations.new.len() {
+        return None;
+    }
+    for (candidate, relation) in old_candidates.iter().zip(&mut relations.old) {
+        if census
+            .old_normal_conflicts
+            .get(candidate.occurrence_index)
+            .copied()
+            .unwrap_or(false)
+        {
+            relation.veto_without_partner();
+        }
+    }
+    for (candidate, relation) in new_candidates.iter().zip(&mut relations.new) {
+        if census
+            .new_normal_conflicts
+            .get(candidate.occurrence_index)
+            .copied()
+            .unwrap_or(false)
+        {
+            relation.veto_without_partner();
+        }
+    }
+    Some(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn finalize_exact_tail_recovery(
+    plan: &mut SentenceRecoveryPlan,
+    old_occurrences: &mut [SentenceOccurrence],
+    new_occurrences: &mut [SentenceOccurrence],
+    recovery_spans: &[bool],
+    min_tokens: usize,
+    budget: &mut RecoveryBudget,
+    census: Option<&ExactTailCensus>,
+    prior_stop_reason: Option<ExactTailRecoveryStopReason>,
+    diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
+) -> bool {
+    let census_units_examined = census.map_or(budget.pair_visits, |census| census.units_examined);
+    let census_token_comparisons =
+        census.map_or(budget.comparisons, |census| census.token_comparisons);
+    let conflicting_normal_units = census.map_or(0, ExactTailCensus::conflicting_normal_units);
+    let outcome = match (prior_stop_reason, census) {
+        (Some(reason), _) => ExactTailAppendOutcome::Unavailable(reason),
+        (None, Some(census)) => append_isolated_exact_tail_matches(
+            plan,
+            old_occurrences,
+            new_occurrences,
+            recovery_spans,
+            min_tokens,
+            budget,
+            census,
+        ),
+        (None, None) => {
+            ExactTailAppendOutcome::Unavailable(ExactTailRecoveryStopReason::InvalidEvidence)
+        }
+    };
+    let (candidates, committed, multiplicity_vetoed, verification_vetoed, stop_reason) =
+        match outcome {
+            ExactTailAppendOutcome::Complete {
+                candidates,
+                committed,
+                multiplicity_vetoed,
+                verification_vetoed,
+            } => (
+                candidates,
+                committed,
+                multiplicity_vetoed,
+                verification_vetoed,
+                None,
+            ),
+            ExactTailAppendOutcome::Unavailable(reason) => (0, 0, 0, 0, Some(reason)),
+        };
+    let metrics_update = diagnostics.as_ref().and_then(|diagnostics| {
+        let mut metrics = diagnostics.metrics;
+        metrics.exact_tail_recovery_complete = Some(stop_reason.is_none());
+        metrics.exact_tail_recovery_stop_reason = stop_reason;
+        metrics.exact_tail_old_units = old_occurrences.len();
+        metrics.exact_tail_new_units = new_occurrences.len();
+        metrics.exact_tail_census_units_examined = census_units_examined;
+        metrics.exact_tail_census_token_comparisons = census_token_comparisons;
+        metrics.exact_tail_token_verification_comparisons =
+            budget.exact_tail_token_verification_comparisons;
+        metrics.exact_tail_conflicting_normal_units = conflicting_normal_units;
+        metrics.exact_tail_multiplicity_vetoed_candidates = multiplicity_vetoed;
+        metrics.exact_tail_verification_vetoed_candidates = verification_vetoed;
+        metrics.exact_tail_candidates = candidates;
+        metrics.exact_tail_matches_committed = committed;
+        metrics.exact_shared_units = metrics.exact_shared_units.checked_add(committed)?;
+        Some(metrics)
+    });
+    match (diagnostics.as_mut(), metrics_update) {
+        (Some(diagnostics), Some(metrics)) => diagnostics.metrics = metrics,
+        (Some(_), None) => *diagnostics = None,
+        _ => {}
+    }
+    normalize_ranges(&mut plan.deletion_consumed) && normalize_ranges(&mut plan.insertion_consumed)
+}
+
+/// Adds exact trusted-tail matches without changing ordinary relation state.
+///
+/// Detached occurrences never become anchors or near competitors. A global
+/// multiplicity census vetoes ordinary recovery that would otherwise assign a
+/// duplicate tail to a specific source location. Any resource or overlap
+/// failure consumes no tail range and leaves that fail-closed plan intact.
+fn append_isolated_exact_tail_matches(
+    plan: &mut SentenceRecoveryPlan,
+    old_occurrences: &mut [SentenceOccurrence],
+    new_occurrences: &mut [SentenceOccurrence],
+    recovery_spans: &[bool],
+    min_tokens: usize,
+    budget: &mut RecoveryBudget,
+    census: &ExactTailCensus,
+) -> ExactTailAppendOutcome {
+    if old_occurrences.is_empty() || new_occurrences.is_empty() {
+        return ExactTailAppendOutcome::Complete {
+            candidates: 0,
+            committed: 0,
+            multiplicity_vetoed: 0,
+            verification_vetoed: 0,
+        };
+    }
+    let Some(counts) = occurrence_counts(old_occurrences, new_occurrences) else {
+        return ExactTailAppendOutcome::Unavailable(
+            ExactTailRecoveryStopReason::CandidateGenerationIncomplete,
+        );
+    };
+    let Some(candidates) = exact_match_candidates(
+        old_occurrences,
+        new_occurrences,
+        &counts,
+        recovery_spans,
+        min_tokens,
+        budget.output_range_limit / 2,
+    ) else {
+        return ExactTailAppendOutcome::Unavailable(
+            ExactTailRecoveryStopReason::CandidateGenerationIncomplete,
+        );
+    };
+    let candidate_count = candidates.len();
+    let mut retained = Vec::new();
+    if retained.try_reserve_exact(candidate_count).is_err() {
+        return ExactTailAppendOutcome::Unavailable(ExactTailRecoveryStopReason::AllocationFailure);
+    }
+    let mut multiplicity_vetoed = 0usize;
+    let mut verification_vetoed = 0usize;
+    for candidate in candidates {
+        let Some(old) = old_occurrences.get(candidate.old_occurrence_index) else {
+            return ExactTailAppendOutcome::Unavailable(
+                ExactTailRecoveryStopReason::InvalidEvidence,
+            );
+        };
+        let Some(new) = new_occurrences.get(candidate.new_occurrence_index) else {
+            return ExactTailAppendOutcome::Unavailable(
+                ExactTailRecoveryStopReason::InvalidEvidence,
+            );
+        };
+        let tokens_equal = match exact_tail_tokens_equal(&old.tokens, &new.tokens, budget) {
+            Ok(equal) => equal,
+            Err(reason) => return ExactTailAppendOutcome::Unavailable(reason),
+        };
+        if !tokens_equal || !occurrence_roles_are_compatible(old, new) {
+            let Some(next) = verification_vetoed.checked_add(1) else {
+                return ExactTailAppendOutcome::Unavailable(
+                    ExactTailRecoveryStopReason::CounterOverflow,
+                );
+            };
+            verification_vetoed = next;
+            continue;
+        }
+        if !census.globally_unique_tail(OccurrenceSide::Old, candidate.old_occurrence_index)
+            || !census.globally_unique_tail(OccurrenceSide::New, candidate.new_occurrence_index)
+        {
+            let Some(next) = multiplicity_vetoed.checked_add(1) else {
+                return ExactTailAppendOutcome::Unavailable(
+                    ExactTailRecoveryStopReason::CounterOverflow,
+                );
+            };
+            multiplicity_vetoed = next;
+            continue;
+        }
+        retained.push(candidate);
+    }
+    let candidates = retained;
+    if candidates.is_empty() {
+        return ExactTailAppendOutcome::Complete {
+            candidates: candidate_count,
+            committed: 0,
+            multiplicity_vetoed,
+            verification_vetoed,
+        };
+    }
+
+    let mut same_span_count = 0usize;
+    let mut cross_span_count = 0usize;
+    let mut old_consumed_count = 0usize;
+    let mut new_consumed_count = 0usize;
+    for (position, candidate) in candidates.iter().enumerate() {
+        if candidates[..position].iter().any(|previous| {
+            previous.old_occurrence_index == candidate.old_occurrence_index
+                || previous.new_occurrence_index == candidate.new_occurrence_index
+        }) {
+            return ExactTailAppendOutcome::Unavailable(
+                ExactTailRecoveryStopReason::InvalidEvidence,
+            );
+        }
+        let Some(old_location) = old_occurrences
+            .get(candidate.old_occurrence_index)
+            .and_then(|occurrence| occurrence.location.as_ref())
+        else {
+            return ExactTailAppendOutcome::Unavailable(
+                ExactTailRecoveryStopReason::InvalidEvidence,
+            );
+        };
+        let Some(new_location) = new_occurrences
+            .get(candidate.new_occurrence_index)
+            .and_then(|occurrence| occurrence.location.as_ref())
+        else {
+            return ExactTailAppendOutcome::Unavailable(
+                ExactTailRecoveryStopReason::InvalidEvidence,
+            );
+        };
+        if candidate.old_span_index == candidate.new_span_index {
+            let Some(next) = same_span_count.checked_add(1) else {
+                return ExactTailAppendOutcome::Unavailable(
+                    ExactTailRecoveryStopReason::CounterOverflow,
+                );
+            };
+            same_span_count = next;
+        } else {
+            let Some(next) = cross_span_count.checked_add(1) else {
+                return ExactTailAppendOutcome::Unavailable(
+                    ExactTailRecoveryStopReason::CounterOverflow,
+                );
+            };
+            cross_span_count = next;
+        }
+        let Some(next) = old_consumed_count.checked_add(old_location.consumed.len()) else {
+            return ExactTailAppendOutcome::Unavailable(
+                ExactTailRecoveryStopReason::CounterOverflow,
+            );
+        };
+        old_consumed_count = next;
+        let Some(next) = new_consumed_count.checked_add(new_location.consumed.len()) else {
+            return ExactTailAppendOutcome::Unavailable(
+                ExactTailRecoveryStopReason::CounterOverflow,
+            );
+        };
+        new_consumed_count = next;
+    }
+    let mut old_consumed = Vec::new();
+    let mut new_consumed = Vec::new();
+    if old_consumed.try_reserve_exact(old_consumed_count).is_err()
+        || new_consumed.try_reserve_exact(new_consumed_count).is_err()
+    {
+        return ExactTailAppendOutcome::Unavailable(ExactTailRecoveryStopReason::AllocationFailure);
+    }
+    for candidate in &candidates {
+        let Some(old_location) = old_occurrences
+            .get(candidate.old_occurrence_index)
+            .and_then(|occurrence| occurrence.location.as_ref())
+        else {
+            return ExactTailAppendOutcome::Unavailable(
+                ExactTailRecoveryStopReason::InvalidEvidence,
+            );
+        };
+        let Some(new_location) = new_occurrences
+            .get(candidate.new_occurrence_index)
+            .and_then(|occurrence| occurrence.location.as_ref())
+        else {
+            return ExactTailAppendOutcome::Unavailable(
+                ExactTailRecoveryStopReason::InvalidEvidence,
+            );
+        };
+        old_consumed.extend_from_slice(&old_location.consumed);
+        new_consumed.extend_from_slice(&new_location.consumed);
+    }
+    if !normalize_ranges(&mut old_consumed) || !normalize_ranges(&mut new_consumed) {
+        return ExactTailAppendOutcome::Unavailable(ExactTailRecoveryStopReason::InvalidEvidence);
+    }
+    if old_consumed
+        .iter()
+        .any(|range| local_sentence_ranges_overlap(range, &plan.deletion_consumed))
+        || new_consumed
+            .iter()
+            .any(|range| local_sentence_ranges_overlap(range, &plan.insertion_consumed))
+    {
+        return ExactTailAppendOutcome::Unavailable(ExactTailRecoveryStopReason::OverlappingRanges);
+    }
+
+    if plan.matches.try_reserve_exact(same_span_count).is_err()
+        || plan
+            .cross_span_match_old
+            .try_reserve_exact(cross_span_count)
+            .is_err()
+        || plan
+            .cross_span_match_new
+            .try_reserve_exact(cross_span_count)
+            .is_err()
+        || plan
+            .deletion_consumed
+            .try_reserve_exact(old_consumed_count)
+            .is_err()
+        || plan
+            .insertion_consumed
+            .try_reserve_exact(new_consumed_count)
+            .is_err()
+    {
+        return ExactTailAppendOutcome::Unavailable(ExactTailRecoveryStopReason::AllocationFailure);
+    }
+
+    let mut trial_budget = *budget;
+    let mut tail_plan = SentenceRecoveryPlan::default();
+    if append_exact_matches(
+        &mut tail_plan,
+        old_occurrences,
+        new_occurrences,
+        &candidates,
+        &mut trial_budget,
+    )
+    .is_none()
+    {
+        return ExactTailAppendOutcome::Unavailable(
+            ExactTailRecoveryStopReason::OutputCommitFailed,
+        );
+    }
+
+    plan.matches.extend(tail_plan.matches);
+    plan.cross_span_match_old
+        .extend(tail_plan.cross_span_match_old);
+    plan.cross_span_match_new
+        .extend(tail_plan.cross_span_match_new);
+    plan.deletion_consumed.extend(tail_plan.deletion_consumed);
+    plan.insertion_consumed.extend(tail_plan.insertion_consumed);
+    plan.matches
+        .sort_unstable_by_key(|matched| matched.old.span_index);
+    plan.cross_span_match_old
+        .sort_unstable_by_key(|recovery| recovery.span_index);
+    plan.cross_span_match_new
+        .sort_unstable_by_key(|recovery| recovery.span_index);
+    *budget = trial_budget;
+    ExactTailAppendOutcome::Complete {
+        candidates: candidate_count,
+        committed: candidates.len(),
+        multiplicity_vetoed,
+        verification_vetoed,
+    }
+}
+
 fn append_exact_matches(
     plan: &mut SentenceRecoveryPlan,
     old_occurrences: &mut [SentenceOccurrence],
@@ -24979,7 +25826,7 @@ mod tests {
         trusted: bool,
         uncertain: bool,
         budget: &mut RecoveryBudget,
-    ) -> Option<(Vec<SentenceOccurrence>, Vec<SentenceFragment>)> {
+    ) -> Option<OccurrenceCollection> {
         let mut blocks = parts
             .iter()
             .enumerate()
@@ -25025,8 +25872,17 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let span_by_block = blocks.iter().map(|block| (block.block, 0)).collect();
+        let mut exact_tail_budget = *budget;
 
-        collect_occurrences(&side, &intervals, None, &span_by_block, &[true], budget)
+        collect_occurrences(
+            &side,
+            &intervals,
+            None,
+            &span_by_block,
+            &[true],
+            budget,
+            &mut exact_tail_budget,
+        )
     }
 
     fn test_location(range: LocalSentenceRange, span_index: usize) -> SentenceLocation {
@@ -28437,6 +29293,7 @@ mod tests {
                 &pairs,
                 &[true],
                 5,
+                None,
                 &mut budget,
                 &mut diagnostics,
                 &mut None,
@@ -30666,11 +31523,18 @@ mod tests {
         let mut budget = RecoveryBudget::new(source_tokens, 0, evidence_tokens, 1)
             .expect("trusted run budget is valid");
 
-        let (occurrences, fragments) = collect_test_occurrences(&parts, true, false, &mut budget)
+        let OccurrenceCollection {
+            occurrences,
+            fragments,
+            exact_tail_occurrences,
+            exact_tail_complete,
+        } = collect_test_occurrences(&parts, true, false, &mut budget)
             .expect("trusted run collection fits budget");
 
         assert_eq!(occurrences.len(), 1);
         assert_eq!(fragments.len(), 1);
+        assert!(exact_tail_occurrences.is_empty());
+        assert!(exact_tail_complete);
         let occurrence = &occurrences[0];
         assert_eq!(occurrence.key, "ECMA-109 10th Edition / December 2020");
         assert_eq!(occurrence.kind, RecoveryUnitKind::Sentence);
@@ -30691,15 +31555,19 @@ mod tests {
     }
 
     #[test]
-    fn trusted_tail_after_completed_sentence_remains_fragment_only() {
+    fn trusted_tail_after_completed_sentence_is_detached_exact_evidence() {
         let text = "One sentence. \"Another one!\" trailing fragment";
         let token_count = text.chars().count();
         let mut budget = RecoveryBudget::new(token_count, 0, token_count, 1)
             .expect("trusted run budget is valid");
 
-        let (occurrences, fragments) =
-            collect_test_occurrences(&[(text, None)], true, false, &mut budget)
-                .expect("trusted run collection fits budget");
+        let OccurrenceCollection {
+            occurrences,
+            fragments,
+            exact_tail_occurrences,
+            exact_tail_complete,
+        } = collect_test_occurrences(&[(text, None)], true, false, &mut budget)
+            .expect("trusted run collection fits budget");
 
         assert_eq!(occurrences.len(), 2);
         assert_eq!(occurrences[0].key, "One sentence.");
@@ -30712,6 +31580,18 @@ mod tests {
                 .map(SentenceEvidenceToken::Scalar)
                 .collect::<Vec<_>>()
         );
+        assert_eq!(exact_tail_occurrences.len(), 1);
+        assert!(exact_tail_complete);
+        let exact_tail = &exact_tail_occurrences[0];
+        assert_eq!(exact_tail.key, "trailing fragment");
+        assert_eq!(
+            exact_tail.trusted_position,
+            Some(TrustedStreamPosition {
+                stream_index: 0,
+                ordinal: 2,
+            })
+        );
+        assert!(exact_tail.location.is_some());
     }
 
     #[test]
@@ -30721,12 +31601,18 @@ mod tests {
         let mut budget = RecoveryBudget::new(token_count, 0, token_count, 1)
             .expect("untrusted line budget is valid");
 
-        let (occurrences, fragments) =
-            collect_test_occurrences(&[(text, Some(Vec::new()))], false, false, &mut budget)
-                .expect("untrusted line collection fits budget");
+        let OccurrenceCollection {
+            occurrences,
+            fragments,
+            exact_tail_occurrences,
+            exact_tail_complete,
+        } = collect_test_occurrences(&[(text, Some(Vec::new()))], false, false, &mut budget)
+            .expect("untrusted line collection fits budget");
 
         assert_eq!(occurrences.len(), 1);
         assert!(fragments.is_empty());
+        assert!(exact_tail_occurrences.is_empty());
+        assert!(exact_tail_complete);
         assert_eq!(occurrences[0].kind, RecoveryUnitKind::Line);
         assert_eq!(occurrences[0].trusted_position, None);
         assert!(occurrences[0].location.is_some());
@@ -30740,11 +31626,18 @@ mod tests {
         let mut budget = RecoveryBudget::new(source_tokens, 0, evidence_tokens, 1)
             .expect("trusted run budget is valid");
 
-        let (occurrences, fragments) = collect_test_occurrences(&parts, true, false, &mut budget)
+        let OccurrenceCollection {
+            occurrences,
+            fragments,
+            exact_tail_occurrences,
+            exact_tail_complete,
+        } = collect_test_occurrences(&parts, true, false, &mut budget)
             .expect("trusted run collection fits budget");
 
         assert_eq!(occurrences.len(), 1);
         assert_eq!(fragments.len(), 1);
+        assert!(exact_tail_occurrences.is_empty());
+        assert!(exact_tail_complete);
         assert_eq!(budget.occurrences, 1);
         assert_eq!(
             budget.evidence_tokens,
@@ -30763,11 +31656,17 @@ mod tests {
             1,
         )
         .expect("trusted run budget is valid");
-        let (promoted, fragments) =
-            collect_test_occurrences(&parts, true, false, &mut collection_budget)
-                .expect("trusted run collection fits budget");
+        let OccurrenceCollection {
+            occurrences: promoted,
+            fragments,
+            exact_tail_occurrences,
+            exact_tail_complete,
+        } = collect_test_occurrences(&parts, true, false, &mut collection_budget)
+            .expect("trusted run collection fits budget");
         assert_eq!(promoted.len(), 1);
         assert_eq!(fragments.len(), 1);
+        assert!(exact_tail_occurrences.is_empty());
+        assert!(exact_tail_complete);
 
         let tokens = |text: &str| {
             text.chars()
@@ -30817,12 +31716,18 @@ mod tests {
         let mut budget = RecoveryBudget::new(token_count, 0, token_count * 2, 1)
             .expect("trusted run budget is valid");
 
-        let (occurrences, fragments) =
-            collect_test_occurrences(&[(text, None)], true, false, &mut budget)
-                .expect("trusted run collection fits budget");
+        let OccurrenceCollection {
+            occurrences,
+            fragments,
+            exact_tail_occurrences,
+            exact_tail_complete,
+        } = collect_test_occurrences(&[(text, None)], true, false, &mut budget)
+            .expect("trusted run collection fits budget");
 
         assert_eq!(occurrences.len(), 1);
         assert_eq!(fragments.len(), 1);
+        assert!(exact_tail_occurrences.is_empty());
+        assert!(exact_tail_complete);
         assert_eq!(occurrences[0].key, text);
         assert_eq!(fragments[0].tokens.len(), token_count);
     }
@@ -30837,12 +31742,33 @@ mod tests {
             1,
         )
         .expect("trusted run budget is valid");
-        let (promoted, fragments) =
-            collect_test_occurrences(&[(fragment_text, None)], true, true, &mut collection_budget)
-                .expect("trusted run collection fits budget");
+        let OccurrenceCollection {
+            occurrences: promoted,
+            fragments,
+            exact_tail_occurrences,
+            exact_tail_complete,
+        } = collect_test_occurrences(&[(fragment_text, None)], true, true, &mut collection_budget)
+            .expect("trusted run collection fits budget");
         assert!(promoted.is_empty());
         assert_eq!(fragments.len(), 1);
+        assert!(exact_tail_occurrences.is_empty());
+        assert!(exact_tail_complete);
         assert!(fragments[0].uncertain);
+
+        let completed_text = "Stable anchor sentence. uncertain";
+        let mut completed_budget = RecoveryBudget::new(
+            completed_text.chars().count(),
+            0,
+            completed_text.chars().count() * 2,
+            1,
+        )
+        .expect("trusted run budget is valid");
+        let completed =
+            collect_test_occurrences(&[(completed_text, None)], true, true, &mut completed_budget)
+                .expect("trusted run collection fits budget");
+        assert_eq!(completed.fragments.len(), 1);
+        assert!(completed.fragments[0].uncertain);
+        assert!(completed.exact_tail_occurrences.is_empty());
 
         let mut old = positioned_occurrence("longer", 20, 0, 0);
         old.tokens = vec![SentenceEvidenceToken::Scalar('a'); 6];
@@ -31375,6 +32301,245 @@ mod tests {
         assert!(new_occurrences[0].location.is_some());
         assert_eq!(budget.output_ranges, 0);
         assert_eq!(budget.output_tokens, 0);
+    }
+
+    #[test]
+    fn duplicate_isolated_exact_tails_fail_closed() {
+        let mut old_occurrences = [
+            positioned_occurrence("same tail", 1, 0, 0),
+            positioned_occurrence("same tail", 2, 1, 0),
+        ];
+        let mut new_occurrences = [positioned_occurrence("same tail", 3, 2, 0)];
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut budget = RecoveryBudget::new(10, 5, 15, 1).expect("budget is valid");
+        let census =
+            build_exact_tail_census(&[], &[], &old_occurrences, &new_occurrences, &mut budget)
+                .expect("census fits budget");
+
+        assert_eq!(
+            append_isolated_exact_tail_matches(
+                &mut plan,
+                &mut old_occurrences,
+                &mut new_occurrences,
+                &[true],
+                1,
+                &mut budget,
+                &census,
+            ),
+            ExactTailAppendOutcome::Complete {
+                candidates: 0,
+                committed: 0,
+                multiplicity_vetoed: 0,
+                verification_vetoed: 0,
+            }
+        );
+        assert!(plan.matches.is_empty());
+        assert!(plan.deletion_consumed.is_empty());
+        assert!(plan.insertion_consumed.is_empty());
+        assert!(old_occurrences.iter().all(|item| item.location.is_some()));
+        assert!(new_occurrences[0].location.is_some());
+    }
+
+    #[test]
+    fn normal_duplicate_vetoes_isolated_tail_and_one_sided_recovery() {
+        let normal_old = [positioned_occurrence("same tail", 1, 0, 0)];
+        let mut old_tails = [positioned_occurrence("same tail", 2, 1, 0)];
+        let mut new_tails = [positioned_occurrence("same tail", 3, 2, 0)];
+        let mut budget = RecoveryBudget::new(10, 5, 15, 1).expect("budget is valid");
+        let census = build_exact_tail_census(&normal_old, &[], &old_tails, &new_tails, &mut budget)
+            .expect("census fits budget");
+        assert_eq!(census.conflicting_normal_units(), 1);
+
+        let old_candidates = [RecoveryCandidate {
+            occurrence_index: 0,
+            span_index: 0,
+        }];
+        let mut relations = ModifiedSentenceRelations {
+            old: vec![CandidateNearRelation::default()],
+            new: Vec::new(),
+            complete: true,
+            edge_gate_shadow: None,
+            edge_signature_shadow: None,
+        };
+        veto_exact_tail_conflicting_relations(&mut relations, &old_candidates, &[], &census)
+            .expect("candidate indices are valid");
+        assert!(relations.old[0].vetoed());
+
+        let mut plan = SentenceRecoveryPlan::default();
+        assert_eq!(
+            append_isolated_exact_tail_matches(
+                &mut plan,
+                &mut old_tails,
+                &mut new_tails,
+                &[true],
+                1,
+                &mut budget,
+                &census,
+            ),
+            ExactTailAppendOutcome::Complete {
+                candidates: 1,
+                committed: 0,
+                multiplicity_vetoed: 1,
+                verification_vetoed: 0,
+            }
+        );
+        assert!(plan.matches.is_empty());
+        assert!(plan.deletion_consumed.is_empty());
+        assert!(plan.insertion_consumed.is_empty());
+    }
+
+    #[test]
+    fn isolated_exact_tail_token_mismatch_is_a_verification_veto() {
+        let mut old_occurrences = [positioned_occurrence("same key", 1, 0, 0)];
+        let mut new_occurrences = [positioned_occurrence("same key", 2, 1, 0)];
+        new_occurrences[0].tokens[0] = SentenceEvidenceToken::Scalar('x');
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut budget = RecoveryBudget::new(8, 8, 16, 1).expect("budget is valid");
+        let census =
+            build_exact_tail_census(&[], &[], &old_occurrences, &new_occurrences, &mut budget)
+                .expect("census fits budget");
+        let comparisons_before = budget.exact_tail_token_verification_comparisons;
+
+        assert_eq!(
+            append_isolated_exact_tail_matches(
+                &mut plan,
+                &mut old_occurrences,
+                &mut new_occurrences,
+                &[true],
+                1,
+                &mut budget,
+                &census,
+            ),
+            ExactTailAppendOutcome::Complete {
+                candidates: 1,
+                committed: 0,
+                multiplicity_vetoed: 0,
+                verification_vetoed: 1,
+            }
+        );
+        assert!(budget.exact_tail_token_verification_comparisons > comparisons_before);
+        assert!(plan.matches.is_empty());
+        assert!(old_occurrences[0].location.is_some());
+        assert!(new_occurrences[0].location.is_some());
+    }
+
+    #[test]
+    fn exact_tail_finalizer_commits_safe_matches_and_metrics() {
+        let mut old_occurrences = [positioned_occurrence("same tail", 1, 0, 0)];
+        let mut new_occurrences = [positioned_occurrence("same tail", 2, 1, 0)];
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut budget = RecoveryBudget::new(9, 9, 18, 1).expect("budget is valid");
+        let census =
+            build_exact_tail_census(&[], &[], &old_occurrences, &new_occurrences, &mut budget)
+                .expect("census fits budget");
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+            signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+            signature_retained_fingerprint_valid: false,
+        });
+
+        assert!(finalize_exact_tail_recovery(
+            &mut plan,
+            &mut old_occurrences,
+            &mut new_occurrences,
+            &[true],
+            1,
+            &mut budget,
+            Some(&census),
+            None,
+            &mut diagnostics,
+        ));
+
+        assert_eq!(plan.matches.len(), 1);
+        let metrics = diagnostics.expect("metrics remain available").metrics;
+        assert_eq!(metrics.exact_tail_recovery_complete, Some(true));
+        assert_eq!(metrics.exact_tail_recovery_stop_reason, None);
+        assert_eq!(metrics.exact_tail_candidates, 1);
+        assert_eq!(metrics.exact_tail_matches_committed, 1);
+        assert_eq!(metrics.exact_tail_multiplicity_vetoed_candidates, 0);
+        assert_eq!(metrics.exact_tail_verification_vetoed_candidates, 0);
+        assert!(metrics.exact_tail_token_verification_comparisons > 0);
+        assert_eq!(metrics.exact_shared_units, 1);
+    }
+
+    #[test]
+    fn isolated_exact_tail_overlap_preserves_the_existing_plan() {
+        let old_range = LocalSentenceRange {
+            block: BlockId(1),
+            canonical: ScalarRange { start: 0, end: 5 },
+            comparable: TokenRange { start: 0, end: 5 },
+        };
+        let mut old_occurrences = [positioned_occurrence("same tail", 1, 0, 0)];
+        let mut new_occurrences = [positioned_occurrence("same tail", 2, 1, 0)];
+        let mut plan = SentenceRecoveryPlan {
+            deletion_consumed: vec![old_range],
+            ..SentenceRecoveryPlan::default()
+        };
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+        let census =
+            build_exact_tail_census(&[], &[], &old_occurrences, &new_occurrences, &mut budget)
+                .expect("census fits budget");
+        let output_ranges_before = budget.output_ranges;
+        let output_tokens_before = budget.output_tokens;
+
+        assert!(
+            append_isolated_exact_tail_matches(
+                &mut plan,
+                &mut old_occurrences,
+                &mut new_occurrences,
+                &[true],
+                1,
+                &mut budget,
+                &census,
+            ) == ExactTailAppendOutcome::Unavailable(
+                ExactTailRecoveryStopReason::OverlappingRanges,
+            )
+        );
+        assert!(plan.matches.is_empty());
+        assert_eq!(plan.deletion_consumed, [old_range]);
+        assert!(plan.insertion_consumed.is_empty());
+        assert!(old_occurrences[0].location.is_some());
+        assert!(new_occurrences[0].location.is_some());
+        assert_eq!(budget.output_ranges, output_ranges_before);
+        assert_eq!(budget.output_tokens, output_tokens_before);
+    }
+
+    #[test]
+    fn isolated_exact_tail_budget_failure_preserves_the_existing_plan() {
+        let mut old_occurrences = [positioned_occurrence("same tail", 1, 0, 0)];
+        let mut new_occurrences = [positioned_occurrence("same tail", 2, 1, 0)];
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut budget = RecoveryBudget::new(5, 5, 10, 1).expect("budget is valid");
+        let census =
+            build_exact_tail_census(&[], &[], &old_occurrences, &new_occurrences, &mut budget)
+                .expect("census fits budget");
+        budget.output_range_limit = 3;
+        budget.output_ranges = 2;
+        let output_ranges_before = budget.output_ranges;
+        let output_tokens_before = budget.output_tokens;
+
+        assert!(
+            append_isolated_exact_tail_matches(
+                &mut plan,
+                &mut old_occurrences,
+                &mut new_occurrences,
+                &[true],
+                1,
+                &mut budget,
+                &census,
+            ) == ExactTailAppendOutcome::Unavailable(
+                ExactTailRecoveryStopReason::OutputCommitFailed,
+            )
+        );
+        assert!(plan.matches.is_empty());
+        assert!(plan.deletion_consumed.is_empty());
+        assert!(plan.insertion_consumed.is_empty());
+        assert!(old_occurrences[0].location.is_some());
+        assert!(new_occurrences[0].location.is_some());
+        assert_eq!(budget.output_ranges, output_ranges_before);
+        assert_eq!(budget.output_tokens, output_tokens_before);
     }
 
     #[test]

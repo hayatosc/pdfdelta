@@ -1682,6 +1682,19 @@ pub enum RecoveryRemainderAttributionStopReason {
     InvalidState,
 }
 
+/// Reason isolated exact-tail recovery could not be evaluated atomically.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExactTailRecoveryStopReason {
+    CollectionIncomplete,
+    AllocationFailure,
+    CounterOverflow,
+    WorkLimit,
+    CandidateGenerationIncomplete,
+    OutputCommitFailed,
+    OverlappingRanges,
+    InvalidEvidence,
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -1728,6 +1741,19 @@ pub struct SentenceRecoveryMetrics {
     pub exact_shared_units: usize,
     pub old_exact_one_sided_units: usize,
     pub new_exact_one_sided_units: usize,
+    /// Present when detached exact-tail analysis was attempted.
+    pub exact_tail_recovery_complete: Option<bool>,
+    pub exact_tail_recovery_stop_reason: Option<ExactTailRecoveryStopReason>,
+    pub exact_tail_old_units: usize,
+    pub exact_tail_new_units: usize,
+    pub exact_tail_census_units_examined: usize,
+    pub exact_tail_census_token_comparisons: usize,
+    pub exact_tail_token_verification_comparisons: usize,
+    pub exact_tail_conflicting_normal_units: usize,
+    pub exact_tail_multiplicity_vetoed_candidates: usize,
+    pub exact_tail_verification_vetoed_candidates: usize,
+    pub exact_tail_candidates: usize,
+    pub exact_tail_matches_committed: usize,
     pub near_relation_complete: bool,
     pub relation_floor_pairs_considered: usize,
     pub relation_floor_word_scans: usize,
@@ -10006,6 +10032,204 @@ mod tests {
         assert!(result.unresolved_regions.is_empty());
         assert_eq!(result.old_coverage.ratio, Some(1.0));
         assert_eq!(result.new_coverage.ratio, Some(1.0));
+    }
+
+    #[test]
+    fn exact_tail_after_complete_sentence_adds_coverage_without_changes() {
+        let anchor = "Stable anchor sentence.";
+        let tail = "DetachedTailTokenSequence";
+        let old = vec![sentence_block(1, anchor), sentence_block(2, tail)];
+        let new = vec![sentence_block(101, anchor), sentence_block(102, tail)];
+
+        let outcome = compare_sentence_recovery_with_metrics(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2)), Some(TrustedRunId(2))],
+            4,
+        );
+        let result = outcome.comparison;
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("exact-tail diagnostics complete");
+
+        assert!(result.changes.is_empty(), "{result:#?}");
+        assert!(result.unresolved_regions.is_empty(), "{result:#?}");
+        assert_eq!(result.old_coverage.ratio, Some(1.0));
+        assert_eq!(result.new_coverage.ratio, Some(1.0));
+        assert_eq!(metrics.exact_tail_recovery_complete, Some(true));
+        assert_eq!(metrics.exact_tail_recovery_stop_reason, None);
+        assert_eq!(metrics.exact_tail_old_units, 1);
+        assert_eq!(metrics.exact_tail_new_units, 1);
+        assert_eq!(metrics.exact_tail_conflicting_normal_units, 0);
+        assert_eq!(metrics.exact_tail_candidates, 1);
+        assert_eq!(metrics.exact_tail_matches_committed, 1);
+    }
+
+    #[test]
+    fn non_exact_tails_after_complete_sentence_remain_unresolved() {
+        let anchor = "Stable anchor sentence.";
+        let old_tail = "VersionTwoStable";
+        let new_tail = "VersionTenStable";
+        let old = vec![sentence_block(1, anchor), sentence_block(2, old_tail)];
+        let new = vec![sentence_block(101, anchor), sentence_block(102, new_tail)];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2)), Some(TrustedRunId(2))],
+            4,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert!(result.changes.is_empty(), "{result:#?}");
+        assert_eq!(result.old_coverage.resolved_tokens, anchor.chars().count());
+        assert_eq!(result.new_coverage.resolved_tokens, anchor.chars().count());
+        assert!(result.unresolved_regions.iter().any(|region| {
+            region
+                .old_span
+                .as_ref()
+                .is_some_and(|span| span.blocks == [BlockId(2)])
+        }));
+        assert!(result.unresolved_regions.iter().any(|region| {
+            region
+                .new_span
+                .as_ref()
+                .is_some_and(|span| span.blocks == [BlockId(102)])
+        }));
+    }
+
+    #[test]
+    fn one_sided_tail_after_complete_sentence_remains_unresolved() {
+        let anchor = "Stable anchor sentence.";
+        let tail = "DetachedTailTokenSequence";
+        let old = vec![sentence_block(1, anchor), sentence_block(2, tail)];
+        let new = vec![sentence_block(101, anchor)];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2))],
+            4,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert!(result.changes.is_empty(), "{result:#?}");
+        assert_eq!(result.old_coverage.resolved_tokens, anchor.chars().count());
+        assert_eq!(result.new_coverage.ratio, Some(1.0));
+        assert_eq!(result.unresolved_regions.len(), 1);
+        assert_eq!(
+            result.unresolved_regions[0]
+                .old_span
+                .as_ref()
+                .expect("old tail stays unresolved")
+                .blocks,
+            [BlockId(2)]
+        );
+        assert!(result.unresolved_regions[0].new_span.is_none());
+    }
+
+    #[test]
+    fn global_duplicate_tail_evidence_does_not_invent_a_deletion_or_match() {
+        let anchor = "Stable anchor sentence.";
+        let duplicate = "DetachedTailTokenSequence";
+        let old = vec![
+            sentence_block(1, duplicate),
+            sentence_block(2, anchor),
+            sentence_block(3, duplicate),
+        ];
+        let new = vec![sentence_block(101, anchor), sentence_block(102, duplicate)];
+
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[
+                Some(TrustedRunId(1)),
+                Some(TrustedRunId(2)),
+                Some(TrustedRunId(2)),
+            ],
+            &[Some(TrustedRunId(3)), Some(TrustedRunId(3))],
+            4,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert!(result.changes.is_empty(), "{result:#?}");
+        assert_eq!(result.old_coverage.resolved_tokens, anchor.chars().count());
+        assert_eq!(result.new_coverage.resolved_tokens, anchor.chars().count());
+        assert!(result.unresolved_regions.iter().any(|region| {
+            region
+                .old_span
+                .as_ref()
+                .is_some_and(|span| span.blocks.contains(&BlockId(1)))
+        }));
+        assert!(result.unresolved_regions.iter().any(|region| {
+            region
+                .old_span
+                .as_ref()
+                .is_some_and(|span| span.blocks.contains(&BlockId(3)))
+        }));
+        assert!(result.unresolved_regions.iter().any(|region| {
+            region
+                .new_span
+                .as_ref()
+                .is_some_and(|span| span.blocks.contains(&BlockId(102)))
+        }));
+    }
+
+    #[test]
+    fn global_duplicate_tail_evidence_never_becomes_an_exact_anchor() {
+        let anchor = "Stable anchor sentence.";
+        let duplicate = "DetachedTailTokenSequence";
+        let old = vec![
+            sentence_block(1, duplicate),
+            sentence_block(2, anchor),
+            sentence_block(3, duplicate),
+        ];
+        let new = vec![
+            sentence_block(101, duplicate),
+            sentence_block(102, anchor),
+            sentence_block(103, duplicate),
+        ];
+
+        let outcome = compare_sentence_recovery_with_metrics(
+            &old,
+            &new,
+            &[
+                Some(TrustedRunId(1)),
+                Some(TrustedRunId(2)),
+                Some(TrustedRunId(2)),
+            ],
+            &[
+                Some(TrustedRunId(3)),
+                Some(TrustedRunId(4)),
+                Some(TrustedRunId(4)),
+            ],
+            4,
+        );
+        let result = outcome.comparison;
+        let metrics = outcome
+            .sentence_recovery_metrics
+            .expect("exact-tail diagnostics complete");
+
+        assert!(result.changes.is_empty(), "{result:#?}");
+        assert_eq!(result.old_coverage.resolved_tokens, anchor.chars().count());
+        assert_eq!(result.new_coverage.resolved_tokens, anchor.chars().count());
+        assert_eq!(metrics.exact_tail_conflicting_normal_units, 2);
+        assert_eq!(metrics.exact_tail_matches_committed, 0);
+        assert!(result.unresolved_regions.iter().any(|region| {
+            region
+                .old_span
+                .as_ref()
+                .is_some_and(|span| span.blocks.contains(&BlockId(1)))
+        }));
+        assert!(result.unresolved_regions.iter().any(|region| {
+            region
+                .new_span
+                .as_ref()
+                .is_some_and(|span| span.blocks.contains(&BlockId(101)))
+        }));
     }
 
     #[test]

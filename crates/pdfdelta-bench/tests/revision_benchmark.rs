@@ -809,7 +809,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 53);
+    assert_eq!(val["schema_version"], 54);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 
@@ -831,6 +831,25 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
         rec["sentence_recovery_metrics"]["near_relation_complete"],
         true
     );
+    for field in [
+        "exact_tail_recovery_complete",
+        "exact_tail_recovery_stop_reason",
+        "exact_tail_old_units",
+        "exact_tail_new_units",
+        "exact_tail_census_units_examined",
+        "exact_tail_census_token_comparisons",
+        "exact_tail_token_verification_comparisons",
+        "exact_tail_conflicting_normal_units",
+        "exact_tail_multiplicity_vetoed_candidates",
+        "exact_tail_verification_vetoed_candidates",
+        "exact_tail_candidates",
+        "exact_tail_matches_committed",
+    ] {
+        assert!(
+            rec["sentence_recovery_metrics"].get(field).is_some(),
+            "missing exact-tail field {field}"
+        );
+    }
     assert!(
         rec["sentence_recovery_metrics"]
             .get("remainder_attribution")

@@ -716,7 +716,10 @@ fn ruled_two_column_pdf_reports_one_exact_cell_replacement() -> Result<()> {
             comparable_range: TokenRange { start: 8, end: 10 },
         })
     );
-    assert!(without_rules.unresolved_regions.is_empty());
+    assert!(
+        without_rules.unresolved_regions.is_empty(),
+        "{without_rules:#?}"
+    );
     assert_eq!(without_rules.old_coverage.ratio, Some(1.0));
     assert_eq!(without_rules.new_coverage.ratio, Some(1.0));
 
