@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-01
-- **Generator / engine commit**: [`0363ab5`](https://github.com/hayatosc/pdfdelta/commit/0363ab5)
+- **Generator / engine commit**: [`0fe4e85`](https://github.com/hayatosc/pdfdelta/commit/0fe4e85)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-01-0363ab5.json`](2026-09-01-0363ab5.json)
+  - File: [`2026-09-01-0fe4e85.json`](2026-09-01-0fe4e85.json)
   - Schema: v52
-  - Size: 1,943,378 bytes
-  - SHA-256: `c5abf4998767a3a54384d16ceba3e1761ca9a1f05bee7fca9c316d1306463127`
+  - Size: 1,971,702 bytes
+  - SHA-256: `9c2ec42fc7f90d5a21f6f40dd9f7b1e57a58ea93d8a39afaf018d1a8894cd262`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-01-0363ab5.json \
+cp benchmark/realworld/results/2026-09-01-0fe4e85.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 0363ab5
+git switch --detach 0fe4e85
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -88,18 +88,18 @@ still apply only to their recorded review items.
 
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `nist-fips-186-4-to-5` | dev | standard | 51.40% | 2,019 | 1,006 | 0.857 | 1.000 | 206.000 | 107 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.72% | 5,112 | 1,566 | 1.000 | 1.000 | 341.375 | 103 |
-| `irs-form-1040-2024-to-2025` | holdout | stress | 36.33% | 71 | 19 | 0.000 | N/A | N/A | 1 |
-| `edpb-right-of-access-v1-to-final` | holdout | standard | 75.09% | 2,097 | 480 | 0.750 | 1.000 | 278.333 | 56 |
-| `arxiv-attention-v6-to-v7` | dev | stress | 88.38% | 50 | 1 | 1.000 | 1.000 | 2.000 | 0 |
-| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 55.99% | 267 | 127 | 1.000 | 1.000 | 1.000 | 0 |
-| `ecma-109-ed10-to-ed11` | dev | stress | 73.27% | 369 | 78 | 0.333 | 0.000 | 122.000 | 5 |
-| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.10% | 515 | 473 | 1.000 | 1.000 | 166.333 | 65 |
+| `nist-fips-186-4-to-5` | dev | standard | 51.75% | 2,118 | 1,051 | 0.857 | 1.000 | 212.833 | 107 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.50% | 5,175 | 1,578 | 1.000 | 1.000 | 339.875 | 103 |
+| `irs-form-1040-2024-to-2025` | holdout | stress | 44.13% | 81 | 31 | 0.200 | 1.000 | 40.000 | 1 |
+| `edpb-right-of-access-v1-to-final` | holdout | standard | 75.51% | 2,143 | 493 | 0.750 | 1.000 | 284.000 | 56 |
+| `arxiv-attention-v6-to-v7` | dev | stress | 89.35% | 48 | 1 | 1.000 | 1.000 | 2.000 | 0 |
+| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 56.68% | 290 | 143 | 1.000 | 1.000 | 1.000 | 0 |
+| `ecma-109-ed10-to-ed11` | dev | stress | 75.20% | 420 | 87 | 0.667 | 0.500 | 66.000 | 5 |
+| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 65.25% | 519 | 475 | 1.000 | 1.000 | 167.000 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
-| `bis-operational-risk-2011-to-2021` | dev | standard | 68.12% | 656 | 351 | 1.000 | 1.000 | 14.000 | 0 |
-| `oasis-mqtt-311-to-50` | dev | standard | 30.44% | 2,311 | 1,134 | 1.000 | N/A | N/A | 0 |
-| `nist-csf-v1-1-to-v2-0` | holdout | standard | 53.22% | 788 | 648 | 0.333 | 1.000 | 668.000 | 0 |
+| `bis-operational-risk-2011-to-2021` | dev | standard | 76.24% | 672 | 365 | 1.000 | 1.000 | 14.000 | 0 |
+| `oasis-mqtt-311-to-50` | dev | standard | 42.34% | 3,470 | 1,593 | 1.000 | N/A | N/A | 0 |
+| `nist-csf-v1-1-to-v2-0` | holdout | standard | 68.39% | 1,142 | 841 | 0.333 | 1.000 | 861.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
 
@@ -112,12 +112,36 @@ The full artifact also records unannotated pairs, extraction boundaries, unresol
 | `bis-operational-risk-2011-to-2021` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 | `oasis-mqtt-311-to-50` | 1.000 / 1.000 / 1.000 | 1.000 / 1.000 / 1.000 | 1.000 | 0.000 |
 
-Relative to the preceding `7cca56e` capture, only SP 800-57 changes across the
-selected comparison, quality, and complete-scope fields. Its global reviewed
-recall rises from 0.875 to 1.000. Scoped event F1 rises from 0.857 to 1.000,
-and scoped token F1 and span IoU rise from 0.944 and 0.895 to 1.000, while
-false-positive token density remains zero. The other 28 pairs retain their
-previous comparison and reviewed-quality values.
+Relative to the preceding `0363ab5` capture, mean comparison coverage across
+the 19 comparable pairs rises from 51.73% to 54.78%, and the median rises from
+53.22% to 56.68%. Dev mean coverage rises from 55.40% to 57.86%; holdout mean
+coverage rises from 47.65% to 51.35%. The largest pair gains are NIST CSF
+(+15.17 points), MQTT (+11.91), SP 800-171 (+8.49), BIS Operational Risk
+(+8.12), and IRS 1040 (+7.80). SP 800-57 is the only regression at -0.22
+points.
+
+Old/new unresolved recovery remainder falls from 3,100,870 to 2,946,558
+source tokens. All existing complete-scope event and token metrics are
+unchanged, while reviewed recall improves from 0.333 to 0.667 for ECMA-109 and
+from 0.000 to 0.200 for IRS 1040. The number of expected-change failures
+classified as `reading_order_unresolved` falls from nine to six. Kind accuracy
+also rises from 0.000 to 0.500 for ECMA-109 and becomes 1.000 for the newly
+matched IRS 1040 item.
+
+These coverage gains do not establish corpus-wide precision. Across the same
+19 extraction-complete pairs, unresolved regions rise from 25,193 to 27,743
+because recovered runs partition the remaining evidence, and reported content
+events rise from 11,048 to 12,122. Most of those events are outside complete
+scopes. The next evaluation must classify the remaining unresolved token mass
+and review representative gained regions before broadening recovery further.
+
+The engine now treats a clean trailing fragment from one trusted line run as a
+Sentence recovery unit when the run contains no sentence terminator. The same
+boundary remains independent fragment-veto evidence, and both owned token
+copies are budgeted. Untrusted runs, normalization issues, unmapped tokens,
+ordinal gaps, and unsupported line barriers remain fail-closed. The behavior
+therefore uses only order within one trusted run and does not infer order
+between columns or regions.
 
 The engine recovers the remaining SP 800-57 edit across a trusted pair of
 adjacent Sentence units and one Line unit. It requires compatible roles,
