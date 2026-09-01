@@ -8,8 +8,8 @@ use crate::{
     },
     diff::{
         Comparison, DiffOptions, MAX_MYERS_EDIT_DISTANCE, MatchedAtomicDiff, RecoveredAtomicDiff,
-        RecoveryWatchDiagnostics, RecoveryWatchQuery, SentenceRecoveryInput,
-        SentenceRecoveryMetrics, TrustedRunRecoveryInput, compare_aligned,
+        RecoveryOwnershipPartitionAnalysis, RecoveryWatchDiagnostics, RecoveryWatchQuery,
+        SentenceRecoveryInput, SentenceRecoveryMetrics, TrustedRunRecoveryInput, compare_aligned,
         compare_aligned_with_atomic_edits,
         compare_aligned_with_known_span_sentence_shadow_diagnostics,
         compare_aligned_with_recovery_watch_diagnostics,
@@ -126,6 +126,7 @@ pub struct ComparisonOutcomeWithRecoveryWatch {
     pub diagnostics: Option<RecoveryWatchDiagnostics>,
     pub matched_atomic_diffs: Vec<MatchedAtomicDiff>,
     pub recovered_atomic_diffs: Vec<RecoveredAtomicDiff>,
+    pub recovery_ownership_partition: Option<RecoveryOwnershipPartitionAnalysis>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -134,6 +135,7 @@ pub struct ComparisonOutcomeWithAtomicEdits {
     pub alignment: Option<Alignment>,
     pub matched_atomic_diffs: Vec<MatchedAtomicDiff>,
     pub recovered_atomic_diffs: Vec<RecoveredAtomicDiff>,
+    pub recovery_ownership_partition: Option<RecoveryOwnershipPartitionAnalysis>,
 }
 
 struct InstrumentedComparisonOutcome {
@@ -142,6 +144,7 @@ struct InstrumentedComparisonOutcome {
     recovery_watch_diagnostics: Option<RecoveryWatchDiagnostics>,
     matched_atomic_diffs: Vec<MatchedAtomicDiff>,
     recovered_atomic_diffs: Vec<RecoveredAtomicDiff>,
+    recovery_ownership_partition: Option<RecoveryOwnershipPartitionAnalysis>,
 }
 
 impl InstrumentedComparisonOutcome {
@@ -152,6 +155,7 @@ impl InstrumentedComparisonOutcome {
             diagnostics: self.recovery_watch_diagnostics,
             matched_atomic_diffs: self.matched_atomic_diffs,
             recovered_atomic_diffs: self.recovered_atomic_diffs,
+            recovery_ownership_partition: self.recovery_ownership_partition,
         }
     }
 }
@@ -164,6 +168,7 @@ struct ValidatedComparisonOutcome {
     recovery_watch_diagnostics: Option<RecoveryWatchDiagnostics>,
     matched_atomic_diffs: Vec<MatchedAtomicDiff>,
     recovered_atomic_diffs: Vec<RecoveredAtomicDiff>,
+    recovery_ownership_partition: Option<RecoveryOwnershipPartitionAnalysis>,
 }
 
 #[derive(Clone, Copy)]
@@ -477,6 +482,7 @@ pub fn compare_extraction_outcomes_with_atomic_edits(
         alignment: outcome.alignment,
         matched_atomic_diffs: outcome.matched_atomic_diffs,
         recovered_atomic_diffs: outcome.recovered_atomic_diffs,
+        recovery_ownership_partition: outcome.recovery_ownership_partition,
     })
 }
 
@@ -602,6 +608,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
             recovery_watch_diagnostics: compared.recovery_watch_diagnostics,
             matched_atomic_diffs: compared.matched_atomic_diffs,
             recovered_atomic_diffs: compared.recovered_atomic_diffs,
+            recovery_ownership_partition: compared.recovery_ownership_partition,
         });
     }
 
@@ -655,6 +662,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
             recovery_watch_diagnostics: compared.recovery_watch_diagnostics,
             matched_atomic_diffs: compared.matched_atomic_diffs,
             recovered_atomic_diffs: compared.recovered_atomic_diffs,
+            recovery_ownership_partition: compared.recovery_ownership_partition,
         });
     }
 
@@ -686,6 +694,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
         recovery_watch_diagnostics: None,
         matched_atomic_diffs: Vec::new(),
         recovered_atomic_diffs: Vec::new(),
+        recovery_ownership_partition: None,
     })
 }
 
@@ -942,6 +951,7 @@ fn compare_validated_glyph_documents_inner(
                 outcome.recovery_watch_diagnostics,
                 matched_atomic_diffs,
                 recovered_atomic_diffs,
+                outcome.recovery_ownership_partition,
             ))
         })
     } else if instrumentation.enable_sentence_recovery && !instrumentation.watch_queries.is_empty()
@@ -961,6 +971,7 @@ fn compare_validated_glyph_documents_inner(
                 outcome.recovery_watch_diagnostics,
                 Vec::new(),
                 Vec::new(),
+                outcome.recovery_ownership_partition,
             )
         })
     } else if instrumentation.enable_sentence_recovery && instrumentation.retain_atomic_edits {
@@ -988,6 +999,7 @@ fn compare_validated_glyph_documents_inner(
                 None,
                 matched_atomic_diffs,
                 recovered_atomic_diffs,
+                outcome.recovery_ownership_partition,
             ))
         })
     } else if instrumentation.enable_sentence_recovery {
@@ -1005,6 +1017,7 @@ fn compare_validated_glyph_documents_inner(
                 None,
                 Vec::new(),
                 Vec::new(),
+                outcome.recovery_ownership_partition,
             )
         })
     } else if instrumentation.retain_atomic_edits {
@@ -1015,11 +1028,12 @@ fn compare_validated_glyph_documents_inner(
                 None,
                 outcome.matched_atomic_diffs,
                 Vec::new(),
+                None,
             )
         })
     } else {
         compare_aligned(&old, &new, &alignment, options.diff)
-            .map(|comparison| (comparison, None, None, Vec::new(), Vec::new()))
+            .map(|comparison| (comparison, None, None, Vec::new(), Vec::new(), None))
     };
     let (
         comparison,
@@ -1027,6 +1041,7 @@ fn compare_validated_glyph_documents_inner(
         recovery_watch_diagnostics,
         matched_atomic_diffs,
         recovered_atomic_diffs,
+        recovery_ownership_partition,
     ) = phase_result(
         diagnostics,
         PipelinePhase::ExactDiff,
@@ -1052,6 +1067,7 @@ fn compare_validated_glyph_documents_inner(
         recovery_watch_diagnostics,
         matched_atomic_diffs,
         recovered_atomic_diffs,
+        recovery_ownership_partition,
     })
 }
 

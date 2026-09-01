@@ -36,6 +36,12 @@ use super::recovery::fragment_lce::{
 use super::recovery::fragment_proposal::{
     ExactSingleTokenEdit, ExactSingleTokenEditKind, exact_single_token_edit,
 };
+#[cfg(test)]
+use super::recovery::ownership::verify_recovery_ownership_partition;
+use super::recovery::ownership::{
+    RecoveryEligibleBlock, RecoveryOwnershipLimits, RecoveryOwnershipRange,
+    analyze_recovery_ownership_partition,
+};
 use super::recovery::score::{
     CachedSentenceEdgeEvidence, MIN_NEAR_SCORE, MIN_WORD_SCORE_EDGE_EVIDENCE, RelationFloorProbe,
     basis_points, cached_sentence_edge_evidence, cached_sentence_edge_evidence_from_aligned_facts,
@@ -66,7 +72,11 @@ use super::{
     LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
     LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
     MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
-    NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryRemainderAttributionMetrics,
+    NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryGapReason, RecoveryLeafKind,
+    RecoveryOwnership, RecoveryOwnershipBlockError, RecoveryOwnershipContext,
+    RecoveryOwnershipError, RecoveryOwnershipInvariant, RecoveryOwnershipPartitionAnalysis,
+    RecoveryOwnershipPartitionMetrics, RecoveryOwnershipRect, RecoveryOwnershipResource,
+    RecoveryOwnershipRole, RecoveryOwnershipSideAnalysis, RecoveryRemainderAttributionMetrics,
     RecoveryRemainderAttributionStopReason, RecoveryRemainderCauseMetrics,
     RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
     RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
@@ -211,12 +221,22 @@ pub(super) struct SentenceRecoveryBuildOutcome {
     pub plan: Option<SentenceRecoveryPlan>,
     diagnostics: Option<SentenceRecoveryDiagnostics>,
     watch_diagnostics: Option<RecoveryWatchDiagnostics>,
+    old_located_ranges: Vec<LocatedRecoveryRange>,
+    new_located_ranges: Vec<LocatedRecoveryRange>,
+    located_range_inventory_complete: bool,
+    recovery_ownership_partition: Option<RecoveryOwnershipPartitionAnalysis>,
     fragment_veto_complete: bool,
     fragment_veto_stop_reason: Option<FragmentVetoStopReason>,
     fragment_veto_pair_visits_examined: usize,
     fragment_veto_pair_visits_attempted: usize,
     fragment_veto_comparisons_examined: usize,
     fragment_veto_comparisons_attempted: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LocatedRecoveryRange {
+    range: LocalSentenceRange,
+    kind: RecoveryUnitKind,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -333,10 +353,11 @@ impl SentenceRecoveryBuildOutcome {
     }
 
     pub(super) fn finish_diagnostics(
-        self,
+        mut self,
     ) -> (
         Option<SentenceRecoveryMetrics>,
         Option<RecoveryWatchDiagnostics>,
+        Option<RecoveryOwnershipPartitionAnalysis>,
     ) {
         let metrics = self.diagnostics.and_then(|diagnostics| {
             let mut metrics = diagnostics.metrics;
@@ -354,6 +375,16 @@ impl SentenceRecoveryBuildOutcome {
             metrics.unresolved_remainder_new_source_tokens = diagnostics
                 .eligible_new_source_tokens
                 .checked_sub(recovered_new)?;
+            validate_committed_recovery_leaf_partition(
+                &mut metrics,
+                self.recovery_ownership_partition
+                    .as_ref()
+                    .map(RecoveryOwnershipPartitionAnalysis::metrics),
+                diagnostics.eligible_old_source_tokens,
+                diagnostics.eligible_new_source_tokens,
+                recovered_old,
+                recovered_new,
+            );
             if let Some(mut attribution) = metrics.remainder_attribution {
                 let attribution_result = (|| {
                     attribution.old.selected_but_uncommitted_source_tokens = attribution
@@ -388,7 +419,17 @@ impl SentenceRecoveryBuildOutcome {
             }
             Some(metrics)
         });
-        (metrics, self.watch_diagnostics)
+        let keep_partition = metrics
+            .as_ref()
+            .is_some_and(|metrics| metrics.recovery_leaf_partition_complete == Some(true));
+        if !keep_partition {
+            self.recovery_ownership_partition = None;
+        }
+        (
+            metrics,
+            self.watch_diagnostics,
+            self.recovery_ownership_partition,
+        )
     }
 }
 
@@ -8826,7 +8867,936 @@ pub(super) fn build_sentence_recovery_plan(
         input,
         max_tokens,
     );
+    record_recovery_leaf_partition(&mut accepted, old, new, alignment, input, max_tokens);
     Ok(accepted)
+}
+
+type OwnershipResult<T> = std::result::Result<T, RecoveryOwnershipError>;
+
+struct OwnershipBlockState {
+    side_index: usize,
+    context: RecoveryOwnershipContext,
+    owners: Vec<RecoveryOwnership>,
+    unit_ids: Vec<u32>,
+    located_claimed: Vec<bool>,
+    next_unit_id: u32,
+}
+
+impl OwnershipBlockState {
+    fn allocate_unit_id(&mut self) -> OwnershipResult<u32> {
+        let id = self.next_unit_id;
+        self.next_unit_id = self
+            .next_unit_id
+            .checked_add(1)
+            .ok_or(RecoveryOwnershipError::CounterOverflow)?;
+        Ok(id)
+    }
+}
+
+fn record_recovery_leaf_partition(
+    accepted: &mut SentenceRecoveryBuildOutcome,
+    old: &Side<'_>,
+    new: &Side<'_>,
+    alignment: &Alignment,
+    input: SentenceRecoveryInput<'_>,
+    max_tokens: usize,
+) {
+    if accepted.diagnostics.is_none() {
+        return;
+    }
+    let result = (|| {
+        if !accepted.located_range_inventory_complete {
+            return Err(RecoveryOwnershipError::AllocationFailure);
+        }
+        let membership =
+            span_membership(alignment).ok_or(RecoveryOwnershipError::InvariantViolation {
+                block_index: None,
+                range_index: None,
+                invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+            })?;
+        let empty: &[LocalSentenceRange] = &[];
+        let old_accepted = accepted
+            .plan
+            .as_ref()
+            .map_or(empty, |plan| plan.deletion_consumed.as_slice());
+        let new_accepted = accepted
+            .plan
+            .as_ref()
+            .map_or(empty, |plan| plan.insertion_consumed.as_slice());
+        let old = recovery_ownership_for_side(
+            old,
+            input.old_trusted_run_intervals,
+            input.old_trusted_run_evidence,
+            &membership.old,
+            &membership.recovery_spans,
+            old_accepted,
+            &accepted.old_located_ranges,
+            max_tokens,
+        )?;
+        let new = recovery_ownership_for_side(
+            new,
+            input.new_trusted_run_intervals,
+            input.new_trusted_run_evidence,
+            &membership.new,
+            &membership.recovery_spans,
+            new_accepted,
+            &accepted.new_located_ranges,
+            max_tokens,
+        )?;
+        RecoveryOwnershipPartitionAnalysis::try_new(old, new)
+            .map_err(|_| RecoveryOwnershipError::AllocationFailure)
+    })();
+    let diagnostics = accepted
+        .diagnostics
+        .as_mut()
+        .expect("diagnostics presence checked before ownership analysis");
+    match result {
+        Ok(partition) => {
+            diagnostics.metrics.recovery_leaf_partition_complete = Some(true);
+            diagnostics.metrics.recovery_leaf_partition_stop_reason = None;
+            accepted.recovery_ownership_partition = Some(partition);
+        }
+        Err(reason) => {
+            accepted.recovery_ownership_partition = None;
+            invalidate_recovery_leaf_partition(&mut diagnostics.metrics, reason);
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn recovery_ownership_for_side(
+    side: &Side<'_>,
+    trusted_run_intervals: &[Option<TrustedRunInterval>],
+    trusted_run_input: Option<TrustedRunRecoveryInput<'_>>,
+    span_by_block: &HashMap<BlockId, usize>,
+    recovery_spans: &[bool],
+    accepted: &[LocalSentenceRange],
+    located: &[LocatedRecoveryRange],
+    max_tokens: usize,
+) -> OwnershipResult<RecoveryOwnershipSideAnalysis> {
+    if trusted_run_intervals.len() != side.blocks.len() {
+        return Err(RecoveryOwnershipError::InvariantViolation {
+            block_index: None,
+            range_index: None,
+            invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+        });
+    }
+    let mut eligible_count = 0usize;
+    let mut eligible_tokens = 0usize;
+    let mut normalization_issues = 0usize;
+    let mut projection_evidence_items = 0usize;
+    let mut issue_projection_work = 0usize;
+    for (side_index, block) in side.blocks.iter().enumerate() {
+        let eligible = span_by_block
+            .get(&block.block)
+            .and_then(|span| recovery_spans.get(*span))
+            .copied()
+            .unwrap_or(false);
+        if !eligible {
+            continue;
+        }
+        let tokens =
+            side.canonical
+                .get(side_index)
+                .ok_or(RecoveryOwnershipError::InvariantViolation {
+                    block_index: Some(side_index),
+                    range_index: None,
+                    invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+                })?;
+        eligible_count = eligible_count
+            .checked_add(1)
+            .ok_or(RecoveryOwnershipError::CounterOverflow)?;
+        eligible_tokens = eligible_tokens
+            .checked_add(tokens.len())
+            .ok_or(RecoveryOwnershipError::CounterOverflow)?;
+        normalization_issues = normalization_issues
+            .checked_add(block.issues.len())
+            .ok_or(RecoveryOwnershipError::CounterOverflow)?;
+        let block_evidence_items = block
+            .raw
+            .source_map
+            .len()
+            .checked_add(block.raw.unmapped.len())
+            .and_then(|count| count.checked_add(block.canonical.source_map.len()))
+            .and_then(|count| count.checked_add(block.canonical.unmapped.len()))
+            .and_then(|count| count.checked_add(block.normalization_events.len()))
+            .ok_or(RecoveryOwnershipError::CounterOverflow)?;
+        projection_evidence_items = projection_evidence_items
+            .checked_add(block_evidence_items)
+            .ok_or(RecoveryOwnershipError::CounterOverflow)?;
+        issue_projection_work = issue_projection_work
+            .checked_add(
+                block
+                    .issues
+                    .len()
+                    .checked_mul(block_evidence_items)
+                    .ok_or(RecoveryOwnershipError::CounterOverflow)?,
+            )
+            .ok_or(RecoveryOwnershipError::CounterOverflow)?;
+    }
+    if eligible_count > MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS {
+        return Err(RecoveryOwnershipError::ResourceLimit {
+            resource: RecoveryOwnershipResource::Blocks,
+            actual: eligible_count,
+            limit: MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS,
+        });
+    }
+    enforce_recovery_ownership_limit(
+        RecoveryOwnershipResource::ComparableTokens,
+        eligible_tokens,
+        max_tokens,
+    )?;
+    enforce_recovery_ownership_limit(
+        RecoveryOwnershipResource::NormalizationIssues,
+        normalization_issues,
+        max_tokens,
+    )?;
+    let projection_limit = max_tokens
+        .checked_mul(16)
+        .ok_or(RecoveryOwnershipError::CounterOverflow)?;
+    enforce_recovery_ownership_limit(
+        RecoveryOwnershipResource::ProjectionEvidenceItems,
+        projection_evidence_items,
+        projection_limit,
+    )?;
+    enforce_recovery_ownership_limit(
+        RecoveryOwnershipResource::IssueProjectionWork,
+        issue_projection_work,
+        projection_limit,
+    )?;
+    let run_evidence = match trusted_run_input {
+        Some(input) => {
+            Some(RunRecoveryEvidence::new(input).ok_or(RecoveryOwnershipError::AllocationFailure)?)
+        }
+        None => None,
+    };
+
+    let mut boundary_maps = Vec::<Vec<usize>>::new();
+    let mut states = Vec::<OwnershipBlockState>::new();
+    let mut eligible_by_block = HashMap::<BlockId, usize>::new();
+    boundary_maps
+        .try_reserve_exact(eligible_count)
+        .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+    states
+        .try_reserve_exact(eligible_count)
+        .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+    eligible_by_block
+        .try_reserve(eligible_count)
+        .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+
+    for (side_index, block) in side.blocks.iter().enumerate() {
+        let Some(span_index) = span_by_block.get(&block.block).copied() else {
+            continue;
+        };
+        if !recovery_spans.get(span_index).copied().unwrap_or(false) {
+            continue;
+        }
+        let tokens =
+            side.canonical
+                .get(side_index)
+                .ok_or(RecoveryOwnershipError::InvariantViolation {
+                    block_index: Some(side_index),
+                    range_index: None,
+                    invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+                })?;
+        let boundaries = comparable_to_canonical_boundaries(tokens)?;
+        let context = ownership_context_for_block(
+            side_index,
+            block,
+            trusted_run_intervals[side_index],
+            run_evidence.as_ref(),
+        );
+        let residual = residual_ownership_for_block(
+            side_index,
+            block,
+            tokens.len(),
+            trusted_run_intervals[side_index],
+            run_evidence.as_ref(),
+        );
+        let block_index = states.len();
+        if eligible_by_block.insert(block.block, block_index).is_some() {
+            return Err(RecoveryOwnershipError::InvariantViolation {
+                block_index: Some(block_index),
+                range_index: None,
+                invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+            });
+        }
+        let mut owners = Vec::new();
+        let mut unit_ids = Vec::new();
+        owners
+            .try_reserve_exact(tokens.len())
+            .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+        unit_ids
+            .try_reserve_exact(tokens.len())
+            .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+        classify_residual_ownership(
+            block_index,
+            block,
+            tokens,
+            residual,
+            &mut owners,
+            &mut unit_ids,
+        )?;
+        let mut located_claimed = Vec::new();
+        located_claimed
+            .try_reserve_exact(tokens.len())
+            .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+        located_claimed.resize(tokens.len(), false);
+        let next_unit_id = unit_ids_next(&unit_ids)?;
+        boundary_maps.push(boundaries);
+        states.push(OwnershipBlockState {
+            side_index,
+            context,
+            owners,
+            unit_ids,
+            located_claimed,
+            next_unit_id,
+        });
+    }
+
+    for (range_index, located) in located.iter().enumerate() {
+        let block_index =
+            eligible_block_index(&eligible_by_block, located.range.block, range_index)?;
+        let comparable = validate_partition_input_range(
+            &located.range,
+            boundary_maps
+                .get(block_index)
+                .ok_or(RecoveryOwnershipError::InvariantViolation {
+                    block_index: Some(block_index),
+                    range_index: Some(range_index),
+                    invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+                })?,
+            range_index,
+        )?;
+        let ownership = RecoveryOwnership::Leaf(match located.kind {
+            RecoveryUnitKind::Sentence => RecoveryLeafKind::SentenceBody,
+            RecoveryUnitKind::Line => RecoveryLeafKind::LineBody,
+        });
+        let state =
+            states
+                .get_mut(block_index)
+                .ok_or(RecoveryOwnershipError::InvariantViolation {
+                    block_index: Some(block_index),
+                    range_index: Some(range_index),
+                    invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+                })?;
+        let claimed = state.located_claimed.get(comparable.clone()).ok_or(
+            RecoveryOwnershipError::InvalidRange {
+                range_index,
+                error: super::RecoveryOwnershipRangeError::ComparableOutOfBounds,
+            },
+        )?;
+        if claimed.iter().any(|claimed| *claimed) {
+            return Err(RecoveryOwnershipError::InvariantViolation {
+                block_index: Some(block_index),
+                range_index: Some(range_index),
+                invariant: RecoveryOwnershipInvariant::OverlappingOwnership,
+            });
+        }
+        let unit_id = state.allocate_unit_id()?;
+        let owners = state.owners.get_mut(comparable.clone()).ok_or(
+            RecoveryOwnershipError::InvalidRange {
+                range_index,
+                error: super::RecoveryOwnershipRangeError::ComparableOutOfBounds,
+            },
+        )?;
+        let unit_ids = state.unit_ids.get_mut(comparable.clone()).ok_or(
+            RecoveryOwnershipError::InvalidRange {
+                range_index,
+                error: super::RecoveryOwnershipRangeError::ComparableOutOfBounds,
+            },
+        )?;
+        for (owner, unit_id_slot) in owners.iter_mut().zip(unit_ids) {
+            if !is_source_safety_gap(*owner) {
+                *owner = ownership;
+                *unit_id_slot = unit_id;
+            }
+        }
+        for claimed in state.located_claimed.get_mut(comparable).ok_or(
+            RecoveryOwnershipError::InvalidRange {
+                range_index,
+                error: super::RecoveryOwnershipRangeError::ComparableOutOfBounds,
+            },
+        )? {
+            *claimed = true;
+        }
+    }
+
+    for (range_index, range) in accepted.iter().enumerate() {
+        let block_index = eligible_block_index(&eligible_by_block, range.block, range_index)?;
+        let comparable = validate_partition_input_range(
+            range,
+            boundary_maps
+                .get(block_index)
+                .ok_or(RecoveryOwnershipError::InvariantViolation {
+                    block_index: Some(block_index),
+                    range_index: Some(range_index),
+                    invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+                })?,
+            range_index,
+        )?;
+        let state =
+            states
+                .get_mut(block_index)
+                .ok_or(RecoveryOwnershipError::InvariantViolation {
+                    block_index: Some(block_index),
+                    range_index: Some(range_index),
+                    invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+                })?;
+        let owners =
+            state
+                .owners
+                .get(comparable.clone())
+                .ok_or(RecoveryOwnershipError::InvalidRange {
+                    range_index,
+                    error: super::RecoveryOwnershipRangeError::ComparableOutOfBounds,
+                })?;
+        if owners.iter().any(|owner| is_source_safety_gap(*owner)) {
+            return Err(RecoveryOwnershipError::InvariantViolation {
+                block_index: Some(block_index),
+                range_index: Some(range_index),
+                invariant: RecoveryOwnershipInvariant::UnsafeAcceptedRange,
+            });
+        }
+        if owners.contains(&RecoveryOwnership::Accepted) {
+            return Err(RecoveryOwnershipError::InvariantViolation {
+                block_index: Some(block_index),
+                range_index: Some(range_index),
+                invariant: RecoveryOwnershipInvariant::OverlappingOwnership,
+            });
+        }
+        let unit_id = state.allocate_unit_id()?;
+        let owners = state.owners.get_mut(comparable.clone()).ok_or(
+            RecoveryOwnershipError::InvalidRange {
+                range_index,
+                error: super::RecoveryOwnershipRangeError::ComparableOutOfBounds,
+            },
+        )?;
+        let unit_ids =
+            state
+                .unit_ids
+                .get_mut(comparable)
+                .ok_or(RecoveryOwnershipError::InvalidRange {
+                    range_index,
+                    error: super::RecoveryOwnershipRangeError::ComparableOutOfBounds,
+                })?;
+        for (owner, unit_id_slot) in owners.iter_mut().zip(unit_ids) {
+            if *owner == RecoveryOwnership::Accepted {
+                return Err(RecoveryOwnershipError::InvariantViolation {
+                    block_index: Some(block_index),
+                    range_index: Some(range_index),
+                    invariant: RecoveryOwnershipInvariant::OverlappingOwnership,
+                });
+            }
+            *owner = RecoveryOwnership::Accepted;
+            *unit_id_slot = unit_id;
+        }
+    }
+
+    let mut ranges = Vec::new();
+    for (block_index, state) in states.iter().enumerate() {
+        let boundaries =
+            boundary_maps
+                .get(block_index)
+                .ok_or(RecoveryOwnershipError::InvariantViolation {
+                    block_index: Some(block_index),
+                    range_index: None,
+                    invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+                })?;
+        let mut start = 0usize;
+        while start < state.owners.len() {
+            let ownership = state.owners[start];
+            let unit_id = state.unit_ids[start];
+            let mut end = start + 1;
+            while state.owners.get(end).copied() == Some(ownership)
+                && state.unit_ids.get(end).copied() == Some(unit_id)
+            {
+                end += 1;
+            }
+            if ranges.len() == max_tokens {
+                return Err(RecoveryOwnershipError::ResourceLimit {
+                    resource: RecoveryOwnershipResource::Ranges,
+                    actual: ranges.len().saturating_add(1),
+                    limit: max_tokens,
+                });
+            }
+            ranges
+                .try_reserve(1)
+                .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+            ranges.push(RecoveryOwnershipRange {
+                block_index,
+                canonical_start: boundaries[start],
+                canonical_end: boundaries[end],
+                comparable_start: start,
+                comparable_end: end,
+                ownership,
+                context: state.context,
+            });
+            start = end;
+        }
+    }
+
+    let mut blocks = Vec::new();
+    blocks
+        .try_reserve_exact(states.len())
+        .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+    for (block_index, state) in states.iter().enumerate() {
+        let block = side.blocks.get(state.side_index).ok_or(
+            RecoveryOwnershipError::InvariantViolation {
+                block_index: Some(block_index),
+                range_index: None,
+                invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+            },
+        )?;
+        blocks.push(RecoveryEligibleBlock {
+            block_id: block.block.0,
+            canonical_tokens: block.canonical.text.chars().count(),
+            comparable_tokens: state.owners.len(),
+            comparable_to_canonical: boundary_maps.get(block_index).ok_or(
+                RecoveryOwnershipError::InvariantViolation {
+                    block_index: Some(block_index),
+                    range_index: None,
+                    invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+                },
+            )?,
+            trusted: trusted_run_intervals[state.side_index].is_some(),
+            role: ownership_role(block.role),
+        });
+    }
+    analyze_recovery_ownership_partition(
+        &blocks,
+        &ranges,
+        RecoveryOwnershipLimits {
+            max_blocks: MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS,
+            max_ranges: max_tokens,
+            max_canonical_tokens: max_tokens,
+            max_comparable_tokens: max_tokens,
+        },
+    )
+}
+
+fn comparable_to_canonical_boundaries(tokens: &[ComparableToken]) -> OwnershipResult<Vec<usize>> {
+    let boundary_count = tokens
+        .len()
+        .checked_add(1)
+        .ok_or(RecoveryOwnershipError::CounterOverflow)?;
+    let mut boundaries = Vec::new();
+    boundaries
+        .try_reserve_exact(boundary_count)
+        .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+    boundaries.push(0);
+    let mut scalar = 0usize;
+    for token in tokens {
+        if token.is_scalar() {
+            scalar = scalar
+                .checked_add(1)
+                .ok_or(RecoveryOwnershipError::CounterOverflow)?;
+        }
+        boundaries.push(scalar);
+    }
+    Ok(boundaries)
+}
+
+fn eligible_block_index(
+    eligible_by_block: &HashMap<BlockId, usize>,
+    block: BlockId,
+    range_index: usize,
+) -> OwnershipResult<usize> {
+    eligible_by_block
+        .get(&block)
+        .copied()
+        .ok_or(RecoveryOwnershipError::InvariantViolation {
+            block_index: None,
+            range_index: Some(range_index),
+            invariant: RecoveryOwnershipInvariant::MissingEligibleBlock,
+        })
+}
+
+fn validate_partition_input_range(
+    range: &LocalSentenceRange,
+    boundaries: &[usize],
+    range_index: usize,
+) -> OwnershipResult<Range<usize>> {
+    if range.comparable.start >= range.comparable.end {
+        return Err(RecoveryOwnershipError::InvalidRange {
+            range_index,
+            error: super::RecoveryOwnershipRangeError::Empty,
+        });
+    }
+    let Some(&canonical_start) = boundaries.get(range.comparable.start) else {
+        return Err(RecoveryOwnershipError::InvalidRange {
+            range_index,
+            error: super::RecoveryOwnershipRangeError::ComparableOutOfBounds,
+        });
+    };
+    let Some(&canonical_end) = boundaries.get(range.comparable.end) else {
+        return Err(RecoveryOwnershipError::InvalidRange {
+            range_index,
+            error: super::RecoveryOwnershipRangeError::ComparableOutOfBounds,
+        });
+    };
+    if canonical_start != range.canonical.start || canonical_end != range.canonical.end {
+        return Err(RecoveryOwnershipError::InvalidRange {
+            range_index,
+            error: super::RecoveryOwnershipRangeError::CanonicalBoundaryMismatch,
+        });
+    }
+    Ok(range.comparable.start..range.comparable.end)
+}
+
+fn ownership_context_for_block(
+    side_index: usize,
+    block: &BlockText,
+    interval: Option<TrustedRunInterval>,
+    evidence: Option<&RunRecoveryEvidence<'_>>,
+) -> RecoveryOwnershipContext {
+    let descriptor = interval
+        .and_then(|interval| evidence?.descriptor_by_id.get(&interval.run_id).copied())
+        .and_then(|index| evidence?.descriptors.get(index))
+        .or_else(|| {
+            let indices = evidence?.descriptor_indices_by_block.get(&side_index)?;
+            if indices.len() != 1 {
+                return None;
+            }
+            evidence?.descriptors.get(indices[0])
+        });
+    RecoveryOwnershipContext {
+        trusted_run_id: interval.map(|interval| interval.run_id.0),
+        ordinal_start: interval.map(|interval| interval.start),
+        ordinal_end: interval.map(|interval| interval.end),
+        region_id: descriptor.and_then(|descriptor| {
+            match descriptor.source_region_ids.as_slice() {
+                [region] => Some(region.0),
+                _ => None,
+            }
+        }),
+        page: descriptor
+            .map(|descriptor| descriptor.page.0)
+            .or_else(|| block.pages.first().copied()),
+        bbox: descriptor.map(|descriptor| RecoveryOwnershipRect {
+            min_x_bits: canonical_geometry_bits(descriptor.bbox.min.x),
+            min_y_bits: canonical_geometry_bits(descriptor.bbox.min.y),
+            max_x_bits: canonical_geometry_bits(descriptor.bbox.max.x),
+            max_y_bits: canonical_geometry_bits(descriptor.bbox.max.y),
+        }),
+    }
+}
+
+fn canonical_geometry_bits(value: f64) -> u64 {
+    if value == 0.0 {
+        0.0_f64.to_bits()
+    } else {
+        value.to_bits()
+    }
+}
+
+fn residual_ownership_for_block(
+    side_index: usize,
+    block: &BlockText,
+    token_count: usize,
+    interval: Option<TrustedRunInterval>,
+    evidence: Option<&RunRecoveryEvidence<'_>>,
+) -> RecoveryOwnership {
+    if interval.is_some() {
+        return RecoveryOwnership::Leaf(RecoveryLeafKind::TrustedRunResidual);
+    }
+    let descriptors = evidence
+        .and_then(|evidence| evidence.descriptor_indices_by_block.get(&side_index))
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    if descriptors.len() > 1 {
+        return RecoveryOwnership::Gap(RecoveryGapReason::MixedTrustedRuns);
+    }
+    if let Some(descriptor) = descriptors
+        .first()
+        .and_then(|index| evidence.and_then(|evidence| evidence.descriptors.get(*index)))
+    {
+        if descriptor
+            .role
+            .is_none_or(|role| !role.is_alignment_compatible(block.role))
+        {
+            return RecoveryOwnership::Gap(RecoveryGapReason::RoleBoundary);
+        }
+        return RecoveryOwnership::Gap(RecoveryGapReason::OrdinalGap);
+    }
+    let atomic_line = token_count <= MAX_UNTRUSTED_LINE_TOKENS
+        && block.line_breaks.as_ref().is_some_and(Vec::is_empty);
+    if atomic_line {
+        RecoveryOwnership::Gap(RecoveryGapReason::NoTrustedRun)
+    } else {
+        RecoveryOwnership::Gap(RecoveryGapReason::UnsupportedLinePolicy)
+    }
+}
+
+fn classify_residual_ownership(
+    block_index: usize,
+    block: &BlockText,
+    tokens: &[ComparableToken],
+    residual: RecoveryOwnership,
+    owners: &mut Vec<RecoveryOwnership>,
+    unit_ids: &mut Vec<u32>,
+) -> OwnershipResult<()> {
+    if !owners.is_empty() || !unit_ids.is_empty() {
+        return Err(RecoveryOwnershipError::InvariantViolation {
+            block_index: Some(block_index),
+            range_index: None,
+            invariant: RecoveryOwnershipInvariant::ComparableCoverage,
+        });
+    }
+    let scalar_count = block.canonical.text.chars().count();
+    let source_map_valid = canonical_source_map_is_valid(block, scalar_count);
+    let issue_flags = normalization_issue_flags(block, scalar_count)?;
+    let mut source_index = 0usize;
+    let mut unmapped_index = 0usize;
+    let mut scalar_index = 0usize;
+    let mut current_ownership = None;
+    let mut current_unit_id = 0u32;
+    for token in tokens {
+        let owner = match token {
+            ComparableToken::Scalar(_) => {
+                let source_available = source_map_valid
+                    && scalar_source_available(
+                        block,
+                        scalar_index,
+                        scalar_count,
+                        &mut source_index,
+                    );
+                if issue_flags.is_none() {
+                    RecoveryOwnership::Gap(RecoveryGapReason::LocationProjectionFailed)
+                } else if issue_flags
+                    .as_ref()
+                    .and_then(|flags| flags.get(scalar_index))
+                    .copied()
+                    .unwrap_or(false)
+                {
+                    RecoveryOwnership::Gap(RecoveryGapReason::NormalizationIssue)
+                } else if !source_available {
+                    RecoveryOwnership::Gap(RecoveryGapReason::LocationProjectionFailed)
+                } else {
+                    residual
+                }
+            }
+            ComparableToken::Unmapped {
+                font_hash,
+                glyph_id,
+            } => {
+                let mapped = block.canonical.unmapped.get(unmapped_index);
+                let valid = mapped.is_some_and(|mapped| {
+                    mapped.scalar_index == scalar_index
+                        && &mapped.font_hash == font_hash
+                        && mapped.glyph_id == *glyph_id
+                });
+                unmapped_index = unmapped_index
+                    .checked_add(1)
+                    .ok_or(RecoveryOwnershipError::CounterOverflow)?;
+                if valid {
+                    RecoveryOwnership::Gap(RecoveryGapReason::UnmappedChangedEvidence)
+                } else {
+                    RecoveryOwnership::Gap(RecoveryGapReason::LocationProjectionFailed)
+                }
+            }
+        };
+        if current_ownership != Some(owner) {
+            if current_ownership.is_some() {
+                current_unit_id = current_unit_id
+                    .checked_add(1)
+                    .ok_or(RecoveryOwnershipError::CounterOverflow)?;
+            }
+            current_ownership = Some(owner);
+        }
+        owners.push(owner);
+        unit_ids.push(current_unit_id);
+        if token.is_scalar() {
+            scalar_index = scalar_index
+                .checked_add(1)
+                .ok_or(RecoveryOwnershipError::CounterOverflow)?;
+        }
+    }
+    if scalar_index != scalar_count || unmapped_index != block.canonical.unmapped.len() {
+        return Err(RecoveryOwnershipError::InvalidBlock {
+            block_index,
+            error: RecoveryOwnershipBlockError::LastBoundary,
+        });
+    }
+    if owners.len() != tokens.len() || unit_ids.len() != tokens.len() {
+        return Err(RecoveryOwnershipError::InvariantViolation {
+            block_index: Some(block_index),
+            range_index: None,
+            invariant: RecoveryOwnershipInvariant::ComparableCoverage,
+        });
+    }
+    Ok(())
+}
+
+fn normalization_issue_flags(
+    block: &BlockText,
+    scalar_count: usize,
+) -> OwnershipResult<Option<Vec<bool>>> {
+    let mut flags = Vec::new();
+    flags
+        .try_reserve_exact(scalar_count)
+        .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+    flags.resize(scalar_count, false);
+    if block.issues.is_empty() {
+        return Ok(Some(flags));
+    }
+    let Some(mut ranges) = block.checked_normalization_issue_ranges().ok() else {
+        return Ok(None);
+    };
+    ranges.sort_unstable_by_key(|range| (range.start, range.end));
+    for range in ranges.iter().filter(|range| range.start == range.end) {
+        if range.start > scalar_count {
+            return Ok(None);
+        }
+        if range.start > 0 {
+            flags[range.start - 1] = true;
+        }
+        if let Some(flag) = flags.get_mut(range.start) {
+            *flag = true;
+        }
+    }
+    let mut range_index = 0usize;
+    let mut active_end = 0usize;
+    for (scalar_index, flag) in flags.iter_mut().enumerate() {
+        while let Some(range) = ranges
+            .get(range_index)
+            .filter(|range| range.start <= scalar_index)
+        {
+            if range.start < range.end {
+                active_end = active_end.max(range.end);
+            }
+            range_index += 1;
+        }
+        if active_end > scalar_index {
+            *flag = true;
+        }
+    }
+    Ok(Some(flags))
+}
+
+fn unit_ids_next(unit_ids: &[u32]) -> OwnershipResult<u32> {
+    unit_ids
+        .last()
+        .copied()
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or(RecoveryOwnershipError::CounterOverflow)
+}
+
+fn is_source_safety_gap(ownership: RecoveryOwnership) -> bool {
+    matches!(
+        ownership,
+        RecoveryOwnership::Gap(
+            RecoveryGapReason::LocationProjectionFailed
+                | RecoveryGapReason::NormalizationIssue
+                | RecoveryGapReason::UnmappedChangedEvidence
+        )
+    )
+}
+
+fn enforce_recovery_ownership_limit(
+    resource: RecoveryOwnershipResource,
+    actual: usize,
+    limit: usize,
+) -> OwnershipResult<()> {
+    if actual > limit {
+        return Err(RecoveryOwnershipError::ResourceLimit {
+            resource,
+            actual,
+            limit,
+        });
+    }
+    Ok(())
+}
+
+fn canonical_source_map_is_valid(block: &BlockText, scalar_count: usize) -> bool {
+    let mut previous_end = 0usize;
+    for entry in &block.canonical.source_map {
+        if entry.output_range.start > entry.output_range.end
+            || entry.output_range.end > scalar_count
+            || entry.output_range.start < previous_end
+        {
+            return false;
+        }
+        previous_end = entry.output_range.end;
+    }
+    true
+}
+
+fn scalar_source_available(
+    block: &BlockText,
+    scalar_index: usize,
+    scalar_count: usize,
+    source_index: &mut usize,
+) -> bool {
+    if scalar_index >= scalar_count {
+        return false;
+    }
+    while block
+        .canonical
+        .source_map
+        .get(*source_index)
+        .is_some_and(|entry| entry.output_range.end <= scalar_index)
+    {
+        *source_index += 1;
+    }
+    block
+        .canonical
+        .source_map
+        .get(*source_index)
+        .is_some_and(|entry| {
+            entry.output_range.start <= scalar_index
+                && scalar_index < entry.output_range.end
+                && !entry.source.atoms.is_empty()
+        })
+}
+
+fn ownership_role(role: BlockRole) -> RecoveryOwnershipRole {
+    match role {
+        BlockRole::Body => RecoveryOwnershipRole::Body,
+        BlockRole::RepeatedHeader => RecoveryOwnershipRole::RepeatedHeader,
+        BlockRole::RepeatedFooter => RecoveryOwnershipRole::RepeatedFooter,
+    }
+}
+
+fn invalidate_recovery_leaf_partition(
+    metrics: &mut SentenceRecoveryMetrics,
+    reason: RecoveryOwnershipError,
+) {
+    metrics.recovery_leaf_partition_complete = Some(false);
+    metrics.recovery_leaf_partition_stop_reason = Some(reason);
+}
+
+fn validate_committed_recovery_leaf_partition(
+    metrics: &mut SentenceRecoveryMetrics,
+    partition: Option<RecoveryOwnershipPartitionMetrics>,
+    eligible_old: usize,
+    eligible_new: usize,
+    recovered_old: usize,
+    recovered_new: usize,
+) {
+    let Some(partition) = partition else {
+        return;
+    };
+    let valid = partition.old.total.comparable_tokens == eligible_old
+        && partition.new.total.comparable_tokens == eligible_new
+        && partition.old.accepted.comparable_tokens == recovered_old
+        && partition.new.accepted.comparable_tokens == recovered_new
+        && partition
+            .old
+            .total
+            .comparable_tokens
+            .checked_sub(partition.old.accepted.comparable_tokens)
+            == Some(metrics.unresolved_remainder_old_source_tokens)
+        && partition
+            .new
+            .total
+            .comparable_tokens
+            .checked_sub(partition.new.accepted.comparable_tokens)
+            == Some(metrics.unresolved_remainder_new_source_tokens);
+    if !valid {
+        invalidate_recovery_leaf_partition(metrics, RecoveryOwnershipError::CommittedTokenMismatch);
+    }
 }
 
 struct SecondaryExactOccurrence {
@@ -10353,6 +11323,7 @@ fn build_sentence_recovery_plan_inner_impl(
             diagnostics,
             watch_diagnostics: None,
             fragment_veto_complete: true,
+            located_range_inventory_complete: true,
             ..SentenceRecoveryBuildOutcome::default()
         });
     }
@@ -10397,6 +11368,12 @@ fn build_sentence_recovery_plan_inner_impl(
     {
         return Ok(SentenceRecoveryBuildOutcome::default());
     }
+    let old_located_ranges = snapshot_located_ranges(&old_occurrences);
+    let new_located_ranges = snapshot_located_ranges(&new_occurrences);
+    let located_range_inventory_complete =
+        old_located_ranges.is_some() && new_located_ranges.is_some();
+    let old_located_ranges = old_located_ranges.unwrap_or_default();
+    let new_located_ranges = new_located_ranges.unwrap_or_default();
     let mut exact_tail_stop_reason = (!old_exact_tail_complete || !new_exact_tail_complete)
         .then_some(ExactTailRecoveryStopReason::CollectionIncomplete);
     let mut exact_tail_census = if exact_tail_stop_reason.is_none() {
@@ -11032,6 +12009,10 @@ fn build_sentence_recovery_plan_inner_impl(
         plan: Some(plan),
         diagnostics,
         watch_diagnostics,
+        old_located_ranges,
+        new_located_ranges,
+        located_range_inventory_complete,
+        recovery_ownership_partition: None,
         fragment_veto_complete,
         fragment_veto_stop_reason,
         fragment_veto_pair_visits_examined: fragment_veto_budget.pair_visits,
@@ -11039,6 +12020,48 @@ fn build_sentence_recovery_plan_inner_impl(
         fragment_veto_comparisons_examined: fragment_veto_budget.comparisons,
         fragment_veto_comparisons_attempted: fragment_veto_budget.comparisons_attempted,
     })
+}
+
+fn snapshot_located_ranges(
+    occurrences: &[SentenceOccurrence],
+) -> Option<Vec<LocatedRecoveryRange>> {
+    let range_count = occurrences.iter().try_fold(0usize, |count, occurrence| {
+        count.checked_add(
+            occurrence
+                .location
+                .as_ref()
+                .map_or(0, |location| location.consumed.len()),
+        )
+    })?;
+    if range_count > MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS {
+        return None;
+    }
+    let mut ranges = Vec::new();
+    ranges.try_reserve_exact(range_count).ok()?;
+    for occurrence in occurrences {
+        let Some(location) = occurrence.location.as_ref() else {
+            continue;
+        };
+        ranges.extend(
+            location
+                .consumed
+                .iter()
+                .copied()
+                .map(|range| LocatedRecoveryRange {
+                    range,
+                    kind: occurrence.kind,
+                }),
+        );
+    }
+    ranges.sort_unstable_by_key(|located| {
+        (
+            located.range.block,
+            located.range.comparable.start,
+            located.range.comparable.end,
+            matches!(located.kind, RecoveryUnitKind::Line),
+        )
+    });
+    Some(ranges)
 }
 
 fn validate_occurrence_evidence(
@@ -44926,6 +45949,398 @@ mod tests {
     }
 
     #[test]
+    fn recovery_leaf_partition_separates_accepted_located_and_trusted_residual_tokens() {
+        let blocks = vec![collection_test_block(1, "abcdef", Some(Vec::new()))];
+        let canonical = vec![
+            blocks[0]
+                .canonical
+                .comparable_tokens()
+                .expect("test text has comparable tokens"),
+        ];
+        let side = Side {
+            blocks: &blocks,
+            index: HashMap::from([(BlockId(1), 0)]),
+            total_tokens: canonical[0].len(),
+            canonical,
+        };
+        let trusted = [interval(9, 2, 3)];
+        let span_by_block = HashMap::from([(BlockId(1), 0)]);
+        let located = [LocatedRecoveryRange {
+            range: LocalSentenceRange {
+                block: BlockId(1),
+                canonical: ScalarRange { start: 0, end: 3 },
+                comparable: TokenRange { start: 0, end: 3 },
+            },
+            kind: RecoveryUnitKind::Sentence,
+        }];
+        let accepted = [LocalSentenceRange {
+            block: BlockId(1),
+            canonical: ScalarRange { start: 1, end: 2 },
+            comparable: TokenRange { start: 1, end: 2 },
+        }];
+
+        let analysis = recovery_ownership_for_side(
+            &side,
+            &trusted,
+            None,
+            &span_by_block,
+            &[true],
+            &accepted,
+            &located,
+            32,
+        )
+        .expect("the ownership partition is complete");
+        let metrics = analysis.metrics;
+
+        assert_eq!(metrics.total.comparable_tokens, 6);
+        assert_eq!(metrics.accepted.comparable_tokens, 1);
+        assert_eq!(
+            metrics
+                .leaf(RecoveryLeafKind::SentenceBody)
+                .comparable_tokens,
+            2
+        );
+        assert_eq!(
+            metrics
+                .leaf(RecoveryLeafKind::TrustedRunResidual)
+                .comparable_tokens,
+            3
+        );
+        assert_eq!(
+            analysis
+                .samples
+                .values
+                .iter()
+                .find(|sample| {
+                    sample.ownership
+                        == RecoveryOwnership::Leaf(RecoveryLeafKind::TrustedRunResidual)
+                })
+                .expect("trusted residual sample exists")
+                .context
+                .trusted_run_id,
+            Some(9)
+        );
+    }
+
+    #[test]
+    fn recovery_leaf_partition_types_normalization_unmapped_and_projection_gaps() {
+        let mut block = collection_test_block(1, "abcd", Some(Vec::new()));
+        add_test_issue(&mut block, ScalarRange { start: 1, end: 2 }, 1);
+        block
+            .canonical
+            .source_map
+            .retain(|entry| entry.output_range != ScalarRange { start: 3, end: 4 });
+        block.canonical.unmapped.push(UnmappedToken {
+            scalar_index: 2,
+            font_hash: FontProgramHash(vec![1]),
+            glyph_id: 7,
+            source: TextSource {
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(99))],
+            },
+        });
+        let canonical = vec![
+            block
+                .canonical
+                .comparable_tokens()
+                .expect("mixed mapped and unmapped evidence is comparable"),
+        ];
+        let blocks = vec![block];
+        let side = Side {
+            blocks: &blocks,
+            index: HashMap::from([(BlockId(1), 0)]),
+            total_tokens: canonical[0].len(),
+            canonical,
+        };
+
+        let metrics = recovery_ownership_for_side(
+            &side,
+            &[interval(9, 0, 1)],
+            None,
+            &HashMap::from([(BlockId(1), 0)]),
+            &[true],
+            &[],
+            &[],
+            32,
+        )
+        .expect("typed gaps still form a complete partition")
+        .metrics;
+
+        assert_eq!(metrics.total.comparable_tokens, 5);
+        assert_eq!(
+            metrics
+                .leaf(RecoveryLeafKind::TrustedRunResidual)
+                .comparable_tokens,
+            2
+        );
+        assert_eq!(
+            metrics
+                .gap(RecoveryGapReason::NormalizationIssue)
+                .comparable_tokens,
+            1
+        );
+        assert_eq!(
+            metrics
+                .gap(RecoveryGapReason::UnmappedChangedEvidence)
+                .comparable_tokens,
+            1
+        );
+        assert_eq!(
+            metrics
+                .gap(RecoveryGapReason::LocationProjectionFailed)
+                .comparable_tokens,
+            1
+        );
+    }
+
+    #[test]
+    fn recovery_leaf_partition_never_promotes_missing_source_evidence() {
+        let mut block = collection_test_block(1, "abc", Some(Vec::new()));
+        block
+            .canonical
+            .source_map
+            .retain(|entry| entry.output_range != ScalarRange { start: 1, end: 2 });
+        let canonical = vec![
+            block
+                .canonical
+                .comparable_tokens()
+                .expect("canonical text remains comparable"),
+        ];
+        let blocks = vec![block];
+        let side = Side {
+            blocks: &blocks,
+            index: HashMap::from([(BlockId(1), 0)]),
+            total_tokens: canonical[0].len(),
+            canonical,
+        };
+        let located = [LocatedRecoveryRange {
+            range: LocalSentenceRange {
+                block: BlockId(1),
+                canonical: ScalarRange { start: 0, end: 3 },
+                comparable: TokenRange { start: 0, end: 3 },
+            },
+            kind: RecoveryUnitKind::Sentence,
+        }];
+        let arguments = (
+            &[interval(9, 0, 1)][..],
+            &HashMap::from([(BlockId(1), 0)]),
+            &[true][..],
+        );
+
+        let metrics = recovery_ownership_for_side(
+            &side,
+            arguments.0,
+            None,
+            arguments.1,
+            arguments.2,
+            &[],
+            &located,
+            16,
+        )
+        .expect("missing source evidence becomes a typed gap")
+        .metrics;
+
+        assert_eq!(
+            metrics
+                .leaf(RecoveryLeafKind::SentenceBody)
+                .comparable_tokens,
+            2
+        );
+        assert_eq!(
+            metrics
+                .gap(RecoveryGapReason::LocationProjectionFailed)
+                .comparable_tokens,
+            1
+        );
+        assert_eq!(
+            recovery_ownership_for_side(
+                &side,
+                arguments.0,
+                None,
+                arguments.1,
+                arguments.2,
+                &[located[0].range],
+                &located,
+                16,
+            ),
+            Err(RecoveryOwnershipError::InvariantViolation {
+                block_index: Some(0),
+                range_index: Some(0),
+                invariant: RecoveryOwnershipInvariant::UnsafeAcceptedRange,
+            })
+        );
+    }
+
+    #[test]
+    fn recovery_leaf_partition_preserves_unit_boundaries_and_rejects_duplicate_ownership() {
+        let blocks = vec![collection_test_block(1, "abcd", Some(Vec::new()))];
+        let canonical = vec![
+            blocks[0]
+                .canonical
+                .comparable_tokens()
+                .expect("test text has comparable tokens"),
+        ];
+        let side = Side {
+            blocks: &blocks,
+            index: HashMap::from([(BlockId(1), 0)]),
+            total_tokens: canonical[0].len(),
+            canonical,
+        };
+        let located = [
+            LocatedRecoveryRange {
+                range: LocalSentenceRange {
+                    block: BlockId(1),
+                    canonical: ScalarRange { start: 0, end: 2 },
+                    comparable: TokenRange { start: 0, end: 2 },
+                },
+                kind: RecoveryUnitKind::Sentence,
+            },
+            LocatedRecoveryRange {
+                range: LocalSentenceRange {
+                    block: BlockId(1),
+                    canonical: ScalarRange { start: 2, end: 4 },
+                    comparable: TokenRange { start: 2, end: 4 },
+                },
+                kind: RecoveryUnitKind::Sentence,
+            },
+        ];
+        let trusted = [interval(9, 0, 1)];
+        let spans = HashMap::from([(BlockId(1), 0)]);
+
+        let metrics =
+            recovery_ownership_for_side(&side, &trusted, None, &spans, &[true], &[], &located, 16)
+                .expect("adjacent units form distinct leaves")
+                .metrics;
+
+        let sentences = metrics.leaf(RecoveryLeafKind::SentenceBody);
+        assert_eq!(sentences.ranges, 2);
+        assert_eq!(sentences.max_comparable_tokens, 2);
+
+        let overlapping = [located[0], located[0]];
+        assert_eq!(
+            recovery_ownership_for_side(
+                &side,
+                &trusted,
+                None,
+                &spans,
+                &[true],
+                &[],
+                &overlapping,
+                16,
+            ),
+            Err(RecoveryOwnershipError::InvariantViolation {
+                block_index: Some(0),
+                range_index: Some(1),
+                invariant: RecoveryOwnershipInvariant::OverlappingOwnership,
+            })
+        );
+    }
+
+    #[test]
+    fn recovery_leaf_partition_enforces_token_bounds_before_building_cells() {
+        let blocks = vec![collection_test_block(1, "abcd", Some(Vec::new()))];
+        let canonical = vec![
+            blocks[0]
+                .canonical
+                .comparable_tokens()
+                .expect("test text has comparable tokens"),
+        ];
+        let side = Side {
+            blocks: &blocks,
+            index: HashMap::from([(BlockId(1), 0)]),
+            total_tokens: canonical[0].len(),
+            canonical,
+        };
+
+        assert_eq!(
+            recovery_ownership_for_side(
+                &side,
+                &[interval(9, 0, 1)],
+                None,
+                &HashMap::from([(BlockId(1), 0)]),
+                &[true],
+                &[],
+                &[],
+                3,
+            ),
+            Err(RecoveryOwnershipError::ResourceLimit {
+                resource: RecoveryOwnershipResource::ComparableTokens,
+                actual: 4,
+                limit: 3,
+            })
+        );
+    }
+
+    #[test]
+    fn finish_diagnostics_discards_only_a_committed_ownership_mismatch() {
+        let block = RecoveryEligibleBlock {
+            block_id: 1,
+            canonical_tokens: 2,
+            comparable_tokens: 2,
+            comparable_to_canonical: &[0, 1, 2],
+            trusted: true,
+            role: RecoveryOwnershipRole::Body,
+        };
+        let ranges = [RecoveryOwnershipRange {
+            block_index: 0,
+            canonical_start: 0,
+            canonical_end: 2,
+            comparable_start: 0,
+            comparable_end: 2,
+            ownership: RecoveryOwnership::Accepted,
+            context: RecoveryOwnershipContext::default(),
+        }];
+        let side = verify_recovery_ownership_partition(
+            &[block],
+            &ranges,
+            RecoveryOwnershipLimits {
+                max_blocks: 1,
+                max_ranges: 1,
+                max_canonical_tokens: 2,
+                max_comparable_tokens: 2,
+            },
+        )
+        .expect("test partition is valid");
+        let outcome = SentenceRecoveryBuildOutcome {
+            diagnostics: Some(SentenceRecoveryDiagnostics {
+                metrics: SentenceRecoveryMetrics {
+                    near_relation_complete: true,
+                    recovery_leaf_partition_complete: Some(true),
+                    ..SentenceRecoveryMetrics::default()
+                },
+                eligible_old_source_tokens: 2,
+                eligible_new_source_tokens: 2,
+                signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+                signature_retained_fingerprint_valid: false,
+            }),
+            recovery_ownership_partition: Some(
+                RecoveryOwnershipPartitionAnalysis::try_new(
+                    RecoveryOwnershipSideAnalysis {
+                        metrics: side,
+                        samples: Default::default(),
+                    },
+                    RecoveryOwnershipSideAnalysis {
+                        metrics: side,
+                        samples: Default::default(),
+                    },
+                )
+                .expect("test partition allocation succeeds"),
+            ),
+            ..SentenceRecoveryBuildOutcome::default()
+        };
+
+        let (metrics, _, samples) = outcome.finish_diagnostics();
+        let metrics = metrics.expect("unrelated diagnostics remain available");
+
+        assert!(metrics.near_relation_complete);
+        assert_eq!(metrics.recovery_leaf_partition_complete, Some(false));
+        assert_eq!(
+            metrics.recovery_leaf_partition_stop_reason,
+            Some(RecoveryOwnershipError::CommittedTokenMismatch)
+        );
+        assert!(samples.is_none());
+    }
+
+    #[test]
     fn finish_diagnostics_attributes_selected_output_rollback() {
         let mut outcome = SentenceRecoveryBuildOutcome {
             diagnostics: Some(SentenceRecoveryDiagnostics {
@@ -44958,7 +46373,7 @@ mod tests {
             ..SentenceRecoveryCommittedTokens::default()
         });
 
-        let (metrics, _) = outcome.finish_diagnostics();
+        let (metrics, _, _) = outcome.finish_diagnostics();
         let metrics = metrics.expect("the committed partition remains exhaustive");
         let attribution = metrics
             .remainder_attribution
@@ -44993,7 +46408,7 @@ mod tests {
             ..SentenceRecoveryBuildOutcome::default()
         };
 
-        let (metrics, _) = outcome.finish_diagnostics();
+        let (metrics, _, _) = outcome.finish_diagnostics();
         let metrics = metrics.expect("other diagnostics remain available");
         assert!(metrics.near_relation_complete);
         assert_eq!(metrics.remainder_attribution_complete, Some(false));

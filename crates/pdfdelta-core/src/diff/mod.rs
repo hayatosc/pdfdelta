@@ -2,6 +2,17 @@ mod myers;
 mod recovery;
 mod sentence;
 
+pub use recovery::ownership::{
+    RecoveryGapReason, RecoveryLeafKind, RecoveryOwnership, RecoveryOwnershipBlockError,
+    RecoveryOwnershipContext, RecoveryOwnershipError, RecoveryOwnershipInvariant,
+    RecoveryOwnershipMetrics, RecoveryOwnershipPartitionAnalysis,
+    RecoveryOwnershipPartitionMetrics, RecoveryOwnershipPartitionSamples,
+    RecoveryOwnershipRangeError, RecoveryOwnershipRect, RecoveryOwnershipResource,
+    RecoveryOwnershipRole, RecoveryOwnershipRoleMetrics, RecoveryOwnershipSample,
+    RecoveryOwnershipSideAnalysis, RecoveryOwnershipSideMetrics, RecoveryOwnershipSideSamples,
+    RecoveryOwnershipTrustMetrics,
+};
+
 /// Keeps the retained Myers frontier and trace below the internal 64 MiB
 /// allocation budget while allowing benchmark runs to exceed the default.
 pub(crate) const MAX_MYERS_EDIT_DISTANCE: usize = 4_000;
@@ -1757,6 +1768,8 @@ pub enum ExactTailRecoveryStopReason {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
     pub change_origins: ChangeOriginMetrics,
+    pub recovery_leaf_partition_complete: Option<bool>,
+    pub recovery_leaf_partition_stop_reason: Option<RecoveryOwnershipError>,
     pub old_trusted_run_source_tokens: usize,
     pub new_trusted_run_source_tokens: usize,
     pub structural_pairing_available: bool,
@@ -1912,6 +1925,7 @@ pub(crate) struct ComparisonWithSentenceRecoveryMetrics {
     pub(crate) recovery_watch_diagnostics: Option<RecoveryWatchDiagnostics>,
     pub(crate) matched_atomic_diffs: Option<Vec<MatchedAtomicDiff>>,
     pub(crate) recovered_atomic_diffs: Option<Vec<RecoveredAtomicDiff>>,
+    pub(crate) recovery_ownership_partition: Option<RecoveryOwnershipPartitionAnalysis>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -2414,7 +2428,7 @@ fn compare_aligned_inner(
         sentence_recovery.record_committed(committed);
     }
 
-    let (mut sentence_recovery_metrics, recovery_watch_diagnostics) =
+    let (mut sentence_recovery_metrics, recovery_watch_diagnostics, recovery_ownership_partition) =
         sentence_recovery.finish_diagnostics();
     if let Some(metrics) = sentence_recovery_metrics.as_mut()
         && apply_ordered_alignment_origin(metrics, &changes, resolved_old, resolved_new).is_none()
@@ -2433,6 +2447,7 @@ fn compare_aligned_inner(
         recovery_watch_diagnostics,
         matched_atomic_diffs,
         recovered_atomic_diffs,
+        recovery_ownership_partition,
     })
 }
 
@@ -10015,6 +10030,7 @@ mod tests {
         assert_eq!(
             outcome.sentence_recovery_metrics,
             Some(SentenceRecoveryMetrics {
+                recovery_leaf_partition_complete: Some(true),
                 near_relation_complete: true,
                 sentence_edge_signature_shadow: Some(SentenceEdgeSignatureShadowMetrics {
                     complete: true,
@@ -10034,6 +10050,13 @@ mod tests {
                 remainder_attribution: Some(RecoveryRemainderAttributionMetrics::default()),
                 ..SentenceRecoveryMetrics::default()
             })
+        );
+        assert_eq!(
+            outcome
+                .recovery_ownership_partition
+                .as_ref()
+                .map(RecoveryOwnershipPartitionAnalysis::metrics),
+            Some(RecoveryOwnershipPartitionMetrics::default())
         );
     }
 
