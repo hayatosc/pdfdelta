@@ -2857,7 +2857,7 @@ fn prepare_one_recovered_replacement(
         return None;
     }
     let mut projection_budget = *output_budget;
-    if !recovered_semantic_hunks_projectable(
+    if !recovered_hunks_projectable(
         old,
         &replacement.old,
         &old_tokens,
@@ -2865,6 +2865,7 @@ fn prepare_one_recovered_replacement(
         &replacement.new,
         &new_tokens,
         &edits,
+        replacement.hunk_policy,
         &mut projection_budget,
     )? {
         return Some(false);
@@ -2874,7 +2875,7 @@ fn prepare_one_recovered_replacement(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn recovered_semantic_hunks_projectable(
+fn recovered_hunks_projectable(
     old_side: &Side<'_>,
     old_recovery: &sentence::RecoveredSentence,
     old_tokens: &[ComparableToken],
@@ -2882,10 +2883,11 @@ fn recovered_semantic_hunks_projectable(
     new_recovery: &sentence::RecoveredSentence,
     new_tokens: &[ComparableToken],
     edits: &[AtomicEdit],
+    hunk_policy: sentence::RecoveryHunkPolicy,
     output_budget: &mut RecoveryOutputBudget,
 ) -> Option<bool> {
     let mut found = false;
-    let completed = visit_semantic_hunks(old_tokens, new_tokens, edits, |hunk| {
+    let completed = visit_recovered_hunks(old_tokens, new_tokens, edits, hunk_policy, |hunk| {
         found = true;
         project_recovered_replacement_hunk(
             old_side,
@@ -3423,6 +3425,7 @@ fn prepare_recovered_replacements(
             &replacement.new,
             &new,
             edits,
+            replacement.hunk_policy,
             output_budget,
         )?;
         if retain_atomic_edits {
@@ -3512,6 +3515,7 @@ fn recovered_replacement_event(
     new_recovery: &sentence::RecoveredSentence,
     new: &GroupText,
     edits: &[AtomicEdit],
+    hunk_policy: sentence::RecoveryHunkPolicy,
     output_budget: &mut RecoveryOutputBudget,
 ) -> Option<(ChangeEvent, Vec<RecoveredAtomicOccurrence>)> {
     let mut occurrences = Vec::new();
@@ -3519,7 +3523,7 @@ fn recovered_replacement_event(
     let mut edit_cursor = 0usize;
     let mut failed = false;
     let mut has_character_width_tag = false;
-    let completed = visit_semantic_hunks(&old.tokens, &new.tokens, edits, |hunk| {
+    let completed = visit_recovered_hunks(&old.tokens, &new.tokens, edits, hunk_policy, |hunk| {
         let edit_start = edit_cursor;
         while edits
             .get(edit_cursor)
@@ -4701,6 +4705,50 @@ fn append_changes(
         true
     });
     debug_assert!(completed);
+}
+
+fn visit_recovered_hunks(
+    old_tokens: &[ComparableToken],
+    new_tokens: &[ComparableToken],
+    edits: &[AtomicEdit],
+    policy: sentence::RecoveryHunkPolicy,
+    visit: impl FnMut(SemanticHunk) -> bool,
+) -> bool {
+    match policy {
+        sentence::RecoveryHunkPolicy::Semantic => {
+            visit_semantic_hunks(old_tokens, new_tokens, edits, visit)
+        }
+        sentence::RecoveryHunkPolicy::Atomic => visit_atomic_hunks(edits, visit),
+    }
+}
+
+fn visit_atomic_hunks(edits: &[AtomicEdit], mut visit: impl FnMut(SemanticHunk) -> bool) -> bool {
+    let mut edit_index = 0usize;
+    while edit_index < edits.len() {
+        let first = &edits[edit_index];
+        debug_assert!(first.old.is_empty() ^ first.new.is_empty());
+        let old_start = first.old.start;
+        let new_start = first.new.start;
+        let mut old_end = first.old.end;
+        let mut new_end = first.new.end;
+        edit_index += 1;
+        while let Some(next) = edits.get(edit_index) {
+            debug_assert!(next.old.is_empty() ^ next.new.is_empty());
+            if next.old.start != old_end || next.new.start != new_end {
+                break;
+            }
+            old_end = next.old.end;
+            new_end = next.new.end;
+            edit_index += 1;
+        }
+        if !visit(SemanticHunk {
+            old: old_start..old_end,
+            new: new_start..new_end,
+        }) {
+            return false;
+        }
+    }
+    true
 }
 
 fn visit_semantic_hunks(
@@ -9002,6 +9050,7 @@ mod tests {
                 new_second_score: 7_000,
                 new_best_scope: None,
             },
+            hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
             edits: Some(vec![
                 AtomicEdit {
                     old: 5..6,
@@ -9088,6 +9137,7 @@ mod tests {
                     old_consumed: invalid_old.clone(),
                     new_consumed: invalid_new.clone(),
                     relation: relation(),
+                    hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
                     edits: None,
                 },
                 sentence::RecoveredReplacement {
@@ -9096,6 +9146,7 @@ mod tests {
                     old_consumed: valid_old.clone(),
                     new_consumed: valid_new.clone(),
                     relation: relation(),
+                    hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
                     edits: None,
                 },
             ],
@@ -9121,6 +9172,7 @@ mod tests {
                 old_consumed: valid_old.clone(),
                 new_consumed: valid_new.clone(),
                 relation: relation(),
+                hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
                 edits: None,
             }],
             deletion_consumed: valid_old,
@@ -9275,6 +9327,46 @@ mod tests {
         }];
 
         assert_eq!(recovered.changes, expected);
+    }
+
+    #[test]
+    fn atomic_recovery_hunks_preserve_equal_scalar_boundaries() {
+        let old = ". F"
+            .chars()
+            .map(ComparableToken::Scalar)
+            .collect::<Vec<_>>();
+        let new = "; f"
+            .chars()
+            .map(ComparableToken::Scalar)
+            .collect::<Vec<_>>();
+        let edits = myers::diff(&old, &new, 16)
+            .expect("the bounded diff completes")
+            .expect("the strings differ");
+        let mut hunks = Vec::new();
+
+        assert!(visit_recovered_hunks(
+            &old,
+            &new,
+            &edits,
+            sentence::RecoveryHunkPolicy::Atomic,
+            |hunk| {
+                hunks.push(hunk);
+                true
+            },
+        ));
+        assert_eq!(
+            hunks,
+            [
+                SemanticHunk {
+                    old: 0..1,
+                    new: 0..1,
+                },
+                SemanticHunk {
+                    old: 2..3,
+                    new: 2..3,
+                },
+            ]
+        );
     }
 
     #[test]

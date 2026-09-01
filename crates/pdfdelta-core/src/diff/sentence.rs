@@ -88,6 +88,8 @@ use super::{
 pub(super) const MAX_SENTENCE_RECOVERY_RANGES: usize = 8_192;
 const MIN_NEAR_SCORE_MARGIN: u16 = 500;
 const LOCAL_FRAGMENT_MAX_EDIT_DISTANCE: usize = 1_024;
+const MAX_CROSS_GRANULARITY_SUBSTITUTIONS: usize = 2;
+const MAX_CROSS_GRANULARITY_EDIT_WINDOW: usize = 4;
 const LOCAL_FRAGMENT_SAMPLE_CANDIDATES_PER_ORIENTATION: usize = 8;
 const MIN_PAIRED_STREAM_EXACT_TOKENS: usize = 4;
 const MIN_PAIRED_STREAM_NEAR_TOKENS: usize = 4;
@@ -126,7 +128,14 @@ pub(super) struct RecoveredReplacement {
     pub old_consumed: Vec<LocalSentenceRange>,
     pub new_consumed: Vec<LocalSentenceRange>,
     pub relation: RecoveryRelationEvidence,
+    pub hunk_policy: RecoveryHunkPolicy,
     pub edits: Option<Vec<AtomicEdit>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum RecoveryHunkPolicy {
+    Semantic,
+    Atomic,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -411,7 +420,7 @@ pub(super) fn ranges_for_block(
     &ranges[start..end]
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum OccurrenceSide {
     Old,
     New,
@@ -588,6 +597,50 @@ struct RecoverySegment {
     _source_token_count: usize,
     token_count: usize,
     exact_hash: ExactHash,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct CrossGranularitySegmentId {
+    side: OccurrenceSide,
+    stream_index: usize,
+    start_ordinal: usize,
+    end_ordinal: usize,
+}
+
+#[derive(Clone, Copy)]
+struct CrossGranularitySegment {
+    id: CrossGranularitySegmentId,
+    block: BlockId,
+    canonical: ScalarRange,
+    comparable: TokenRange,
+    span_index: usize,
+    role: BlockRole,
+}
+
+#[derive(Clone, Copy)]
+struct CrossGranularityPair {
+    segment: CrossGranularitySegment,
+    singleton_side: OccurrenceSide,
+    singleton_index: usize,
+    singleton_canonical: ScalarRange,
+    singleton_comparable: TokenRange,
+    score: u16,
+}
+
+#[derive(Clone, Copy, Default)]
+struct CrossGranularityWork {
+    posting_visits: usize,
+    pair_attempts: usize,
+    comparisons: usize,
+}
+
+#[derive(Clone, Copy)]
+struct CrossGranularitySourceRange {
+    side: OccurrenceSide,
+    block: BlockId,
+    start: usize,
+    end: usize,
+    replacement: usize,
 }
 
 #[derive(Default)]
@@ -9669,18 +9722,6 @@ fn build_sentence_recovery_plan_inner_impl(
         watch.complete = false;
         budget.record_watch_diagnostic_failure();
     }
-    if let Some(diagnostics) = diagnostics.as_mut() {
-        diagnostics.metrics.near_relation_complete =
-            relations.complete && candidate_generation_complete;
-    }
-    record_near_search_metrics(&mut diagnostics, &budget);
-    if let Some(watch) = watch.as_mut() {
-        watch.record_near_search_state(
-            candidate_generation_complete,
-            relations.complete && candidate_generation_complete,
-            budget.near_relation_stop_reason,
-        );
-    }
     record_local_fragment_shadow(
         &mut diagnostics,
         &old_occurrences,
@@ -9728,7 +9769,7 @@ fn build_sentence_recovery_plan_inner_impl(
         }
     };
 
-    if append_replacements(
+    let replacements_complete = append_replacements(
         &mut plan,
         &mut old_occurrences,
         &mut new_occurrences,
@@ -9737,7 +9778,32 @@ fn build_sentence_recovery_plan_inner_impl(
         &relations,
         &mut budget,
     )
-    .is_none()
+    .is_some();
+    let cross_granularity_complete = replacements_complete
+        && append_cross_granularity_replacements(
+            &mut plan,
+            old,
+            new,
+            &old_occurrences,
+            &new_occurrences,
+            input.min_tokens,
+            &mut budget,
+        )
+        .is_some();
+    let near_relation_complete =
+        relations.complete && candidate_generation_complete && cross_granularity_complete;
+    if let Some(diagnostics) = diagnostics.as_mut() {
+        diagnostics.metrics.near_relation_complete = near_relation_complete;
+    }
+    record_near_search_metrics(&mut diagnostics, &budget);
+    if let Some(watch) = watch.as_mut() {
+        watch.record_near_search_state(
+            candidate_generation_complete,
+            near_relation_complete,
+            budget.near_relation_stop_reason,
+        );
+    }
+    if !replacements_complete
         || append_candidate_recoveries(
             &mut plan.deletions,
             &mut plan.deletion_consumed,
@@ -17717,6 +17783,7 @@ fn build_local_fragment_replacement_batch(
                 old_consumed,
                 new_consumed,
                 relation: old_relation.reciprocal_evidence(new_relation),
+                hunk_policy: RecoveryHunkPolicy::Semantic,
                 edits: None,
             },
         });
@@ -17977,6 +18044,962 @@ fn local_sentence_ranges_overlap(
                 &(range.comparable.start..range.comparable.end),
             )
     })
+}
+
+fn single_block_occurrence_source<'a>(
+    side: &'a Side<'_>,
+    occurrence: &'a SentenceOccurrence,
+) -> Option<(BlockId, &'a [ComparableToken], &'a SentenceLocation)> {
+    let location = occurrence.location.as_ref()?;
+    let [block] = location.recovery.blocks.as_slice() else {
+        return None;
+    };
+    let [consumed] = location.consumed.as_slice() else {
+        return None;
+    };
+    if location.recovery.separator.is_some()
+        || consumed.block != *block
+        || consumed.canonical != location.recovery.canonical
+        || consumed.comparable != location.recovery.comparable
+    {
+        return None;
+    }
+    let tokens = side
+        .canonical
+        .get(*side.index.get(block)?)?
+        .get(consumed.comparable.start..consumed.comparable.end)?;
+    if tokens.len()
+        != consumed
+            .canonical
+            .end
+            .checked_sub(consumed.canonical.start)?
+        || tokens
+            .iter()
+            .any(|token| !matches!(token, ComparableToken::Scalar(_)))
+    {
+        return None;
+    }
+    Some((*block, tokens, location))
+}
+
+#[derive(Clone, Copy)]
+enum OccurrenceBoundary {
+    Start,
+    End,
+}
+
+fn occurrence_boundary_source<'a>(
+    side: &'a Side<'_>,
+    occurrence: &'a SentenceOccurrence,
+    boundary: OccurrenceBoundary,
+) -> Option<(BlockId, &'a [ComparableToken], LocalSentenceRange)> {
+    let location = occurrence.location.as_ref()?;
+    if location.recovery.blocks.len() != location.consumed.len() {
+        return None;
+    }
+    let (block, consumed) = match boundary {
+        OccurrenceBoundary::Start => (
+            location.recovery.blocks.first()?,
+            location.consumed.first()?,
+        ),
+        OccurrenceBoundary::End => (location.recovery.blocks.last()?, location.consumed.last()?),
+    };
+    if consumed.block != *block {
+        return None;
+    }
+    let tokens = side
+        .canonical
+        .get(*side.index.get(block)?)?
+        .get(consumed.comparable.start..consumed.comparable.end)?;
+    if tokens.len()
+        != consumed
+            .canonical
+            .end
+            .checked_sub(consumed.canonical.start)?
+        || tokens
+            .iter()
+            .any(|token| !matches!(token, ComparableToken::Scalar(_)))
+    {
+        return None;
+    }
+    Some((*block, tokens, *consumed))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CrossGranularityWindowRelation {
+    Exact,
+    Near(u16),
+}
+
+fn cross_granularity_window_relation(
+    segment: &[ComparableToken],
+    candidate: &[ComparableToken],
+    min_context: usize,
+    comparisons: &mut usize,
+    comparison_limit: usize,
+) -> Option<Option<CrossGranularityWindowRelation>> {
+    if segment.len() != candidate.len() || segment.len() < min_context.checked_mul(2)? {
+        return Some(None);
+    }
+    let attempted = comparisons.checked_add(segment.len())?;
+    if attempted > comparison_limit {
+        return None;
+    }
+    *comparisons = attempted;
+
+    let mut first_mismatch = None;
+    let mut last_mismatch = 0usize;
+    let mut mismatch_count = 0usize;
+    for (index, (old, new)) in segment.iter().zip(candidate).enumerate() {
+        if old == new {
+            continue;
+        }
+        let (ComparableToken::Scalar(old), ComparableToken::Scalar(new)) = (old, new) else {
+            return Some(None);
+        };
+        let safe_substitution = (old.is_ascii_punctuation() && new.is_ascii_punctuation())
+            || old.eq_ignore_ascii_case(new);
+        if !safe_substitution {
+            return Some(None);
+        }
+        mismatch_count = mismatch_count.checked_add(1)?;
+        if mismatch_count > MAX_CROSS_GRANULARITY_SUBSTITUTIONS {
+            return Some(None);
+        }
+        first_mismatch.get_or_insert(index);
+        last_mismatch = index;
+    }
+    let Some(first_mismatch) = first_mismatch else {
+        return Some(Some(CrossGranularityWindowRelation::Exact));
+    };
+    let edit_window = last_mismatch.checked_sub(first_mismatch)?.checked_add(1)?;
+    let accepted = first_mismatch >= min_context
+        && segment.len().checked_sub(last_mismatch.checked_add(1)?)? >= min_context
+        && edit_window <= MAX_CROSS_GRANULARITY_EDIT_WINDOW;
+    if !accepted {
+        return Some(None);
+    }
+    let matching = segment.len().checked_sub(mismatch_count)?;
+    let score = matching
+        .checked_mul(10_000)?
+        .checked_div(segment.len())?
+        .try_into()
+        .ok()?;
+    Some(Some(CrossGranularityWindowRelation::Near(score)))
+}
+
+fn cross_granularity_segment_location(
+    segment: CrossGranularitySegment,
+) -> Option<SentenceLocation> {
+    let source_tokens = segment
+        .comparable
+        .end
+        .checked_sub(segment.comparable.start)?;
+    let consumed = LocalSentenceRange {
+        block: segment.block,
+        canonical: segment.canonical,
+        comparable: segment.comparable,
+    };
+    Some(SentenceLocation {
+        recovery: RecoveredSentence {
+            span_index: segment.span_index,
+            kind: RecoveryUnitKind::Sentence,
+            role: segment.role.into(),
+            blocks: vec![segment.block],
+            separator: None,
+            canonical: segment.canonical,
+            comparable: segment.comparable,
+            source_tokens,
+        },
+        consumed: vec![consumed],
+    })
+}
+
+fn cross_granularity_singleton_location(
+    occurrence: &SentenceOccurrence,
+    canonical: ScalarRange,
+    comparable: TokenRange,
+) -> Option<SentenceLocation> {
+    let location = occurrence.location.as_ref()?;
+    let [block] = location.recovery.blocks.as_slice() else {
+        return None;
+    };
+    if canonical.start < location.recovery.canonical.start
+        || canonical.end > location.recovery.canonical.end
+        || comparable.start < location.recovery.comparable.start
+        || comparable.end > location.recovery.comparable.end
+    {
+        return None;
+    }
+    let source_tokens = comparable.end.checked_sub(comparable.start)?;
+    let consumed = LocalSentenceRange {
+        block: *block,
+        canonical,
+        comparable,
+    };
+    Some(SentenceLocation {
+        recovery: RecoveredSentence {
+            span_index: location.recovery.span_index,
+            kind: occurrence.kind,
+            role: location.recovery.role,
+            blocks: vec![*block],
+            separator: None,
+            canonical,
+            comparable,
+            source_tokens,
+        },
+        consumed: vec![consumed],
+    })
+}
+
+fn reject_cross_granularity_range_conflicts(pending: &[RecoveredReplacement]) -> Option<Vec<bool>> {
+    let mut ranges = Vec::new();
+    ranges
+        .try_reserve_exact(pending.len().checked_mul(2)?)
+        .ok()?;
+    for (replacement, candidate) in pending.iter().enumerate() {
+        let [old] = candidate.old_consumed.as_slice() else {
+            return None;
+        };
+        let [new] = candidate.new_consumed.as_slice() else {
+            return None;
+        };
+        for (side, range) in [(OccurrenceSide::Old, old), (OccurrenceSide::New, new)] {
+            if range.comparable.start >= range.comparable.end {
+                return None;
+            }
+            ranges.push(CrossGranularitySourceRange {
+                side,
+                block: range.block,
+                start: range.comparable.start,
+                end: range.comparable.end,
+                replacement,
+            });
+        }
+    }
+    cross_granularity_range_conflicts(&mut ranges, pending.len())
+}
+
+fn cross_granularity_range_conflicts(
+    ranges: &mut [CrossGranularitySourceRange],
+    replacement_count: usize,
+) -> Option<Vec<bool>> {
+    ranges.sort_unstable_by_key(|range| {
+        (
+            range.side,
+            range.block,
+            range.start,
+            range.end,
+            range.replacement,
+        )
+    });
+
+    let mut rejected = Vec::new();
+    rejected.try_reserve_exact(replacement_count).ok()?;
+    rejected.resize(replacement_count, false);
+    let mut group_start = 0usize;
+    while group_start < ranges.len() {
+        let side = ranges[group_start].side;
+        let block = ranges[group_start].block;
+        let group_end = group_start
+            + ranges[group_start..]
+                .partition_point(|range| range.side == side && range.block == block);
+        let mut component_start = group_start;
+        while component_start < group_end {
+            let mut component_end = component_start + 1;
+            let mut max_end = ranges[component_start].end;
+            while component_end < group_end && ranges[component_end].start < max_end {
+                max_end = max_end.max(ranges[component_end].end);
+                component_end += 1;
+            }
+            if component_end - component_start > 1 {
+                for range in &ranges[component_start..component_end] {
+                    *rejected.get_mut(range.replacement)? = true;
+                }
+            }
+            component_start = component_end;
+        }
+        group_start = group_end;
+    }
+    Some(rejected)
+}
+
+fn collect_cross_granularity_segments(
+    side: &Side<'_>,
+    occurrences: &[SentenceOccurrence],
+    side_kind: OccurrenceSide,
+    min_context: usize,
+    candidate_limit: usize,
+) -> Option<Vec<CrossGranularitySegment>> {
+    let mut by_position = Vec::<(TrustedStreamPosition, Option<usize>)>::new();
+    let position_limit = candidate_limit.checked_mul(2)?;
+    for (index, occurrence) in occurrences.iter().enumerate() {
+        if let Some(position) = occurrence.trusted_position {
+            if by_position.len() == position_limit {
+                return None;
+            }
+            by_position.try_reserve(1).ok()?;
+            by_position.push((position, Some(index)));
+        }
+    }
+    by_position.sort_unstable_by_key(|entry| entry.0);
+    let mut read = 0usize;
+    let mut write = 0usize;
+    while read < by_position.len() {
+        let position = by_position[read].0;
+        let end = read + by_position[read..].partition_point(|entry| entry.0 == position);
+        by_position[write] = (
+            position,
+            (end - read == 1).then_some(by_position[read].1).flatten(),
+        );
+        write += 1;
+        read = end;
+    }
+    by_position.truncate(write);
+
+    let mut segments = Vec::new();
+    for (first_index, first) in occurrences.iter().enumerate() {
+        let (Some(position), Some(span_index), Some(role)) =
+            (first.trusted_position, first.span_index, first.role)
+        else {
+            continue;
+        };
+        if first.kind != RecoveryUnitKind::Sentence
+            || by_position
+                .binary_search_by_key(&position, |entry| entry.0)
+                .ok()
+                .and_then(|index| by_position.get(index)?.1)
+                != Some(first_index)
+        {
+            continue;
+        }
+        let next_position = TrustedStreamPosition {
+            stream_index: position.stream_index,
+            ordinal: position.ordinal.checked_add(1)?,
+        };
+        let Some(next_index) = by_position
+            .binary_search_by_key(&next_position, |entry| entry.0)
+            .ok()
+            .and_then(|index| by_position.get(index)?.1)
+        else {
+            continue;
+        };
+        let next = occurrences.get(next_index)?;
+        if next.kind != RecoveryUnitKind::Sentence
+            || next.span_index != Some(span_index)
+            || next.role != Some(role)
+        {
+            continue;
+        }
+        let (first_block, _, first_boundary) =
+            match occurrence_boundary_source(side, first, OccurrenceBoundary::End) {
+                Some(value) => value,
+                None => continue,
+            };
+        let (next_block, _, next_boundary) =
+            match occurrence_boundary_source(side, next, OccurrenceBoundary::Start) {
+                Some(value) => value,
+                None => continue,
+            };
+        if first_block != next_block
+            || first_boundary.comparable.end > next_boundary.comparable.start
+            || first_boundary.canonical.end > next_boundary.canonical.start
+        {
+            continue;
+        }
+        let comparable_gap = next_boundary
+            .comparable
+            .start
+            .checked_sub(first_boundary.comparable.end)?;
+        let canonical_gap = next_boundary
+            .canonical
+            .start
+            .checked_sub(first_boundary.canonical.end)?;
+        if comparable_gap != canonical_gap || comparable_gap > MAX_CROSS_GRANULARITY_EDIT_WINDOW {
+            continue;
+        }
+        let context_with_headroom = min_context.checked_add(MAX_CROSS_GRANULARITY_EDIT_WINDOW)?;
+        let Some(comparable_start) = first_boundary
+            .comparable
+            .end
+            .checked_sub(context_with_headroom)
+        else {
+            continue;
+        };
+        let Some(comparable_end) = next_boundary
+            .comparable
+            .start
+            .checked_add(context_with_headroom)
+        else {
+            continue;
+        };
+        let Some(canonical_start) = first_boundary
+            .canonical
+            .end
+            .checked_sub(context_with_headroom)
+        else {
+            continue;
+        };
+        let Some(canonical_end) = next_boundary
+            .canonical
+            .start
+            .checked_add(context_with_headroom)
+        else {
+            continue;
+        };
+        let segment = CrossGranularitySegment {
+            id: CrossGranularitySegmentId {
+                side: side_kind,
+                stream_index: position.stream_index,
+                start_ordinal: position.ordinal,
+                end_ordinal: next_position.ordinal.checked_add(1)?,
+            },
+            block: first_block,
+            canonical: ScalarRange {
+                start: canonical_start,
+                end: canonical_end,
+            },
+            comparable: TokenRange {
+                start: comparable_start,
+                end: comparable_end,
+            },
+            span_index,
+            role,
+        };
+        if cross_granularity_segment_tokens(side, &segment).is_none() {
+            continue;
+        }
+        if segments.len() == candidate_limit {
+            return None;
+        }
+        segments.try_reserve(1).ok()?;
+        segments.push(segment);
+    }
+    Some(segments)
+}
+
+fn cross_granularity_segment_tokens<'a>(
+    side: &'a Side<'_>,
+    segment: &CrossGranularitySegment,
+) -> Option<&'a [ComparableToken]> {
+    let tokens = side
+        .canonical
+        .get(*side.index.get(&segment.block)?)?
+        .get(segment.comparable.start..segment.comparable.end)?;
+    if tokens.len() != segment.canonical.end.checked_sub(segment.canonical.start)?
+        || tokens
+            .iter()
+            .any(|token| !matches!(token, ComparableToken::Scalar(_)))
+    {
+        return None;
+    }
+    Some(tokens)
+}
+
+fn increment_cross_granularity_count<K: Eq + std::hash::Hash>(
+    counts: &mut HashMap<K, usize>,
+    key: K,
+    limit: usize,
+) -> Option<()> {
+    if let Some(count) = counts.get_mut(&key) {
+        *count = count.checked_add(1)?;
+        return Some(());
+    }
+    if counts.len() == limit {
+        return None;
+    }
+    counts.try_reserve(1).ok()?;
+    counts.insert(key, 1);
+    Some(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_cross_granularity_pairs(
+    segment_side: &Side<'_>,
+    segments: &[CrossGranularitySegment],
+    singleton_side: &Side<'_>,
+    singleton_occurrences: &[SentenceOccurrence],
+    singleton_side_kind: OccurrenceSide,
+    min_context: usize,
+    posting_limit: usize,
+    pair_limit: usize,
+    comparison_limit: usize,
+    candidate_limit: usize,
+    posting_visits: &mut usize,
+    pair_attempts: &mut usize,
+    comparisons: &mut usize,
+    pairs: &mut Vec<CrossGranularityPair>,
+    segment_counts: &mut HashMap<CrossGranularitySegmentId, usize>,
+    singleton_counts: &mut HashMap<(OccurrenceSide, usize, usize, usize), usize>,
+) -> Option<()> {
+    let mut singleton_by_span = HashMap::<(usize, BlockRole), Vec<usize>>::new();
+    let mut posting_items = 0usize;
+    for (index, occurrence) in singleton_occurrences.iter().enumerate() {
+        let (Some(span), Some(role)) = (occurrence.span_index, occurrence.role) else {
+            continue;
+        };
+        if occurrence.kind != RecoveryUnitKind::Line
+            || single_block_occurrence_source(singleton_side, occurrence).is_none()
+        {
+            continue;
+        }
+        posting_items = posting_items.checked_add(1)?;
+        if posting_items > candidate_limit {
+            return None;
+        }
+        if !singleton_by_span.contains_key(&(span, role)) {
+            singleton_by_span.try_reserve(1).ok()?;
+        }
+        let posting = singleton_by_span.entry((span, role)).or_default();
+        posting.try_reserve(1).ok()?;
+        posting.push(index);
+    }
+
+    for segment in segments {
+        let segment_tokens = cross_granularity_segment_tokens(segment_side, segment)?;
+        let Some(singletons) = singleton_by_span.get(&(segment.span_index, segment.role)) else {
+            continue;
+        };
+        for singleton_index in singletons {
+            let singleton = singleton_occurrences.get(*singleton_index)?;
+            let (_, singleton_tokens, singleton_location) =
+                single_block_occurrence_source(singleton_side, singleton)?;
+            if singleton_tokens.len() < segment_tokens.len() {
+                continue;
+            }
+            for offset in 0..=singleton_tokens.len() - segment_tokens.len() {
+                *posting_visits = posting_visits.checked_add(1)?;
+                if *posting_visits > posting_limit {
+                    return None;
+                }
+                let candidate = singleton_tokens.get(offset..offset + segment_tokens.len())?;
+                if candidate.first() != segment_tokens.first()
+                    || candidate.last() != segment_tokens.last()
+                {
+                    continue;
+                }
+                *pair_attempts = pair_attempts.checked_add(1)?;
+                if *pair_attempts > pair_limit {
+                    return None;
+                }
+                let Some(relation) = cross_granularity_window_relation(
+                    segment_tokens,
+                    candidate,
+                    min_context,
+                    comparisons,
+                    comparison_limit,
+                )?
+                else {
+                    continue;
+                };
+                let comparable_start = singleton_location
+                    .recovery
+                    .comparable
+                    .start
+                    .checked_add(offset)?;
+                let comparable_end = comparable_start.checked_add(segment_tokens.len())?;
+                let canonical_start = singleton_location
+                    .recovery
+                    .canonical
+                    .start
+                    .checked_add(offset)?;
+                let canonical_end = canonical_start.checked_add(segment_tokens.len())?;
+                let singleton_key = (
+                    singleton_side_kind,
+                    *singleton_index,
+                    comparable_start,
+                    comparable_end,
+                );
+                increment_cross_granularity_count(segment_counts, segment.id, candidate_limit)?;
+                increment_cross_granularity_count(
+                    singleton_counts,
+                    singleton_key,
+                    candidate_limit,
+                )?;
+                let CrossGranularityWindowRelation::Near(score) = relation else {
+                    continue;
+                };
+                if pairs.len() == candidate_limit {
+                    return None;
+                }
+                pairs.try_reserve(1).ok()?;
+                pairs.push(CrossGranularityPair {
+                    segment: *segment,
+                    singleton_side: singleton_side_kind,
+                    singleton_index: *singleton_index,
+                    singleton_canonical: ScalarRange {
+                        start: canonical_start,
+                        end: canonical_end,
+                    },
+                    singleton_comparable: TokenRange {
+                        start: comparable_start,
+                        end: comparable_end,
+                    },
+                    score,
+                });
+            }
+        }
+    }
+    Some(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn cross_granularity_pair_is_globally_unique(
+    pair: &CrossGranularityPair,
+    segment_side: &Side<'_>,
+    segments: &[CrossGranularitySegment],
+    singleton_side: &Side<'_>,
+    singleton_occurrences: &[SentenceOccurrence],
+    min_context: usize,
+    posting_limit: usize,
+    pair_limit: usize,
+    comparison_limit: usize,
+    posting_visits: &mut usize,
+    pair_attempts: &mut usize,
+    comparisons: &mut usize,
+) -> Option<bool> {
+    let segment_tokens = cross_granularity_segment_tokens(segment_side, &pair.segment)?;
+    for (singleton_index, occurrence) in singleton_occurrences.iter().enumerate() {
+        if occurrence.kind != RecoveryUnitKind::Line || occurrence.role != Some(pair.segment.role) {
+            continue;
+        }
+        let (_, singleton_tokens, singleton_location) =
+            match single_block_occurrence_source(singleton_side, occurrence) {
+                Some(value) => value,
+                None => continue,
+            };
+        if singleton_tokens.len() < segment_tokens.len() {
+            continue;
+        }
+        for offset in 0..=singleton_tokens.len() - segment_tokens.len() {
+            *posting_visits = posting_visits.checked_add(1)?;
+            if *posting_visits > posting_limit {
+                return None;
+            }
+            let candidate = singleton_tokens.get(offset..offset + segment_tokens.len())?;
+            if candidate.first() != segment_tokens.first()
+                || candidate.last() != segment_tokens.last()
+            {
+                continue;
+            }
+            *pair_attempts = pair_attempts.checked_add(1)?;
+            if *pair_attempts > pair_limit {
+                return None;
+            }
+            if cross_granularity_window_relation(
+                segment_tokens,
+                candidate,
+                min_context,
+                comparisons,
+                comparison_limit,
+            )?
+            .is_none()
+            {
+                continue;
+            }
+            let comparable_start = singleton_location
+                .recovery
+                .comparable
+                .start
+                .checked_add(offset)?;
+            let comparable_end = comparable_start.checked_add(segment_tokens.len())?;
+            if singleton_index != pair.singleton_index
+                || comparable_start != pair.singleton_comparable.start
+                || comparable_end != pair.singleton_comparable.end
+            {
+                return Some(false);
+            }
+        }
+    }
+
+    let singleton = singleton_occurrences.get(pair.singleton_index)?;
+    let (_, singleton_tokens, singleton_location) =
+        single_block_occurrence_source(singleton_side, singleton)?;
+    let singleton_offset = pair
+        .singleton_comparable
+        .start
+        .checked_sub(singleton_location.recovery.comparable.start)?;
+    let singleton_end = singleton_offset.checked_add(segment_tokens.len())?;
+    let candidate = singleton_tokens.get(singleton_offset..singleton_end)?;
+    for segment in segments {
+        if segment.id == pair.segment.id || segment.role != pair.segment.role {
+            continue;
+        }
+        let competitor = cross_granularity_segment_tokens(segment_side, segment)?;
+        if competitor.len() != candidate.len() {
+            continue;
+        }
+        *posting_visits = posting_visits.checked_add(1)?;
+        if *posting_visits > posting_limit {
+            return None;
+        }
+        if competitor.first() != candidate.first() || competitor.last() != candidate.last() {
+            continue;
+        }
+        *pair_attempts = pair_attempts.checked_add(1)?;
+        if *pair_attempts > pair_limit {
+            return None;
+        }
+        if cross_granularity_window_relation(
+            competitor,
+            candidate,
+            min_context,
+            comparisons,
+            comparison_limit,
+        )?
+        .is_some()
+        {
+            return Some(false);
+        }
+    }
+    Some(true)
+}
+
+fn record_cross_granularity_work(
+    budget: &mut RecoveryBudget,
+    same_span: CrossGranularityWork,
+    cross_span: CrossGranularityWork,
+) {
+    for (scope, work) in [
+        (NearSearchScope::SameOrAmbiguousSpan, same_span),
+        (NearSearchScope::CrossSpan, cross_span),
+    ] {
+        let _ = budget.charge_candidate_posting_visits_in_scope_split(
+            work.posting_visits,
+            RecoveryUnitKind::Line,
+            CandidatePostingKind::Edge,
+            scope,
+            NearSearchWorkSplit::shared(work.posting_visits),
+        );
+        let _ = budget.charge_pair_visits_in_scope_split(
+            work.pair_attempts,
+            RecoveryUnitKind::Sentence,
+            scope,
+            NearSearchWorkSplit::shared(work.pair_attempts),
+        );
+        let _ = budget.charge_comparisons_in_scope_split(
+            work.comparisons,
+            RecoveryUnitKind::Sentence,
+            scope,
+            NearSearchWorkSplit::shared(work.comparisons),
+        );
+    }
+}
+
+fn append_cross_granularity_replacements(
+    plan: &mut SentenceRecoveryPlan,
+    old_side: &Side<'_>,
+    new_side: &Side<'_>,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    min_context: usize,
+    budget: &mut RecoveryBudget,
+) -> Option<usize> {
+    let mut same_span_work = CrossGranularityWork::default();
+    let mut cross_span_work = CrossGranularityWork::default();
+    let prepared = (|| {
+        let posting_limit = budget
+            .candidate_posting_visit_limit
+            .checked_sub(budget.candidate_posting_visits)?;
+        let pair_limit = budget.pair_visit_limit.checked_sub(budget.pair_visits)?;
+        let comparison_limit = budget.comparison_limit.checked_sub(budget.comparisons)?;
+        let candidate_limit = budget.output_range_limit;
+        let old_segments = collect_cross_granularity_segments(
+            old_side,
+            old_occurrences,
+            OccurrenceSide::Old,
+            min_context,
+            candidate_limit,
+        )?;
+        let new_segments = collect_cross_granularity_segments(
+            new_side,
+            new_occurrences,
+            OccurrenceSide::New,
+            min_context,
+            candidate_limit,
+        )?;
+        let mut pairs = Vec::new();
+        let mut segment_counts = HashMap::<CrossGranularitySegmentId, usize>::new();
+        let mut singleton_counts = HashMap::<(OccurrenceSide, usize, usize, usize), usize>::new();
+        collect_cross_granularity_pairs(
+            old_side,
+            &old_segments,
+            new_side,
+            new_occurrences,
+            OccurrenceSide::New,
+            min_context,
+            posting_limit,
+            pair_limit,
+            comparison_limit,
+            candidate_limit,
+            &mut same_span_work.posting_visits,
+            &mut same_span_work.pair_attempts,
+            &mut same_span_work.comparisons,
+            &mut pairs,
+            &mut segment_counts,
+            &mut singleton_counts,
+        )?;
+        collect_cross_granularity_pairs(
+            new_side,
+            &new_segments,
+            old_side,
+            old_occurrences,
+            OccurrenceSide::Old,
+            min_context,
+            posting_limit,
+            pair_limit,
+            comparison_limit,
+            candidate_limit,
+            &mut same_span_work.posting_visits,
+            &mut same_span_work.pair_attempts,
+            &mut same_span_work.comparisons,
+            &mut pairs,
+            &mut segment_counts,
+            &mut singleton_counts,
+        )?;
+
+        pairs.retain(|pair| {
+            segment_counts.get(&pair.segment.id) == Some(&1)
+                && singleton_counts.get(&(
+                    pair.singleton_side,
+                    pair.singleton_index,
+                    pair.singleton_comparable.start,
+                    pair.singleton_comparable.end,
+                )) == Some(&1)
+        });
+
+        let mut globally_unique = Vec::new();
+        globally_unique.try_reserve_exact(pairs.len()).ok()?;
+        for pair in pairs {
+            let (segment_side, segments, singleton_side, singleton_occurrences) =
+                match pair.segment.id.side {
+                    OccurrenceSide::Old => {
+                        (old_side, old_segments.as_slice(), new_side, new_occurrences)
+                    }
+                    OccurrenceSide::New => {
+                        (new_side, new_segments.as_slice(), old_side, old_occurrences)
+                    }
+                };
+            if cross_granularity_pair_is_globally_unique(
+                &pair,
+                segment_side,
+                segments,
+                singleton_side,
+                singleton_occurrences,
+                min_context,
+                posting_limit,
+                pair_limit,
+                comparison_limit,
+                &mut cross_span_work.posting_visits,
+                &mut cross_span_work.pair_attempts,
+                &mut cross_span_work.comparisons,
+            )? {
+                globally_unique.push(pair);
+            }
+        }
+
+        let mut pending = Vec::new();
+        pending.try_reserve_exact(globally_unique.len()).ok()?;
+        for pair in globally_unique {
+            let segment_location = cross_granularity_segment_location(pair.segment)?;
+            let singleton_occurrence = match pair.singleton_side {
+                OccurrenceSide::Old => old_occurrences.get(pair.singleton_index)?,
+                OccurrenceSide::New => new_occurrences.get(pair.singleton_index)?,
+            };
+            let singleton_location = cross_granularity_singleton_location(
+                singleton_occurrence,
+                pair.singleton_canonical,
+                pair.singleton_comparable,
+            )?;
+            let (old, new) = match pair.segment.id.side {
+                OccurrenceSide::Old => (segment_location, singleton_location),
+                OccurrenceSide::New => (singleton_location, segment_location),
+            };
+            if old
+                .consumed
+                .iter()
+                .any(|range| local_sentence_ranges_overlap(range, &plan.deletion_consumed))
+                || new
+                    .consumed
+                    .iter()
+                    .any(|range| local_sentence_ranges_overlap(range, &plan.insertion_consumed))
+            {
+                continue;
+            }
+            pending.push(RecoveredReplacement {
+                old: old.recovery,
+                new: new.recovery,
+                old_consumed: old.consumed,
+                new_consumed: new.consumed,
+                relation: RecoveryRelationEvidence {
+                    old_best_score: pair.score,
+                    old_second_score: 0,
+                    old_best_scope: None,
+                    new_best_score: pair.score,
+                    new_second_score: 0,
+                    new_best_scope: None,
+                },
+                hunk_policy: RecoveryHunkPolicy::Atomic,
+                edits: None,
+            });
+        }
+
+        let rejected = reject_cross_granularity_range_conflicts(&pending)?;
+        let mut retained_index = 0usize;
+        pending.retain(|_| {
+            let retained = !rejected.get(retained_index).copied().unwrap_or(true);
+            retained_index += 1;
+            retained
+        });
+
+        let source_tokens = pending.iter().try_fold(0usize, |total, replacement| {
+            total
+                .checked_add(replacement.old.source_tokens)?
+                .checked_add(replacement.new.source_tokens)
+        })?;
+        let old_consumed = pending.iter().try_fold(0usize, |total, replacement| {
+            total.checked_add(replacement.old_consumed.len())
+        })?;
+        let new_consumed = pending.iter().try_fold(0usize, |total, replacement| {
+            total.checked_add(replacement.new_consumed.len())
+        })?;
+        let mut trial_budget = *budget;
+        record_cross_granularity_work(&mut trial_budget, same_span_work, cross_span_work);
+        if trial_budget.near_relation_stop_reason.is_some()
+            || !trial_budget.charge_outputs(pending.len().checked_mul(2)?, source_tokens)
+        {
+            return None;
+        }
+        Some((pending, old_consumed, new_consumed, trial_budget))
+    })();
+    let Some((pending, old_consumed, new_consumed, trial_budget)) = prepared else {
+        record_cross_granularity_work(budget, same_span_work, cross_span_work);
+        return None;
+    };
+    if plan.replacements.try_reserve_exact(pending.len()).is_err()
+        || plan
+            .deletion_consumed
+            .try_reserve_exact(old_consumed)
+            .is_err()
+        || plan
+            .insertion_consumed
+            .try_reserve_exact(new_consumed)
+            .is_err()
+    {
+        record_cross_granularity_work(budget, same_span_work, cross_span_work);
+        return None;
+    }
+    let committed = pending.len();
+    for replacement in pending {
+        plan.deletion_consumed
+            .extend(replacement.old_consumed.iter().copied());
+        plan.insertion_consumed
+            .extend(replacement.new_consumed.iter().copied());
+        plan.replacements.push(replacement);
+    }
+    sort_replacement_recoveries(plan);
+    *budget = trial_budget;
+    Some(committed)
 }
 
 /// Appends fragment proposals after ordinary recovery has claimed its ranges.
@@ -22914,6 +23937,7 @@ fn append_replacements_typed(
             old_consumed: old_location.consumed,
             new_consumed: new_location.consumed,
             relation: old_relation.reciprocal_evidence(new_relation),
+            hunk_policy: RecoveryHunkPolicy::Semantic,
             edits: None,
         });
         let replacement = plan
@@ -22950,6 +23974,7 @@ fn append_candidate_recoveries(
     if candidates.len() != relations.len() {
         return None;
     }
+    let previously_consumed = consumed.len();
     let mut retained_count = 0usize;
     let mut retained_tokens = 0usize;
     let mut consumed_count = 0usize;
@@ -22967,6 +23992,13 @@ fn append_candidate_recoveries(
             continue;
         }
         let location = occurrence.location.as_ref()?;
+        if location
+            .consumed
+            .iter()
+            .any(|range| local_sentence_ranges_overlap(range, &consumed[..previously_consumed]))
+        {
+            continue;
+        }
         retained_count = retained_count.checked_add(1)?;
         retained_tokens = retained_tokens.checked_add(location.recovery.source_tokens)?;
         consumed_count = consumed_count.checked_add(location.consumed.len())?;
@@ -22986,6 +24018,15 @@ fn append_candidate_recoveries(
                 occurrence.role,
                 Some(BlockRole::RepeatedHeader | BlockRole::RepeatedFooter)
             )
+        {
+            continue;
+        }
+        if occurrence
+            .location
+            .as_ref()?
+            .consumed
+            .iter()
+            .any(|range| local_sentence_ranges_overlap(range, &consumed[..previously_consumed]))
         {
             continue;
         }
@@ -40698,5 +41739,540 @@ mod tests {
         assert!(stopped.work.signature_token_steps_attempted > limits.signature_token_steps);
         assert_eq!(stopped.reciprocal_pairs, 0);
         assert!(stopped.best_sampled_nonexact_pair.is_none());
+    }
+
+    fn cross_granularity_test_block(block: u64, text: &str) -> crate::normalize::BlockText {
+        use crate::normalize::{BlockText, MappedText};
+
+        let mapped = MappedText {
+            text: text.to_owned(),
+            source_map: Vec::new(),
+            unmapped: Vec::new(),
+        };
+        BlockText {
+            block: BlockId(block),
+            role: BlockRole::Body,
+            raw: mapped.clone(),
+            canonical: mapped,
+            matching: text.to_owned(),
+            matching_tokens: text.chars().map(ComparableToken::Scalar).collect(),
+            numeric_mask_applied: false,
+            normalization_events: Vec::new(),
+            issues: Vec::new(),
+            pages: Vec::new(),
+            font_size_signatures: None,
+            position_signatures: None,
+            line_breaks: None,
+            page_breaks: None,
+        }
+    }
+
+    fn cross_granularity_test_occurrence(
+        kind: RecoveryUnitKind,
+        span_index: usize,
+        stream_index: usize,
+        ordinal: usize,
+        location: SentenceLocation,
+    ) -> SentenceOccurrence {
+        let mut occurrence = positioned_occurrence("cross", 0, stream_index, ordinal);
+        occurrence.kind = kind;
+        occurrence.span_index = Some(span_index);
+        occurrence.role = Some(BlockRole::Body);
+        occurrence.location = Some(location);
+        occurrence
+    }
+
+    fn cross_granularity_test_side<'a>(blocks: &'a [crate::normalize::BlockText]) -> Side<'a> {
+        let index = blocks
+            .iter()
+            .enumerate()
+            .map(|(index, block)| (block.block, index))
+            .collect();
+        let canonical = blocks
+            .iter()
+            .map(|block| {
+                block
+                    .canonical
+                    .text
+                    .chars()
+                    .map(ComparableToken::Scalar)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let total_tokens = canonical.iter().map(Vec::len).sum();
+        Side {
+            blocks,
+            index,
+            canonical,
+            total_tokens,
+        }
+    }
+
+    #[test]
+    fn cross_granularity_window_accepts_punctuation_and_case_at_sentence_boundary() {
+        let old = "abcdefghijklmnopqrst. For example, uvwxyz"
+            .chars()
+            .map(ComparableToken::Scalar)
+            .collect::<Vec<_>>();
+        let new = "abcdefghijklmnopqrst; for example, uvwxyz"
+            .chars()
+            .map(ComparableToken::Scalar)
+            .collect::<Vec<_>>();
+        let mut comparisons = 0;
+
+        assert_eq!(
+            cross_granularity_window_relation(&old, &new, 16, &mut comparisons, 1_000),
+            Some(Some(CrossGranularityWindowRelation::Near(9_512)))
+        );
+        assert_eq!(comparisons, old.len());
+    }
+
+    #[test]
+    fn cross_granularity_window_rejects_unsafe_or_weak_changes() {
+        let tokens = |text: &str| {
+            text.chars()
+                .map(ComparableToken::Scalar)
+                .collect::<Vec<_>>()
+        };
+        let old = tokens("abcdefghijklmnopqrst. For example, uvwxyz");
+        let unsafe_letter = tokens("abcdefghijklmnopqrst. Xor example, uvwxyz");
+        let three_substitutions = tokens("abcdefghijklmnopqrst; for-example, uvwxyz");
+        let weak_left_context = tokens("abcdefghijklmno; For example, uvwxyz0123456789");
+        let weak_left_baseline = tokens("abcdefghijklmno. For example, uvwxyz0123456789");
+
+        let mut comparisons = 0;
+        assert_eq!(
+            cross_granularity_window_relation(&old, &unsafe_letter, 16, &mut comparisons, 10_000,),
+            Some(None)
+        );
+        assert_eq!(
+            cross_granularity_window_relation(
+                &old,
+                &three_substitutions,
+                16,
+                &mut comparisons,
+                10_000,
+            ),
+            Some(None)
+        );
+        assert_eq!(
+            cross_granularity_window_relation(
+                &weak_left_baseline,
+                &weak_left_context,
+                16,
+                &mut comparisons,
+                10_000,
+            ),
+            Some(None)
+        );
+    }
+
+    #[test]
+    fn cross_granularity_range_sweep_allows_adjacency_and_rejects_overlap() {
+        let source_range = |start, end, replacement| CrossGranularitySourceRange {
+            side: OccurrenceSide::Old,
+            block: BlockId(1),
+            start,
+            end,
+            replacement,
+        };
+        let mut ranges = [
+            source_range(0, 4, 0),
+            source_range(4, 8, 1),
+            source_range(7, 10, 2),
+            source_range(12, 16, 3),
+        ];
+
+        let rejected =
+            cross_granularity_range_conflicts(&mut ranges, 4).expect("the bounded sweep completes");
+
+        assert_eq!(rejected, [false, true, true, false]);
+    }
+
+    #[test]
+    fn cross_granularity_exact_counterpart_vetoes_near_replacement() {
+        let old_text = "abcdefghijklmnop. Forqrstuvwxyz";
+        let old_blocks = [cross_granularity_test_block(1, old_text)];
+        let old_side = cross_granularity_test_side(&old_blocks);
+        let old_occurrences = [
+            cross_granularity_test_occurrence(
+                RecoveryUnitKind::Sentence,
+                0,
+                1,
+                0,
+                test_location(
+                    LocalSentenceRange {
+                        block: BlockId(1),
+                        canonical: ScalarRange { start: 0, end: 17 },
+                        comparable: TokenRange { start: 0, end: 17 },
+                    },
+                    0,
+                ),
+            ),
+            cross_granularity_test_occurrence(
+                RecoveryUnitKind::Sentence,
+                0,
+                1,
+                1,
+                test_location(
+                    LocalSentenceRange {
+                        block: BlockId(1),
+                        canonical: ScalarRange { start: 18, end: 31 },
+                        comparable: TokenRange { start: 18, end: 31 },
+                    },
+                    0,
+                ),
+            ),
+        ];
+        let segments = collect_cross_granularity_segments(
+            &old_side,
+            &old_occurrences,
+            OccurrenceSide::Old,
+            4,
+            100,
+        )
+        .expect("the adjacent segment is available");
+        let exact = cross_granularity_segment_tokens(&old_side, &segments[0])
+            .expect("the segment has scalar source")
+            .iter()
+            .filter_map(|token| match token {
+                ComparableToken::Scalar(scalar) => Some(*scalar),
+                _ => None,
+            })
+            .collect::<String>();
+        let near = exact.replacen('.', ";", 1).replacen('F', "f", 1);
+        let new_blocks = [
+            cross_granularity_test_block(2, &near),
+            cross_granularity_test_block(3, &exact),
+        ];
+        let new_side = cross_granularity_test_side(&new_blocks);
+        let line = |block, text: &str| {
+            let end = text.chars().count();
+            cross_granularity_test_occurrence(
+                RecoveryUnitKind::Line,
+                0,
+                block as usize,
+                0,
+                test_location(
+                    LocalSentenceRange {
+                        block: BlockId(block),
+                        canonical: ScalarRange { start: 0, end },
+                        comparable: TokenRange { start: 0, end },
+                    },
+                    0,
+                ),
+            )
+        };
+        let new_occurrences = [line(2, &near), line(3, &exact)];
+        let mut pairs = Vec::new();
+        let mut segment_counts = HashMap::new();
+        let mut singleton_counts = HashMap::new();
+        let mut posting_visits = 0;
+        let mut pair_attempts = 0;
+        let mut comparisons = 0;
+
+        collect_cross_granularity_pairs(
+            &old_side,
+            &segments,
+            &new_side,
+            &new_occurrences,
+            OccurrenceSide::New,
+            4,
+            1_000,
+            1_000,
+            10_000,
+            100,
+            &mut posting_visits,
+            &mut pair_attempts,
+            &mut comparisons,
+            &mut pairs,
+            &mut segment_counts,
+            &mut singleton_counts,
+        )
+        .expect("the bounded candidate scan completes");
+
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(segment_counts.get(&segments[0].id), Some(&2));
+    }
+
+    #[test]
+    fn cross_granularity_cross_span_exact_counterpart_vetoes_local_pair() {
+        let exact = "jklmnop. Forqrstu";
+        let near = "jklmnop; forqrstu";
+        let old_blocks = [cross_granularity_test_block(10, exact)];
+        let old_side = cross_granularity_test_side(&old_blocks);
+        let segment = CrossGranularitySegment {
+            id: CrossGranularitySegmentId {
+                side: OccurrenceSide::Old,
+                stream_index: 1,
+                start_ordinal: 0,
+                end_ordinal: 2,
+            },
+            block: BlockId(10),
+            canonical: ScalarRange {
+                start: 0,
+                end: exact.chars().count(),
+            },
+            comparable: TokenRange {
+                start: 0,
+                end: exact.chars().count(),
+            },
+            span_index: 0,
+            role: BlockRole::Body,
+        };
+        let new_blocks = [
+            cross_granularity_test_block(11, near),
+            cross_granularity_test_block(12, exact),
+        ];
+        let new_side = cross_granularity_test_side(&new_blocks);
+        let line = |block, text: &str, span_index| {
+            let end = text.chars().count();
+            cross_granularity_test_occurrence(
+                RecoveryUnitKind::Line,
+                span_index,
+                block as usize,
+                0,
+                test_location(
+                    LocalSentenceRange {
+                        block: BlockId(block),
+                        canonical: ScalarRange { start: 0, end },
+                        comparable: TokenRange { start: 0, end },
+                    },
+                    span_index,
+                ),
+            )
+        };
+        let new_occurrences = [line(11, near, 0), line(12, exact, 1)];
+        let pair = CrossGranularityPair {
+            segment,
+            singleton_side: OccurrenceSide::New,
+            singleton_index: 0,
+            singleton_canonical: ScalarRange {
+                start: 0,
+                end: near.chars().count(),
+            },
+            singleton_comparable: TokenRange {
+                start: 0,
+                end: near.chars().count(),
+            },
+            score: 8_888,
+        };
+        let mut pair_attempts = 0;
+        let mut comparisons = 0;
+        let mut posting_visits = 0;
+
+        assert_eq!(
+            cross_granularity_pair_is_globally_unique(
+                &pair,
+                &old_side,
+                std::slice::from_ref(&segment),
+                &new_side,
+                &new_occurrences,
+                4,
+                1_000,
+                1_000,
+                10_000,
+                &mut posting_visits,
+                &mut pair_attempts,
+                &mut comparisons,
+            ),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn cross_granularity_segment_uses_shared_boundary_block_of_multiblock_sentence() {
+        let term = "Association";
+        let definition = "abcdefghijklmnop. Forqrstuvwxyz";
+        let blocks = [
+            cross_granularity_test_block(20, term),
+            cross_granularity_test_block(21, definition),
+        ];
+        let side = cross_granularity_test_side(&blocks);
+        let term_end = term.chars().count();
+        let first_definition = LocalSentenceRange {
+            block: BlockId(21),
+            canonical: ScalarRange { start: 0, end: 17 },
+            comparable: TokenRange { start: 0, end: 17 },
+        };
+        let first_location = SentenceLocation {
+            recovery: RecoveredSentence {
+                span_index: 0,
+                kind: RecoveryUnitKind::Sentence,
+                role: OccurrenceRole::Body,
+                blocks: vec![BlockId(20), BlockId(21)],
+                separator: Some(BlockSeparator::Space),
+                canonical: ScalarRange {
+                    start: 0,
+                    end: term_end + 1 + 17,
+                },
+                comparable: TokenRange {
+                    start: 0,
+                    end: term_end + 1 + 17,
+                },
+                source_tokens: term_end + 17,
+            },
+            consumed: vec![
+                LocalSentenceRange {
+                    block: BlockId(20),
+                    canonical: ScalarRange {
+                        start: 0,
+                        end: term_end,
+                    },
+                    comparable: TokenRange {
+                        start: 0,
+                        end: term_end,
+                    },
+                },
+                first_definition,
+            ],
+        };
+        let next_range = LocalSentenceRange {
+            block: BlockId(21),
+            canonical: ScalarRange { start: 18, end: 31 },
+            comparable: TokenRange { start: 18, end: 31 },
+        };
+        let occurrences = [
+            cross_granularity_test_occurrence(RecoveryUnitKind::Sentence, 0, 1, 0, first_location),
+            cross_granularity_test_occurrence(
+                RecoveryUnitKind::Sentence,
+                0,
+                1,
+                1,
+                test_location(next_range, 0),
+            ),
+        ];
+
+        let segments =
+            collect_cross_granularity_segments(&side, &occurrences, OccurrenceSide::Old, 4, 100)
+                .expect("the multiblock sentence exposes its shared boundary block");
+
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].block, BlockId(21));
+        assert_eq!(segments[0].comparable, TokenRange { start: 9, end: 26 });
+    }
+
+    fn cross_granularity_appender_fixture() -> (
+        Vec<crate::normalize::BlockText>,
+        Vec<SentenceOccurrence>,
+        Vec<crate::normalize::BlockText>,
+        Vec<SentenceOccurrence>,
+    ) {
+        let old_text = "abcdefghijklmnop. Forqrstuvwxyz";
+        let new_text = "abcdefghijklmnop; forqrstuvwxyz";
+        let old_blocks = vec![cross_granularity_test_block(30, old_text)];
+        let new_blocks = vec![cross_granularity_test_block(31, new_text)];
+        let old_occurrences = vec![
+            cross_granularity_test_occurrence(
+                RecoveryUnitKind::Sentence,
+                0,
+                1,
+                0,
+                test_location(
+                    LocalSentenceRange {
+                        block: BlockId(30),
+                        canonical: ScalarRange { start: 0, end: 17 },
+                        comparable: TokenRange { start: 0, end: 17 },
+                    },
+                    0,
+                ),
+            ),
+            cross_granularity_test_occurrence(
+                RecoveryUnitKind::Sentence,
+                0,
+                1,
+                1,
+                test_location(
+                    LocalSentenceRange {
+                        block: BlockId(30),
+                        canonical: ScalarRange { start: 18, end: 31 },
+                        comparable: TokenRange { start: 18, end: 31 },
+                    },
+                    0,
+                ),
+            ),
+        ];
+        let new_occurrences = vec![cross_granularity_test_occurrence(
+            RecoveryUnitKind::Line,
+            0,
+            2,
+            0,
+            test_location(
+                LocalSentenceRange {
+                    block: BlockId(31),
+                    canonical: ScalarRange { start: 0, end: 31 },
+                    comparable: TokenRange { start: 0, end: 31 },
+                },
+                0,
+            ),
+        )];
+        (old_blocks, old_occurrences, new_blocks, new_occurrences)
+    }
+
+    #[test]
+    fn cross_granularity_appender_commits_one_atomic_replacement() {
+        let (old_blocks, old_occurrences, new_blocks, new_occurrences) =
+            cross_granularity_appender_fixture();
+        let old_side = cross_granularity_test_side(&old_blocks);
+        let new_side = cross_granularity_test_side(&new_blocks);
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut budget =
+            RecoveryBudget::new(old_side.total_tokens, new_side.total_tokens, 10_000, 4)
+                .expect("the fixture fits the recovery budget");
+
+        let committed = append_cross_granularity_replacements(
+            &mut plan,
+            &old_side,
+            &new_side,
+            &old_occurrences,
+            &new_occurrences,
+            4,
+            &mut budget,
+        );
+
+        assert_eq!(committed, Some(1));
+        assert_eq!(plan.replacements.len(), 1);
+        assert_eq!(plan.replacements[0].hunk_policy, RecoveryHunkPolicy::Atomic);
+        assert_eq!(plan.deletion_consumed.len(), 1);
+        assert_eq!(plan.insertion_consumed.len(), 1);
+        assert!(budget.candidate_posting_visits > 0);
+        assert!(budget.comparisons > 0);
+        assert_eq!(budget.near_relation_stop_reason, None);
+    }
+
+    #[test]
+    fn cross_granularity_appender_records_stopped_work_without_committing() {
+        let (old_blocks, old_occurrences, new_blocks, new_occurrences) =
+            cross_granularity_appender_fixture();
+        let old_side = cross_granularity_test_side(&old_blocks);
+        let new_side = cross_granularity_test_side(&new_blocks);
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut budget =
+            RecoveryBudget::new(old_side.total_tokens, new_side.total_tokens, 10_000, 4)
+                .expect("the fixture fits the recovery budget");
+        budget.candidate_posting_visit_limit = 0;
+
+        let committed = append_cross_granularity_replacements(
+            &mut plan,
+            &old_side,
+            &new_side,
+            &old_occurrences,
+            &new_occurrences,
+            4,
+            &mut budget,
+        );
+
+        assert_eq!(committed, None);
+        assert!(plan.replacements.is_empty());
+        assert!(plan.deletion_consumed.is_empty());
+        assert!(plan.insertion_consumed.is_empty());
+        assert_eq!(budget.candidate_posting_visits, 0);
+        assert_eq!(budget.candidate_posting_visits_attempted, 1);
+        assert_eq!(
+            budget.near_relation_stop_reason,
+            Some(NearRelationStopReason::CandidatePostingVisitLimit)
+        );
+        assert_eq!(budget.output_ranges, 0);
+        assert_eq!(budget.output_tokens, 0);
     }
 }
