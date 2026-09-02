@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-02
-- **Generator / engine commit**: [`06c6a18`](https://github.com/hayatosc/pdfdelta/commit/06c6a18)
+- **Generator / engine commit**: [`869421f`](https://github.com/hayatosc/pdfdelta/commit/869421f)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-02-06c6a18.json`](2026-09-02-06c6a18.json)
-  - Schema: v59
-  - Size: 8,404,611 bytes
-  - SHA-256: `43955f8ee12779a8f18505e0ce409a45eab74c2f0845df9dc4f8771bb1b0cf0c`
+  - File: [`2026-09-02-869421f.json`](2026-09-02-869421f.json)
+  - Schema: v60
+  - Size: 8,414,083 bytes
+  - SHA-256: `f2367f7e830f7794dd8b9f1788f7f5f7d3fc9fb3ce722bc98e3b6efcf8c7aa11`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-02-06c6a18.json \
+cp benchmark/realworld/results/2026-09-02-869421f.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 06c6a18
+git switch --detach 869421f
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -94,14 +94,55 @@ still apply only to their recorded review items.
 | `edpb-right-of-access-v1-to-final` | holdout | standard | 76.21% | 2,142 | 493 | 0.750 | 1.000 | 284.000 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 95.33% | 63 | 1 | 1.000 | 1.000 | 2.000 | 0 |
 | `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 62.32% | 457 | 143 | 1.000 | 1.000 | 1.000 | 0 |
-| `ecma-109-ed10-to-ed11` | dev | stress | 75.20% | 420 | 87 | 0.333 | 1.000 | 132.000 | 5 |
+| `ecma-109-ed10-to-ed11` | dev | stress | 75.20% | 420 | 87 | 0.667 | 1.000 | 66.000 | 5 |
 | `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 73.60% | 837 | 475 | 1.000 | 1.000 | 167.000 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
 | `bis-operational-risk-2011-to-2021` | dev | standard | 76.28% | 674 | 365 | 1.000 | 1.000 | 14.000 | 0 |
 | `oasis-mqtt-311-to-50` | dev | standard | 42.44% | 3,486 | 1,593 | 1.000 | N/A | N/A | 0 |
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 68.39% | 1,142 | 841 | 0.333 | 1.000 | 861.000 | 0 |
 
+
+Schema v60 separates four reviewed outcomes that the legacy recall intentionally
+combines. Counts are detected/expected; an em dash means that the review set has
+no expectation in that category.
+
+| Pair | Content presence | Exact localization | Semantic relation | Move |
+|---|---:|---:|---:|---:|
+| `nist-fips-186-4-to-5` | 6/6 | — | 6/6 | 0/1 |
+| `nist-sp800-57-part1-r4-to-r5` | 8/8 | 3/5 | 8/8 | — |
+| `irs-form-1040-2024-to-2025` | 2/5 | — | 1/5 | — |
+| `edpb-right-of-access-v1-to-final` | 3/3 | — | 3/3 | 0/1 |
+| `arxiv-attention-v6-to-v7` | 1/1 | 1/1 | 1/1 | — |
+| `w3c-ws-policy-attach-20060927-to-20061102` | 3/3 | 3/3 | 3/3 | 1/1 |
+| `ecma-109-ed10-to-ed11` | 2/3 | 1/2 | 2/3 | — |
+| `oasis-csaf-v2-cs01-to-csd02` | 2/2 | — | 2/2 | 1/1 |
+| `irs-w4-korean-2024-to-2025` | 1/1 | — | 0/1 | — |
+| `bis-operational-risk-2011-to-2021` | 1/1 | 1/1 | 1/1 | — |
+| `oasis-mqtt-311-to-50` | — | — | — | — |
+| `nist-csf-v1-1-to-v2-0` | 1/3 | — | 1/3 | — |
+| **Aggregate** | **30/36** | **9/12** | **28/36** | **2/4** |
+
+The engine proves 236 anchor-bounded changed regions across 11 pairs without
+inventing an exact old/new correspondence. These proofs add one reviewed
+presence detection for IRS 1040 and one for Korean W-4 while preserving every
+legacy quality, comparison, coverage, change, scoped-quality, and candidate-
+recall field from the corrected schema-v59 baseline. They do not resolve source
+tokens, remove unresolved regions, or create `ChangeEvent`s. NIST CSF remains
+at 1/3 presence because none of its unmatched rewrites satisfies the current
+conservative anchor-window proof.
+
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
+
+Schema v60 adds anchor-bounded `ProvenChangedRegion` output and separate
+content-presence, exact-localization, semantic-relation, and move recall. The
+proof compares exact canonical token multiplicities only inside fully owned,
+source-backed, extraction-complete main-anchor windows. It is order-independent
+and fails closed on normalization, unstable unmapped evidence, projection,
+ownership, identity, or resource uncertainty. A proven region contributes to
+the CLI content-difference decision but remains unresolved and does not affect
+coverage. Removing `schema_version`, `reviewed_recall_metrics`, and
+`reported_proven_changed_regions` yields exact JSON parity with the corrected
+schema-v59 capture.
 
 Schema v59 adds a behavior-neutral paired-stream sequence-relation shadow.
 Removing that field and the schema number produces exact JSON parity with
@@ -948,10 +989,15 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v59)
+## Current Writer Schema (v60)
 
-The benchmark writer and latest committed capture use schema v59. Older
-captures retain their recorded schemas. Schema v59 records bounded paired-stream
+The benchmark writer and latest committed capture use schema v60. Older
+captures retain their recorded schemas. Schema v60 records conservative,
+anchor-bounded content-presence proofs and keeps them separate from exact
+`ChangeEvent` output and unresolved regions. It also reports reviewed content
+presence, exact localization, semantic relation, and move recall independently.
+Removing the two new record fields and the schema number yields exact parity
+with the corrected schema-v59 baseline. Schema v59 records bounded paired-stream
 sequence paths, path-exclusion margins, downstream vetoes, and disjoint local
 near-veto reasons without changing comparison behavior. Schema v58 records bounded, typed
 source-range topology evidence for exact adjacent segments without changing
@@ -1262,8 +1308,9 @@ The compact summary preserves manifest order and omits runtime, raw preview text
 Each record includes:
 
 - identity and execution state: `pair_id`, set, role, scope, status, provenance, extraction, comparison, and applied limits;
-- comparison metrics: per-side coverage, unresolved regions and token shares, and reported content, formatting, and uncertain changes;
-- reviewed quality metrics when annotations are available;
+- comparison metrics: per-side coverage, unresolved regions and token shares, and reported exact, proven-presence, formatting, and uncertain changes;
+- legacy reviewed quality metrics plus separate presence, localization,
+  relation, and move recall when annotations are available;
 - `expected_change_diagnostics`, including classified miss reasons and a
   distinct `alignment_span_mismatch` reason when a recalled counterpart was
   assigned to separate old/new alignment spans, plus optional recovery-watch
@@ -1281,6 +1328,8 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-09-02-f46b9c4.json`](2026-09-02-f46b9c4.json): corrected schema-v59 ECMA annotation baseline before anchor-bounded content-presence proofs.
+- [`2026-09-02-06c6a18.json`](2026-09-02-06c6a18.json): schema-v59 paired-stream sequence-relation shadow before the ECMA annotation correction.
 - [`2026-09-02-47e699a.json`](2026-09-02-47e699a.json): schema-v57 reviewed wrong-kind matching after requiring source-backed atomic evidence, before exact source-range topology diagnostics.
 - [`2026-09-02-61981dc.json`](2026-09-02-61981dc.json): schema-v57 wrong-kind relation tracing before cross-kind evaluation required source-backed atomic evidence.
 - [`2026-09-02-0c06365.json`](2026-09-02-0c06365.json): schema-v56 exact trusted-residual recovery before wrong-kind relation tracing.
