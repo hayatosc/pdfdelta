@@ -1448,6 +1448,7 @@ mod tests {
             unresolved_old_token_share: None,
             unresolved_new_token_share: None,
             reported_content_changes: None,
+            reported_proven_changed_regions: None,
             formatting_only_changes: None,
             uncertain_changes: None,
             reported_changes_preview: Vec::new(),

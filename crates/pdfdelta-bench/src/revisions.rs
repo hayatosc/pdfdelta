@@ -210,6 +210,8 @@ pub struct ActualSemanticHunk {
     pub new_text: Option<String>,
     pub old_atomic_changed_tokens: usize,
     pub new_atomic_changed_tokens: usize,
+    pub old_range: Option<std::ops::Range<usize>>,
+    pub new_range: Option<std::ops::Range<usize>>,
     atomic_fragments: Option<Vec<ActualAtomicFragment>>,
 }
 
@@ -4691,6 +4693,10 @@ pub struct PairRunReport {
     pub unresolved_old_token_share: Option<f64>,
     pub unresolved_new_token_share: Option<f64>,
     pub reported_content_changes: Option<usize>,
+    /// Proven content differences are published only in compact summaries;
+    /// the unversioned full-report v1 key set remains unchanged.
+    #[serde(skip)]
+    pub reported_proven_changed_regions: Option<usize>,
     pub formatting_only_changes: Option<usize>,
     /// Count of low-confidence changes identified during comparison.
     /// Skipped in serde serialization (`#[serde(skip)]`) to preserve the
@@ -5141,11 +5147,12 @@ fn exact_localization_side_matches(
     needles: &NormalizedExpectedQuotes,
     old_side: bool,
 ) -> bool {
-    let (context, changed, range_fragments, text) = if old_side {
+    let (context, changed, range_fragments, range_tokens, text) = if old_side {
         (
             needles.old_context.as_deref(),
             needles.old_changed.as_deref(),
             needles.old_changed_range_fragments.as_deref(),
+            needles.old_changed_range_tokens,
             occurrence.old_text.as_deref(),
         )
     } else {
@@ -5153,6 +5160,7 @@ fn exact_localization_side_matches(
             needles.new_context.as_deref(),
             needles.new_changed.as_deref(),
             needles.new_changed_range_fragments.as_deref(),
+            needles.new_changed_range_tokens,
             occurrence.new_text.as_deref(),
         )
     };
@@ -5167,26 +5175,27 @@ fn exact_localization_side_matches(
     if context.is_none() && changed.is_none() && range_fragments.is_none() {
         return text.is_none_or(str::is_empty);
     }
-    if let Some(expected) = range_fragments {
-        if expected.is_empty() {
-            return text.is_none_or(str::is_empty);
-        }
+    if let Some(expected_fragments) = range_fragments {
         let Some(hunks) = occurrence.semantic_hunks.as_deref() else {
             return false;
         };
-        let actual = hunks
-            .iter()
-            .flat_map(|hunk| hunk.atomic_fragments.as_deref().unwrap_or_default())
-            .filter_map(|fragment| {
-                let (changed_tokens, _, text) = atomic_fragment_side(fragment, old_side);
-                (changed_tokens > 0).then_some(text)
-            })
-            .collect::<Vec<_>>();
-        return actual.len() == expected.len()
-            && actual
-                .iter()
-                .zip(expected)
-                .all(|(actual, expected)| *actual == expected);
+        let expected_ranges = if old_side {
+            needles.old_changed_ranges.as_deref()
+        } else {
+            needles.new_changed_ranges.as_deref()
+        };
+        let Some(expected_ranges) = expected_ranges else {
+            return false;
+        };
+        return exact_range_fragments_match(
+            hunks,
+            expected_fragments,
+            expected_ranges,
+            range_tokens,
+            context,
+            relation_context,
+            old_side,
+        );
     }
     let expected = changed.or(context);
     expected.is_some_and(|expected| {
@@ -5205,6 +5214,143 @@ fn exact_localization_side_matches(
                         .eq(std::iter::once(expected))
                 })
     })
+}
+
+fn exact_range_fragments_match(
+    hunks: &[ActualSemanticHunk],
+    expected_fragments: &[String],
+    expected_ranges: &[std::ops::Range<usize>],
+    expected_tokens: Option<usize>,
+    expected_context: Option<&str>,
+    relation_context: Option<&str>,
+    old_side: bool,
+) -> bool {
+    let Some(expected_tokens) = expected_tokens else {
+        return false;
+    };
+    if !atomic_hunk_trace_is_consistent(hunks) {
+        return false;
+    }
+    let context_offset = match (expected_context, relation_context) {
+        (Some(expected), Some(actual)) => unique_substring_char_offset(actual, expected),
+        (None, _) if expected_ranges.is_empty() => Some(0),
+        _ => None,
+    };
+    let Some(context_offset) = context_offset else {
+        return false;
+    };
+    let expected_context_len = expected_context.map_or(0, |context| context.chars().count());
+    let expected = expected_ranges
+        .iter()
+        .map(|range| {
+            if range.start > range.end || range.end > expected_context_len {
+                return None;
+            }
+            Some(context_offset.checked_add(range.start)?..context_offset.checked_add(range.end)?)
+        })
+        .collect::<Option<Vec<_>>>()
+        .and_then(canonicalize_adjacent_ranges);
+    let actual_ranges = hunks.iter().try_fold(Vec::new(), |mut ranges, hunk| {
+        let range = if old_side {
+            hunk.old_range.clone()
+        } else {
+            hunk.new_range.clone()
+        };
+        match range {
+            Some(range) => ranges.push(range),
+            None if expected_ranges.is_empty() => {}
+            None => return None,
+        }
+        Some(ranges)
+    });
+    let Some(actual_ranges) = actual_ranges else {
+        return false;
+    };
+    let actual_tokens = actual_ranges.iter().try_fold(0usize, |total, range| {
+        total.checked_add(range.end.checked_sub(range.start)?)
+    });
+    let actual = canonicalize_adjacent_ranges(actual_ranges);
+    expected.is_some()
+        && expected == actual
+        && actual_tokens == Some(expected_tokens)
+        && if expected_ranges.is_empty() {
+            expected_fragments.is_empty()
+        } else {
+            expected_context.is_some_and(|context| {
+                range_fragments_match_context(context, expected_ranges, expected_fragments)
+            })
+        }
+}
+
+fn range_fragments_match_context(
+    context: &str,
+    ranges: &[std::ops::Range<usize>],
+    fragments: &[String],
+) -> bool {
+    let scalars = context.chars().collect::<Vec<_>>();
+    ranges.iter().zip(fragments).all(|(range, fragment)| {
+        range.start <= range.end
+            && scalars.get(range.clone()).is_some_and(|slice| {
+                collapse_whitespace(&slice.iter().collect::<String>()) == *fragment
+            })
+    }) && ranges.len() == fragments.len()
+}
+
+fn atomic_hunk_trace_is_consistent(hunks: &[ActualSemanticHunk]) -> bool {
+    hunks.iter().all(|hunk| {
+        let Some(fragments) = hunk.atomic_fragments.as_deref() else {
+            return false;
+        };
+        fragments
+            .iter()
+            .try_fold((0usize, 0usize), |(old, new), fragment| {
+                Some((
+                    old.checked_add(fragment.old_changed_tokens)?,
+                    new.checked_add(fragment.new_changed_tokens)?,
+                ))
+            })
+            == Some((
+                hunk.old_atomic_changed_tokens,
+                hunk.new_atomic_changed_tokens,
+            ))
+    })
+}
+
+fn unique_substring_char_offset(haystack: &str, needle: &str) -> Option<usize> {
+    if needle.is_empty() {
+        return None;
+    }
+    let mut matches = haystack.match_indices(needle);
+    let (byte_offset, _) = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    Some(haystack[..byte_offset].chars().count())
+}
+
+fn canonicalize_adjacent_ranges(
+    ranges: Vec<std::ops::Range<usize>>,
+) -> Option<Vec<std::ops::Range<usize>>> {
+    let mut canonical: Vec<std::ops::Range<usize>> = Vec::new();
+    for range in ranges {
+        if range.start > range.end {
+            return None;
+        }
+        if range.is_empty() {
+            continue;
+        }
+        if let Some(previous) = canonical.last_mut() {
+            if range.start < previous.end {
+                return None;
+            }
+            if range.start == previous.end {
+                previous.end = range.end;
+                continue;
+            }
+        }
+        canonical.push(range);
+    }
+    Some(canonical)
 }
 
 fn occurrence_matches_exact_localization(
@@ -5466,6 +5612,8 @@ struct NormalizedExpectedQuotes {
     new_changed: Option<String>,
     old_changed_range_tokens: Option<usize>,
     new_changed_range_tokens: Option<usize>,
+    old_changed_ranges: Option<Vec<std::ops::Range<usize>>>,
+    new_changed_ranges: Option<Vec<std::ops::Range<usize>>>,
     old_changed_range_fragments: Option<Vec<String>>,
     new_changed_range_fragments: Option<Vec<String>>,
 }
@@ -6258,6 +6406,16 @@ fn recovered_event_evidence(
                             new.checked_add(edit.new.end.checked_sub(edit.new.start)?)?,
                         ))
                     })?;
+                let old_range = normalized_span_range_within_context(
+                    changed.occurrence.old_span.as_ref(),
+                    &trace.old_context,
+                    blocks_by_side[0],
+                )?;
+                let new_range = normalized_span_range_within_context(
+                    changed.occurrence.new_span.as_ref(),
+                    &trace.new_context,
+                    blocks_by_side[1],
+                )?;
                 let old_text = changed
                     .occurrence
                     .old_span
@@ -6275,6 +6433,8 @@ fn recovered_event_evidence(
                     new_text,
                     old_atomic_changed_tokens,
                     new_atomic_changed_tokens,
+                    old_range,
+                    new_range,
                     atomic_fragments: resolve_atomic_fragments(
                         edits,
                         &trace.old_context,
@@ -6428,6 +6588,78 @@ fn span_range_within_context(
     )))
 }
 
+fn normalized_span_range_within_context(
+    span: Option<&TextSpan>,
+    context: &TextSpan,
+    map: &HashMap<u64, &BlockText>,
+) -> Option<Option<std::ops::Range<usize>>> {
+    let Some((start, end)) = span_range_within_context(span, context)? else {
+        return Some(None);
+    };
+    let group_tokens = span_group_comparable_tokens(map, context)?;
+    let context_tokens =
+        group_tokens.get(context.comparable_range.start..context.comparable_range.end)?;
+    Some(Some(collapse_comparable_range(context_tokens, start..end)?))
+}
+
+fn collapse_comparable_range(
+    tokens: &[ComparableToken],
+    raw: std::ops::Range<usize>,
+) -> Option<std::ops::Range<usize>> {
+    let scalars = tokens
+        .iter()
+        .map(|token| match token {
+            ComparableToken::Scalar(scalar) => Some(*scalar),
+            ComparableToken::Unmapped { .. } => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    collapse_scalar_range(&scalars, raw)
+}
+
+fn collapse_scalar_range(
+    scalars: &[char],
+    raw: std::ops::Range<usize>,
+) -> Option<std::ops::Range<usize>> {
+    if raw.start > raw.end || raw.end > scalars.len() {
+        return None;
+    }
+    let mut sources = Vec::new();
+    let mut index = 0usize;
+    while index < scalars.len() && scalars[index].is_whitespace() {
+        index += 1;
+    }
+    while index < scalars.len() {
+        while index < scalars.len() && !scalars[index].is_whitespace() {
+            sources.push(index..index + 1);
+            index += 1;
+        }
+        let whitespace_start = index;
+        while index < scalars.len() && scalars[index].is_whitespace() {
+            index += 1;
+        }
+        if whitespace_start < index && index < scalars.len() {
+            sources.push(whitespace_start..index);
+        }
+    }
+    if raw.is_empty() {
+        let position = raw.start;
+        if sources.first()?.start == position {
+            return Some(0..0);
+        }
+        return sources
+            .iter()
+            .position(|source| source.end == position)
+            .map(|index| index + 1..index + 1);
+    }
+    let start = sources
+        .iter()
+        .position(|source| source.start == raw.start)?;
+    let end = sources
+        .iter()
+        .rposition(|source| source.end == raw.end)?
+        .checked_add(1)?;
+    (start < end).then_some(start..end)
+}
 fn atomic_range_is_covered(range: &std::ops::Range<usize>, hunk: Option<(usize, usize)>) -> bool {
     match hunk {
         Some((start, end)) => start <= range.start && range.end <= end,
@@ -6487,6 +6719,16 @@ fn matched_semantic_hunk(
         new_text: resolve(1, occurrence.new_span.as_ref())?,
         old_atomic_changed_tokens,
         new_atomic_changed_tokens,
+        old_range: normalized_span_range_within_context(
+            occurrence.old_span.as_ref(),
+            &trace.old_context,
+            blocks_by_side[0],
+        )?,
+        new_range: normalized_span_range_within_context(
+            occurrence.new_span.as_ref(),
+            &trace.new_context,
+            blocks_by_side[1],
+        )?,
         atomic_fragments: resolve_atomic_fragments(
             &matching_edits,
             &trace.old_context,
@@ -7020,6 +7262,14 @@ fn normalized_expected_quotes(change: &ExpectedChange) -> NormalizedExpectedQuot
         new_changed: change.new_changed_quote.as_deref().map(collapse_whitespace),
         old_changed_range_tokens: range_tokens(&change.old_changed_ranges),
         new_changed_range_tokens: range_tokens(&change.new_changed_ranges),
+        old_changed_ranges: change
+            .old_changed_ranges
+            .as_ref()
+            .map(|ranges| ranges.iter().map(|range| range.start..range.end).collect()),
+        new_changed_ranges: change
+            .new_changed_ranges
+            .as_ref()
+            .map(|ranges| ranges.iter().map(|range| range.start..range.end).collect()),
     }
 }
 
@@ -7861,6 +8111,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         unresolved_old_token_share: None,
         unresolved_new_token_share: None,
         reported_content_changes: None,
+        reported_proven_changed_regions: None,
         formatting_only_changes: None,
         uncertain_changes: None,
         reported_changes_preview: Vec::new(),
@@ -7986,6 +8237,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
     record.unresolved_old_token_share = old_share;
     record.unresolved_new_token_share = new_share;
     record.reported_content_changes = Some(summary.content_changes);
+    record.reported_proven_changed_regions = Some(outcome.comparison.proven_changed_regions.len());
     record.formatting_only_changes = Some(summary.formatting_only_changes);
     record.uncertain_changes = Some(summary.uncertain_changes);
 
@@ -13273,6 +13525,7 @@ pub struct RevisionSummaryRecord {
     pub unresolved_new_token_share: Option<f64>,
     pub reported_content_changes: Option<usize>,
     pub reported_formatting_changes: Option<usize>,
+    pub reported_proven_changed_regions: Option<usize>,
     pub reported_uncertain_changes: Option<usize>,
     pub sentence_recovery_metrics: Option<SentenceRecoveryMetricsReport>,
     pub quality: Option<QualityMetrics>,
@@ -13308,6 +13561,7 @@ impl RevisionSummaryRecord {
             unresolved_new_token_share: report.unresolved_new_token_share,
             reported_content_changes: report.reported_content_changes,
             reported_formatting_changes: report.formatting_only_changes,
+            reported_proven_changed_regions: report.reported_proven_changed_regions,
             reported_uncertain_changes: report.uncertain_changes,
             sentence_recovery_metrics: report.sentence_recovery_metrics.clone(),
             quality: report.quality,
@@ -13342,8 +13596,8 @@ mod tests {
         diff::TokenRange,
         layout::{BlockId, BlockRole},
         model::{
-            DecodedText, FontId, Glyph, GlyphCropStatus, GlyphId, GlyphPathClipStatus,
-            GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
+            DecodedText, FontId, FontProgramHash, Glyph, GlyphCropStatus, GlyphId,
+            GlyphPathClipStatus, GlyphProvenance, PageId, Rect, TextRenderMode, Vec2,
         },
         normalize::{MappedText, ScalarRange},
         pdf::ObjectRef,
@@ -15334,6 +15588,8 @@ mod tests {
             new_text: Some(String::new()),
             old_atomic_changed_tokens: 16,
             new_atomic_changed_tokens: 0,
+            old_range: None,
+            new_range: None,
             atomic_fragments: Some(vec![ActualAtomicFragment {
                 old_text: "obsolete section".to_owned(),
                 new_text: String::new(),
@@ -15762,6 +16018,239 @@ mod tests {
         assert_eq!(metrics.exact_localization_recall.detected, 0);
     }
 
+    #[test]
+    fn exact_localization_ignores_atomic_fragment_boundaries() {
+        let mut expected = expected_change(
+            "fragmented",
+            ExpectedKind::Replacement,
+            Some("abcd"),
+            Some("wxyz"),
+        );
+        expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 4 }]);
+        expected.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 4 }]);
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("abcd"),
+            Some("wxyz"),
+            Some(4),
+            Some(4),
+        );
+        let occurrence = &mut actual.occurrences[0];
+        occurrence.old_relation_context = Some("abcd".to_owned());
+        occurrence.new_relation_context = Some("wxyz".to_owned());
+        occurrence.old_atomic_changed_tokens = Some(4);
+        occurrence.new_atomic_changed_tokens = Some(4);
+        occurrence.semantic_hunks = Some(vec![ActualSemanticHunk {
+            old_text: Some("abcd".to_owned()),
+            new_text: Some("wxyz".to_owned()),
+            old_atomic_changed_tokens: 4,
+            new_atomic_changed_tokens: 4,
+            old_range: Some(0..4),
+            new_range: Some(0..4),
+            atomic_fragments: Some(vec![
+                ActualAtomicFragment {
+                    old_text: "ab".to_owned(),
+                    new_text: "wx".to_owned(),
+                    old_changed_tokens: 2,
+                    new_changed_tokens: 2,
+                },
+                ActualAtomicFragment {
+                    old_text: "cd".to_owned(),
+                    new_text: "yz".to_owned(),
+                    old_changed_tokens: 2,
+                    new_changed_tokens: 2,
+                },
+            ]),
+        }]);
+
+        let metrics = compute_reviewed_recall_metrics(
+            Annotation::Partial,
+            &[expected],
+            &[actual],
+            None,
+            &[],
+            None,
+        )
+        .expect("small matching is bounded");
+
+        assert_eq!(metrics.exact_localization_recall.detected, 1);
+    }
+
+    #[test]
+    fn exact_localization_rejects_extra_atomic_changed_tokens() {
+        let mut expected = expected_change(
+            "overwide-range",
+            ExpectedKind::Replacement,
+            Some("abcd"),
+            Some("wxyz"),
+        );
+        expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 4 }]);
+        expected.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 4 }]);
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("abcd!"),
+            Some("wxyz!"),
+            Some(5),
+            Some(5),
+        );
+        let occurrence = &mut actual.occurrences[0];
+        occurrence.old_relation_context = Some("abcd".to_owned());
+        occurrence.new_relation_context = Some("wxyz".to_owned());
+        occurrence.old_atomic_changed_tokens = Some(5);
+        occurrence.new_atomic_changed_tokens = Some(5);
+        occurrence.semantic_hunks = Some(vec![ActualSemanticHunk {
+            old_text: Some("abcd!".to_owned()),
+            new_text: Some("wxyz!".to_owned()),
+            old_atomic_changed_tokens: 5,
+            new_atomic_changed_tokens: 5,
+            old_range: Some(0..5),
+            new_range: Some(0..5),
+            atomic_fragments: Some(vec![
+                ActualAtomicFragment {
+                    old_text: "ab".to_owned(),
+                    new_text: "wx".to_owned(),
+                    old_changed_tokens: 2,
+                    new_changed_tokens: 2,
+                },
+                ActualAtomicFragment {
+                    old_text: "cd".to_owned(),
+                    new_text: "yz".to_owned(),
+                    old_changed_tokens: 2,
+                    new_changed_tokens: 2,
+                },
+                ActualAtomicFragment {
+                    old_text: "!".to_owned(),
+                    new_text: "!".to_owned(),
+                    old_changed_tokens: 1,
+                    new_changed_tokens: 1,
+                },
+            ]),
+        }]);
+
+        let metrics = compute_reviewed_recall_metrics(
+            Annotation::Partial,
+            &[expected],
+            &[actual],
+            None,
+            &[],
+            None,
+        )
+        .expect("small matching is bounded");
+
+        assert_eq!(metrics.content_presence_recall.detected, 1);
+        assert_eq!(metrics.exact_localization_recall.detected, 0);
+    }
+
+    #[test]
+    fn exact_localization_uses_semantic_ranges_across_atomic_equal_islands() {
+        let old_context = "arXiv:1706.03762v6 [cs.CL] 24 Jul 2023";
+        let new_context = "arXiv:1706.03762v7 [cs.CL] 2 Aug 2023";
+        let hunks = vec![
+            ActualSemanticHunk {
+                old_text: Some("6".to_owned()),
+                new_text: Some("7".to_owned()),
+                old_atomic_changed_tokens: 1,
+                new_atomic_changed_tokens: 1,
+                old_range: Some(17..18),
+                new_range: Some(17..18),
+                atomic_fragments: Some(vec![ActualAtomicFragment {
+                    old_text: "6".to_owned(),
+                    new_text: "7".to_owned(),
+                    old_changed_tokens: 1,
+                    new_changed_tokens: 1,
+                }]),
+            },
+            ActualSemanticHunk {
+                old_text: Some("4 Jul".to_owned()),
+                new_text: Some(" Aug".to_owned()),
+                old_atomic_changed_tokens: 5,
+                new_atomic_changed_tokens: 3,
+                old_range: Some(28..33),
+                new_range: Some(28..32),
+                atomic_fragments: Some(vec![ActualAtomicFragment {
+                    old_text: "4 Jul".to_owned(),
+                    new_text: "Aug".to_owned(),
+                    old_changed_tokens: 5,
+                    new_changed_tokens: 3,
+                }]),
+            },
+        ];
+
+        assert!(exact_range_fragments_match(
+            &hunks,
+            &["6".to_owned(), "4 Jul".to_owned()],
+            &[17..18, 28..33],
+            Some(6),
+            Some(old_context),
+            Some(old_context),
+            true,
+        ));
+        assert!(exact_range_fragments_match(
+            &hunks,
+            &["7".to_owned(), "Aug".to_owned()],
+            &[17..18, 28..32],
+            Some(5),
+            Some(new_context),
+            Some(new_context),
+            false,
+        ));
+    }
+
+    #[test]
+    fn exact_localization_accepts_absent_side_as_empty_range_set() {
+        let hunks = vec![ActualSemanticHunk {
+            old_text: None,
+            new_text: Some("x".to_owned()),
+            old_atomic_changed_tokens: 0,
+            new_atomic_changed_tokens: 1,
+            old_range: None,
+            new_range: Some(0..1),
+            atomic_fragments: Some(vec![ActualAtomicFragment {
+                old_text: String::new(),
+                new_text: "x".to_owned(),
+                old_changed_tokens: 0,
+                new_changed_tokens: 1,
+            }]),
+        }];
+
+        assert!(exact_range_fragments_match(
+            &hunks,
+            &[],
+            &[],
+            Some(0),
+            None,
+            Some("x"),
+            true,
+        ));
+    }
+
+    #[test]
+    fn exact_localization_rejects_ambiguous_same_text_location() {
+        let hunks = vec![ActualSemanticHunk {
+            old_text: Some("old".to_owned()),
+            new_text: Some("new".to_owned()),
+            old_atomic_changed_tokens: 3,
+            new_atomic_changed_tokens: 3,
+            old_range: Some(8..11),
+            new_range: Some(8..11),
+            atomic_fragments: Some(vec![ActualAtomicFragment {
+                old_text: "old".to_owned(),
+                new_text: "new".to_owned(),
+                old_changed_tokens: 3,
+                new_changed_tokens: 3,
+            }]),
+        }];
+
+        assert!(!exact_range_fragments_match(
+            &hunks,
+            &["old".to_owned()],
+            std::slice::from_ref(&(0..3)),
+            Some(3),
+            Some("old gap old"),
+            Some("old gap old"),
+            true,
+        ));
+    }
     #[test]
     fn occurrence_count_matches_the_exact_number_of_repeated_quotes() {
         let mut expected = expected_change(
@@ -16357,6 +16846,8 @@ mod tests {
                 new_text: Some("label".to_owned()),
                 old_atomic_changed_tokens: 5,
                 new_atomic_changed_tokens: 5,
+                old_range: None,
+                new_range: None,
                 atomic_fragments: None,
             },
             ActualSemanticHunk {
@@ -16364,6 +16855,8 @@ mod tests {
                 new_text: Some(String::new()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 0,
+                old_range: None,
+                new_range: None,
                 atomic_fragments: None,
             },
         ]);
@@ -16399,6 +16892,8 @@ mod tests {
             new_text: Some(";".to_owned()),
             old_atomic_changed_tokens: 1,
             new_atomic_changed_tokens: 1,
+            old_range: None,
+            new_range: None,
             atomic_fragments: None,
         }]);
 
@@ -16456,6 +16951,8 @@ mod tests {
                 new_text: Some("C".to_owned()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 1,
+                old_range: None,
+                new_range: None,
                 atomic_fragments: None,
             },
             ActualSemanticHunk {
@@ -16463,6 +16960,8 @@ mod tests {
                 new_text: Some("D".to_owned()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 1,
+                old_range: None,
+                new_range: None,
                 atomic_fragments: None,
             },
         ]);
@@ -16494,6 +16993,8 @@ mod tests {
                 new_text: Some(String::new()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 0,
+                old_range: None,
+                new_range: None,
                 atomic_fragments: None,
             },
             ActualSemanticHunk {
@@ -16501,6 +17002,8 @@ mod tests {
                 new_text: Some("B".to_owned()),
                 old_atomic_changed_tokens: 0,
                 new_atomic_changed_tokens: 1,
+                old_range: None,
+                new_range: None,
                 atomic_fragments: None,
             },
         ]);
@@ -16532,6 +17035,8 @@ mod tests {
                 new_text: Some("B".to_owned()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 1,
+                old_range: None,
+                new_range: None,
                 atomic_fragments: None,
             },
             ActualSemanticHunk {
@@ -16539,6 +17044,8 @@ mod tests {
                 new_text: Some("D".to_owned()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 1,
+                old_range: None,
+                new_range: None,
                 atomic_fragments: None,
             },
         ]);
@@ -16574,6 +17081,8 @@ mod tests {
                 new_text: Some("B".to_owned()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 1,
+                old_range: None,
+                new_range: None,
                 atomic_fragments: None,
             },
             ActualSemanticHunk {
@@ -16581,6 +17090,8 @@ mod tests {
                 new_text: Some(String::new()),
                 old_atomic_changed_tokens: 1,
                 new_atomic_changed_tokens: 0,
+                old_range: None,
+                new_range: None,
                 atomic_fragments: None,
             },
         ]);
@@ -16678,6 +17189,8 @@ mod tests {
             new_text: Some("new hunk".to_owned()),
             old_atomic_changed_tokens: 1,
             new_atomic_changed_tokens: 1,
+            old_range: None,
+            new_range: None,
             atomic_fragments: None,
         }]);
         let mut budget = MatchingScanBudget::default();
@@ -16734,24 +17247,32 @@ mod tests {
 
     #[test]
     fn actual_occurrence_trace_distinguishes_available_ambiguous_and_untraced() {
-        let old_blocks = [relation_block(1, "abc")];
-        let new_blocks = [relation_block(2, "axc")];
+        let old_blocks = [relation_block(1, "a "), relation_block(3, " bc")];
+        let new_blocks = [relation_block(2, "a "), relation_block(4, " xc")];
         let old_map = build_block_map(&old_blocks);
         let new_map = build_block_map(&new_blocks);
-        let old_context = relation_span(vec![BlockId(1)], None, 3);
-        let new_context = relation_span(vec![BlockId(2)], None, 3);
+        let old_context =
+            relation_span(vec![BlockId(1), BlockId(3)], Some(BlockSeparator::Space), 5);
+        let new_context =
+            relation_span(vec![BlockId(2), BlockId(4)], Some(BlockSeparator::Space), 5);
+        let mut old_changed = old_context.clone();
+        old_changed.canonical_range = ScalarRange { start: 3, end: 4 };
+        old_changed.comparable_range = TokenRange { start: 3, end: 4 };
+        let mut new_changed = new_context.clone();
+        new_changed.canonical_range = ScalarRange { start: 3, end: 4 };
+        new_changed.comparable_range = TokenRange { start: 3, end: 4 };
         let trace = MatchedAtomicDiff {
             alignment_span_index: 7,
             old_context: old_context.clone(),
             new_context: new_context.clone(),
             edits: vec![pdfdelta_core::diff::AtomicEdit {
-                old: 1..2,
-                new: 1..2,
+                old: 3..4,
+                new: 3..4,
             }],
         };
         let occurrence = ChangeOccurrence {
-            old_span: Some(old_context.clone()),
-            new_span: Some(new_context.clone()),
+            old_span: Some(old_changed),
+            new_span: Some(new_changed),
         };
         let comparison = Comparison {
             changes: vec![pdfdelta_core::diff::ChangeEvent::single_occurrence(
@@ -16791,6 +17312,20 @@ mod tests {
                 ..
             })
         ));
+        assert_eq!(
+            available[0].occurrences[0]
+                .semantic_hunks
+                .as_ref()
+                .map(|hunks| &hunks[0].old_range),
+            Some(&Some(2..3))
+        );
+        assert_eq!(
+            available[0].occurrences[0]
+                .semantic_hunks
+                .as_ref()
+                .map(|hunks| &hunks[0].new_range),
+            Some(&Some(2..3))
+        );
 
         let ambiguous = flatten_actual_changes(
             &comparison,
@@ -16812,16 +17347,24 @@ mod tests {
 
     #[test]
     fn recovered_event_evidence_carries_scores_scopes_and_span_indices() {
-        let old_blocks = [relation_block(1, "abc")];
-        let new_blocks = [relation_block(2, "axc")];
+        let old_blocks = [relation_block(1, "a "), relation_block(3, " bc")];
+        let new_blocks = [relation_block(2, "a "), relation_block(4, " xc")];
         let old_map = build_block_map(&old_blocks);
         let new_map = build_block_map(&new_blocks);
-        let old_context = relation_span(vec![BlockId(1)], None, 3);
-        let new_context = relation_span(vec![BlockId(2)], None, 3);
+        let old_context =
+            relation_span(vec![BlockId(1), BlockId(3)], Some(BlockSeparator::Space), 5);
+        let new_context =
+            relation_span(vec![BlockId(2), BlockId(4)], Some(BlockSeparator::Space), 5);
+        let mut old_changed = old_context.clone();
+        old_changed.canonical_range = ScalarRange { start: 3, end: 4 };
+        old_changed.comparable_range = TokenRange { start: 3, end: 4 };
+        let mut new_changed = new_context.clone();
+        new_changed.canonical_range = ScalarRange { start: 3, end: 4 };
+        new_changed.comparable_range = TokenRange { start: 3, end: 4 };
         let changed = pdfdelta_core::diff::RecoveredAtomicOccurrence {
             occurrence: ChangeOccurrence {
-                old_span: Some(old_context.clone()),
-                new_span: Some(new_context.clone()),
+                old_span: Some(old_changed),
+                new_span: Some(new_changed),
             },
             edit_range: 0..1,
         };
@@ -16833,8 +17376,8 @@ mod tests {
             new_context,
             changed_occurrences: vec![changed.clone()],
             edits: vec![pdfdelta_core::diff::AtomicEdit {
-                old: 1..2,
-                new: 1..2,
+                old: 3..4,
+                new: 3..4,
             }],
             old_best_score: 9_100,
             old_second_score: 7_000,
@@ -16849,6 +17392,8 @@ mod tests {
             .get(&vec![changed.occurrence])
             .and_then(Option::as_ref)
             .expect("one recovered event trace");
+        assert_eq!(evidence.semantic_hunks[0].old_range, Some(2..3));
+        assert_eq!(evidence.semantic_hunks[0].new_range, Some(2..3));
         assert_eq!(evidence.trace.origin, ChangeOrigin::SentenceNear);
         assert_eq!(evidence.trace.old_alignment_span_index, 11);
         assert_eq!(evidence.trace.new_alignment_span_index, 17);
@@ -16862,6 +17407,57 @@ mod tests {
             evidence.trace.new_best_scope,
             Some(RecoveryWatchNearScopeReport::CrossSpan)
         );
+    }
+
+    #[test]
+    fn exact_localization_maps_collapsed_whitespace_to_scalar_coordinates() {
+        let tokens = " \talpha \n"
+            .chars()
+            .map(ComparableToken::Scalar)
+            .collect::<Vec<_>>();
+
+        assert_eq!(collapse_comparable_range(&tokens, 2..7), Some(0..5));
+        assert_eq!(collapse_comparable_range(&tokens, 0..2), None);
+
+        let repeated = "a \n\t b"
+            .chars()
+            .map(ComparableToken::Scalar)
+            .collect::<Vec<_>>();
+        assert_eq!(collapse_comparable_range(&repeated, 1..5), Some(1..2));
+        assert_eq!(collapse_comparable_range(&repeated, 2..5), None);
+        assert_eq!(collapse_comparable_range(&repeated, 5..6), Some(2..3));
+    }
+
+    #[test]
+    fn exact_localization_maps_multi_block_space_separator() {
+        let blocks = vec![relation_block(1, "left "), relation_block(2, " right")];
+        let map = build_block_map(&blocks);
+        let context = relation_span(
+            vec![BlockId(1), BlockId(2)],
+            Some(BlockSeparator::Space),
+            11,
+        );
+        let mut changed = context.clone();
+        changed.canonical_range = ScalarRange { start: 6, end: 11 };
+        changed.comparable_range = TokenRange { start: 6, end: 11 };
+
+        assert_eq!(
+            normalized_span_range_within_context(Some(&changed), &context, &map),
+            Some(Some(5..10))
+        );
+    }
+
+    #[test]
+    fn exact_localization_rejects_unmapped_relation_context() {
+        let tokens = vec![
+            ComparableToken::Scalar('a'),
+            ComparableToken::Unmapped {
+                font_hash: FontProgramHash(vec![1]),
+                glyph_id: 2,
+            },
+        ];
+
+        assert_eq!(collapse_comparable_range(&tokens, 0..1), None);
     }
 
     #[test]
@@ -16945,6 +17541,8 @@ mod tests {
             new_text: Some("added".to_owned()),
             old_atomic_changed_tokens: 3,
             new_atomic_changed_tokens: 1,
+            old_range: None,
+            new_range: None,
             atomic_fragments: Some(vec![
                 ActualAtomicFragment {
                     old_text: "old".to_owned(),
@@ -16969,6 +17567,8 @@ mod tests {
             new_text: Some("added".to_owned()),
             old_atomic_changed_tokens: 0,
             new_atomic_changed_tokens: 5,
+            old_range: None,
+            new_range: None,
             atomic_fragments: Some(vec![ActualAtomicFragment {
                 old_text: String::new(),
                 new_text: "added".to_owned(),
@@ -17003,6 +17603,8 @@ mod tests {
             new_text: Some(String::new()),
             old_atomic_changed_tokens: 7,
             new_atomic_changed_tokens: 0,
+            old_range: None,
+            new_range: None,
             atomic_fragments: Some(vec![ActualAtomicFragment {
                 old_text: "removed".to_owned(),
                 new_text: String::new(),
@@ -17026,6 +17628,8 @@ mod tests {
                 new_text: Some(String::new()),
                 old_atomic_changed_tokens: 3,
                 new_atomic_changed_tokens: 0,
+                old_range: None,
+                new_range: None,
                 atomic_fragments: Some(vec![ActualAtomicFragment {
                     old_text: "old".to_owned(),
                     new_text: String::new(),
@@ -17038,6 +17642,8 @@ mod tests {
                 new_text: Some("new".to_owned()),
                 old_atomic_changed_tokens: 0,
                 new_atomic_changed_tokens: 3,
+                old_range: None,
+                new_range: None,
                 atomic_fragments: Some(vec![ActualAtomicFragment {
                     old_text: String::new(),
                     new_text: "new".to_owned(),
@@ -17097,6 +17703,8 @@ mod tests {
             new_text: Some("new".to_owned()),
             old_atomic_changed_tokens: 3,
             new_atomic_changed_tokens: 3,
+            old_range: None,
+            new_range: None,
             atomic_fragments: Some(vec![
                 ActualAtomicFragment {
                     old_text: "old".to_owned(),
@@ -17130,6 +17738,8 @@ mod tests {
             new_text: Some("Version".to_owned()),
             old_atomic_changed_tokens: 0,
             new_atomic_changed_tokens: 1,
+            old_range: None,
+            new_range: None,
             atomic_fragments: Some(vec![ActualAtomicFragment {
                 old_text: String::new(),
                 new_text: "n".to_owned(),
@@ -17219,6 +17829,8 @@ mod tests {
             new_text: Some("added".to_owned()),
             old_atomic_changed_tokens: 0,
             new_atomic_changed_tokens: 5,
+            old_range: None,
+            new_range: None,
             atomic_fragments: Some(vec![ActualAtomicFragment {
                 old_text: String::new(),
                 new_text: "added".to_owned(),
@@ -17232,6 +17844,8 @@ mod tests {
             new_text: Some("other".to_owned()),
             old_atomic_changed_tokens: 4,
             new_atomic_changed_tokens: 5,
+            old_range: None,
+            new_range: None,
             atomic_fragments: Some(vec![
                 ActualAtomicFragment {
                     old_text: "base".to_owned(),
@@ -17388,6 +18002,7 @@ mod tests {
             unresolved_new_token_share: None,
             reported_content_changes: None,
             formatting_only_changes: None,
+            reported_proven_changed_regions: None,
             uncertain_changes: None,
             reported_changes_preview: Vec::new(),
             quality: None,
@@ -24798,6 +25413,7 @@ mod tests {
                 unresolved_new_token_share: Some(0.0),
                 reported_content_changes: Some(3),
                 formatting_only_changes: Some(0),
+                reported_proven_changed_regions: Some(2),
                 uncertain_changes: Some(0),
                 reported_changes_preview: Vec::new(),
                 quality: Some(QualityMetrics {
@@ -24890,6 +25506,7 @@ mod tests {
                 unresolved_new_token_share: None,
                 reported_content_changes: None,
                 formatting_only_changes: None,
+                reported_proven_changed_regions: None,
                 uncertain_changes: None,
                 reported_changes_preview: Vec::new(),
                 quality: None,
@@ -24939,6 +25556,7 @@ mod tests {
                 unresolved_new_token_share: None,
                 reported_content_changes: None,
                 formatting_only_changes: None,
+                reported_proven_changed_regions: None,
                 uncertain_changes: None,
                 reported_changes_preview: Vec::new(),
                 quality: None,
@@ -24979,6 +25597,7 @@ mod tests {
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
+        assert_eq!(records[0]["reported_proven_changed_regions"], 2);
 
         // Record key-set equality
         let expected_record_keys = HashSet::from([
@@ -25001,6 +25620,7 @@ mod tests {
             "unresolved_new_token_share".to_owned(),
             "reported_content_changes".to_owned(),
             "reported_formatting_changes".to_owned(),
+            "reported_proven_changed_regions".to_owned(),
             "reported_uncertain_changes".to_owned(),
             "sentence_recovery_metrics".to_owned(),
             "quality".to_owned(),
@@ -25599,6 +26219,7 @@ mod tests {
             unresolved_new_token_share: Some(0.0),
             reported_content_changes: Some(0),
             formatting_only_changes: Some(0),
+            reported_proven_changed_regions: Some(0),
             uncertain_changes: Some(0),
             reported_changes_preview: Vec::new(),
             quality: None,
@@ -25693,6 +26314,7 @@ mod tests {
         );
         assert!(!full_obj.contains_key("candidate_recall"));
         assert!(!full_obj.contains_key("expected_change_diagnostics"));
+        assert!(!full_obj.contains_key("reported_proven_changed_regions"));
     }
 
     #[test]
@@ -25722,6 +26344,7 @@ mod tests {
             unresolved_new_token_share: Some(0.03),
             reported_content_changes: Some(5),
             formatting_only_changes: Some(0),
+            reported_proven_changed_regions: Some(2),
             uncertain_changes: Some(0),
             reported_changes_preview: vec![ReportedChangeText {
                 kind: "replacement",

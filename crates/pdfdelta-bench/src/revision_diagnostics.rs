@@ -2931,6 +2931,8 @@ mod tests {
         actual.occurrences[0].semantic_hunks = Some(vec![crate::revisions::ActualSemanticHunk {
             old_text: Some("old reviewed text".to_owned()),
             new_text: Some("new reviewed text".to_owned()),
+            old_range: None,
+            new_range: None,
             old_atomic_changed_tokens: 17,
             new_atomic_changed_tokens: 17,
             atomic_fragments: Some(vec![
@@ -3009,6 +3011,8 @@ mod tests {
         occurrence.semantic_hunks = Some(vec![crate::revisions::ActualSemanticHunk {
             old_text: Some(String::new()),
             new_text: Some("copyright notice".to_owned()),
+            old_range: None,
+            new_range: None,
             old_atomic_changed_tokens: 0,
             new_atomic_changed_tokens: 16,
             atomic_fragments: Some(vec![crate::revisions::ActualAtomicFragment {
@@ -3133,6 +3137,8 @@ mod tests {
         occurrence.semantic_hunks = Some(vec![crate::revisions::ActualSemanticHunk {
             old_text: Some(String::new()),
             new_text: Some("added".to_owned()),
+            old_range: None,
+            new_range: None,
             old_atomic_changed_tokens: 0,
             new_atomic_changed_tokens: 5,
             atomic_fragments: Some(vec![crate::revisions::ActualAtomicFragment {
@@ -3184,6 +3190,8 @@ mod tests {
         actual.occurrences[0].semantic_hunks = Some(vec![crate::revisions::ActualSemanticHunk {
             old_text: Some("old".to_owned()),
             new_text: Some("other".to_owned()),
+            old_range: None,
+            new_range: None,
             old_atomic_changed_tokens: 3,
             new_atomic_changed_tokens: 5,
             atomic_fragments: Some(vec![crate::revisions::ActualAtomicFragment {
@@ -3239,6 +3247,8 @@ mod tests {
         actual.occurrences[0].semantic_hunks = Some(vec![crate::revisions::ActualSemanticHunk {
             old_text: Some(String::new()),
             new_text: Some("target".to_owned()),
+            old_range: None,
+            new_range: None,
             old_atomic_changed_tokens: 0,
             new_atomic_changed_tokens: 6,
             atomic_fragments: Some(vec![crate::revisions::ActualAtomicFragment {
