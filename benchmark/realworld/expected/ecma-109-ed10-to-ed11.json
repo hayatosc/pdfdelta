@@ -15,15 +15,24 @@
     {
       "id": "copyright-year",
       "kind": "replacement",
-      "old_quote": "© Ecma International 2020",
-      "new_quote": "© Ecma International 2025",
-      "note": "The front matter carries the new publication copyright year."
+      "occurrence_count": 28,
+      "old_quote": "COPYRIGHT PROTECTED DOCUMENT © Ecma International 2020",
+      "new_quote": "COPYRIGHT PROTECTED DOCUMENT © Ecma International 2025",
+      "old_changed_ranges": [{ "start": 53, "end": 54 }],
+      "new_changed_ranges": [{ "start": 53, "end": 54 }],
+      "note": "The repeated document footer updates its copyright year. The old PDF has 29 instances and the new PDF has 28; 28 page-ordered instances form the expected replacement event."
     },
     {
-      "id": "copyright-notice-added",
-      "kind": "insertion",
+      "id": "copyright-notice-updated",
+      "kind": "replacement",
+      "old_quote": "\"COPYRIGHT NOTICE © 2020 Ecma International",
       "new_quote": "COPYRIGHT NOTICE © 2025 Ecma International",
-      "note": "The 11th edition contains an expanded copyright notice."
+      "old_changed_ranges": [
+        { "start": 0, "end": 1 },
+        { "start": 23, "end": 24 }
+      ],
+      "new_changed_ranges": [{ "start": 22, "end": 23 }],
+      "note": "Both editions contain the copyright notice. The 11th edition updates its year and omits a stray leading quote present in the extracted 10th-edition text."
     }
   ]
 }
