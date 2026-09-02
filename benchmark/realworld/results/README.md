@@ -5,21 +5,26 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-03
-- **Generator / engine commit**: [`0e071cf`](https://github.com/hayatosc/pdfdelta/commit/0e071cf)
+- **Generator / engine commit**: [`3edac2d`](https://github.com/hayatosc/pdfdelta/commit/3edac2d)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-03-0e071cf.json`](2026-09-03-0e071cf.json)
+  - File: [`2026-09-03-3edac2d.json`](2026-09-03-3edac2d.json)
   - Schema: v63
-  - Size: 8,825,748 bytes
-  - SHA-256: `199688d05555a1c2a102a4e0e752211647ffd20c9a054e090dd829e1144ab28a`
+  - Size: 8,844,037 bytes
+  - SHA-256: `d1bcbfa68dc065a19616ecd7b129f7dc160a87e25a6683430c265c2da1a0c475`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
-**Schema parity**: PASS against `2026-09-03-6390d01.json` after excluding only
-`section_pairing_proposal_review_bundle` and the schema number.
+This is a behavior capture, not a schema-only parity capture. Relative to
+`2026-09-03-0e071cf.json`, it includes geometric repeated-margin
+classification, exact margin-template propagation, dedicated running-matter
+alignment, and one-sided containment safety. Seventeen records change at least
+one top-level comparison metric. All existing scoped event/token metrics and
+candidate-recall values remain unchanged; ECMA-109 is the only pair whose
+reviewed recall changes.
 
 ## Reproduction
 
@@ -29,9 +34,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-03-0e071cf.json \
+cp benchmark/realworld/results/2026-09-03-3edac2d.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 0e071cf
+git switch --detach 3edac2d
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -91,18 +96,18 @@ still apply only to their recorded review items.
 
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `nist-fips-186-4-to-5` | dev | standard | 52.56% | 2,130 | 1,055 | 0.857 | 1.000 | 213.500 | 107 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 53.76% | 5,189 | 1,600 | 1.000 | 1.000 | 342.625 | 103 |
+| `nist-fips-186-4-to-5` | dev | standard | 53.54% | 2,298 | 1,036 | 0.857 | 1.000 | 220.833 | 104 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.91% | 5,470 | 1,541 | 1.000 | 1.000 | 350.875 | 103 |
 | `irs-form-1040-2024-to-2025` | holdout | stress | 45.31% | 79 | 31 | 0.200 | 1.000 | 40.000 | 1 |
 | `edpb-right-of-access-v1-to-final` | holdout | standard | 76.21% | 2,142 | 493 | 0.750 | 1.000 | 284.000 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 95.33% | 63 | 1 | 1.000 | 1.000 | 2.000 | 0 |
-| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 62.32% | 457 | 143 | 1.000 | 1.000 | 1.000 | 0 |
-| `ecma-109-ed10-to-ed11` | dev | stress | 75.20% | 420 | 87 | 0.667 | 1.000 | 66.000 | 5 |
-| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 73.60% | 837 | 475 | 1.000 | 1.000 | 167.000 | 65 |
+| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 62.34% | 458 | 143 | 1.000 | 1.000 | 1.000 | 0 |
+| `ecma-109-ed10-to-ed11` | dev | stress | 76.34% | 492 | 88 | 1.000 | 1.000 | 53.333 | 5 |
+| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 73.51% | 841 | 475 | 1.000 | 1.000 | 167.000 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
-| `bis-operational-risk-2011-to-2021` | dev | standard | 76.28% | 674 | 365 | 1.000 | 1.000 | 14.000 | 0 |
-| `oasis-mqtt-311-to-50` | dev | standard | 42.44% | 3,486 | 1,593 | 1.000 | N/A | N/A | 0 |
-| `nist-csf-v1-1-to-v2-0` | holdout | standard | 68.39% | 1,142 | 841 | 0.333 | 1.000 | 861.000 | 0 |
+| `bis-operational-risk-2011-to-2021` | dev | standard | 77.50% | 722 | 357 | 1.000 | 1.000 | 14.000 | 0 |
+| `oasis-mqtt-311-to-50` | dev | standard | 42.48% | 3,495 | 1,594 | 1.000 | N/A | N/A | 0 |
+| `nist-csf-v1-1-to-v2-0` | holdout | standard | 68.99% | 1,280 | 794 | 0.333 | 1.000 | 948.000 | 0 |
 
 
 Schema v60 separates four reviewed outcomes that the legacy recall intentionally
@@ -117,32 +122,53 @@ no expectation in that category.
 | `edpb-right-of-access-v1-to-final` | 3/3 | — | 3/3 | 0/1 |
 | `arxiv-attention-v6-to-v7` | 1/1 | 1/1 | 1/1 | — |
 | `w3c-ws-policy-attach-20060927-to-20061102` | 3/3 | 3/3 | 3/3 | 1/1 |
-| `ecma-109-ed10-to-ed11` | 2/3 | 1/2 | 2/3 | — |
+| `ecma-109-ed10-to-ed11` | 3/3 | 2/2 | 3/3 | — |
 | `oasis-csaf-v2-cs01-to-csd02` | 2/2 | — | 2/2 | 1/1 |
 | `irs-w4-korean-2024-to-2025` | 1/1 | — | 0/1 | — |
 | `bis-operational-risk-2011-to-2021` | 1/1 | 1/1 | 1/1 | — |
 | `oasis-mqtt-311-to-50` | — | — | — | — |
 | `nist-csf-v1-1-to-v2-0` | 1/3 | — | 1/3 | — |
-| **Aggregate** | **30/36** | **9/12** | **28/36** | **2/4** |
+| **Aggregate** | **31/36** | **10/12** | **29/36** | **2/4** |
 
-The engine proves 236 anchor-bounded changed regions across 11 pairs without
+The dedicated running-matter path groups exact repeated header or footer
+templates, requires at least two same-page old/new occurrences, and accepts a
+replacement only when the relation is reciprocal, unique, margin-qualified,
+and its minimal edit changes both sides. Exact one-sided containment remains
+eligible for deletion or insertion instead of being coerced into a
+replacement. ECMA-109 now reports the reviewed 2020-to-2025 footer change as
+one 28-occurrence replacement, raising reviewed recall from 2/3 to 3/3 and
+exact localization from 1/2 to 2/2. The EDPB Right of Access consultation
+watermark remains a 51-occurrence deletion, preserving its 3/4 legacy recall
+and all three reviewed content changes at the presence and relation levels.
+
+Across the 19 completely extracted pairs, mean comparison coverage changes
+from 59.00% to 59.19%, total reported content events fall from 12,169 to
+11,943, and unresolved-region count rises from 30,928 to 31,837. The region
+count can increase when role isolation splits a formerly coarse remainder; it
+is not a monotone quality measure. These unreviewed aggregate changes do not by
+themselves establish a precision improvement outside the declared complete
+scopes.
+
+The current capture proves 229 anchor-bounded changed regions across 11 pairs without
 inventing an exact old/new correspondence. These proofs add one reviewed
-presence detection for IRS 1040 and one for Korean W-4 while preserving every
-legacy quality, comparison, coverage, change, scoped-quality, and candidate-
-recall field from the corrected schema-v59 baseline. They do not resolve source
-tokens, remove unresolved regions, or create `ChangeEvent`s. NIST CSF remains
-at 1/3 presence because none of its unmatched rewrites satisfies the current
-conservative anchor-window proof.
+presence detection for IRS 1040 and one for Korean W-4. The proof feature was
+introduced behavior-neutrally in schema v60; later running-matter behavior
+changes alter its current aggregate count. Proven regions still do not resolve
+source tokens, remove unresolved regions, or create `ChangeEvent`s. NIST CSF
+remains at 1/3 presence because none of its unmatched rewrites satisfies the
+current conservative anchor-window proof.
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
-Schema v63 adds a bounded, deterministic review bundle for changed one-to-one
+The preceding `2026-09-03-0e071cf.json` capture introduced schema v63 with a
+bounded, deterministic review bundle for changed one-to-one
 paragraph gaps identified by the schema-v62 section-pairing shadow. Sixteen of
 18 applicable builds publish complete bundles; SP 800-57 stops atomically at
 the proposal-work limit, and EDPB Right of Access stops atomically because
 duplicate structural evidence makes a proposal ambiguous. No partial counters
-or samples are published for either stopped build. Removing `schema_version`
-and `section_pairing_proposal_review_bundle` yields exact JSON parity with
-`2026-09-03-6390d01.json`.
+or samples are published for either stopped build. For that preceding capture,
+removing `schema_version` and `section_pairing_proposal_review_bundle` yields
+exact JSON parity with `2026-09-03-6390d01.json`. The current capture retains
+the same schema but intentionally changes running-matter behavior.
 
 The complete bundles contain 20 proposals: 12 strong and eight number-only.
 All 20 have exact bounded edit traces, 12 have leaf-only ownership, seven
@@ -1060,8 +1086,9 @@ review evidence for schema-v62 changed one-to-one paragraph gaps. Each complete
 bundle includes exact edit traces, source provenance, recovery ownership,
 existing-change overlap, structural evidence, a full-evidence fingerprint, and
 a deliberately strict audit-only gate. A typed stop publishes no partial
-proposal data. Removing `section_pairing_proposal_review_bundle` and the schema
-number yields exact parity with schema v62. Schema v62 records a bounded, atomic,
+proposal data. The original schema-v63 capture was exactly equal to schema v62
+after removing `section_pairing_proposal_review_bundle` and the schema number;
+the current schema-v63 behavior capture is not. Schema v62 records a bounded, atomic,
 behavior-neutral full-document section-pairing shadow gated on the verified
 recovery-ownership sidecar and reported alongside the schema-v61
 structural-container inventory. Their populations and counters are separate.
