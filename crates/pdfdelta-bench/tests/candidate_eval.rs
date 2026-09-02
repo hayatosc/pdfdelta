@@ -59,7 +59,9 @@ fn built_in_fixtures_recover_true_counterparts_at_top_k() {
             record.case_name,
             top_k.last().expect("top_k is nonempty")
         );
-        if case.name() != "double-line-wrap-only" {
+        if case.plan().expectation().proven_regions().is_empty()
+            && case.name() != "double-line-wrap-only"
+        {
             assert_eq!(
                 record.minhash_recall_at_k.last(),
                 Some(&1.0),
@@ -67,7 +69,7 @@ fn built_in_fixtures_recover_true_counterparts_at_top_k() {
                 record.case_name,
                 top_k.last().expect("top_k is nonempty")
             );
-        } else {
+        } else if case.plan().expectation().proven_regions().is_empty() {
             assert!(
                 record.minhash_recall_at_k.last().copied().unwrap_or(0.0) >= 0.6,
                 "{} minhash recall@{}",

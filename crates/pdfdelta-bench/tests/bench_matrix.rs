@@ -1134,9 +1134,9 @@ fn bench_errors_preserve_core_error_taxonomy() {
 }
 
 #[test]
-fn built_in_matrix_passes_all_forty_six_cells() {
+fn built_in_matrix_passes_all_forty_eight_cells() {
     let cases = built_in_cases().expect("built-in cases are valid");
-    assert_eq!(cases.len(), 23);
+    assert_eq!(cases.len(), 24);
     assert_eq!(
         cases.iter().map(BenchmarkCase::name).collect::<Vec<_>>(),
         [
@@ -1149,6 +1149,7 @@ fn built_in_matrix_passes_all_forty_six_cells() {
             "font-size-change-only",
             "page-size-change-only",
             "text-replacement",
+            "paragraph-rewrite-low-overlap",
             "text-insertion",
             "text-deletion",
             "number-replacement",
@@ -1172,18 +1173,20 @@ fn built_in_matrix_passes_all_forty_six_cells() {
             let record = evaluate_case(case, renderer).expect("evaluation completes");
             assert!(record.passed, "{}", record.detail);
             assert!(record.extraction_complete);
-            assert!(record.comparison_complete);
-            assert_eq!(record.old_coverage, Some(1.0));
-            assert_eq!(record.new_coverage, Some(1.0));
+            if case.plan().expectation().proven_regions().is_empty() {
+                assert!(record.comparison_complete);
+                assert_eq!(record.old_coverage, Some(1.0));
+                assert_eq!(record.new_coverage, Some(1.0));
+            }
             count += 1;
         }
     }
 
-    assert_eq!(count, 46);
+    assert_eq!(count, 48);
 }
 
 #[test]
-fn verify_command_prints_a_passing_forty_six_cell_matrix() {
+fn verify_command_prints_a_passing_forty_eight_cell_matrix() {
     let output = Command::new(env!("CARGO_BIN_EXE_pdfbench"))
         .arg("verify")
         .output()
@@ -1197,7 +1200,7 @@ fn verify_command_prints_a_passing_forty_six_cell_matrix() {
             .lines()
             .filter(|line| line.starts_with("PASS "))
             .count(),
-        46
+        48
     );
     assert!(
         stdout
@@ -1208,9 +1211,9 @@ fn verify_command_prints_a_passing_forty_six_cell_matrix() {
     assert!(
         stdout
             .lines()
-            .any(|line| line == "generated precision evaluated=46/46 complete events=26/26 reported=26 p=1.000 r=1.000 f1=1.000 tokens=tp:858,fp:0,fn:0 p=1.000 r=1.000 f1=1.000 fp_tokens_per_10k_unchanged=0.000")
+            .any(|line| line == "generated precision evaluated=48/48 complete events=26/26 reported=26 p=1.000 r=1.000 f1=1.000 tokens=tp:858,fp:0,fn:0 p=1.000 r=1.000 f1=1.000 fp_tokens_per_10k_unchanged=0.000")
     );
-    assert_eq!(stdout.lines().last(), Some("46/46 passed"));
+    assert_eq!(stdout.lines().last(), Some("48/48 passed"));
 }
 
 #[test]
@@ -1246,11 +1249,11 @@ fn candidates_command_prints_records_and_summary() {
             .lines()
             .filter(|line| line.starts_with("OK case="))
             .count(),
-        46
+        48
     );
     assert_eq!(
         stdout.lines().last(),
-        Some("46/46 candidate evaluations OK")
+        Some("48/48 candidate evaluations OK")
     );
 }
 
@@ -1298,7 +1301,7 @@ fn candidates_command_writes_a_create_new_json_artifact() {
 
     let json = std::fs::read_to_string(&path).expect("json artifact exists");
     let records: serde_json::Value = serde_json::from_str(&json).expect("json artifact parses");
-    assert_eq!(records.as_array().expect("artifact is an array").len(), 46);
+    assert_eq!(records.as_array().expect("artifact is an array").len(), 48);
     assert_eq!(records[0]["renderer"], "lopdf-tj");
     assert_eq!(records[0]["top_k"], serde_json::json!([5, 10]));
 

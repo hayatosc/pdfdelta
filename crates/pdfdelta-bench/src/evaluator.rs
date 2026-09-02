@@ -5,7 +5,7 @@ use std::{
 
 use pdfdelta_core::{
     alignment::BlockSeparator,
-    diff::{Change, ChangeKind, TextSpan},
+    diff::{Change, ChangeKind, ChangedRegionProof, ProvenChangedRegion, TextSpan},
     layout::{BlockId, reconstruct_blocks, reconstruct_lines},
     model::{Document, Glyph, GlyphCropStatus, GlyphPathClipStatus, TextRenderMode},
     normalize::normalize_blocks,
@@ -270,6 +270,12 @@ pub fn evaluate_rendered(
         &old_index,
         &new_index,
     );
+    let expected_presence = matches_presence_expectation(
+        expected,
+        &outcome.comparison.proven_changed_regions,
+        &old_index,
+        &new_index,
+    );
     let precision = generated_precision_metrics(
         expected,
         &outcome.comparison.changes,
@@ -278,20 +284,21 @@ pub fn evaluate_rendered(
         canonical_scalar_len(old_plan),
         canonical_scalar_len(new_plan),
     );
+    let exact_resolution_required = expected.proven_regions().is_empty();
     let passed = extraction_complete
-        && summary.comparison_complete
-        && full_old_coverage
-        && full_new_coverage
-        && expected_change;
+        && (!exact_resolution_required
+            || (summary.comparison_complete && full_old_coverage && full_new_coverage))
+        && expected_change
+        && expected_presence;
 
     let mut failures = Vec::new();
     if !extraction_complete {
         failures.push("extraction is incomplete".to_owned());
     }
-    if !summary.comparison_complete {
+    if exact_resolution_required && !summary.comparison_complete {
         failures.push("comparison is incomplete".to_owned());
     }
-    if !full_old_coverage || !full_new_coverage {
+    if exact_resolution_required && (!full_old_coverage || !full_new_coverage) {
         failures.push(format!(
             "coverage is old={} new={}",
             coverage_label(outcome.comparison.old_coverage.ratio),
@@ -305,6 +312,14 @@ pub fn evaluate_rendered(
             expected.changes(),
             actual_label(&actual_kinds),
             outcome.comparison.changes,
+        ));
+    }
+    if !expected_presence {
+        failures.push(format!(
+            "expected {} at {:?}, observed {} proven changed regions",
+            expected.label(),
+            expected.proven_regions(),
+            outcome.comparison.proven_changed_regions.len(),
         ));
     }
 
@@ -322,7 +337,11 @@ pub fn evaluate_rendered(
         precision,
         passed,
         detail: if failures.is_empty() {
-            "matched expectation with complete extraction and coverage".to_owned()
+            if exact_resolution_required {
+                "matched expectation with complete extraction and coverage".to_owned()
+            } else {
+                "matched proven changed-region expectation with complete extraction".to_owned()
+            }
         } else {
             failures.join("; ")
         },
@@ -344,8 +363,12 @@ fn generated_precision_metrics(
     let token_metrics_complete = actual_old.is_some() && actual_new.is_some();
     let actual_old = actual_old.unwrap_or_default();
     let actual_new = actual_new.unwrap_or_default();
-    let expected_old = selected_expected_spans(expected, &actual_old, |change| change.old_spans());
-    let expected_new = selected_expected_spans(expected, &actual_new, |change| change.new_spans());
+    let expected_old = selected_expected_spans(expected.exact_changes(), &actual_old, |change| {
+        change.old_spans()
+    });
+    let expected_new = selected_expected_spans(expected.exact_changes(), &actual_new, |change| {
+        change.new_spans()
+    });
     let actual_old = merge_spans(actual_old);
     let actual_new = merge_spans(actual_new);
     let expected_old = merge_spans(expected_old);
@@ -357,7 +380,7 @@ fn generated_precision_metrics(
     let expected_total_tokens = old_total_tokens.saturating_add(new_total_tokens);
     PrecisionCounts {
         reported_events: actual.len(),
-        expected_events: expected.changes().len(),
+        expected_events: expected.exact_changes().len(),
         matched_events: matched_event_count(expected, actual, old_index, new_index),
         changed_token_true_positives,
         changed_token_false_positives: actual_changed_tokens
@@ -383,12 +406,11 @@ fn projected_actual_spans(
 }
 
 fn selected_expected_spans(
-    expected: &ExpectedManifest,
+    expected: &[ExpectedSemanticChange],
     actual: &[ProjectedSpan],
     side: for<'a> fn(&'a ExpectedSemanticChange) -> &'a [ExpectedCanonicalSpan],
 ) -> Vec<ProjectedSpan> {
     expected
-        .changes()
         .iter()
         .filter_map(|change| select_expected_span(side(change), actual))
         .collect()
@@ -497,8 +519,32 @@ fn matches_expectation(
     old_index: &CanonicalDocumentIndex,
     new_index: &CanonicalDocumentIndex,
 ) -> bool {
-    expected.changes().len() == actual.len()
+    expected.exact_changes().len() == actual.len()
         && matched_event_count(expected, actual, old_index, new_index) == actual.len()
+}
+
+fn matches_presence_expectation(
+    expected: &ExpectedManifest,
+    actual: &[ProvenChangedRegion],
+    old_index: &CanonicalDocumentIndex,
+    new_index: &CanonicalDocumentIndex,
+) -> bool {
+    let expected = expected.proven_regions();
+    let edges = expected
+        .iter()
+        .map(|expected_region| {
+            actual
+                .iter()
+                .enumerate()
+                .filter_map(|(index, actual_region)| {
+                    proven_region_matches(expected_region, actual_region, old_index, new_index)
+                        .then_some(index)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    expected.len() == actual.len()
+        && maximum_cardinality_matching(&edges, actual.len()) == actual.len()
 }
 
 fn matched_event_count(
@@ -508,7 +554,7 @@ fn matched_event_count(
     new_index: &CanonicalDocumentIndex,
 ) -> usize {
     let edges = expected
-        .changes()
+        .exact_changes()
         .iter()
         .map(|expected_change| {
             actual
@@ -522,6 +568,24 @@ fn matched_event_count(
         })
         .collect::<Vec<_>>();
     maximum_cardinality_matching(&edges, actual.len())
+}
+
+fn proven_region_matches(
+    expected: &ExpectedSemanticChange,
+    actual: &ProvenChangedRegion,
+    old_index: &CanonicalDocumentIndex,
+    new_index: &CanonicalDocumentIndex,
+) -> bool {
+    let proof_matches = match expected.kind() {
+        ChangeKind::Replacement => actual.proof == ChangedRegionProof::ExactTokenMultisetMismatch,
+        ChangeKind::Insertion | ChangeKind::Deletion => {
+            actual.proof == ChangedRegionProof::OneSidedNonEmptyRange
+        }
+        ChangeKind::Move => false,
+    };
+    proof_matches
+        && presence_side_span_matches(expected.old_spans(), actual.old_span.as_ref(), old_index)
+        && presence_side_span_matches(expected.new_spans(), actual.new_span.as_ref(), new_index)
 }
 
 fn maximum_cardinality_matching(edges: &[Vec<usize>], right_count: usize) -> usize {
@@ -609,6 +673,22 @@ fn side_span_matches(
             expected.iter().any(|expected| {
                 canonical_span_iou(*expected, actual) >= EXPECTED_SPAN_IOU_THRESHOLD
             })
+        }),
+        (true, Some(_)) | (false, None) => false,
+    }
+}
+
+fn presence_side_span_matches(
+    expected: &[ExpectedCanonicalSpan],
+    actual: Option<&TextSpan>,
+    index: &CanonicalDocumentIndex,
+) -> bool {
+    match (expected.is_empty(), actual) {
+        (true, None) => true,
+        (false, Some(actual)) => global_span(actual, index).is_some_and(|actual| {
+            expected
+                .iter()
+                .any(|expected| actual.start <= expected.start() && expected.end() <= actual.end)
         }),
         (true, Some(_)) | (false, None) => false,
     }
@@ -1015,6 +1095,67 @@ mod tests {
         });
 
         assert!(!change_matches(&expected, &actual, &old_index, &new_index));
+    }
+
+    #[test]
+    fn proven_region_expectation_requires_one_containing_context_envelope() {
+        let old_index =
+            map_canonical_blocks("abcd", [(BlockId(1), "abcd".to_owned())]).expect("old index");
+        let new_index =
+            map_canonical_blocks("wxyz", [(BlockId(2), "wxyz".to_owned())]).expect("new index");
+        let expected = ExpectedManifest::one_proven_region(
+            ExpectedSemanticChange::new(
+                ChangeKind::Replacement,
+                vec![ExpectedCanonicalSpan::new(1, 3).expect("old expected span")],
+                vec![ExpectedCanonicalSpan::new(1, 3).expect("new expected span")],
+            )
+            .expect("valid expectation"),
+        );
+        let actual = ProvenChangedRegion {
+            old_span: Some(single_block_span(1, 0, 4)),
+            new_span: Some(single_block_span(2, 0, 4)),
+            proof: ChangedRegionProof::ExactTokenMultisetMismatch,
+            confidence: Confidence::High,
+        };
+
+        assert!(matches_presence_expectation(
+            &expected,
+            std::slice::from_ref(&actual),
+            &old_index,
+            &new_index,
+        ));
+        let mut too_narrow = actual.clone();
+        too_narrow.old_span = Some(single_block_span(1, 2, 4));
+        assert!(!matches_presence_expectation(
+            &expected,
+            &[too_narrow],
+            &old_index,
+            &new_index,
+        ));
+
+        assert!(!matches_presence_expectation(
+            &expected,
+            &[actual.clone(), actual],
+            &old_index,
+            &new_index,
+        ));
+    }
+
+    #[test]
+    fn exact_expectations_reject_unexpected_presence_proofs() {
+        let actual = ProvenChangedRegion {
+            old_span: None,
+            new_span: None,
+            proof: ChangedRegionProof::ExactTokenMultisetMismatch,
+            confidence: Confidence::High,
+        };
+
+        assert!(!matches_presence_expectation(
+            &ExpectedManifest::none(),
+            &[actual],
+            &CanonicalDocumentIndex::empty(),
+            &CanonicalDocumentIndex::empty(),
+        ));
     }
 
     #[test]

@@ -32,6 +32,11 @@ impl BenchmarkCase {
     pub fn plan(&self) -> &MutationPlan {
         &self.plan
     }
+
+    pub fn expecting_proven_changed_region(mut self) -> Result<Self> {
+        self.plan = self.plan.expect_proven_changed_region()?;
+        Ok(self)
+    }
 }
 
 pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
@@ -145,6 +150,31 @@ pub fn built_in_cases() -> Result<Vec<BenchmarkCase>> {
             },
             30,
         )?,
+        BenchmarkCase::new(
+            "paragraph-rewrite-low-overlap",
+            document(&[
+                ("heading", "Section 7 Adaptive Resilience"),
+                (
+                    "opening",
+                    "The following requirement has stable unique context",
+                ),
+                (
+                    "target",
+                    "This requirement states legacy operators classify perimeter incidents",
+                ),
+                (
+                    "closing",
+                    "The next requirement retains its stable unique context",
+                ),
+            ])?,
+            Mutation::TextReplace {
+                paragraph_id: "target".to_owned(),
+                new_text: "This requirement states modern teams coordinate service resilience"
+                    .to_owned(),
+            },
+            30,
+        )?
+        .expecting_proven_changed_region()?,
         BenchmarkCase::new(
             "text-insertion",
             document(&[
@@ -429,4 +459,32 @@ fn validate_case_name(name: &str) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use pdfdelta_core::diff::ChangeKind;
+
+    use super::*;
+    #[test]
+    fn low_overlap_paragraph_rewrite_has_one_presence_replacement() {
+        let case = built_in_cases()
+            .expect("built-in cases are valid")
+            .into_iter()
+            .find(|case| case.name() == "paragraph-rewrite-low-overlap")
+            .expect("low-overlap paragraph rewrite is listed");
+        let plan = case.plan();
+        let expected = plan.expectation().changes();
+        assert_eq!(expected.len(), 1);
+        assert_eq!(expected[0].kind(), ChangeKind::Replacement);
+        assert!(plan.expectation().exact_changes().is_empty());
+        assert_eq!(plan.expectation().proven_regions(), expected);
+
+        let old_target = &plan.old_paragraphs()[2];
+        let new_target = &plan.new_paragraphs()[2];
+        let old_span = expected[0].old_spans()[0];
+        let new_span = expected[0].new_spans()[0];
+        assert!(old_target.start() <= old_span.start() && old_span.end() <= old_target.end());
+        assert!(new_target.start() <= new_span.start() && new_span.end() <= new_target.end());
+    }
 }

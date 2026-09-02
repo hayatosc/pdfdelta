@@ -486,6 +486,13 @@ impl ExpectedSemanticChange {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExpectedManifest {
     changes: Vec<ExpectedSemanticChange>,
+    evidence: ExpectedEvidence,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExpectedEvidence {
+    ExactChangeEvents,
+    ProvenChangedRegions,
 }
 
 impl ExpectedManifest {
@@ -496,18 +503,30 @@ impl ExpectedManifest {
                 crate::canonical::MAX_PARAGRAPHS
             )));
         }
-        Ok(Self { changes })
+        Ok(Self {
+            changes,
+            evidence: ExpectedEvidence::ExactChangeEvents,
+        })
     }
 
     pub fn none() -> Self {
         Self {
             changes: Vec::new(),
+            evidence: ExpectedEvidence::ExactChangeEvents,
         }
     }
 
     pub fn one(change: ExpectedSemanticChange) -> Self {
         Self {
             changes: vec![change],
+            evidence: ExpectedEvidence::ExactChangeEvents,
+        }
+    }
+
+    pub fn one_proven_region(change: ExpectedSemanticChange) -> Self {
+        Self {
+            changes: vec![change],
+            evidence: ExpectedEvidence::ProvenChangedRegions,
         }
     }
 
@@ -515,7 +534,24 @@ impl ExpectedManifest {
         &self.changes
     }
 
+    pub fn exact_changes(&self) -> &[ExpectedSemanticChange] {
+        match self.evidence {
+            ExpectedEvidence::ExactChangeEvents => &self.changes,
+            ExpectedEvidence::ProvenChangedRegions => &[],
+        }
+    }
+
+    pub fn proven_regions(&self) -> &[ExpectedSemanticChange] {
+        match self.evidence {
+            ExpectedEvidence::ExactChangeEvents => &[],
+            ExpectedEvidence::ProvenChangedRegions => &self.changes,
+        }
+    }
+
     pub fn label(&self) -> String {
+        if self.evidence == ExpectedEvidence::ProvenChangedRegions {
+            return "proven-changed-region".to_owned();
+        }
         match self.changes.as_slice() {
             [] => "none".to_owned(),
             [change] => change_kind_name(change.kind).to_owned(),
@@ -586,6 +622,16 @@ impl MutationPlan {
 
     pub fn new_plan(&self) -> &RenderPlan {
         &self.new
+    }
+
+    pub fn expect_proven_changed_region(mut self) -> Result<Self> {
+        let [change] = self.expectation.changes.as_slice() else {
+            return Err(BenchError::InvalidInput(
+                "proven-region fixtures require exactly one expected change".to_owned(),
+            ));
+        };
+        self.expectation = ExpectedManifest::one_proven_region(change.clone());
+        Ok(self)
     }
 
     pub const fn expectation(&self) -> &ExpectedManifest {
