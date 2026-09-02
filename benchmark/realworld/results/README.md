@@ -4,19 +4,22 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 
 ## Latest Capture
 
-- **Capture date**: 2026-09-02
-- **Generator / engine commit**: [`5ed948e`](https://github.com/hayatosc/pdfdelta/commit/5ed948e)
+- **Capture date**: 2026-09-03
+- **Generator / engine commit**: [`6390d01`](https://github.com/hayatosc/pdfdelta/commit/6390d01)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-02-5ed948e.json`](2026-09-02-5ed948e.json)
-  - Schema: v61
-  - Size: 8,435,807 bytes
-  - SHA-256: `81d4d2595067dee572402ecd16c298ecf2d370d56443f61465c187788172f9ba`
+  - File: [`2026-09-03-6390d01.json`](2026-09-03-6390d01.json)
+  - Schema: v62
+  - Size: 8,470,010 bytes
+  - SHA-256: `dd0b7559560584120c3954cdff50efa93468442e666162b8216066c47bf96335`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
+
+**Schema parity**: PASS against `2026-09-02-5ed948e.json` after excluding only
+`section_pairing_shadow` and the schema number.
 
 ## Reproduction
 
@@ -26,9 +29,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-02-5ed948e.json \
+cp benchmark/realworld/results/2026-09-03-6390d01.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 5ed948e
+git switch --detach 6390d01
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -44,9 +47,9 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-09-02-869421f.json \
   benchmark/realworld/results/2026-09-02-5ed948e.json \
-  structural_container_shadow
+  benchmark/realworld/results/2026-09-03-6390d01.json \
+  section_pairing_shadow
 ```
 
 The preceding exact-boundary capture can be checked in the same way:
@@ -132,6 +135,34 @@ at 1/3 presence because none of its unmatched rewrites satisfies the current
 conservative anchor-window proof.
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
+Schema v62 adds a behavior-neutral full-document section-pairing shadow, gated
+on the verified recovery-ownership sidecar and reported alongside the
+schema-v61 structural-container inventory. The two diagnostics have separate
+populations and counters. All 18 applicable section-pairing diagnostics
+complete without a stop; the remaining records have no applicable recovery
+ownership sidecar.
+Removing `schema_version` and `section_pairing_shadow` yields exact JSON parity
+with `2026-09-02-5ed948e.json`.
+
+The completed shadows pair 1,702 exact headings and 30 headings matched after
+stripping their numbering. They classify 342 pairs as strong and 1,390 as
+number-only. Strong-pair topology is conservative: 157 pairs are monotone,
+none is crossing, and 185 remain topology-unknown. Strong paragraph gaps
+contain 125 changed one-to-one candidates, but only 15 place both paragraphs in
+the same unresolved span. The number-only view contains 106 changed one-to-one
+candidates, 42 of them in the same unresolved span.
+
+The strong same-unresolved evidence does not yet justify a behavior change.
+Among development pairs, only W3C WS-Policy and ECMA-109 expose one such
+candidate each. The fully reviewed W3C scope already detects every expected
+change. ECMA's remaining reviewed miss is the 28-occurrence repeated-footer
+year replacement, while schema v62 records aggregate counts rather than source
+ranges or occurrence identity, so it cannot prove that the candidate is that
+footer change. FIPS 186 and SP 800-57 have same-unresolved candidates only in
+the number-only view, and NIST CSF has no section pairs. Candidate-level ranges
+and deterministic review evidence are required before any section-pairing
+proposal is promoted to comparison behavior.
+
 Schema v61 adds a behavior-neutral structural-container inventory over verified
 recovery ownership. All 18 applicable recovery builds complete without a stop;
 the extraction-complete GCC pair has no sentence-recovery ownership partition,
@@ -1000,12 +1031,20 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v61)
+## Current Writer Schema (v62)
 
-The benchmark writer and latest committed capture use schema v61. Older
-captures retain their recorded schemas. Schema v61 records behavior-neutral,
-bounded structural-container diagnostics derived from verified recovery
-ownership. Removing `structural_container_shadow` and the schema number yields
+The benchmark writer and latest committed capture use schema v62. Older
+captures retain their recorded schemas. Schema v62 records a bounded, atomic,
+behavior-neutral full-document section-pairing shadow gated on the verified
+recovery-ownership sidecar and reported alongside the schema-v61
+structural-container inventory. Their populations and counters are separate.
+The section-pairing shadow separates strong and number-only heading and
+paragraph views, validates their parent, topology, membership, anchor, gap, and
+work partitions, and does not change comparison behavior. Removing
+`section_pairing_shadow` and the schema number yields exact parity with schema
+v61. Schema v61 records behavior-neutral, bounded structural-container
+diagnostics derived from verified recovery ownership. Removing
+`structural_container_shadow` and the schema number yields
 exact parity with the schema-v60 capture. Schema v60 records conservative,
 anchor-bounded content-presence proofs and keeps them separate from exact
 `ChangeEvent` output and unresolved regions. It also reports reviewed content
@@ -1342,6 +1381,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-09-02-5ed948e.json`](2026-09-02-5ed948e.json): schema-v61 structural-container inventory before section-pairing diagnostics.
 - [`2026-09-02-f46b9c4.json`](2026-09-02-f46b9c4.json): corrected schema-v59 ECMA annotation baseline before anchor-bounded content-presence proofs.
 - [`2026-09-02-06c6a18.json`](2026-09-02-06c6a18.json): schema-v59 paired-stream sequence-relation shadow before the ECMA annotation correction.
 - [`2026-09-02-47e699a.json`](2026-09-02-47e699a.json): schema-v57 reviewed wrong-kind matching after requiring source-backed atomic evidence, before exact source-range topology diagnostics.
