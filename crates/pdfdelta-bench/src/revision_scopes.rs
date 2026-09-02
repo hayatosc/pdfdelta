@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use pdfdelta_core::diff::ChangeOrigin;
 use pdfdelta_core::{
     alignment::BlockSeparator,
-    diff::{Change, RecoveredAtomicDiff, TextSpan, TokenRange},
+    diff::{Change, ProvenChangedRegion, RecoveredAtomicDiff, TextSpan, TokenRange},
     layout::BlockId,
     normalize::{BlockText, ComparableToken, ScalarRange},
 };
@@ -185,6 +185,12 @@ pub(super) struct ResolvedScope {
 pub(super) struct ScopedChange {
     pub(super) scope_id: String,
     pub(super) change_index: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ScopedProvenChangedRegion {
+    pub(super) scope_id: String,
+    pub(super) region_index: usize,
 }
 
 fn block_order(
@@ -591,6 +597,48 @@ pub(super) fn classify_scoped_changes(
         new_blocks,
         ClassificationLimits::default(),
     )
+}
+
+/// Classifies proven changed regions only when every present side is wholly
+/// contained by the same reviewed scope.
+pub(super) fn classify_scoped_proven_changed_regions(
+    regions: &[ProvenChangedRegion],
+    scopes: &[ResolvedScope],
+    old_blocks: &[BlockText],
+    new_blocks: &[BlockText],
+) -> Result<Vec<ScopedProvenChangedRegion>, String> {
+    let limits = ClassificationLimits::default();
+    let mut budget = ClassificationBudget::default();
+    let old_order = classification_block_order(old_blocks, &mut budget, limits)?;
+    let new_order = classification_block_order(new_blocks, &mut budget, limits)?;
+    let mut classified = Vec::new();
+    for (region_index, region) in regions.iter().enumerate() {
+        budget.charge_work(1, limits)?;
+        let mut region_scope = None;
+        let mut outside = false;
+        for (side, span, blocks, order) in [
+            ("old", region.old_span.as_ref(), old_blocks, &old_order),
+            ("new", region.new_span.as_ref(), new_blocks, &new_order),
+        ] {
+            let Some(span) = span else { continue };
+            let range = span_range_with_limits(span, blocks, order, &mut budget, limits)?;
+            let scope = containing_scope(range, scopes, side, &mut budget, limits)?;
+            match (region_scope, scope, outside) {
+                (None, Some(scope), false) => region_scope = Some(scope),
+                (Some(current), Some(scope), _) if current == scope => {}
+                (None, None, _) => outside = true,
+                _ => return Err(SCOPED_CHANGE_INDETERMINATE.to_owned()),
+            }
+        }
+        if let Some(scope_id) = region_scope {
+            budget.charge_output(limits)?;
+            classified.push(ScopedProvenChangedRegion {
+                scope_id: scope_id.to_owned(),
+                region_index,
+            });
+        }
+    }
+    Ok(classified)
 }
 
 fn classify_scoped_changes_with_limits(
@@ -2556,6 +2604,76 @@ mod tests {
                     change_index: 3,
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn classifies_proven_regions_only_when_all_sides_share_one_scope() {
+        let old = [block(1, "outside reviewed outside")];
+        let new = [block(2, "outside reviewed outside")];
+        let scopes = [ResolvedScope {
+            id: "body".to_owned(),
+            old: ResolvedScopeRange {
+                start: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: 8,
+                },
+                end: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: 15,
+                },
+            },
+            new: ResolvedScopeRange {
+                start: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: 8,
+                },
+                end: ScopeCoordinate {
+                    block_order: 0,
+                    scalar: 15,
+                },
+            },
+        }];
+        let region = |old_span: Option<TextSpan>, new_span: Option<TextSpan>| ProvenChangedRegion {
+            proof: if old_span.is_some() && new_span.is_some() {
+                pdfdelta_core::diff::ChangedRegionProof::ExactTokenMultisetMismatch
+            } else {
+                pdfdelta_core::diff::ChangedRegionProof::OneSidedNonEmptyRange
+            },
+            old_span,
+            new_span,
+            confidence: pdfdelta_core::diff::Confidence::High,
+        };
+        let regions = [
+            region(Some(span(1, 8, 16)), Some(span(2, 8, 16))),
+            region(None, Some(span(2, 9, 10))),
+            region(Some(span(1, 0, 7)), Some(span(2, 0, 7))),
+        ];
+        let classified = classify_scoped_proven_changed_regions(&regions, &scopes, &old, &new)
+            .expect("valid coordinates classify");
+        assert_eq!(
+            classified,
+            [
+                ScopedProvenChangedRegion {
+                    scope_id: "body".to_owned(),
+                    region_index: 0,
+                },
+                ScopedProvenChangedRegion {
+                    scope_id: "body".to_owned(),
+                    region_index: 1,
+                },
+            ]
+        );
+
+        let mismatched = [region(Some(span(1, 0, 7)), Some(span(2, 8, 16)))];
+        assert_eq!(
+            classify_scoped_proven_changed_regions(&mismatched, &scopes, &old, &new),
+            Err(SCOPED_CHANGE_INDETERMINATE.to_owned())
+        );
+        let crossing = [region(Some(span(1, 7, 9)), None)];
+        assert_eq!(
+            classify_scoped_proven_changed_regions(&crossing, &scopes, &old, &new),
+            Err(SCOPED_CHANGE_INDETERMINATE.to_owned())
         );
     }
 

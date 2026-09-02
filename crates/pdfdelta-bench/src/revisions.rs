@@ -22,7 +22,7 @@ use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
         ChangeKind, ChangeOccurrence, ChangeOrigin, ChangeOriginMetric, ChangeOriginMetrics,
-        Comparison, ExactSegmentRelation, ExactTailRecoveryStopReason,
+        ChangedRegionProof, Comparison, ExactSegmentRelation, ExactTailRecoveryStopReason,
         KnownSpanSentenceShadowMetrics, LocalFragmentExactBoundaryTrieShadowMetrics,
         LocalFragmentFlatExactBoundaryShadowMetrics, LocalFragmentFlatExactBoundaryStopReason,
         LocalFragmentFlatExactBoundaryWorkMetrics, LocalFragmentGlobalLengthAwareShadowMetrics,
@@ -100,8 +100,8 @@ use fragment_review::{
 };
 use revision_diagnostics::{ComparisonDiagnosticInput, evaluate_reviewed_diagnostics};
 use revision_scopes::{
-    SCOPED_CHANGE_INDETERMINATE, classify_scoped_changes, evaluate_scoped_token_metrics,
-    resolve_revision_scopes, validate_scoped_expected_changes,
+    SCOPED_CHANGE_INDETERMINATE, classify_scoped_changes, classify_scoped_proven_changed_regions,
+    evaluate_scoped_token_metrics, resolve_revision_scopes, validate_scoped_expected_changes,
 };
 
 pub const QUALITY_SKIP_RESOURCE_LIMIT: &str = "comparison stopped at a resource limit";
@@ -240,6 +240,23 @@ pub struct QualityMetrics {
     pub unmatched_tiny_changes: usize,
     /// Occurrences with at least one existing side that could not be resolved.
     pub unresolvable_reported_spans: usize,
+}
+
+/// One independently defined reviewed-recall dimension.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct ReviewedRecallMetric {
+    pub expected: usize,
+    pub detected: usize,
+    pub recall: Option<f64>,
+}
+
+/// Reviewed recall split by the strength and kind of evidence produced.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct ReviewedRecallMetrics {
+    pub content_presence_recall: ReviewedRecallMetric,
+    pub exact_localization_recall: ReviewedRecallMetric,
+    pub semantic_relation_recall: ReviewedRecallMetric,
+    pub move_recall: ReviewedRecallMetric,
 }
 
 /// Event-level quality over fully reviewed scopes only.
@@ -4685,6 +4702,9 @@ pub struct PairRunReport {
     pub reported_changes_preview: Vec<ReportedChangeText>,
     pub quality: Option<QualityMetrics>,
     pub quality_skipped_reason: Option<String>,
+    /// Recall dimensions are published by the versioned compact summary.
+    #[serde(skip)]
+    pub reviewed_recall_metrics: Option<ReviewedRecallMetrics>,
     /// Scoped event quality is published only in compact summaries;
     /// the unversioned full-report v1 key set remains unchanged.
     #[serde(skip)]
@@ -5036,6 +5056,271 @@ struct MatchOutcome {
     claimed_actuals: HashSet<usize>,
     claimed_actual_by_expected: Vec<Option<usize>>,
     occurrence_count_mismatch_by_expected: Vec<Option<(usize, usize)>>,
+}
+
+#[derive(Clone, Copy)]
+enum ReviewedEventMode {
+    Presence,
+    ExactLocalization,
+    SemanticRelation,
+    Move,
+}
+
+#[derive(Clone, Debug)]
+struct ActualProvenChangedRegion {
+    old_text: Option<String>,
+    new_text: Option<String>,
+    proof: ChangedRegionProof,
+}
+
+type ReviewedEventEdges = (Vec<usize>, Vec<Vec<(usize, MatchCost)>>);
+
+fn expected_has_exact_localization(change: &ExpectedChange, annotation: Annotation) -> bool {
+    let side_is_exact =
+        |context: &Option<String>, changed: &Option<String>, ranges: &Option<Vec<_>>| {
+            context.is_none() || changed.is_some() || ranges.is_some()
+        };
+    let complete_context = annotation != Annotation::Partial || change.scope.is_some();
+    change.kind != ExpectedKind::Move
+        && (complete_context
+            || change.old_changed_quote.is_some()
+            || change.new_changed_quote.is_some()
+            || change.old_changed_ranges.is_some()
+            || change.new_changed_ranges.is_some())
+        && (complete_context
+            || side_is_exact(
+                &change.old_quote,
+                &change.old_changed_quote,
+                &change.old_changed_ranges,
+            ))
+        && (complete_context
+            || side_is_exact(
+                &change.new_quote,
+                &change.new_changed_quote,
+                &change.new_changed_ranges,
+            ))
+}
+
+fn reviewed_mode_includes(
+    change: &ExpectedChange,
+    mode: ReviewedEventMode,
+    annotation: Annotation,
+) -> bool {
+    match mode {
+        ReviewedEventMode::Presence | ReviewedEventMode::SemanticRelation => {
+            change.kind != ExpectedKind::Move
+        }
+        ReviewedEventMode::ExactLocalization => expected_has_exact_localization(change, annotation),
+        ReviewedEventMode::Move => change.kind == ExpectedKind::Move,
+    }
+}
+
+fn occurrence_matches_context(
+    occurrence: &ActualChangeOccurrence,
+    needles: &NormalizedExpectedQuotes,
+) -> bool {
+    occurrence.resolvable
+        && contains_needle(
+            occurrence
+                .old_relation_context
+                .as_deref()
+                .or(occurrence.old_text.as_deref()),
+            needles.old_context.as_deref(),
+        )
+        && contains_needle(
+            occurrence
+                .new_relation_context
+                .as_deref()
+                .or(occurrence.new_text.as_deref()),
+            needles.new_context.as_deref(),
+        )
+}
+
+fn exact_localization_side_matches(
+    occurrence: &ActualChangeOccurrence,
+    needles: &NormalizedExpectedQuotes,
+    old_side: bool,
+) -> bool {
+    let (context, changed, range_fragments, text) = if old_side {
+        (
+            needles.old_context.as_deref(),
+            needles.old_changed.as_deref(),
+            needles.old_changed_range_fragments.as_deref(),
+            occurrence.old_text.as_deref(),
+        )
+    } else {
+        (
+            needles.new_context.as_deref(),
+            needles.new_changed.as_deref(),
+            needles.new_changed_range_fragments.as_deref(),
+            occurrence.new_text.as_deref(),
+        )
+    };
+    let relation_context = if old_side {
+        occurrence.old_relation_context.as_deref()
+    } else {
+        occurrence.new_relation_context.as_deref()
+    };
+    if !contains_needle(relation_context.or(text), context) {
+        return false;
+    }
+    if context.is_none() && changed.is_none() && range_fragments.is_none() {
+        return text.is_none_or(str::is_empty);
+    }
+    if let Some(expected) = range_fragments {
+        if expected.is_empty() {
+            return text.is_none_or(str::is_empty);
+        }
+        let Some(hunks) = occurrence.semantic_hunks.as_deref() else {
+            return false;
+        };
+        let actual = hunks
+            .iter()
+            .flat_map(|hunk| hunk.atomic_fragments.as_deref().unwrap_or_default())
+            .filter_map(|fragment| {
+                let (changed_tokens, _, text) = atomic_fragment_side(fragment, old_side);
+                (changed_tokens > 0).then_some(text)
+            })
+            .collect::<Vec<_>>();
+        return actual.len() == expected.len()
+            && actual
+                .iter()
+                .zip(expected)
+                .all(|(actual, expected)| *actual == expected);
+    }
+    let expected = changed.or(context);
+    expected.is_some_and(|expected| {
+        text == Some(expected)
+            || changed.is_some()
+                && occurrence.semantic_hunks.as_deref().is_some_and(|hunks| {
+                    hunks
+                        .iter()
+                        .filter_map(|hunk| {
+                            if old_side {
+                                hunk.old_text.as_deref()
+                            } else {
+                                hunk.new_text.as_deref()
+                            }
+                        })
+                        .eq(std::iter::once(expected))
+                })
+    })
+}
+
+fn occurrence_matches_exact_localization(
+    occurrence: &ActualChangeOccurrence,
+    needles: &NormalizedExpectedQuotes,
+) -> bool {
+    occurrence.resolvable
+        && exact_localization_side_matches(occurrence, needles, true)
+        && exact_localization_side_matches(occurrence, needles, false)
+}
+
+fn actual_matches_reviewed_mode(
+    expected: &ExpectedChange,
+    needles: &NormalizedExpectedQuotes,
+    actual: &ActualChange,
+    mode: ReviewedEventMode,
+    budget: &mut MatchingScanBudget,
+    limits: MatchingLimits,
+) -> MatchingResult<bool> {
+    let occurrence_matches = |occurrence: &ActualChangeOccurrence| match mode {
+        ReviewedEventMode::Presence => {
+            actual.kind != ChangeKind::Move && occurrence_matches_context(occurrence, needles)
+        }
+        ReviewedEventMode::ExactLocalization => {
+            occurrence_matches_exact_localization(occurrence, needles)
+        }
+        ReviewedEventMode::SemanticRelation | ReviewedEventMode::Move => {
+            expected.kind.agrees_with(actual.kind) && occurrence_matches_quotes(occurrence, needles)
+        }
+    };
+    let all = expected.occurrence_count.is_some();
+    if all && actual.occurrences.len() != expected.occurrence_count.unwrap_or_default() {
+        return Ok(false);
+    }
+    if actual.occurrences.is_empty() {
+        return Ok(false);
+    }
+    let mut matched = all;
+    for occurrence in &actual.occurrences {
+        budget.charge_occurrence(occurrence, needles, limits)?;
+        let current = occurrence_matches(occurrence);
+        if all && !current {
+            return Ok(false);
+        }
+        matched |= current;
+    }
+    Ok(matched)
+}
+
+fn reviewed_event_edges(
+    expected: &[ExpectedChange],
+    actuals: &[ActualChange],
+    actual_scopes: Option<&[Option<String>]>,
+    mode: ReviewedEventMode,
+    annotation: Annotation,
+    limits: MatchingLimits,
+) -> MatchingResult<ReviewedEventEdges> {
+    let expected_indices = expected
+        .iter()
+        .enumerate()
+        .filter_map(|(index, change)| {
+            reviewed_mode_includes(change, mode, annotation).then_some(index)
+        })
+        .collect::<Vec<_>>();
+    if expected_indices.len() > limits.max_events_per_side
+        || actuals.len() > limits.max_events_per_side
+    {
+        return Err(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT);
+    }
+    let mut edges = Vec::new();
+    edges
+        .try_reserve_exact(expected_indices.len())
+        .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+    let mut edge_checks = 0usize;
+    let mut candidate_edges = 0usize;
+    let mut scan_budget = MatchingScanBudget::default();
+    for &expected_index in &expected_indices {
+        let change = &expected[expected_index];
+        scan_budget.charge_expected_quotes(change, limits)?;
+        let needles = normalized_expected_quotes(change);
+        let mut expected_edges = Vec::new();
+        for (actual_index, actual) in actuals.iter().enumerate() {
+            edge_checks = edge_checks
+                .checked_add(1)
+                .filter(|checks| *checks <= limits.max_edge_checks)
+                .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+            if !scope_matches(change, actual_index, actual_scopes)
+                || !actual_matches_reviewed_mode(
+                    change,
+                    &needles,
+                    actual,
+                    mode,
+                    &mut scan_budget,
+                    limits,
+                )?
+            {
+                continue;
+            }
+            candidate_edges = candidate_edges
+                .checked_add(1)
+                .filter(|count| *count <= limits.max_candidate_edges)
+                .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+            expected_edges.push((
+                actual_index,
+                MatchCost([
+                    0,
+                    i128::from(change.occurrence_count.is_none()),
+                    expected_index.abs_diff(actual_index) as i128,
+                    expected_index as i128,
+                    actual_index as i128,
+                ]),
+            ));
+        }
+        edges.push(expected_edges);
+    }
+    Ok((expected_indices, edges))
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -5735,6 +6020,28 @@ fn resolve_span(map: &HashMap<u64, &BlockText>, span: &TextSpan) -> Option<(Stri
         .take(span.canonical_range.end - span.canonical_range.start)
         .collect();
     Some((selected, comparable_len))
+}
+
+fn flatten_proven_changed_regions(
+    comparison: &Comparison,
+    blocks_by_side: [&HashMap<u64, &BlockText>; 2],
+) -> Option<Vec<ActualProvenChangedRegion>> {
+    comparison
+        .proven_changed_regions
+        .iter()
+        .map(|region| {
+            let resolve = |side: usize, span: Option<&TextSpan>| match span {
+                Some(span) => resolve_span(blocks_by_side[side], span)
+                    .map(|(text, _)| Some(collapse_whitespace(&text))),
+                None => Some(None),
+            };
+            Some(ActualProvenChangedRegion {
+                old_text: resolve(0, region.old_span.as_ref())?,
+                new_text: resolve(1, region.new_span.as_ref())?,
+                proof: region.proof,
+            })
+        })
+        .collect()
 }
 
 fn resolve_atomic_text(
@@ -6906,6 +7213,204 @@ fn try_match_changes_with_scopes(
     match_changes_with_limits(expected, actuals, actual_scopes, MatchingLimits::default())
 }
 
+fn proven_region_matches_expected(
+    expected: &ExpectedChange,
+    needles: &NormalizedExpectedQuotes,
+    region: &ActualProvenChangedRegion,
+) -> bool {
+    if expected.occurrence_count.is_some_and(|count| count != 1) {
+        return false;
+    }
+    let shape_matches = match (expected.kind, region.proof) {
+        (ExpectedKind::Replacement, ChangedRegionProof::ExactTokenMultisetMismatch) => {
+            let Some(old_text) = region.old_text.as_deref() else {
+                return false;
+            };
+            let Some(new_text) = region.new_text.as_deref() else {
+                return false;
+            };
+            let Some(old_evidence) = needles.old_context.as_deref() else {
+                return false;
+            };
+            let Some(new_evidence) = needles.new_context.as_deref() else {
+                return false;
+            };
+            let counts = (
+                exact_source_evidence_count(old_text, old_evidence),
+                exact_source_evidence_count(new_text, old_evidence),
+                exact_source_evidence_count(old_text, new_evidence),
+                exact_source_evidence_count(new_text, new_evidence),
+            );
+            matches!(counts, (Some(old_old), Some(new_old), Some(old_new), Some(new_new))
+                if old_old > new_old && new_new > old_new)
+        }
+        (ExpectedKind::Insertion, ChangedRegionProof::OneSidedNonEmptyRange) => {
+            region.old_text.is_none() && region.new_text.is_some()
+        }
+        (ExpectedKind::Deletion, ChangedRegionProof::OneSidedNonEmptyRange) => {
+            region.old_text.is_some() && region.new_text.is_none()
+        }
+        _ => false,
+    };
+    shape_matches
+        && contains_needle(region.old_text.as_deref(), needles.old_context.as_deref())
+        && contains_needle(region.new_text.as_deref(), needles.new_context.as_deref())
+}
+
+fn exact_source_evidence_count(text: &str, evidence: &str) -> Option<usize> {
+    if evidence.is_empty() {
+        return None;
+    }
+    text.match_indices(evidence)
+        .try_fold(0usize, |count, _| count.checked_add(1))
+}
+
+fn matched_count_for_event_mode(
+    expected: &[ExpectedChange],
+    actuals: &[ActualChange],
+    actual_scopes: Option<&[Option<String>]>,
+    mode: ReviewedEventMode,
+    annotation: Annotation,
+    limits: MatchingLimits,
+) -> MatchingResult<ReviewedRecallMetric> {
+    let (expected_indices, edges) =
+        reviewed_event_edges(expected, actuals, actual_scopes, mode, annotation, limits)?;
+    let matching = preferred_maximum_matching(&edges, actuals.len(), limits)?;
+    let detected = matching.iter().flatten().count();
+    Ok(ReviewedRecallMetric {
+        expected: expected_indices.len(),
+        detected,
+        recall: ratio(detected, expected_indices.len()),
+    })
+}
+
+fn content_presence_metric(
+    expected: &[ExpectedChange],
+    actuals: &[ActualChange],
+    actual_scopes: Option<&[Option<String>]>,
+    proven: &[ActualProvenChangedRegion],
+    proven_scopes: Option<&[Option<String>]>,
+    annotation: Annotation,
+    limits: MatchingLimits,
+) -> MatchingResult<ReviewedRecallMetric> {
+    let (expected_indices, mut edges) = reviewed_event_edges(
+        expected,
+        actuals,
+        actual_scopes,
+        ReviewedEventMode::Presence,
+        annotation,
+        limits,
+    )?;
+    if actuals
+        .len()
+        .checked_add(proven.len())
+        .is_none_or(|count| count > limits.max_events_per_side)
+    {
+        return Err(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT);
+    }
+    let mut edge_checks = 0usize;
+    let mut candidate_edges = edges
+        .iter()
+        .try_fold(0usize, |total, candidates| {
+            total.checked_add(candidates.len())
+        })
+        .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+    let mut scan_budget = MatchingScanBudget::default();
+    for (edge_index, &expected_index) in expected_indices.iter().enumerate() {
+        let change = &expected[expected_index];
+        scan_budget.charge_expected_quotes(change, limits)?;
+        let needles = normalized_expected_quotes(change);
+        for (region_index, region) in proven.iter().enumerate() {
+            edge_checks = edge_checks
+                .checked_add(1)
+                .filter(|count| *count <= limits.max_edge_checks)
+                .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+            if !scope_matches(change, region_index, proven_scopes) {
+                continue;
+            }
+            scan_budget.charge_optional_texts(
+                region.old_text.as_deref(),
+                region.new_text.as_deref(),
+                limits,
+            )?;
+            if !proven_region_matches_expected(change, &needles, region) {
+                continue;
+            }
+            candidate_edges = candidate_edges
+                .checked_add(1)
+                .filter(|count| *count <= limits.max_candidate_edges)
+                .ok_or(QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+            let actual_index = actuals.len() + region_index;
+            edges[edge_index]
+                .try_reserve(1)
+                .map_err(|_| QUALITY_SKIP_MATCHING_RESOURCE_LIMIT)?;
+            edges[edge_index].push((
+                actual_index,
+                MatchCost([
+                    0,
+                    i128::from(change.occurrence_count.is_none()),
+                    expected_index.abs_diff(actual_index) as i128,
+                    expected_index as i128,
+                    actual_index as i128,
+                ]),
+            ));
+        }
+    }
+    let matching = preferred_maximum_matching(&edges, actuals.len() + proven.len(), limits)?;
+    let detected = matching.iter().flatten().count();
+    Ok(ReviewedRecallMetric {
+        expected: expected_indices.len(),
+        detected,
+        recall: ratio(detected, expected_indices.len()),
+    })
+}
+
+fn compute_reviewed_recall_metrics(
+    annotation: Annotation,
+    expected: &[ExpectedChange],
+    actuals: &[ActualChange],
+    actual_scopes: Option<&[Option<String>]>,
+    proven: &[ActualProvenChangedRegion],
+    proven_scopes: Option<&[Option<String>]>,
+) -> MatchingResult<ReviewedRecallMetrics> {
+    let limits = MatchingLimits::default();
+    Ok(ReviewedRecallMetrics {
+        content_presence_recall: content_presence_metric(
+            expected,
+            actuals,
+            actual_scopes,
+            proven,
+            proven_scopes,
+            annotation,
+            limits,
+        )?,
+        exact_localization_recall: matched_count_for_event_mode(
+            expected,
+            actuals,
+            actual_scopes,
+            ReviewedEventMode::ExactLocalization,
+            annotation,
+            limits,
+        )?,
+        semantic_relation_recall: matched_count_for_event_mode(
+            expected,
+            actuals,
+            actual_scopes,
+            ReviewedEventMode::SemanticRelation,
+            annotation,
+            limits,
+        )?,
+        move_recall: matched_count_for_event_mode(
+            expected,
+            actuals,
+            actual_scopes,
+            ReviewedEventMode::Move,
+            annotation,
+            limits,
+        )?,
+    })
+}
+
 fn match_changes_with_limits(
     expected: &[ExpectedChange],
     actuals: &[ActualChange],
@@ -7071,6 +7576,7 @@ struct CompleteScopeEvaluation {
     event_metrics: ScopedEventMetrics,
     token_metrics: ScopedTokenMetrics,
     actual_scopes: Vec<Option<String>>,
+    scopes: Vec<revision_scopes::ResolvedScope>,
 }
 
 fn evaluate_complete_scopes(
@@ -7123,7 +7629,57 @@ fn evaluate_complete_scopes(
         event_metrics,
         token_metrics,
         actual_scopes: all_actual_scopes,
+        scopes,
     })
+}
+
+fn scoped_proven_region_scopes(
+    comparison: &Comparison,
+    scopes: &[revision_scopes::ResolvedScope],
+    old_blocks: &[BlockText],
+    new_blocks: &[BlockText],
+) -> std::result::Result<Vec<Option<String>>, String> {
+    let classified = classify_scoped_proven_changed_regions(
+        &comparison.proven_changed_regions,
+        scopes,
+        old_blocks,
+        new_blocks,
+    )?;
+    let mut result = vec![None; comparison.proven_changed_regions.len()];
+    for region in classified {
+        let Some(slot) = result.get_mut(region.region_index) else {
+            return Err(SCOPED_CHANGE_INDETERMINATE.to_owned());
+        };
+        *slot = Some(region.scope_id);
+    }
+    Ok(result)
+}
+
+fn compute_scoped_reviewed_recall_metrics(
+    annotation: Annotation,
+    expected: &[ExpectedChange],
+    comparison: &Comparison,
+    blocks_by_side: [&[BlockText]; 2],
+    actuals: &[ActualChange],
+    proven: &[ActualProvenChangedRegion],
+    scoped: &CompleteScopeEvaluation,
+) -> Option<ReviewedRecallMetrics> {
+    let proven_scopes = scoped_proven_region_scopes(
+        comparison,
+        &scoped.scopes,
+        blocks_by_side[0],
+        blocks_by_side[1],
+    )
+    .ok()?;
+    compute_reviewed_recall_metrics(
+        annotation,
+        expected,
+        actuals,
+        Some(&scoped.actual_scopes),
+        proven,
+        Some(&proven_scopes),
+    )
+    .ok()
 }
 
 fn ratio(numerator: usize, denominator: usize) -> Option<f64> {
@@ -7310,6 +7866,7 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         reported_changes_preview: Vec::new(),
         quality: None,
         quality_skipped_reason: None,
+        reviewed_recall_metrics: None,
         scoped_event_metrics: None,
         scoped_token_metrics: None,
         candidate_recall: None,
@@ -7445,18 +8002,25 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
         }
     }
 
-    let actuals = if extraction_complete {
+    let (actuals, proven_regions) = if extraction_complete {
         let old_map = build_block_map(&outcome.old_blocks);
         let new_map = build_block_map(&outcome.new_blocks);
-        Some(flatten_actual_changes(
-            &outcome.comparison,
-            [&old_map, &new_map],
-            &matched_atomic_diffs,
-            &recovered_atomic_diffs,
-        ))
+        (
+            Some(flatten_actual_changes(
+                &outcome.comparison,
+                [&old_map, &new_map],
+                &matched_atomic_diffs,
+                &recovered_atomic_diffs,
+            )),
+            flatten_proven_changed_regions(&outcome.comparison, [&old_map, &new_map]),
+        )
     } else {
-        None
+        (None, None)
     };
+    if extraction_complete && proven_regions.is_none() {
+        record.failure = Some("proven changed region coordinates are indeterminate".to_owned());
+        return finish(record, started);
+    }
 
     if let Some(actuals) = &actuals {
         record.reported_changes_preview = actuals
@@ -7483,6 +8047,15 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                     record.quality = Some(scoped.quality);
                     record.scoped_event_metrics = Some(scoped.event_metrics);
                     record.scoped_token_metrics = Some(scoped.token_metrics);
+                    record.reviewed_recall_metrics = compute_scoped_reviewed_recall_metrics(
+                        document.annotation,
+                        &document.changes,
+                        &outcome.comparison,
+                        [&outcome.old_blocks, &outcome.new_blocks],
+                        actuals.as_deref().unwrap_or_default(),
+                        proven_regions.as_deref().unwrap_or_default(),
+                        &scoped,
+                    );
                 }
                 Err(reason) => record.quality_skipped_reason = Some(reason),
             }
@@ -7522,6 +8095,26 @@ fn run_pair(pair: &RevisionPair, context: &PairRunContext<'_>) -> PairRunReport 
                         &actuals,
                         &match_outcome,
                     ));
+                    record.reviewed_recall_metrics = match scoped.as_ref() {
+                        Some(scoped) => compute_scoped_reviewed_recall_metrics(
+                            document.annotation,
+                            &document.changes,
+                            &outcome.comparison,
+                            [&outcome.old_blocks, &outcome.new_blocks],
+                            &actuals,
+                            proven_regions.as_deref().unwrap_or_default(),
+                            scoped,
+                        ),
+                        None => compute_reviewed_recall_metrics(
+                            document.annotation,
+                            &document.changes,
+                            &actuals,
+                            None,
+                            proven_regions.as_deref().unwrap_or_default(),
+                            None,
+                        )
+                        .ok(),
+                    };
                     match evaluate_reviewed_diagnostics(
                         &document.changes,
                         &outcome.old_blocks,
@@ -12642,7 +13235,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 59;
+    pub const SCHEMA_VERSION: u32 = 60;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -12684,6 +13277,7 @@ pub struct RevisionSummaryRecord {
     pub sentence_recovery_metrics: Option<SentenceRecoveryMetricsReport>,
     pub quality: Option<QualityMetrics>,
     pub quality_skipped_reason: Option<String>,
+    pub reviewed_recall_metrics: Option<ReviewedRecallMetrics>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scoped_event_metrics: Option<ScopedEventMetrics>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -12718,6 +13312,7 @@ impl RevisionSummaryRecord {
             sentence_recovery_metrics: report.sentence_recovery_metrics.clone(),
             quality: report.quality,
             quality_skipped_reason: report.quality_skipped_reason.clone(),
+            reviewed_recall_metrics: report.reviewed_recall_metrics,
             scoped_event_metrics: report.scoped_event_metrics,
             scoped_token_metrics: report.scoped_token_metrics,
             candidate_recall: report.candidate_recall,
@@ -14544,7 +15139,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 59);
+        assert_eq!(completed["schema_version"], 60);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -14618,7 +15213,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 59);
+        assert_eq!(legacy_summary["schema_version"], 60);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -14662,6 +15257,47 @@ mod tests {
                 "f1": 2.0 / 3.0,
                 "span_iou": 0.5,
                 "false_positive_tokens_per_10k_unchanged": 20.0
+            })
+        );
+    }
+
+    #[test]
+    fn reviewed_recall_metrics_are_versioned_summary_fields() {
+        let mut report = record(PairRunStatus::Ok);
+        report.reviewed_recall_metrics = Some(ReviewedRecallMetrics {
+            content_presence_recall: ReviewedRecallMetric {
+                expected: 2,
+                detected: 1,
+                recall: Some(0.5),
+            },
+            exact_localization_recall: ReviewedRecallMetric {
+                expected: 1,
+                detected: 1,
+                recall: Some(1.0),
+            },
+            semantic_relation_recall: ReviewedRecallMetric {
+                expected: 2,
+                detected: 1,
+                recall: Some(0.5),
+            },
+            move_recall: ReviewedRecallMetric {
+                expected: 0,
+                detected: 0,
+                recall: None,
+            },
+        });
+        let full = serde_json::to_value(&report).expect("full report serializes");
+        assert!(full.get("reviewed_recall_metrics").is_none());
+        let summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[report]))
+            .expect("summary serializes");
+        assert_eq!(summary["schema_version"], 60);
+        assert_eq!(
+            summary["records"][0]["reviewed_recall_metrics"],
+            serde_json::json!({
+                "content_presence_recall": {"expected": 2, "detected": 1, "recall": 0.5},
+                "exact_localization_recall": {"expected": 1, "detected": 1, "recall": 1.0},
+                "semantic_relation_recall": {"expected": 2, "detected": 1, "recall": 0.5},
+                "move_recall": {"expected": 0, "detected": 0, "recall": null}
             })
         );
     }
@@ -14712,6 +15348,418 @@ mod tests {
         assert_eq!(partial.precision, None);
         assert_eq!(partial.kind_accuracy, Some(0.5));
         assert_eq!(partial.unmatched_tiny_changes, 0);
+    }
+
+    #[test]
+    fn reviewed_recall_dimensions_keep_presence_kind_and_localization_distinct() {
+        let mut replacement = expected_change(
+            "replacement",
+            ExpectedKind::Replacement,
+            Some("old context"),
+            Some("new context"),
+        );
+        replacement.old_changed_quote = Some("old".to_owned());
+        replacement.new_changed_quote = Some("new".to_owned());
+        let insertion = expected_change(
+            "insertion",
+            ExpectedKind::Insertion,
+            None,
+            Some("added text"),
+        );
+        let deletion = expected_change(
+            "deletion",
+            ExpectedKind::Deletion,
+            Some("removed text"),
+            None,
+        );
+        let movement = expected_change(
+            "move",
+            ExpectedKind::Move,
+            Some("moved text"),
+            Some("moved text"),
+        );
+        let mut actuals = [
+            actual_change(
+                ChangeKind::Insertion,
+                Some("old"),
+                Some("new"),
+                Some(3),
+                Some(3),
+            ),
+            actual_change(
+                ChangeKind::Move,
+                Some("moved text"),
+                Some("moved text"),
+                Some(10),
+                Some(10),
+            ),
+        ];
+        actuals[0].occurrences[0].old_relation_context = Some("old context".to_owned());
+        actuals[0].occurrences[0].new_relation_context = Some("new context".to_owned());
+        let proven = [
+            ActualProvenChangedRegion {
+                old_text: None,
+                new_text: Some("added text".to_owned()),
+                proof: ChangedRegionProof::OneSidedNonEmptyRange,
+            },
+            ActualProvenChangedRegion {
+                old_text: Some("removed text".to_owned()),
+                new_text: None,
+                proof: ChangedRegionProof::OneSidedNonEmptyRange,
+            },
+        ];
+        let expected = [replacement, insertion, deletion, movement];
+        let legacy_before = compute_quality(Annotation::Partial, &expected, &actuals);
+        let metrics = compute_reviewed_recall_metrics(
+            Annotation::Partial,
+            &expected,
+            &actuals,
+            None,
+            &proven,
+            None,
+        )
+        .expect("small matching is bounded");
+
+        assert_eq!(metrics.content_presence_recall.expected, 3);
+        assert_eq!(metrics.content_presence_recall.detected, 3);
+        assert_eq!(metrics.content_presence_recall.recall, Some(1.0));
+        assert_eq!(metrics.exact_localization_recall.expected, 1);
+        assert_eq!(metrics.exact_localization_recall.detected, 1);
+        assert_eq!(metrics.semantic_relation_recall.expected, 3);
+        assert_eq!(metrics.semantic_relation_recall.detected, 0);
+        assert_eq!(metrics.move_recall.expected, 1);
+        assert_eq!(metrics.move_recall.detected, 1);
+        assert_eq!(
+            compute_quality(Annotation::Partial, &expected, &actuals),
+            legacy_before
+        );
+    }
+
+    #[test]
+    fn proven_presence_is_one_to_one_and_rejects_repeated_expectations() {
+        let first = expected_change(
+            "first",
+            ExpectedKind::Replacement,
+            Some("shared old"),
+            Some("shared new"),
+        );
+        let second = expected_change(
+            "second",
+            ExpectedKind::Replacement,
+            Some("shared old"),
+            Some("shared new"),
+        );
+        let proven = [ActualProvenChangedRegion {
+            old_text: Some("shared old context".to_owned()),
+            new_text: Some("shared new context".to_owned()),
+            proof: ChangedRegionProof::ExactTokenMultisetMismatch,
+        }];
+        let one_to_one = compute_reviewed_recall_metrics(
+            Annotation::Partial,
+            &[first.clone(), second],
+            &[],
+            None,
+            &proven,
+            None,
+        )
+        .expect("small matching is bounded");
+        assert_eq!(one_to_one.content_presence_recall.expected, 2);
+        assert_eq!(one_to_one.content_presence_recall.detected, 1);
+
+        let mut repeated = first;
+        repeated.occurrence_count = Some(2);
+        let repeated = compute_reviewed_recall_metrics(
+            Annotation::Partial,
+            &[repeated],
+            &[],
+            None,
+            &proven,
+            None,
+        )
+        .expect("small matching is bounded");
+        assert_eq!(repeated.content_presence_recall.detected, 0);
+    }
+
+    #[test]
+    fn broad_proven_mismatch_requires_directional_expected_evidence() {
+        let expected = expected_change(
+            "rewrite",
+            ExpectedKind::Replacement,
+            Some("old evidence"),
+            Some("new evidence"),
+        );
+        let ambiguous = [ActualProvenChangedRegion {
+            old_text: Some("old evidence and new evidence before".to_owned()),
+            new_text: Some("old evidence and new evidence after".to_owned()),
+            proof: ChangedRegionProof::ExactTokenMultisetMismatch,
+        }];
+        let rejected = compute_reviewed_recall_metrics(
+            Annotation::Partial,
+            std::slice::from_ref(&expected),
+            &[],
+            None,
+            &ambiguous,
+            None,
+        )
+        .expect("small matching is bounded");
+        assert_eq!(rejected.content_presence_recall.detected, 0);
+
+        let directional = [ActualProvenChangedRegion {
+            old_text: Some("old evidence".to_owned()),
+            new_text: Some("new evidence".to_owned()),
+            proof: ChangedRegionProof::ExactTokenMultisetMismatch,
+        }];
+        let accepted = compute_reviewed_recall_metrics(
+            Annotation::Partial,
+            &[expected],
+            &[],
+            None,
+            &directional,
+            None,
+        )
+        .expect("small matching is bounded");
+        assert_eq!(accepted.content_presence_recall.detected, 1);
+    }
+
+    #[test]
+    fn move_events_do_not_satisfy_non_move_presence() {
+        let expected = expected_change(
+            "replacement",
+            ExpectedKind::Replacement,
+            Some("same old"),
+            Some("same new"),
+        );
+        let movement = actual_change(
+            ChangeKind::Move,
+            Some("same old"),
+            Some("same new"),
+            Some(8),
+            Some(8),
+        );
+        let metrics = compute_reviewed_recall_metrics(
+            Annotation::Partial,
+            &[expected],
+            &[movement],
+            None,
+            &[],
+            None,
+        )
+        .expect("small matching is bounded");
+        assert_eq!(metrics.content_presence_recall.detected, 0);
+    }
+
+    #[test]
+    fn complete_full_quotes_are_exact_localization_evidence() {
+        let expected = expected_change(
+            "w3c-style",
+            ExpectedKind::Replacement,
+            Some("old publication date"),
+            Some("new publication date"),
+        );
+        let actual = actual_change(
+            ChangeKind::Replacement,
+            Some("old publication date"),
+            Some("new publication date"),
+            Some(20),
+            Some(20),
+        );
+        let complete = compute_reviewed_recall_metrics(
+            Annotation::ScopedComplete,
+            std::slice::from_ref(&expected),
+            std::slice::from_ref(&actual),
+            None,
+            &[],
+            None,
+        )
+        .expect("small matching is bounded");
+        assert_eq!(complete.exact_localization_recall.expected, 1);
+        assert_eq!(complete.exact_localization_recall.detected, 1);
+
+        let partial = compute_reviewed_recall_metrics(
+            Annotation::Partial,
+            &[expected],
+            std::slice::from_ref(&actual),
+            None,
+            &[],
+            None,
+        )
+        .expect("small matching is bounded");
+        assert_eq!(partial.exact_localization_recall.expected, 0);
+        assert_eq!(partial.exact_localization_recall.recall, None);
+
+        let mut scoped_expected = expected_change(
+            "partial-scope",
+            ExpectedKind::Replacement,
+            Some("old publication date"),
+            Some("new publication date"),
+        );
+        scoped_expected.scope = Some("front-matter".to_owned());
+        let scoped = compute_reviewed_recall_metrics(
+            Annotation::Partial,
+            &[scoped_expected],
+            &[actual],
+            Some(&[Some("front-matter".to_owned())]),
+            &[],
+            Some(&[]),
+        )
+        .expect("small matching is bounded");
+        assert_eq!(scoped.exact_localization_recall.detected, 1);
+    }
+
+    #[test]
+    fn invalid_proven_scope_does_not_invalidate_legacy_scoped_quality() {
+        let expected = scoped_expected_change(
+            "reviewed",
+            "body",
+            ExpectedKind::Replacement,
+            Some("old"),
+            Some("new"),
+        );
+        let actual = actual_change(
+            ChangeKind::Replacement,
+            Some("old"),
+            Some("new"),
+            Some(3),
+            Some(3),
+        );
+        let (quality, event_metrics) = scoped_quality(
+            1,
+            std::slice::from_ref(&expected),
+            std::slice::from_ref(&actual),
+            &[Some("body".to_owned())],
+        );
+        assert_eq!(quality.recall, Some(1.0));
+
+        let old_blocks = [relation_block(1, "outside reviewed outside")];
+        let new_blocks = [relation_block(2, "outside reviewed outside")];
+        let comparison = Comparison {
+            changes: Vec::new(),
+            proven_changed_regions: vec![pdfdelta_core::diff::ProvenChangedRegion {
+                old_span: Some(relation_span(vec![BlockId(1)], None, 9)),
+                new_span: None,
+                proof: ChangedRegionProof::OneSidedNonEmptyRange,
+                confidence: pdfdelta_core::diff::Confidence::High,
+            }],
+            formatting_changes: Vec::new(),
+            unresolved_regions: Vec::new(),
+            old_coverage: pdfdelta_core::diff::Coverage {
+                resolved_tokens: 0,
+                total_tokens: 0,
+                ratio: None,
+            },
+            new_coverage: pdfdelta_core::diff::Coverage {
+                resolved_tokens: 0,
+                total_tokens: 0,
+                ratio: None,
+            },
+        };
+        let scoped = CompleteScopeEvaluation {
+            quality,
+            event_metrics,
+            token_metrics: ScopedTokenMetrics {
+                expected_changed_tokens: 0,
+                reported_changed_tokens: 0,
+                true_positive_tokens: 0,
+                precision: 1.0,
+                recall: 1.0,
+                f1: 1.0,
+                span_iou: 1.0,
+                false_positive_tokens_per_10k_unchanged: Some(0.0),
+            },
+            actual_scopes: vec![Some("body".to_owned())],
+            scopes: vec![revision_scopes::ResolvedScope {
+                id: "body".to_owned(),
+                old: revision_scopes::ResolvedScopeRange {
+                    start: revision_scopes::ScopeCoordinate {
+                        block_order: 0,
+                        scalar: 8,
+                    },
+                    end: revision_scopes::ScopeCoordinate {
+                        block_order: 0,
+                        scalar: 15,
+                    },
+                },
+                new: revision_scopes::ResolvedScopeRange {
+                    start: revision_scopes::ScopeCoordinate {
+                        block_order: 0,
+                        scalar: 8,
+                    },
+                    end: revision_scopes::ScopeCoordinate {
+                        block_order: 0,
+                        scalar: 15,
+                    },
+                },
+            }],
+        };
+        let proven = [ActualProvenChangedRegion {
+            old_text: Some("outside reviewed".to_owned()),
+            new_text: None,
+            proof: ChangedRegionProof::OneSidedNonEmptyRange,
+        }];
+        assert!(
+            compute_scoped_reviewed_recall_metrics(
+                Annotation::Partial,
+                &[expected],
+                &comparison,
+                [&old_blocks, &new_blocks],
+                &[actual],
+                &proven,
+                &scoped,
+            )
+            .is_none()
+        );
+        assert_eq!(scoped.quality.recall, Some(1.0));
+        assert_eq!(scoped.event_metrics.recall, 1.0);
+    }
+
+    #[test]
+    fn reviewed_recall_reports_none_for_empty_denominators() {
+        let metrics =
+            compute_reviewed_recall_metrics(Annotation::Partial, &[], &[], None, &[], None)
+                .expect("empty matching is bounded");
+        for metric in [
+            metrics.content_presence_recall,
+            metrics.exact_localization_recall,
+            metrics.semantic_relation_recall,
+            metrics.move_recall,
+        ] {
+            assert_eq!(metric.expected, 0);
+            assert_eq!(metric.detected, 0);
+            assert_eq!(metric.recall, None);
+        }
+    }
+
+    #[test]
+    fn exact_localization_recall_rejects_an_overwide_changed_span() {
+        let mut expected = expected_change(
+            "localized",
+            ExpectedKind::Replacement,
+            Some("before old after"),
+            Some("before new after"),
+        );
+        expected.old_changed_quote = Some("old".to_owned());
+        expected.new_changed_quote = Some("new".to_owned());
+        let mut actual = actual_change(
+            ChangeKind::Replacement,
+            Some("before old after"),
+            Some("before new after"),
+            Some(16),
+            Some(16),
+        );
+        actual.occurrences[0].old_relation_context = Some("before old after".to_owned());
+        actual.occurrences[0].new_relation_context = Some("before new after".to_owned());
+        let metrics = compute_reviewed_recall_metrics(
+            Annotation::Partial,
+            &[expected],
+            &[actual],
+            None,
+            &[],
+            None,
+        )
+        .expect("small matching is bounded");
+        assert_eq!(metrics.content_presence_recall.detected, 1);
+        assert_eq!(metrics.semantic_relation_recall.detected, 1);
+        assert_eq!(metrics.exact_localization_recall.detected, 0);
     }
 
     #[test]
@@ -16344,6 +17392,7 @@ mod tests {
             reported_changes_preview: Vec::new(),
             quality: None,
             quality_skipped_reason: None,
+            reviewed_recall_metrics: None,
             scoped_event_metrics: None,
             scoped_token_metrics: None,
             candidate_recall: None,
@@ -16819,7 +17868,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 59);
+        assert_eq!(json["schema_version"], 60);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -23764,6 +24813,7 @@ mod tests {
                     unresolvable_reported_spans: 0,
                 }),
                 quality_skipped_reason: None,
+                reviewed_recall_metrics: None,
                 scoped_event_metrics: None,
                 scoped_token_metrics: None,
                 candidate_recall: None,
@@ -23844,6 +24894,7 @@ mod tests {
                 reported_changes_preview: Vec::new(),
                 quality: None,
                 quality_skipped_reason: Some(QUALITY_SKIP_RESOURCE_LIMIT.to_owned()),
+                reviewed_recall_metrics: None,
                 scoped_event_metrics: None,
                 scoped_token_metrics: None,
                 candidate_recall: None,
@@ -23892,6 +24943,7 @@ mod tests {
                 reported_changes_preview: Vec::new(),
                 quality: None,
                 quality_skipped_reason: Some(QUALITY_SKIP_INCOMPLETE_EXTRACTION.to_owned()),
+                reviewed_recall_metrics: None,
                 scoped_event_metrics: None,
                 scoped_token_metrics: None,
                 candidate_recall: None,
@@ -23923,7 +24975,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 59);
+        assert_eq!(value["schema_version"], 60);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -23953,6 +25005,7 @@ mod tests {
             "sentence_recovery_metrics".to_owned(),
             "quality".to_owned(),
             "quality_skipped_reason".to_owned(),
+            "reviewed_recall_metrics".to_owned(),
             "candidate_recall".to_owned(),
             "expected_change_diagnostics".to_owned(),
         ]);
@@ -24550,6 +25603,7 @@ mod tests {
             reported_changes_preview: Vec::new(),
             quality: None,
             quality_skipped_reason: None,
+            reviewed_recall_metrics: None,
             scoped_event_metrics: None,
             scoped_token_metrics: None,
             candidate_recall: Some(CandidateRecallMetrics {
@@ -24676,6 +25730,7 @@ mod tests {
             }],
             quality: None,
             quality_skipped_reason: None,
+            reviewed_recall_metrics: None,
             scoped_event_metrics: None,
             scoped_token_metrics: None,
             candidate_recall: None,

@@ -1453,6 +1453,7 @@ mod tests {
             reported_changes_preview: Vec::new(),
             quality: None,
             quality_skipped_reason: None,
+            reviewed_recall_metrics: None,
             scoped_event_metrics: None,
             scoped_token_metrics: None,
             candidate_recall: None,
