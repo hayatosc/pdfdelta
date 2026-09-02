@@ -21,21 +21,21 @@ use std::{
 use pdfdelta_core::{
     alignment::{Alignment, BlockSeparator},
     diff::{
-        ChangeKind, ChangeOccurrence, ChangeOrigin, ChangeOriginMetric, ChangeOriginMetrics,
-        ChangedRegionProof, Comparison, ExactSegmentRelation, ExactTailRecoveryStopReason,
-        KnownSpanSentenceShadowMetrics, LocalFragmentExactBoundaryTrieShadowMetrics,
-        LocalFragmentFlatExactBoundaryShadowMetrics, LocalFragmentFlatExactBoundaryStopReason,
-        LocalFragmentFlatExactBoundaryWorkMetrics, LocalFragmentGlobalLengthAwareShadowMetrics,
-        LocalFragmentLengthAwareRecheckShadowMetrics, LocalFragmentLengthAwareShadowMetrics,
-        LocalFragmentLengthAwareShadowStopReason, LocalFragmentLengthAwareShadowWorkMetrics,
-        LocalFragmentLengthOnlyCandidateShadowMetrics, LocalFragmentLocationEvidence,
-        LocalFragmentOrientation, LocalFragmentPairEvidence, LocalFragmentProposalStopReason,
-        LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
-        LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
-        LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, MatchedAtomicDiff,
-        NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics, NearVetoReasonCount,
-        NearVetoReasonMetrics, RecoveredAtomicDiff, RecoveryGapReason, RecoveryLeafKind,
-        RecoveryOwnership, RecoveryOwnershipBlockError, RecoveryOwnershipContext,
+        ChangeEvent, ChangeKind, ChangeOccurrence, ChangeOrigin, ChangeOriginMetric,
+        ChangeOriginMetrics, ChangedRegionProof, Comparison, ExactSegmentRelation,
+        ExactTailRecoveryStopReason, KnownSpanSentenceShadowMetrics,
+        LocalFragmentExactBoundaryTrieShadowMetrics, LocalFragmentFlatExactBoundaryShadowMetrics,
+        LocalFragmentFlatExactBoundaryStopReason, LocalFragmentFlatExactBoundaryWorkMetrics,
+        LocalFragmentGlobalLengthAwareShadowMetrics, LocalFragmentLengthAwareRecheckShadowMetrics,
+        LocalFragmentLengthAwareShadowMetrics, LocalFragmentLengthAwareShadowStopReason,
+        LocalFragmentLengthAwareShadowWorkMetrics, LocalFragmentLengthOnlyCandidateShadowMetrics,
+        LocalFragmentLocationEvidence, LocalFragmentOrientation, LocalFragmentPairEvidence,
+        LocalFragmentProposalStopReason, LocalFragmentRecheckMembershipOutcomeWork,
+        LocalFragmentRecheckReuseShadowMetrics, LocalFragmentRecheckReuseWorkAttribution,
+        LocalFragmentShadowMetrics, LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
+        MatchedAtomicDiff, NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics,
+        NearVetoReasonCount, NearVetoReasonMetrics, RecoveredAtomicDiff, RecoveryGapReason,
+        RecoveryLeafKind, RecoveryOwnership, RecoveryOwnershipBlockError, RecoveryOwnershipContext,
         RecoveryOwnershipError, RecoveryOwnershipInvariant, RecoveryOwnershipMetrics,
         RecoveryOwnershipPartitionAnalysis, RecoveryOwnershipRangeError, RecoveryOwnershipRect,
         RecoveryOwnershipResource, RecoveryOwnershipRole, RecoveryOwnershipRoleMetrics,
@@ -6557,6 +6557,7 @@ struct RecoveredOccurrenceEvidence {
     old_atomic_changed_tokens: usize,
     new_atomic_changed_tokens: usize,
     trace: ActualRelationTrace,
+    sole_changed_occurrence: bool,
 }
 
 #[derive(Clone)]
@@ -6568,6 +6569,52 @@ struct RecoveredEventEvidence {
     new_semantic_changed_tokens: usize,
     semantic_hunks: Vec<ActualSemanticHunk>,
     trace: ActualRelationTrace,
+}
+
+struct RecoveredEvidenceBuildBudget {
+    text_bytes: usize,
+    max_text_bytes: usize,
+}
+
+impl RecoveredEvidenceBuildBudget {
+    fn new(max_text_bytes: usize) -> Self {
+        Self {
+            text_bytes: 0,
+            max_text_bytes,
+        }
+    }
+
+    fn charge_texts<'a>(&mut self, texts: impl IntoIterator<Item = &'a str>) -> Option<()> {
+        for text in texts {
+            self.text_bytes = self
+                .text_bytes
+                .checked_add(text.len())
+                .filter(|bytes| *bytes <= self.max_text_bytes)?;
+        }
+        Some(())
+    }
+
+    fn charge_context(&mut self, context: &RelationContext) -> Option<()> {
+        self.charge_texts([context.old.as_str(), context.new.as_str()])
+    }
+
+    fn charge_event(&mut self, evidence: &RecoveredEventEvidence) -> Option<()> {
+        self.charge_context(&evidence.context)?;
+        for hunk in &evidence.semantic_hunks {
+            self.charge_texts(
+                hunk.old_text
+                    .iter()
+                    .chain(&hunk.new_text)
+                    .map(String::as_str),
+            )?;
+            if let Some(fragments) = &hunk.atomic_fragments {
+                for fragment in fragments {
+                    self.charge_texts([fragment.old_text.as_str(), fragment.new_text.as_str()])?;
+                }
+            }
+        }
+        Some(())
+    }
 }
 
 fn recovered_relation_trace(trace: &RecoveredAtomicDiff) -> ActualRelationTrace {
@@ -6587,8 +6634,10 @@ fn recovered_relation_trace(trace: &RecoveredAtomicDiff) -> ActualRelationTrace 
 fn recovered_event_evidence(
     traces: &[RecoveredAtomicDiff],
     blocks_by_side: [&HashMap<u64, &BlockText>; 2],
-) -> HashMap<Vec<ChangeOccurrence>, Option<RecoveredEventEvidence>> {
+    budget: &mut RecoveredEvidenceBuildBudget,
+) -> Option<HashMap<Vec<ChangeOccurrence>, Option<RecoveredEventEvidence>>> {
     let mut evidence = HashMap::new();
+    evidence.try_reserve(traces.len()).ok()?;
     for trace in traces {
         let context = resolve_span(blocks_by_side[0], &trace.old_context)
             .zip(resolve_span(blocks_by_side[1], &trace.new_context))
@@ -6710,6 +6759,9 @@ fn recovered_event_evidence(
                     }
                 },
             );
+        if let Some(value) = &value {
+            budget.charge_event(value)?;
+        }
         let key = trace
             .changed_occurrences
             .iter()
@@ -6717,14 +6769,17 @@ fn recovered_event_evidence(
             .collect();
         insert_relation_context(&mut evidence, key, value);
     }
-    evidence
+    Some(evidence)
 }
 
 fn recovered_occurrence_evidence(
     traces: &[RecoveredAtomicDiff],
     blocks_by_side: [&HashMap<u64, &BlockText>; 2],
-) -> HashMap<ChangeOccurrence, Option<RecoveredOccurrenceEvidence>> {
+    budget: &mut RecoveredEvidenceBuildBudget,
+    capacity: usize,
+) -> Option<HashMap<ChangeOccurrence, Option<RecoveredOccurrenceEvidence>>> {
     let mut contexts = HashMap::new();
+    contexts.try_reserve(capacity).ok()?;
     for trace in traces {
         let context = resolve_span(blocks_by_side[0], &trace.old_context)
             .zip(resolve_span(blocks_by_side[1], &trace.new_context))
@@ -6753,12 +6808,67 @@ fn recovered_occurrence_evidence(
                     old_atomic_changed_tokens,
                     new_atomic_changed_tokens,
                     trace: recovered_relation_trace(trace),
+                    sole_changed_occurrence: trace.changed_occurrences.len() == 1,
                 }
             });
+            if let Some(evidence) = &evidence
+                && let Some(context) = &evidence.context
+            {
+                budget.charge_context(context)?;
+            }
             insert_relation_context(&mut contexts, changed.occurrence.clone(), evidence);
         }
     }
-    contexts
+    Some(contexts)
+}
+
+struct RecoveredEvidenceIndex {
+    events: HashMap<Vec<ChangeOccurrence>, Option<RecoveredEventEvidence>>,
+    occurrences: HashMap<ChangeOccurrence, Option<RecoveredOccurrenceEvidence>>,
+    occurrence_owners: HashMap<ChangeOccurrence, Option<usize>>,
+}
+
+fn recovered_evidence_index(
+    changes: &[ChangeEvent],
+    traces: &[RecoveredAtomicDiff],
+    blocks_by_side: [&HashMap<u64, &BlockText>; 2],
+    limits: MatchingLimits,
+) -> Option<RecoveredEvidenceIndex> {
+    let public_occurrences = changes.iter().try_fold(0usize, |count, change| {
+        count.checked_add(change.occurrences.len())
+    })?;
+    let traced_occurrences = traces.iter().try_fold(0usize, |count, trace| {
+        count.checked_add(trace.changed_occurrences.len())
+    })?;
+    public_occurrences
+        .checked_add(traces.len().checked_mul(2)?)?
+        .checked_add(traced_occurrences.checked_mul(4)?)
+        .filter(|count| *count <= limits.max_occurrence_visits)?;
+
+    let mut occurrence_owners = HashMap::new();
+    occurrence_owners.try_reserve(public_occurrences).ok()?;
+    for (event_index, change) in changes.iter().enumerate() {
+        for occurrence in &change.occurrences {
+            match occurrence_owners.entry(occurrence.clone()) {
+                Entry::Vacant(entry) => {
+                    entry.insert(Some(event_index));
+                }
+                Entry::Occupied(mut entry) => {
+                    entry.insert(None);
+                }
+            }
+        }
+    }
+
+    let mut budget = RecoveredEvidenceBuildBudget::new(limits.max_text_bytes);
+    let events = recovered_event_evidence(traces, blocks_by_side, &mut budget)?;
+    let occurrences =
+        recovered_occurrence_evidence(traces, blocks_by_side, &mut budget, traced_occurrences)?;
+    Some(RecoveredEvidenceIndex {
+        events,
+        occurrences,
+        occurrence_owners,
+    })
 }
 
 #[derive(Clone)]
@@ -6989,15 +7099,29 @@ fn flatten_actual_changes(
     matched_atomic_diffs: &[MatchedAtomicDiff],
     recovered_atomic_diffs: &[RecoveredAtomicDiff],
 ) -> Vec<ActualChange> {
-    let recovered_events = recovered_event_evidence(recovered_atomic_diffs, blocks_by_side);
-    let recovered_evidence = recovered_occurrence_evidence(recovered_atomic_diffs, blocks_by_side);
+    let recovered = recovered_evidence_index(
+        &comparison.changes,
+        recovered_atomic_diffs,
+        blocks_by_side,
+        MatchingLimits::default(),
+    );
     let matched_contexts = matched_relation_contexts(matched_atomic_diffs, blocks_by_side);
     comparison
         .changes
         .iter()
-        .map(|change| {
+        .enumerate()
+        .map(|(change_index, change)| {
             let reported_hunk_count = change.occurrences.len();
-            if let Some(Some(evidence)) = recovered_events.get(&change.occurrences) {
+            if let Some(Some(evidence)) = recovered.as_ref().and_then(|index| {
+                change
+                    .occurrences
+                    .iter()
+                    .all(|occurrence| {
+                        index.occurrence_owners.get(occurrence) == Some(&Some(change_index))
+                    })
+                    .then(|| index.events.get(&change.occurrences))
+                    .flatten()
+            }) {
                 return ActualChange {
                     kind: change.kind,
                     reported_hunk_count,
@@ -7022,11 +7146,30 @@ fn flatten_actual_changes(
                     }],
                 };
             }
+            if change.occurrences.len() > 1
+                && let Some(occurrences) = recovered.as_ref().and_then(|index| {
+                    repeated_recovered_occurrences(change_index, change, index, blocks_by_side)
+                })
+            {
+                return ActualChange {
+                    kind: change.kind,
+                    occurrences,
+                    reported_hunk_count,
+                };
+            }
+            let allow_individual_recovered_evidence = change.occurrences.len() == 1;
             let occurrences = change
                 .occurrences
                 .iter()
                 .map(|occurrence| {
-                    let recovered = recovered_evidence.get(occurrence);
+                    let recovered = allow_individual_recovered_evidence
+                        .then(|| {
+                            let index = recovered.as_ref()?;
+                            (index.occurrence_owners.get(occurrence) == Some(&Some(change_index)))
+                                .then(|| index.occurrences.get(occurrence))
+                                .flatten()
+                        })
+                        .flatten();
                     let matched_context = matched_contexts.get(&relation_group_key(
                         occurrence.old_span.as_ref(),
                         occurrence.new_span.as_ref(),
@@ -7113,6 +7256,71 @@ fn flatten_actual_changes(
             }
         })
         .collect()
+}
+
+fn repeated_recovered_occurrences(
+    event_index: usize,
+    change: &ChangeEvent,
+    evidence: &RecoveredEvidenceIndex,
+    blocks_by_side: [&HashMap<u64, &BlockText>; 2],
+) -> Option<Vec<ActualChangeOccurrence>> {
+    let mut actuals = Vec::new();
+    actuals.try_reserve_exact(change.occurrences.len()).ok()?;
+    for occurrence in &change.occurrences {
+        if evidence.occurrence_owners.get(occurrence) != Some(&Some(event_index)) {
+            return None;
+        }
+        let recovered = evidence.occurrences.get(occurrence)?.as_ref()?;
+        if !recovered.sole_changed_occurrence {
+            return None;
+        }
+        let context = recovered.context.as_ref()?;
+        let exact_event = evidence
+            .events
+            .get(std::slice::from_ref(occurrence))?
+            .as_ref()?;
+        if exact_event.semantic_hunks.len() != 1 {
+            return None;
+        }
+        let semantic_hunk = exact_event.semantic_hunks[0].clone();
+        let old_resolved = occurrence
+            .old_span
+            .as_ref()
+            .map(|span| resolve_span(blocks_by_side[0], span));
+        let new_resolved = occurrence
+            .new_span
+            .as_ref()
+            .map(|span| resolve_span(blocks_by_side[1], span));
+        if old_resolved.as_ref().is_some_and(Option::is_none)
+            || new_resolved.as_ref().is_some_and(Option::is_none)
+        {
+            return None;
+        }
+        let unwrap_resolved = |resolved: Option<Option<(String, usize)>>| match resolved {
+            Some(Some((text, len))) => (Some(collapse_whitespace(&text)), Some(len)),
+            _ => (None, None),
+        };
+        let (old_text, old_comparable_len) = unwrap_resolved(old_resolved);
+        let (new_text, new_comparable_len) = unwrap_resolved(new_resolved);
+        actuals.push(ActualChangeOccurrence {
+            old_text,
+            new_text,
+            old_relation_context: Some(context.old.clone()),
+            new_relation_context: Some(context.new.clone()),
+            old_relation_context_len: Some(context.old_comparable_len),
+            new_relation_context_len: Some(context.new_comparable_len),
+            old_comparable_len,
+            new_comparable_len,
+            old_atomic_changed_tokens: Some(recovered.old_atomic_changed_tokens),
+            new_atomic_changed_tokens: Some(recovered.new_atomic_changed_tokens),
+            old_semantic_changed_tokens: Some(exact_event.old_semantic_changed_tokens),
+            new_semantic_changed_tokens: Some(exact_event.new_semantic_changed_tokens),
+            semantic_hunks: Some(vec![semantic_hunk]),
+            relation_trace: ActualRelationTraceStatus::Available(recovered.trace.clone()),
+            resolvable: true,
+        });
+    }
+    Some(actuals)
 }
 
 fn contains_needle(haystack: Option<&str>, needle: Option<&str>) -> bool {
@@ -18021,7 +18229,12 @@ mod tests {
             new_best_scope: Some(RecoveryWatchNearScope::CrossSpan),
         };
 
-        let evidence = recovered_event_evidence(&[trace], [&old_map, &new_map]);
+        let evidence = recovered_event_evidence(
+            &[trace],
+            [&old_map, &new_map],
+            &mut RecoveredEvidenceBuildBudget::new(MAX_MATCH_TEXT_BYTES),
+        )
+        .expect("evidence stays within the default text budget");
         let evidence = evidence
             .get(&vec![changed.occurrence])
             .and_then(Option::as_ref)
@@ -18040,6 +18253,319 @@ mod tests {
         assert_eq!(
             evidence.trace.new_best_scope,
             Some(RecoveryWatchNearScopeReport::CrossSpan)
+        );
+    }
+
+    fn repeated_recovered_fixture(
+        occurrence_count: usize,
+    ) -> (
+        Vec<BlockText>,
+        Vec<BlockText>,
+        Comparison,
+        Vec<RecoveredAtomicDiff>,
+    ) {
+        let mut old_blocks = Vec::new();
+        let mut new_blocks = Vec::new();
+        let mut occurrences = Vec::new();
+        let mut traces = Vec::new();
+        for index in 0..occurrence_count {
+            let old_id = BlockId(100 + index as u64);
+            let new_id = BlockId(200 + index as u64);
+            let old_text = format!("page{} z", index + 1);
+            let new_text = format!("page{} q", index + 1);
+            let changed_at = old_text.chars().count() - 1;
+            old_blocks.push(relation_block(old_id.0, &old_text));
+            new_blocks.push(relation_block(new_id.0, &new_text));
+            let old_context = relation_span(vec![old_id], None, old_text.chars().count());
+            let new_context = relation_span(vec![new_id], None, new_text.chars().count());
+            let mut old_changed = old_context.clone();
+            old_changed.canonical_range = ScalarRange {
+                start: changed_at,
+                end: changed_at + 1,
+            };
+            old_changed.comparable_range = TokenRange {
+                start: changed_at,
+                end: changed_at + 1,
+            };
+            let mut new_changed = new_context.clone();
+            new_changed.canonical_range = ScalarRange {
+                start: changed_at,
+                end: changed_at + 1,
+            };
+            new_changed.comparable_range = TokenRange {
+                start: changed_at,
+                end: changed_at + 1,
+            };
+            let occurrence = ChangeOccurrence {
+                old_span: Some(old_changed),
+                new_span: Some(new_changed),
+            };
+            occurrences.push(occurrence.clone());
+            traces.push(RecoveredAtomicDiff {
+                origin: ChangeOrigin::RunningMatter,
+                old_alignment_span_index: index,
+                new_alignment_span_index: index,
+                old_context,
+                new_context,
+                changed_occurrences: vec![pdfdelta_core::diff::RecoveredAtomicOccurrence {
+                    occurrence,
+                    edit_range: 0..1,
+                }],
+                edits: vec![pdfdelta_core::diff::AtomicEdit {
+                    old: changed_at..changed_at + 1,
+                    new: changed_at..changed_at + 1,
+                }],
+                old_best_score: 9_500,
+                old_second_score: 7_000,
+                old_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+                new_best_score: 9_500,
+                new_second_score: 7_000,
+                new_best_scope: Some(RecoveryWatchNearScope::SameSpan),
+            });
+        }
+        let comparison = Comparison {
+            changes: vec![ChangeEvent {
+                kind: ChangeKind::Replacement,
+                occurrences,
+                confidence: pdfdelta_core::diff::Confidence::High,
+                tags: Vec::new(),
+            }],
+            proven_changed_regions: Vec::new(),
+            formatting_changes: Vec::new(),
+            unresolved_regions: Vec::new(),
+            old_coverage: pdfdelta_core::diff::Coverage {
+                resolved_tokens: 0,
+                total_tokens: 0,
+                ratio: None,
+            },
+            new_coverage: pdfdelta_core::diff::Coverage {
+                resolved_tokens: 0,
+                total_tokens: 0,
+                ratio: None,
+            },
+        };
+        (old_blocks, new_blocks, comparison, traces)
+    }
+
+    fn assert_repeated_recovered_event(occurrence_count: usize) {
+        let (old_blocks, new_blocks, comparison, traces) =
+            repeated_recovered_fixture(occurrence_count);
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+
+        let actuals = flatten_actual_changes(&comparison, [&old_map, &new_map], &[], &traces);
+
+        assert_eq!(actuals[0].occurrences.len(), occurrence_count);
+        for (index, occurrence) in actuals[0].occurrences.iter().enumerate() {
+            let old_context = format!("page{} z", index + 1);
+            let new_context = format!("page{} q", index + 1);
+            let changed_at = old_context.chars().count() - 1;
+            assert_eq!(
+                occurrence.old_relation_context.as_deref(),
+                Some(old_context.as_str())
+            );
+            assert_eq!(
+                occurrence.new_relation_context.as_deref(),
+                Some(new_context.as_str())
+            );
+            let hunk = &occurrence.semantic_hunks.as_ref().expect("exact hunk")[0];
+            assert_eq!(hunk.old_range, Some(changed_at..changed_at + 1));
+            assert_eq!(hunk.new_range, Some(changed_at..changed_at + 1));
+            assert_eq!(occurrence.old_atomic_changed_tokens, Some(1));
+            assert_eq!(occurrence.new_atomic_changed_tokens, Some(1));
+            assert!(matches!(
+                occurrence.relation_trace,
+                ActualRelationTraceStatus::Available(ActualRelationTrace {
+                    origin: ChangeOrigin::RunningMatter,
+                    old_alignment_span_index,
+                    new_alignment_span_index,
+                    ..
+                }) if old_alignment_span_index == index && new_alignment_span_index == index
+            ));
+        }
+
+        let mut expected = expected_change(
+            "footer-year",
+            ExpectedKind::Replacement,
+            Some("z"),
+            Some("q"),
+        );
+        expected.occurrence_count = Some(occurrence_count);
+        expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+        expected.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+        let needles = normalized_expected_quotes(&expected);
+        let mut budget = MatchingScanBudget::default();
+        assert!(
+            actual_matches_reviewed_mode(
+                &expected,
+                &needles,
+                &actuals[0],
+                ReviewedEventMode::ExactLocalization,
+                &mut budget,
+                MatchingLimits::default(),
+            )
+            .expect("matching stays within default limits")
+        );
+    }
+
+    #[test]
+    fn repeated_recovered_event_preserves_occurrences_and_exact_evidence() {
+        assert_repeated_recovered_event(3);
+    }
+
+    #[test]
+    fn repeated_recovered_event_supports_twenty_eight_ordered_occurrences() {
+        assert_repeated_recovered_event(28);
+    }
+
+    #[test]
+    fn repeated_recovered_event_rejects_twenty_seven_or_twenty_nine_occurrences() {
+        for occurrence_count in [27, 29] {
+            let (old_blocks, new_blocks, comparison, traces) =
+                repeated_recovered_fixture(occurrence_count);
+            let old_map = build_block_map(&old_blocks);
+            let new_map = build_block_map(&new_blocks);
+            let actuals = flatten_actual_changes(&comparison, [&old_map, &new_map], &[], &traces);
+            let mut expected = expected_change(
+                "footer-year",
+                ExpectedKind::Replacement,
+                Some("z"),
+                Some("q"),
+            );
+            expected.occurrence_count = Some(28);
+            expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+            expected.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+            let needles = normalized_expected_quotes(&expected);
+            let mut budget = MatchingScanBudget::default();
+
+            assert!(
+                !actual_matches_reviewed_mode(
+                    &expected,
+                    &needles,
+                    &actuals[0],
+                    ReviewedEventMode::ExactLocalization,
+                    &mut budget,
+                    MatchingLimits::default(),
+                )
+                .expect("matching stays within default limits")
+            );
+        }
+    }
+
+    #[test]
+    fn repeated_recovered_event_fails_closed_on_missing_or_duplicate_trace() {
+        let (old_blocks, new_blocks, comparison, traces) = repeated_recovered_fixture(3);
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+        let mut mismatched = traces.clone();
+        let mismatched_occurrence = mismatched[0].changed_occurrences[0]
+            .occurrence
+            .old_span
+            .as_mut()
+            .expect("old span");
+        mismatched_occurrence.canonical_range = ScalarRange { start: 5, end: 6 };
+        mismatched_occurrence.comparable_range = TokenRange { start: 5, end: 6 };
+        for incomplete in [
+            traces[..2].to_vec(),
+            {
+                let mut duplicate = traces.clone();
+                duplicate.push(traces[0].clone());
+                duplicate
+            },
+            mismatched,
+        ] {
+            let actuals =
+                flatten_actual_changes(&comparison, [&old_map, &new_map], &[], &incomplete);
+            assert!(
+                actuals[0]
+                    .occurrences
+                    .iter()
+                    .all(|occurrence| occurrence.semantic_hunks.is_none())
+            );
+            assert!(actuals[0].occurrences.iter().all(|occurrence| matches!(
+                occurrence.relation_trace,
+                ActualRelationTraceStatus::Untraced
+            )));
+        }
+    }
+
+    #[test]
+    fn repeated_recovered_event_rejects_multi_hunk_trace() {
+        let (old_blocks, new_blocks, comparison, mut traces) = repeated_recovered_fixture(3);
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+        let extra = traces[1].changed_occurrences[0].clone();
+        traces[0].changed_occurrences.push(extra);
+
+        let actuals = flatten_actual_changes(&comparison, [&old_map, &new_map], &[], &traces);
+
+        assert!(
+            actuals[0]
+                .occurrences
+                .iter()
+                .all(|occurrence| occurrence.semantic_hunks.is_none())
+        );
+    }
+
+    #[test]
+    fn recovered_evidence_is_not_shared_across_public_events() {
+        let (old_blocks, new_blocks, mut comparison, traces) = repeated_recovered_fixture(3);
+        comparison.changes.push(comparison.changes[0].clone());
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+
+        let actuals = flatten_actual_changes(&comparison, [&old_map, &new_map], &[], &traces);
+
+        assert!(actuals.iter().all(|actual| {
+            actual
+                .occurrences
+                .iter()
+                .all(|occurrence| occurrence.semantic_hunks.is_none())
+        }));
+    }
+
+    #[test]
+    fn recovered_evidence_resource_cap_returns_no_partial_index() {
+        let (old_blocks, new_blocks, comparison, traces) = repeated_recovered_fixture(3);
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+
+        let exact_visit_limit = 21;
+        assert!(
+            recovered_evidence_index(
+                &comparison.changes,
+                &traces,
+                [&old_map, &new_map],
+                MatchingLimits {
+                    max_occurrence_visits: exact_visit_limit,
+                    ..MatchingLimits::default()
+                },
+            )
+            .is_some()
+        );
+        assert!(
+            recovered_evidence_index(
+                &comparison.changes,
+                &traces,
+                [&old_map, &new_map],
+                MatchingLimits {
+                    max_occurrence_visits: exact_visit_limit - 1,
+                    ..MatchingLimits::default()
+                },
+            )
+            .is_none()
+        );
+        assert!(
+            recovered_evidence_index(
+                &comparison.changes,
+                &traces,
+                [&old_map, &new_map],
+                MatchingLimits {
+                    max_text_bytes: 0,
+                    ..MatchingLimits::default()
+                },
+            )
+            .is_none()
         );
     }
 
