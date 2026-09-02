@@ -2966,6 +2966,7 @@ struct PreparedSentenceRecovery {
 struct OriginatedChange {
     event: ChangeEvent,
     origin: ChangeOrigin,
+    repeated_group: Option<usize>,
 }
 
 struct PreparedSentenceRecoveryBatch {
@@ -3120,6 +3121,12 @@ struct RepeatedRecoveryLookupKey {
     comparable_end: usize,
 }
 
+struct RepeatedReplacementGroupState {
+    count: usize,
+    confidence: Confidence,
+    valid: bool,
+}
+
 fn group_repeated_recovered_changes(
     old: &Side<'_>,
     new: &Side<'_>,
@@ -3255,7 +3262,71 @@ fn group_repeated_recovered_changes(
     if candidate_cursor != candidates.len() {
         return None;
     }
-    for (entry_index, change) in grouped {
+    let mut repeated_groups = HashMap::<usize, RepeatedReplacementGroupState>::new();
+    repeated_groups.try_reserve(grouped.len()).ok()?;
+    for (_, change) in &grouped {
+        if let Some(group) = change.repeated_group {
+            let member_valid = change.origin == ChangeOrigin::RunningMatter
+                && change.event.kind == ChangeKind::Replacement
+                && change.event.occurrences.len() == 1
+                && change.event.tags.is_empty();
+            let state = repeated_groups
+                .entry(group)
+                .or_insert(RepeatedReplacementGroupState {
+                    count: 0,
+                    confidence: change.event.confidence,
+                    valid: true,
+                });
+            state.count = state.count.checked_add(1)?;
+            state.valid &= member_valid && state.confidence == change.event.confidence;
+        }
+    }
+    for state in repeated_groups.values().filter(|state| state.valid) {
+        let additional = state.count.checked_sub(1)?;
+        if !output_budget.charge_many(
+            0,
+            additional.checked_mul(std::mem::size_of::<ChangeOccurrence>())?,
+        ) {
+            return None;
+        }
+    }
+    let mut repeated_outputs = HashMap::<usize, usize>::new();
+    repeated_outputs.try_reserve(repeated_groups.len()).ok()?;
+    let mut final_grouped = Vec::<(usize, OriginatedChange)>::new();
+    final_grouped.try_reserve_exact(grouped.len()).ok()?;
+    for (entry_index, mut change) in grouped {
+        let Some(group) = change.repeated_group else {
+            final_grouped.push((entry_index, change));
+            continue;
+        };
+        let state = repeated_groups.get(&group)?;
+        if !state.valid {
+            change.repeated_group = None;
+            final_grouped.push((entry_index, change));
+            continue;
+        }
+        if let Some(output_index) = repeated_outputs.get(&group).copied() {
+            let output = &mut final_grouped.get_mut(output_index)?.1;
+            debug_assert_eq!(output.origin, change.origin);
+            debug_assert_eq!(output.repeated_group, Some(group));
+            debug_assert_eq!(output.event.kind, change.event.kind);
+            debug_assert_eq!(output.event.confidence, change.event.confidence);
+            debug_assert_eq!(output.event.tags, change.event.tags);
+            output
+                .event
+                .occurrences
+                .push(change.event.occurrences.pop()?);
+        } else {
+            change
+                .event
+                .occurrences
+                .try_reserve_exact(state.count.checked_sub(1)?)
+                .ok()?;
+            repeated_outputs.insert(group, final_grouped.len());
+            final_grouped.push((entry_index, change));
+        }
+    }
+    for (entry_index, change) in final_grouped {
         entries.get_mut(entry_index)?.prepared.changes.push(change);
     }
     Some(())
@@ -3388,42 +3459,127 @@ fn prepare_recovered_replacement_edits(
     max_edit_distance: usize,
     output_budget: &mut RecoveryOutputBudget,
 ) -> Option<()> {
-    let mut fatal = false;
-    recovery.replacements.retain_mut(|replacement| {
-        if fatal {
-            return false;
+    let replacement_count = recovery.replacements.len();
+    let repeated_count = recovery
+        .replacements
+        .iter()
+        .filter(|replacement| replacement.repeated_group.is_some())
+        .count();
+    let auxiliary_items = replacement_count.checked_add(repeated_count.checked_mul(2)?)?;
+    let auxiliary_bytes = replacement_count
+        .checked_mul(std::mem::size_of::<bool>())?
+        .checked_add(repeated_count.checked_mul(std::mem::size_of::<(usize, usize)>())?)?
+        .checked_add(repeated_count.checked_mul(
+            std::mem::size_of::<usize>().checked_add(std::mem::size_of::<Range<usize>>())?,
+        )?)?;
+    if !output_budget.charge_many(auxiliary_items, auxiliary_bytes) {
+        return None;
+    }
+    let mut retained = Vec::new();
+    retained.try_reserve_exact(replacement_count).ok()?;
+    retained.resize(replacement_count, true);
+    let mut repeated_members = Vec::<(usize, usize)>::new();
+    repeated_members.try_reserve_exact(repeated_count).ok()?;
+    for (index, replacement) in recovery.replacements.iter().enumerate() {
+        if let Some(group) = replacement.repeated_group {
+            repeated_members.push((group, index));
         }
+    }
+    repeated_members.sort_unstable();
+    let mut group_ranges = HashMap::<usize, Range<usize>>::new();
+    group_ranges.try_reserve(repeated_members.len()).ok()?;
+    let mut member_start = 0usize;
+    while member_start < repeated_members.len() {
+        let group = repeated_members.get(member_start)?.0;
+        let mut member_end = member_start.checked_add(1)?;
+        while repeated_members
+            .get(member_end)
+            .is_some_and(|member| member.0 == group)
+        {
+            member_end = member_end.checked_add(1)?;
+        }
+        group_ranges.insert(group, member_start..member_end);
+        member_start = member_end;
+    }
+
+    for replacement_index in 0..replacement_count {
+        let repeated_group = recovery.replacements[replacement_index].repeated_group;
+        let group_range = match repeated_group {
+            Some(group) => match group_ranges.remove(&group) {
+                Some(range) => Some(range),
+                None => continue,
+            },
+            None => None,
+        };
         let mut tentative_budget = *output_budget;
-        match prepare_one_recovered_replacement(
-            old,
-            new,
-            replacement,
-            max_edit_distance,
-            &mut tentative_budget,
-        ) {
-            Some(true) => {
-                *output_budget = tentative_budget;
-                true
+        let mut accepted = true;
+        let mut prepare_index = |index| {
+            match prepare_one_recovered_replacement(
+                old,
+                new,
+                recovery.replacements.get_mut(index)?,
+                max_edit_distance,
+                &mut tentative_budget,
+            ) {
+                Some(true) => {}
+                Some(false) => accepted = false,
+                None => return None,
             }
-            Some(false) => {
-                if !remove_consumed_ranges(
-                    &mut recovery.deletion_consumed,
-                    &replacement.old_consumed,
-                ) || !remove_consumed_ranges(
+            Some(())
+        };
+        if let Some(range) = &group_range {
+            for (_, index) in repeated_members.get(range.clone())? {
+                prepare_index(*index)?;
+            }
+        } else {
+            prepare_index(replacement_index)?;
+        }
+        if accepted
+            && let Some(range) = &group_range
+            && !repeated_replacement_group_is_identical(
+                old,
+                new,
+                &recovery.replacements,
+                repeated_members.get(range.clone())?,
+                &mut tentative_budget,
+            )?
+        {
+            accepted = false;
+        }
+        if accepted {
+            *output_budget = tentative_budget;
+            continue;
+        }
+        let rollback_range = group_range.as_ref().map_or(0..0, Clone::clone);
+        let rollback_single = group_range.is_none().then_some(replacement_index);
+        let rollback_indices = repeated_members
+            .get(rollback_range)?
+            .iter()
+            .map(|(_, index)| *index)
+            .chain(rollback_single);
+        for index in rollback_indices {
+            let replacement = recovery.replacements.get(index)?;
+            if !remove_consumed_ranges(&mut recovery.deletion_consumed, &replacement.old_consumed)
+                || !remove_consumed_ranges(
                     &mut recovery.insertion_consumed,
                     &replacement.new_consumed,
-                ) {
-                    fatal = true;
-                }
-                false
+                )
+            {
+                return None;
             }
-            None => {
-                fatal = true;
-                false
-            }
+            *retained.get_mut(index)? = false;
         }
+    }
+    if !group_ranges.is_empty() {
+        return None;
+    }
+    let mut index = 0usize;
+    recovery.replacements.retain(|_| {
+        let keep = retained.get(index).copied().unwrap_or(false);
+        index += 1;
+        keep
     });
-    if fatal {
+    if index != retained.len() {
         return None;
     }
     recovery.cross_span_replacement_new_spans.clear();
@@ -3437,6 +3593,56 @@ fn prepare_recovered_replacement_edits(
     recovery.cross_span_replacement_new_spans.sort_unstable();
     recovery.cross_span_replacement_new_spans.dedup();
     Some(())
+}
+
+fn repeated_replacement_group_is_identical(
+    old: &Side<'_>,
+    new: &Side<'_>,
+    replacements: &[sentence::RecoveredReplacement],
+    members: &[(usize, usize)],
+    output_budget: &mut RecoveryOutputBudget,
+) -> Option<bool> {
+    let first = replacements.get(members.first()?.1)?;
+    if first.origin != ChangeOrigin::RunningMatter || first.repeated_group.is_none() {
+        return Some(false);
+    }
+    let first_old = try_recovered_tokens(old, &first.old, output_budget)?;
+    let first_new = try_recovered_tokens(new, &first.new, output_budget)?;
+    let first_edits = first.edits.as_deref()?;
+    // A repeated template is one semantic event only when each physical-page
+    // occurrence produces one identical hunk. Multiple hunks are ambiguous
+    // between independent template changes and therefore reject the group.
+    let mut hunk_count = 0usize;
+    if !visit_recovered_hunks(
+        &first_old,
+        &first_new,
+        first_edits,
+        first.hunk_policy,
+        |_| {
+            let Some(next) = hunk_count.checked_add(1) else {
+                return false;
+            };
+            hunk_count = next;
+            true
+        },
+    ) || hunk_count != 1
+    {
+        return Some(false);
+    }
+    for (_, index) in members.iter().skip(1) {
+        let replacement = replacements.get(*index)?;
+        if replacement.origin != ChangeOrigin::RunningMatter
+            || replacement.repeated_group != first.repeated_group
+            || replacement.relation != first.relation
+            || replacement.hunk_policy != first.hunk_policy
+            || replacement.edits.as_deref()? != first_edits
+            || try_recovered_tokens(old, &replacement.old, output_budget)? != first_old
+            || try_recovered_tokens(new, &replacement.new, output_budget)? != first_new
+        {
+            return Some(false);
+        }
+    }
+    Some(true)
 }
 
 fn prepare_one_recovered_replacement(
@@ -4040,6 +4246,7 @@ fn prepare_recovered_changes(
                 Vec::new(),
             ),
             origin: recovery.origin,
+            repeated_group: None,
         });
         let metric = origins.get_mut(recovery.origin);
         match kind {
@@ -4131,6 +4338,7 @@ fn prepare_recovered_replacements(
         changes.push(OriginatedChange {
             event: replacement_change,
             origin: replacement.origin,
+            repeated_group: replacement.repeated_group,
         });
         resolved_old = resolved_old.checked_add(replacement.old.source_tokens)?;
         resolved_new = resolved_new.checked_add(replacement.new.source_tokens)?;
@@ -7900,6 +8108,200 @@ mod tests {
     }
 
     #[test]
+    fn repeated_footer_value_change_is_one_multi_occurrence_replacement() {
+        let old = repeated_paged_role_blocks(
+            1..=3,
+            "Acme security standard 2024.",
+            BlockRole::RepeatedFooter,
+            1,
+        );
+        let new = repeated_paged_role_blocks(
+            1..=3,
+            "Acme security standard 2025.",
+            BlockRole::RepeatedFooter,
+            101,
+        );
+        let outcome = compare_sentence_recovery_with_metrics(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)); 3],
+            &[Some(TrustedRunId(2)); 3],
+            5,
+        );
+
+        assert_eq!(outcome.comparison.changes.len(), 1);
+        let change = &outcome.comparison.changes[0];
+        assert_eq!(change.kind, ChangeKind::Replacement);
+        assert_eq!(change.occurrences.len(), 3);
+        assert!(change.occurrences.iter().all(|occurrence| {
+            occurrence
+                .old_span
+                .as_ref()
+                .is_some_and(|span| span.comparable_range.end - span.comparable_range.start == 1)
+                && occurrence.new_span.as_ref().is_some_and(|span| {
+                    span.comparable_range.end - span.comparable_range.start == 1
+                })
+        }));
+        assert_eq!(
+            outcome
+                .sentence_recovery_metrics
+                .expect("running-matter diagnostics complete")
+                .change_origins
+                .running_matter
+                .event_count,
+            1
+        );
+
+        let reverse = compare_sentence_recovery(
+            &new,
+            &old,
+            &[Some(TrustedRunId(2)); 3],
+            &[Some(TrustedRunId(1)); 3],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+        assert_eq!(reverse.changes.len(), 1);
+        assert_eq!(reverse.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(reverse.changes[0].occurrences.len(), 3);
+    }
+
+    #[test]
+    fn repeated_footer_value_change_pairs_sentence_and_line_units() {
+        let mut old = repeated_paged_role_blocks(
+            1..=3,
+            "Acme security standard 2024",
+            BlockRole::RepeatedFooter,
+            1,
+        );
+        let mut new = repeated_paged_role_blocks(
+            1..=3,
+            "Acme security standard 2025",
+            BlockRole::RepeatedFooter,
+            101,
+        );
+        for block in &mut new {
+            block.line_breaks = None;
+        }
+        old[1].line_breaks = Some(Vec::new());
+        new[0].line_breaks = Some(Vec::new());
+        new[2].line_breaks = Some(Vec::new());
+        let old_runs = [Some(TrustedRunId(1)), None, Some(TrustedRunId(3))];
+        let new_runs = [None, Some(TrustedRunId(2)), None];
+        let outcome = compare_sentence_recovery_with_metrics(&old, &new, &old_runs, &new_runs, 5);
+
+        assert_eq!(outcome.comparison.changes.len(), 1);
+        assert_eq!(outcome.comparison.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(outcome.comparison.changes[0].occurrences.len(), 3);
+        assert_eq!(
+            outcome
+                .sentence_recovery_metrics
+                .expect("running-matter diagnostics complete")
+                .change_origins
+                .running_matter
+                .event_count,
+            1
+        );
+
+        let reverse = compare_sentence_recovery(
+            &new,
+            &old,
+            &new_runs,
+            &old_runs,
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+        assert_eq!(reverse.changes.len(), 1);
+        assert_eq!(reverse.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(reverse.changes[0].occurrences.len(), 3);
+    }
+
+    #[test]
+    fn repeated_footer_pairs_only_shared_physical_pages() {
+        let old = repeated_paged_role_blocks(
+            1..=29,
+            "Acme security standard 2024.",
+            BlockRole::RepeatedFooter,
+            1,
+        );
+        let new = repeated_paged_role_blocks(
+            (1..=29).filter(|page| *page != 7),
+            "Acme security standard 2025.",
+            BlockRole::RepeatedFooter,
+            101,
+        );
+        let outcome = compare_sentence_recovery_with_metrics(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)); 29],
+            &[Some(TrustedRunId(2)); 28],
+            5,
+        );
+
+        assert_eq!(outcome.comparison.changes.len(), 1);
+        assert_eq!(outcome.comparison.changes[0].occurrences.len(), 28);
+        assert_eq!(
+            outcome.comparison.old_coverage.resolved_tokens,
+            source_tokens(&old) - old[6].matching_tokens.len()
+        );
+        assert_eq!(
+            outcome.comparison.new_coverage.resolved_tokens,
+            source_tokens(&new)
+        );
+        assert!(!outcome.comparison.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn repeated_footer_duplicate_on_one_page_fails_closed() {
+        let mut old = repeated_paged_role_blocks(
+            [1, 1, 2],
+            "Acme security standard 2024.",
+            BlockRole::RepeatedFooter,
+            1,
+        );
+        let new = repeated_paged_role_blocks(
+            1..=3,
+            "Acme security standard 2025.",
+            BlockRole::RepeatedFooter,
+            101,
+        );
+        old[1].pages = old[0].pages.clone();
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)); 3],
+            &[Some(TrustedRunId(2)); 3],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert!(result.changes.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
+    }
+
+    #[test]
+    fn repeated_running_matter_aux_budget_exhaustion_fails_closed() {
+        let mut old = repeated_paged_role_blocks(1..=16, "A", BlockRole::RepeatedFooter, 1);
+        let mut new = repeated_paged_role_blocks(1..=16, "B", BlockRole::RepeatedFooter, 101);
+        for block in old.iter_mut().chain(&mut new) {
+            block.line_breaks = Some(Vec::new());
+        }
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[None; 16],
+            &[None; 16],
+            1,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert!(result.changes.is_empty());
+        assert_eq!(result.old_coverage.resolved_tokens, 0);
+        assert_eq!(result.new_coverage.resolved_tokens, 0);
+        assert!(!result.unresolved_regions.is_empty());
+    }
+
+    #[test]
     fn cross_role_near_counterparts_do_not_veto_repeated_running_matter() {
         let old = repeated_role_blocks(
             [1, 2],
@@ -9839,6 +10241,7 @@ mod tests {
                 new_best_scope: None,
             },
             hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
+            repeated_group: None,
             edits: Some(vec![
                 AtomicEdit {
                     old: 5..6,
@@ -9876,10 +10279,16 @@ mod tests {
             sentence_block(40, "alpha"),
             sentence_block(41, "beta"),
             sentence_block(50, "The reviewed value is alpha."),
+            sentence_block(52, "The reviewed value is alpha."),
+            sentence_block(60, "alpha one middle two omega"),
+            sentence_block(62, "alpha one middle two omega"),
         ];
         let new_blocks = vec![
             sentence_block(42, "alphaxbeta"),
             sentence_block(51, "The reviewed value is beta."),
+            sentence_block(53, "The reviewed value is delta."),
+            sentence_block(61, "alpha X middle Y omega"),
+            sentence_block(63, "alpha X middle Y omega"),
         ];
         let old = SidePlan::inspect("old", &old_blocks)
             .expect("old source is valid")
@@ -9928,6 +10337,7 @@ mod tests {
                     new_consumed: invalid_new.clone(),
                     relation: relation(),
                     hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
+                    repeated_group: None,
                     edits: None,
                 },
                 sentence::RecoveredReplacement {
@@ -9938,6 +10348,7 @@ mod tests {
                     new_consumed: valid_new.clone(),
                     relation: relation(),
                     hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
+                    repeated_group: None,
                     edits: None,
                 },
             ],
@@ -9956,6 +10367,163 @@ mod tests {
         assert_eq!(plan.deletion_consumed, valid_old);
         assert_eq!(plan.insertion_consumed, valid_new);
 
+        let mut repeated_plan = sentence::SentenceRecoveryPlan {
+            replacements: vec![
+                sentence::RecoveredReplacement {
+                    origin: ChangeOrigin::RunningMatter,
+                    old: recovery(0, vec![BlockId(40), BlockId(41)], 10, 9),
+                    new: recovery(0, vec![BlockId(42)], 10, 10),
+                    old_consumed: invalid_old.clone(),
+                    new_consumed: invalid_new.clone(),
+                    relation: relation(),
+                    hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
+                    repeated_group: Some(7),
+                    edits: None,
+                },
+                sentence::RecoveredReplacement {
+                    origin: ChangeOrigin::RunningMatter,
+                    old: recovery(1, vec![BlockId(50)], 28, 28),
+                    new: recovery(1, vec![BlockId(51)], 27, 27),
+                    old_consumed: valid_old.clone(),
+                    new_consumed: valid_new.clone(),
+                    relation: relation(),
+                    hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
+                    repeated_group: Some(7),
+                    edits: None,
+                },
+            ],
+            deletion_consumed: invalid_old.iter().chain(&valid_old).copied().collect(),
+            insertion_consumed: invalid_new.iter().chain(&valid_new).copied().collect(),
+            ..sentence::SentenceRecoveryPlan::default()
+        };
+        let mut repeated_budget = RecoveryOutputBudget::default();
+        prepare_recovered_replacement_edits(
+            &old,
+            &new,
+            &mut repeated_plan,
+            100,
+            &mut repeated_budget,
+        )
+        .expect("one rejected occurrence rolls back its entire repeated group");
+        assert!(repeated_plan.replacements.is_empty());
+        assert!(repeated_plan.deletion_consumed.is_empty());
+        assert!(repeated_plan.insertion_consumed.is_empty());
+
+        let second_old = vec![range(52, 28)];
+        let second_new = vec![range(53, 28)];
+        let mut inconsistent_group = sentence::SentenceRecoveryPlan {
+            replacements: vec![
+                sentence::RecoveredReplacement {
+                    origin: ChangeOrigin::RunningMatter,
+                    old: recovery(1, vec![BlockId(50)], 28, 28),
+                    new: recovery(1, vec![BlockId(51)], 27, 27),
+                    old_consumed: valid_old.clone(),
+                    new_consumed: valid_new.clone(),
+                    relation: relation(),
+                    hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
+                    repeated_group: Some(8),
+                    edits: None,
+                },
+                sentence::RecoveredReplacement {
+                    origin: ChangeOrigin::RunningMatter,
+                    old: recovery(2, vec![BlockId(52)], 28, 28),
+                    new: recovery(2, vec![BlockId(53)], 28, 28),
+                    old_consumed: second_old.clone(),
+                    new_consumed: second_new.clone(),
+                    relation: relation(),
+                    hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
+                    repeated_group: Some(8),
+                    edits: None,
+                },
+            ],
+            deletion_consumed: valid_old.iter().chain(&second_old).copied().collect(),
+            insertion_consumed: valid_new.iter().chain(&second_new).copied().collect(),
+            ..sentence::SentenceRecoveryPlan::default()
+        };
+        let mut inconsistent_budget = RecoveryOutputBudget::default();
+        prepare_recovered_replacement_edits(
+            &old,
+            &new,
+            &mut inconsistent_group,
+            100,
+            &mut inconsistent_budget,
+        )
+        .expect("different repeated edits fail closed without aborting the batch");
+        assert!(inconsistent_group.replacements.is_empty());
+        assert!(inconsistent_group.deletion_consumed.is_empty());
+        assert!(inconsistent_group.insertion_consumed.is_empty());
+
+        let multi_old_len = "alpha one middle two omega".chars().count();
+        let multi_new_len = "alpha X middle Y omega".chars().count();
+        let multi_old_a = vec![range(60, multi_old_len)];
+        let multi_old_b = vec![range(62, multi_old_len)];
+        let multi_new_a = vec![range(61, multi_new_len)];
+        let multi_new_b = vec![range(63, multi_new_len)];
+        let mut multi_hunk_group = sentence::SentenceRecoveryPlan {
+            replacements: vec![
+                sentence::RecoveredReplacement {
+                    origin: ChangeOrigin::RunningMatter,
+                    old: recovery(3, vec![BlockId(60)], multi_old_len, multi_old_len),
+                    new: recovery(3, vec![BlockId(61)], multi_new_len, multi_new_len),
+                    old_consumed: multi_old_a.clone(),
+                    new_consumed: multi_new_a.clone(),
+                    relation: relation(),
+                    hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
+                    repeated_group: Some(9),
+                    edits: None,
+                },
+                sentence::RecoveredReplacement {
+                    origin: ChangeOrigin::RunningMatter,
+                    old: recovery(4, vec![BlockId(62)], multi_old_len, multi_old_len),
+                    new: recovery(4, vec![BlockId(63)], multi_new_len, multi_new_len),
+                    old_consumed: multi_old_b.clone(),
+                    new_consumed: multi_new_b.clone(),
+                    relation: relation(),
+                    hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
+                    repeated_group: Some(9),
+                    edits: None,
+                },
+                sentence::RecoveredReplacement {
+                    origin: ChangeOrigin::SentenceNear,
+                    old: recovery(1, vec![BlockId(50)], 28, 28),
+                    new: recovery(1, vec![BlockId(51)], 27, 27),
+                    old_consumed: valid_old.clone(),
+                    new_consumed: valid_new.clone(),
+                    relation: relation(),
+                    hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
+                    repeated_group: None,
+                    edits: None,
+                },
+            ],
+            deletion_consumed: multi_old_a
+                .iter()
+                .chain(&multi_old_b)
+                .chain(&valid_old)
+                .copied()
+                .collect(),
+            insertion_consumed: multi_new_a
+                .iter()
+                .chain(&multi_new_b)
+                .chain(&valid_new)
+                .copied()
+                .collect(),
+            ..sentence::SentenceRecoveryPlan::default()
+        };
+        let mut multi_hunk_budget = RecoveryOutputBudget::default();
+        prepare_recovered_replacement_edits(
+            &old,
+            &new,
+            &mut multi_hunk_group,
+            100,
+            &mut multi_hunk_budget,
+        )
+        .expect("multi-hunk repeated group rejection preserves independent recovery");
+        assert_eq!(multi_hunk_group.replacements.len(), 1);
+        assert_eq!(multi_hunk_group.replacements[0].repeated_group, None);
+        assert_eq!(multi_hunk_group.replacements[0].old.blocks, [BlockId(50)]);
+        assert_eq!(multi_hunk_group.deletion_consumed, valid_old);
+        assert_eq!(multi_hunk_group.insertion_consumed, valid_new);
+
         let mut valid_only = sentence::SentenceRecoveryPlan {
             replacements: vec![sentence::RecoveredReplacement {
                 origin: ChangeOrigin::SentenceNear,
@@ -9965,6 +10533,7 @@ mod tests {
                 new_consumed: valid_new.clone(),
                 relation: relation(),
                 hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
+                repeated_group: None,
                 edits: None,
             }],
             deletion_consumed: valid_old,
@@ -9981,8 +10550,8 @@ mod tests {
         )
         .expect("the independent relation remains valid");
 
-        assert_eq!(budget.items, valid_only_budget.items);
-        assert_eq!(budget.bytes, valid_only_budget.bytes);
+        assert!(budget.items > valid_only_budget.items);
+        assert!(budget.bytes > valid_only_budget.bytes);
     }
 
     #[test]
@@ -13094,6 +13663,23 @@ mod tests {
             .map(|id| {
                 let mut block = sentence_block(id, text);
                 block.role = role;
+                block
+            })
+            .collect()
+    }
+
+    fn repeated_paged_role_blocks(
+        pages: impl IntoIterator<Item = u32>,
+        text: &str,
+        role: BlockRole,
+        first_id: u64,
+    ) -> Vec<BlockText> {
+        pages
+            .into_iter()
+            .enumerate()
+            .map(|(index, page)| {
+                let mut block = role_block(first_id + index as u64, text, role);
+                block.pages = vec![page];
                 block
             })
             .collect()

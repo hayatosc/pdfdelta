@@ -1041,6 +1041,7 @@ pub(super) fn append_cross_granularity_replacements(
                     new_best_scope: None,
                 },
                 hunk_policy: RecoveryHunkPolicy::Atomic,
+                repeated_group: None,
                 edits: None,
             });
         }

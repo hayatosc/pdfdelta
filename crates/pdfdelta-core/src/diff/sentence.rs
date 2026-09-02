@@ -155,6 +155,7 @@ pub(super) struct RecoveredReplacement {
     pub new_consumed: Vec<LocalSentenceRange>,
     pub relation: RecoveryRelationEvidence,
     pub hunk_policy: RecoveryHunkPolicy,
+    pub repeated_group: Option<usize>,
     pub edits: Option<Vec<AtomicEdit>>,
 }
 
@@ -828,6 +829,12 @@ struct PairedNearCandidates {
 
 #[derive(Default)]
 struct PairedNearVetoes {
+    old_occurrences: Vec<usize>,
+    new_occurrences: Vec<usize>,
+}
+
+#[derive(Default)]
+struct RepeatedRunningMatterVetoes {
     old_occurrences: Vec<usize>,
     new_occurrences: Vec<usize>,
 }
@@ -9034,6 +9041,8 @@ pub(super) struct RecoveryBudget {
     sentence_edge_filter_comparison_limit: usize,
     candidate_posting_visit_limit: usize,
     output_range_limit: usize,
+    running_matter_aux_item_limit: usize,
+    running_matter_aux_byte_limit: usize,
     occurrences: usize,
     key_bytes: usize,
     pair_visits: usize,
@@ -9087,6 +9096,8 @@ pub(super) struct RecoveryBudget {
     location_items: usize,
     location_bytes: usize,
     word_ranges: usize,
+    running_matter_aux_items: usize,
+    running_matter_aux_bytes: usize,
     exact_tail_token_verification_comparisons: usize,
     enable_known_span_sentence_shadow: bool,
     enable_sentence_edge_gate_shadow: bool,
@@ -9105,6 +9116,8 @@ impl RecoveryBudget {
             return None;
         }
         let scaled_limit = token_limit.checked_mul(4)?;
+        let running_matter_aux_byte_limit =
+            scaled_limit.checked_mul(std::mem::size_of::<usize>())?;
         Some(Self {
             token_limit,
             pair_visit_limit: token_limit,
@@ -9116,6 +9129,8 @@ impl RecoveryBudget {
             sentence_edge_filter_comparison_limit: scaled_limit,
             candidate_posting_visit_limit: scaled_limit,
             output_range_limit: (token_limit / min_tokens).min(MAX_SENTENCE_RECOVERY_RANGES),
+            running_matter_aux_item_limit: scaled_limit,
+            running_matter_aux_byte_limit,
             occurrences: 0,
             key_bytes: 0,
             pair_visits: 0,
@@ -9169,6 +9184,8 @@ impl RecoveryBudget {
             location_items: 0,
             location_bytes: 0,
             word_ranges: 0,
+            running_matter_aux_items: 0,
+            running_matter_aux_bytes: 0,
             exact_tail_token_verification_comparisons: 0,
             enable_known_span_sentence_shadow: false,
             enable_sentence_edge_gate_shadow: false,
@@ -9394,6 +9411,23 @@ impl RecoveryBudget {
 
     fn charge_key_bytes(&mut self, amount: usize) -> bool {
         Self::charge(&mut self.key_bytes, amount, self.key_byte_limit)
+    }
+
+    fn charge_running_matter_aux(&mut self, items: usize, bytes: usize) -> bool {
+        let Some(next_items) = self.running_matter_aux_items.checked_add(items) else {
+            return false;
+        };
+        let Some(next_bytes) = self.running_matter_aux_bytes.checked_add(bytes) else {
+            return false;
+        };
+        if next_items > self.running_matter_aux_item_limit
+            || next_bytes > self.running_matter_aux_byte_limit
+        {
+            return false;
+        }
+        self.running_matter_aux_items = next_items;
+        self.running_matter_aux_bytes = next_bytes;
+        true
     }
 
     #[cfg(test)]
@@ -13693,6 +13727,26 @@ fn build_sentence_recovery_plan_inner_impl(
     {
         return Ok(SentenceRecoveryBuildOutcome::default());
     }
+    let Some(repeated_running_matter_vetoes) = append_repeated_running_matter_replacements(
+        &mut plan,
+        &mut old_occurrences,
+        &mut new_occurrences,
+        &mut budget,
+    ) else {
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    };
+    old_candidates.retain(|candidate| {
+        repeated_running_matter_vetoes
+            .old_occurrences
+            .binary_search(&candidate.occurrence_index)
+            .is_err()
+    });
+    new_candidates.retain(|candidate| {
+        repeated_running_matter_vetoes
+            .new_occurrences
+            .binary_search(&candidate.occurrence_index)
+            .is_err()
+    });
     if let Some(diagnostics) = diagnostics.as_mut() {
         diagnostics.metrics.near_relation_complete = false;
     }
@@ -13710,6 +13764,7 @@ fn build_sentence_recovery_plan_inner_impl(
         &mut diagnostics,
         signature_checkpoint,
         &mut paired_vetoes,
+        &repeated_running_matter_vetoes,
         watch.as_mut(),
         &mut paired_shadow_stop_reason,
     )
@@ -22434,6 +22489,7 @@ fn build_local_fragment_replacement_batch(
                 new_consumed,
                 relation: old_relation.reciprocal_evidence(new_relation),
                 hunk_policy: RecoveryHunkPolicy::Semantic,
+                repeated_group: None,
                 edits: None,
             },
         });
@@ -23687,6 +23743,7 @@ struct PairedOccurrenceScope<'a> {
     min_tokens: usize,
     max_occurrences: usize,
     side: OccurrenceSide,
+    excluded_occurrences: &'a [usize],
 }
 
 type PairedExactExtensionResult<T> = std::result::Result<T, SentenceEdgeGateShadowStopReason>;
@@ -23741,6 +23798,7 @@ fn extend_paired_stream_exact_matches<'a>(
             min_tokens,
             max_occurrences: max_candidates,
             side: OccurrenceSide::Old,
+            excluded_occurrences: &[],
         },
     )?;
     append_paired_stream_occurrences(
@@ -23753,6 +23811,7 @@ fn extend_paired_stream_exact_matches<'a>(
             min_tokens,
             max_occurrences: max_candidates,
             side: OccurrenceSide::New,
+            excluded_occurrences: &[],
         },
     )?;
 
@@ -24002,7 +24061,11 @@ fn append_paired_stream_occurrences<'a>(
         let Some(role) = occurrence.role else {
             continue;
         };
-        if occurrence.location.is_none()
+        if scope
+            .excluded_occurrences
+            .binary_search(&occurrence_index)
+            .is_ok()
+            || occurrence.location.is_none()
             || occurrence.tokens.len() < scope.min_tokens
             || !scope
                 .recovery_spans
@@ -24062,6 +24125,7 @@ fn append_paired_stream_replacements<'a>(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
     vetoes: &mut PairedNearVetoes,
+    repeated_vetoes: &RepeatedRunningMatterVetoes,
     mut watch: Option<&mut RecoveryWatchState>,
     shadow_stop_reason: &mut Option<SentenceEdgeGateShadowStopReason>,
 ) -> Option<()> {
@@ -24095,6 +24159,7 @@ fn append_paired_stream_replacements<'a>(
             min_tokens,
             max_occurrences: budget.output_range_limit,
             side: OccurrenceSide::Old,
+            excluded_occurrences: &repeated_vetoes.old_occurrences,
         },
     ) {
         *shadow_stop_reason = Some(reason);
@@ -24110,6 +24175,7 @@ fn append_paired_stream_replacements<'a>(
             min_tokens,
             max_occurrences: budget.output_range_limit,
             side: OccurrenceSide::New,
+            excluded_occurrences: &repeated_vetoes.new_occurrences,
         },
     ) {
         *shadow_stop_reason = Some(reason);
@@ -28257,6 +28323,517 @@ fn append_exact_matches(
     Some(())
 }
 
+struct RepeatedRunningMatterGroup {
+    representative: usize,
+    role: OccurrenceRole,
+    occurrences: Vec<usize>,
+    duplicate_page: bool,
+    tokens_exact: bool,
+}
+
+fn charge_running_matter_capacity<T>(budget: &mut RecoveryBudget, items: usize) -> Option<()> {
+    budget
+        .charge_running_matter_aux(items, items.checked_mul(std::mem::size_of::<T>())?)
+        .then_some(())
+}
+
+fn running_matter_role_index(role: OccurrenceRole) -> Option<usize> {
+    match role {
+        OccurrenceRole::RepeatedHeader => Some(0),
+        OccurrenceRole::RepeatedFooter => Some(1),
+        OccurrenceRole::Body => None,
+    }
+}
+
+fn repeated_running_matter_groups(
+    occurrences: &[SentenceOccurrence],
+    budget: &mut RecoveryBudget,
+) -> Option<Vec<RepeatedRunningMatterGroup>> {
+    let mut by_key = HashMap::<(OccurrenceRole, &str), usize>::new();
+    charge_running_matter_capacity::<((OccurrenceRole, &str), usize)>(budget, occurrences.len())?;
+    by_key.try_reserve(occurrences.len()).ok()?;
+    let mut groups = Vec::<RepeatedRunningMatterGroup>::new();
+    charge_running_matter_capacity::<RepeatedRunningMatterGroup>(budget, occurrences.len())?;
+    groups.try_reserve(occurrences.len()).ok()?;
+    for (occurrence_index, occurrence) in occurrences.iter().enumerate() {
+        let Some(role) = occurrence.role.map(OccurrenceRole::from) else {
+            continue;
+        };
+        if role == OccurrenceRole::Body
+            || occurrence.location.is_none()
+            || occurrence.page.is_none()
+            || occurrence.tokens.is_empty()
+            || occurrence.tokens.iter().any(|token| !token.is_scalar())
+        {
+            continue;
+        }
+        let key = (role, occurrence.key.as_str());
+        let group_index = if let Some(index) = by_key.get(&key).copied() {
+            index
+        } else {
+            let index = groups.len();
+            groups.push(RepeatedRunningMatterGroup {
+                representative: occurrence_index,
+                role,
+                occurrences: Vec::new(),
+                duplicate_page: false,
+                tokens_exact: true,
+            });
+            by_key.insert(key, index);
+            index
+        };
+        let representative = groups.get(group_index)?.representative;
+        let representative_occurrence = occurrences.get(representative)?;
+        if !budget.charge_comparisons_in_scope_split(
+            occurrence.tokens.len(),
+            representative_occurrence.kind,
+            NearSearchScope::SameOrAmbiguousSpan,
+            NearSearchWorkSplit::shared(occurrence.tokens.len()),
+        ) {
+            return None;
+        }
+        let group = groups.get_mut(group_index)?;
+        if representative_occurrence.tokens != occurrence.tokens {
+            group.tokens_exact = false;
+        }
+        charge_running_matter_capacity::<usize>(budget, 1)?;
+        group.occurrences.try_reserve(1).ok()?;
+        group.occurrences.push(occurrence_index);
+    }
+    for group in &mut groups {
+        group
+            .occurrences
+            .sort_unstable_by_key(|index| (occurrences[*index].page, *index));
+        group.duplicate_page = group
+            .occurrences
+            .windows(2)
+            .any(|window| occurrences[window[0]].page == occurrences[window[1]].page);
+    }
+    Some(groups)
+}
+
+fn shared_running_matter_pages(
+    old: &RepeatedRunningMatterGroup,
+    new: &RepeatedRunningMatterGroup,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    budget: &mut RecoveryBudget,
+) -> Option<Vec<(usize, usize)>> {
+    let mut shared = Vec::new();
+    let capacity = old.occurrences.len().min(new.occurrences.len());
+    charge_running_matter_capacity::<(usize, usize)>(budget, capacity)?;
+    shared.try_reserve(capacity).ok()?;
+    let (mut old_cursor, mut new_cursor) = (0usize, 0usize);
+    while old_cursor < old.occurrences.len() && new_cursor < new.occurrences.len() {
+        let old_index = *old.occurrences.get(old_cursor)?;
+        let new_index = *new.occurrences.get(new_cursor)?;
+        let old_occurrence = old_occurrences.get(old_index)?;
+        if !budget.charge_comparisons_in_scope_split(
+            1,
+            old_occurrence.kind,
+            NearSearchScope::SameOrAmbiguousSpan,
+            NearSearchWorkSplit::shared(1),
+        ) {
+            return None;
+        }
+        let old_page = old_occurrence.page?;
+        let new_page = new_occurrences.get(new_index)?.page?;
+        match old_page.cmp(&new_page) {
+            std::cmp::Ordering::Less => old_cursor += 1,
+            std::cmp::Ordering::Greater => new_cursor += 1,
+            std::cmp::Ordering::Equal => {
+                shared.push((old_index, new_index));
+                old_cursor += 1;
+                new_cursor += 1;
+            }
+        }
+    }
+    Some(shared)
+}
+
+fn shared_running_matter_page_count(
+    old: &RepeatedRunningMatterGroup,
+    new: &RepeatedRunningMatterGroup,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    budget: &mut RecoveryBudget,
+) -> Option<usize> {
+    let (mut old_cursor, mut new_cursor, mut shared) = (0usize, 0usize, 0usize);
+    while old_cursor < old.occurrences.len() && new_cursor < new.occurrences.len() {
+        let old_index = *old.occurrences.get(old_cursor)?;
+        let new_index = *new.occurrences.get(new_cursor)?;
+        let old_occurrence = old_occurrences.get(old_index)?;
+        if !budget.charge_comparisons_in_scope_split(
+            1,
+            RecoveryUnitKind::Sentence,
+            NearSearchScope::SameOrAmbiguousSpan,
+            NearSearchWorkSplit::shared(1),
+        ) {
+            return None;
+        }
+        match old_occurrence
+            .page?
+            .cmp(&new_occurrences.get(new_index)?.page?)
+        {
+            std::cmp::Ordering::Less => old_cursor += 1,
+            std::cmp::Ordering::Greater => new_cursor += 1,
+            std::cmp::Ordering::Equal => {
+                shared = shared.checked_add(1)?;
+                old_cursor += 1;
+                new_cursor += 1;
+            }
+        }
+    }
+    Some(shared)
+}
+
+fn running_matter_group_score(
+    old: &RepeatedRunningMatterGroup,
+    new: &RepeatedRunningMatterGroup,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    budget: &mut RecoveryBudget,
+) -> Option<u16> {
+    let old_occurrence = old_occurrences.get(old.representative)?;
+    let new_occurrence = new_occurrences.get(new.representative)?;
+    let shorter = old_occurrence.tokens.len().min(new_occurrence.tokens.len());
+    if shorter == 0 {
+        return Some(0);
+    }
+    let mut prefix = 0usize;
+    while prefix < shorter {
+        if !budget.charge_comparisons_in_scope_split(
+            1,
+            RecoveryUnitKind::Sentence,
+            NearSearchScope::SameOrAmbiguousSpan,
+            NearSearchWorkSplit::shared(1),
+        ) {
+            return None;
+        }
+        if old_occurrence.tokens[prefix] != new_occurrence.tokens[prefix] {
+            break;
+        }
+        prefix += 1;
+    }
+    let mut suffix = 0usize;
+    while suffix < shorter.checked_sub(prefix)? {
+        if !budget.charge_comparisons_in_scope_split(
+            1,
+            RecoveryUnitKind::Sentence,
+            NearSearchScope::SameOrAmbiguousSpan,
+            NearSearchWorkSplit::shared(1),
+        ) {
+            return None;
+        }
+        if old_occurrence.tokens[old_occurrence.tokens.len() - suffix - 1]
+            != new_occurrence.tokens[new_occurrence.tokens.len() - suffix - 1]
+        {
+            break;
+        }
+        suffix += 1;
+    }
+    let edge_score = basis_points(prefix.checked_add(suffix)?, shorter)?;
+    if edge_score < MIN_WORD_SCORE_EDGE_EVIDENCE {
+        return Some(edge_score);
+    }
+    let total_words = old_occurrence
+        .word_ranges
+        .len()
+        .checked_add(new_occurrence.word_ranges.len())?;
+    if total_words == 0 {
+        return Some(edge_score);
+    }
+    let upper_bound = basis_points(
+        old_occurrence
+            .word_ranges
+            .len()
+            .min(new_occurrence.word_ranges.len())
+            .checked_mul(2)?,
+        total_words,
+    )?;
+    if upper_bound <= edge_score {
+        return Some(edge_score);
+    }
+    let (mut old_word, mut new_word, mut shared_words) = (0usize, 0usize, 0usize);
+    while old_word < old_occurrence.word_ranges.len() && new_word < new_occurrence.word_ranges.len()
+    {
+        if !budget.charge_comparisons_in_scope_split(
+            1,
+            RecoveryUnitKind::Sentence,
+            NearSearchScope::SameOrAmbiguousSpan,
+            NearSearchWorkSplit::shared(1),
+        ) {
+            return None;
+        }
+        let old_value = old_occurrence
+            .key
+            .get(old_occurrence.word_ranges.get(old_word)?.clone())?;
+        let new_value = new_occurrence
+            .key
+            .get(new_occurrence.word_ranges.get(new_word)?.clone())?;
+        match old_value.cmp(new_value) {
+            std::cmp::Ordering::Less => old_word += 1,
+            std::cmp::Ordering::Greater => new_word += 1,
+            std::cmp::Ordering::Equal => {
+                shared_words = shared_words.checked_add(1)?;
+                old_word += 1;
+                new_word += 1;
+            }
+        }
+        let attainable = shared_words.checked_add(
+            old_occurrence
+                .word_ranges
+                .len()
+                .checked_sub(old_word)?
+                .min(new_occurrence.word_ranges.len().checked_sub(new_word)?),
+        )?;
+        if basis_points(attainable.checked_mul(2)?, total_words)? <= edge_score {
+            return Some(edge_score);
+        }
+    }
+    Some(edge_score.max(basis_points(shared_words.checked_mul(2)?, total_words)?))
+}
+
+fn append_repeated_running_matter_replacements(
+    plan: &mut SentenceRecoveryPlan,
+    old_occurrences: &mut [SentenceOccurrence],
+    new_occurrences: &mut [SentenceOccurrence],
+    budget: &mut RecoveryBudget,
+) -> Option<RepeatedRunningMatterVetoes> {
+    let old_groups = repeated_running_matter_groups(old_occurrences, budget)?;
+    let new_groups = repeated_running_matter_groups(new_occurrences, budget)?;
+    let mut vetoes = RepeatedRunningMatterVetoes::default();
+    charge_running_matter_capacity::<usize>(budget, old_occurrences.len())?;
+    vetoes
+        .old_occurrences
+        .try_reserve_exact(old_occurrences.len())
+        .ok()?;
+    charge_running_matter_capacity::<usize>(budget, new_occurrences.len())?;
+    vetoes
+        .new_occurrences
+        .try_reserve_exact(new_occurrences.len())
+        .ok()?;
+    for group in old_groups
+        .iter()
+        .filter(|group| group.duplicate_page || !group.tokens_exact)
+    {
+        vetoes
+            .old_occurrences
+            .extend(group.occurrences.iter().copied());
+    }
+    for group in new_groups
+        .iter()
+        .filter(|group| group.duplicate_page || !group.tokens_exact)
+    {
+        vetoes
+            .new_occurrences
+            .extend(group.occurrences.iter().copied());
+    }
+    let mut old_relations = Vec::new();
+    charge_running_matter_capacity::<CandidateNearRelation>(budget, old_groups.len())?;
+    old_relations.try_reserve_exact(old_groups.len()).ok()?;
+    old_relations.resize(old_groups.len(), CandidateNearRelation::default());
+    let mut new_relations = Vec::new();
+    charge_running_matter_capacity::<CandidateNearRelation>(budget, new_groups.len())?;
+    new_relations.try_reserve_exact(new_groups.len()).ok()?;
+    new_relations.resize(new_groups.len(), CandidateNearRelation::default());
+
+    let mut new_groups_by_role: [Vec<usize>; 2] = std::array::from_fn(|_| Vec::new());
+    for (new_index, new_group) in new_groups.iter().enumerate() {
+        if new_group.duplicate_page || !new_group.tokens_exact {
+            continue;
+        }
+        charge_running_matter_capacity::<usize>(budget, 1)?;
+        let posting = new_groups_by_role.get_mut(running_matter_role_index(new_group.role)?)?;
+        posting.try_reserve(1).ok()?;
+        posting.push(new_index);
+    }
+
+    for (old_index, old_group) in old_groups.iter().enumerate() {
+        if old_group.duplicate_page || !old_group.tokens_exact {
+            continue;
+        }
+        let new_posting = new_groups_by_role.get(running_matter_role_index(old_group.role)?)?;
+        for new_index in new_posting.iter().copied() {
+            let new_group = new_groups.get(new_index)?;
+            let old_occurrence = old_occurrences.get(old_group.representative)?;
+            let new_occurrence = new_occurrences.get(new_group.representative)?;
+            if !budget.charge_pair_visits_in_scope(
+                1,
+                RecoveryUnitKind::Sentence,
+                NearSearchScope::SameOrAmbiguousSpan,
+            ) {
+                return None;
+            }
+            if old_occurrence.tokens == new_occurrence.tokens {
+                continue;
+            }
+            let shared = shared_running_matter_page_count(
+                old_group,
+                new_group,
+                old_occurrences,
+                new_occurrences,
+                budget,
+            )?;
+            if shared < 2 {
+                continue;
+            }
+            let score = running_matter_group_score(
+                old_group,
+                new_group,
+                old_occurrences,
+                new_occurrences,
+                budget,
+            )?;
+            old_relations[old_index].record_eligible_with_scope(new_index, score, None);
+            new_relations[new_index].record_eligible_with_scope(old_index, score, None);
+        }
+    }
+
+    let mut selected = Vec::<(usize, usize, Vec<(usize, usize)>, RecoveryRelationEvidence)>::new();
+    charge_running_matter_capacity::<(usize, usize, Vec<(usize, usize)>, RecoveryRelationEvidence)>(
+        budget,
+        old_groups.len(),
+    )?;
+    selected.try_reserve(old_groups.len()).ok()?;
+    for (old_index, old_relation) in old_relations.iter().copied().enumerate() {
+        let Some(new_index) = old_relation.unique_partner() else {
+            continue;
+        };
+        let new_relation = *new_relations.get(new_index)?;
+        if new_relation.unique_partner() != Some(old_index) {
+            continue;
+        }
+        let shared = shared_running_matter_pages(
+            old_groups.get(old_index)?,
+            new_groups.get(new_index)?,
+            old_occurrences,
+            new_occurrences,
+            budget,
+        )?;
+        selected.push((
+            old_index,
+            new_index,
+            shared,
+            old_relation.reciprocal_evidence(new_relation),
+        ));
+    }
+
+    let replacement_count = selected
+        .iter()
+        .try_fold(0usize, |count, (_, _, shared, _)| {
+            count.checked_add(shared.len())
+        })?;
+    let source_tokens = selected
+        .iter()
+        .try_fold(0usize, |total, (_, _, shared, _)| {
+            shared
+                .iter()
+                .try_fold(total, |total, (old_index, new_index)| {
+                    total
+                        .checked_add(
+                            old_occurrences
+                                .get(*old_index)?
+                                .location
+                                .as_ref()?
+                                .recovery
+                                .source_tokens,
+                        )?
+                        .checked_add(
+                            new_occurrences
+                                .get(*new_index)?
+                                .location
+                                .as_ref()?
+                                .recovery
+                                .source_tokens,
+                        )
+                })
+        })?;
+    let old_consumed_count = selected
+        .iter()
+        .try_fold(0usize, |total, (_, _, shared, _)| {
+            shared.iter().try_fold(total, |total, (old_index, _)| {
+                total.checked_add(
+                    old_occurrences
+                        .get(*old_index)?
+                        .location
+                        .as_ref()?
+                        .consumed
+                        .len(),
+                )
+            })
+        })?;
+    let new_consumed_count = selected
+        .iter()
+        .try_fold(0usize, |total, (_, _, shared, _)| {
+            shared.iter().try_fold(total, |total, (_, new_index)| {
+                total.checked_add(
+                    new_occurrences
+                        .get(*new_index)?
+                        .location
+                        .as_ref()?
+                        .consumed
+                        .len(),
+                )
+            })
+        })?;
+    if !budget.charge_outputs(replacement_count.checked_mul(2)?, source_tokens) {
+        return None;
+    }
+    plan.replacements
+        .try_reserve_exact(replacement_count)
+        .ok()?;
+    plan.deletion_consumed
+        .try_reserve_exact(old_consumed_count)
+        .ok()?;
+    plan.insertion_consumed
+        .try_reserve_exact(new_consumed_count)
+        .ok()?;
+    plan.cross_span_replacement_new_spans
+        .try_reserve_exact(replacement_count)
+        .ok()?;
+
+    for (group_id, (old_group_index, new_group_index, shared, relation)) in
+        selected.into_iter().enumerate()
+    {
+        for (old_index, new_index) in shared {
+            let old_location = old_occurrences.get_mut(old_index)?.location.take()?;
+            let new_location = new_occurrences.get_mut(new_index)?.location.take()?;
+            plan.deletion_consumed
+                .extend(old_location.consumed.iter().copied());
+            plan.insertion_consumed
+                .extend(new_location.consumed.iter().copied());
+            plan.replacements.push(RecoveredReplacement {
+                origin: ChangeOrigin::RunningMatter,
+                old: old_location.recovery,
+                new: new_location.recovery,
+                old_consumed: old_location.consumed,
+                new_consumed: new_location.consumed,
+                relation,
+                hunk_policy: RecoveryHunkPolicy::Semantic,
+                repeated_group: Some(group_id),
+                edits: None,
+            });
+        }
+        for occurrence_index in &old_groups.get(old_group_index)?.occurrences {
+            if old_occurrences.get(*occurrence_index)?.location.is_some() {
+                vetoes.old_occurrences.push(*occurrence_index);
+            }
+        }
+        for occurrence_index in &new_groups.get(new_group_index)?.occurrences {
+            if new_occurrences.get(*occurrence_index)?.location.is_some() {
+                vetoes.new_occurrences.push(*occurrence_index);
+            }
+        }
+    }
+    sort_replacement_recoveries(plan);
+    vetoes.old_occurrences.sort_unstable();
+    vetoes.old_occurrences.dedup();
+    vetoes.new_occurrences.sort_unstable();
+    vetoes.new_occurrences.dedup();
+    Some(vetoes)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn append_replacements(
     plan: &mut SentenceRecoveryPlan,
@@ -28409,6 +28986,7 @@ fn append_replacements_typed(
             new_consumed: new_location.consumed,
             relation: old_relation.reciprocal_evidence(new_relation),
             hunk_policy: RecoveryHunkPolicy::Semantic,
+            repeated_group: None,
             edits: None,
         });
         let replacement = plan
@@ -30769,6 +31347,7 @@ mod tests {
             &mut diagnostics,
             &mut None,
             &mut vetoes,
+            &RepeatedRunningMatterVetoes::default(),
             None,
             &mut stop_reason,
         )
@@ -35037,6 +35616,7 @@ mod tests {
                 &mut diagnostics,
                 &mut None,
                 &mut vetoes,
+                &RepeatedRunningMatterVetoes::default(),
                 None,
                 &mut reason,
             )
