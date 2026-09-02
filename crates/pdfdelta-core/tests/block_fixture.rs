@@ -171,6 +171,256 @@ fn excludes_vertical_labels_from_repeated_margin_roles() {
 }
 
 #[test]
+fn repeated_margins_follow_geometry_instead_of_paint_order() {
+    let mut specs = Vec::new();
+    for page in 0..3 {
+        let base = u64::from(page) * 10;
+        specs.extend([
+            LineSpec::margin(base + 1, page, "Repeated footer", 0.0),
+            LineSpec::body(base + 2, page, "first body line", 100.0),
+            LineSpec::margin(base + 3, page, "Repeated header", 120.0),
+            LineSpec::body(base + 4, page, "second body line", 88.0),
+        ]);
+    }
+    let mut fixture = Fixture::new(specs);
+    let line_count = fixture.lines.len();
+    for (render_order, line) in fixture.lines.iter_mut().enumerate() {
+        let reversed = (line_count - render_order) as u32;
+        line.render_order = reversed..=reversed;
+    }
+    let mut glyphs = fixture.document.into_items();
+    let glyph_count = glyphs.len();
+    for (render_order, glyph) in glyphs.iter_mut().enumerate() {
+        glyph.render_order = (glyph_count - render_order) as u32;
+    }
+    fixture.document = Document::new(glyphs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("paint order must not determine repeated margin candidates");
+
+    for line in [LineId(3), LineId(13), LineId(23)] {
+        assert_eq!(role_for_line(&blocks, line), BlockRole::RepeatedHeader);
+    }
+    for line in [LineId(1), LineId(11), LineId(21)] {
+        assert_eq!(role_for_line(&blocks, line), BlockRole::RepeatedFooter);
+    }
+}
+
+#[test]
+fn blank_outer_lines_do_not_hide_repeated_footers() {
+    let mut specs = Vec::new();
+    for page in 0..3 {
+        let base = u64::from(page) * 10;
+        specs.extend([
+            LineSpec::margin(base + 1, page, "Repeated header", 120.0),
+            LineSpec::body(base + 2, page, "first body line", 100.0),
+            LineSpec::body(base + 3, page, "second body line", 88.0),
+            LineSpec::margin(base + 4, page, "Repeated footer", 0.0),
+            LineSpec::margin(base + 5, page, "   ", -20.0),
+        ]);
+    }
+    let fixture = Fixture::new(specs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("blank outer lines must not occupy a repeated margin slot");
+
+    for line in [LineId(4), LineId(14), LineId(24)] {
+        assert_eq!(role_for_line(&blocks, line), BlockRole::RepeatedFooter);
+    }
+    for line in [LineId(5), LineId(15), LineId(25)] {
+        assert_eq!(role_for_line(&blocks, line), BlockRole::Body);
+    }
+}
+
+#[test]
+fn same_baseline_footer_and_page_number_share_the_footer_band() {
+    let mut specs = Vec::new();
+    for page in 0..3 {
+        let base = u64::from(page) * 10;
+        let page_number = match page {
+            0 => "1",
+            1 => "2",
+            _ => "3",
+        };
+        let mut footer = LineSpec::margin(base + 4, page, "Repeated footer", 0.0);
+        footer.x = 0.0;
+        footer.width = 80.0;
+        let mut page_number = LineSpec::margin(base + 5, page, page_number, 0.0);
+        page_number.x = 120.0;
+        page_number.width = 10.0;
+        specs.extend([
+            LineSpec::margin(base + 1, page, "Repeated header", 120.0),
+            LineSpec::body(base + 2, page, "first body line", 100.0),
+            LineSpec::body(base + 3, page, "second body line", 88.0),
+            footer,
+            page_number,
+        ]);
+    }
+    let fixture = Fixture::new(specs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("all lines in the geometric footer band should remain eligible");
+
+    for line in [LineId(4), LineId(14), LineId(24)] {
+        assert_eq!(role_for_line(&blocks, line), BlockRole::RepeatedFooter);
+    }
+    for line in [LineId(5), LineId(15), LineId(25)] {
+        assert_eq!(role_for_line(&blocks, line), BlockRole::Body);
+    }
+
+    let mut owned_lines = blocks
+        .iter()
+        .flat_map(|block| block.lines.iter().copied())
+        .collect::<Vec<_>>();
+    owned_lines.sort_by_key(|line| line.0);
+    let mut expected_lines = fixture.lines.iter().map(|line| line.id).collect::<Vec<_>>();
+    expected_lines.sort_by_key(|line| line.0);
+    assert_eq!(
+        owned_lines, expected_lines,
+        "every glyph-owning line must appear once"
+    );
+}
+
+#[test]
+fn repeated_margin_requires_distinct_physical_pages() {
+    let mut repeated_left = LineSpec::margin(4, 0, "Single-page decoration", 0.0);
+    repeated_left.x = 0.0;
+    repeated_left.width = 40.0;
+    let mut repeated_middle = LineSpec::margin(5, 0, "Single-page decoration", 0.0);
+    repeated_middle.x = 60.0;
+    repeated_middle.width = 40.0;
+    let mut repeated_right = LineSpec::margin(6, 0, "Single-page decoration", 0.0);
+    repeated_right.x = 120.0;
+    repeated_right.width = 40.0;
+    let fixture = Fixture::new(vec![
+        LineSpec::margin(1, 0, "page zero header", 120.0),
+        LineSpec::body(2, 0, "page zero first body", 100.0),
+        LineSpec::body(3, 0, "page zero second body", 88.0),
+        repeated_left,
+        repeated_middle,
+        repeated_right,
+        LineSpec::margin(11, 1, "page one header", 120.0),
+        LineSpec::body(12, 1, "page one first body", 100.0),
+        LineSpec::body(13, 1, "page one second body", 88.0),
+        LineSpec::margin(14, 1, "page one footer", 0.0),
+        LineSpec::margin(21, 2, "page two header", 120.0),
+        LineSpec::body(22, 2, "page two first body", 100.0),
+        LineSpec::body(23, 2, "page two second body", 88.0),
+        LineSpec::margin(24, 2, "page two footer", 0.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("same-page duplicates must not establish a repeated margin");
+
+    for line in [LineId(4), LineId(5), LineId(6)] {
+        assert_eq!(role_for_line(&blocks, line), BlockRole::Body);
+    }
+}
+
+#[test]
+fn repeated_middle_body_lines_are_not_promoted_to_margins() {
+    let mut specs = Vec::new();
+    for page in 0..3 {
+        let base = u64::from(page) * 10;
+        specs.extend([
+            LineSpec::margin(base + 1, page, "Repeated header", 120.0),
+            LineSpec::body(base + 2, page, "Repeated body", 100.0),
+            LineSpec::body(base + 3, page, "page-specific body", 88.0),
+            LineSpec::margin(base + 4, page, "Repeated footer", 0.0),
+        ]);
+    }
+    let fixture = Fixture::new(specs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("middle repeated content should remain body text");
+
+    for line in [LineId(2), LineId(12), LineId(22)] {
+        assert_eq!(role_for_line(&blocks, line), BlockRole::Body);
+    }
+}
+
+#[test]
+fn established_footer_template_is_recovered_on_a_sparse_page() {
+    let mut specs = Vec::new();
+    for page in 0..3 {
+        let base = u64::from(page) * 10;
+        specs.extend([
+            LineSpec::margin(base + 1, page, "Repeated header", 120.0),
+            LineSpec::body(base + 2, page, "first body line", 100.0),
+            LineSpec::body(base + 3, page, "second body line", 88.0),
+            LineSpec::margin(base + 4, page, "Repeated footer", 0.0),
+        ]);
+    }
+    specs.extend([
+        LineSpec::body(31, 3, "sparse page body", 100.0),
+        LineSpec::margin(32, 3, "Repeated footer", 0.0),
+    ]);
+    let fixture = Fixture::new(specs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("an established exact footer should cover a sparse page");
+
+    assert_eq!(
+        role_for_line(&blocks, LineId(32)),
+        BlockRole::RepeatedFooter
+    );
+    assert_eq!(role_for_line(&blocks, LineId(31)), BlockRole::Body);
+}
+
+#[test]
+fn one_band_sparse_page_does_not_infer_a_margin_edge() {
+    let mut specs = Vec::new();
+    for page in 0..3 {
+        let base = u64::from(page) * 10;
+        specs.extend([
+            LineSpec::margin(base + 1, page, "Repeated header", 120.0),
+            LineSpec::body(base + 2, page, "first body line", 100.0),
+            LineSpec::body(base + 3, page, "second body line", 88.0),
+            LineSpec::margin(base + 4, page, "Repeated footer", 0.0),
+        ]);
+    }
+    specs.push(LineSpec::margin(31, 3, "Repeated footer", 0.0));
+    let fixture = Fixture::new(specs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("one physical band cannot prove header or footer orientation");
+
+    assert_eq!(role_for_line(&blocks, LineId(31)), BlockRole::Body);
+}
+
+#[test]
+fn header_and_footer_template_ambiguity_blocks_sparse_promotion() {
+    let mut specs = Vec::new();
+    for page in 0..3 {
+        let base = u64::from(page) * 10;
+        specs.extend([
+            LineSpec::margin(base + 1, page, "Repeated margin", 120.0),
+            LineSpec::body(base + 2, page, "first body line", 100.0),
+            LineSpec::body(base + 3, page, "second body line", 88.0),
+            LineSpec::margin(base + 4, page, "Repeated margin", 0.0),
+        ]);
+    }
+    specs.extend([
+        LineSpec::body(31, 3, "sparse page body", 100.0),
+        LineSpec::margin(32, 3, "Repeated margin", 0.0),
+    ]);
+    let fixture = Fixture::new(specs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("a template established on both edges must remain ambiguous");
+
+    assert_eq!(role_for_line(&blocks, LineId(32)), BlockRole::Body);
+}
+
+fn role_for_line(blocks: &[pdfdelta_core::layout::Block], line: LineId) -> BlockRole {
+    blocks
+        .iter()
+        .find(|block| block.lines.contains(&line))
+        .expect("line should belong to exactly one block")
+        .role
+}
+
+#[test]
 fn rejects_opposite_direction_inside_vertical_line() {
     let mut fixture = Fixture::new(vec![LineSpec::body(1, 0, "label", 100.0)]);
     let mut glyphs = fixture.document.into_items();

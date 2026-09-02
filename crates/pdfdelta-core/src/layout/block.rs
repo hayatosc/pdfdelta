@@ -801,6 +801,12 @@ struct MarginKey {
     signature: Vec<SignatureToken>,
 }
 
+#[derive(Clone, Debug)]
+struct EstablishedMarginStyle {
+    edge: MarginEdge,
+    references: Vec<usize>,
+}
+
 impl<'a> LineStats<'a> {
     fn new(
         line: &'a Line,
@@ -907,6 +913,69 @@ fn page_groups(stats: &[LineStats<'_>]) -> Vec<Vec<usize>> {
     pages
 }
 
+fn signature_is_nonblank(signature: &[SignatureToken]) -> bool {
+    signature.iter().any(|token| match token {
+        SignatureToken::Text(DecodedText::Mapped(text)) => {
+            text.chars().any(|character| !character.is_whitespace())
+        }
+        SignatureToken::Text(DecodedText::Unmapped { .. }) => true,
+        SignatureToken::SyntheticSpace => false,
+    })
+}
+
+fn horizontal_nonblank_bands(stats: &[LineStats<'_>], page: &[usize]) -> Vec<Vec<usize>> {
+    let mut horizontal = page
+        .iter()
+        .copied()
+        .filter(|index| {
+            is_horizontal(stats[*index].direction)
+                && signature_is_nonblank(&stats[*index].signature)
+        })
+        .collect::<Vec<_>>();
+    // Margin slots are physical row bands: paint order may interleave decorations,
+    // and a footer label can share its baseline with a page number.
+    horizontal.sort_by(|left, right| {
+        stats[*right]
+            .line
+            .baseline
+            .y
+            .total_cmp(&stats[*left].line.baseline.y)
+            .then_with(|| {
+                stats[*left]
+                    .line
+                    .bbox
+                    .min
+                    .x
+                    .total_cmp(&stats[*right].line.bbox.min.x)
+            })
+            .then_with(|| stats[*left].line.id.0.cmp(&stats[*right].line.id.0))
+    });
+
+    let mut bands = Vec::<Vec<usize>>::new();
+    for index in horizontal {
+        if let Some(band) = bands.last_mut().filter(|band| {
+            band.iter()
+                .any(|peer| is_same_row_band(&stats[*peer], &stats[index]))
+        }) {
+            band.push(index);
+        } else {
+            bands.push(vec![index]);
+        }
+    }
+    for band in &mut bands {
+        band.sort_by(|left, right| {
+            stats[*left]
+                .line
+                .bbox
+                .min
+                .x
+                .total_cmp(&stats[*right].line.bbox.min.x)
+                .then_with(|| stats[*left].line.id.0.cmp(&stats[*right].line.id.0))
+        });
+    }
+    bands
+}
+
 fn detect_repeated_margins(
     stats: &[LineStats<'_>],
     pages: &[Vec<usize>],
@@ -917,39 +986,41 @@ fn detect_repeated_margins(
         return roles;
     }
 
+    let page_bands = pages
+        .iter()
+        .map(|page| horizontal_nonblank_bands(stats, page))
+        .collect::<Vec<_>>();
     let mut candidates = BTreeMap::<MarginKey, Vec<usize>>::new();
-    for page in pages {
-        let horizontal: Vec<_> = page
-            .iter()
-            .copied()
-            .filter(|index| is_horizontal(stats[*index].direction))
-            .collect();
-        if horizontal.len() <= options.repeated_edge_line_limit.saturating_mul(2) {
+    for bands in &page_bands {
+        if bands.len() <= options.repeated_edge_line_limit.saturating_mul(2) {
             continue;
         }
         for ordinal in 0..options.repeated_edge_line_limit {
-            let header = horizontal[ordinal];
-            candidates
-                .entry(MarginKey {
-                    edge: MarginEdge::Header,
-                    ordinal,
-                    signature: stats[header].signature.clone(),
-                })
-                .or_default()
-                .push(header);
+            for header in &bands[ordinal] {
+                candidates
+                    .entry(MarginKey {
+                        edge: MarginEdge::Header,
+                        ordinal,
+                        signature: stats[*header].signature.clone(),
+                    })
+                    .or_default()
+                    .push(*header);
+            }
 
-            let footer = horizontal[horizontal.len() - ordinal - 1];
-            candidates
-                .entry(MarginKey {
-                    edge: MarginEdge::Footer,
-                    ordinal,
-                    signature: stats[footer].signature.clone(),
-                })
-                .or_default()
-                .push(footer);
+            for footer in &bands[bands.len() - ordinal - 1] {
+                candidates
+                    .entry(MarginKey {
+                        edge: MarginEdge::Footer,
+                        ordinal,
+                        signature: stats[*footer].signature.clone(),
+                    })
+                    .or_default()
+                    .push(*footer);
+            }
         }
     }
 
+    let mut established = BTreeMap::<Vec<SignatureToken>, Vec<EstablishedMarginStyle>>::new();
     for (key, mut remaining) in candidates {
         // Greedily clusters candidates with similar margin fonts using deterministic page ordering.
         while let Some(reference) = remaining.pop() {
@@ -964,16 +1035,96 @@ fn detect_repeated_margins(
                     different_style.push(candidate);
                 }
             }
-            if cluster.len() >= options.repeated_min_pages {
-                for index in cluster {
-                    roles[index] = key.edge.role();
+            let distinct_pages = cluster
+                .iter()
+                .map(|index| stats[*index].line.page)
+                .collect::<BTreeSet<_>>();
+            if distinct_pages.len() >= options.repeated_min_pages {
+                for index in &cluster {
+                    roles[*index] = key.edge.role();
                 }
+                established.entry(key.signature.clone()).or_default().push(
+                    EstablishedMarginStyle {
+                        edge: key.edge,
+                        references: cluster,
+                    },
+                );
             }
             remaining = different_style;
         }
     }
 
+    promote_established_margins_on_sparse_pages(
+        &mut roles,
+        stats,
+        &page_bands,
+        &established,
+        options,
+    );
+
     roles
+}
+
+fn promote_established_margins_on_sparse_pages(
+    roles: &mut [BlockRole],
+    stats: &[LineStats<'_>],
+    page_bands: &[Vec<Vec<usize>>],
+    established: &BTreeMap<Vec<SignatureToken>, Vec<EstablishedMarginStyle>>,
+    options: BlockOptions,
+) {
+    let dense_band_threshold = options.repeated_edge_line_limit.saturating_mul(2);
+    for bands in page_bands {
+        if bands.len() < 2 || bands.len() > dense_band_threshold {
+            continue;
+        }
+        for (edge, band) in [
+            (MarginEdge::Header, &bands[0]),
+            (MarginEdge::Footer, &bands[bands.len() - 1]),
+        ] {
+            for index in band {
+                let Some(styles) = established.get(&stats[*index].signature) else {
+                    continue;
+                };
+                if styles.iter().any(|style| style.edge != edge) {
+                    continue;
+                }
+                let compatible =
+                    styles
+                        .iter()
+                        .flat_map(|style| &style.references)
+                        .any(|reference| {
+                            font_similarity(&stats[*reference], &stats[*index])
+                                >= options.min_repeated_margin_font_similarity
+                                && margin_geometry_is_compatible(
+                                    &stats[*reference],
+                                    &stats[*index],
+                                    options,
+                                )
+                        });
+                if compatible {
+                    roles[*index] = edge.role();
+                }
+            }
+        }
+    }
+}
+
+fn margin_geometry_is_compatible(
+    reference: &LineStats<'_>,
+    candidate: &LineStats<'_>,
+    options: BlockOptions,
+) -> bool {
+    if !directions_are_compatible(reference.direction, candidate.direction) {
+        return false;
+    }
+    let height = reference
+        .median_height
+        .max(candidate.median_height)
+        .max(f64::EPSILON);
+    let baseline_distance = (reference.line.baseline.y - candidate.line.baseline.y).abs();
+    baseline_distance <= height
+        && interval_overlap_ratio(reference.inline_interval, candidate.inline_interval)
+            >= options.min_cross_page_horizontal_overlap_ratio
 }
 
 fn should_join_body(
