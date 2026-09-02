@@ -60,8 +60,9 @@ use pdfdelta_core::{
         SentenceEdgeSignatureReferenceOracleMetrics,
         SentenceEdgeSignatureReferenceOracleStopReason, SentenceEdgeSignatureShadowMetrics,
         SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics,
-        SequenceRelationShadowMetrics, SequenceRelationShadowStopReason, TextSpan,
-        TrustedResidualExactStopReason,
+        SequenceRelationShadowMetrics, SequenceRelationShadowStopReason,
+        StructuralContainerMetrics, StructuralContainerSideMetrics, StructuralContainerStopReason,
+        TextSpan, TrustedResidualExactStopReason,
     },
     layout::BlockRole,
     model::Document,
@@ -1611,6 +1612,44 @@ pub struct SequenceRelationShadowMetricsReport {
     pub path_margin_max: Option<u64>,
     pub veto_reasons: NearVetoReasonMetricsReport,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StructuralContainerStopReasonReport {
+    BlockLimit,
+    RangeLimit,
+    TokenLimit,
+    FontEvidenceLimit,
+    ContainerLimit,
+    AllocationFailure,
+    CounterOverflow,
+    InvalidLedger,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct StructuralContainerSideMetricsReport {
+    pub documents: usize,
+    pub sections: usize,
+    pub paragraphs: usize,
+    pub heading_candidates: usize,
+    pub accepted_headings: usize,
+    pub rejected_unsafe: usize,
+    pub rejected_not_single_line: usize,
+    pub rejected_without_numbering: usize,
+    pub rejected_not_font_prominent: usize,
+    pub block_visits: usize,
+    pub range_visits: usize,
+    pub token_visits: usize,
+    pub font_evidence_visits: usize,
+    pub max_section_depth: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct StructuralContainerMetricsReport {
+    pub complete: bool,
+    pub stop_reason: Option<StructuralContainerStopReasonReport>,
+    pub old: StructuralContainerSideMetricsReport,
+    pub new: StructuralContainerSideMetricsReport,
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct SentenceRecoveryMetricsReport {
@@ -1619,6 +1658,7 @@ pub struct SentenceRecoveryMetricsReport {
     pub recovery_leaf_partition_complete: Option<bool>,
     pub recovery_leaf_partition_stop_reason: Option<RecoveryOwnershipErrorReport>,
     pub recovery_ownership_partition: Option<RecoveryOwnershipPartitionReport>,
+    pub structural_container_shadow: Option<StructuralContainerMetricsReport>,
     pub old_trusted_run_source_tokens: usize,
     pub new_trusted_run_source_tokens: usize,
     pub structural_pairing_available: bool,
@@ -4468,6 +4508,53 @@ impl From<SequenceRelationShadowMetrics> for SequenceRelationShadowMetricsReport
     }
 }
 
+impl From<StructuralContainerStopReason> for StructuralContainerStopReasonReport {
+    fn from(reason: StructuralContainerStopReason) -> Self {
+        match reason {
+            StructuralContainerStopReason::BlockLimit => Self::BlockLimit,
+            StructuralContainerStopReason::RangeLimit => Self::RangeLimit,
+            StructuralContainerStopReason::TokenLimit => Self::TokenLimit,
+            StructuralContainerStopReason::FontEvidenceLimit => Self::FontEvidenceLimit,
+            StructuralContainerStopReason::ContainerLimit => Self::ContainerLimit,
+            StructuralContainerStopReason::AllocationFailure => Self::AllocationFailure,
+            StructuralContainerStopReason::CounterOverflow => Self::CounterOverflow,
+            StructuralContainerStopReason::InvalidLedger => Self::InvalidLedger,
+        }
+    }
+}
+
+impl From<StructuralContainerSideMetrics> for StructuralContainerSideMetricsReport {
+    fn from(metrics: StructuralContainerSideMetrics) -> Self {
+        Self {
+            documents: metrics.documents,
+            sections: metrics.sections,
+            paragraphs: metrics.paragraphs,
+            heading_candidates: metrics.heading_candidates,
+            accepted_headings: metrics.accepted_headings,
+            rejected_unsafe: metrics.rejected_unsafe,
+            rejected_not_single_line: metrics.rejected_not_single_line,
+            rejected_without_numbering: metrics.rejected_without_numbering,
+            rejected_not_font_prominent: metrics.rejected_not_font_prominent,
+            block_visits: metrics.block_visits,
+            range_visits: metrics.range_visits,
+            token_visits: metrics.token_visits,
+            font_evidence_visits: metrics.font_evidence_visits,
+            max_section_depth: metrics.max_section_depth,
+        }
+    }
+}
+
+impl From<StructuralContainerMetrics> for StructuralContainerMetricsReport {
+    fn from(metrics: StructuralContainerMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            stop_reason: metrics.stop_reason.map(Into::into),
+            old: metrics.old.into(),
+            new: metrics.new.into(),
+        }
+    }
+}
+
 impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
     fn from(metrics: SentenceRecoveryMetrics) -> Self {
         Self {
@@ -4478,6 +4565,7 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
                 .recovery_leaf_partition_stop_reason
                 .map(Into::into),
             recovery_ownership_partition: None,
+            structural_container_shadow: None,
             old_trusted_run_source_tokens: metrics.old_trusted_run_source_tokens,
             new_trusted_run_source_tokens: metrics.new_trusted_run_source_tokens,
             structural_pairing_available: metrics.structural_pairing_available,
@@ -9126,6 +9214,79 @@ fn validate_change_origin_parity(
     Ok(())
 }
 
+fn validate_structural_container_shadow(
+    shadow: Option<StructuralContainerMetrics>,
+) -> std::result::Result<(), String> {
+    let Some(shadow) = shadow else {
+        return Ok(());
+    };
+    if !shadow.complete {
+        let Some(reason) = shadow.stop_reason else {
+            return Err("stopped structural-container shadow has no stop reason".to_owned());
+        };
+        let expected = StructuralContainerMetrics {
+            complete: false,
+            stop_reason: Some(reason),
+            ..StructuralContainerMetrics::default()
+        };
+        if shadow != expected {
+            return Err("stopped structural-container shadow exposes partial metrics".to_owned());
+        }
+        return Ok(());
+    }
+    if shadow.stop_reason.is_some() {
+        return Err("complete structural-container shadow has a stop reason".to_owned());
+    }
+    for (label, side) in [("old", shadow.old), ("new", shadow.new)] {
+        if side.documents != 1 {
+            return Err(format!(
+                "{label} complete structural-container shadow must have one document"
+            ));
+        }
+        let safe_blocks = side
+            .sections
+            .checked_add(side.paragraphs)
+            .ok_or_else(|| format!("{label} structural-container block counters overflow"))?;
+        let rejected_candidates = side
+            .heading_candidates
+            .checked_sub(side.accepted_headings)
+            .ok_or_else(|| {
+                format!("{label} structural-container heading counters are inconsistent")
+            })?;
+        if side.accepted_headings != side.sections
+            || side.heading_candidates > safe_blocks
+            || side.rejected_not_single_line > rejected_candidates
+            || side.rejected_without_numbering > rejected_candidates
+            || side.rejected_not_font_prominent > rejected_candidates
+        {
+            return Err(format!(
+                "{label} structural-container heading counters are inconsistent"
+            ));
+        }
+        let classified_blocks = safe_blocks
+            .checked_add(side.rejected_unsafe)
+            .ok_or_else(|| format!("{label} structural-container block counters overflow"))?;
+        if classified_blocks != side.block_visits {
+            return Err(format!(
+                "{label} structural-container block partition is inconsistent"
+            ));
+        }
+        if side.range_visits > side.token_visits {
+            return Err(format!(
+                "{label} structural-container range visits exceed token visits"
+            ));
+        }
+        if (side.sections == 0) != (side.max_section_depth == 0)
+            || side.max_section_depth > side.sections
+        {
+            return Err(format!(
+                "{label} structural-container section depth is inconsistent"
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn validate_recovery_ownership_status(
     metrics: SentenceRecoveryMetrics,
 ) -> std::result::Result<(), String> {
@@ -9430,8 +9591,12 @@ fn validate_sentence_recovery_metrics_with_partition(
     partition: Option<&RecoveryOwnershipPartitionAnalysis>,
 ) -> std::result::Result<SentenceRecoveryMetricsReport, String> {
     let mut report = validate_sentence_recovery_metrics(metrics)?;
+    let structural_container_shadow =
+        partition.and_then(RecoveryOwnershipPartitionAnalysis::structural_container_metrics);
+    validate_structural_container_shadow(structural_container_shadow)?;
     report.recovery_ownership_partition =
         validate_recovery_ownership_partition(metrics, partition)?;
+    report.structural_container_shadow = structural_container_shadow.map(Into::into);
     Ok(report)
 }
 
@@ -13496,7 +13661,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 60;
+    pub const SCHEMA_VERSION: u32 = 61;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -15402,7 +15567,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 60);
+        assert_eq!(completed["schema_version"], 61);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -15476,7 +15641,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 60);
+        assert_eq!(legacy_summary["schema_version"], 61);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -15553,7 +15718,7 @@ mod tests {
         assert!(full.get("reviewed_recall_metrics").is_none());
         let summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[report]))
             .expect("summary serializes");
-        assert_eq!(summary["schema_version"], 60);
+        assert_eq!(summary["schema_version"], 61);
         assert_eq!(
             summary["records"][0]["reviewed_recall_metrics"],
             serde_json::json!({
@@ -18313,6 +18478,18 @@ mod tests {
             Some(SentenceRecoveryMetricsReport {
                 recovery_leaf_partition_complete: Some(true),
                 recovery_ownership_partition: Some(RecoveryOwnershipPartitionReport::default()),
+                structural_container_shadow: Some(StructuralContainerMetricsReport {
+                    complete: true,
+                    old: StructuralContainerSideMetricsReport {
+                        documents: 1,
+                        ..StructuralContainerSideMetricsReport::default()
+                    },
+                    new: StructuralContainerSideMetricsReport {
+                        documents: 1,
+                        ..StructuralContainerSideMetricsReport::default()
+                    },
+                    ..StructuralContainerMetricsReport::default()
+                }),
                 structural_pairing_available: true,
                 near_relation_complete: true,
                 sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetricsReport {
@@ -18544,11 +18721,91 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 60);
+        assert_eq!(json["schema_version"], 61);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
         );
+    }
+
+    #[test]
+    fn validates_structural_container_shadow_atomic_contract() {
+        let side = StructuralContainerSideMetrics {
+            documents: 1,
+            sections: 1,
+            paragraphs: 2,
+            heading_candidates: 3,
+            accepted_headings: 1,
+            rejected_unsafe: 1,
+            rejected_not_single_line: 1,
+            rejected_without_numbering: 1,
+            rejected_not_font_prominent: 1,
+            block_visits: 4,
+            range_visits: 4,
+            token_visits: 4,
+            max_section_depth: 1,
+            ..StructuralContainerSideMetrics::default()
+        };
+        let complete = StructuralContainerMetrics {
+            complete: true,
+            old: side,
+            new: side,
+            ..StructuralContainerMetrics::default()
+        };
+        assert_eq!(validate_structural_container_shadow(Some(complete)), Ok(()));
+        let empty_block_side = StructuralContainerSideMetrics {
+            documents: 1,
+            rejected_unsafe: 1,
+            block_visits: 1,
+            ..StructuralContainerSideMetrics::default()
+        };
+        let empty_block = StructuralContainerMetrics {
+            old: empty_block_side,
+            new: empty_block_side,
+            ..complete
+        };
+        assert_eq!(
+            validate_structural_container_shadow(Some(empty_block)),
+            Ok(())
+        );
+
+        let impossible_candidates = StructuralContainerMetrics {
+            old: StructuralContainerSideMetrics {
+                heading_candidates: 4,
+                ..side
+            },
+            ..complete
+        };
+        assert!(validate_structural_container_shadow(Some(impossible_candidates)).is_err());
+
+        let accepted_and_rejected = StructuralContainerMetrics {
+            old: StructuralContainerSideMetrics {
+                heading_candidates: 1,
+                rejected_without_numbering: 1,
+                ..side
+            },
+            ..complete
+        };
+        assert!(validate_structural_container_shadow(Some(accepted_and_rejected)).is_err());
+
+        let stopped = StructuralContainerMetrics {
+            complete: false,
+            stop_reason: Some(StructuralContainerStopReason::TokenLimit),
+            ..StructuralContainerMetrics::default()
+        };
+        assert_eq!(validate_structural_container_shadow(Some(stopped)), Ok(()));
+
+        let partial_stop = StructuralContainerMetrics {
+            old: side,
+            ..stopped
+        };
+        assert!(validate_structural_container_shadow(Some(partial_stop)).is_err());
+
+        let complete_with_reason = StructuralContainerMetrics {
+            stop_reason: Some(StructuralContainerStopReason::TokenLimit),
+            ..complete
+        };
+        assert!(validate_structural_container_shadow(Some(complete_with_reason)).is_err());
     }
 
     #[test]
@@ -25505,6 +25762,28 @@ mod tests {
                 sentence_recovery_metrics: Some(SentenceRecoveryMetricsReport {
                     recovery_leaf_partition_complete: Some(true),
                     recovery_ownership_partition: Some(ownership_partition),
+                    structural_container_shadow: Some(StructuralContainerMetricsReport {
+                        complete: true,
+                        stop_reason: None,
+                        old: StructuralContainerSideMetricsReport {
+                            documents: 1,
+                            paragraphs: 1,
+                            block_visits: 1,
+                            range_visits: 1,
+                            token_visits: 1,
+                            font_evidence_visits: 1,
+                            ..StructuralContainerSideMetricsReport::default()
+                        },
+                        new: StructuralContainerSideMetricsReport {
+                            documents: 1,
+                            paragraphs: 1,
+                            block_visits: 1,
+                            range_visits: 1,
+                            token_visits: 1,
+                            font_evidence_visits: 1,
+                            ..StructuralContainerSideMetricsReport::default()
+                        },
+                    }),
                     old_trusted_run_source_tokens: 42,
                     near_relation_complete: true,
                     sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetricsReport {
@@ -25654,7 +25933,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 60);
+        assert_eq!(value["schema_version"], 61);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -25729,6 +26008,7 @@ mod tests {
             "recovery_leaf_partition_complete".to_owned(),
             "recovery_leaf_partition_stop_reason".to_owned(),
             "recovery_ownership_partition".to_owned(),
+            "structural_container_shadow".to_owned(),
             "old_trusted_run_source_tokens".to_owned(),
             "new_trusted_run_source_tokens".to_owned(),
             "structural_pairing_available".to_owned(),
@@ -25870,6 +26150,46 @@ mod tests {
             .cloned()
             .collect::<HashSet<_>>();
         assert_eq!(sentence_recovery_keys, expected_sentence_recovery_keys);
+        let structural_container =
+            records[0]["sentence_recovery_metrics"]["structural_container_shadow"]
+                .as_object()
+                .expect("structural container shadow object");
+        assert_eq!(
+            structural_container.keys().cloned().collect::<HashSet<_>>(),
+            HashSet::from([
+                "complete".to_owned(),
+                "stop_reason".to_owned(),
+                "old".to_owned(),
+                "new".to_owned(),
+            ])
+        );
+        let expected_structural_container_side_keys = HashSet::from([
+            "documents".to_owned(),
+            "sections".to_owned(),
+            "paragraphs".to_owned(),
+            "heading_candidates".to_owned(),
+            "accepted_headings".to_owned(),
+            "rejected_unsafe".to_owned(),
+            "rejected_not_single_line".to_owned(),
+            "rejected_without_numbering".to_owned(),
+            "rejected_not_font_prominent".to_owned(),
+            "block_visits".to_owned(),
+            "range_visits".to_owned(),
+            "token_visits".to_owned(),
+            "font_evidence_visits".to_owned(),
+            "max_section_depth".to_owned(),
+        ]);
+        for side in ["old", "new"] {
+            assert_eq!(
+                structural_container[side]
+                    .as_object()
+                    .expect("structural container side object")
+                    .keys()
+                    .cloned()
+                    .collect::<HashSet<_>>(),
+                expected_structural_container_side_keys
+            );
+        }
         let fragment_bundle =
             records[0]["sentence_recovery_metrics"]["local_fragment_review_bundle"]
                 .as_object()

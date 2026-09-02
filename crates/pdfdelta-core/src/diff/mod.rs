@@ -3,6 +3,9 @@ mod presence;
 mod recovery;
 mod sentence;
 
+pub use recovery::container::{
+    StructuralContainerMetrics, StructuralContainerSideMetrics, StructuralContainerStopReason,
+};
 pub use recovery::ownership::{
     RecoveryGapReason, RecoveryLeafKind, RecoveryOwnership, RecoveryOwnershipBlockError,
     RecoveryOwnershipContext, RecoveryOwnershipError, RecoveryOwnershipInvariant,
@@ -2694,6 +2697,16 @@ fn compare_aligned_inner(
         );
     }
 
+    let structural_container_shadow = sentence_recovery
+        .validated_recovery_ownership_proof_ledgers()
+        .map(|ledgers| {
+            recovery::container::analyze_structural_container_metrics(
+                [&old, &new],
+                ledgers,
+                recovery::container::StructuralContainerLimits::from_max_tokens(options.max_tokens),
+            )
+        });
+
     let proven_changed_regions = sentence_recovery
         .validated_recovery_ownership_proof_ledgers()
         .and_then(|ledgers| {
@@ -2708,8 +2721,17 @@ fn compare_aligned_inner(
         })
         .unwrap_or_default();
 
-    let (mut sentence_recovery_metrics, recovery_watch_diagnostics, recovery_ownership_partition) =
-        sentence_recovery.finish_diagnostics();
+    let (
+        mut sentence_recovery_metrics,
+        recovery_watch_diagnostics,
+        mut recovery_ownership_partition,
+    ) = sentence_recovery.finish_diagnostics();
+    if let (Some(partition), Some(metrics)) = (
+        recovery_ownership_partition.as_mut(),
+        structural_container_shadow,
+    ) {
+        partition.set_structural_container_metrics(metrics);
+    }
     if let Some(metrics) = sentence_recovery_metrics.as_mut()
         && apply_ordered_alignment_origin(metrics, &changes, resolved_old, resolved_new).is_none()
     {

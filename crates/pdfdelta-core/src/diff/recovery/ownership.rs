@@ -1,5 +1,6 @@
 //! Bounded verification and aggregation for recovery token ownership.
 
+use super::container::StructuralContainerMetrics;
 #[cfg(test)]
 const RECOVERY_OWNERSHIP_SAMPLE_LIMIT: usize = 1;
 
@@ -326,6 +327,7 @@ pub struct RecoveryOwnershipPartitionSamples {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecoveryOwnershipPartitionAnalysis {
     sides: Vec<RecoveryOwnershipSideAnalysis>,
+    structural_container_metrics: Option<StructuralContainerMetrics>,
 }
 
 impl RecoveryOwnershipPartitionAnalysis {
@@ -339,7 +341,10 @@ impl RecoveryOwnershipPartitionAnalysis {
         sides.try_reserve_exact(2)?;
         sides.push(old);
         sides.push(new);
-        Ok(Self { sides })
+        Ok(Self {
+            sides,
+            structural_container_metrics: None,
+        })
     }
 
     pub fn old_side(&self) -> &RecoveryOwnershipSideAnalysis {
@@ -355,6 +360,15 @@ impl RecoveryOwnershipPartitionAnalysis {
             old: self.old_side().metrics,
             new: self.new_side().metrics,
         }
+    }
+    /// Returns behavior-neutral structural-container diagnostics derived from
+    /// this verified ownership partition.
+    pub fn structural_container_metrics(&self) -> Option<StructuralContainerMetrics> {
+        self.structural_container_metrics
+    }
+
+    pub(crate) fn set_structural_container_metrics(&mut self, metrics: StructuralContainerMetrics) {
+        self.structural_container_metrics = Some(metrics);
     }
 }
 
