@@ -40,8 +40,8 @@ use super::recovery::fragment_proposal::{
 #[cfg(test)]
 use super::recovery::ownership::verify_recovery_ownership_partition;
 use super::recovery::ownership::{
-    RecoveryEligibleBlock, RecoveryOwnershipLimits, RecoveryOwnershipRange,
-    analyze_recovery_ownership_partition,
+    RecoveryEligibleBlock, RecoveryOwnershipLedger, RecoveryOwnershipLimits,
+    RecoveryOwnershipRange, analyze_recovery_ownership_partition, build_recovery_ownership_ledger,
 };
 use super::recovery::score::{
     CachedSentenceEdgeEvidence, MIN_NEAR_SCORE, MIN_WORD_SCORE_EDGE_EVIDENCE, RelationFloorProbe,
@@ -236,6 +236,7 @@ pub(super) struct SentenceRecoveryBuildOutcome {
     new_located_ranges: Vec<LocatedRecoveryRange>,
     located_range_inventory_complete: bool,
     recovery_ownership_partition: Option<RecoveryOwnershipPartitionAnalysis>,
+    recovery_ownership_proof_ledgers: Option<[RecoveryOwnershipLedger; 2]>,
     fragment_veto_complete: bool,
     fragment_veto_stop_reason: Option<FragmentVetoStopReason>,
     fragment_veto_pair_visits_examined: usize,
@@ -352,6 +353,31 @@ struct SentenceRecoveryDiagnostics {
 }
 
 impl SentenceRecoveryBuildOutcome {
+    pub(super) fn validated_recovery_ownership_proof_ledgers(
+        &self,
+    ) -> Option<&[RecoveryOwnershipLedger; 2]> {
+        let diagnostics = self.diagnostics.as_ref()?;
+        let partition = self.recovery_ownership_partition.as_ref()?.metrics();
+        let (recovered_old, recovered_new) = recovered_source_token_counts(&diagnostics.metrics)?;
+        let unresolved_old = diagnostics
+            .eligible_old_source_tokens
+            .checked_sub(recovered_old)?;
+        let unresolved_new = diagnostics
+            .eligible_new_source_tokens
+            .checked_sub(recovered_new)?;
+        committed_recovery_leaf_partition_is_valid(
+            partition,
+            [
+                diagnostics.eligible_old_source_tokens,
+                diagnostics.eligible_new_source_tokens,
+            ],
+            [recovered_old, recovered_new],
+            [unresolved_old, unresolved_new],
+        )
+        .then_some(())?;
+        self.recovery_ownership_proof_ledgers.as_ref()
+    }
+
     pub(super) fn record_prepared_local_fragment_proposals(&mut self) {
         let committed = self.plan.as_ref().map_or(0, |plan| {
             plan.replacements
@@ -384,14 +410,7 @@ impl SentenceRecoveryBuildOutcome {
     ) {
         let metrics = self.diagnostics.and_then(|diagnostics| {
             let mut metrics = diagnostics.metrics;
-            let recovered_old = metrics
-                .recovered_exact_match_old_tokens
-                .checked_add(metrics.recovered_replacement_old_tokens)?
-                .checked_add(metrics.recovered_deletion_tokens)?;
-            let recovered_new = metrics
-                .recovered_exact_match_new_tokens
-                .checked_add(metrics.recovered_replacement_new_tokens)?
-                .checked_add(metrics.recovered_insertion_tokens)?;
+            let (recovered_old, recovered_new) = recovered_source_token_counts(&metrics)?;
             metrics.unresolved_remainder_old_source_tokens = diagnostics
                 .eligible_old_source_tokens
                 .checked_sub(recovered_old)?;
@@ -8986,6 +9005,7 @@ struct SpanMembership {
     old: HashMap<BlockId, usize>,
     new: HashMap<BlockId, usize>,
     recovery_spans: Vec<bool>,
+    presence_spans: Vec<bool>,
 }
 
 #[derive(Clone, Copy)]
@@ -10257,6 +10277,7 @@ struct OwnershipBlockState {
 
 struct RecoveryOwnershipSideInventory {
     analysis: RecoveryOwnershipSideAnalysis,
+    proof_ledger: Option<RecoveryOwnershipLedger>,
     trusted_residuals: Vec<TrustedResidualOccurrence>,
 }
 
@@ -10307,7 +10328,7 @@ pub(super) fn record_recovery_leaf_partition(
             .plan
             .as_ref()
             .map_or(empty, |plan| plan.insertion_consumed.as_slice());
-        let old = recovery_ownership_for_side(
+        let old_analysis = recovery_ownership_for_side(
             old,
             input.old_trusted_run_intervals,
             input.old_trusted_run_evidence,
@@ -10317,7 +10338,7 @@ pub(super) fn record_recovery_leaf_partition(
             &accepted.old_located_ranges,
             max_tokens,
         )?;
-        let new = recovery_ownership_for_side(
+        let new_analysis = recovery_ownership_for_side(
             new,
             input.new_trusted_run_intervals,
             input.new_trusted_run_evidence,
@@ -10327,21 +10348,52 @@ pub(super) fn record_recovery_leaf_partition(
             &accepted.new_located_ranges,
             max_tokens,
         )?;
-        RecoveryOwnershipPartitionAnalysis::try_new(old, new)
-            .map_err(|_| RecoveryOwnershipError::AllocationFailure)
+        let partition = RecoveryOwnershipPartitionAnalysis::try_new(old_analysis, new_analysis)
+            .map_err(|_| RecoveryOwnershipError::AllocationFailure)?;
+        // Presence proofs cover every safe unresolved span, while the public
+        // ownership diagnostics deliberately retain their recovery-only scope.
+        // Failure of this optional sidecar must not invalidate those metrics.
+        let proof_ledgers = (|| {
+            let (_, old_ledger) = recovery_ownership_with_ledger_for_side(
+                old,
+                input.old_trusted_run_intervals,
+                input.old_trusted_run_evidence,
+                &membership.old,
+                &membership.presence_spans,
+                old_accepted,
+                &accepted.old_located_ranges,
+                max_tokens,
+            )
+            .ok()?;
+            let (_, new_ledger) = recovery_ownership_with_ledger_for_side(
+                new,
+                input.new_trusted_run_intervals,
+                input.new_trusted_run_evidence,
+                &membership.new,
+                &membership.presence_spans,
+                new_accepted,
+                &accepted.new_located_ranges,
+                max_tokens,
+            )
+            .ok()?;
+            Some([old_ledger?, new_ledger?])
+        })();
+        Ok((partition, proof_ledgers))
     })();
     let diagnostics = accepted
         .diagnostics
         .as_mut()
         .expect("diagnostics presence checked before ownership analysis");
     match result {
-        Ok(partition) => {
+        Ok((partition, proof_ledgers)) => {
             diagnostics.metrics.recovery_leaf_partition_complete = Some(true);
             diagnostics.metrics.recovery_leaf_partition_stop_reason = None;
             accepted.recovery_ownership_partition = Some(partition);
+            accepted.recovery_ownership_proof_ledgers = proof_ledgers;
         }
         Err(reason) => {
             accepted.recovery_ownership_partition = None;
+            accepted.recovery_ownership_proof_ledgers = None;
             invalidate_recovery_leaf_partition(&mut diagnostics.metrics, reason);
         }
     }
@@ -10368,8 +10420,38 @@ fn recovery_ownership_for_side(
         located,
         max_tokens,
         false,
+        false,
     )?
     .analysis)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn recovery_ownership_with_ledger_for_side(
+    side: &Side<'_>,
+    trusted_run_intervals: &[Option<TrustedRunInterval>],
+    trusted_run_input: Option<TrustedRunRecoveryInput<'_>>,
+    span_by_block: &HashMap<BlockId, usize>,
+    recovery_spans: &[bool],
+    accepted: &[LocalSentenceRange],
+    located: &[LocatedRecoveryRange],
+    max_tokens: usize,
+) -> OwnershipResult<(
+    RecoveryOwnershipSideAnalysis,
+    Option<RecoveryOwnershipLedger>,
+)> {
+    let inventory = recovery_ownership_inventory_for_side(
+        side,
+        trusted_run_intervals,
+        trusted_run_input,
+        span_by_block,
+        recovery_spans,
+        accepted,
+        located,
+        max_tokens,
+        false,
+        true,
+    )?;
+    Ok((inventory.analysis, inventory.proof_ledger))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -10383,6 +10465,7 @@ fn recovery_ownership_inventory_for_side(
     located: &[LocatedRecoveryRange],
     max_tokens: usize,
     collect_trusted_residuals: bool,
+    retain_proof_ledger: bool,
 ) -> OwnershipResult<RecoveryOwnershipSideInventory> {
     if trusted_run_intervals.len() != side.blocks.len() {
         return Err(RecoveryOwnershipError::InvariantViolation {
@@ -10778,18 +10861,22 @@ fn recovery_ownership_inventory_for_side(
     } else {
         Vec::new()
     };
-    let analysis = analyze_recovery_ownership_partition(
-        &blocks,
-        &ranges,
-        RecoveryOwnershipLimits {
-            max_blocks: MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS,
-            max_ranges: max_tokens,
-            max_canonical_tokens: max_tokens,
-            max_comparable_tokens: max_tokens,
-        },
-    )?;
+    let limits = RecoveryOwnershipLimits {
+        max_blocks: MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS,
+        max_ranges: max_tokens,
+        max_canonical_tokens: max_tokens,
+        max_comparable_tokens: max_tokens,
+    };
+    let analysis = analyze_recovery_ownership_partition(&blocks, &ranges, limits)?;
+    // The ledger is an optional proof sidecar. Its private memory bound must
+    // not invalidate the already verified public ownership diagnostics.
+    let proof_ledger = retain_proof_ledger
+        .then(|| build_recovery_ownership_ledger(&blocks, &ranges))
+        .transpose()
+        .unwrap_or(None);
     Ok(RecoveryOwnershipSideInventory {
         analysis,
+        proof_ledger,
         trusted_residuals,
     })
 }
@@ -11331,6 +11418,42 @@ fn invalidate_recovery_leaf_partition(
     metrics.recovery_leaf_partition_stop_reason = Some(reason);
 }
 
+fn recovered_source_token_counts(metrics: &SentenceRecoveryMetrics) -> Option<(usize, usize)> {
+    let old = metrics
+        .recovered_exact_match_old_tokens
+        .checked_add(metrics.recovered_replacement_old_tokens)?
+        .checked_add(metrics.recovered_deletion_tokens)?;
+    let new = metrics
+        .recovered_exact_match_new_tokens
+        .checked_add(metrics.recovered_replacement_new_tokens)?
+        .checked_add(metrics.recovered_insertion_tokens)?;
+    Some((old, new))
+}
+
+fn committed_recovery_leaf_partition_is_valid(
+    partition: RecoveryOwnershipPartitionMetrics,
+    eligible: [usize; 2],
+    recovered: [usize; 2],
+    unresolved: [usize; 2],
+) -> bool {
+    partition.old.total.comparable_tokens == eligible[0]
+        && partition.new.total.comparable_tokens == eligible[1]
+        && partition.old.accepted.comparable_tokens == recovered[0]
+        && partition.new.accepted.comparable_tokens == recovered[1]
+        && partition
+            .old
+            .total
+            .comparable_tokens
+            .checked_sub(partition.old.accepted.comparable_tokens)
+            == Some(unresolved[0])
+        && partition
+            .new
+            .total
+            .comparable_tokens
+            .checked_sub(partition.new.accepted.comparable_tokens)
+            == Some(unresolved[1])
+}
+
 fn validate_committed_recovery_leaf_partition(
     metrics: &mut SentenceRecoveryMetrics,
     partition: Option<RecoveryOwnershipPartitionMetrics>,
@@ -11342,22 +11465,15 @@ fn validate_committed_recovery_leaf_partition(
     let Some(partition) = partition else {
         return;
     };
-    let valid = partition.old.total.comparable_tokens == eligible_old
-        && partition.new.total.comparable_tokens == eligible_new
-        && partition.old.accepted.comparable_tokens == recovered_old
-        && partition.new.accepted.comparable_tokens == recovered_new
-        && partition
-            .old
-            .total
-            .comparable_tokens
-            .checked_sub(partition.old.accepted.comparable_tokens)
-            == Some(metrics.unresolved_remainder_old_source_tokens)
-        && partition
-            .new
-            .total
-            .comparable_tokens
-            .checked_sub(partition.new.accepted.comparable_tokens)
-            == Some(metrics.unresolved_remainder_new_source_tokens);
+    let valid = committed_recovery_leaf_partition_is_valid(
+        partition,
+        [eligible_old, eligible_new],
+        [recovered_old, recovered_new],
+        [
+            metrics.unresolved_remainder_old_source_tokens,
+            metrics.unresolved_remainder_new_source_tokens,
+        ],
+    );
     if !valid {
         invalidate_recovery_leaf_partition(metrics, RecoveryOwnershipError::CommittedTokenMismatch);
     }
@@ -11602,6 +11718,7 @@ fn trusted_residual_exact_batch(
         old_located,
         max_tokens,
         true,
+        false,
     )
     .map_err(trusted_residual_ownership_stop_reason)?;
     let new_inventory = recovery_ownership_inventory_for_side(
@@ -11614,6 +11731,7 @@ fn trusted_residual_exact_batch(
         new_located,
         max_tokens,
         true,
+        false,
     )
     .map_err(trusted_residual_ownership_stop_reason)?;
     build_trusted_residual_exact_batch(
@@ -14017,6 +14135,7 @@ fn build_sentence_recovery_plan_inner_impl(
         new_located_ranges,
         located_range_inventory_complete,
         recovery_ownership_partition: None,
+        recovery_ownership_proof_ledgers: None,
         fragment_veto_complete,
         fragment_veto_stop_reason,
         fragment_veto_pair_visits_examined: fragment_veto_budget.pair_visits,
@@ -14315,13 +14434,18 @@ fn span_membership(alignment: &Alignment) -> Option<SpanMembership> {
     let mut old = HashMap::new();
     let mut new = HashMap::new();
     let mut recovery_spans = Vec::new();
+    let mut presence_spans = Vec::new();
     old.try_reserve(old_count).ok()?;
     new.try_reserve(new_count).ok()?;
     recovery_spans
         .try_reserve_exact(alignment.spans.len())
         .ok()?;
+    presence_spans
+        .try_reserve_exact(alignment.spans.len())
+        .ok()?;
     for (span_index, span) in alignment.spans.iter().enumerate() {
         recovery_spans.push(is_sentence_recovery_span(span.kind, &span.evidence));
+        presence_spans.push(is_presence_ownership_span(span.kind, &span.evidence));
         for block in &span.old {
             if old.insert(*block, span_index).is_some() {
                 return None;
@@ -14337,11 +14461,16 @@ fn span_membership(alignment: &Alignment) -> Option<SpanMembership> {
         old,
         new,
         recovery_spans,
+        presence_spans,
     })
 }
 
 fn is_sentence_recovery_span(kind: AlignmentKind, evidence: &[AlignmentEvidence]) -> bool {
     kind == AlignmentKind::Unresolved && evidence == [AlignmentEvidence::ReadingOrderUnknown]
+}
+
+fn is_presence_ownership_span(kind: AlignmentKind, evidence: &[AlignmentEvidence]) -> bool {
+    kind == AlignmentKind::Unresolved && !evidence.contains(&AlignmentEvidence::ExtractionGap)
 }
 
 fn collect_occurrences(
@@ -49555,6 +49684,7 @@ mod tests {
             &located,
             32,
             true,
+            false,
         )
         .expect("the ownership partition is complete");
         let metrics = inventory.analysis.metrics;
@@ -49649,6 +49779,7 @@ mod tests {
             &[],
             32,
             true,
+            false,
         )
         .expect("typed gaps still form a complete partition");
         let metrics = inventory.analysis.metrics;

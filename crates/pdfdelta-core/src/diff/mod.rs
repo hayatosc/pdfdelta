@@ -1,4 +1,5 @@
 mod myers;
+mod presence;
 mod recovery;
 mod sentence;
 
@@ -2693,6 +2694,20 @@ fn compare_aligned_inner(
         );
     }
 
+    let proven_changed_regions = sentence_recovery
+        .validated_recovery_ownership_proof_ledgers()
+        .and_then(|ledgers| {
+            presence::plan_anchor_bounded_changed_regions(
+                [&old, &new],
+                alignment,
+                &changes,
+                &unresolved_regions,
+                ledgers,
+                options.max_tokens,
+            )
+        })
+        .unwrap_or_default();
+
     let (mut sentence_recovery_metrics, recovery_watch_diagnostics, recovery_ownership_partition) =
         sentence_recovery.finish_diagnostics();
     if let Some(metrics) = sentence_recovery_metrics.as_mut()
@@ -2703,7 +2718,7 @@ fn compare_aligned_inner(
     Ok(ComparisonWithSentenceRecoveryMetrics {
         comparison: Comparison {
             changes,
-            proven_changed_regions: Vec::new(),
+            proven_changed_regions,
             formatting_changes,
             unresolved_regions,
             old_coverage: coverage(resolved_old, old.total_tokens),

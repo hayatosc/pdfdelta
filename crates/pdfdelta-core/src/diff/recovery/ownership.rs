@@ -5,6 +5,9 @@ const RECOVERY_OWNERSHIP_SAMPLE_LIMIT: usize = 1;
 
 const RECOVERY_LEAF_KIND_COUNT: usize = 8;
 const RECOVERY_GAP_REASON_COUNT: usize = 8;
+// Each side is capped at half of the combined 64 MiB proof-ledger payload budget.
+// Allocator bookkeeping is outside this observable capacity-based bound.
+const RECOVERY_OWNERSHIP_LEDGER_SIDE_BYTES_LIMIT: usize = 32 * 1024 * 1024;
 
 /// Structural role shared by every token in one eligible block.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -146,6 +149,15 @@ pub enum RecoveryOwnershipResource {
     IssueProjectionWork,
 }
 
+/// Failure to retain the private proof ledger after the public partition was verified.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RecoveryOwnershipLedgerError {
+    ResourceLimit { actual: usize, limit: usize },
+    AllocationFailure,
+    CounterOverflow,
+    InconsistentContext,
+}
+
 /// Invalid range property detected before aggregation can be published.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RecoveryOwnershipRangeError {
@@ -263,6 +275,33 @@ pub struct RecoveryOwnershipSideMetrics {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RecoveryOwnershipSideSamples {
     pub values: Vec<RecoveryOwnershipSample>,
+}
+
+/// Block metadata retained once for the proof-only ownership ledger.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RecoveryOwnershipLedgerBlock {
+    pub block_id: u64,
+    pub trusted: bool,
+    pub role: RecoveryOwnershipRole,
+    pub context: RecoveryOwnershipContext,
+}
+
+/// One compact block-local range in the proof-only ownership ledger.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RecoveryOwnershipLedgerRange {
+    pub block_index: usize,
+    pub canonical_start: usize,
+    pub canonical_end: usize,
+    pub comparable_start: usize,
+    pub comparable_end: usize,
+    pub ownership: RecoveryOwnership,
+}
+
+/// Complete ordered ownership ranges retained after partition verification.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct RecoveryOwnershipLedger {
+    pub blocks: Vec<RecoveryOwnershipLedgerBlock>,
+    pub ranges: Vec<RecoveryOwnershipLedgerRange>,
 }
 
 /// Verified aggregates and bounded samples for one document side.
@@ -489,6 +528,81 @@ pub fn analyze_recovery_ownership_partition(
         metrics,
         samples: RecoveryOwnershipSideSamples { values: samples },
     })
+}
+
+pub(crate) fn build_recovery_ownership_ledger(
+    blocks: &[RecoveryEligibleBlock<'_>],
+    ranges: &[RecoveryOwnershipRange],
+) -> Result<RecoveryOwnershipLedger, RecoveryOwnershipLedgerError> {
+    enforce_ledger_byte_limit(blocks.len(), ranges.len())?;
+
+    let mut ledger_blocks = Vec::new();
+    ledger_blocks
+        .try_reserve_exact(blocks.len())
+        .map_err(|_| RecoveryOwnershipLedgerError::AllocationFailure)?;
+    let mut ledger_ranges = Vec::new();
+    ledger_ranges
+        .try_reserve_exact(ranges.len())
+        .map_err(|_| RecoveryOwnershipLedgerError::AllocationFailure)?;
+    enforce_ledger_byte_limit(ledger_blocks.capacity(), ledger_ranges.capacity())?;
+    let mut range_index = 0usize;
+    for (block_index, block) in blocks.iter().enumerate() {
+        let context = ranges
+            .get(range_index)
+            .filter(|range| range.block_index == block_index)
+            .map_or_else(RecoveryOwnershipContext::default, |range| range.context);
+        ledger_blocks.push(RecoveryOwnershipLedgerBlock {
+            block_id: block.block_id,
+            trusted: block.trusted,
+            role: block.role,
+            context,
+        });
+        while let Some(range) = ranges
+            .get(range_index)
+            .filter(|range| range.block_index == block_index)
+        {
+            if range.context != context {
+                return Err(RecoveryOwnershipLedgerError::InconsistentContext);
+            }
+            ledger_ranges.push(RecoveryOwnershipLedgerRange {
+                block_index: range.block_index,
+                canonical_start: range.canonical_start,
+                canonical_end: range.canonical_end,
+                comparable_start: range.comparable_start,
+                comparable_end: range.comparable_end,
+                ownership: range.ownership,
+            });
+            range_index = range_index
+                .checked_add(1)
+                .ok_or(RecoveryOwnershipLedgerError::CounterOverflow)?;
+        }
+    }
+    Ok(RecoveryOwnershipLedger {
+        blocks: ledger_blocks,
+        ranges: ledger_ranges,
+    })
+}
+
+fn enforce_ledger_byte_limit(
+    block_count: usize,
+    range_count: usize,
+) -> Result<(), RecoveryOwnershipLedgerError> {
+    let block_bytes = block_count
+        .checked_mul(std::mem::size_of::<RecoveryOwnershipLedgerBlock>())
+        .ok_or(RecoveryOwnershipLedgerError::CounterOverflow)?;
+    let range_bytes = range_count
+        .checked_mul(std::mem::size_of::<RecoveryOwnershipLedgerRange>())
+        .ok_or(RecoveryOwnershipLedgerError::CounterOverflow)?;
+    let ledger_bytes = block_bytes
+        .checked_add(range_bytes)
+        .ok_or(RecoveryOwnershipLedgerError::CounterOverflow)?;
+    if ledger_bytes > RECOVERY_OWNERSHIP_LEDGER_SIDE_BYTES_LIMIT {
+        return Err(RecoveryOwnershipLedgerError::ResourceLimit {
+            actual: ledger_bytes,
+            limit: RECOVERY_OWNERSHIP_LEDGER_SIDE_BYTES_LIMIT,
+        });
+    }
+    Ok(())
 }
 
 fn enforce_count_limit(
@@ -786,6 +900,8 @@ mod tests {
 
         let analysis = analyze_recovery_ownership_partition(&blocks, &ranges, LIMITS)
             .expect("partition is valid");
+        let ledger = build_recovery_ownership_ledger(&blocks, &ranges)
+            .expect("verified partition fits the private ledger budget");
         let metrics = analysis.metrics;
 
         assert_eq!(metrics.total.ranges, 3);
@@ -824,6 +940,134 @@ mod tests {
                     context: range.context,
                 })
                 .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            ledger.ranges,
+            ranges
+                .iter()
+                .map(|range| RecoveryOwnershipLedgerRange {
+                    block_index: range.block_index,
+                    canonical_start: range.canonical_start,
+                    canonical_end: range.canonical_end,
+                    comparable_start: range.comparable_start,
+                    comparable_end: range.comparable_end,
+                    ownership: range.ownership,
+                })
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn retains_every_ownership_class_in_partition_order() {
+        let blocks = [
+            block(10, 4, true, RecoveryOwnershipRole::Body),
+            block(20, 2, false, RecoveryOwnershipRole::RepeatedHeader),
+        ];
+        let context = RecoveryOwnershipContext {
+            trusted_run_id: Some(7),
+            ordinal_start: Some(2),
+            ordinal_end: Some(4),
+            region_id: Some(11),
+            page: Some(3),
+            bbox: None,
+        };
+        let ranges = [
+            RecoveryOwnershipRange {
+                context,
+                ..range(0, 0, 1, RecoveryOwnership::Accepted)
+            },
+            RecoveryOwnershipRange {
+                context,
+                ..range(
+                    0,
+                    1,
+                    3,
+                    RecoveryOwnership::Leaf(RecoveryLeafKind::TrustedRunResidual),
+                )
+            },
+            RecoveryOwnershipRange {
+                context,
+                ..range(
+                    0,
+                    3,
+                    4,
+                    RecoveryOwnership::Gap(RecoveryGapReason::OrdinalGap),
+                )
+            },
+            range(1, 0, 2, RecoveryOwnership::Leaf(RecoveryLeafKind::LineBody)),
+        ];
+
+        let analysis = analyze_recovery_ownership_partition(&blocks, &ranges, LIMITS)
+            .expect("partition is valid");
+        let ledger = build_recovery_ownership_ledger(&blocks, &ranges)
+            .expect("verified partition fits the private ledger budget");
+
+        assert_eq!(analysis.metrics.total.ranges, ranges.len());
+        assert_eq!(ledger.blocks.len(), blocks.len());
+        assert_eq!(ledger.ranges.len(), ranges.len());
+        assert_eq!(ledger.blocks[0].block_id, 10);
+        assert_eq!(ledger.blocks[0].context, context);
+        assert_eq!(
+            ledger
+                .ranges
+                .iter()
+                .map(|entry| entry.ownership)
+                .collect::<Vec<_>>(),
+            ranges
+                .iter()
+                .map(|range| range.ownership)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(ledger.ranges[3].block_index, 1);
+        assert_eq!(ledger.blocks[1].block_id, 20);
+        assert!(!ledger.blocks[1].trusted);
+        assert_eq!(ledger.blocks[1].role, RecoveryOwnershipRole::RepeatedHeader);
+    }
+
+    #[test]
+    fn does_not_return_a_ledger_for_invalid_or_resource_stopped_partitions() {
+        let blocks = [block(1, 4, true, RecoveryOwnershipRole::Body)];
+        let overlapping = [
+            range(0, 0, 3, RecoveryOwnership::Accepted),
+            range(
+                0,
+                2,
+                4,
+                RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+            ),
+        ];
+        assert!(analyze_recovery_ownership_partition(&blocks, &overlapping, LIMITS).is_err());
+
+        let complete = [range(0, 0, 4, RecoveryOwnership::Accepted)];
+        let stopped = analyze_recovery_ownership_partition(
+            &blocks,
+            &complete,
+            RecoveryOwnershipLimits {
+                max_ranges: 0,
+                ..LIMITS
+            },
+        );
+        assert_eq!(
+            stopped,
+            Err(RecoveryOwnershipError::ResourceLimit {
+                resource: RecoveryOwnershipResource::Ranges,
+                actual: 1,
+                limit: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn ledger_byte_limit_stops_before_allocation() {
+        let range_size = std::mem::size_of::<RecoveryOwnershipLedgerRange>();
+        let range_count = RECOVERY_OWNERSHIP_LEDGER_SIDE_BYTES_LIMIT / range_size + 1;
+
+        assert_eq!(
+            enforce_ledger_byte_limit(0, range_count),
+            Err(RecoveryOwnershipLedgerError::ResourceLimit {
+                actual: range_count * range_size,
+                limit: RECOVERY_OWNERSHIP_LEDGER_SIDE_BYTES_LIMIT,
+            })
         );
     }
 
