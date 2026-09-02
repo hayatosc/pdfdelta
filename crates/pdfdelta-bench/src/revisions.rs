@@ -5258,7 +5258,12 @@ fn exact_range_fragments_match(
         };
         match range {
             Some(range) => ranges.push(range),
-            None if expected_ranges.is_empty() => {}
+            None if expected_ranges.is_empty() => {
+                let (text, changed_tokens) = semantic_hunk_side(hunk, old_side);
+                if changed_tokens != 0 || text.is_some() {
+                    return None;
+                }
+            }
             None => return None,
         }
         Some(ranges)
@@ -6410,12 +6415,14 @@ fn recovered_event_evidence(
                     changed.occurrence.old_span.as_ref(),
                     &trace.old_context,
                     blocks_by_side[0],
-                )?;
+                )
+                .flatten();
                 let new_range = normalized_span_range_within_context(
                     changed.occurrence.new_span.as_ref(),
                     &trace.new_context,
                     blocks_by_side[1],
-                )?;
+                )
+                .flatten();
                 let old_text = changed
                     .occurrence
                     .old_span
@@ -6723,12 +6730,14 @@ fn matched_semantic_hunk(
             occurrence.old_span.as_ref(),
             &trace.old_context,
             blocks_by_side[0],
-        )?,
+        )
+        .flatten(),
         new_range: normalized_span_range_within_context(
             occurrence.new_span.as_ref(),
             &trace.new_context,
             blocks_by_side[1],
-        )?,
+        )
+        .flatten(),
         atomic_fragments: resolve_atomic_fragments(
             &matching_edits,
             &trace.old_context,
@@ -17143,6 +17152,58 @@ mod tests {
                 old_changed_tokens: 1,
                 new_changed_tokens: 0,
             }]) if old_text == "," && new_text.is_empty()
+        ));
+    }
+
+    #[test]
+    fn matched_atomic_diff_keeps_legacy_hunk_when_normalized_range_is_unavailable() {
+        let old_blocks = [relation_block(1, "a  bc")];
+        let new_blocks = [relation_block(2, "a bc")];
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+        let trace = MatchedAtomicDiff {
+            alignment_span_index: 0,
+            old_context: relation_span(vec![BlockId(1)], None, 5),
+            new_context: relation_span(vec![BlockId(2)], None, 4),
+            edits: vec![pdfdelta_core::diff::AtomicEdit {
+                old: 1..2,
+                new: 1..1,
+            }],
+        };
+        let mut old_span = trace.old_context.clone();
+        old_span.canonical_range = ScalarRange { start: 1, end: 2 };
+        old_span.comparable_range = TokenRange { start: 1, end: 2 };
+        let mut new_span = trace.new_context.clone();
+        new_span.canonical_range = ScalarRange { start: 1, end: 1 };
+        new_span.comparable_range = TokenRange { start: 1, end: 1 };
+        let occurrence = ChangeOccurrence {
+            old_span: Some(old_span),
+            new_span: Some(new_span),
+        };
+
+        let hunk = matched_semantic_hunk(&occurrence, &trace, [&old_map, &new_map])
+            .expect("legacy hunk evidence remains available");
+
+        assert_eq!(hunk.old_text.as_deref(), Some(""));
+        assert_eq!(hunk.new_text.as_deref(), Some(""));
+        assert_eq!(hunk.old_range, None);
+        assert_eq!(hunk.new_range, Some(1..1));
+        assert!(matches!(
+            hunk.atomic_fragments.as_deref(),
+            Some([ActualAtomicFragment {
+                old_changed_tokens: 1,
+                new_changed_tokens: 0,
+                ..
+            }])
+        ));
+        assert!(!exact_range_fragments_match(
+            std::slice::from_ref(&hunk),
+            &[],
+            &[],
+            Some(0),
+            None,
+            None,
+            true,
         ));
     }
 
