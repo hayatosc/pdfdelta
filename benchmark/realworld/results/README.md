@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-02
-- **Generator / engine commit**: [`a9abadb`](https://github.com/hayatosc/pdfdelta/commit/a9abadb)
+- **Generator / engine commit**: [`06c6a18`](https://github.com/hayatosc/pdfdelta/commit/06c6a18)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-02-a9abadb.json`](2026-09-02-a9abadb.json)
-  - Schema: v58
-  - Size: 8,373,200 bytes
-  - SHA-256: `968c648b75ef85a0f79df127ce627e45a03dccd5a11ae541ff7454308735e1d8`
+  - File: [`2026-09-02-06c6a18.json`](2026-09-02-06c6a18.json)
+  - Schema: v59
+  - Size: 8,404,611 bytes
+  - SHA-256: `43955f8ee12779a8f18505e0ce409a45eab74c2f0845df9dc4f8771bb1b0cf0c`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-02-a9abadb.json \
+cp benchmark/realworld/results/2026-09-02-06c6a18.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach a9abadb
+git switch --detach 06c6a18
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -102,6 +102,20 @@ still apply only to their recorded review items.
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 68.39% | 1,142 | 841 | 0.333 | 1.000 | 861.000 | 0 |
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
+
+Schema v59 adds a behavior-neutral paired-stream sequence-relation shadow.
+Removing that field and the schema number produces exact JSON parity with
+schema v58. All 16 applicable shadows complete without a resource stop. They
+contain 794 qualified Sentence edges, 43 edges rejected by the local relation,
+781 canonical-path edges, and 775 globally forced edges. After preserving
+sub-threshold competitor evidence and the existing crossing and exact-tail
+gates, none of the locally rejected edges is adoptable. Twenty-five forced
+edges have a disqualifying external competitor and five hit an existing
+downstream veto. Candidate-weighted veto evidence is dominated by
+disqualifying competitors: 41,072 source tokens, compared with 4,889 for
+reciprocal failure, 2,107 for tied best scores, 1,971 for crossing relations,
+and 1,029 for insufficient margins. The sequence rule therefore remains
+diagnostic and must not be enabled as a recovery behavior.
 
 Schema v58 adds a behavior-neutral shadow that projects exact adjacent segments
 and alignment anchors onto source-backed trusted-line ranges. Removing the new
@@ -934,10 +948,12 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v58)
+## Current Writer Schema (v59)
 
-The benchmark writer and latest committed capture use schema v58. Older
-captures retain their recorded schemas. Schema v58 records bounded, typed
+The benchmark writer and latest committed capture use schema v59. Older
+captures retain their recorded schemas. Schema v59 records bounded paired-stream
+sequence paths, path-exclusion margins, downstream vetoes, and disjoint local
+near-veto reasons without changing comparison behavior. Schema v58 records bounded, typed
 source-range topology evidence for exact adjacent segments without changing
 comparison behavior. It distinguishes complete, not-applicable, and stopped
 analysis, keeps recovery-unit and alignment-anchor evidence separate, and
