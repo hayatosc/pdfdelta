@@ -17,10 +17,13 @@ pub use recovery::ownership::{
     RecoveryOwnershipTrustMetrics,
 };
 pub use recovery::section_pairing::{
-    SectionHeadingEvidence, SectionPairTopology, SectionPairingMetrics, SectionPairingProposal,
-    SectionPairingProposalOutcome, SectionPairingProposalSide, SectionPairingProposalStopReason,
-    SectionPairingStopReason, SectionPairingView, SectionParentRelation, SectionProposalEdits,
-    SectionProposalOwnership, SectionProposalOwnershipRange,
+    ExactRangeLeafSample, ExactRangeParentMetrics, ExactRangeParentOutcome,
+    ExactRangeParentRelation, ExactRangeParentSample, ExactRangeParentStopReason,
+    ExactRangeSeparator, SectionHeadingEvidence, SectionPairTopology, SectionPairingMetrics,
+    SectionPairingProposal, SectionPairingProposalOutcome, SectionPairingProposalSide,
+    SectionPairingProposalStopReason, SectionPairingStopReason, SectionPairingView,
+    SectionParentRelation, SectionProposalEdits, SectionProposalOwnership,
+    SectionProposalOwnershipRange,
 };
 
 /// Keeps the retained Myers frontier and trace below the internal 64 MiB

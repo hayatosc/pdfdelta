@@ -89,6 +89,8 @@ use crate::{
     candidate_eval::{CandidateVisitPressure, evaluate_candidate_visit_pressure},
 };
 
+#[path = "revisions/exact_range_parent.rs"]
+mod exact_range_parent;
 #[path = "revisions/fragment_review.rs"]
 mod fragment_review;
 #[path = "revision_diagnostics.rs"]
@@ -98,6 +100,7 @@ mod revision_scopes;
 #[path = "revisions/section_pairing_review.rs"]
 mod section_pairing_review;
 
+use exact_range_parent::{ExactRangeParentOutcomeReport, build_exact_range_parent_outcome};
 use fragment_review::{
     LocalFragmentReviewBundleReport, build_local_fragment_review_bundle,
     validate_local_fragment_review_bundle_contract,
@@ -1733,6 +1736,7 @@ pub struct SentenceRecoveryMetricsReport {
     pub recovery_ownership_partition: Option<RecoveryOwnershipPartitionReport>,
     pub structural_container_shadow: Option<StructuralContainerMetricsReport>,
     pub section_pairing_shadow: Option<Box<SectionPairingMetricsReport>>,
+    pub exact_range_parent_outcome: Option<Box<ExactRangeParentOutcomeReport>>,
     pub old_trusted_run_source_tokens: usize,
     pub new_trusted_run_source_tokens: usize,
     pub structural_pairing_available: bool,
@@ -4714,6 +4718,7 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             recovery_ownership_partition: None,
             structural_container_shadow: None,
             section_pairing_shadow: None,
+            exact_range_parent_outcome: None,
             old_trusted_run_source_tokens: metrics.old_trusted_run_source_tokens,
             new_trusted_run_source_tokens: metrics.new_trusted_run_source_tokens,
             structural_pairing_available: metrics.structural_pairing_available,
@@ -10183,12 +10188,16 @@ fn validate_sentence_recovery_metrics_with_partition(
         partition.and_then(RecoveryOwnershipPartitionAnalysis::structural_container_metrics);
     let section_pairing_shadow =
         partition.and_then(RecoveryOwnershipPartitionAnalysis::section_pairing_metrics);
+    let exact_range_parent_outcome =
+        partition.and_then(RecoveryOwnershipPartitionAnalysis::exact_range_parent_outcome);
     validate_structural_container_shadow(structural_container_shadow)?;
     validate_section_pairing_shadow(section_pairing_shadow)?;
     report.recovery_ownership_partition =
         validate_recovery_ownership_partition(metrics, partition)?;
     report.structural_container_shadow = structural_container_shadow.map(Into::into);
     report.section_pairing_shadow = section_pairing_shadow.map(|metrics| Box::new(metrics.into()));
+    report.exact_range_parent_outcome =
+        build_exact_range_parent_outcome(exact_range_parent_outcome, section_pairing_shadow)?;
     Ok(report)
 }
 
@@ -14273,7 +14282,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 63;
+    pub const SCHEMA_VERSION: u32 = 64;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -16179,7 +16188,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 63);
+        assert_eq!(completed["schema_version"], 64);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -16253,7 +16262,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 63);
+        assert_eq!(legacy_summary["schema_version"], 64);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -16330,7 +16339,7 @@ mod tests {
         assert!(full.get("reviewed_recall_metrics").is_none());
         let summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[report]))
             .expect("summary serializes");
-        assert_eq!(summary["schema_version"], 63);
+        assert_eq!(summary["schema_version"], 64);
         assert_eq!(
             summary["records"][0]["reviewed_recall_metrics"],
             serde_json::json!({
@@ -19575,6 +19584,12 @@ mod tests {
                     complete: true,
                     ..SectionPairingMetricsReport::default()
                 })),
+                exact_range_parent_outcome: Some(Box::new(
+                    ExactRangeParentOutcomeReport::Complete {
+                        metrics: exact_range_parent::ExactRangeParentMetricsReport::default(),
+                        samples: Vec::new(),
+                    },
+                )),
                 section_pairing_proposal_review_bundle: Some(Box::new(
                     SectionPairingProposalReviewBundleReport::Complete {
                         total: 0,
@@ -19824,7 +19839,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 63);
+        assert_eq!(json["schema_version"], 64);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -27259,7 +27274,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 63);
+        assert_eq!(value["schema_version"], 64);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -27336,6 +27351,7 @@ mod tests {
             "recovery_ownership_partition".to_owned(),
             "structural_container_shadow".to_owned(),
             "section_pairing_shadow".to_owned(),
+            "exact_range_parent_outcome".to_owned(),
             "old_trusted_run_source_tokens".to_owned(),
             "new_trusted_run_source_tokens".to_owned(),
             "structural_pairing_available".to_owned(),

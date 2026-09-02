@@ -1,6 +1,9 @@
 //! Bounded, behavior-neutral section-pairing diagnostics.
 
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, hash_map::DefaultHasher},
+    hash::{Hash, Hasher},
+};
 
 use crate::{
     alignment::{Alignment, AlignmentConfidence, AlignmentKind},
@@ -21,6 +24,9 @@ const MAX_SECTION_PROPOSAL_EDITS: usize = 131_072;
 const MAX_SECTION_PROPOSAL_PAYLOAD_ITEMS: usize = 262_144;
 const MAX_SECTION_PROPOSAL_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SECTION_LEDGER_INDEX_ENTRIES: usize = 262_144;
+const MAX_EXACT_RANGE_LEAVES: usize = 8;
+const MAX_EXACT_RANGE_CANDIDATES: usize = 262_144;
+const MAX_EXACT_RANGE_COMPARISONS: usize = 64_000_000;
 // This intentionally overestimates a hash-table entry including control bytes
 // and spare capacity so the diagnostic never relies on allocator internals.
 const ESTIMATED_HASH_ENTRY_BYTES: usize = 64;
@@ -60,6 +66,8 @@ pub(in crate::diff) struct SectionPairingLimits {
     pub max_proposal_payload_items: usize,
     pub max_proposal_estimated_bytes: usize,
     pub max_ledger_index_entries: usize,
+    pub max_exact_range_candidates: usize,
+    pub max_exact_range_comparisons: usize,
 }
 
 impl SectionPairingLimits {
@@ -87,6 +95,10 @@ impl SectionPairingLimits {
                 .min(MAX_SECTION_PROPOSAL_PAYLOAD_ITEMS),
             max_proposal_estimated_bytes: MAX_SECTION_PROPOSAL_BYTES,
             max_ledger_index_entries: max_tokens.min(MAX_SECTION_LEDGER_INDEX_ENTRIES),
+            max_exact_range_candidates: max_tokens.min(MAX_EXACT_RANGE_CANDIDATES),
+            max_exact_range_comparisons: max_tokens
+                .saturating_mul(MAX_EXACT_RANGE_LEAVES)
+                .min(MAX_EXACT_RANGE_COMPARISONS),
         }
     }
 }
@@ -263,11 +275,100 @@ pub enum SectionPairingProposalOutcome {
     Unavailable(SectionPairingProposalStopReason),
 }
 
+/// Relationship between a candidate-unique exact whole-leaf sequence and paired Section parents.
+///
+/// Candidate uniqueness is limited to the bounded census of one-to-eight
+/// adjacent whole [`RecoveryOwnership::Accepted`] or
+/// [`RecoveryOwnership::Leaf`] ranges. It does not claim arbitrary-substring
+/// uniqueness across the document.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExactRangeParentRelation {
+    SamePairedParent,
+    ChangedPairedParent,
+    Unknown,
+}
+
+/// Typed reason why exact-range parent diagnostics are unavailable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExactRangeParentStopReason {
+    SectionAnalysisUnavailable,
+    MissingOwnershipLedger,
+    CandidateLimit,
+    ComparisonLimit,
+    AllocationFailure,
+    InvalidOwnership,
+    CounterOverflow,
+}
+
+/// Aggregate work and classification counts for exact source-backed ranges.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ExactRangeParentMetrics {
+    pub old_candidates: usize,
+    pub new_candidates: usize,
+    pub accepted_candidates: usize,
+    pub gap_barriers: usize,
+    pub short_evidence_omitted: usize,
+    pub hash_matches: usize,
+    pub token_verified_matches: usize,
+    pub unique_pairs: usize,
+    pub same_paired_parent: usize,
+    pub changed_paired_parent: usize,
+    pub parent_unknown: usize,
+    pub overlap_vetoes: usize,
+    pub nesting_vetoes: usize,
+    pub token_comparisons: usize,
+}
+
+/// Separator semantics used between blocks in an exact leaf sequence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExactRangeSeparator {
+    Concatenate,
+    Space,
+}
+
+/// One whole ownership range retained in an exact-range audit sample.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExactRangeLeafSample {
+    pub block: u64,
+    pub comparable_start: usize,
+    pub comparable_end: usize,
+    pub ownership: RecoveryOwnership,
+}
+
+/// One maximal candidate-unique exact whole-leaf sequence retained for audit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExactRangeParentSample {
+    pub relation: ExactRangeParentRelation,
+    pub old_source_token_count: usize,
+    pub new_source_token_count: usize,
+    pub old_separator: ExactRangeSeparator,
+    pub new_separator: ExactRangeSeparator,
+    pub old_leaves: Vec<ExactRangeLeafSample>,
+    pub new_leaves: Vec<ExactRangeLeafSample>,
+    pub old_parent_heading_block: Option<u64>,
+    pub new_parent_heading_block: Option<u64>,
+    pub old_parent_heading_evidence: Option<SectionHeadingEvidence>,
+    pub new_parent_heading_evidence: Option<SectionHeadingEvidence>,
+    pub old_parent_confidence: Option<AlignmentConfidence>,
+    pub new_parent_confidence: Option<AlignmentConfidence>,
+}
+
+/// Atomic outcome of exact-range parent classification.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ExactRangeParentOutcome {
+    Complete {
+        metrics: ExactRangeParentMetrics,
+        samples: Vec<ExactRangeParentSample>,
+    },
+    Unavailable(ExactRangeParentStopReason),
+}
+
 /// Complete section-pairing counters and independently atomic proposals.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SectionPairingAnalysis {
     pub metrics: SectionPairingMetrics,
     pub proposal_outcome: SectionPairingProposalOutcome,
+    pub exact_range_parent_outcome: ExactRangeParentOutcome,
 }
 
 impl std::ops::Deref for SectionPairingAnalysis {
@@ -356,12 +457,13 @@ pub(in crate::diff) fn analyze_section_pairing_shadow(
         max_edit_distance,
         limits,
     ) {
-        Ok((metrics, proposal_outcome)) => SectionPairingAnalysis {
+        Ok((metrics, proposal_outcome, exact_range_parent_outcome)) => SectionPairingAnalysis {
             metrics: SectionPairingMetrics {
                 complete: true,
                 ..metrics
             },
             proposal_outcome,
+            exact_range_parent_outcome,
         },
         Err(reason) => SectionPairingAnalysis {
             metrics: SectionPairingMetrics {
@@ -371,6 +473,9 @@ pub(in crate::diff) fn analyze_section_pairing_shadow(
             },
             proposal_outcome: SectionPairingProposalOutcome::Unavailable(
                 SectionPairingProposalStopReason::SectionAnalysisUnavailable,
+            ),
+            exact_range_parent_outcome: ExactRangeParentOutcome::Unavailable(
+                ExactRangeParentStopReason::SectionAnalysisUnavailable,
             ),
         },
     }
@@ -383,7 +488,14 @@ fn analyze(
     ledgers: Option<[&RecoveryOwnershipLedger; 2]>,
     max_edit_distance: usize,
     limits: SectionPairingLimits,
-) -> Result<(SectionPairingMetrics, SectionPairingProposalOutcome), SectionPairingStopReason> {
+) -> Result<
+    (
+        SectionPairingMetrics,
+        SectionPairingProposalOutcome,
+        ExactRangeParentOutcome,
+    ),
+    SectionPairingStopReason,
+> {
     let structures = [
         build_structure(sides[0], recovery.old_trusted_run_intervals, limits)?,
         build_structure(sides[1], recovery.new_trusted_run_intervals, limits)?,
@@ -504,7 +616,19 @@ fn analyze(
     metrics.paragraph_token_comparisons_attempted =
         gap_context.paragraph_work.comparisons_attempted;
     metrics.paragraph_token_comparisons_examined = gap_context.paragraph_work.comparisons_examined;
-    Ok((metrics, gap_context.proposal_collector.finish()))
+    let exact_range_parent_outcome = classify_exact_range_parents(
+        sides,
+        &structures,
+        &pairs,
+        ledgers,
+        recovery.min_tokens,
+        limits,
+    );
+    Ok((
+        metrics,
+        gap_context.proposal_collector.finish(),
+        exact_range_parent_outcome,
+    ))
 }
 
 fn build_structure(
@@ -560,7 +684,7 @@ fn build_structure(
     let mut paragraph_count = 0usize;
     let mut strong_paragraph_memberships = 0usize;
     let mut number_only_paragraph_memberships = 0usize;
-    for block in safe {
+    for block in &safe {
         let continuous = previous == Some((block.run_id, block.ordinal_start));
         if !continuous {
             stack.clear();
@@ -1080,6 +1204,896 @@ fn update_run_partner(
             }
         })
         .or_insert(Some(target));
+}
+
+#[derive(Clone)]
+struct ExactRangeCandidate {
+    leaf_start: usize,
+    leaf_end: usize,
+    source_token_count: usize,
+    stream_token_count: usize,
+    hash: u64,
+    parent: Option<usize>,
+    adoptable: bool,
+    separator: ExactRangeSeparator,
+}
+
+struct ExactRangeSideContext<'a, 'side> {
+    side: &'a Side<'side>,
+    structure: &'a SideStructure,
+    leaves: &'a [ExactRangeLeaf],
+}
+
+struct CandidateTokenContext<'a, 'side> {
+    side: &'a Side<'side>,
+    leaves: &'a [ExactRangeLeaf],
+}
+
+#[derive(Clone, Copy)]
+struct ExactRangeLeaf {
+    ledger_block_index: usize,
+    side_block_index: usize,
+    comparable_start: usize,
+    comparable_end: usize,
+    ownership: RecoveryOwnership,
+    run_id: u64,
+    ordinal_start: usize,
+    ordinal_end: usize,
+    parent: Option<usize>,
+    census_eligible: bool,
+    sequence_eligible: bool,
+}
+
+#[derive(Clone, Copy)]
+struct PairedSection {
+    target: usize,
+    heading_evidence: SectionHeadingEvidence,
+    confidence: AlignmentConfidence,
+}
+
+struct StrongSectionPairMaps {
+    old_to_new: Vec<Option<PairedSection>>,
+    new_to_old: Vec<Option<PairedSection>>,
+}
+
+#[derive(Clone, Copy)]
+struct QualifiedExactRange {
+    old: usize,
+    new: usize,
+    relation: ExactRangeParentRelation,
+}
+
+fn classify_exact_range_parents(
+    sides: [&Side<'_>; 2],
+    structures: &[SideStructure; 2],
+    pairs: &[SectionPair],
+    ledgers: Option<[&RecoveryOwnershipLedger; 2]>,
+    min_tokens: usize,
+    limits: SectionPairingLimits,
+) -> ExactRangeParentOutcome {
+    let result = (|| {
+        let ledgers = ledgers.ok_or(ExactRangeParentStopReason::MissingOwnershipLedger)?;
+        let mut metrics = ExactRangeParentMetrics::default();
+        let parent_lookups = [
+            strong_parent_lookup(&structures[0], sides[0].blocks.len())?,
+            strong_parent_lookup(&structures[1], sides[1].blocks.len())?,
+        ];
+        let leaves = [
+            exact_range_leaves(sides[0], ledgers[0], &parent_lookups[0], &mut metrics)?,
+            exact_range_leaves(sides[1], ledgers[1], &parent_lookups[1], &mut metrics)?,
+        ];
+        let built = [
+            exact_range_candidates(sides[0], &leaves[0], min_tokens, &mut metrics, limits)?,
+            exact_range_candidates(sides[1], &leaves[1], min_tokens, &mut metrics, limits)?,
+        ];
+        let candidates: [&[ExactRangeCandidate]; 2] = [&built[0], &built[1]];
+        let indexes = [
+            candidate_index(candidates[0])?,
+            candidate_index(candidates[1])?,
+        ];
+        let contexts = [
+            ExactRangeSideContext {
+                side: sides[0],
+                structure: &structures[0],
+                leaves: &leaves[0],
+            },
+            ExactRangeSideContext {
+                side: sides[1],
+                structure: &structures[1],
+                leaves: &leaves[1],
+            },
+        ];
+        let pair_maps = strong_section_pair_maps(pairs, structures)?;
+        metrics.old_candidates = candidates[0].len();
+        metrics.new_candidates = candidates[1].len();
+        let mut qualified = Vec::new();
+        qualified
+            .try_reserve(candidates[0].len().min(candidates[1].len()))
+            .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+
+        for (old_index, old) in candidates[0].iter().enumerate() {
+            let own = indexes[0].get(&old.hash).map(Vec::as_slice).unwrap_or(&[]);
+            if exact_occurrence_count(
+                old_index,
+                old,
+                own,
+                candidates[0],
+                &contexts[0],
+                &mut metrics,
+                limits,
+            )? != 1
+            {
+                continue;
+            }
+            let opposite = indexes[1].get(&old.hash).map(Vec::as_slice).unwrap_or(&[]);
+            metrics.hash_matches = parent_add(metrics.hash_matches, opposite.len())?;
+            let mut exact_new = None;
+            let mut exact_count = 0usize;
+            for new_index in opposite {
+                if range_tokens_equal(
+                    old,
+                    &candidates[1][*new_index],
+                    [&contexts[0], &contexts[1]],
+                    &mut metrics,
+                    limits,
+                )? {
+                    metrics.token_verified_matches = parent_inc(metrics.token_verified_matches)?;
+                    exact_count = parent_inc(exact_count)?;
+                    exact_new.get_or_insert(*new_index);
+                }
+            }
+            let (Some(new_index), 1) = (exact_new, exact_count) else {
+                continue;
+            };
+            let new = &candidates[1][new_index];
+            if !old.adoptable || !new.adoptable || old.parent.is_none() || new.parent.is_none() {
+                continue;
+            }
+            metrics.unique_pairs = parent_inc(metrics.unique_pairs)?;
+            let relation = exact_parent_relation(
+                old.parent,
+                new.parent,
+                &pair_maps.old_to_new,
+                &pair_maps.new_to_old,
+            );
+            qualified
+                .try_reserve(1)
+                .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+            qualified.push(QualifiedExactRange {
+                old: old_index,
+                new: new_index,
+                relation,
+            });
+        }
+        let samples = retain_maximal_exact_ranges(
+            &mut qualified,
+            candidates,
+            &contexts,
+            &pair_maps,
+            &mut metrics,
+        )?;
+        Ok((metrics, samples))
+    })();
+    match result {
+        Ok((metrics, samples)) => ExactRangeParentOutcome::Complete { metrics, samples },
+        Err(reason) => ExactRangeParentOutcome::Unavailable(reason),
+    }
+}
+
+fn strong_parent_lookup(
+    structure: &SideStructure,
+    block_count: usize,
+) -> Result<Vec<Option<usize>>, ExactRangeParentStopReason> {
+    let mut lookup = Vec::new();
+    lookup
+        .try_reserve_exact(block_count)
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    lookup.resize(block_count, None);
+    for (parent, section) in structure.sections.iter().enumerate() {
+        for paragraph in &section.strong_paragraphs {
+            let slot = lookup
+                .get_mut(paragraph.block_index)
+                .ok_or(ExactRangeParentStopReason::InvalidOwnership)?;
+            if slot.replace(parent).is_some() {
+                return Err(ExactRangeParentStopReason::InvalidOwnership);
+            }
+        }
+    }
+    Ok(lookup)
+}
+
+fn exact_range_leaves(
+    side: &Side<'_>,
+    ledger: &RecoveryOwnershipLedger,
+    parent_lookup: &[Option<usize>],
+    metrics: &mut ExactRangeParentMetrics,
+) -> Result<Vec<ExactRangeLeaf>, ExactRangeParentStopReason> {
+    let mut side_index = HashMap::new();
+    side_index
+        .try_reserve(side.blocks.len())
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    for (index, block) in side.blocks.iter().enumerate() {
+        if side_index.insert(block.block.0, index).is_some() {
+            return Err(ExactRangeParentStopReason::InvalidOwnership);
+        }
+    }
+    let mut leaves = Vec::new();
+    leaves
+        .try_reserve_exact(ledger.ranges.len())
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    for range in &ledger.ranges {
+        let ledger_block = ledger
+            .blocks
+            .get(range.block_index)
+            .ok_or(ExactRangeParentStopReason::InvalidOwnership)?;
+        let side_block_index = side_index
+            .get(&ledger_block.block_id)
+            .copied()
+            .ok_or(ExactRangeParentStopReason::InvalidOwnership)?;
+        let context = ledger_block.context;
+        let clean = ledger_block.role == super::ownership::RecoveryOwnershipRole::Body
+            && side.blocks[side_block_index].role == BlockRole::Body
+            && side.blocks[side_block_index].issues.is_empty()
+            && source_map_is_complete(
+                &side.blocks[side_block_index],
+                side.canonical[side_block_index].len(),
+            )
+            && range.canonical_start <= range.canonical_end
+            && range.canonical_end <= side.blocks[side_block_index].canonical.text.chars().count()
+            && range.comparable_start < range.comparable_end
+            && range.comparable_end <= side.canonical[side_block_index].len()
+            && !side.canonical[side_block_index][range.comparable_start..range.comparable_end]
+                .iter()
+                .any(|token| matches!(token, ComparableToken::Unmapped { .. }));
+        let trusted = context
+            .trusted_run_id
+            .zip(context.ordinal_start)
+            .zip(context.ordinal_end)
+            .filter(|((_, start), end)| start < end);
+        let sequence_eligible = clean
+            && ledger_block.trusted
+            && trusted.is_some()
+            && !matches!(range.ownership, RecoveryOwnership::Gap(_));
+        if !sequence_eligible {
+            metrics.gap_barriers = parent_inc(metrics.gap_barriers)?;
+        }
+        let ((run_id, ordinal_start), ordinal_end) = trusted.unwrap_or(((0, 0), 0));
+        leaves.push(ExactRangeLeaf {
+            ledger_block_index: range.block_index,
+            side_block_index,
+            comparable_start: range.comparable_start,
+            comparable_end: range.comparable_end,
+            ownership: range.ownership,
+            run_id,
+            ordinal_start,
+            ordinal_end,
+            parent: parent_lookup.get(side_block_index).copied().flatten(),
+            census_eligible: clean,
+            sequence_eligible,
+        });
+    }
+    Ok(leaves)
+}
+
+fn exact_range_candidates(
+    side: &Side<'_>,
+    leaves: &[ExactRangeLeaf],
+    min_tokens: usize,
+    metrics: &mut ExactRangeParentMetrics,
+    limits: SectionPairingLimits,
+) -> Result<Vec<ExactRangeCandidate>, ExactRangeParentStopReason> {
+    let mut candidates = Vec::new();
+    for start in 0..leaves.len() {
+        if !leaves[start].census_eligible {
+            continue;
+        }
+        let mut source_token_count = 0usize;
+        let mut adoptable = leaves[start].sequence_eligible;
+        let mut contains_accepted = false;
+        let mut parent = leaves[start].parent;
+        for end in start..(start + MAX_EXACT_RANGE_LEAVES).min(leaves.len()) {
+            let leaf = leaves[end];
+            if end > start
+                && (!leaves[start].sequence_eligible
+                    || !leaf.sequence_eligible
+                    || !adjacent_leaves(leaves[end - 1], leaf))
+            {
+                break;
+            }
+            source_token_count = parent_add(
+                source_token_count,
+                leaf.comparable_end - leaf.comparable_start,
+            )?;
+            adoptable &= matches!(leaf.ownership, RecoveryOwnership::Leaf(_));
+            contains_accepted |= matches!(leaf.ownership, RecoveryOwnership::Accepted);
+            if leaf.parent != parent {
+                parent = None;
+            }
+            let concatenate_added = push_exact_range_candidate(
+                &mut candidates,
+                side,
+                leaves,
+                start,
+                end + 1,
+                source_token_count,
+                parent,
+                adoptable,
+                ExactRangeSeparator::Concatenate,
+                min_tokens,
+                metrics,
+                limits,
+            )?;
+            if concatenate_added && contains_accepted {
+                metrics.accepted_candidates = parent_inc(metrics.accepted_candidates)?;
+            }
+            if crosses_block_boundary(&leaves[start..=end])
+                && inserted_space_count(side, &leaves[start..=end]) > 0
+            {
+                let space_added = push_exact_range_candidate(
+                    &mut candidates,
+                    side,
+                    leaves,
+                    start,
+                    end + 1,
+                    source_token_count,
+                    parent,
+                    adoptable,
+                    ExactRangeSeparator::Space,
+                    min_tokens,
+                    metrics,
+                    limits,
+                )?;
+                if space_added && contains_accepted {
+                    metrics.accepted_candidates = parent_inc(metrics.accepted_candidates)?;
+                }
+            }
+        }
+    }
+    Ok(candidates)
+}
+
+fn adjacent_leaves(left: ExactRangeLeaf, right: ExactRangeLeaf) -> bool {
+    if left.ledger_block_index == right.ledger_block_index {
+        return left.comparable_end == right.comparable_start;
+    }
+    left.run_id == right.run_id && left.ordinal_end == right.ordinal_start
+}
+
+fn crosses_block_boundary(leaves: &[ExactRangeLeaf]) -> bool {
+    leaves
+        .windows(2)
+        .any(|pair| pair[0].ledger_block_index != pair[1].ledger_block_index)
+}
+
+fn inserted_space_count(side: &Side<'_>, leaves: &[ExactRangeLeaf]) -> usize {
+    leaves
+        .windows(2)
+        .filter(|pair| {
+            pair[0].ledger_block_index != pair[1].ledger_block_index
+                && !leaf_last_token(side, pair[0]).is_some_and(token_is_space)
+                && !leaf_first_token(side, pair[1]).is_some_and(token_is_space)
+        })
+        .count()
+}
+
+fn token_is_space(token: &ComparableToken) -> bool {
+    matches!(token, ComparableToken::Scalar(value) if value.is_whitespace())
+}
+
+fn leaf_first_token<'a>(side: &'a Side<'_>, leaf: ExactRangeLeaf) -> Option<&'a ComparableToken> {
+    side.canonical[leaf.side_block_index].get(leaf.comparable_start)
+}
+
+fn leaf_last_token<'a>(side: &'a Side<'_>, leaf: ExactRangeLeaf) -> Option<&'a ComparableToken> {
+    side.canonical[leaf.side_block_index].get(leaf.comparable_end.checked_sub(1)?)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_exact_range_candidate(
+    candidates: &mut Vec<ExactRangeCandidate>,
+    side: &Side<'_>,
+    leaves: &[ExactRangeLeaf],
+    start: usize,
+    end: usize,
+    source_token_count: usize,
+    parent: Option<usize>,
+    adoptable: bool,
+    separator: ExactRangeSeparator,
+    min_tokens: usize,
+    metrics: &mut ExactRangeParentMetrics,
+    limits: SectionPairingLimits,
+) -> Result<bool, ExactRangeParentStopReason> {
+    let stream_token_count = parent_add(
+        source_token_count,
+        if separator == ExactRangeSeparator::Space {
+            inserted_space_count(side, &leaves[start..end])
+        } else {
+            0
+        },
+    )?;
+    if stream_token_count < min_tokens {
+        metrics.short_evidence_omitted = parent_inc(metrics.short_evidence_omitted)?;
+        return Ok(false);
+    }
+    if candidates.len() >= limits.max_exact_range_candidates {
+        return Err(ExactRangeParentStopReason::CandidateLimit);
+    }
+    candidates
+        .try_reserve(1)
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    let mut candidate = ExactRangeCandidate {
+        leaf_start: start,
+        leaf_end: end,
+        source_token_count,
+        stream_token_count,
+        hash: 0,
+        parent,
+        adoptable,
+        separator,
+    };
+    candidate.hash = exact_range_hash(side, leaves, &candidate);
+    candidates.push(candidate);
+    Ok(true)
+}
+
+struct CandidateTokenCursor {
+    leaf_index: usize,
+    token_index: usize,
+}
+
+impl CandidateTokenCursor {
+    fn new(candidate: &ExactRangeCandidate) -> Self {
+        Self {
+            leaf_index: candidate.leaf_start,
+            token_index: 0,
+        }
+    }
+
+    fn next(
+        &mut self,
+        context: &CandidateTokenContext<'_, '_>,
+        candidate: &ExactRangeCandidate,
+    ) -> Option<ComparableToken> {
+        loop {
+            let leaf = *context.leaves.get(self.leaf_index)?;
+            if self.token_index == 0 {
+                self.token_index = leaf.comparable_start;
+            }
+            if self.token_index < leaf.comparable_end {
+                let token = context.side.canonical[leaf.side_block_index][self.token_index].clone();
+                self.token_index += 1;
+                return Some(token);
+            }
+            let next_index = self.leaf_index + 1;
+            if next_index >= candidate.leaf_end {
+                return None;
+            }
+            let next = context.leaves[next_index];
+            self.leaf_index = next_index;
+            self.token_index = next.comparable_start;
+            if candidate.separator == ExactRangeSeparator::Space
+                && leaf.ledger_block_index != next.ledger_block_index
+                && !leaf_last_token(context.side, leaf).is_some_and(token_is_space)
+                && !leaf_first_token(context.side, next).is_some_and(token_is_space)
+            {
+                return Some(ComparableToken::Scalar(' '));
+            }
+        }
+    }
+}
+
+fn exact_range_hash(
+    side: &Side<'_>,
+    leaves: &[ExactRangeLeaf],
+    candidate: &ExactRangeCandidate,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    let context = CandidateTokenContext { side, leaves };
+    let mut cursor = CandidateTokenCursor::new(candidate);
+    while let Some(token) = cursor.next(&context, candidate) {
+        token.hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+fn candidate_index(
+    candidates: &[ExactRangeCandidate],
+) -> Result<HashMap<u64, Vec<usize>>, ExactRangeParentStopReason> {
+    let mut index = HashMap::<u64, Vec<usize>>::new();
+    index
+        .try_reserve(candidates.len())
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    for (candidate_index, candidate) in candidates.iter().enumerate() {
+        let posting = index.entry(candidate.hash).or_default();
+        posting
+            .try_reserve(1)
+            .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+        posting.push(candidate_index);
+    }
+    Ok(index)
+}
+
+fn exact_occurrence_count(
+    query_index: usize,
+    query: &ExactRangeCandidate,
+    posting: &[usize],
+    candidates: &[ExactRangeCandidate],
+    context: &ExactRangeSideContext<'_, '_>,
+    metrics: &mut ExactRangeParentMetrics,
+    limits: SectionPairingLimits,
+) -> Result<usize, ExactRangeParentStopReason> {
+    let mut count = 1usize;
+    for candidate in posting
+        .iter()
+        .copied()
+        .filter(|candidate| *candidate != query_index)
+    {
+        if range_tokens_equal(
+            query,
+            &candidates[candidate],
+            [context, context],
+            metrics,
+            limits,
+        )? {
+            count = parent_inc(count)?;
+            if count > 1 {
+                break;
+            }
+        }
+    }
+    Ok(count)
+}
+
+fn range_tokens_equal(
+    left: &ExactRangeCandidate,
+    right: &ExactRangeCandidate,
+    contexts: [&ExactRangeSideContext<'_, '_>; 2],
+    metrics: &mut ExactRangeParentMetrics,
+    limits: SectionPairingLimits,
+) -> Result<bool, ExactRangeParentStopReason> {
+    if left.stream_token_count != right.stream_token_count {
+        return Ok(false);
+    }
+    let mut left_cursor = CandidateTokenCursor::new(left);
+    let mut right_cursor = CandidateTokenCursor::new(right);
+    let left_context = CandidateTokenContext {
+        side: contexts[0].side,
+        leaves: contexts[0].leaves,
+    };
+    let right_context = CandidateTokenContext {
+        side: contexts[1].side,
+        leaves: contexts[1].leaves,
+    };
+    while let (Some(left), Some(right)) = (
+        left_cursor.next(&left_context, left),
+        right_cursor.next(&right_context, right),
+    ) {
+        metrics.token_comparisons = parent_inc(metrics.token_comparisons)?;
+        if metrics.token_comparisons > limits.max_exact_range_comparisons {
+            return Err(ExactRangeParentStopReason::ComparisonLimit);
+        }
+        if left != right {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn strong_section_pair_maps(
+    pairs: &[SectionPair],
+    structures: &[SideStructure; 2],
+) -> Result<StrongSectionPairMaps, ExactRangeParentStopReason> {
+    let mut old_to_new = Vec::new();
+    old_to_new
+        .try_reserve_exact(structures[0].sections.len())
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    old_to_new.resize(structures[0].sections.len(), None);
+    let mut new_to_old = Vec::new();
+    new_to_old
+        .try_reserve_exact(structures[1].sections.len())
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    new_to_old.resize(structures[1].sections.len(), None);
+    for pair in pairs
+        .iter()
+        .filter(|pair| pair.strong && pair.match_confidence == AlignmentConfidence::High)
+    {
+        let old_pair = PairedSection {
+            target: pair.new,
+            heading_evidence: pair.heading_evidence,
+            confidence: pair.match_confidence,
+        };
+        let new_pair = PairedSection {
+            target: pair.old,
+            heading_evidence: pair.heading_evidence,
+            confidence: pair.match_confidence,
+        };
+        if old_to_new[pair.old].replace(old_pair).is_some()
+            || new_to_old[pair.new].replace(new_pair).is_some()
+        {
+            return Err(ExactRangeParentStopReason::InvalidOwnership);
+        }
+    }
+    Ok(StrongSectionPairMaps {
+        old_to_new,
+        new_to_old,
+    })
+}
+
+fn exact_parent_relation(
+    old_parent: Option<usize>,
+    new_parent: Option<usize>,
+    old_to_new: &[Option<PairedSection>],
+    new_to_old: &[Option<PairedSection>],
+) -> ExactRangeParentRelation {
+    let (Some(old_parent), Some(new_parent)) = (old_parent, new_parent) else {
+        return ExactRangeParentRelation::Unknown;
+    };
+    if old_to_new
+        .get(old_parent)
+        .copied()
+        .flatten()
+        .map(|pair| pair.target)
+        == Some(new_parent)
+        && new_to_old
+            .get(new_parent)
+            .copied()
+            .flatten()
+            .map(|pair| pair.target)
+            == Some(old_parent)
+    {
+        return ExactRangeParentRelation::SamePairedParent;
+    }
+    let old_pair_is_reciprocal =
+        old_to_new
+            .get(old_parent)
+            .copied()
+            .flatten()
+            .is_some_and(|paired_new| {
+                new_to_old
+                    .get(paired_new.target)
+                    .copied()
+                    .flatten()
+                    .is_some_and(|pair| pair.target == old_parent)
+            });
+    let new_pair_is_reciprocal =
+        new_to_old
+            .get(new_parent)
+            .copied()
+            .flatten()
+            .is_some_and(|paired_old| {
+                old_to_new
+                    .get(paired_old.target)
+                    .copied()
+                    .flatten()
+                    .is_some_and(|pair| pair.target == new_parent)
+            });
+    if old_pair_is_reciprocal && new_pair_is_reciprocal {
+        ExactRangeParentRelation::ChangedPairedParent
+    } else {
+        ExactRangeParentRelation::Unknown
+    }
+}
+
+fn retain_maximal_exact_ranges(
+    qualified: &mut [QualifiedExactRange],
+    candidates: [&[ExactRangeCandidate]; 2],
+    contexts: &[ExactRangeSideContext<'_, '_>; 2],
+    pair_maps: &StrongSectionPairMaps,
+    metrics: &mut ExactRangeParentMetrics,
+) -> Result<Vec<ExactRangeParentSample>, ExactRangeParentStopReason> {
+    qualified.sort_unstable_by(|left, right| {
+        let left_old = &candidates[0][left.old];
+        let right_old = &candidates[0][right.old];
+        right_old
+            .source_token_count
+            .cmp(&left_old.source_token_count)
+            .then_with(|| {
+                (right_old.leaf_end - right_old.leaf_start)
+                    .cmp(&(left_old.leaf_end - left_old.leaf_start))
+            })
+            .then_with(|| left_old.leaf_start.cmp(&right_old.leaf_start))
+            .then_with(|| {
+                candidates[1][left.new]
+                    .leaf_start
+                    .cmp(&candidates[1][right.new].leaf_start)
+            })
+            .then_with(|| {
+                separator_rank(left_old.separator).cmp(&separator_rank(right_old.separator))
+            })
+    });
+    let mut retained = Vec::<QualifiedExactRange>::new();
+    retained
+        .try_reserve(qualified.len())
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    let mut old_owners = Vec::new();
+    old_owners
+        .try_reserve_exact(contexts[0].leaves.len())
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    old_owners.resize(contexts[0].leaves.len(), None);
+    let mut new_owners = Vec::new();
+    new_owners
+        .try_reserve_exact(contexts[1].leaves.len())
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    new_owners.resize(contexts[1].leaves.len(), None);
+    for item in qualified.iter().copied() {
+        let old = &candidates[0][item.old];
+        let new = &candidates[1][item.new];
+        let old_owner = first_leaf_owner(old, &old_owners);
+        let new_owner = first_leaf_owner(new, &new_owners);
+        if old_owner.is_some() || new_owner.is_some() {
+            metrics.overlap_vetoes = parent_inc(metrics.overlap_vetoes)?;
+            if let (Some(old_owner), Some(new_owner)) = (old_owner, new_owner)
+                && old_owner == new_owner
+                && range_contains(&candidates[0][retained[old_owner].old], old)
+                && range_contains(&candidates[1][retained[new_owner].new], new)
+            {
+                metrics.nesting_vetoes = parent_inc(metrics.nesting_vetoes)?;
+            }
+            continue;
+        }
+        match item.relation {
+            ExactRangeParentRelation::SamePairedParent => {
+                metrics.same_paired_parent = parent_inc(metrics.same_paired_parent)?
+            }
+            ExactRangeParentRelation::ChangedPairedParent => {
+                metrics.changed_paired_parent = parent_inc(metrics.changed_paired_parent)?
+            }
+            ExactRangeParentRelation::Unknown => {
+                metrics.parent_unknown = parent_inc(metrics.parent_unknown)?
+            }
+        }
+        let selected_index = retained.len();
+        retained.push(item);
+        assign_leaf_owner(old, &mut old_owners, selected_index)?;
+        assign_leaf_owner(new, &mut new_owners, selected_index)?;
+    }
+    let sample_indices = stratified_sample_indices(&retained)?;
+    let mut samples = Vec::new();
+    samples
+        .try_reserve_exact(sample_indices.len())
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    for index in sample_indices {
+        samples.push(exact_range_sample(
+            retained[index],
+            candidates,
+            contexts,
+            pair_maps,
+        )?);
+    }
+    Ok(samples)
+}
+
+fn stratified_sample_indices(
+    retained: &[QualifiedExactRange],
+) -> Result<Vec<usize>, ExactRangeParentStopReason> {
+    const SAMPLE_LIMIT: usize = 64;
+    let mut selected = Vec::new();
+    selected
+        .try_reserve_exact(retained.len())
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    selected.resize(retained.len(), false);
+    let mut indices = Vec::new();
+    indices
+        .try_reserve_exact(retained.len().min(SAMPLE_LIMIT))
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    for relation in [
+        ExactRangeParentRelation::ChangedPairedParent,
+        ExactRangeParentRelation::SamePairedParent,
+        ExactRangeParentRelation::Unknown,
+    ] {
+        if let Some(index) = retained.iter().position(|item| item.relation == relation) {
+            selected[index] = true;
+            indices.push(index);
+        }
+    }
+    for (index, is_selected) in selected.iter().copied().enumerate() {
+        if indices.len() == SAMPLE_LIMIT {
+            break;
+        }
+        if !is_selected {
+            indices.push(index);
+        }
+    }
+    Ok(indices)
+}
+
+fn first_leaf_owner(candidate: &ExactRangeCandidate, owners: &[Option<usize>]) -> Option<usize> {
+    owners[candidate.leaf_start..candidate.leaf_end]
+        .iter()
+        .flatten()
+        .copied()
+        .next()
+}
+
+fn assign_leaf_owner(
+    candidate: &ExactRangeCandidate,
+    owners: &mut [Option<usize>],
+    selected_index: usize,
+) -> Result<(), ExactRangeParentStopReason> {
+    for owner in &mut owners[candidate.leaf_start..candidate.leaf_end] {
+        if owner.replace(selected_index).is_some() {
+            return Err(ExactRangeParentStopReason::InvalidOwnership);
+        }
+    }
+    Ok(())
+}
+
+fn range_contains(outer: &ExactRangeCandidate, inner: &ExactRangeCandidate) -> bool {
+    outer.leaf_start <= inner.leaf_start && inner.leaf_end <= outer.leaf_end
+}
+
+fn separator_rank(separator: ExactRangeSeparator) -> u8 {
+    match separator {
+        ExactRangeSeparator::Concatenate => 0,
+        ExactRangeSeparator::Space => 1,
+    }
+}
+
+fn exact_range_sample(
+    item: QualifiedExactRange,
+    candidates: [&[ExactRangeCandidate]; 2],
+    contexts: &[ExactRangeSideContext<'_, '_>; 2],
+    pair_maps: &StrongSectionPairMaps,
+) -> Result<ExactRangeParentSample, ExactRangeParentStopReason> {
+    let old = &candidates[0][item.old];
+    let new = &candidates[1][item.new];
+    let old_parent = old.parent;
+    let new_parent = new.parent;
+    let old_pair = old_parent.and_then(|parent| pair_maps.old_to_new[parent]);
+    let new_pair = new_parent.and_then(|parent| pair_maps.new_to_old[parent]);
+    Ok(ExactRangeParentSample {
+        relation: item.relation,
+        old_source_token_count: old.source_token_count,
+        new_source_token_count: new.source_token_count,
+        old_separator: old.separator,
+        new_separator: new.separator,
+        old_leaves: exact_range_leaf_samples(old, &contexts[0])?,
+        new_leaves: exact_range_leaf_samples(new, &contexts[1])?,
+        old_parent_heading_block: old_parent.map(|parent| {
+            contexts[0].side.blocks[contexts[0].structure.sections[parent].block_index]
+                .block
+                .0
+        }),
+        new_parent_heading_block: new_parent.map(|parent| {
+            contexts[1].side.blocks[contexts[1].structure.sections[parent].block_index]
+                .block
+                .0
+        }),
+        old_parent_heading_evidence: old_pair.map(|pair| pair.heading_evidence),
+        new_parent_heading_evidence: new_pair.map(|pair| pair.heading_evidence),
+        old_parent_confidence: old_pair.map(|pair| pair.confidence),
+        new_parent_confidence: new_pair.map(|pair| pair.confidence),
+    })
+}
+
+fn exact_range_leaf_samples(
+    candidate: &ExactRangeCandidate,
+    context: &ExactRangeSideContext<'_, '_>,
+) -> Result<Vec<ExactRangeLeafSample>, ExactRangeParentStopReason> {
+    let mut samples = Vec::new();
+    samples
+        .try_reserve_exact(candidate.leaf_end - candidate.leaf_start)
+        .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
+    for leaf in &context.leaves[candidate.leaf_start..candidate.leaf_end] {
+        samples.push(ExactRangeLeafSample {
+            block: context.side.blocks[leaf.side_block_index].block.0,
+            comparable_start: leaf.comparable_start,
+            comparable_end: leaf.comparable_end,
+            ownership: leaf.ownership,
+        });
+    }
+    Ok(samples)
+}
+
+fn parent_inc(value: usize) -> Result<usize, ExactRangeParentStopReason> {
+    value
+        .checked_add(1)
+        .ok_or(ExactRangeParentStopReason::CounterOverflow)
+}
+
+fn parent_add(left: usize, right: usize) -> Result<usize, ExactRangeParentStopReason> {
+    left.checked_add(right)
+        .ok_or(ExactRangeParentStopReason::CounterOverflow)
 }
 
 struct GapAnalysisContext<'a, 'side> {
@@ -1916,11 +2930,17 @@ mod tests {
         RecoveryOwnershipLedger {
             blocks: blocks
                 .iter()
-                .map(|block| RecoveryOwnershipLedgerBlock {
+                .enumerate()
+                .map(|(ordinal, block)| RecoveryOwnershipLedgerBlock {
                     block_id: block.block.0,
                     trusted: true,
                     role: RecoveryOwnershipRole::Body,
-                    context: RecoveryOwnershipContext::default(),
+                    context: RecoveryOwnershipContext {
+                        trusted_run_id: Some(1),
+                        ordinal_start: Some(ordinal),
+                        ordinal_end: Some(ordinal + 1),
+                        ..RecoveryOwnershipContext::default()
+                    },
                 })
                 .collect(),
             ranges: blocks
@@ -1936,6 +2956,601 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    fn exact_parent_samples(result: &SectionPairingAnalysis) -> &[ExactRangeParentSample] {
+        let ExactRangeParentOutcome::Complete { samples, .. } = &result.exact_range_parent_outcome
+        else {
+            panic!("exact-range parent analysis must complete");
+        };
+        samples
+    }
+
+    #[test]
+    fn exact_split_paragraph_reports_changed_paired_parent() {
+        let old = vec![
+            block(1, "1 First", 20.0),
+            block(2, "Moved paragraph.", 10.0),
+            block(3, "2 Second", 20.0),
+            block(4, "Stable second.", 10.0),
+        ];
+        let new = vec![
+            block(11, "1 First", 20.0),
+            block(12, "Stable first.", 10.0),
+            block(13, "2 Second", 20.0),
+            block(14, "Moved", 10.0),
+            block(15, "paragraph.", 10.0),
+        ];
+        let old_intervals = intervals(old.len());
+        let new_intervals = intervals(new.len());
+        let old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let mut recovery = input(&old_intervals, &new_intervals);
+        recovery.min_tokens = 16;
+        let result = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2], &[12]),
+                span(AlignmentKind::Match, &[3], &[13]),
+                span(AlignmentKind::Unresolved, &[4], &[14, 15]),
+            ]),
+            recovery,
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            limits(),
+        );
+
+        let moved = exact_parent_samples(&result)
+            .iter()
+            .find(|matched| {
+                matched
+                    .old_leaves
+                    .iter()
+                    .map(|leaf| leaf.block)
+                    .collect::<Vec<_>>()
+                    == [2]
+                    && matched
+                        .new_leaves
+                        .iter()
+                        .map(|leaf| leaf.block)
+                        .collect::<Vec<_>>()
+                        == [14, 15]
+            })
+            .expect("split exact paragraph must be classified");
+        assert_eq!(
+            moved.relation,
+            ExactRangeParentRelation::ChangedPairedParent
+        );
+        assert_eq!(moved.old_parent_heading_block, Some(1));
+        assert_eq!(moved.new_parent_heading_block, Some(13));
+        assert_eq!(moved.old_separator, ExactRangeSeparator::Concatenate);
+        assert_eq!(moved.new_separator, ExactRangeSeparator::Space);
+        assert_eq!(moved.old_source_token_count, 16);
+        assert_eq!(moved.new_source_token_count, 15);
+        assert_eq!(
+            moved.old_parent_heading_evidence,
+            Some(SectionHeadingEvidence::Exact)
+        );
+        assert_eq!(moved.old_parent_confidence, Some(AlignmentConfidence::High));
+        let ExactRangeParentOutcome::Complete { metrics, .. } = &result.exact_range_parent_outcome
+        else {
+            panic!("exact-range parent analysis must complete");
+        };
+        assert!(metrics.short_evidence_omitted > 0);
+    }
+
+    #[test]
+    fn exact_split_paragraph_reports_same_paired_parent() {
+        let old = vec![block(1, "1 First", 20.0), block(2, "Same paragraph.", 10.0)];
+        let new = vec![
+            block(11, "1 First", 20.0),
+            block(12, "Same", 10.0),
+            block(13, "paragraph.", 10.0),
+        ];
+        let old_intervals = intervals(old.len());
+        let new_intervals = intervals(new.len());
+        let old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let result = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2], &[12, 13]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            limits(),
+        );
+
+        let matched = exact_parent_samples(&result)
+            .iter()
+            .find(|matched| {
+                matched
+                    .old_leaves
+                    .iter()
+                    .map(|leaf| leaf.block)
+                    .collect::<Vec<_>>()
+                    == [2]
+                    && matched
+                        .new_leaves
+                        .iter()
+                        .map(|leaf| leaf.block)
+                        .collect::<Vec<_>>()
+                        == [12, 13]
+            })
+            .expect("split exact paragraph must be classified");
+        assert_eq!(matched.relation, ExactRangeParentRelation::SamePairedParent);
+    }
+
+    #[test]
+    fn duplicate_or_gap_owned_exact_ranges_are_not_classified() {
+        let mut old = vec![
+            block(1, "1 First", 20.0),
+            block(2, "Repeated.", 10.0),
+            block(3, "Repeated", 10.0),
+            block(4, ".", 10.0),
+        ];
+        let new = vec![block(11, "1 First", 20.0), block(12, "Repeated.", 10.0)];
+        old[2].font_size_signatures = None;
+        let old_intervals = intervals(old.len());
+        let new_intervals = intervals(new.len());
+        let old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let duplicate = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2, 3, 4], &[12]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            limits(),
+        );
+        assert!(
+            !exact_parent_samples(&duplicate)
+                .iter()
+                .any(|matched| matched.old_leaves.len() == 1 && matched.old_leaves[0].block == 2)
+        );
+
+        let gap_ledger = ledger(
+            &old,
+            RecoveryOwnership::Gap(super::super::ownership::RecoveryGapReason::OrdinalGap),
+        );
+        let unsafe_result = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2, 3, 4], &[12]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&gap_ledger, &new_ledger]),
+            2_048,
+            limits(),
+        );
+        assert!(exact_parent_samples(&unsafe_result).is_empty());
+        let ExactRangeParentOutcome::Complete { metrics, .. } =
+            unsafe_result.exact_range_parent_outcome
+        else {
+            panic!("exact-range parent analysis must complete");
+        };
+        assert!(metrics.gap_barriers > 0);
+    }
+
+    #[test]
+    fn exact_range_parent_stop_discards_partial_classification() {
+        let old = vec![block(1, "1 First", 20.0), block(2, "Same paragraph.", 10.0)];
+        let new = vec![
+            block(11, "1 First", 20.0),
+            block(12, "Same paragraph.", 10.0),
+        ];
+        let old_intervals = intervals(old.len());
+        let new_intervals = intervals(new.len());
+        let old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let result = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2], &[12]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            SectionPairingLimits {
+                max_exact_range_candidates: 1,
+                ..limits()
+            },
+        );
+
+        assert_eq!(
+            result.exact_range_parent_outcome,
+            ExactRangeParentOutcome::Unavailable(ExactRangeParentStopReason::CandidateLimit)
+        );
+
+        let comparison_stop = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2], &[12]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            SectionPairingLimits {
+                max_exact_range_comparisons: 0,
+                ..limits()
+            },
+        );
+        assert_eq!(
+            comparison_stop.exact_range_parent_outcome,
+            ExactRangeParentOutcome::Unavailable(ExactRangeParentStopReason::ComparisonLimit)
+        );
+    }
+
+    #[test]
+    fn accepted_leaf_participates_in_census_but_is_not_sampled() {
+        let old = vec![block(1, "1 First", 20.0), block(2, "Stable text.", 10.0)];
+        let new = vec![block(11, "1 First", 20.0), block(12, "Stable text.", 10.0)];
+        let old_intervals = intervals(old.len());
+        let new_intervals = intervals(new.len());
+        let old_ledger = ledger(&old, RecoveryOwnership::Accepted);
+        let new_ledger = ledger(&new, RecoveryOwnership::Accepted);
+        let result = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2], &[12]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            limits(),
+        );
+
+        let ExactRangeParentOutcome::Complete { metrics, samples } =
+            result.exact_range_parent_outcome
+        else {
+            panic!("exact-range parent analysis must complete");
+        };
+        assert!(metrics.accepted_candidates > 0);
+        assert!(metrics.token_verified_matches > 0);
+        assert!(samples.is_empty());
+    }
+
+    #[test]
+    fn clean_gap_singleton_vetoes_leaf_uniqueness_without_joining() {
+        let old = vec![
+            block(1, "1 First", 20.0),
+            block(2, "Repeated.", 10.0),
+            block(3, "Repeated.", 10.0),
+        ];
+        let new = vec![block(11, "1 First", 20.0), block(12, "Repeated.", 10.0)];
+        let old_intervals = intervals(old.len());
+        let new_intervals = intervals(new.len());
+        let mut old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        old_ledger.ranges[2].ownership =
+            RecoveryOwnership::Gap(super::super::ownership::RecoveryGapReason::OrdinalGap);
+        old_ledger.blocks[2].trusted = false;
+        let new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let result = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2, 3], &[12]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            limits(),
+        );
+
+        assert!(exact_parent_samples(&result).is_empty());
+        let ExactRangeParentOutcome::Complete { metrics, .. } = result.exact_range_parent_outcome
+        else {
+            panic!("exact-range parent analysis must complete");
+        };
+        assert!(metrics.gap_barriers > 0);
+        assert!(metrics.token_verified_matches > 0);
+        assert_eq!(metrics.accepted_candidates, 0);
+
+        let side = side(&old);
+        let structure = build_structure(&side, &old_intervals, limits()).expect("structure fits");
+        let parent_lookup =
+            strong_parent_lookup(&structure, side.blocks.len()).expect("parent lookup fits");
+        let mut direct_metrics = ExactRangeParentMetrics::default();
+        let leaves = exact_range_leaves(&side, &old_ledger, &parent_lookup, &mut direct_metrics)
+            .expect("leaf census fits");
+        let candidates = exact_range_candidates(&side, &leaves, 1, &mut direct_metrics, limits())
+            .expect("candidate census fits");
+        assert!(candidates.iter().any(|candidate| {
+            candidate.leaf_start == 2 && candidate.leaf_end == 3 && !candidate.adoptable
+        }));
+        assert!(
+            !candidates
+                .iter()
+                .any(|candidate| candidate.leaf_start < 2 && candidate.leaf_end > 2)
+        );
+    }
+
+    #[test]
+    fn untrusted_leaf_candidate_does_not_count_as_accepted() {
+        let old = vec![block(1, "1 First", 20.0), block(2, "Stable text.", 10.0)];
+        let new = vec![block(11, "1 First", 20.0), block(12, "Stable text.", 10.0)];
+        let old_intervals = intervals(old.len());
+        let new_intervals = intervals(new.len());
+        let mut old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        old_ledger.blocks[1].trusted = false;
+        let mut new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        new_ledger.blocks[1].trusted = false;
+        let result = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2], &[12]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            limits(),
+        );
+
+        let ExactRangeParentOutcome::Complete { metrics, samples } =
+            result.exact_range_parent_outcome
+        else {
+            panic!("exact-range parent analysis must complete");
+        };
+        assert!(metrics.token_verified_matches > 0);
+        assert_eq!(metrics.accepted_candidates, 0);
+        assert!(samples.is_empty());
+    }
+
+    #[test]
+    fn low_confidence_parent_pair_leaves_relation_unknown() {
+        let old = vec![block(1, "1 First", 20.0), block(2, "Stable text.", 10.0)];
+        let new = vec![block(11, "1 First", 20.0), block(12, "Stable text.", 10.0)];
+        let old_intervals = intervals(old.len());
+        let new_intervals = intervals(new.len());
+        let old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let mut heading = span(AlignmentKind::Match, &[1], &[11]);
+        heading.confidence = AlignmentConfidence::Low;
+        let result = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![heading, span(AlignmentKind::Unresolved, &[2], &[12])]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            limits(),
+        );
+
+        assert_eq!(exact_parent_samples(&result).len(), 1);
+        assert_eq!(
+            exact_parent_samples(&result)[0].relation,
+            ExactRangeParentRelation::Unknown
+        );
+        assert_eq!(exact_parent_samples(&result)[0].old_parent_confidence, None);
+    }
+
+    #[test]
+    fn exact_range_parent_omits_evidence_below_min_tokens() {
+        let old = vec![block(1, "1 First", 20.0), block(2, "Tiny", 10.0)];
+        let new = vec![block(11, "1 First", 20.0), block(12, "Tiny", 10.0)];
+        let old_intervals = intervals(old.len());
+        let new_intervals = intervals(new.len());
+        let old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let mut recovery = input(&old_intervals, &new_intervals);
+        recovery.min_tokens = 100;
+        let result = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2], &[12]),
+            ]),
+            recovery,
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            limits(),
+        );
+
+        assert!(exact_parent_samples(&result).is_empty());
+        let ExactRangeParentOutcome::Complete { metrics, .. } = result.exact_range_parent_outcome
+        else {
+            panic!("exact-range parent analysis must complete");
+        };
+        assert!(metrics.short_evidence_omitted > 0);
+    }
+
+    #[test]
+    fn exact_range_parent_keeps_one_deterministic_maximal_sample() {
+        let old = vec![
+            block(1, "1 First", 20.0),
+            block(2, "Alpha.", 10.0),
+            block(3, "Beta.", 10.0),
+        ];
+        let new = vec![
+            block(11, "1 First", 20.0),
+            block(12, "Alpha.", 10.0),
+            block(13, "Beta.", 10.0),
+        ];
+        let old_intervals = intervals(old.len());
+        let new_intervals = intervals(new.len());
+        let old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let run = || {
+            analyze_section_pairing_shadow(
+                [&side(&old), &side(&new)],
+                &alignment(vec![
+                    span(AlignmentKind::Match, &[1], &[11]),
+                    span(AlignmentKind::Unresolved, &[2, 3], &[12, 13]),
+                ]),
+                input(&old_intervals, &new_intervals),
+                Some([&old_ledger, &new_ledger]),
+                2_048,
+                limits(),
+            )
+        };
+        let first = run();
+        let second = run();
+
+        assert_eq!(
+            first.exact_range_parent_outcome,
+            second.exact_range_parent_outcome
+        );
+        let samples = exact_parent_samples(&first);
+        assert_eq!(samples.len(), 1);
+        assert_eq!(samples[0].old_leaves.len(), 2);
+        let ExactRangeParentOutcome::Complete { metrics, .. } = first.exact_range_parent_outcome
+        else {
+            panic!("exact-range parent analysis must complete");
+        };
+        assert!(metrics.nesting_vetoes > 0);
+    }
+
+    #[test]
+    fn exact_range_samples_include_each_retained_relation() {
+        let mut retained = vec![
+            QualifiedExactRange {
+                old: 0,
+                new: 0,
+                relation: ExactRangeParentRelation::SamePairedParent,
+            };
+            65
+        ];
+        retained.push(QualifiedExactRange {
+            old: 65,
+            new: 65,
+            relation: ExactRangeParentRelation::ChangedPairedParent,
+        });
+        retained.push(QualifiedExactRange {
+            old: 66,
+            new: 66,
+            relation: ExactRangeParentRelation::Unknown,
+        });
+
+        let indices = stratified_sample_indices(&retained).expect("sampling fits");
+
+        assert_eq!(indices.len(), 64);
+        assert!(indices.contains(&65));
+        assert!(indices.contains(&66));
+    }
+
+    #[test]
+    fn forced_exact_range_hash_collision_does_not_count_as_duplicate() {
+        let blocks = vec![block(1, "Alpha", 10.0), block(2, "Omega", 10.0)];
+        let trusted = intervals(blocks.len());
+        let side = side(&blocks);
+        let structure = build_structure(&side, &trusted, limits()).expect("structure fits");
+        let ledger = ledger(
+            &blocks,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let mut metrics = ExactRangeParentMetrics::default();
+        let parent_lookup =
+            strong_parent_lookup(&structure, side.blocks.len()).expect("parent lookup fits");
+        let leaves = exact_range_leaves(&side, &ledger, &parent_lookup, &mut metrics)
+            .expect("leaf census fits");
+        let candidates = exact_range_candidates(&side, &leaves, 1, &mut metrics, limits())
+            .expect("candidate census fits");
+        let query = candidates
+            .iter()
+            .find(|candidate| candidate.leaf_start == 0 && candidate.leaf_end == 1)
+            .expect("first singleton")
+            .clone();
+        let mut collision = candidates
+            .iter()
+            .find(|candidate| candidate.leaf_start == 1 && candidate.leaf_end == 2)
+            .expect("second singleton")
+            .clone();
+        collision.hash = query.hash;
+        let forced = vec![query, collision];
+        let index = candidate_index(&forced).expect("index fits");
+        let context = ExactRangeSideContext {
+            side: &side,
+            structure: &structure,
+            leaves: &leaves,
+        };
+
+        assert!(
+            !range_tokens_equal(
+                &forced[0],
+                &forced[1],
+                [&context, &context],
+                &mut metrics,
+                limits(),
+            )
+            .expect("comparison fits")
+        );
+        assert_eq!(
+            exact_occurrence_count(
+                0,
+                &forced[0],
+                index[&forced[0].hash].as_slice(),
+                &forced,
+                &context,
+                &mut metrics,
+                limits(),
+            )
+            .expect("classification fits"),
+            1
+        );
     }
 
     #[test]

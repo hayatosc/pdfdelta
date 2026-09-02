@@ -2,7 +2,8 @@
 
 use super::container::StructuralContainerMetrics;
 use super::section_pairing::{
-    SectionPairingAnalysis, SectionPairingMetrics, SectionPairingProposalOutcome,
+    ExactRangeParentOutcome, SectionPairingAnalysis, SectionPairingMetrics,
+    SectionPairingProposalOutcome,
 };
 #[cfg(test)]
 const RECOVERY_OWNERSHIP_SAMPLE_LIMIT: usize = 1;
@@ -389,6 +390,13 @@ impl RecoveryOwnershipPartitionAnalysis {
         self.section_pairing_analysis
             .as_ref()
             .map(|analysis| &analysis.proposal_outcome)
+    }
+
+    /// Returns the atomic exact-range parent classification, when diagnostics ran.
+    pub fn exact_range_parent_outcome(&self) -> Option<&ExactRangeParentOutcome> {
+        self.section_pairing_analysis
+            .as_ref()
+            .map(|analysis| &analysis.exact_range_parent_outcome)
     }
 
     pub(crate) fn set_section_pairing_analysis(&mut self, analysis: SectionPairingAnalysis) {
