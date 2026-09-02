@@ -5,16 +5,16 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-02
-- **Generator / engine commit**: [`47e699a`](https://github.com/hayatosc/pdfdelta/commit/47e699a)
+- **Generator / engine commit**: [`a9abadb`](https://github.com/hayatosc/pdfdelta/commit/a9abadb)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-02-47e699a.json`](2026-09-02-47e699a.json)
-  - Schema: v57
-  - Size: 8,364,189 bytes
-  - SHA-256: `01a729c9819f9a6742aa23bd2de3bb9960020e760b73a884a1a23ceb008e7532`
+  - File: [`2026-09-02-a9abadb.json`](2026-09-02-a9abadb.json)
+  - Schema: v58
+  - Size: 8,373,200 bytes
+  - SHA-256: `968c648b75ef85a0f79df127ce627e45a03dccd5a11ae541ff7454308735e1d8`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
@@ -26,9 +26,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-02-47e699a.json \
+cp benchmark/realworld/results/2026-09-02-a9abadb.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 47e699a
+git switch --detach a9abadb
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -103,7 +103,16 @@ still apply only to their recorded review items.
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
 
-The latest schema-v57 capture tightens reviewed cross-kind matching without
+Schema v58 adds a behavior-neutral shadow that projects exact adjacent segments
+and alignment anchors onto source-backed trusted-line ranges. Removing the new
+topology fields and schema number produces exact JSON parity with schema v57.
+Across the four reviewed pairs with unique exact segments, 768 pairs are
+classified: 77 monotone, one crossing, and 690 topology-unknown. The remaining
+FIPS domain-parameter segment is still unknown because its compatible stream
+pair has ambiguous partners; it has no crossing-anchor evidence and is not
+promoted to `Move`.
+
+The preceding schema-v57 capture tightened reviewed cross-kind matching without
 changing comparison behavior. An actual event whose kind differs from the
 expected annotation may now claim it only when source-backed `AtomicEdit`
 evidence of that expected kind contains the expected quote. Replacement
@@ -925,11 +934,15 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v57)
+## Current Writer Schema (v58)
 
-The benchmark writer and latest committed capture use schema v57. Older
-captures retain their recorded schemas. Schema v57 adds typed, bounded
-wrong-kind relation evidence to reviewed failure diagnostics. A scan stop marks
+The benchmark writer and latest committed capture use schema v58. Older
+captures retain their recorded schemas. Schema v58 records bounded, typed
+source-range topology evidence for exact adjacent segments without changing
+comparison behavior. It distinguishes complete, not-applicable, and stopped
+analysis, keeps recovery-unit and alignment-anchor evidence separate, and
+publishes no partial pair classification after a budget stop. Schema v57 adds
+typed, bounded wrong-kind relation evidence to reviewed failure diagnostics. A scan stop marks
 the diagnostic incomplete without failing the benchmark pair or publishing
 partial evidence; unavailable source projection remains distinct from zero
 changed tokens. Schema v56 records bounded exact
@@ -1252,6 +1265,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-09-02-47e699a.json`](2026-09-02-47e699a.json): schema-v57 reviewed wrong-kind matching after requiring source-backed atomic evidence, before exact source-range topology diagnostics.
 - [`2026-09-02-61981dc.json`](2026-09-02-61981dc.json): schema-v57 wrong-kind relation tracing before cross-kind evaluation required source-backed atomic evidence.
 - [`2026-09-02-0c06365.json`](2026-09-02-0c06365.json): schema-v56 exact trusted-residual recovery before wrong-kind relation tracing.
 - [`2026-09-01-8d80c64.json`](2026-09-01-8d80c64.json): schema-v54 isolated exact-tail recovery before lifting the three-proposal production fragment throttle.
