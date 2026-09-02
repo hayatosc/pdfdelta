@@ -49,8 +49,11 @@ use pdfdelta_core::{
         RecoveryWatchQuoteLocalPairEvidence, RecoveryWatchQuoteLocalScoreEvidence,
         RecoveryWatchQuoteLocalSideEvidence, RecoveryWatchQuoteLocalStatus,
         RecoveryWatchQuoteLocalStopReason, RecoveryWatchQuoteLocalUnitEvidence,
-        RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence, RecoveryWatchSide,
-        RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
+        RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
+        RecoveryWatchSegmentTopologyDiagnostics, RecoveryWatchSegmentTopologyEvidence,
+        RecoveryWatchSegmentTopologyShadow, RecoveryWatchSide, RecoveryWatchUnitKind,
+        RunSignatureStopReason, SegmentStopReason, SegmentTopologyNotApplicableReason,
+        SegmentTopologyShadowStopReason, SegmentTopologyUnknownReason,
         SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
         SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
         SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
@@ -441,6 +444,7 @@ pub struct RecoveryWatchDiagnosticsReport {
     pub segment_crossing_pairs: usize,
     pub segment_overlap_vetoes: usize,
     pub segment_stop_reason: Option<SegmentStopReasonReport>,
+    pub segment_source_range_topology: RecoveryWatchSegmentTopologyDiagnosticsReport,
     pub granular_complete: bool,
     pub granular_old_units: usize,
     pub granular_new_units: usize,
@@ -703,6 +707,104 @@ pub struct RecoveryWatchSegmentPairEvidenceReport {
     pub overlaps_existing_recovery: bool,
     pub crossing_anchor_count: usize,
     pub relation: ExactSegmentRelationReport,
+    pub source_range_topology: RecoveryWatchSegmentTopologyShadowReport,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum RecoveryWatchSegmentTopologyShadowReport {
+    Complete {
+        #[serde(flatten)]
+        evidence: RecoveryWatchSegmentTopologyEvidenceReport,
+    },
+    NotApplicable {
+        reason: SegmentTopologyNotApplicableReasonReport,
+    },
+    Stopped {
+        reason: SegmentTopologyShadowStopReasonReport,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RecoveryWatchSegmentTopologyEvidenceReport {
+    pub relation: ExactSegmentRelationReport,
+    pub unknown_reason: Option<SegmentTopologyUnknownReasonReport>,
+    pub recovery_unit_anchor_candidates: usize,
+    pub alignment_main_anchor_candidates: usize,
+    pub usable_anchors: usize,
+    pub alignment_main_anchors_usable: usize,
+    pub partner_ambiguities: usize,
+    pub overlap_vetoes: usize,
+    pub monotone_anchor_evidence: usize,
+    pub crossing_anchor_evidence: usize,
+    pub old_earlier_new_later_evidence: usize,
+    pub old_later_new_earlier_evidence: usize,
+    pub wrong_stream_pair_vetoes: usize,
+    pub missing_trusted_interval_projections: usize,
+    pub untrusted_barrier_projections: usize,
+    pub missing_recovery_unit_projections: usize,
+    pub ambiguous_recovery_unit_projections: usize,
+    pub mixed_role_projections: usize,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct RecoveryWatchSegmentTopologyDiagnosticsReport {
+    pub complete: bool,
+    pub stop_reason: Option<SegmentTopologyShadowStopReasonReport>,
+    pub unique_segment_pairs: usize,
+    pub recovery_unit_anchor_candidates: usize,
+    pub alignment_main_anchor_candidates: usize,
+    pub usable_anchors: usize,
+    pub alignment_main_anchors_usable: usize,
+    pub partner_ambiguities: usize,
+    pub overlap_vetoes: usize,
+    pub monotone_anchor_evidence: usize,
+    pub crossing_anchor_evidence: usize,
+    pub old_earlier_new_later_evidence: usize,
+    pub old_later_new_earlier_evidence: usize,
+    pub monotone_pairs: usize,
+    pub crossing_pairs: usize,
+    pub unknown_pairs: usize,
+    pub wrong_stream_pair_vetoes: usize,
+    pub missing_trusted_interval_projections: usize,
+    pub untrusted_barrier_projections: usize,
+    pub missing_recovery_unit_projections: usize,
+    pub ambiguous_recovery_unit_projections: usize,
+    pub mixed_role_projections: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SegmentTopologyUnknownReasonReport {
+    NoAnchor,
+    PartnerAmbiguity,
+    AnchorOverlap,
+    MissingTrustedInterval,
+    UntrustedBarrier,
+    MissingRecoveryUnit,
+    AmbiguousRecoveryUnit,
+    MixedRoleProjection,
+    WrongStreamPair,
+    NonMonotoneAnchorChain,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SegmentTopologyShadowStopReasonReport {
+    CandidateScanLimit,
+    ProjectionScanLimit,
+    OutputLimit,
+    AllocationFailure,
+    CounterOverflow,
+    ProjectionUnavailable,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SegmentTopologyNotApplicableReasonReport {
+    NonExact,
+    Duplicate,
+    RoleIncompatible,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -3172,6 +3274,119 @@ impl From<RecoveryWatchSegmentPairEvidence> for RecoveryWatchSegmentPairEvidence
             overlaps_existing_recovery: pair.overlaps_existing_recovery,
             crossing_anchor_count: pair.crossing_anchor_count,
             relation: pair.relation.into(),
+            source_range_topology: pair.source_range_topology.into(),
+        }
+    }
+}
+
+impl From<RecoveryWatchSegmentTopologyShadow> for RecoveryWatchSegmentTopologyShadowReport {
+    fn from(shadow: RecoveryWatchSegmentTopologyShadow) -> Self {
+        match shadow {
+            RecoveryWatchSegmentTopologyShadow::Complete(evidence) => Self::Complete {
+                evidence: evidence.into(),
+            },
+            RecoveryWatchSegmentTopologyShadow::NotApplicable(reason) => Self::NotApplicable {
+                reason: reason.into(),
+            },
+            RecoveryWatchSegmentTopologyShadow::Stopped(reason) => Self::Stopped {
+                reason: reason.into(),
+            },
+        }
+    }
+}
+
+impl From<RecoveryWatchSegmentTopologyEvidence> for RecoveryWatchSegmentTopologyEvidenceReport {
+    fn from(evidence: RecoveryWatchSegmentTopologyEvidence) -> Self {
+        Self {
+            relation: evidence.relation.into(),
+            unknown_reason: evidence.unknown_reason.map(Into::into),
+            recovery_unit_anchor_candidates: evidence.recovery_unit_anchor_candidates,
+            alignment_main_anchor_candidates: evidence.alignment_main_anchor_candidates,
+            usable_anchors: evidence.usable_anchors,
+            alignment_main_anchors_usable: evidence.alignment_main_anchors_usable,
+            partner_ambiguities: evidence.partner_ambiguities,
+            overlap_vetoes: evidence.overlap_vetoes,
+            monotone_anchor_evidence: evidence.monotone_anchor_evidence,
+            crossing_anchor_evidence: evidence.crossing_anchor_evidence,
+            old_earlier_new_later_evidence: evidence.old_earlier_new_later_evidence,
+            old_later_new_earlier_evidence: evidence.old_later_new_earlier_evidence,
+            wrong_stream_pair_vetoes: evidence.wrong_stream_pair_vetoes,
+            missing_trusted_interval_projections: evidence.missing_trusted_interval_projections,
+            untrusted_barrier_projections: evidence.untrusted_barrier_projections,
+            missing_recovery_unit_projections: evidence.missing_recovery_unit_projections,
+            ambiguous_recovery_unit_projections: evidence.ambiguous_recovery_unit_projections,
+            mixed_role_projections: evidence.mixed_role_projections,
+        }
+    }
+}
+
+impl From<RecoveryWatchSegmentTopologyDiagnostics>
+    for RecoveryWatchSegmentTopologyDiagnosticsReport
+{
+    fn from(diagnostics: RecoveryWatchSegmentTopologyDiagnostics) -> Self {
+        Self {
+            complete: diagnostics.complete,
+            stop_reason: diagnostics.stop_reason.map(Into::into),
+            unique_segment_pairs: diagnostics.unique_segment_pairs,
+            recovery_unit_anchor_candidates: diagnostics.recovery_unit_anchor_candidates,
+            alignment_main_anchor_candidates: diagnostics.alignment_main_anchor_candidates,
+            usable_anchors: diagnostics.usable_anchors,
+            alignment_main_anchors_usable: diagnostics.alignment_main_anchors_usable,
+            partner_ambiguities: diagnostics.partner_ambiguities,
+            overlap_vetoes: diagnostics.overlap_vetoes,
+            monotone_anchor_evidence: diagnostics.monotone_anchor_evidence,
+            crossing_anchor_evidence: diagnostics.crossing_anchor_evidence,
+            old_earlier_new_later_evidence: diagnostics.old_earlier_new_later_evidence,
+            old_later_new_earlier_evidence: diagnostics.old_later_new_earlier_evidence,
+            monotone_pairs: diagnostics.monotone_pairs,
+            crossing_pairs: diagnostics.crossing_pairs,
+            unknown_pairs: diagnostics.unknown_pairs,
+            wrong_stream_pair_vetoes: diagnostics.wrong_stream_pair_vetoes,
+            missing_trusted_interval_projections: diagnostics.missing_trusted_interval_projections,
+            untrusted_barrier_projections: diagnostics.untrusted_barrier_projections,
+            missing_recovery_unit_projections: diagnostics.missing_recovery_unit_projections,
+            ambiguous_recovery_unit_projections: diagnostics.ambiguous_recovery_unit_projections,
+            mixed_role_projections: diagnostics.mixed_role_projections,
+        }
+    }
+}
+
+impl From<SegmentTopologyUnknownReason> for SegmentTopologyUnknownReasonReport {
+    fn from(reason: SegmentTopologyUnknownReason) -> Self {
+        match reason {
+            SegmentTopologyUnknownReason::NoAnchor => Self::NoAnchor,
+            SegmentTopologyUnknownReason::PartnerAmbiguity => Self::PartnerAmbiguity,
+            SegmentTopologyUnknownReason::AnchorOverlap => Self::AnchorOverlap,
+            SegmentTopologyUnknownReason::MissingTrustedInterval => Self::MissingTrustedInterval,
+            SegmentTopologyUnknownReason::UntrustedBarrier => Self::UntrustedBarrier,
+            SegmentTopologyUnknownReason::MissingRecoveryUnit => Self::MissingRecoveryUnit,
+            SegmentTopologyUnknownReason::AmbiguousRecoveryUnit => Self::AmbiguousRecoveryUnit,
+            SegmentTopologyUnknownReason::MixedRoleProjection => Self::MixedRoleProjection,
+            SegmentTopologyUnknownReason::WrongStreamPair => Self::WrongStreamPair,
+            SegmentTopologyUnknownReason::NonMonotoneAnchorChain => Self::NonMonotoneAnchorChain,
+        }
+    }
+}
+
+impl From<SegmentTopologyShadowStopReason> for SegmentTopologyShadowStopReasonReport {
+    fn from(reason: SegmentTopologyShadowStopReason) -> Self {
+        match reason {
+            SegmentTopologyShadowStopReason::CandidateScanLimit => Self::CandidateScanLimit,
+            SegmentTopologyShadowStopReason::ProjectionScanLimit => Self::ProjectionScanLimit,
+            SegmentTopologyShadowStopReason::OutputLimit => Self::OutputLimit,
+            SegmentTopologyShadowStopReason::AllocationFailure => Self::AllocationFailure,
+            SegmentTopologyShadowStopReason::CounterOverflow => Self::CounterOverflow,
+            SegmentTopologyShadowStopReason::ProjectionUnavailable => Self::ProjectionUnavailable,
+        }
+    }
+}
+
+impl From<SegmentTopologyNotApplicableReason> for SegmentTopologyNotApplicableReasonReport {
+    fn from(reason: SegmentTopologyNotApplicableReason) -> Self {
+        match reason {
+            SegmentTopologyNotApplicableReason::NonExact => Self::NonExact,
+            SegmentTopologyNotApplicableReason::Duplicate => Self::Duplicate,
+            SegmentTopologyNotApplicableReason::RoleIncompatible => Self::RoleIncompatible,
         }
     }
 }
@@ -3236,6 +3451,10 @@ fn completed_empty_recovery_watch_report() -> RecoveryWatchDiagnosticsReport {
         segment_crossing_pairs: 0,
         segment_overlap_vetoes: 0,
         segment_stop_reason: None,
+        segment_source_range_topology: RecoveryWatchSegmentTopologyDiagnosticsReport {
+            complete: true,
+            ..RecoveryWatchSegmentTopologyDiagnosticsReport::default()
+        },
         granular_complete: true,
         granular_old_units: 0,
         granular_new_units: 0,
@@ -3330,6 +3549,7 @@ fn recovery_watch_report(
         segment_crossing_pairs: diagnostics.segment_crossing_pairs,
         segment_overlap_vetoes: diagnostics.segment_overlap_vetoes,
         segment_stop_reason: diagnostics.segment_stop_reason.map(Into::into),
+        segment_source_range_topology: diagnostics.segment_source_range_topology.into(),
         granular_complete: diagnostics.granular_complete,
         granular_old_units: diagnostics.granular_old_units,
         granular_new_units: diagnostics.granular_new_units,
@@ -12208,7 +12428,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 57;
+    pub const SCHEMA_VERSION: u32 = 58;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -12636,6 +12856,28 @@ mod tests {
                 overlaps_existing_recovery: false,
                 crossing_anchor_count: 0,
                 relation: ExactSegmentRelation::ExactUniqueMonotone,
+                source_range_topology: RecoveryWatchSegmentTopologyShadow::Complete(
+                    RecoveryWatchSegmentTopologyEvidence {
+                        relation: ExactSegmentRelation::ExactUniqueCrossing,
+                        unknown_reason: None,
+                        recovery_unit_anchor_candidates: 2,
+                        alignment_main_anchor_candidates: 3,
+                        usable_anchors: 1,
+                        alignment_main_anchors_usable: 1,
+                        partner_ambiguities: 0,
+                        overlap_vetoes: 0,
+                        monotone_anchor_evidence: 1,
+                        crossing_anchor_evidence: 1,
+                        old_earlier_new_later_evidence: 1,
+                        old_later_new_earlier_evidence: 0,
+                        wrong_stream_pair_vetoes: 2,
+                        missing_trusted_interval_projections: 0,
+                        untrusted_barrier_projections: 0,
+                        missing_recovery_unit_projections: 0,
+                        ambiguous_recovery_unit_projections: 0,
+                        mixed_role_projections: 0,
+                    },
+                ),
             }),
             granular_pair: Some(RecoveryWatchGranularPairEvidence {
                 old_units: vec![RecoveryWatchGranularUnitEvidence {
@@ -12783,6 +13025,30 @@ mod tests {
                 segment_crossing_pairs: 1,
                 segment_overlap_vetoes: 1,
                 segment_stop_reason: Some(SegmentStopReason::TokenVerificationLimit),
+                segment_source_range_topology: RecoveryWatchSegmentTopologyDiagnostics {
+                    complete: true,
+                    stop_reason: None,
+                    unique_segment_pairs: 3,
+                    recovery_unit_anchor_candidates: 6,
+                    alignment_main_anchor_candidates: 4,
+                    usable_anchors: 2,
+                    alignment_main_anchors_usable: 2,
+                    partner_ambiguities: 1,
+                    overlap_vetoes: 1,
+                    monotone_anchor_evidence: 2,
+                    crossing_anchor_evidence: 1,
+                    old_earlier_new_later_evidence: 1,
+                    old_later_new_earlier_evidence: 0,
+                    monotone_pairs: 1,
+                    crossing_pairs: 1,
+                    unknown_pairs: 1,
+                    wrong_stream_pair_vetoes: 2,
+                    missing_trusted_interval_projections: 1,
+                    untrusted_barrier_projections: 0,
+                    missing_recovery_unit_projections: 0,
+                    ambiguous_recovery_unit_projections: 0,
+                    mixed_role_projections: 0,
+                },
                 granular_complete: false,
                 granular_old_units: 3,
                 granular_new_units: 4,
@@ -12821,6 +13087,7 @@ mod tests {
                 "segment_crossing_pairs",
                 "segment_overlap_vetoes",
                 "segment_stop_reason",
+                "segment_source_range_topology",
                 "granular_complete",
                 "granular_old_units",
                 "granular_new_units",
@@ -12847,6 +13114,15 @@ mod tests {
         assert_eq!(value["segment_crossing_pairs"], 1);
         assert_eq!(value["segment_overlap_vetoes"], 1);
         assert_eq!(value["segment_stop_reason"], "token_verification_limit");
+        assert_eq!(
+            value["segment_source_range_topology"]["unique_segment_pairs"],
+            3
+        );
+        assert_eq!(value["segment_source_range_topology"]["crossing_pairs"], 1);
+        assert_eq!(
+            value["segment_source_range_topology"]["old_earlier_new_later_evidence"],
+            1
+        );
         assert_eq!(value["granular_complete"], false);
         assert_eq!(value["granular_old_units"], 3);
         assert_eq!(value["granular_new_units"], 4);
@@ -12994,7 +13270,28 @@ mod tests {
                 "role_compatible": true,
                 "overlaps_existing_recovery": false,
                 "crossing_anchor_count": 0,
-                "relation": "exact_unique_monotone"
+                "relation": "exact_unique_monotone",
+                "source_range_topology": {
+                    "status": "complete",
+                    "relation": "exact_unique_crossing",
+                    "unknown_reason": null,
+                    "recovery_unit_anchor_candidates": 2,
+                    "alignment_main_anchor_candidates": 3,
+                    "usable_anchors": 1,
+                    "alignment_main_anchors_usable": 1,
+                    "partner_ambiguities": 0,
+                    "overlap_vetoes": 0,
+                    "monotone_anchor_evidence": 1,
+                    "crossing_anchor_evidence": 1,
+                    "old_earlier_new_later_evidence": 1,
+                    "old_later_new_earlier_evidence": 0,
+                    "wrong_stream_pair_vetoes": 2,
+                    "missing_trusted_interval_projections": 0,
+                    "untrusted_barrier_projections": 0,
+                    "missing_recovery_unit_projections": 0,
+                    "ambiguous_recovery_unit_projections": 0,
+                    "mixed_role_projections": 0
+                }
             })
         );
         assert_eq!(
@@ -13048,6 +13345,34 @@ mod tests {
                         "new_scalars": []
                     }]
                 }
+            })
+        );
+    }
+
+    #[test]
+    fn segment_topology_shadow_statuses_do_not_publish_partial_evidence() {
+        let stopped = serde_json::to_value(RecoveryWatchSegmentTopologyShadowReport::Stopped {
+            reason: SegmentTopologyShadowStopReasonReport::CandidateScanLimit,
+        })
+        .expect("stopped topology shadow serializes");
+        assert_eq!(
+            stopped,
+            serde_json::json!({
+                "status": "stopped",
+                "reason": "candidate_scan_limit"
+            })
+        );
+
+        let not_applicable =
+            serde_json::to_value(RecoveryWatchSegmentTopologyShadowReport::NotApplicable {
+                reason: SegmentTopologyNotApplicableReasonReport::Duplicate,
+            })
+            .expect("non-applicable topology shadow serializes");
+        assert_eq!(
+            not_applicable,
+            serde_json::json!({
+                "status": "not_applicable",
+                "reason": "duplicate"
             })
         );
     }
@@ -13984,6 +14309,10 @@ mod tests {
                 segment_crossing_pairs: 0,
                 segment_overlap_vetoes: 0,
                 segment_stop_reason: None,
+                segment_source_range_topology: RecoveryWatchSegmentTopologyDiagnosticsReport {
+                    complete: true,
+                    ..RecoveryWatchSegmentTopologyDiagnosticsReport::default()
+                },
                 granular_complete: true,
                 granular_old_units: 0,
                 granular_new_units: 0,
@@ -14001,7 +14330,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 57);
+        assert_eq!(completed["schema_version"], 58);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -14026,6 +14355,30 @@ mod tests {
                     "segment_crossing_pairs": 0,
                     "segment_overlap_vetoes": 0,
                     "segment_stop_reason": null,
+                    "segment_source_range_topology": {
+                        "complete": true,
+                        "stop_reason": null,
+                        "unique_segment_pairs": 0,
+                        "recovery_unit_anchor_candidates": 0,
+                        "alignment_main_anchor_candidates": 0,
+                        "usable_anchors": 0,
+                        "alignment_main_anchors_usable": 0,
+                        "partner_ambiguities": 0,
+                        "overlap_vetoes": 0,
+                        "monotone_anchor_evidence": 0,
+                        "crossing_anchor_evidence": 0,
+                        "old_earlier_new_later_evidence": 0,
+                        "old_later_new_earlier_evidence": 0,
+                        "monotone_pairs": 0,
+                        "crossing_pairs": 0,
+                        "unknown_pairs": 0,
+                        "wrong_stream_pair_vetoes": 0,
+                        "missing_trusted_interval_projections": 0,
+                        "untrusted_barrier_projections": 0,
+                        "missing_recovery_unit_projections": 0,
+                        "ambiguous_recovery_unit_projections": 0,
+                        "mixed_role_projections": 0
+                    },
                     "granular_complete": true,
                     "granular_old_units": 0,
                     "granular_new_units": 0,
@@ -14051,7 +14404,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 57);
+        assert_eq!(legacy_summary["schema_version"], 58);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -16251,7 +16604,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 57);
+        assert_eq!(json["schema_version"], 58);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -23210,7 +23563,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 57);
+        assert_eq!(value["schema_version"], 58);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);

@@ -10,7 +10,7 @@ mod cross_granularity;
 
 use crate::{
     Result,
-    alignment::{Alignment, AlignmentEvidence, AlignmentKind, BlockSeparator},
+    alignment::{Alignment, AlignmentEvidence, AlignmentKind, BlockSeparator, ExactAnchor},
     layout::{
         BlockId, BlockRole, RegionId, RegionRelation, TrustedRegionEdge, TrustedRunDescriptor,
         TrustedRunId, TrustedRunInterval,
@@ -91,8 +91,11 @@ use super::{
     RecoveryWatchQuoteLocalPairEvidence, RecoveryWatchQuoteLocalScoreEvidence,
     RecoveryWatchQuoteLocalSideEvidence, RecoveryWatchQuoteLocalStatus,
     RecoveryWatchQuoteLocalStopReason, RecoveryWatchQuoteLocalUnitEvidence, RecoveryWatchRecord,
-    RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence, RecoveryWatchSide,
-    RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason, SentenceEdgeFilterStopReason,
+    RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
+    RecoveryWatchSegmentTopologyDiagnostics, RecoveryWatchSegmentTopologyEvidence,
+    RecoveryWatchSegmentTopologyShadow, RecoveryWatchSide, RecoveryWatchUnitKind,
+    RunSignatureStopReason, SegmentStopReason, SegmentTopologyNotApplicableReason,
+    SegmentTopologyShadowStopReason, SegmentTopologyUnknownReason, SentenceEdgeFilterStopReason,
     SentenceEdgeGateShadowMetrics, SentenceEdgeGateShadowStopReason,
     SentenceEdgeSignatureDirectExecution, SentenceEdgeSignatureDirectShadowMetrics,
     SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureShadowMetrics,
@@ -857,6 +860,8 @@ struct SegmentDiagnosticAnalysis {
     segment_duplicate_pairs: usize,
     segment_monotone_pairs: usize,
     segment_crossing_pairs: usize,
+    source_range_topology: RecoveryWatchSegmentTopologyDiagnostics,
+    source_range_pair_shadows: HashMap<(usize, usize), RecoveryWatchSegmentTopologyShadow>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -1006,6 +1011,104 @@ impl SegmentDiagnosticBudget {
             return Err(SegmentStopReason::HashPairVisitLimit);
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Copy)]
+struct SegmentTopologyProjectionSide<'a> {
+    side: &'a Side<'a>,
+    trusted_intervals: &'a [Option<TrustedRunInterval>],
+    stream_indices: &'a [Option<usize>],
+    occurrences: &'a [SentenceOccurrence],
+}
+
+#[derive(Clone, Copy)]
+struct SegmentTopologyProjectionContext<'a> {
+    main_anchors: &'a [ExactAnchor],
+    old: SegmentTopologyProjectionSide<'a>,
+    new: SegmentTopologyProjectionSide<'a>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct TrustedLineRange {
+    stream_index: usize,
+    run_id: TrustedRunId,
+    start: usize,
+    end: usize,
+    role: BlockRole,
+}
+
+#[derive(Clone, Copy)]
+struct SegmentTopologyShadowLimits {
+    candidate_scans: usize,
+    projection_scans: usize,
+    outputs: usize,
+}
+
+impl Default for SegmentTopologyShadowLimits {
+    fn default() -> Self {
+        Self {
+            candidate_scans: MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS * 8,
+            projection_scans: MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS * 16,
+            outputs: MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS / 16,
+        }
+    }
+}
+
+#[derive(Default)]
+struct SegmentTopologyShadowBudget {
+    candidate_scans: usize,
+    projection_scans: usize,
+    outputs: usize,
+}
+
+impl SegmentTopologyShadowBudget {
+    fn charge(
+        value: &mut usize,
+        amount: usize,
+        limit: usize,
+        reason: SegmentTopologyShadowStopReason,
+    ) -> std::result::Result<(), SegmentTopologyShadowStopReason> {
+        *value = value
+            .checked_add(amount)
+            .ok_or(SegmentTopologyShadowStopReason::CounterOverflow)?;
+        (*value <= limit).then_some(()).ok_or(reason)
+    }
+
+    fn charge_candidate(
+        &mut self,
+        limits: SegmentTopologyShadowLimits,
+    ) -> std::result::Result<(), SegmentTopologyShadowStopReason> {
+        Self::charge(
+            &mut self.candidate_scans,
+            1,
+            limits.candidate_scans,
+            SegmentTopologyShadowStopReason::CandidateScanLimit,
+        )
+    }
+
+    fn charge_projection(
+        &mut self,
+        limits: SegmentTopologyShadowLimits,
+    ) -> std::result::Result<(), SegmentTopologyShadowStopReason> {
+        Self::charge(
+            &mut self.projection_scans,
+            1,
+            limits.projection_scans,
+            SegmentTopologyShadowStopReason::ProjectionScanLimit,
+        )
+    }
+
+    fn charge_output(
+        &mut self,
+        limits: SegmentTopologyShadowLimits,
+    ) -> std::result::Result<(), SegmentTopologyShadowStopReason> {
+        Self::charge(
+            &mut self.outputs,
+            1,
+            limits.outputs,
+            SegmentTopologyShadowStopReason::OutputLimit,
+        )
     }
 }
 
@@ -1238,6 +1341,7 @@ struct RecoveryWatchBuildContext<'a> {
     new_evidence: Option<&'a RunRecoveryEvidence<'a>>,
     old_fully_contained: Option<&'a [bool]>,
     new_fully_contained: Option<&'a [bool]>,
+    main_anchor_projection: Option<SegmentTopologyProjectionContext<'a>>,
     min_tokens: usize,
     max_tokens: usize,
 }
@@ -1582,6 +1686,562 @@ fn segment_topology_with_budget(
     })
 }
 
+fn increment_topology_count(
+    value: &mut usize,
+) -> std::result::Result<(), SegmentTopologyShadowStopReason> {
+    *value = value
+        .checked_add(1)
+        .ok_or(SegmentTopologyShadowStopReason::CounterOverflow)?;
+    Ok(())
+}
+
+fn project_main_anchor_side(
+    block: BlockId,
+    context: SegmentTopologyProjectionSide<'_>,
+) -> std::result::Result<TrustedLineRange, SegmentTopologyUnknownReason> {
+    let Some(block_index) = context.side.index.get(&block).copied() else {
+        return Err(SegmentTopologyUnknownReason::MissingTrustedInterval);
+    };
+    let Some(interval) = context.trusted_intervals.get(block_index) else {
+        return Err(SegmentTopologyUnknownReason::MissingTrustedInterval);
+    };
+    let Some(interval) = *interval else {
+        return Err(SegmentTopologyUnknownReason::UntrustedBarrier);
+    };
+    let stream_index = context
+        .stream_indices
+        .get(block_index)
+        .copied()
+        .flatten()
+        .ok_or(SegmentTopologyUnknownReason::UntrustedBarrier)?;
+    let role = context
+        .side
+        .blocks
+        .get(block_index)
+        .map(|block| block.role)
+        .ok_or(SegmentTopologyUnknownReason::MissingTrustedInterval)?;
+    Ok(TrustedLineRange {
+        stream_index,
+        run_id: interval.run_id,
+        start: interval.start,
+        end: interval.end,
+        role,
+    })
+}
+
+fn project_segment_line_range(
+    segment: &RecoverySegment,
+    context: SegmentTopologyProjectionSide<'_>,
+    budget: &mut SegmentTopologyShadowBudget,
+    limits: SegmentTopologyShadowLimits,
+) -> std::result::Result<
+    std::result::Result<TrustedLineRange, SegmentTopologyUnknownReason>,
+    SegmentTopologyShadowStopReason,
+> {
+    let mut projected = None::<TrustedLineRange>;
+    for occurrence_index in &segment.occurrence_indices[..segment.unit_count] {
+        budget.charge_projection(limits)?;
+        let Some(location) = context
+            .occurrences
+            .get(*occurrence_index)
+            .and_then(|occurrence| occurrence.location.as_ref())
+        else {
+            return Ok(Err(SegmentTopologyUnknownReason::MissingRecoveryUnit));
+        };
+        for consumed in &location.consumed {
+            budget.charge_projection(limits)?;
+            let block_index = match context.side.index.get(&consumed.block).copied() {
+                Some(index) => index,
+                None => return Ok(Err(SegmentTopologyUnknownReason::MissingTrustedInterval)),
+            };
+            let interval = match context.trusted_intervals.get(block_index) {
+                Some(Some(interval)) => *interval,
+                Some(None) => return Ok(Err(SegmentTopologyUnknownReason::UntrustedBarrier)),
+                None => return Ok(Err(SegmentTopologyUnknownReason::MissingTrustedInterval)),
+            };
+            let stream_index = match context.stream_indices.get(block_index).copied().flatten() {
+                Some(stream_index) => stream_index,
+                None => return Ok(Err(SegmentTopologyUnknownReason::UntrustedBarrier)),
+            };
+            let role = match context.side.blocks.get(block_index) {
+                Some(block) => block.role,
+                None => return Ok(Err(SegmentTopologyUnknownReason::MissingTrustedInterval)),
+            };
+            if role != segment.role {
+                return Ok(Err(SegmentTopologyUnknownReason::MixedRoleProjection));
+            }
+            match projected.as_mut() {
+                None => {
+                    projected = Some(TrustedLineRange {
+                        stream_index,
+                        run_id: interval.run_id,
+                        start: interval.start,
+                        end: interval.end,
+                        role,
+                    });
+                }
+                Some(range)
+                    if range.stream_index != stream_index
+                        || range.run_id != interval.run_id
+                        || range.role != role =>
+                {
+                    return Ok(Err(SegmentTopologyUnknownReason::MixedRoleProjection));
+                }
+                Some(range) if interval.end < range.start || range.end < interval.start => {
+                    return Ok(Err(SegmentTopologyUnknownReason::AmbiguousRecoveryUnit));
+                }
+                Some(range) => {
+                    range.start = range.start.min(interval.start);
+                    range.end = range.end.max(interval.end);
+                }
+            }
+        }
+    }
+    Ok(projected.ok_or(SegmentTopologyUnknownReason::MissingRecoveryUnit))
+}
+
+fn record_projection_failure(
+    evidence: &mut RecoveryWatchSegmentTopologyEvidence,
+    reason: SegmentTopologyUnknownReason,
+) -> std::result::Result<(), SegmentTopologyShadowStopReason> {
+    let target = match reason {
+        SegmentTopologyUnknownReason::MissingTrustedInterval => {
+            &mut evidence.missing_trusted_interval_projections
+        }
+        SegmentTopologyUnknownReason::UntrustedBarrier => {
+            &mut evidence.untrusted_barrier_projections
+        }
+        SegmentTopologyUnknownReason::MissingRecoveryUnit => {
+            &mut evidence.missing_recovery_unit_projections
+        }
+        SegmentTopologyUnknownReason::AmbiguousRecoveryUnit => {
+            &mut evidence.ambiguous_recovery_unit_projections
+        }
+        SegmentTopologyUnknownReason::MixedRoleProjection => &mut evidence.mixed_role_projections,
+        _ => return Ok(()),
+    };
+    increment_topology_count(target)
+}
+
+fn empty_segment_topology_evidence(
+    recovery_unit_anchor_candidates: usize,
+    alignment_main_anchor_candidates: usize,
+) -> RecoveryWatchSegmentTopologyEvidence {
+    RecoveryWatchSegmentTopologyEvidence {
+        relation: ExactSegmentRelation::ExactUniqueTopologyUnknown,
+        unknown_reason: None,
+        recovery_unit_anchor_candidates,
+        alignment_main_anchor_candidates,
+        usable_anchors: 0,
+        alignment_main_anchors_usable: 0,
+        partner_ambiguities: 0,
+        overlap_vetoes: 0,
+        monotone_anchor_evidence: 0,
+        crossing_anchor_evidence: 0,
+        old_earlier_new_later_evidence: 0,
+        old_later_new_earlier_evidence: 0,
+        wrong_stream_pair_vetoes: 0,
+        missing_trusted_interval_projections: 0,
+        untrusted_barrier_projections: 0,
+        missing_recovery_unit_projections: 0,
+        ambiguous_recovery_unit_projections: 0,
+        mixed_role_projections: 0,
+    }
+}
+
+type TopologyStreamKey = (usize, BlockRole);
+type TopologyStreamPair = (TopologyStreamKey, TopologyStreamKey);
+type TopologyAnchorPosting = Vec<(TrustedLineRange, TrustedLineRange)>;
+
+struct ProjectedMainAnchorAnalysis {
+    pair_postings: HashMap<TopologyStreamPair, TopologyAnchorPosting>,
+    old_partners: HashMap<TopologyStreamKey, Vec<TopologyStreamKey>>,
+    new_partners: HashMap<TopologyStreamKey, Vec<TopologyStreamKey>>,
+    candidates: usize,
+    missing_trusted_interval_projections: usize,
+    untrusted_barrier_projections: usize,
+    mixed_role_projections: usize,
+}
+
+fn topology_role_key(role: BlockRole) -> u8 {
+    match role {
+        BlockRole::Body => 0,
+        BlockRole::RepeatedHeader => 1,
+        BlockRole::RepeatedFooter => 2,
+    }
+}
+
+fn project_main_anchors(
+    context: SegmentTopologyProjectionContext<'_>,
+    budget: &mut SegmentTopologyShadowBudget,
+    limits: SegmentTopologyShadowLimits,
+) -> std::result::Result<ProjectedMainAnchorAnalysis, SegmentTopologyShadowStopReason> {
+    let mut projected = ProjectedMainAnchorAnalysis {
+        pair_postings: HashMap::new(),
+        old_partners: HashMap::new(),
+        new_partners: HashMap::new(),
+        candidates: context.main_anchors.len(),
+        missing_trusted_interval_projections: 0,
+        untrusted_barrier_projections: 0,
+        mixed_role_projections: 0,
+    };
+    projected
+        .pair_postings
+        .try_reserve(context.main_anchors.len().min(limits.candidate_scans))
+        .map_err(|_| SegmentTopologyShadowStopReason::AllocationFailure)?;
+    projected
+        .old_partners
+        .try_reserve(context.main_anchors.len().min(limits.candidate_scans))
+        .map_err(|_| SegmentTopologyShadowStopReason::AllocationFailure)?;
+    projected
+        .new_partners
+        .try_reserve(context.main_anchors.len().min(limits.candidate_scans))
+        .map_err(|_| SegmentTopologyShadowStopReason::AllocationFailure)?;
+    for anchor in context.main_anchors {
+        budget.charge_candidate(limits)?;
+        let old = project_main_anchor_side(anchor.old, context.old);
+        let new = project_main_anchor_side(anchor.new, context.new);
+        let (old, new) = match (old, new) {
+            (Ok(old), Ok(new)) => (old, new),
+            (old, new) => {
+                for reason in [old.err(), new.err()].into_iter().flatten() {
+                    match reason {
+                        SegmentTopologyUnknownReason::MissingTrustedInterval => {
+                            increment_topology_count(
+                                &mut projected.missing_trusted_interval_projections,
+                            )?;
+                        }
+                        SegmentTopologyUnknownReason::UntrustedBarrier => {
+                            increment_topology_count(&mut projected.untrusted_barrier_projections)?;
+                        }
+                        _ => {}
+                    }
+                }
+                continue;
+            }
+        };
+        if !old.role.is_alignment_compatible(new.role) {
+            increment_topology_count(&mut projected.mixed_role_projections)?;
+            continue;
+        }
+        let old_key = (old.stream_index, old.role);
+        let new_key = (new.stream_index, new.role);
+        let posting = projected
+            .pair_postings
+            .entry((old_key, new_key))
+            .or_default();
+        posting
+            .try_reserve(1)
+            .map_err(|_| SegmentTopologyShadowStopReason::AllocationFailure)?;
+        posting.push((old, new));
+        let old_partners = projected.old_partners.entry(old_key).or_default();
+        old_partners
+            .try_reserve(1)
+            .map_err(|_| SegmentTopologyShadowStopReason::AllocationFailure)?;
+        old_partners.push(new_key);
+        let new_partners = projected.new_partners.entry(new_key).or_default();
+        new_partners
+            .try_reserve(1)
+            .map_err(|_| SegmentTopologyShadowStopReason::AllocationFailure)?;
+        new_partners.push(old_key);
+    }
+    for posting in projected.pair_postings.values_mut() {
+        posting.sort_unstable_by_key(|(old, new)| (old.start, new.start, old.end, new.end));
+        posting.dedup_by(|left, right| left.0 == right.0 && left.1 == right.1);
+    }
+    for partners in projected.old_partners.values_mut() {
+        partners
+            .sort_unstable_by_key(|(stream_index, role)| (*stream_index, topology_role_key(*role)));
+        partners.dedup();
+    }
+    for partners in projected.new_partners.values_mut() {
+        partners
+            .sort_unstable_by_key(|(stream_index, role)| (*stream_index, topology_role_key(*role)));
+        partners.dedup();
+    }
+    Ok(projected)
+}
+
+fn source_range_topology_shadow_inner(
+    old: &RecoverySegment,
+    new: &RecoverySegment,
+    recovery_unit_anchor_candidates: usize,
+    context: SegmentTopologyProjectionContext<'_>,
+    projected_main_anchors: &ProjectedMainAnchorAnalysis,
+    budget: &mut SegmentTopologyShadowBudget,
+    limits: SegmentTopologyShadowLimits,
+) -> std::result::Result<RecoveryWatchSegmentTopologyEvidence, SegmentTopologyShadowStopReason> {
+    let mut evidence = empty_segment_topology_evidence(recovery_unit_anchor_candidates, 0);
+    let old_segment = match project_segment_line_range(old, context.old, budget, limits)? {
+        Ok(range) => range,
+        Err(reason) => {
+            record_projection_failure(&mut evidence, reason)?;
+            evidence.unknown_reason = Some(reason);
+            budget.charge_output(limits)?;
+            return Ok(evidence);
+        }
+    };
+    let new_segment = match project_segment_line_range(new, context.new, budget, limits)? {
+        Ok(range) => range,
+        Err(reason) => {
+            record_projection_failure(&mut evidence, reason)?;
+            evidence.unknown_reason = Some(reason);
+            budget.charge_output(limits)?;
+            return Ok(evidence);
+        }
+    };
+    let old_key = (old_segment.stream_index, old_segment.role);
+    let new_key = (new_segment.stream_index, new_segment.role);
+    let target_key = (old_key, new_key);
+    let target_posting = projected_main_anchors
+        .pair_postings
+        .get(&target_key)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    let old_partners = projected_main_anchors
+        .old_partners
+        .get(&old_key)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    let new_partners = projected_main_anchors
+        .new_partners
+        .get(&new_key)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    let mut wrong_stream_pair_vetoes = 0usize;
+    for partner in old_partners {
+        budget.charge_candidate(limits)?;
+        if *partner == new_key {
+            continue;
+        }
+        wrong_stream_pair_vetoes = wrong_stream_pair_vetoes
+            .checked_add(
+                projected_main_anchors
+                    .pair_postings
+                    .get(&(old_key, *partner))
+                    .map_or(0, Vec::len),
+            )
+            .ok_or(SegmentTopologyShadowStopReason::CounterOverflow)?;
+    }
+    for partner in new_partners {
+        budget.charge_candidate(limits)?;
+        if *partner == old_key {
+            continue;
+        }
+        wrong_stream_pair_vetoes = wrong_stream_pair_vetoes
+            .checked_add(
+                projected_main_anchors
+                    .pair_postings
+                    .get(&(*partner, new_key))
+                    .map_or(0, Vec::len),
+            )
+            .ok_or(SegmentTopologyShadowStopReason::CounterOverflow)?;
+    }
+    evidence.wrong_stream_pair_vetoes = wrong_stream_pair_vetoes;
+    evidence.alignment_main_anchor_candidates = target_posting
+        .len()
+        .checked_add(wrong_stream_pair_vetoes)
+        .ok_or(SegmentTopologyShadowStopReason::CounterOverflow)?;
+    let mut anchors = Vec::new();
+    anchors
+        .try_reserve(target_posting.len().min(limits.candidate_scans))
+        .map_err(|_| SegmentTopologyShadowStopReason::AllocationFailure)?;
+    for (old_anchor, new_anchor) in target_posting {
+        budget.charge_candidate(limits)?;
+        if !old.role.is_alignment_compatible(old_anchor.role)
+            || !new.role.is_alignment_compatible(new_anchor.role)
+        {
+            increment_topology_count(&mut evidence.mixed_role_projections)?;
+            continue;
+        }
+        increment_topology_count(&mut evidence.alignment_main_anchors_usable)?;
+        anchors.push((*old_anchor, *new_anchor));
+    }
+
+    if old_partners.len() > 1 || new_partners.len() > 1 {
+        evidence.partner_ambiguities = old_partners
+            .len()
+            .saturating_sub(1)
+            .saturating_add(new_partners.len().saturating_sub(1));
+        evidence.unknown_reason = Some(SegmentTopologyUnknownReason::PartnerAmbiguity);
+        budget.charge_output(limits)?;
+        return Ok(evidence);
+    }
+    if (!old_partners.is_empty() && !old_partners.contains(&new_key))
+        || (!new_partners.is_empty() && !new_partners.contains(&old_key))
+    {
+        evidence.unknown_reason = Some(SegmentTopologyUnknownReason::WrongStreamPair);
+        budget.charge_output(limits)?;
+        return Ok(evidence);
+    }
+    anchors.sort_unstable_by_key(|(old, new)| (old.start, new.start, old.end, new.end));
+    anchors.dedup_by(|left, right| left.0 == right.0 && left.1 == right.1);
+    let non_monotone_chain = !anchors
+        .windows(2)
+        .all(|pair| pair[0].0.start < pair[1].0.start && pair[0].1.start < pair[1].1.start);
+    for (old_anchor, new_anchor) in anchors {
+        let old_inside = old_anchor.start < old_segment.end && old_segment.start < old_anchor.end;
+        let new_inside = new_anchor.start < new_segment.end && new_segment.start < new_anchor.end;
+        if old_inside || new_inside {
+            increment_topology_count(&mut evidence.overlap_vetoes)?;
+            evidence.unknown_reason = Some(SegmentTopologyUnknownReason::AnchorOverlap);
+            budget.charge_output(limits)?;
+            return Ok(evidence);
+        }
+        increment_topology_count(&mut evidence.usable_anchors)?;
+        let old_before = old_anchor.end <= old_segment.start;
+        let new_before = new_anchor.end <= new_segment.start;
+        if old_before == new_before {
+            increment_topology_count(&mut evidence.monotone_anchor_evidence)?;
+        } else {
+            increment_topology_count(&mut evidence.crossing_anchor_evidence)?;
+            if old_before {
+                increment_topology_count(&mut evidence.old_earlier_new_later_evidence)?;
+            } else {
+                increment_topology_count(&mut evidence.old_later_new_earlier_evidence)?;
+            }
+        }
+    }
+    if evidence.usable_anchors == 0 {
+        evidence.unknown_reason = Some(if evidence.mixed_role_projections != 0 {
+            SegmentTopologyUnknownReason::MixedRoleProjection
+        } else if evidence.wrong_stream_pair_vetoes != 0 {
+            SegmentTopologyUnknownReason::WrongStreamPair
+        } else {
+            SegmentTopologyUnknownReason::NoAnchor
+        });
+        budget.charge_output(limits)?;
+        return Ok(evidence);
+    }
+    if non_monotone_chain
+        || (evidence.old_earlier_new_later_evidence != 0
+            && evidence.old_later_new_earlier_evidence != 0)
+    {
+        evidence.unknown_reason = Some(SegmentTopologyUnknownReason::NonMonotoneAnchorChain);
+        budget.charge_output(limits)?;
+        return Ok(evidence);
+    }
+    evidence.relation = if evidence.crossing_anchor_evidence == 0 {
+        ExactSegmentRelation::ExactUniqueMonotone
+    } else {
+        ExactSegmentRelation::ExactUniqueCrossing
+    };
+    budget.charge_output(limits)?;
+    Ok(evidence)
+}
+
+fn add_topology_evidence(
+    aggregate: &mut RecoveryWatchSegmentTopologyDiagnostics,
+    evidence: &RecoveryWatchSegmentTopologyEvidence,
+) -> std::result::Result<(), SegmentTopologyShadowStopReason> {
+    macro_rules! add {
+        ($field:ident) => {
+            aggregate.$field = aggregate
+                .$field
+                .checked_add(evidence.$field)
+                .ok_or(SegmentTopologyShadowStopReason::CounterOverflow)?;
+        };
+    }
+    add!(recovery_unit_anchor_candidates);
+    add!(usable_anchors);
+    add!(alignment_main_anchors_usable);
+    add!(partner_ambiguities);
+    add!(overlap_vetoes);
+    add!(monotone_anchor_evidence);
+    add!(crossing_anchor_evidence);
+    add!(old_earlier_new_later_evidence);
+    add!(old_later_new_earlier_evidence);
+    add!(wrong_stream_pair_vetoes);
+    add!(missing_recovery_unit_projections);
+    add!(ambiguous_recovery_unit_projections);
+    add!(mixed_role_projections);
+    match evidence.relation {
+        ExactSegmentRelation::ExactUniqueMonotone => {
+            increment_topology_count(&mut aggregate.monotone_pairs)?;
+        }
+        ExactSegmentRelation::ExactUniqueCrossing => {
+            increment_topology_count(&mut aggregate.crossing_pairs)?;
+        }
+        ExactSegmentRelation::ExactUniqueTopologyUnknown => {
+            increment_topology_count(&mut aggregate.unknown_pairs)?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn analyze_source_range_topology_batch(
+    old: &[RecoverySegment],
+    new: &[RecoverySegment],
+    unique_pairs: &[(usize, usize)],
+    recovery_unit_anchor_candidates: usize,
+    context: Option<SegmentTopologyProjectionContext<'_>>,
+    limits: SegmentTopologyShadowLimits,
+) -> (
+    RecoveryWatchSegmentTopologyDiagnostics,
+    HashMap<(usize, usize), RecoveryWatchSegmentTopologyShadow>,
+) {
+    let Some(context) = context else {
+        return (
+            RecoveryWatchSegmentTopologyDiagnostics {
+                stop_reason: Some(SegmentTopologyShadowStopReason::ProjectionUnavailable),
+                ..RecoveryWatchSegmentTopologyDiagnostics::default()
+            },
+            HashMap::new(),
+        );
+    };
+    let run = || {
+        let mut budget = SegmentTopologyShadowBudget::default();
+        let mut diagnostics = RecoveryWatchSegmentTopologyDiagnostics::default();
+        let projected_main_anchors = project_main_anchors(context, &mut budget, limits)?;
+        diagnostics.alignment_main_anchor_candidates = projected_main_anchors.candidates;
+        diagnostics.missing_trusted_interval_projections =
+            projected_main_anchors.missing_trusted_interval_projections;
+        diagnostics.untrusted_barrier_projections =
+            projected_main_anchors.untrusted_barrier_projections;
+        diagnostics.mixed_role_projections = projected_main_anchors.mixed_role_projections;
+        let mut shadows = HashMap::new();
+        shadows
+            .try_reserve(unique_pairs.len())
+            .map_err(|_| SegmentTopologyShadowStopReason::AllocationFailure)?;
+        for (old_index, new_index) in unique_pairs {
+            let old_segment = old
+                .get(*old_index)
+                .ok_or(SegmentTopologyShadowStopReason::CounterOverflow)?;
+            let new_segment = new
+                .get(*new_index)
+                .ok_or(SegmentTopologyShadowStopReason::CounterOverflow)?;
+            let evidence = source_range_topology_shadow_inner(
+                old_segment,
+                new_segment,
+                recovery_unit_anchor_candidates,
+                context,
+                &projected_main_anchors,
+                &mut budget,
+                limits,
+            )?;
+            increment_topology_count(&mut diagnostics.unique_segment_pairs)?;
+            add_topology_evidence(&mut diagnostics, &evidence)?;
+            shadows.insert(
+                (*old_index, *new_index),
+                RecoveryWatchSegmentTopologyShadow::Complete(evidence),
+            );
+        }
+        diagnostics.complete = true;
+        Ok((diagnostics, shadows))
+    };
+    match run() {
+        Ok(result) => result,
+        Err(reason) => (
+            RecoveryWatchSegmentTopologyDiagnostics {
+                stop_reason: Some(reason),
+                ..RecoveryWatchSegmentTopologyDiagnostics::default()
+            },
+            HashMap::new(),
+        ),
+    }
+}
+
 #[cfg(test)]
 fn segment_topology(
     old: &RecoverySegment,
@@ -1600,10 +2260,11 @@ fn segment_topology(
     )
 }
 
-fn analyze_recovery_segments(
+fn analyze_recovery_segments_with_topology(
     old_occurrences: &[SentenceOccurrence],
     new_occurrences: &[SentenceOccurrence],
     exact_candidates: &[ExactMatchCandidate],
+    topology_context: Option<SegmentTopologyProjectionContext<'_>>,
     min_tokens: usize,
     _max_tokens: usize,
 ) -> std::result::Result<SegmentDiagnosticAnalysis, SegmentStopReason> {
@@ -1739,6 +2400,14 @@ fn analyze_recovery_segments(
         }
         unique_pairs.push((*old_index, *new_index));
     }
+    let (source_range_topology, source_range_pair_shadows) = analyze_source_range_topology_batch(
+        &old,
+        &new,
+        &unique_pairs,
+        exact_candidates.len(),
+        topology_context,
+        SegmentTopologyShadowLimits::default(),
+    );
     Ok(SegmentDiagnosticAnalysis {
         old,
         new,
@@ -1758,7 +2427,27 @@ fn analyze_recovery_segments(
         segment_duplicate_pairs,
         segment_monotone_pairs,
         segment_crossing_pairs,
+        source_range_topology,
+        source_range_pair_shadows,
     })
+}
+
+#[cfg(test)]
+fn analyze_recovery_segments(
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    exact_candidates: &[ExactMatchCandidate],
+    min_tokens: usize,
+    max_tokens: usize,
+) -> std::result::Result<SegmentDiagnosticAnalysis, SegmentStopReason> {
+    analyze_recovery_segments_with_topology(
+        old_occurrences,
+        new_occurrences,
+        exact_candidates,
+        None,
+        min_tokens,
+        max_tokens,
+    )
 }
 
 fn watched_side_occurrence_count(
@@ -1855,6 +2544,26 @@ fn watched_segment_pair_evidence(
             &mut analysis.budget,
         )?
     };
+    let source_range_topology = if let Some(reason) = segment_topology_not_applicable_reason(
+        exact,
+        role_compatible,
+        old_occurrence_count,
+        new_occurrence_count,
+    ) {
+        RecoveryWatchSegmentTopologyShadow::NotApplicable(reason)
+    } else if let Some(shadow) = analysis
+        .source_range_pair_shadows
+        .get(&(old_index, new_index))
+    {
+        shadow.clone()
+    } else {
+        RecoveryWatchSegmentTopologyShadow::Stopped(
+            analysis
+                .source_range_topology
+                .stop_reason
+                .unwrap_or(SegmentTopologyShadowStopReason::ProjectionUnavailable),
+        )
+    };
     Ok(RecoveryWatchSegmentPairEvidence {
         old_start_ordinal: old.key.start_ordinal,
         old_end_ordinal: old.key.end_ordinal,
@@ -1871,7 +2580,25 @@ fn watched_segment_pair_evidence(
         overlaps_existing_recovery: false,
         crossing_anchor_count,
         relation,
+        source_range_topology,
     })
+}
+
+fn segment_topology_not_applicable_reason(
+    exact: bool,
+    role_compatible: bool,
+    old_occurrence_count: usize,
+    new_occurrence_count: usize,
+) -> Option<SegmentTopologyNotApplicableReason> {
+    if !exact {
+        Some(SegmentTopologyNotApplicableReason::NonExact)
+    } else if !role_compatible {
+        Some(SegmentTopologyNotApplicableReason::RoleIncompatible)
+    } else if old_occurrence_count != 1 || new_occurrence_count != 1 {
+        Some(SegmentTopologyNotApplicableReason::Duplicate)
+    } else {
+        None
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -3249,10 +3976,11 @@ impl RecoveryWatchState {
             return None;
         }
         let processed = queries.len().min(MAX_RECOVERY_WATCH_QUERIES);
-        let (segment_analysis, segment_stop_reason) = match analyze_recovery_segments(
+        let (segment_analysis, segment_stop_reason) = match analyze_recovery_segments_with_topology(
             old_occurrences,
             new_occurrences,
             exact_candidates,
+            context.main_anchor_projection,
             context.min_tokens,
             context.max_tokens,
         ) {
@@ -4305,6 +5033,7 @@ impl RecoveryWatchState {
             segment_crossing_pairs: self.segment_analysis.segment_crossing_pairs,
             segment_overlap_vetoes: self.segment_overlap_vetoes,
             segment_stop_reason: self.segment_stop_reason,
+            segment_source_range_topology: self.segment_analysis.source_range_topology,
             granular_complete: self.granular_complete,
             granular_old_units: self.granular_old_units,
             granular_new_units: self.granular_new_units,
@@ -11351,6 +12080,7 @@ fn watch_fixed_evidence_is_preserved(
         && accepted.segment_monotone_pairs == direct.segment_monotone_pairs
         && accepted.segment_crossing_pairs == direct.segment_crossing_pairs
         && accepted.segment_stop_reason == direct.segment_stop_reason
+        && accepted.segment_source_range_topology == direct.segment_source_range_topology
         && accepted.granular_complete == direct.granular_complete
         && accepted.granular_old_units == direct.granular_old_units
         && accepted.granular_new_units == direct.granular_new_units
@@ -11428,6 +12158,7 @@ fn watch_segment_fixed_evidence_is_preserved(
                 && accepted.role_compatible == direct.role_compatible
                 && accepted.crossing_anchor_count == direct.crossing_anchor_count
                 && accepted.relation == direct.relation
+                && accepted.source_range_topology == direct.source_range_topology
         }
         _ => false,
     }
@@ -12086,6 +12817,37 @@ fn build_sentence_recovery_plan_inner_impl(
         &new_occurrences,
         &exact_match_candidates,
     );
+    let (old_topology_stream_indices, new_topology_stream_indices) = if watch_queries.is_empty() {
+        (None, None)
+    } else {
+        (
+            trusted_stream_plan_indices(input.old_trusted_run_intervals),
+            trusted_stream_plan_indices(input.new_trusted_run_intervals),
+        )
+    };
+    let main_anchor_projection = match (
+        old_topology_stream_indices.as_deref(),
+        new_topology_stream_indices.as_deref(),
+    ) {
+        (Some(old_stream_indices), Some(new_stream_indices)) => {
+            Some(SegmentTopologyProjectionContext {
+                main_anchors: &alignment.main_anchors,
+                old: SegmentTopologyProjectionSide {
+                    side: old,
+                    trusted_intervals: input.old_trusted_run_intervals,
+                    stream_indices: old_stream_indices,
+                    occurrences: &old_occurrences,
+                },
+                new: SegmentTopologyProjectionSide {
+                    side: new,
+                    trusted_intervals: input.new_trusted_run_intervals,
+                    stream_indices: new_stream_indices,
+                    occurrences: &new_occurrences,
+                },
+            })
+        }
+        _ => None,
+    };
     let mut watch = RecoveryWatchState::new(
         watch_queries,
         &old_occurrences,
@@ -12100,6 +12862,7 @@ fn build_sentence_recovery_plan_inner_impl(
             new_fully_contained: run_signature_eligibility
                 .as_ref()
                 .map(|(_, new)| new.as_slice()),
+            main_anchor_projection,
             min_tokens: input.min_tokens,
             max_tokens,
         },
@@ -13358,6 +14121,29 @@ fn stream_plans(trusted_run_intervals: &[Option<TrustedRunInterval>]) -> Option<
         }
     }
     Some(plans)
+}
+
+fn trusted_stream_plan_indices(
+    trusted_run_intervals: &[Option<TrustedRunInterval>],
+) -> Option<Vec<Option<usize>>> {
+    let plans = stream_plans(trusted_run_intervals)?;
+    let mut indices = Vec::new();
+    indices
+        .try_reserve_exact(trusted_run_intervals.len())
+        .ok()?;
+    indices.resize(trusted_run_intervals.len(), None);
+    for (stream_index, plan) in plans.iter().enumerate() {
+        if !plan.trusted {
+            continue;
+        }
+        for block_index in &plan.block_indices {
+            let slot = indices.get_mut(*block_index)?;
+            if slot.replace(stream_index).is_some() {
+                return None;
+            }
+        }
+    }
+    Some(indices)
 }
 
 fn has_untrusted_barrier(
@@ -27316,6 +28102,7 @@ fn starts_with_ignore_ascii_case(value: &str, prefix: &str) -> bool {
 mod tests {
     use super::*;
     use crate::{
+        diff::SidePlan,
         layout::{RegionId, RegionRelation},
         model::{FontProgramHash, GlyphId, PageId, Rect, Vec2},
         normalize::{
@@ -28745,6 +29532,82 @@ mod tests {
         occurrence
     }
 
+    fn topology_test_block(id: u64, role: BlockRole) -> BlockText {
+        let mut block = collection_test_block(id, "x", Some(Vec::new()));
+        block.role = role;
+        block
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn topology_test_batch(
+        old_blocks: &[BlockText],
+        new_blocks: &[BlockText],
+        old_intervals: &[Option<TrustedRunInterval>],
+        new_intervals: &[Option<TrustedRunInterval>],
+        old_occurrences: &[SentenceOccurrence],
+        new_occurrences: &[SentenceOccurrence],
+        main_anchors: &[ExactAnchor],
+        limits: SegmentTopologyShadowLimits,
+    ) -> (
+        RecoveryWatchSegmentTopologyDiagnostics,
+        RecoveryWatchSegmentTopologyShadow,
+    ) {
+        let old_side = SidePlan::inspect("old topology test", old_blocks)
+            .expect("old blocks are valid")
+            .materialize()
+            .expect("old side materializes");
+        let new_side = SidePlan::inspect("new topology test", new_blocks)
+            .expect("new blocks are valid")
+            .materialize()
+            .expect("new side materializes");
+        let old_stream_indices =
+            trusted_stream_plan_indices(old_intervals).expect("old stream plans are valid");
+        let new_stream_indices =
+            trusted_stream_plan_indices(new_intervals).expect("new stream plans are valid");
+        let old_segments = collect_recovery_segments(old_occurrences, 1, 100)
+            .expect("old segment collection succeeds");
+        let new_segments = collect_recovery_segments(new_occurrences, 1, 100)
+            .expect("new segment collection succeeds");
+        let old_index = old_segments
+            .iter()
+            .position(|segment| segment.unit_count == 2)
+            .expect("old target segment exists");
+        let new_index = new_segments
+            .iter()
+            .position(|segment| segment.unit_count == 2)
+            .expect("new target segment exists");
+        let (diagnostics, shadows) = analyze_source_range_topology_batch(
+            &old_segments,
+            &new_segments,
+            &[(old_index, new_index)],
+            0,
+            Some(SegmentTopologyProjectionContext {
+                main_anchors,
+                old: SegmentTopologyProjectionSide {
+                    side: &old_side,
+                    trusted_intervals: old_intervals,
+                    stream_indices: &old_stream_indices,
+                    occurrences: old_occurrences,
+                },
+                new: SegmentTopologyProjectionSide {
+                    side: &new_side,
+                    trusted_intervals: new_intervals,
+                    stream_indices: &new_stream_indices,
+                    occurrences: new_occurrences,
+                },
+            }),
+            limits,
+        );
+        let shadow = shadows.get(&(old_index, new_index)).cloned().unwrap_or(
+            RecoveryWatchSegmentTopologyShadow::Stopped(
+                diagnostics
+                    .stop_reason
+                    .unwrap_or(SegmentTopologyShadowStopReason::ProjectionUnavailable),
+            ),
+        );
+        (diagnostics, shadow)
+    }
+
     fn watch_state() -> RecoveryWatchState {
         RecoveryWatchState {
             complete: true,
@@ -28992,6 +29855,9 @@ mod tests {
             overlaps_existing_recovery: false,
             crossing_anchor_count: 0,
             relation: ExactSegmentRelation::ExactUniqueTopologyUnknown,
+            source_range_topology: RecoveryWatchSegmentTopologyShadow::Stopped(
+                SegmentTopologyShadowStopReason::ProjectionUnavailable,
+            ),
         });
         diagnostics
     }
@@ -29607,6 +30473,7 @@ mod tests {
                 new_evidence: None,
                 old_fully_contained: None,
                 new_fully_contained: None,
+                main_anchor_projection: None,
                 min_tokens: 1,
                 max_tokens: 100,
             },
@@ -29648,6 +30515,7 @@ mod tests {
                 new_evidence: None,
                 old_fully_contained: None,
                 new_fully_contained: None,
+                main_anchor_projection: None,
                 min_tokens: 1,
                 max_tokens: 10_000,
             },
@@ -29693,6 +30561,7 @@ mod tests {
                 new_evidence: None,
                 old_fully_contained: None,
                 new_fully_contained: None,
+                main_anchor_projection: None,
                 min_tokens: 1,
                 max_tokens: 1_000_000,
             },
@@ -29824,6 +30693,7 @@ mod tests {
                     new_evidence: None,
                     old_fully_contained: None,
                     new_fully_contained: None,
+                    main_anchor_projection: None,
                     min_tokens: 1,
                     max_tokens: 100,
                 },
@@ -29893,6 +30763,7 @@ mod tests {
                 new_evidence: None,
                 old_fully_contained: None,
                 new_fully_contained: None,
+                main_anchor_projection: None,
                 min_tokens: 1,
                 max_tokens: 0,
             },
@@ -29992,6 +30863,7 @@ mod tests {
                 new_evidence: None,
                 old_fully_contained: None,
                 new_fully_contained: None,
+                main_anchor_projection: None,
                 min_tokens: 1,
                 max_tokens: 0,
             },
@@ -30298,6 +31170,602 @@ mod tests {
     }
 
     #[test]
+    fn source_range_topology_uses_stream_plan_line_ranges_not_sentence_ordinals() {
+        let old_blocks = [
+            topology_test_block(1, BlockRole::Body),
+            topology_test_block(2, BlockRole::Body),
+            topology_test_block(3, BlockRole::Body),
+        ];
+        let new_blocks = [
+            topology_test_block(11, BlockRole::Body),
+            topology_test_block(12, BlockRole::Body),
+            topology_test_block(13, BlockRole::Body),
+        ];
+        let old = [
+            positioned_scalar('a', 2, 0, 40),
+            positioned_scalar('b', 3, 0, 41),
+        ];
+        let new = [
+            positioned_scalar('a', 12, 0, 2),
+            positioned_scalar('b', 13, 0, 3),
+        ];
+        let old_intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let new_intervals = [interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)];
+        let (_, no_anchor) = topology_test_batch(
+            &old_blocks,
+            &new_blocks,
+            &old_intervals,
+            &new_intervals,
+            &old,
+            &new,
+            &[],
+            SegmentTopologyShadowLimits::default(),
+        );
+        assert!(matches!(
+            no_anchor,
+            RecoveryWatchSegmentTopologyShadow::Complete(RecoveryWatchSegmentTopologyEvidence {
+                relation: ExactSegmentRelation::ExactUniqueTopologyUnknown,
+                unknown_reason: Some(SegmentTopologyUnknownReason::NoAnchor),
+                ..
+            })
+        ));
+
+        let (_, monotone) = topology_test_batch(
+            &old_blocks,
+            &new_blocks,
+            &old_intervals,
+            &new_intervals,
+            &old,
+            &new,
+            &[ExactAnchor {
+                old: BlockId(1),
+                new: BlockId(11),
+            }],
+            SegmentTopologyShadowLimits::default(),
+        );
+        assert!(matches!(
+            monotone,
+            RecoveryWatchSegmentTopologyShadow::Complete(RecoveryWatchSegmentTopologyEvidence {
+                relation: ExactSegmentRelation::ExactUniqueMonotone,
+                monotone_anchor_evidence: 1,
+                crossing_anchor_evidence: 0,
+                ..
+            })
+        ));
+
+        let crossing_new_intervals = [interval(2, 3, 4), interval(2, 1, 2), interval(2, 2, 3)];
+        let (_, crossing) = topology_test_batch(
+            &old_blocks,
+            &new_blocks,
+            &old_intervals,
+            &crossing_new_intervals,
+            &old,
+            &new,
+            &[ExactAnchor {
+                old: BlockId(1),
+                new: BlockId(11),
+            }],
+            SegmentTopologyShadowLimits::default(),
+        );
+        assert!(matches!(
+            crossing,
+            RecoveryWatchSegmentTopologyShadow::Complete(RecoveryWatchSegmentTopologyEvidence {
+                relation: ExactSegmentRelation::ExactUniqueCrossing,
+                old_earlier_new_later_evidence: 1,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn source_range_topology_rejects_same_run_across_untrusted_plan_barrier() {
+        let old_blocks = [
+            topology_test_block(1, BlockRole::Body),
+            topology_test_block(9, BlockRole::Body),
+            topology_test_block(2, BlockRole::Body),
+            topology_test_block(3, BlockRole::Body),
+        ];
+        let new_blocks = [
+            topology_test_block(11, BlockRole::Body),
+            topology_test_block(12, BlockRole::Body),
+            topology_test_block(13, BlockRole::Body),
+        ];
+        let old = [
+            positioned_scalar('a', 2, 2, 0),
+            positioned_scalar('b', 3, 2, 1),
+        ];
+        let new = [
+            positioned_scalar('a', 12, 0, 0),
+            positioned_scalar('b', 13, 0, 1),
+        ];
+        let (_, shadow) = topology_test_batch(
+            &old_blocks,
+            &new_blocks,
+            &[
+                interval(1, 0, 1),
+                None,
+                interval(1, 1, 2),
+                interval(1, 2, 3),
+            ],
+            &[interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)],
+            &old,
+            &new,
+            &[ExactAnchor {
+                old: BlockId(1),
+                new: BlockId(11),
+            }],
+            SegmentTopologyShadowLimits::default(),
+        );
+        assert!(matches!(
+            shadow,
+            RecoveryWatchSegmentTopologyShadow::Complete(RecoveryWatchSegmentTopologyEvidence {
+                relation: ExactSegmentRelation::ExactUniqueTopologyUnknown,
+                unknown_reason: Some(SegmentTopologyUnknownReason::WrongStreamPair),
+                wrong_stream_pair_vetoes: 1,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn source_range_topology_partner_ambiguity_is_role_local() {
+        let old_blocks = [
+            topology_test_block(1, BlockRole::Body),
+            topology_test_block(2, BlockRole::RepeatedHeader),
+            topology_test_block(3, BlockRole::Body),
+            topology_test_block(4, BlockRole::Body),
+        ];
+        let new_blocks = [
+            topology_test_block(11, BlockRole::Body),
+            topology_test_block(12, BlockRole::Body),
+            topology_test_block(13, BlockRole::Body),
+            topology_test_block(14, BlockRole::RepeatedHeader),
+        ];
+        let old = [
+            positioned_scalar('a', 3, 0, 0),
+            positioned_scalar('b', 4, 0, 1),
+        ];
+        let new = [
+            positioned_scalar('a', 12, 0, 0),
+            positioned_scalar('b', 13, 0, 1),
+        ];
+        let old_intervals = [
+            interval(1, 0, 1),
+            interval(1, 1, 2),
+            interval(1, 2, 3),
+            interval(1, 3, 4),
+        ];
+        let new_intervals = [
+            interval(2, 0, 1),
+            interval(2, 1, 2),
+            interval(2, 2, 3),
+            interval(3, 0, 1),
+        ];
+        let (_, shadow) = topology_test_batch(
+            &old_blocks,
+            &new_blocks,
+            &old_intervals,
+            &new_intervals,
+            &old,
+            &new,
+            &[
+                ExactAnchor {
+                    old: BlockId(1),
+                    new: BlockId(11),
+                },
+                ExactAnchor {
+                    old: BlockId(2),
+                    new: BlockId(14),
+                },
+            ],
+            SegmentTopologyShadowLimits::default(),
+        );
+
+        assert!(matches!(
+            shadow,
+            RecoveryWatchSegmentTopologyShadow::Complete(RecoveryWatchSegmentTopologyEvidence {
+                relation: ExactSegmentRelation::ExactUniqueMonotone,
+                partner_ambiguities: 0,
+                wrong_stream_pair_vetoes: 0,
+                monotone_anchor_evidence: 1,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn source_range_topology_overlap_and_untrusted_projection_are_unknown() {
+        let old_blocks = [
+            topology_test_block(1, BlockRole::Body),
+            topology_test_block(2, BlockRole::Body),
+        ];
+        let new_blocks = [
+            topology_test_block(11, BlockRole::Body),
+            topology_test_block(12, BlockRole::Body),
+        ];
+        let old = [
+            positioned_scalar('a', 1, 0, 0),
+            positioned_scalar('b', 2, 0, 1),
+        ];
+        let new = [
+            positioned_scalar('a', 11, 0, 0),
+            positioned_scalar('b', 12, 0, 1),
+        ];
+        let intervals = [interval(1, 0, 1), interval(1, 1, 2)];
+        let (_, overlap) = topology_test_batch(
+            &old_blocks,
+            &new_blocks,
+            &intervals,
+            &intervals,
+            &old,
+            &new,
+            &[ExactAnchor {
+                old: BlockId(1),
+                new: BlockId(11),
+            }],
+            SegmentTopologyShadowLimits::default(),
+        );
+        assert!(matches!(
+            overlap,
+            RecoveryWatchSegmentTopologyShadow::Complete(RecoveryWatchSegmentTopologyEvidence {
+                unknown_reason: Some(SegmentTopologyUnknownReason::AnchorOverlap),
+                overlap_vetoes: 1,
+                ..
+            })
+        ));
+
+        let (_, untrusted) = topology_test_batch(
+            &old_blocks,
+            &new_blocks,
+            &[None, interval(1, 1, 2)],
+            &[None, interval(1, 1, 2)],
+            &old,
+            &new,
+            &[],
+            SegmentTopologyShadowLimits::default(),
+        );
+        assert!(matches!(
+            untrusted,
+            RecoveryWatchSegmentTopologyShadow::Complete(RecoveryWatchSegmentTopologyEvidence {
+                unknown_reason: Some(SegmentTopologyUnknownReason::UntrustedBarrier),
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn source_range_topology_batch_stop_discards_all_partial_classification() {
+        let blocks = [
+            topology_test_block(1, BlockRole::Body),
+            topology_test_block(2, BlockRole::Body),
+            topology_test_block(3, BlockRole::Body),
+        ];
+        let occurrences = [
+            positioned_scalar('a', 2, 0, 0),
+            positioned_scalar('b', 3, 0, 1),
+        ];
+        let intervals = [interval(1, 0, 1), interval(1, 1, 2), interval(1, 2, 3)];
+        let side = SidePlan::inspect("topology stop test", &blocks)
+            .expect("blocks are valid")
+            .materialize()
+            .expect("side materializes");
+        let stream_indices =
+            trusted_stream_plan_indices(&intervals).expect("stream plans are valid");
+        let segments = collect_recovery_segments(&occurrences, 1, 100).expect("segments build");
+        let target = segments
+            .iter()
+            .position(|segment| segment.unit_count == 2)
+            .expect("target segment exists");
+        let anchors = [ExactAnchor {
+            old: BlockId(1),
+            new: BlockId(1),
+        }];
+        let context = SegmentTopologyProjectionContext {
+            main_anchors: &anchors,
+            old: SegmentTopologyProjectionSide {
+                side: &side,
+                trusted_intervals: &intervals,
+                stream_indices: &stream_indices,
+                occurrences: &occurrences,
+            },
+            new: SegmentTopologyProjectionSide {
+                side: &side,
+                trusted_intervals: &intervals,
+                stream_indices: &stream_indices,
+                occurrences: &occurrences,
+            },
+        };
+        let (diagnostics, shadows) = analyze_source_range_topology_batch(
+            &segments,
+            &segments,
+            &[(target, target), (target, target)],
+            0,
+            Some(context),
+            SegmentTopologyShadowLimits {
+                outputs: 1,
+                ..SegmentTopologyShadowLimits::default()
+            },
+        );
+        assert!(!diagnostics.complete);
+        assert_eq!(
+            diagnostics.stop_reason,
+            Some(SegmentTopologyShadowStopReason::OutputLimit)
+        );
+        assert_eq!(diagnostics.unique_segment_pairs, 0);
+        assert_eq!(diagnostics.monotone_pairs, 0);
+        assert_eq!(diagnostics.crossing_pairs, 0);
+        assert!(shadows.is_empty());
+    }
+
+    #[test]
+    fn source_range_topology_accepts_monotone_plus_crossing_but_rejects_both_crossing_directions() {
+        let old_blocks = [
+            topology_test_block(1, BlockRole::Body),
+            topology_test_block(2, BlockRole::Body),
+            topology_test_block(3, BlockRole::Body),
+            topology_test_block(4, BlockRole::Body),
+        ];
+        let new_blocks = [
+            topology_test_block(11, BlockRole::Body),
+            topology_test_block(14, BlockRole::Body),
+            topology_test_block(12, BlockRole::Body),
+            topology_test_block(13, BlockRole::Body),
+            topology_test_block(15, BlockRole::Body),
+        ];
+        let old = [
+            positioned_scalar('a', 2, 0, 0),
+            positioned_scalar('b', 3, 0, 1),
+        ];
+        let new = [
+            positioned_scalar('a', 12, 0, 0),
+            positioned_scalar('b', 13, 0, 1),
+        ];
+        let old_intervals = [
+            interval(1, 0, 1),
+            interval(1, 1, 2),
+            interval(1, 2, 3),
+            interval(1, 3, 4),
+        ];
+        let new_intervals = [
+            interval(2, 0, 1),
+            interval(2, 1, 2),
+            interval(2, 2, 3),
+            interval(2, 3, 4),
+            interval(2, 4, 5),
+        ];
+        let (_, crossing) = topology_test_batch(
+            &old_blocks,
+            &new_blocks,
+            &old_intervals,
+            &new_intervals,
+            &old,
+            &new,
+            &[
+                ExactAnchor {
+                    old: BlockId(1),
+                    new: BlockId(11),
+                },
+                ExactAnchor {
+                    old: BlockId(4),
+                    new: BlockId(14),
+                },
+            ],
+            SegmentTopologyShadowLimits::default(),
+        );
+        assert!(matches!(
+            crossing,
+            RecoveryWatchSegmentTopologyShadow::Complete(RecoveryWatchSegmentTopologyEvidence {
+                relation: ExactSegmentRelation::ExactUniqueCrossing,
+                monotone_anchor_evidence: 1,
+                crossing_anchor_evidence: 1,
+                ..
+            })
+        ));
+
+        let (_, conflicting_directions) = topology_test_batch(
+            &old_blocks,
+            &new_blocks,
+            &old_intervals,
+            &new_intervals,
+            &old,
+            &new,
+            &[
+                ExactAnchor {
+                    old: BlockId(1),
+                    new: BlockId(15),
+                },
+                ExactAnchor {
+                    old: BlockId(4),
+                    new: BlockId(11),
+                },
+            ],
+            SegmentTopologyShadowLimits::default(),
+        );
+        assert!(matches!(
+            conflicting_directions,
+            RecoveryWatchSegmentTopologyShadow::Complete(RecoveryWatchSegmentTopologyEvidence {
+                relation: ExactSegmentRelation::ExactUniqueTopologyUnknown,
+                unknown_reason: Some(SegmentTopologyUnknownReason::NonMonotoneAnchorChain),
+                old_earlier_new_later_evidence: 1,
+                old_later_new_earlier_evidence: 1,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn source_range_topology_is_invariant_to_sentence_and_block_partitioning() {
+        let old_blocks = [
+            topology_test_block(1, BlockRole::Body),
+            topology_test_block(2, BlockRole::Body),
+        ];
+        let new_blocks = [
+            topology_test_block(11, BlockRole::Body),
+            topology_test_block(12, BlockRole::Body),
+            topology_test_block(13, BlockRole::Body),
+        ];
+        let old = [
+            positioned_scalar('a', 2, 0, 0),
+            positioned_scalar('b', 2, 0, 1),
+        ];
+        let new = [
+            positioned_scalar('a', 12, 0, 0),
+            positioned_scalar('b', 13, 0, 1),
+        ];
+        let (_, shadow) = topology_test_batch(
+            &old_blocks,
+            &new_blocks,
+            &[interval(1, 0, 1), interval(1, 1, 3)],
+            &[interval(2, 0, 1), interval(2, 1, 2), interval(2, 2, 3)],
+            &old,
+            &new,
+            &[ExactAnchor {
+                old: BlockId(1),
+                new: BlockId(11),
+            }],
+            SegmentTopologyShadowLimits::default(),
+        );
+        assert!(matches!(
+            shadow,
+            RecoveryWatchSegmentTopologyShadow::Complete(RecoveryWatchSegmentTopologyEvidence {
+                relation: ExactSegmentRelation::ExactUniqueMonotone,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn source_range_topology_preconditions_are_typed_not_applicable() {
+        assert_eq!(
+            segment_topology_not_applicable_reason(false, true, 1, 1),
+            Some(SegmentTopologyNotApplicableReason::NonExact)
+        );
+        assert_eq!(
+            segment_topology_not_applicable_reason(true, false, 1, 1),
+            Some(SegmentTopologyNotApplicableReason::RoleIncompatible)
+        );
+        assert_eq!(
+            segment_topology_not_applicable_reason(true, true, 2, 1),
+            Some(SegmentTopologyNotApplicableReason::Duplicate)
+        );
+        assert_eq!(
+            segment_topology_not_applicable_reason(true, true, 1, 1),
+            None
+        );
+    }
+
+    #[test]
+    fn source_range_topology_reports_partner_projection_failures() {
+        let old_blocks = [
+            topology_test_block(1, BlockRole::Body),
+            topology_test_block(2, BlockRole::Body),
+            topology_test_block(3, BlockRole::Body),
+            topology_test_block(4, BlockRole::Body),
+        ];
+        let new_blocks = [
+            topology_test_block(11, BlockRole::Body),
+            topology_test_block(12, BlockRole::Body),
+            topology_test_block(13, BlockRole::Body),
+            topology_test_block(14, BlockRole::Body),
+        ];
+        let old = [
+            positioned_scalar('a', 2, 0, 0),
+            positioned_scalar('b', 3, 0, 1),
+        ];
+        let new = [
+            positioned_scalar('a', 12, 0, 0),
+            positioned_scalar('b', 13, 0, 1),
+        ];
+        let old_intervals = [
+            interval(1, 0, 1),
+            interval(1, 1, 2),
+            interval(1, 2, 3),
+            interval(1, 3, 4),
+        ];
+        let new_intervals = [
+            interval(2, 0, 1),
+            interval(2, 1, 2),
+            interval(2, 2, 3),
+            interval(3, 0, 1),
+        ];
+        let (_, ambiguous) = topology_test_batch(
+            &old_blocks,
+            &new_blocks,
+            &old_intervals,
+            &new_intervals,
+            &old,
+            &new,
+            &[
+                ExactAnchor {
+                    old: BlockId(1),
+                    new: BlockId(11),
+                },
+                ExactAnchor {
+                    old: BlockId(4),
+                    new: BlockId(14),
+                },
+            ],
+            SegmentTopologyShadowLimits::default(),
+        );
+        assert!(matches!(
+            ambiguous,
+            RecoveryWatchSegmentTopologyShadow::Complete(RecoveryWatchSegmentTopologyEvidence {
+                unknown_reason: Some(SegmentTopologyUnknownReason::PartnerAmbiguity),
+                partner_ambiguities: 1,
+                ..
+            })
+        ));
+
+        let (missing_diagnostics, missing) = topology_test_batch(
+            &old_blocks,
+            &new_blocks,
+            &old_intervals,
+            &new_intervals,
+            &old,
+            &new,
+            &[ExactAnchor {
+                old: BlockId(999),
+                new: BlockId(11),
+            }],
+            SegmentTopologyShadowLimits::default(),
+        );
+        assert!(matches!(
+            missing,
+            RecoveryWatchSegmentTopologyShadow::Complete(RecoveryWatchSegmentTopologyEvidence {
+                unknown_reason: Some(SegmentTopologyUnknownReason::NoAnchor),
+                missing_trusted_interval_projections: 0,
+                ..
+            })
+        ));
+        assert_eq!(missing_diagnostics.missing_trusted_interval_projections, 1);
+
+        let mut mixed_new_blocks = new_blocks;
+        mixed_new_blocks[0].role = BlockRole::RepeatedFooter;
+        let (mixed_diagnostics, mixed) = topology_test_batch(
+            &old_blocks,
+            &mixed_new_blocks,
+            &old_intervals,
+            &new_intervals,
+            &old,
+            &new,
+            &[ExactAnchor {
+                old: BlockId(1),
+                new: BlockId(11),
+            }],
+            SegmentTopologyShadowLimits::default(),
+        );
+        assert!(matches!(
+            mixed,
+            RecoveryWatchSegmentTopologyShadow::Complete(RecoveryWatchSegmentTopologyEvidence {
+                unknown_reason: Some(SegmentTopologyUnknownReason::NoAnchor),
+                mixed_role_projections: 0,
+                ..
+            })
+        ));
+        assert_eq!(mixed_diagnostics.mixed_role_projections, 1);
+    }
+
+    #[test]
     fn segment_overlap_is_diagnostic_only_and_counted_once() {
         let old = [
             positioned_scalar('a', 1, 0, 0),
@@ -30390,6 +31858,7 @@ mod tests {
                 new_evidence: None,
                 old_fully_contained: None,
                 new_fully_contained: None,
+                main_anchor_projection: None,
                 min_tokens: 1,
                 max_tokens: 100,
             },
@@ -30464,6 +31933,7 @@ mod tests {
                 new_evidence: None,
                 old_fully_contained: None,
                 new_fully_contained: None,
+                main_anchor_projection: None,
                 min_tokens: 1,
                 max_tokens: 100,
             },
@@ -30711,6 +32181,7 @@ mod tests {
                 new_evidence: None,
                 old_fully_contained: None,
                 new_fully_contained: None,
+                main_anchor_projection: None,
                 min_tokens: 1,
                 max_tokens: 100,
             },
@@ -30745,6 +32216,7 @@ mod tests {
                 new_evidence: None,
                 old_fully_contained: None,
                 new_fully_contained: None,
+                main_anchor_projection: None,
                 min_tokens: 1,
                 max_tokens: 100,
             },
@@ -31053,6 +32525,7 @@ mod tests {
                     new_evidence: None,
                     old_fully_contained: None,
                     new_fully_contained: None,
+                    main_anchor_projection: None,
                     min_tokens: 1,
                     max_tokens: 16,
                 },

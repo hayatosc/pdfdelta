@@ -443,6 +443,100 @@ pub enum SegmentStopReason {
     AllocationFailure,
 }
 
+/// Why exact source-range topology could not classify a unique segment pair.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SegmentTopologyUnknownReason {
+    NoAnchor,
+    PartnerAmbiguity,
+    AnchorOverlap,
+    MissingTrustedInterval,
+    UntrustedBarrier,
+    MissingRecoveryUnit,
+    AmbiguousRecoveryUnit,
+    MixedRoleProjection,
+    WrongStreamPair,
+    NonMonotoneAnchorChain,
+}
+
+/// Resource limit that atomically stopped source-range topology diagnostics.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SegmentTopologyShadowStopReason {
+    CandidateScanLimit,
+    ProjectionScanLimit,
+    OutputLimit,
+    AllocationFailure,
+    CounterOverflow,
+    ProjectionUnavailable,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SegmentTopologyNotApplicableReason {
+    NonExact,
+    Duplicate,
+    RoleIncompatible,
+}
+
+/// Bounded exact-anchor evidence projected into trusted stream-plan line ranges.
+///
+/// Recovery-unit ordinals remain separate and are never compared with these
+/// source line coordinates.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecoveryWatchSegmentTopologyEvidence {
+    pub relation: ExactSegmentRelation,
+    pub unknown_reason: Option<SegmentTopologyUnknownReason>,
+    pub recovery_unit_anchor_candidates: usize,
+    pub alignment_main_anchor_candidates: usize,
+    pub usable_anchors: usize,
+    pub alignment_main_anchors_usable: usize,
+    pub partner_ambiguities: usize,
+    pub overlap_vetoes: usize,
+    pub monotone_anchor_evidence: usize,
+    pub crossing_anchor_evidence: usize,
+    pub old_earlier_new_later_evidence: usize,
+    pub old_later_new_earlier_evidence: usize,
+    pub wrong_stream_pair_vetoes: usize,
+    pub missing_trusted_interval_projections: usize,
+    pub untrusted_barrier_projections: usize,
+    pub missing_recovery_unit_projections: usize,
+    pub ambiguous_recovery_unit_projections: usize,
+    pub mixed_role_projections: usize,
+}
+
+/// Atomic result of source-range topology shadow analysis.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RecoveryWatchSegmentTopologyShadow {
+    Complete(RecoveryWatchSegmentTopologyEvidence),
+    NotApplicable(SegmentTopologyNotApplicableReason),
+    Stopped(SegmentTopologyShadowStopReason),
+}
+
+/// Aggregate behavior-neutral source-range topology shadow metrics.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RecoveryWatchSegmentTopologyDiagnostics {
+    pub complete: bool,
+    pub stop_reason: Option<SegmentTopologyShadowStopReason>,
+    pub unique_segment_pairs: usize,
+    pub recovery_unit_anchor_candidates: usize,
+    pub alignment_main_anchor_candidates: usize,
+    pub usable_anchors: usize,
+    pub alignment_main_anchors_usable: usize,
+    pub partner_ambiguities: usize,
+    pub overlap_vetoes: usize,
+    pub monotone_anchor_evidence: usize,
+    pub crossing_anchor_evidence: usize,
+    pub old_earlier_new_later_evidence: usize,
+    pub old_later_new_earlier_evidence: usize,
+    pub monotone_pairs: usize,
+    pub crossing_pairs: usize,
+    pub unknown_pairs: usize,
+    pub wrong_stream_pair_vetoes: usize,
+    pub missing_trusted_interval_projections: usize,
+    pub untrusted_barrier_projections: usize,
+    pub missing_recovery_unit_projections: usize,
+    pub ambiguous_recovery_unit_projections: usize,
+    pub mixed_role_projections: usize,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecoveryWatchSegmentPairEvidence {
     pub old_start_ordinal: usize,
@@ -460,6 +554,7 @@ pub struct RecoveryWatchSegmentPairEvidence {
     pub overlaps_existing_recovery: bool,
     pub crossing_anchor_count: usize,
     pub relation: ExactSegmentRelation,
+    pub source_range_topology: RecoveryWatchSegmentTopologyShadow,
 }
 
 /// Resource limit that stopped diagnostic Clause/ListItem analysis.
@@ -620,6 +715,7 @@ pub struct RecoveryWatchDiagnostics {
     pub segment_crossing_pairs: usize,
     pub segment_overlap_vetoes: usize,
     pub segment_stop_reason: Option<SegmentStopReason>,
+    pub segment_source_range_topology: RecoveryWatchSegmentTopologyDiagnostics,
     pub granular_complete: bool,
     pub granular_old_units: usize,
     pub granular_new_units: usize,

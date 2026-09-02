@@ -809,7 +809,7 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
     assert!(content.ends_with('\n'), "must have trailing newline");
 
     let val: serde_json::Value = serde_json::from_str(&content).expect("parse summary json");
-    assert_eq!(val["schema_version"], 57);
+    assert_eq!(val["schema_version"], 58);
     let records = val["records"].as_array().expect("records array");
     assert_eq!(records.len(), 1);
 
@@ -1066,6 +1066,30 @@ fn summary_json_output_writes_compact_schema_and_preserves_metrics() {
             "segment_crossing_pairs": 0,
             "segment_overlap_vetoes": 0,
             "segment_stop_reason": null,
+            "segment_source_range_topology": {
+                "complete": true,
+                "stop_reason": null,
+                "unique_segment_pairs": 0,
+                "recovery_unit_anchor_candidates": 0,
+                "alignment_main_anchor_candidates": 0,
+                "usable_anchors": 0,
+                "alignment_main_anchors_usable": 0,
+                "partner_ambiguities": 0,
+                "overlap_vetoes": 0,
+                "monotone_anchor_evidence": 0,
+                "crossing_anchor_evidence": 0,
+                "old_earlier_new_later_evidence": 0,
+                "old_later_new_earlier_evidence": 0,
+                "monotone_pairs": 0,
+                "crossing_pairs": 0,
+                "unknown_pairs": 0,
+                "wrong_stream_pair_vetoes": 0,
+                "missing_trusted_interval_projections": 0,
+                "untrusted_barrier_projections": 0,
+                "missing_recovery_unit_projections": 0,
+                "ambiguous_recovery_unit_projections": 0,
+                "mixed_role_projections": 0
+            },
             "granular_complete": true,
             "granular_old_units": 0,
             "granular_new_units": 0,
