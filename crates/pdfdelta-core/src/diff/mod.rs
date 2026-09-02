@@ -2874,6 +2874,7 @@ struct PreparedSentenceRecovery {
 struct OriginatedChange {
     event: ChangeEvent,
     origin: ChangeOrigin,
+    repeated_group: Option<sentence::RepeatedReplacementGroupId>,
 }
 
 struct PreparedSentenceRecoveryBatch {
@@ -3000,6 +3001,7 @@ fn prepare_sentence_recovery_batch(
 
 struct RepeatedRecoveryGroup {
     count: usize,
+    occurrence_count: usize,
     output_index: Option<usize>,
 }
 
@@ -3050,7 +3052,11 @@ fn group_repeated_recovered_changes(
             std::mem::size_of::<RepeatedRecoveryKey>()
                 .checked_add(std::mem::size_of::<usize>())?
                 .checked_add(std::mem::size_of::<RepeatedRecoveryGroup>())?
-                .checked_add(std::mem::size_of::<RepeatedRecoveryCandidate>())?,
+                .checked_add(std::mem::size_of::<RepeatedRecoveryCandidate>())?
+                .checked_add(std::mem::size_of::<(
+                    sentence::RepeatedReplacementGroupId,
+                    usize,
+                )>())?,
         )?
         .checked_mul(2)?;
     if !output_budget.charge_many(0, index_bytes) {
@@ -3059,6 +3065,8 @@ fn group_repeated_recovered_changes(
     let recovery_lookup = build_repeated_recovery_lookup(recovery, output_budget)?;
     let mut group_index = HashMap::<RepeatedRecoveryKey, usize>::new();
     group_index.try_reserve(change_count).ok()?;
+    let mut replacement_group_index = HashMap::<sentence::RepeatedReplacementGroupId, usize>::new();
+    replacement_group_index.try_reserve(change_count).ok()?;
     let mut groups = Vec::<RepeatedRecoveryGroup>::new();
     groups.try_reserve_exact(change_count).ok()?;
     let mut candidates = Vec::<RepeatedRecoveryCandidate>::new();
@@ -3066,7 +3074,37 @@ fn group_repeated_recovered_changes(
     let mut flat_index = 0usize;
     for entry in entries.iter() {
         for change in &entry.prepared.changes {
-            if let Some(recovered) =
+            if let Some(repeated_group) = change.repeated_group {
+                if change.origin != ChangeOrigin::RunningMatter
+                    || change.event.kind != ChangeKind::Replacement
+                    || change.event.occurrences.is_empty()
+                {
+                    return None;
+                }
+                let next_group_index = groups.len();
+                let group_index = if let Some(group_index) =
+                    replacement_group_index.get(&repeated_group).copied()
+                {
+                    group_index
+                } else {
+                    groups.push(RepeatedRecoveryGroup {
+                        count: 0,
+                        occurrence_count: 0,
+                        output_index: None,
+                    });
+                    replacement_group_index.insert(repeated_group, next_group_index);
+                    next_group_index
+                };
+                let group = groups.get_mut(group_index)?;
+                group.count = group.count.checked_add(1)?;
+                group.occurrence_count = group
+                    .occurrence_count
+                    .checked_add(change.event.occurrences.len())?;
+                candidates.push(RepeatedRecoveryCandidate {
+                    change_index: flat_index,
+                    group_index,
+                });
+            } else if let Some(recovered) =
                 repeated_recovery_for_change(&recovery_lookup, &change.event, output_budget)?
             {
                 let side = match change.event.kind {
@@ -3086,6 +3124,7 @@ fn group_repeated_recovered_changes(
                 } else {
                     groups.push(RepeatedRecoveryGroup {
                         count: 0,
+                        occurrence_count: 0,
                         output_index: None,
                     });
                     group_index.insert(key, next_group_index);
@@ -3093,6 +3132,7 @@ fn group_repeated_recovered_changes(
                 };
                 let group = groups.get_mut(group_index)?;
                 group.count = group.count.checked_add(1)?;
+                group.occurrence_count = group.occurrence_count.checked_add(1)?;
                 candidates.push(RepeatedRecoveryCandidate {
                     change_index: flat_index,
                     group_index,
@@ -3103,7 +3143,7 @@ fn group_repeated_recovered_changes(
     }
 
     for group in &groups {
-        let additional = group.count.saturating_sub(1);
+        let additional = group.occurrence_count.saturating_sub(1);
         let bytes = additional.checked_mul(std::mem::size_of::<ChangeOccurrence>())?;
         if !output_budget.charge_many(0, bytes) {
             return None;
@@ -3137,10 +3177,17 @@ fn group_repeated_recovered_changes(
         if group.count == 1 {
             grouped.push((entry_index, change));
         } else if let Some(output_index) = group.output_index {
-            if change.event.occurrences.len() != 1 {
+            if change.event.occurrences.is_empty() {
                 return None;
             }
             let grouped_change = &mut grouped.get_mut(output_index)?.1;
+            if grouped_change.event.kind != change.event.kind
+                || grouped_change.event.confidence != change.event.confidence
+                || grouped_change.event.tags != change.event.tags
+                || grouped_change.repeated_group != change.repeated_group
+            {
+                return None;
+            }
             // Repeated non-body content is one semantic running-matter event
             // even when its occurrences were collected through different
             // recovery primitives. Origin attribution must not split or veto
@@ -3149,12 +3196,16 @@ fn group_repeated_recovered_changes(
             grouped_change
                 .event
                 .occurrences
-                .push(change.event.occurrences.pop()?);
+                .append(&mut change.event.occurrences);
         } else {
             change
                 .event
                 .occurrences
-                .try_reserve_exact(group.count.checked_sub(1)?)
+                .try_reserve_exact(
+                    group
+                        .occurrence_count
+                        .checked_sub(change.event.occurrences.len())?,
+                )
                 .ok()?;
             group.output_index = Some(grouped.len());
             grouped.push((entry_index, change));
@@ -3948,6 +3999,7 @@ fn prepare_recovered_changes(
                 Vec::new(),
             ),
             origin: recovery.origin,
+            repeated_group: None,
         });
         let metric = origins.get_mut(recovery.origin);
         match kind {
@@ -4039,6 +4091,7 @@ fn prepare_recovered_replacements(
         changes.push(OriginatedChange {
             event: replacement_change,
             origin: replacement.origin,
+            repeated_group: replacement.repeated_group,
         });
         resolved_old = resolved_old.checked_add(replacement.old.source_tokens)?;
         resolved_new = resolved_new.checked_add(replacement.new.source_tokens)?;
@@ -7781,28 +7834,102 @@ mod tests {
     }
 
     #[test]
-    fn repeated_footer_near_counterparts_veto_one_sided_recovery() {
-        let old = repeated_role_blocks(
-            [1, 2],
+    fn repeated_footer_templates_recover_page_local_replacements() {
+        let old = repeated_role_blocks_on_pages(
+            1,
+            [0, 1],
             "Acme security standard 2024.",
             BlockRole::RepeatedFooter,
         );
-        let new = repeated_role_blocks(
-            [3, 4],
+        let new = repeated_role_blocks_on_pages(
+            101,
+            [0, 1],
+            "Acme security standard 2025.",
+            BlockRole::RepeatedFooter,
+        );
+        let outcome = compare_sentence_recovery_with_metrics(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
+            &[Some(TrustedRunId(2)), Some(TrustedRunId(2))],
+            5,
+        );
+        let result = outcome.comparison;
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(result.changes[0].occurrences.len(), 2);
+        assert_eq!(result.old_coverage.resolved_tokens, source_tokens(&old));
+        assert_eq!(result.new_coverage.resolved_tokens, source_tokens(&new));
+        assert_eq!(
+            outcome
+                .sentence_recovery_metrics
+                .expect("running-matter diagnostics complete")
+                .change_origins
+                .running_matter
+                .event_count,
+            1
+        );
+    }
+
+    #[test]
+    fn unmatched_repeated_footer_occurrence_remains_unresolved() {
+        let old = repeated_role_blocks_on_pages(
+            1,
+            [0, 1, 2],
+            "Acme security standard 2024.",
+            BlockRole::RepeatedFooter,
+        );
+        let new = repeated_role_blocks_on_pages(
+            101,
+            [0, 2],
             "Acme security standard 2025.",
             BlockRole::RepeatedFooter,
         );
         let result = compare_sentence_recovery(
             &old,
             &new,
-            &[Some(TrustedRunId(1)), Some(TrustedRunId(1))],
-            &[Some(TrustedRunId(2)), Some(TrustedRunId(2))],
+            &[Some(TrustedRunId(1)); 3],
+            &[Some(TrustedRunId(2)); 2],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert_eq!(result.changes.len(), 1);
+        assert_eq!(result.changes[0].kind, ChangeKind::Replacement);
+        assert_eq!(result.changes[0].occurrences.len(), 2);
+        assert_eq!(
+            result.old_coverage.resolved_tokens,
+            source_tokens(&old) - source_tokens(&old[1..2])
+        );
+        assert_eq!(result.new_coverage.resolved_tokens, source_tokens(&new));
+        assert!(!result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn duplicate_running_matter_on_one_page_remains_unresolved() {
+        let old = repeated_role_blocks_on_pages(
+            1,
+            [0, 0],
+            "Acme security standard 2024.",
+            BlockRole::RepeatedFooter,
+        );
+        let new = repeated_role_blocks_on_pages(
+            101,
+            [0, 1],
+            "Acme security standard 2025.",
+            BlockRole::RepeatedFooter,
+        );
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)); 2],
+            &[Some(TrustedRunId(2)); 2],
             5,
             vec![AlignmentEvidence::ReadingOrderUnknown],
         );
 
         assert!(result.changes.is_empty());
-        assert_eq!(result.unresolved_regions.len(), 1);
         assert_eq!(result.old_coverage.resolved_tokens, 0);
         assert_eq!(result.new_coverage.resolved_tokens, 0);
     }
@@ -9757,6 +9884,7 @@ mod tests {
                     new: 5..6,
                 },
             ]),
+            repeated_group: None,
         };
         let mut changes = Vec::new();
         let mut traces = Vec::new();
@@ -9837,6 +9965,7 @@ mod tests {
                     relation: relation(),
                     hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
                     edits: None,
+                    repeated_group: None,
                 },
                 sentence::RecoveredReplacement {
                     origin: ChangeOrigin::SentenceNear,
@@ -9847,6 +9976,7 @@ mod tests {
                     relation: relation(),
                     hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
                     edits: None,
+                    repeated_group: None,
                 },
             ],
             deletion_consumed: invalid_old.iter().chain(&valid_old).copied().collect(),
@@ -9874,6 +10004,7 @@ mod tests {
                 relation: relation(),
                 hunk_policy: sentence::RecoveryHunkPolicy::Semantic,
                 edits: None,
+                repeated_group: None,
             }],
             deletion_consumed: valid_old,
             insertion_consumed: valid_new,
@@ -12995,6 +13126,24 @@ mod tests {
             .map(|id| {
                 let mut block = sentence_block(id, text);
                 block.role = role;
+                block
+            })
+            .collect()
+    }
+
+    fn repeated_role_blocks_on_pages<const N: usize>(
+        id_start: u64,
+        pages: [u32; N],
+        text: &str,
+        role: BlockRole,
+    ) -> Vec<BlockText> {
+        pages
+            .into_iter()
+            .enumerate()
+            .map(|(index, page)| {
+                let mut block = sentence_block(id_start + index as u64, text);
+                block.role = role;
+                block.pages = vec![page];
                 block
             })
             .collect()

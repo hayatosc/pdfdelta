@@ -352,6 +352,360 @@ fn preserves_repeated_headers_and_footers_as_separate_roles() {
 }
 
 #[test]
+fn detects_repeated_footer_inside_variable_page_number_by_default() {
+    let fixture = Fixture::new(vec![
+        LineSpec::body(1, 0, "page zero first", 130.0),
+        LineSpec::body(2, 0, "page zero second", 115.0),
+        LineSpec::body(3, 0, "page zero third", 100.0),
+        LineSpec::margin(4, 0, "Repeated footer", 20.0),
+        LineSpec::margin(5, 0, "1", 5.0),
+        LineSpec::body(6, 1, "page one first", 130.0),
+        LineSpec::body(7, 1, "page one second", 115.0),
+        LineSpec::body(8, 1, "page one third", 100.0),
+        LineSpec::margin(9, 1, "Repeated footer", 20.0),
+        LineSpec::margin(10, 1, "2", 5.0),
+        LineSpec::body(11, 2, "page two first", 130.0),
+        LineSpec::body(12, 2, "page two second", 115.0),
+        LineSpec::body(13, 2, "page two third", 100.0),
+        LineSpec::margin(14, 2, "Repeated footer", 20.0),
+        LineSpec::margin(15, 2, "3", 5.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, BlockOptions::default())
+        .expect("the inner footer line should be considered by default");
+
+    for line in [LineId(4), LineId(9), LineId(14)] {
+        let block = blocks
+            .iter()
+            .find(|block| block.lines.contains(&line))
+            .expect("repeated footer line should be preserved");
+        assert_eq!(block.role, BlockRole::RepeatedFooter);
+    }
+}
+
+#[test]
+fn does_not_classify_repeated_body_line_as_an_inner_footer() {
+    let fixture = Fixture::new(vec![
+        LineSpec::body(1, 0, "page zero first", 130.0),
+        LineSpec::body(2, 0, "page zero second", 115.0),
+        LineSpec::body(3, 0, "page zero third", 100.0),
+        LineSpec::body(4, 0, "Repeated body", 85.0),
+        LineSpec::margin(5, 0, "1", 5.0),
+        LineSpec::body(6, 1, "page one first", 130.0),
+        LineSpec::body(7, 1, "page one second", 115.0),
+        LineSpec::body(8, 1, "page one third", 100.0),
+        LineSpec::body(9, 1, "Repeated body", 85.0),
+        LineSpec::margin(10, 1, "2", 5.0),
+        LineSpec::body(11, 2, "page two first", 130.0),
+        LineSpec::body(12, 2, "page two second", 115.0),
+        LineSpec::body(13, 2, "page two third", 100.0),
+        LineSpec::body(14, 2, "Repeated body", 85.0),
+        LineSpec::margin(15, 2, "3", 5.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, BlockOptions::default())
+        .expect("distant body text should not become running matter");
+
+    for line in [LineId(4), LineId(9), LineId(14)] {
+        let block = blocks
+            .iter()
+            .find(|block| block.lines.contains(&line))
+            .expect("body line should be preserved");
+        assert_eq!(block.role, BlockRole::Body);
+    }
+}
+
+#[test]
+fn preserves_outer_running_matter_on_sparse_three_and_four_line_pages() {
+    let fixture = Fixture::new(vec![
+        LineSpec::margin(1, 0, "Repeated header", 130.0),
+        LineSpec::body(2, 0, "Repeated body", 100.0),
+        LineSpec::margin(3, 0, "Repeated footer", 5.0),
+        LineSpec::margin(4, 1, "Repeated header", 130.0),
+        LineSpec::body(5, 1, "Repeated body", 100.0),
+        LineSpec::body(6, 1, "page one extra", 85.0),
+        LineSpec::margin(7, 1, "Repeated footer", 5.0),
+        LineSpec::margin(8, 2, "Repeated header", 130.0),
+        LineSpec::body(9, 2, "Repeated body", 100.0),
+        LineSpec::margin(10, 2, "Repeated footer", 5.0),
+        LineSpec::margin(11, 3, "Repeated header", 130.0),
+        LineSpec::body(12, 3, "Repeated body", 100.0),
+        LineSpec::body(13, 3, "page three extra", 85.0),
+        LineSpec::margin(14, 3, "Repeated footer", 5.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, BlockOptions::default())
+        .expect("sparse pages should retain outer running matter detection");
+
+    assert_eq!(
+        blocks
+            .iter()
+            .filter(|block| block.role == BlockRole::RepeatedHeader)
+            .count(),
+        4
+    );
+    assert_eq!(
+        blocks
+            .iter()
+            .filter(|block| block.role == BlockRole::RepeatedFooter)
+            .count(),
+        4
+    );
+    for line in [LineId(2), LineId(5), LineId(9), LineId(12)] {
+        let block = blocks
+            .iter()
+            .find(|block| block.lines.contains(&line))
+            .expect("body line should be preserved");
+        assert_eq!(block.role, BlockRole::Body);
+    }
+}
+
+#[test]
+fn classifies_every_split_line_in_the_same_footer_band() {
+    let fixture = Fixture::new(vec![
+        LineSpec::body(1, 0, "page zero first", 130.0),
+        LineSpec::body(2, 0, "page zero second", 115.0),
+        LineSpec::body(3, 0, "page zero third", 100.0),
+        LineSpec::column(4, 0, "Footer left", 0.0, 20.0, 80.0),
+        LineSpec::column(5, 0, "Footer right", 150.0, 20.0, 80.0),
+        LineSpec::margin(6, 0, "1", 5.0),
+        LineSpec::body(7, 1, "page one first", 130.0),
+        LineSpec::body(8, 1, "page one second", 115.0),
+        LineSpec::body(9, 1, "page one third", 100.0),
+        LineSpec::column(10, 1, "Footer left", 0.0, 20.0, 80.0),
+        LineSpec::column(11, 1, "Footer right", 150.0, 20.0, 80.0),
+        LineSpec::margin(12, 1, "2", 5.0),
+        LineSpec::body(13, 2, "page two first", 130.0),
+        LineSpec::body(14, 2, "page two second", 115.0),
+        LineSpec::body(15, 2, "page two third", 100.0),
+        LineSpec::column(16, 2, "Footer left", 0.0, 20.0, 80.0),
+        LineSpec::column(17, 2, "Footer right", 150.0, 20.0, 80.0),
+        LineSpec::margin(18, 2, "3", 5.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, BlockOptions::default())
+        .expect("split footer lines should share one edge band");
+
+    for line in [
+        LineId(4),
+        LineId(5),
+        LineId(10),
+        LineId(11),
+        LineId(16),
+        LineId(17),
+    ] {
+        let block = blocks
+            .iter()
+            .find(|block| block.lines.contains(&line))
+            .expect("split footer line should be preserved");
+        assert_eq!(block.role, BlockRole::RepeatedFooter);
+    }
+}
+
+#[test]
+fn clusters_repeated_footer_across_outer_and_inner_edge_bands() {
+    let fixture = Fixture::new(vec![
+        LineSpec::body(1, 0, "page zero first", 130.0),
+        LineSpec::body(2, 0, "page zero second", 115.0),
+        LineSpec::body(3, 0, "page zero third", 100.0),
+        LineSpec::margin(4, 0, "Repeated footer", 20.0),
+        LineSpec::body(5, 1, "page one first", 130.0),
+        LineSpec::body(6, 1, "page one second", 115.0),
+        LineSpec::body(7, 1, "page one third", 100.0),
+        LineSpec::margin(8, 1, "Repeated footer", 20.0),
+        LineSpec::margin(9, 1, "2", 5.0),
+        LineSpec::body(10, 2, "page two first", 130.0),
+        LineSpec::body(11, 2, "page two second", 115.0),
+        LineSpec::body(12, 2, "page two third", 100.0),
+        LineSpec::margin(13, 2, "Repeated footer", 20.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, BlockOptions::default())
+        .expect("edge-band movement should not split repeated footer evidence");
+
+    for line in [LineId(4), LineId(8), LineId(13)] {
+        let block = blocks
+            .iter()
+            .find(|block| block.lines.contains(&line))
+            .expect("repeated footer line should be preserved");
+        assert_eq!(block.role, BlockRole::RepeatedFooter);
+    }
+}
+
+#[test]
+fn does_not_classify_split_multicolumn_body_band_as_a_footer() {
+    let fixture = Fixture::new(vec![
+        LineSpec::body(1, 0, "page zero first", 130.0),
+        LineSpec::body(2, 0, "page zero second", 115.0),
+        LineSpec::body(3, 0, "page zero third", 100.0),
+        LineSpec::column(4, 0, "Repeated left body", 0.0, 85.0, 80.0),
+        LineSpec::column(5, 0, "Repeated right body", 150.0, 85.0, 80.0),
+        LineSpec::margin(6, 0, "1", 5.0),
+        LineSpec::body(7, 1, "page one first", 130.0),
+        LineSpec::body(8, 1, "page one second", 115.0),
+        LineSpec::body(9, 1, "page one third", 100.0),
+        LineSpec::column(10, 1, "Repeated left body", 0.0, 85.0, 80.0),
+        LineSpec::column(11, 1, "Repeated right body", 150.0, 85.0, 80.0),
+        LineSpec::margin(12, 1, "2", 5.0),
+        LineSpec::body(13, 2, "page two first", 130.0),
+        LineSpec::body(14, 2, "page two second", 115.0),
+        LineSpec::body(15, 2, "page two third", 100.0),
+        LineSpec::column(16, 2, "Repeated left body", 0.0, 85.0, 80.0),
+        LineSpec::column(17, 2, "Repeated right body", 150.0, 85.0, 80.0),
+        LineSpec::margin(18, 2, "3", 5.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, BlockOptions::default())
+        .expect("distant multicolumn body text should remain body evidence");
+
+    for line in [
+        LineId(4),
+        LineId(5),
+        LineId(10),
+        LineId(11),
+        LineId(16),
+        LineId(17),
+    ] {
+        let block = blocks
+            .iter()
+            .find(|block| block.lines.contains(&line))
+            .expect("split body line should be preserved");
+        assert_eq!(block.role, BlockRole::Body);
+    }
+}
+
+#[test]
+fn promotes_established_footer_template_on_a_sparse_final_page() {
+    let fixture = Fixture::new(vec![
+        LineSpec::body(1, 0, "page zero first", 130.0),
+        LineSpec::body(2, 0, "page zero second", 115.0),
+        LineSpec::body(3, 0, "page zero third", 100.0),
+        LineSpec::margin(4, 0, "Repeated footer", 20.0),
+        LineSpec::margin(5, 0, "1", 5.0),
+        LineSpec::body(6, 1, "page one first", 130.0),
+        LineSpec::body(7, 1, "page one second", 115.0),
+        LineSpec::body(8, 1, "page one third", 100.0),
+        LineSpec::margin(9, 1, "Repeated footer", 20.0),
+        LineSpec::margin(10, 1, "2", 5.0),
+        LineSpec::body(11, 2, "page two first", 130.0),
+        LineSpec::body(12, 2, "page two second", 115.0),
+        LineSpec::body(13, 2, "page two third", 100.0),
+        LineSpec::margin(14, 2, "Repeated footer", 20.0),
+        LineSpec::margin(15, 2, "3", 5.0),
+        LineSpec::body(16, 3, "sparse final body", 100.0),
+        LineSpec::margin(17, 3, "Repeated footer", 20.0),
+        LineSpec::margin(18, 3, "4", 5.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, BlockOptions::default())
+        .expect("an established footer template should extend to a sparse page");
+
+    let footer = blocks
+        .iter()
+        .find(|block| block.lines.contains(&LineId(17)))
+        .expect("sparse final-page footer should be preserved");
+    assert_eq!(footer.role, BlockRole::RepeatedFooter);
+}
+
+#[test]
+fn does_not_promote_unsupported_inner_body_from_an_established_footer_template() {
+    let fixture = Fixture::new(vec![
+        LineSpec::body(1, 0, "page zero first", 130.0),
+        LineSpec::body(2, 0, "page zero second", 115.0),
+        LineSpec::body(3, 0, "page zero third", 100.0),
+        LineSpec::margin(4, 0, "Repeated footer", 20.0),
+        LineSpec::margin(5, 0, "1", 5.0),
+        LineSpec::body(6, 1, "page one first", 130.0),
+        LineSpec::body(7, 1, "page one second", 115.0),
+        LineSpec::body(8, 1, "page one third", 100.0),
+        LineSpec::margin(9, 1, "Repeated footer", 20.0),
+        LineSpec::margin(10, 1, "2", 5.0),
+        LineSpec::body(11, 2, "page two first", 130.0),
+        LineSpec::body(12, 2, "page two second", 115.0),
+        LineSpec::body(13, 2, "page two third", 100.0),
+        LineSpec::margin(14, 2, "Repeated footer", 20.0),
+        LineSpec::margin(15, 2, "3", 5.0),
+        LineSpec::body(16, 3, "sparse first body", 130.0),
+        LineSpec::body(17, 3, "sparse second body", 115.0),
+        LineSpec::margin(18, 3, "Repeated footer", 100.0),
+        LineSpec::margin(19, 3, "4", 5.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, BlockOptions::default())
+        .expect("unsupported inner body evidence should stay in the body flow");
+
+    let body = blocks
+        .iter()
+        .find(|block| block.lines.contains(&LineId(18)))
+        .expect("penultimate body line should be preserved");
+    assert_eq!(body.role, BlockRole::Body);
+}
+
+#[test]
+fn does_not_promote_established_template_on_an_ambiguous_single_band_page() {
+    let fixture = Fixture::new(vec![
+        LineSpec::body(1, 0, "page zero first", 130.0),
+        LineSpec::body(2, 0, "page zero second", 115.0),
+        LineSpec::body(3, 0, "page zero third", 100.0),
+        LineSpec::margin(4, 0, "Repeated footer", 20.0),
+        LineSpec::body(5, 1, "page one first", 130.0),
+        LineSpec::body(6, 1, "page one second", 115.0),
+        LineSpec::body(7, 1, "page one third", 100.0),
+        LineSpec::margin(8, 1, "Repeated footer", 20.0),
+        LineSpec::body(9, 2, "page two first", 130.0),
+        LineSpec::body(10, 2, "page two second", 115.0),
+        LineSpec::body(11, 2, "page two third", 100.0),
+        LineSpec::margin(12, 2, "Repeated footer", 20.0),
+        LineSpec::margin(13, 3, "Repeated footer", 20.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, BlockOptions::default())
+        .expect("one-band pages should remain edge-ambiguous");
+
+    let ambiguous = blocks
+        .iter()
+        .find(|block| block.lines.contains(&LineId(13)))
+        .expect("ambiguous line should be preserved");
+    assert_eq!(ambiguous.role, BlockRole::Body);
+}
+
+#[test]
+fn does_not_promote_candidate_matching_both_edge_templates() {
+    let fixture = Fixture::new(vec![
+        LineSpec::margin(1, 0, "Shared margin", 130.0),
+        LineSpec::body(2, 0, "header sample zero body", 100.0),
+        LineSpec::margin(3, 0, "unique footer zero", 5.0),
+        LineSpec::margin(4, 1, "Shared margin", 130.0),
+        LineSpec::body(5, 1, "header sample one body", 100.0),
+        LineSpec::margin(6, 1, "unique footer one", 5.0),
+        LineSpec::margin(7, 2, "Shared margin", 130.0),
+        LineSpec::body(8, 2, "header sample two body", 100.0),
+        LineSpec::margin(9, 2, "unique footer two", 5.0),
+        LineSpec::margin(10, 3, "unique header three", 130.0),
+        LineSpec::body(11, 3, "footer sample three body", 100.0),
+        LineSpec::margin(12, 3, "Shared margin", 5.0),
+        LineSpec::margin(13, 4, "unique header four", 130.0),
+        LineSpec::body(14, 4, "footer sample four body", 100.0),
+        LineSpec::margin(15, 4, "Shared margin", 5.0),
+        LineSpec::margin(16, 5, "unique header five", 130.0),
+        LineSpec::body(17, 5, "footer sample five body", 100.0),
+        LineSpec::margin(18, 5, "Shared margin", 5.0),
+        LineSpec::body(19, 6, "sparse top", 130.0),
+        LineSpec::margin(20, 6, "Shared margin", 100.0),
+        LineSpec::body(21, 6, "sparse bottom", 70.0),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, BlockOptions::default())
+        .expect("opposing edge templates should not resolve an ambiguous candidate");
+
+    let ambiguous = blocks
+        .iter()
+        .find(|block| block.lines.contains(&LineId(20)))
+        .expect("ambiguous candidate should be preserved");
+    assert_eq!(ambiguous.role, BlockRole::Body);
+}
+
+#[test]
 fn rejects_unknown_and_unassigned_glyph_evidence() {
     let mut fixture = Fixture::new(vec![LineSpec::body(1, 0, "known", 100.0)]);
     fixture.lines[0].glyphs[0] = GlyphId(99);
