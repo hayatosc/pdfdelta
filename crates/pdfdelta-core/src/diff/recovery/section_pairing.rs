@@ -3,12 +3,27 @@
 use std::collections::HashMap;
 
 use crate::{
-    alignment::{Alignment, AlignmentKind},
+    alignment::{Alignment, AlignmentConfidence, AlignmentKind},
+    diff::{AtomicEdit, TextSpan, TokenRange},
     layout::{BlockRole, TrustedRunId, TrustedRunInterval},
-    normalize::{BlockText, ComparableToken},
+    normalize::{BlockText, ComparableToken, ScalarRange},
 };
 
-use super::super::{SentenceRecoveryInput, Side};
+use super::{
+    super::{SentenceRecoveryInput, Side},
+    ownership::{RecoveryOwnership, RecoveryOwnershipLedger},
+};
+
+const MAX_SECTION_PROPOSALS: usize = 4_096;
+const MAX_SECTION_PROPOSAL_TOKENS: usize = 1_000_000;
+const MAX_SECTION_PROPOSAL_WORK: usize = 64_000_000;
+const MAX_SECTION_PROPOSAL_EDITS: usize = 131_072;
+const MAX_SECTION_PROPOSAL_PAYLOAD_ITEMS: usize = 262_144;
+const MAX_SECTION_PROPOSAL_BYTES: usize = 64 * 1024 * 1024;
+const MAX_SECTION_LEDGER_INDEX_ENTRIES: usize = 262_144;
+// This intentionally overestimates a hash-table entry including control bytes
+// and spare capacity so the diagnostic never relies on allocator internals.
+const ESTIMATED_HASH_ENTRY_BYTES: usize = 64;
 
 /// Typed reason why complete section-pairing diagnostics are unavailable.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -38,6 +53,13 @@ pub(in crate::diff) struct SectionPairingLimits {
     pub max_paragraph_pair_visits: usize,
     pub max_paragraph_token_comparisons: usize,
     pub max_gaps: usize,
+    pub max_proposals: usize,
+    pub max_proposal_tokens: usize,
+    pub max_proposal_work: usize,
+    pub max_proposal_edits: usize,
+    pub max_proposal_payload_items: usize,
+    pub max_proposal_estimated_bytes: usize,
+    pub max_ledger_index_entries: usize,
 }
 
 impl SectionPairingLimits {
@@ -52,6 +74,19 @@ impl SectionPairingLimits {
             max_paragraph_pair_visits: max_tokens.saturating_mul(4),
             max_paragraph_token_comparisons: max_tokens.saturating_mul(4),
             max_gaps: max_tokens,
+            max_proposals: max_tokens.min(MAX_SECTION_PROPOSALS),
+            max_proposal_tokens: max_tokens
+                .saturating_mul(2)
+                .min(MAX_SECTION_PROPOSAL_TOKENS),
+            max_proposal_work: max_tokens
+                .saturating_mul(max_tokens.min(2_048).saturating_add(1))
+                .min(MAX_SECTION_PROPOSAL_WORK),
+            max_proposal_edits: max_tokens.saturating_mul(2).min(MAX_SECTION_PROPOSAL_EDITS),
+            max_proposal_payload_items: max_tokens
+                .saturating_mul(4)
+                .min(MAX_SECTION_PROPOSAL_PAYLOAD_ITEMS),
+            max_proposal_estimated_bytes: MAX_SECTION_PROPOSAL_BYTES,
+            max_ledger_index_entries: max_tokens.min(MAX_SECTION_LEDGER_INDEX_ENTRIES),
         }
     }
 }
@@ -111,6 +146,138 @@ pub struct SectionPairingMetrics {
     pub number_only_changed_one_to_one_same_unresolved_span: usize,
 }
 
+/// Structural evidence view used to derive a proposal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectionPairingView {
+    Strong,
+    NumberOnly,
+}
+
+/// Exact evidence that paired two section headings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectionHeadingEvidence {
+    Exact,
+    NumberStripped,
+}
+
+/// Relationship between the paired sections' structural parents.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectionParentRelation {
+    Consistent,
+    Changed,
+    Unknown,
+}
+
+/// Trusted-run ordering evidence available for a section pair.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectionPairTopology {
+    Monotone,
+    Crossing,
+    Unknown,
+}
+
+/// Exact ownership of every comparable token in a proposed paragraph.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SectionProposalOwnership {
+    pub accepted_tokens: usize,
+    pub leaf_tokens: usize,
+    pub gap_tokens: usize,
+}
+
+/// One concrete block-local ownership range retained for audit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SectionProposalOwnershipRange {
+    pub canonical_start: usize,
+    pub canonical_end: usize,
+    pub comparable_start: usize,
+    pub comparable_end: usize,
+    pub ownership: RecoveryOwnership,
+}
+
+/// Source-backed evidence for one side of a section-pairing proposal.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SectionPairingProposalSide {
+    pub heading_span: TextSpan,
+    pub paragraph_span: TextSpan,
+    pub heading_page: u32,
+    pub paragraph_page: u32,
+    pub heading_trusted_run_id: u64,
+    pub paragraph_trusted_run_id: u64,
+    pub heading_ordinal_start: usize,
+    pub heading_ordinal_end: usize,
+    pub paragraph_ordinal_start: usize,
+    pub paragraph_ordinal_end: usize,
+    pub ownership: SectionProposalOwnership,
+    pub ownership_ranges: Vec<SectionProposalOwnershipRange>,
+    /// Only leaf-owned paragraphs are eligible for a future behavior change.
+    pub adoptable_ownership: bool,
+}
+
+/// Bounded exact-diff result retained by one proposal.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SectionProposalEdits {
+    Exact(Vec<AtomicEdit>),
+    EditDistanceExceeded,
+}
+
+/// Behavior-neutral evidence for one changed paragraph slot.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SectionPairingProposal {
+    pub view: SectionPairingView,
+    pub heading_evidence: SectionHeadingEvidence,
+    pub parent_relation: SectionParentRelation,
+    pub topology: SectionPairTopology,
+    pub heading_match_span_index: usize,
+    pub heading_match_confidence: AlignmentConfidence,
+    pub unresolved_span_index: usize,
+    pub old: SectionPairingProposalSide,
+    pub new: SectionPairingProposalSide,
+    pub edits: SectionProposalEdits,
+}
+
+/// Typed reason why the atomic proposal set is unavailable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectionPairingProposalStopReason {
+    SectionAnalysisUnavailable,
+    ProposalLimit,
+    ProposalTokenLimit,
+    ProposalWorkLimit,
+    ProposalPayloadLimit,
+    ProposalEditLimit,
+    AmbiguousProposal,
+    AllocationFailure,
+    MissingOwnershipBlock,
+    InvalidOwnershipRange,
+    IncompleteOwnership,
+    OwnershipOverlap,
+    InvalidSourceRange,
+    CounterOverflow,
+    DiffFailure,
+    InvariantViolation,
+}
+
+/// Atomic outcome of proposal collection.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SectionPairingProposalOutcome {
+    Complete(Vec<SectionPairingProposal>),
+    Unavailable(SectionPairingProposalStopReason),
+}
+
+/// Complete section-pairing counters and independently atomic proposals.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SectionPairingAnalysis {
+    pub metrics: SectionPairingMetrics,
+    pub proposal_outcome: SectionPairingProposalOutcome,
+}
+
+impl std::ops::Deref for SectionPairingAnalysis {
+    type Target = SectionPairingMetrics;
+
+    fn deref(&self) -> &Self::Target {
+        &self.metrics
+    }
+}
+
 #[derive(Clone)]
 struct SafeBlock {
     block_index: usize,
@@ -137,8 +304,19 @@ struct Section {
     prominent: bool,
     run_id: TrustedRunId,
     ordinal_start: usize,
-    paragraphs: Vec<usize>,
-    strong_paragraphs: Vec<usize>,
+    ordinal_end: usize,
+    page: u32,
+    paragraphs: Vec<Paragraph>,
+    strong_paragraphs: Vec<Paragraph>,
+}
+
+#[derive(Clone, Copy)]
+struct Paragraph {
+    block_index: usize,
+    page: u32,
+    run_id: TrustedRunId,
+    ordinal_start: usize,
+    ordinal_end: usize,
 }
 
 struct SideStructure {
@@ -153,13 +331,10 @@ struct SectionPair {
     old: usize,
     new: usize,
     strong: bool,
-}
-
-#[derive(Clone, Copy)]
-enum ParentRelation {
-    Consistent,
-    Changed,
-    Unknown,
+    heading_evidence: SectionHeadingEvidence,
+    match_span_index: usize,
+    match_confidence: AlignmentConfidence,
+    topology: SectionPairTopology,
 }
 
 /// Diagnoses conservative Section/Paragraph pairing without changing comparison output.
@@ -169,17 +344,34 @@ pub(in crate::diff) fn analyze_section_pairing_shadow(
     sides: [&Side<'_>; 2],
     alignment: &Alignment,
     recovery: SentenceRecoveryInput<'_>,
+    ledgers: Option<[&RecoveryOwnershipLedger; 2]>,
+    max_edit_distance: usize,
     limits: SectionPairingLimits,
-) -> SectionPairingMetrics {
-    match analyze(sides, alignment, recovery, limits) {
-        Ok(metrics) => SectionPairingMetrics {
-            complete: true,
-            ..metrics
+) -> SectionPairingAnalysis {
+    match analyze(
+        sides,
+        alignment,
+        recovery,
+        ledgers,
+        max_edit_distance,
+        limits,
+    ) {
+        Ok((metrics, proposal_outcome)) => SectionPairingAnalysis {
+            metrics: SectionPairingMetrics {
+                complete: true,
+                ..metrics
+            },
+            proposal_outcome,
         },
-        Err(reason) => SectionPairingMetrics {
-            complete: false,
-            stop_reason: Some(reason),
-            ..SectionPairingMetrics::default()
+        Err(reason) => SectionPairingAnalysis {
+            metrics: SectionPairingMetrics {
+                complete: false,
+                stop_reason: Some(reason),
+                ..SectionPairingMetrics::default()
+            },
+            proposal_outcome: SectionPairingProposalOutcome::Unavailable(
+                SectionPairingProposalStopReason::SectionAnalysisUnavailable,
+            ),
         },
     }
 }
@@ -188,8 +380,10 @@ fn analyze(
     sides: [&Side<'_>; 2],
     alignment: &Alignment,
     recovery: SentenceRecoveryInput<'_>,
+    ledgers: Option<[&RecoveryOwnershipLedger; 2]>,
+    max_edit_distance: usize,
     limits: SectionPairingLimits,
-) -> Result<SectionPairingMetrics, SectionPairingStopReason> {
+) -> Result<(SectionPairingMetrics, SectionPairingProposalOutcome), SectionPairingStopReason> {
     let structures = [
         build_structure(sides[0], recovery.old_trusted_run_intervals, limits)?,
         build_structure(sides[1], recovery.new_trusted_run_intervals, limits)?,
@@ -277,10 +471,18 @@ fn analyze(
             old: old_section,
             new: new_section,
             strong,
+            heading_evidence: if exact {
+                SectionHeadingEvidence::Exact
+            } else {
+                SectionHeadingEvidence::NumberStripped
+            },
+            match_span_index: span_index,
+            match_confidence: span.confidence,
+            topology: SectionPairTopology::Unknown,
         });
     }
 
-    classify_pair_topology(&pairs, &structures, &mut metrics)?;
+    classify_pair_topology(&mut pairs, &structures, &mut metrics)?;
     let old_to_new = pair_map(&pairs, structures[0].sections.len(), false)?;
     let new_to_old = pair_map(&pairs, structures[1].sections.len(), true)?;
     let mut gap_context = GapAnalysisContext {
@@ -290,18 +492,19 @@ fn analyze(
         memberships: &memberships,
         limits,
         paragraph_work: ParagraphWork::default(),
+        proposal_collector: ProposalCollector::new(ledgers, max_edit_distance, limits),
     };
     for pair in &pairs {
         let relation = parent_relation(pair, &structures, &old_to_new, &new_to_old);
         record_parent_relation(&mut metrics, pair.strong, relation)?;
-        analyze_paragraph_gaps(*pair, &mut gap_context, &mut metrics)?;
+        analyze_paragraph_gaps(*pair, relation, &mut gap_context, &mut metrics)?;
     }
     metrics.paragraph_pair_visits_attempted = gap_context.paragraph_work.pair_visits_attempted;
     metrics.paragraph_pair_visits_examined = gap_context.paragraph_work.pair_visits_examined;
     metrics.paragraph_token_comparisons_attempted =
         gap_context.paragraph_work.comparisons_attempted;
     metrics.paragraph_token_comparisons_examined = gap_context.paragraph_work.comparisons_examined;
-    Ok(metrics)
+    Ok((metrics, gap_context.proposal_collector.finish()))
 }
 
 fn build_structure(
@@ -402,6 +605,8 @@ fn build_structure(
                 prominent,
                 run_id: block.run_id,
                 ordinal_start: block.ordinal_start,
+                ordinal_end: block.ordinal_end,
+                page: block.page,
                 paragraphs: Vec::new(),
                 strong_paragraphs: Vec::new(),
             });
@@ -438,7 +643,13 @@ fn build_structure(
                 .paragraphs
                 .try_reserve(1)
                 .map_err(|_| SectionPairingStopReason::AllocationFailure)?;
-            sections[parent].paragraphs.push(block.block_index);
+            sections[parent].paragraphs.push(Paragraph {
+                block_index: block.block_index,
+                page: block.page,
+                run_id: block.run_id,
+                ordinal_start: block.ordinal_start,
+                ordinal_end: block.ordinal_end,
+            });
         }
         if let Some(parent) = strong_parent {
             strong_paragraph_memberships = checked_inc(strong_paragraph_memberships)?;
@@ -446,7 +657,13 @@ fn build_structure(
                 .strong_paragraphs
                 .try_reserve(1)
                 .map_err(|_| SectionPairingStopReason::AllocationFailure)?;
-            sections[parent].strong_paragraphs.push(block.block_index);
+            sections[parent].strong_paragraphs.push(Paragraph {
+                block_index: block.block_index,
+                page: block.page,
+                run_id: block.run_id,
+                ordinal_start: block.ordinal_start,
+                ordinal_end: block.ordinal_end,
+            });
         }
     }
     Ok(SideStructure {
@@ -704,7 +921,7 @@ fn parent_relation(
     structures: &[SideStructure; 2],
     old_to_new: &[Option<(usize, bool)>],
     new_to_old: &[Option<(usize, bool)>],
-) -> ParentRelation {
+) -> SectionParentRelation {
     let old = &structures[0].sections[pair.old];
     let new = &structures[1].sections[pair.new];
     let (Some(old_parent), Some(new_parent)) = (if pair.strong {
@@ -713,8 +930,8 @@ fn parent_relation(
         (old.parent, new.parent)
     }) else {
         return match (old.parent, new.parent) {
-            (None, None) => ParentRelation::Consistent,
-            _ => ParentRelation::Unknown,
+            (None, None) => SectionParentRelation::Consistent,
+            _ => SectionParentRelation::Unknown,
         };
     };
     let old_mapping = old_to_new.get(old_parent).copied().flatten();
@@ -724,22 +941,22 @@ fn parent_relation(
             (Some((mapped_new, true)), Some((mapped_old, true)))
                 if mapped_new == new_parent && mapped_old == old_parent =>
             {
-                ParentRelation::Consistent
+                SectionParentRelation::Consistent
             }
             (Some((mapped_new, true)), Some((mapped_old, true)))
                 if old_to_new.get(mapped_old).copied().flatten() == Some((new_parent, true))
                     && new_to_old.get(mapped_new).copied().flatten()
                         == Some((old_parent, true)) =>
             {
-                ParentRelation::Changed
+                SectionParentRelation::Changed
             }
-            _ => ParentRelation::Unknown,
+            _ => SectionParentRelation::Unknown,
         }
     } else {
         match old_mapping {
-            Some((mapped, _)) if mapped == new_parent => ParentRelation::Consistent,
-            Some(_) => ParentRelation::Changed,
-            None => ParentRelation::Unknown,
+            Some((mapped, _)) if mapped == new_parent => SectionParentRelation::Consistent,
+            Some(_) => SectionParentRelation::Changed,
+            None => SectionParentRelation::Unknown,
         }
     }
 }
@@ -747,22 +964,22 @@ fn parent_relation(
 fn record_parent_relation(
     metrics: &mut SectionPairingMetrics,
     strong: bool,
-    relation: ParentRelation,
+    relation: SectionParentRelation,
 ) -> Result<(), SectionPairingStopReason> {
     let target = match (strong, relation) {
-        (true, ParentRelation::Consistent) => &mut metrics.parent_consistent_pairs,
-        (true, ParentRelation::Changed) => &mut metrics.parent_changed_pairs,
-        (true, ParentRelation::Unknown) => &mut metrics.parent_unknown_pairs,
-        (false, ParentRelation::Consistent) => &mut metrics.number_only_parent_consistent,
-        (false, ParentRelation::Changed) => &mut metrics.number_only_parent_changed,
-        (false, ParentRelation::Unknown) => &mut metrics.number_only_parent_unknown,
+        (true, SectionParentRelation::Consistent) => &mut metrics.parent_consistent_pairs,
+        (true, SectionParentRelation::Changed) => &mut metrics.parent_changed_pairs,
+        (true, SectionParentRelation::Unknown) => &mut metrics.parent_unknown_pairs,
+        (false, SectionParentRelation::Consistent) => &mut metrics.number_only_parent_consistent,
+        (false, SectionParentRelation::Changed) => &mut metrics.number_only_parent_changed,
+        (false, SectionParentRelation::Unknown) => &mut metrics.number_only_parent_unknown,
     };
     *target = checked_inc(*target)?;
     Ok(())
 }
 
 fn classify_pair_topology(
-    pairs: &[SectionPair],
+    pairs: &mut [SectionPair],
     structures: &[SideStructure; 2],
     metrics: &mut SectionPairingMetrics,
 ) -> Result<(), SectionPairingStopReason> {
@@ -770,9 +987,14 @@ fn classify_pair_topology(
     selected
         .try_reserve(pairs.len())
         .map_err(|_| SectionPairingStopReason::AllocationFailure)?;
-    selected.extend(pairs.iter().filter(|pair| pair.strong).copied());
-    selected.sort_by_key(|pair| {
-        let old = &structures[0].sections[pair.old];
+    selected.extend(
+        pairs
+            .iter()
+            .enumerate()
+            .filter_map(|(index, pair)| pair.strong.then_some(index)),
+    );
+    selected.sort_by_key(|index| {
+        let old = &structures[0].sections[pairs[*index].old];
         (old.run_id.0, old.ordinal_start)
     });
 
@@ -784,7 +1006,8 @@ fn classify_pair_topology(
     new_partners
         .try_reserve(selected.len())
         .map_err(|_| SectionPairingStopReason::AllocationFailure)?;
-    for pair in &selected {
+    for index in &selected {
+        let pair = pairs[*index];
         let old_run = structures[0].sections[pair.old].run_id;
         let new_run = structures[1].sections[pair.new].run_id;
         update_run_partner(&mut old_partners, old_run, new_run);
@@ -793,21 +1016,24 @@ fn classify_pair_topology(
 
     let mut start = 0usize;
     while start < selected.len() {
-        let pair = selected[start];
+        let pair = pairs[selected[start]];
         let old_run = structures[0].sections[pair.old].run_id;
         let new_run = structures[1].sections[pair.new].run_id;
         let reciprocal = old_partners.get(&old_run) == Some(&Some(new_run))
             && new_partners.get(&new_run) == Some(&Some(old_run));
         let mut end = start + 1;
         while end < selected.len()
-            && structures[0].sections[selected[end].old].run_id == old_run
-            && structures[1].sections[selected[end].new].run_id == new_run
+            && structures[0].sections[pairs[selected[end]].old].run_id == old_run
+            && structures[1].sections[pairs[selected[end]].new].run_id == new_run
         {
             end += 1;
         }
         if !reciprocal || end - start < 2 {
             metrics.topology_unknown_pairs =
                 checked_add(metrics.topology_unknown_pairs, end - start)?;
+            for index in &selected[start..end] {
+                pairs[*index].topology = SectionPairTopology::Unknown;
+            }
             start = end;
             continue;
         }
@@ -818,19 +1044,21 @@ fn classify_pair_topology(
             .map_err(|_| SectionPairingStopReason::AllocationFailure)?;
         suffix_min.resize(group.len(), usize::MAX);
         let mut minimum = usize::MAX;
-        for (index, pair) in group.iter().enumerate().rev() {
-            minimum = minimum.min(structures[1].sections[pair.new].ordinal_start);
+        for (index, pair_index) in group.iter().enumerate().rev() {
+            minimum = minimum.min(structures[1].sections[pairs[*pair_index].new].ordinal_start);
             suffix_min[index] = minimum;
         }
         let mut prefix_max = 0usize;
-        for (index, pair) in group.iter().enumerate() {
-            let ordinal = structures[1].sections[pair.new].ordinal_start;
+        for (index, pair_index) in group.iter().enumerate() {
+            let ordinal = structures[1].sections[pairs[*pair_index].new].ordinal_start;
             let crossing = (index > 0 && prefix_max > ordinal)
                 || (index + 1 < group.len() && suffix_min[index + 1] < ordinal);
             if crossing {
                 metrics.crossing_pairs = checked_inc(metrics.crossing_pairs)?;
+                pairs[*pair_index].topology = SectionPairTopology::Crossing;
             } else {
                 metrics.monotone_pairs = checked_inc(metrics.monotone_pairs)?;
+                pairs[*pair_index].topology = SectionPairTopology::Monotone;
             }
             prefix_max = prefix_max.max(ordinal);
         }
@@ -861,6 +1089,7 @@ struct GapAnalysisContext<'a, 'side> {
     memberships: &'a [Vec<Option<usize>>; 2],
     limits: SectionPairingLimits,
     paragraph_work: ParagraphWork,
+    proposal_collector: ProposalCollector<'a>,
 }
 
 #[derive(Default)]
@@ -871,8 +1100,464 @@ struct ParagraphWork {
     comparisons_examined: usize,
 }
 
+struct ProposalInput<'a, 'side> {
+    pair: SectionPair,
+    parent_relation: SectionParentRelation,
+    old_section: &'a Section,
+    new_section: &'a Section,
+    old_paragraph: Paragraph,
+    new_paragraph: Paragraph,
+    unresolved_span_index: usize,
+    sides: [&'a Side<'side>; 2],
+}
+
+struct ProposalCollector<'a> {
+    ledgers: Option<[&'a RecoveryOwnershipLedger; 2]>,
+    ledger_indexes: [HashMap<u64, usize>; 2],
+    proposals: Vec<SectionPairingProposal>,
+    used_pairs: HashMap<(u64, u64), ProposalIdentity>,
+    used_old: HashMap<u64, u64>,
+    used_new: HashMap<u64, u64>,
+    stop_reason: Option<SectionPairingProposalStopReason>,
+    total_tokens: usize,
+    total_work: usize,
+    total_edits: usize,
+    total_payload_items: usize,
+    estimated_bytes: usize,
+    max_edit_distance: usize,
+    limits: SectionPairingLimits,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ProposalIdentity {
+    view: SectionPairingView,
+    heading_evidence: SectionHeadingEvidence,
+    parent_relation: SectionParentRelation,
+    topology: SectionPairTopology,
+    heading_match_span_index: usize,
+    heading_match_confidence: AlignmentConfidence,
+    unresolved_span_index: usize,
+    old_heading_block: u64,
+    new_heading_block: u64,
+}
+
+impl<'a> ProposalCollector<'a> {
+    fn new(
+        ledgers: Option<[&'a RecoveryOwnershipLedger; 2]>,
+        max_edit_distance: usize,
+        limits: SectionPairingLimits,
+    ) -> Self {
+        let mut collector = Self {
+            ledgers,
+            ledger_indexes: [HashMap::new(), HashMap::new()],
+            proposals: Vec::new(),
+            used_pairs: HashMap::new(),
+            used_old: HashMap::new(),
+            used_new: HashMap::new(),
+            stop_reason: None,
+            total_tokens: 0,
+            total_work: 0,
+            total_edits: 0,
+            total_payload_items: 0,
+            estimated_bytes: 0,
+            max_edit_distance,
+            limits,
+        };
+        let Some(ledgers) = ledgers else {
+            collector.stop(SectionPairingProposalStopReason::MissingOwnershipBlock);
+            return collector;
+        };
+        let ledger_entries = match proposal_add(ledgers[0].blocks.len(), ledgers[1].blocks.len()) {
+            Ok(entries) => entries,
+            Err(reason) => {
+                collector.stop(reason);
+                return collector;
+            }
+        };
+        let ledger_bytes = ledger_entries.checked_mul(ESTIMATED_HASH_ENTRY_BYTES);
+        if ledger_entries > limits.max_ledger_index_entries || ledger_bytes.is_none() {
+            collector.stop(SectionPairingProposalStopReason::ProposalPayloadLimit);
+            return collector;
+        }
+        let Some(ledger_bytes) = ledger_bytes else {
+            collector.stop(SectionPairingProposalStopReason::ProposalPayloadLimit);
+            return collector;
+        };
+        if let Err(reason) = collector.charge_bytes(ledger_bytes) {
+            collector.stop(reason);
+            return collector;
+        }
+        for (side, ledger) in ledgers.iter().enumerate() {
+            if collector.ledger_indexes[side]
+                .try_reserve(ledger.blocks.len())
+                .is_err()
+            {
+                collector.stop(SectionPairingProposalStopReason::AllocationFailure);
+                break;
+            }
+            for (index, block) in ledger.blocks.iter().enumerate() {
+                if collector.ledger_indexes[side]
+                    .insert(block.block_id, index)
+                    .is_some()
+                {
+                    collector.stop(SectionPairingProposalStopReason::InvariantViolation);
+                    break;
+                }
+            }
+        }
+        collector
+    }
+
+    fn collect(&mut self, input: ProposalInput<'_, '_>) {
+        if self.stop_reason.is_some() {
+            return;
+        }
+        if let Err(reason) = self.try_collect(input) {
+            self.stop(reason);
+        }
+    }
+
+    fn try_collect(
+        &mut self,
+        input: ProposalInput<'_, '_>,
+    ) -> Result<(), SectionPairingProposalStopReason> {
+        let old_block = input.sides[0].blocks[input.old_paragraph.block_index]
+            .block
+            .0;
+        let new_block = input.sides[1].blocks[input.new_paragraph.block_index]
+            .block
+            .0;
+        let identity = ProposalIdentity {
+            view: if input.pair.strong {
+                SectionPairingView::Strong
+            } else {
+                SectionPairingView::NumberOnly
+            },
+            heading_evidence: input.pair.heading_evidence,
+            parent_relation: input.parent_relation,
+            topology: input.pair.topology,
+            heading_match_span_index: input.pair.match_span_index,
+            heading_match_confidence: input.pair.match_confidence,
+            unresolved_span_index: input.unresolved_span_index,
+            old_heading_block: input.sides[0].blocks[input.old_section.block_index].block.0,
+            new_heading_block: input.sides[1].blocks[input.new_section.block_index].block.0,
+        };
+        if let Some(previous) = self.used_pairs.get(&(old_block, new_block)) {
+            return if *previous == identity {
+                Ok(())
+            } else {
+                Err(SectionPairingProposalStopReason::AmbiguousProposal)
+            };
+        }
+        if self
+            .used_old
+            .get(&old_block)
+            .is_some_and(|paired| *paired != new_block)
+            || self
+                .used_new
+                .get(&new_block)
+                .is_some_and(|paired| *paired != old_block)
+        {
+            return Err(SectionPairingProposalStopReason::AmbiguousProposal);
+        }
+        let next_count = proposal_add(self.proposals.len(), 1)?;
+        if next_count > self.limits.max_proposals {
+            return Err(SectionPairingProposalStopReason::ProposalLimit);
+        }
+        let old_tokens = &input.sides[0].canonical[input.old_paragraph.block_index];
+        let new_tokens = &input.sides[1].canonical[input.new_paragraph.block_index];
+        let input_tokens = proposal_add(old_tokens.len(), new_tokens.len())?;
+        self.total_tokens = proposal_add(self.total_tokens, input_tokens)?;
+        if self.total_tokens > self.limits.max_proposal_tokens {
+            return Err(SectionPairingProposalStopReason::ProposalTokenLimit);
+        }
+        let work = proposal_myers_work(input_tokens, self.max_edit_distance)?;
+        self.total_work = proposal_add(self.total_work, work)?;
+        if self.total_work > self.limits.max_proposal_work {
+            return Err(SectionPairingProposalStopReason::ProposalWorkLimit);
+        }
+        let old = proposal_side(
+            input.sides[0],
+            input.old_section,
+            input.old_paragraph,
+            self.ledgers.expect("validated above")[0],
+            &self.ledger_indexes[0],
+        )?;
+        let new = proposal_side(
+            input.sides[1],
+            input.new_section,
+            input.new_paragraph,
+            self.ledgers.expect("validated above")[1],
+            &self.ledger_indexes[1],
+        )?;
+        let payload_items = proposal_add(
+            old.ownership_ranges.capacity(),
+            new.ownership_ranges.capacity(),
+        )?;
+        self.total_payload_items = proposal_add(self.total_payload_items, payload_items)?;
+        if self.total_payload_items > self.limits.max_proposal_payload_items {
+            return Err(SectionPairingProposalStopReason::ProposalPayloadLimit);
+        }
+        let hash_bytes = 3usize
+            .checked_mul(ESTIMATED_HASH_ENTRY_BYTES)
+            .ok_or(SectionPairingProposalStopReason::CounterOverflow)?;
+        let span_capacity = old
+            .heading_span
+            .blocks
+            .capacity()
+            .checked_add(old.paragraph_span.blocks.capacity())
+            .and_then(|value| value.checked_add(new.heading_span.blocks.capacity()))
+            .and_then(|value| value.checked_add(new.paragraph_span.blocks.capacity()))
+            .ok_or(SectionPairingProposalStopReason::CounterOverflow)?;
+        let span_bytes = span_capacity
+            .checked_mul(std::mem::size_of::<crate::layout::BlockId>())
+            .ok_or(SectionPairingProposalStopReason::CounterOverflow)?;
+        let fixed_bytes = proposal_add(hash_bytes, span_bytes)?;
+        let ownership_bytes = payload_items
+            .checked_mul(std::mem::size_of::<SectionProposalOwnershipRange>())
+            .ok_or(SectionPairingProposalStopReason::CounterOverflow)?;
+        self.charge_bytes(proposal_add(fixed_bytes, ownership_bytes)?)?;
+        let edits = match super::super::myers::diff(old_tokens, new_tokens, self.max_edit_distance)
+        {
+            Ok(Some(edits)) => {
+                self.total_edits = proposal_add(self.total_edits, edits.len())?;
+                if self.total_edits > self.limits.max_proposal_edits {
+                    return Err(SectionPairingProposalStopReason::ProposalEditLimit);
+                }
+                let edit_bytes = edits
+                    .capacity()
+                    .checked_mul(std::mem::size_of::<AtomicEdit>())
+                    .ok_or(SectionPairingProposalStopReason::CounterOverflow)?;
+                self.charge_bytes(edit_bytes)?;
+                SectionProposalEdits::Exact(edits)
+            }
+            Ok(None) => SectionProposalEdits::EditDistanceExceeded,
+            Err(_) => return Err(SectionPairingProposalStopReason::DiffFailure),
+        };
+        let previous_proposal_capacity = self.proposals.capacity();
+        self.proposals
+            .try_reserve(1)
+            .map_err(|_| SectionPairingProposalStopReason::AllocationFailure)?;
+        let added_proposal_capacity = self
+            .proposals
+            .capacity()
+            .checked_sub(previous_proposal_capacity)
+            .ok_or(SectionPairingProposalStopReason::CounterOverflow)?;
+        self.charge_bytes(
+            added_proposal_capacity
+                .checked_mul(std::mem::size_of::<SectionPairingProposal>())
+                .ok_or(SectionPairingProposalStopReason::CounterOverflow)?,
+        )?;
+        self.used_pairs
+            .try_reserve(1)
+            .map_err(|_| SectionPairingProposalStopReason::AllocationFailure)?;
+        self.used_old
+            .try_reserve(1)
+            .map_err(|_| SectionPairingProposalStopReason::AllocationFailure)?;
+        self.used_new
+            .try_reserve(1)
+            .map_err(|_| SectionPairingProposalStopReason::AllocationFailure)?;
+        self.used_pairs.insert((old_block, new_block), identity);
+        self.used_old.insert(old_block, new_block);
+        self.used_new.insert(new_block, old_block);
+        self.proposals.push(SectionPairingProposal {
+            view: identity.view,
+            heading_evidence: input.pair.heading_evidence,
+            parent_relation: input.parent_relation,
+            topology: input.pair.topology,
+            heading_match_span_index: input.pair.match_span_index,
+            heading_match_confidence: input.pair.match_confidence,
+            unresolved_span_index: input.unresolved_span_index,
+            old,
+            new,
+            edits,
+        });
+        Ok(())
+    }
+
+    fn stop(&mut self, reason: SectionPairingProposalStopReason) {
+        self.proposals.clear();
+        self.stop_reason.get_or_insert(reason);
+    }
+
+    fn charge_bytes(&mut self, bytes: usize) -> Result<(), SectionPairingProposalStopReason> {
+        self.estimated_bytes = proposal_add(self.estimated_bytes, bytes)?;
+        if self.estimated_bytes > self.limits.max_proposal_estimated_bytes {
+            return Err(SectionPairingProposalStopReason::ProposalPayloadLimit);
+        }
+        Ok(())
+    }
+
+    fn finish(self) -> SectionPairingProposalOutcome {
+        match self.stop_reason {
+            Some(reason) => SectionPairingProposalOutcome::Unavailable(reason),
+            None => SectionPairingProposalOutcome::Complete(self.proposals),
+        }
+    }
+}
+
+fn proposal_add(left: usize, right: usize) -> Result<usize, SectionPairingProposalStopReason> {
+    left.checked_add(right)
+        .ok_or(SectionPairingProposalStopReason::CounterOverflow)
+}
+
+fn proposal_myers_work(
+    input_tokens: usize,
+    max_edit_distance: usize,
+) -> Result<usize, SectionPairingProposalStopReason> {
+    let steps = input_tokens
+        .min(max_edit_distance)
+        .checked_add(1)
+        .ok_or(SectionPairingProposalStopReason::CounterOverflow)?;
+    let triangular = steps
+        .checked_mul(
+            steps
+                .checked_add(1)
+                .ok_or(SectionPairingProposalStopReason::CounterOverflow)?,
+        )
+        .and_then(|value| value.checked_div(2))
+        .ok_or(SectionPairingProposalStopReason::CounterOverflow)?;
+    input_tokens
+        .checked_mul(steps)
+        .and_then(|value| value.checked_add(triangular))
+        .ok_or(SectionPairingProposalStopReason::CounterOverflow)
+}
+
+fn proposal_side(
+    side: &Side<'_>,
+    section: &Section,
+    paragraph: Paragraph,
+    ledger: &RecoveryOwnershipLedger,
+    ledger_index: &HashMap<u64, usize>,
+) -> Result<SectionPairingProposalSide, SectionPairingProposalStopReason> {
+    let heading_span = whole_block_span(side, section.block_index)?;
+    let paragraph_span = whole_block_span(side, paragraph.block_index)?;
+    let block_id = side.blocks[paragraph.block_index].block.0;
+    let ledger_block_index = ledger_index
+        .get(&block_id)
+        .copied()
+        .ok_or(SectionPairingProposalStopReason::MissingOwnershipBlock)?;
+    if ledger
+        .blocks
+        .get(ledger_block_index)
+        .map(|block| block.block_id)
+        != Some(block_id)
+    {
+        return Err(SectionPairingProposalStopReason::MissingOwnershipBlock);
+    }
+    let token_len = side.canonical[paragraph.block_index].len();
+    let canonical_len = side.blocks[paragraph.block_index]
+        .canonical
+        .text
+        .chars()
+        .count();
+    let mut ranges = Vec::new();
+    let mut ownership = SectionProposalOwnership::default();
+    let mut cursor = 0usize;
+    for range in ledger
+        .ranges
+        .iter()
+        .filter(|range| range.block_index == ledger_block_index)
+    {
+        if range.canonical_start > range.canonical_end
+            || range.canonical_end > canonical_len
+            || range.comparable_start > range.comparable_end
+            || range.comparable_end > token_len
+        {
+            return Err(SectionPairingProposalStopReason::InvalidOwnershipRange);
+        }
+        if range.comparable_start < cursor {
+            return Err(SectionPairingProposalStopReason::OwnershipOverlap);
+        }
+        if range.comparable_start != cursor {
+            return Err(SectionPairingProposalStopReason::IncompleteOwnership);
+        }
+        let count = range.comparable_end - range.comparable_start;
+        match range.ownership {
+            RecoveryOwnership::Accepted => {
+                ownership.accepted_tokens = proposal_add(ownership.accepted_tokens, count)?
+            }
+            RecoveryOwnership::Leaf(_) => {
+                ownership.leaf_tokens = proposal_add(ownership.leaf_tokens, count)?
+            }
+            RecoveryOwnership::Gap(_) => {
+                ownership.gap_tokens = proposal_add(ownership.gap_tokens, count)?
+            }
+        }
+        ranges
+            .try_reserve(1)
+            .map_err(|_| SectionPairingProposalStopReason::AllocationFailure)?;
+        ranges.push(SectionProposalOwnershipRange {
+            canonical_start: range.canonical_start,
+            canonical_end: range.canonical_end,
+            comparable_start: range.comparable_start,
+            comparable_end: range.comparable_end,
+            ownership: range.ownership,
+        });
+        cursor = range.comparable_end;
+    }
+    if cursor != token_len
+        || proposal_add(
+            proposal_add(ownership.accepted_tokens, ownership.leaf_tokens)?,
+            ownership.gap_tokens,
+        )? != token_len
+    {
+        return Err(SectionPairingProposalStopReason::IncompleteOwnership);
+    }
+    Ok(SectionPairingProposalSide {
+        heading_span,
+        paragraph_span,
+        heading_page: section.page,
+        paragraph_page: paragraph.page,
+        heading_trusted_run_id: section.run_id.0,
+        paragraph_trusted_run_id: paragraph.run_id.0,
+        heading_ordinal_start: section.ordinal_start,
+        heading_ordinal_end: section.ordinal_end,
+        paragraph_ordinal_start: paragraph.ordinal_start,
+        paragraph_ordinal_end: paragraph.ordinal_end,
+        ownership,
+        ownership_ranges: ranges,
+        adoptable_ownership: ownership.accepted_tokens == 0 && ownership.gap_tokens == 0,
+    })
+}
+
+fn whole_block_span(
+    side: &Side<'_>,
+    block_index: usize,
+) -> Result<TextSpan, SectionPairingProposalStopReason> {
+    let block = side
+        .blocks
+        .get(block_index)
+        .ok_or(SectionPairingProposalStopReason::InvalidSourceRange)?;
+    let tokens = side
+        .canonical
+        .get(block_index)
+        .ok_or(SectionPairingProposalStopReason::InvalidSourceRange)?;
+    if !source_map_is_complete(block, tokens.len()) {
+        return Err(SectionPairingProposalStopReason::InvalidSourceRange);
+    }
+    let mut blocks = Vec::new();
+    blocks
+        .try_reserve_exact(1)
+        .map_err(|_| SectionPairingProposalStopReason::AllocationFailure)?;
+    blocks.push(block.block);
+    Ok(TextSpan {
+        blocks,
+        separator: None,
+        canonical_range: ScalarRange {
+            start: 0,
+            end: block.canonical.text.chars().count(),
+        },
+        comparable_range: TokenRange {
+            start: 0,
+            end: tokens.len(),
+        },
+    })
+}
+
 fn analyze_paragraph_gaps(
     pair: SectionPair,
+    parent_relation: SectionParentRelation,
     context: &mut GapAnalysisContext<'_, '_>,
     metrics: &mut SectionPairingMetrics,
 ) -> Result<(), SectionPairingStopReason> {
@@ -893,11 +1578,11 @@ fn analyze_paragraph_gaps(
         .try_reserve(old.len().min(new.len()))
         .map_err(|_| SectionPairingStopReason::AllocationFailure)?;
     for (old_ordinal, old_block) in old.iter().enumerate() {
-        let old_tokens = &context.sides[0].canonical[*old_block];
+        let old_tokens = &context.sides[0].canonical[old_block.block_index];
         let mut old_occurrences = 0usize;
         for block in old {
             if exact_tokens(
-                &context.sides[0].canonical[*block],
+                &context.sides[0].canonical[block.block_index],
                 old_tokens,
                 &mut context.paragraph_work,
                 context.limits,
@@ -912,7 +1597,7 @@ fn analyze_paragraph_gaps(
         let mut match_count = 0usize;
         for (new_ordinal, block) in new.iter().enumerate() {
             if exact_tokens(
-                &context.sides[1].canonical[*block],
+                &context.sides[1].canonical[block.block_index],
                 old_tokens,
                 &mut context.paragraph_work,
                 context.limits,
@@ -973,16 +1658,30 @@ fn analyze_paragraph_gaps(
         record_gap(metrics, pair.strong, old_len, new_len)?;
         if old_len == 1
             && new_len == 1
-            && context.sides[0].canonical[old[old_start]]
-                != context.sides[1].canonical[new[new_start]]
+            && context.sides[0].canonical[old[old_start].block_index]
+                != context.sides[1].canonical[new[new_start].block_index]
         {
-            let same_unresolved = context.memberships[0][old[old_start]]
-                .zip(context.memberships[1][new[new_start]])
+            let same_unresolved = context.memberships[0][old[old_start].block_index]
+                .zip(context.memberships[1][new[new_start].block_index])
                 .is_some_and(|(old_span, new_span)| {
                     old_span == new_span
                         && context.alignment.spans[old_span].kind == AlignmentKind::Unresolved
                 });
             record_changed_one_to_one(metrics, pair.strong, same_unresolved)?;
+            if let Some(span_index) =
+                context.memberships[0][old[old_start].block_index].filter(|_| same_unresolved)
+            {
+                context.proposal_collector.collect(ProposalInput {
+                    pair,
+                    parent_relation,
+                    old_section,
+                    new_section,
+                    old_paragraph: old[old_start],
+                    new_paragraph: new[new_start],
+                    unresolved_span_index: span_index,
+                    sides: context.sides,
+                });
+            }
         }
     }
     Ok(())
@@ -1083,6 +1782,10 @@ fn enforce(
 mod tests {
     use std::collections::HashMap;
 
+    use crate::diff::recovery::ownership::{
+        RecoveryLeafKind, RecoveryOwnershipContext, RecoveryOwnershipLedgerBlock,
+        RecoveryOwnershipLedgerRange, RecoveryOwnershipRole,
+    };
     use crate::{
         alignment::{AlignmentConfidence, AlignmentEvidence, AlignmentSpan, BlockSeparator},
         layout::{BlockId, TrustedRunId},
@@ -1209,6 +1912,32 @@ mod tests {
         SectionPairingLimits::from_max_tokens(10_000)
     }
 
+    fn ledger(blocks: &[BlockText], ownership: RecoveryOwnership) -> RecoveryOwnershipLedger {
+        RecoveryOwnershipLedger {
+            blocks: blocks
+                .iter()
+                .map(|block| RecoveryOwnershipLedgerBlock {
+                    block_id: block.block.0,
+                    trusted: true,
+                    role: RecoveryOwnershipRole::Body,
+                    context: RecoveryOwnershipContext::default(),
+                })
+                .collect(),
+            ranges: blocks
+                .iter()
+                .enumerate()
+                .map(|(block_index, block)| RecoveryOwnershipLedgerRange {
+                    block_index,
+                    canonical_start: 0,
+                    canonical_end: block.canonical.text.chars().count(),
+                    comparable_start: 0,
+                    comparable_end: block.canonical.comparable_tokens().expect("mapped").len(),
+                    ownership,
+                })
+                .collect(),
+        }
+    }
+
     #[test]
     fn exact_heading_pair_exposes_changed_one_to_one_gap() {
         let old = vec![
@@ -1221,6 +1950,18 @@ mod tests {
         ];
         let old_intervals = intervals(old.len());
         let new_intervals = intervals(new.len());
+        let mut old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        old_ledger.blocks.reverse();
+        for range in &mut old_ledger.ranges {
+            range.block_index = old_ledger.blocks.len() - 1 - range.block_index;
+        }
+        let new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
         let result = analyze_section_pairing_shadow(
             [&side(&old), &side(&new)],
             &alignment(vec![
@@ -1228,6 +1969,8 @@ mod tests {
                 span(AlignmentKind::Unresolved, &[2], &[12]),
             ]),
             input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
             limits(),
         );
 
@@ -1236,6 +1979,253 @@ mod tests {
         assert_eq!(result.strong_heading_pairs, 1);
         assert_eq!(result.changed_one_to_one_gaps, 1);
         assert_eq!(result.changed_one_to_one_same_unresolved_span, 1);
+        let SectionPairingProposalOutcome::Complete(proposals) = &result.proposal_outcome else {
+            panic!("proposals must be complete");
+        };
+        assert_eq!(proposals.len(), 1);
+        let proposal = &proposals[0];
+        assert_eq!(proposal.view, SectionPairingView::Strong);
+        assert_eq!(proposal.heading_evidence, SectionHeadingEvidence::Exact);
+        assert_eq!(proposal.parent_relation, SectionParentRelation::Consistent);
+        assert_eq!(proposal.topology, SectionPairTopology::Unknown);
+        assert_eq!(proposal.heading_match_span_index, 0);
+        assert_eq!(proposal.unresolved_span_index, 1);
+        assert_eq!(proposal.old.heading_span.blocks, vec![BlockId(1)]);
+        assert_eq!(proposal.old.paragraph_span.blocks, vec![BlockId(2)]);
+        assert_eq!(proposal.old.heading_ordinal_start, 0);
+        assert_eq!(proposal.old.paragraph_ordinal_start, 1);
+        assert_eq!(proposal.old.ownership.leaf_tokens, "Old paragraph.".len());
+        assert!(proposal.old.adoptable_ownership);
+        assert!(matches!(proposal.edits, SectionProposalEdits::Exact(_)));
+    }
+
+    #[test]
+    fn proposal_records_distance_exceeded_and_accepted_ownership() {
+        let old = vec![block(1, "1 Scope", 20.0), block(2, "Old text.", 10.0)];
+        let new = vec![block(11, "1 Scope", 20.0), block(12, "New words.", 10.0)];
+        let old_intervals = intervals(old.len());
+        let new_intervals = intervals(new.len());
+        let old_ledger = ledger(&old, RecoveryOwnership::Accepted);
+        let new_ledger = ledger(&new, RecoveryOwnership::Accepted);
+        let result = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2], &[12]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            1,
+            limits(),
+        );
+
+        let SectionPairingProposalOutcome::Complete(proposals) = result.proposal_outcome else {
+            panic!("proposals must be complete");
+        };
+        assert_eq!(proposals.len(), 1);
+        assert_eq!(
+            proposals[0].old.ownership.accepted_tokens,
+            "Old text.".len()
+        );
+        assert!(!proposals[0].old.adoptable_ownership);
+        assert_eq!(
+            proposals[0].edits,
+            SectionProposalEdits::EditDistanceExceeded
+        );
+    }
+
+    #[test]
+    fn proposal_resource_stop_discards_partial_output() {
+        let old = vec![
+            block(1, "1 First", 20.0),
+            block(2, "Old one.", 10.0),
+            block(3, "2 Second", 20.0),
+            block(4, "Old two.", 10.0),
+        ];
+        let new = vec![
+            block(11, "1 First", 20.0),
+            block(12, "New one.", 10.0),
+            block(13, "2 Second", 20.0),
+            block(14, "New two.", 10.0),
+        ];
+        let old_intervals = intervals(old.len());
+        let new_intervals = intervals(new.len());
+        let old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let complete = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2], &[12]),
+                span(AlignmentKind::Match, &[3], &[13]),
+                span(AlignmentKind::Unresolved, &[4], &[14]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            limits(),
+        );
+        let SectionPairingProposalOutcome::Complete(proposals) = complete.proposal_outcome else {
+            panic!("proposals must be complete");
+        };
+        assert_eq!(proposals.len(), 2);
+        assert_eq!(proposals[0].old.paragraph_span.blocks, vec![BlockId(2)]);
+        assert_eq!(proposals[1].old.paragraph_span.blocks, vec![BlockId(4)]);
+        assert!(
+            proposals
+                .iter()
+                .all(|proposal| proposal.topology == SectionPairTopology::Monotone)
+        );
+        let result = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2], &[12]),
+                span(AlignmentKind::Match, &[3], &[13]),
+                span(AlignmentKind::Unresolved, &[4], &[14]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            SectionPairingLimits {
+                max_proposals: 1,
+                ..limits()
+            },
+        );
+
+        assert!(result.metrics.complete);
+        assert_eq!(result.metrics.changed_one_to_one_same_unresolved_span, 2);
+        assert_eq!(
+            result.proposal_outcome,
+            SectionPairingProposalOutcome::Unavailable(
+                SectionPairingProposalStopReason::ProposalLimit
+            )
+        );
+
+        let first_tokens = old[1].canonical.text.len() + new[1].canonical.text.len();
+        let work_limited = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2], &[12]),
+                span(AlignmentKind::Match, &[3], &[13]),
+                span(AlignmentKind::Unresolved, &[4], &[14]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            SectionPairingLimits {
+                max_proposal_work: proposal_myers_work(first_tokens, 2_048).expect("work fits"),
+                ..limits()
+            },
+        );
+        assert_eq!(
+            work_limited.proposal_outcome,
+            SectionPairingProposalOutcome::Unavailable(
+                SectionPairingProposalStopReason::ProposalWorkLimit
+            )
+        );
+
+        let payload_limited = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Unresolved, &[2], &[12]),
+                span(AlignmentKind::Match, &[3], &[13]),
+                span(AlignmentKind::Unresolved, &[4], &[14]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            SectionPairingLimits {
+                max_proposal_payload_items: 2,
+                ..limits()
+            },
+        );
+        assert_eq!(
+            payload_limited.proposal_outcome,
+            SectionPairingProposalOutcome::Unavailable(
+                SectionPairingProposalStopReason::ProposalPayloadLimit
+            )
+        );
+    }
+
+    #[test]
+    fn conflicting_dual_view_proposals_fail_closed() {
+        let old = vec![
+            block(1, "1 Root", 20.0),
+            block(2, "1.1 Weak", 10.0),
+            block(3, "Old paragraph.", 10.0),
+        ];
+        let new = vec![
+            block(11, "1 Root", 20.0),
+            block(12, "1.1 Weak", 10.0),
+            block(13, "New paragraph.", 10.0),
+        ];
+        let old_intervals = intervals(old.len());
+        let new_intervals = intervals(new.len());
+        let old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let result = analyze_section_pairing_shadow(
+            [&side(&old), &side(&new)],
+            &alignment(vec![
+                span(AlignmentKind::Match, &[1], &[11]),
+                span(AlignmentKind::Match, &[2], &[12]),
+                span(AlignmentKind::Unresolved, &[3], &[13]),
+            ]),
+            input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
+            limits(),
+        );
+
+        assert!(result.metrics.complete);
+        assert_eq!(
+            result.proposal_outcome,
+            SectionPairingProposalOutcome::Unavailable(
+                SectionPairingProposalStopReason::AmbiguousProposal
+            )
+        );
+    }
+
+    #[test]
+    fn myers_work_bound_includes_triangular_trace_cost() {
+        assert_eq!(proposal_myers_work(10, 2), Ok(36));
+        assert_eq!(proposal_myers_work(10, 0), Ok(11));
+    }
+
+    #[test]
+    fn default_proposal_limits_are_hard_capped() {
+        let limits = SectionPairingLimits::from_max_tokens(5_100_000);
+
+        assert_eq!(limits.max_proposals, MAX_SECTION_PROPOSALS);
+        assert_eq!(limits.max_proposal_tokens, MAX_SECTION_PROPOSAL_TOKENS);
+        assert_eq!(limits.max_proposal_work, MAX_SECTION_PROPOSAL_WORK);
+        assert_eq!(limits.max_proposal_edits, MAX_SECTION_PROPOSAL_EDITS);
+        assert_eq!(
+            limits.max_proposal_payload_items,
+            MAX_SECTION_PROPOSAL_PAYLOAD_ITEMS
+        );
+        assert_eq!(
+            limits.max_proposal_estimated_bytes,
+            MAX_SECTION_PROPOSAL_BYTES
+        );
+        assert_eq!(
+            limits.max_ledger_index_entries,
+            MAX_SECTION_LEDGER_INDEX_ENTRIES
+        );
     }
 
     #[test]
@@ -1248,10 +2238,20 @@ mod tests {
         let new = vec![block(11, "1 Introduction", 20.0), block(12, "Body.", 10.0)];
         let old_intervals = intervals(old.len());
         let new_intervals = intervals(new.len());
+        let old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
         let result = analyze_section_pairing_shadow(
             [&side(&old), &side(&new)],
             &alignment(vec![span(AlignmentKind::Match, &[1, 2], &[11])]),
             input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
             limits(),
         );
 
@@ -1270,6 +2270,8 @@ mod tests {
             [&side(&old), &side(&new)],
             &alignment(vec![span(AlignmentKind::Match, &[1], &[11])]),
             input(&old_intervals, &new_intervals),
+            None,
+            2_048,
             limits(),
         );
 
@@ -1299,6 +2301,8 @@ mod tests {
                 span(AlignmentKind::Unresolved, &[2, 3], &[12, 13]),
             ]),
             input(&old_intervals, &new_intervals),
+            None,
+            2_048,
             limits(),
         );
 
@@ -1395,10 +2399,12 @@ mod tests {
                 [&side(&old), &side(&new)],
                 &alignment,
                 input(&old_intervals, &new_intervals),
+                None,
+                2_048,
                 limits,
             );
             assert_eq!(
-                result,
+                result.metrics,
                 SectionPairingMetrics {
                     complete: false,
                     stop_reason: Some(reason),
@@ -1420,6 +2426,14 @@ mod tests {
         ];
         let old_intervals = intervals(old.len());
         let new_intervals = intervals(new.len());
+        let old_ledger = ledger(
+            &old,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
+        let new_ledger = ledger(
+            &new,
+            RecoveryOwnership::Leaf(RecoveryLeafKind::SentenceBody),
+        );
         let result = analyze_section_pairing_shadow(
             [&side(&old), &side(&new)],
             &alignment(vec![
@@ -1427,6 +2441,8 @@ mod tests {
                 span(AlignmentKind::Unresolved, &[2], &[12]),
             ]),
             input(&old_intervals, &new_intervals),
+            Some([&old_ledger, &new_ledger]),
+            2_048,
             limits(),
         );
 
@@ -1440,6 +2456,11 @@ mod tests {
             result.number_only_changed_one_to_one_same_unresolved_span,
             1
         );
+        let SectionPairingProposalOutcome::Complete(proposals) = &result.proposal_outcome else {
+            panic!("proposals must be complete");
+        };
+        assert_eq!(proposals.len(), 1);
+        assert_eq!(proposals[0].view, SectionPairingView::NumberOnly);
     }
 
     #[test]
@@ -1464,6 +2485,8 @@ mod tests {
                 span(AlignmentKind::Match, &[3], &[13]),
             ]),
             input(&old_intervals, &new_intervals),
+            None,
+            2_048,
             limits(),
         );
 
@@ -1495,6 +2518,8 @@ mod tests {
                 span(AlignmentKind::Unresolved, &[2], &[12, 13]),
             ]),
             input(&old_intervals, &new_intervals),
+            None,
+            2_048,
             limits(),
         );
 
@@ -1515,6 +2540,8 @@ mod tests {
             [&side(&old), &side(&new)],
             &alignment(vec![span(AlignmentKind::Match, &[1], &[11])]),
             input(&old_intervals, &new_intervals),
+            None,
+            2_048,
             limits(),
         );
 
@@ -1535,6 +2562,8 @@ mod tests {
             [&side(&old), &side(&new)],
             &alignment(vec![span(AlignmentKind::Match, &[1], &[11])]),
             input(&old_intervals, &new_intervals),
+            None,
+            2_048,
             limits(),
         );
 
@@ -1555,6 +2584,8 @@ mod tests {
                     prominent: true,
                     run_id: TrustedRunId(if new { 2 } else { 1 }),
                     ordinal_start: index,
+                    ordinal_end: index + 1,
+                    page: 1,
                     paragraphs: Vec::new(),
                     strong_paragraphs: Vec::new(),
                 })
@@ -1564,30 +2595,45 @@ mod tests {
             number_only_paragraph_memberships: 0,
         };
         let structures = [structure(false), structure(true)];
-        let pairs = [
+        let mut pairs = [
             SectionPair {
                 old: 0,
                 new: 1,
                 strong: true,
+                heading_evidence: SectionHeadingEvidence::Exact,
+                match_span_index: 0,
+                match_confidence: AlignmentConfidence::High,
+                topology: SectionPairTopology::Unknown,
             },
             SectionPair {
                 old: 1,
                 new: 0,
                 strong: true,
+                heading_evidence: SectionHeadingEvidence::Exact,
+                match_span_index: 1,
+                match_confidence: AlignmentConfidence::High,
+                topology: SectionPairTopology::Unknown,
             },
             SectionPair {
                 old: 2,
                 new: 2,
                 strong: true,
+                heading_evidence: SectionHeadingEvidence::Exact,
+                match_span_index: 2,
+                match_confidence: AlignmentConfidence::High,
+                topology: SectionPairTopology::Unknown,
             },
         ];
         let mut metrics = SectionPairingMetrics::default();
 
-        classify_pair_topology(&pairs, &structures, &mut metrics).expect("topology fits");
+        classify_pair_topology(&mut pairs, &structures, &mut metrics).expect("topology fits");
 
         assert_eq!(metrics.crossing_pairs, 2);
         assert_eq!(metrics.monotone_pairs, 1);
         assert_eq!(metrics.topology_unknown_pairs, 0);
+        assert_eq!(pairs[0].topology, SectionPairTopology::Crossing);
+        assert_eq!(pairs[1].topology, SectionPairTopology::Crossing);
+        assert_eq!(pairs[2].topology, SectionPairTopology::Monotone);
     }
 
     #[test]
@@ -1599,6 +2645,8 @@ mod tests {
             prominent: true,
             run_id: TrustedRunId(run_id),
             ordinal_start,
+            ordinal_end: ordinal_start + 1,
+            page: 1,
             paragraphs: Vec::new(),
             strong_paragraphs: Vec::new(),
         };
@@ -1616,25 +2664,38 @@ mod tests {
                 number_only_paragraph_memberships: 0,
             },
         ];
-        let pairs = [
+        let mut pairs = [
             SectionPair {
                 old: 0,
                 new: 0,
                 strong: true,
+                heading_evidence: SectionHeadingEvidence::Exact,
+                match_span_index: 0,
+                match_confidence: AlignmentConfidence::High,
+                topology: SectionPairTopology::Unknown,
             },
             SectionPair {
                 old: 1,
                 new: 1,
                 strong: true,
+                heading_evidence: SectionHeadingEvidence::Exact,
+                match_span_index: 1,
+                match_confidence: AlignmentConfidence::High,
+                topology: SectionPairTopology::Unknown,
             },
         ];
         let mut metrics = SectionPairingMetrics::default();
 
-        classify_pair_topology(&pairs, &structures, &mut metrics).expect("topology fits");
+        classify_pair_topology(&mut pairs, &structures, &mut metrics).expect("topology fits");
 
         assert_eq!(metrics.monotone_pairs, 0);
         assert_eq!(metrics.crossing_pairs, 0);
         assert_eq!(metrics.topology_unknown_pairs, 2);
+        assert!(
+            pairs
+                .iter()
+                .all(|pair| pair.topology == SectionPairTopology::Unknown)
+        );
     }
 
     #[test]
@@ -1648,6 +2709,8 @@ mod tests {
                     prominent: false,
                     run_id: TrustedRunId(1),
                     ordinal_start: 0,
+                    ordinal_end: 1,
+                    page: 1,
                     paragraphs: Vec::new(),
                     strong_paragraphs: Vec::new(),
                 },
@@ -1658,6 +2721,8 @@ mod tests {
                     prominent: true,
                     run_id: TrustedRunId(1),
                     ordinal_start: 1,
+                    ordinal_end: 2,
+                    page: 1,
                     paragraphs: Vec::new(),
                     strong_paragraphs: Vec::new(),
                 },
@@ -1672,11 +2737,19 @@ mod tests {
                 old: 0,
                 new: 0,
                 strong: false,
+                heading_evidence: SectionHeadingEvidence::Exact,
+                match_span_index: 0,
+                match_confidence: AlignmentConfidence::High,
+                topology: SectionPairTopology::Unknown,
             },
             SectionPair {
                 old: 1,
                 new: 1,
                 strong: true,
+                heading_evidence: SectionHeadingEvidence::Exact,
+                match_span_index: 1,
+                match_confidence: AlignmentConfidence::High,
+                topology: SectionPairTopology::Unknown,
             },
         ];
         let map = pair_map(&pairs, 2, false).expect("pair map fits");
@@ -1688,7 +2761,7 @@ mod tests {
                 &map,
                 &pair_map(&pairs, 2, true).expect("reverse map fits")
             ),
-            ParentRelation::Unknown
+            SectionParentRelation::Unknown
         ));
     }
 }

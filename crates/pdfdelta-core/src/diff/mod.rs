@@ -16,7 +16,12 @@ pub use recovery::ownership::{
     RecoveryOwnershipSideAnalysis, RecoveryOwnershipSideMetrics, RecoveryOwnershipSideSamples,
     RecoveryOwnershipTrustMetrics,
 };
-pub use recovery::section_pairing::{SectionPairingMetrics, SectionPairingStopReason};
+pub use recovery::section_pairing::{
+    SectionHeadingEvidence, SectionPairTopology, SectionPairingMetrics, SectionPairingProposal,
+    SectionPairingProposalOutcome, SectionPairingProposalSide, SectionPairingProposalStopReason,
+    SectionPairingStopReason, SectionPairingView, SectionParentRelation, SectionProposalEdits,
+    SectionProposalOwnership, SectionProposalOwnershipRange,
+};
 
 /// Keeps the retained Myers frontier and trace below the internal 64 MiB
 /// allocation budget while allowing benchmark runs to exceed the default.
@@ -2714,11 +2719,13 @@ fn compare_aligned_inner(
     let section_pairing_shadow = sentence_recovery
         .validated_recovery_ownership_proof_ledgers()
         .zip(recovery.filter(|input| input.enable_known_span_sentence_shadow))
-        .map(|(_, recovery)| {
+        .map(|(ledgers, recovery)| {
             recovery::section_pairing::analyze_section_pairing_shadow(
                 [&old, &new],
                 alignment,
                 recovery,
+                Some([&ledgers[0], &ledgers[1]]),
+                options.max_edit_distance,
                 recovery::section_pairing::SectionPairingLimits::from_max_tokens(
                     options.max_tokens,
                 ),
@@ -2750,11 +2757,11 @@ fn compare_aligned_inner(
     ) {
         partition.set_structural_container_metrics(metrics);
     }
-    if let (Some(partition), Some(metrics)) = (
+    if let (Some(partition), Some(analysis)) = (
         recovery_ownership_partition.as_mut(),
         section_pairing_shadow,
     ) {
-        partition.set_section_pairing_metrics(metrics);
+        partition.set_section_pairing_analysis(analysis);
     }
     if let Some(metrics) = sentence_recovery_metrics.as_mut()
         && apply_ordered_alignment_origin(metrics, &changes, resolved_old, resolved_new).is_none()

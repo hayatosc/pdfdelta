@@ -1,7 +1,9 @@
 //! Bounded verification and aggregation for recovery token ownership.
 
 use super::container::StructuralContainerMetrics;
-use super::section_pairing::SectionPairingMetrics;
+use super::section_pairing::{
+    SectionPairingAnalysis, SectionPairingMetrics, SectionPairingProposalOutcome,
+};
 #[cfg(test)]
 const RECOVERY_OWNERSHIP_SAMPLE_LIMIT: usize = 1;
 
@@ -329,7 +331,7 @@ pub struct RecoveryOwnershipPartitionSamples {
 pub struct RecoveryOwnershipPartitionAnalysis {
     sides: Vec<RecoveryOwnershipSideAnalysis>,
     structural_container_metrics: Option<StructuralContainerMetrics>,
-    section_pairing_metrics: Option<SectionPairingMetrics>,
+    section_pairing_analysis: Option<SectionPairingAnalysis>,
 }
 
 impl RecoveryOwnershipPartitionAnalysis {
@@ -346,7 +348,7 @@ impl RecoveryOwnershipPartitionAnalysis {
         Ok(Self {
             sides,
             structural_container_metrics: None,
-            section_pairing_metrics: None,
+            section_pairing_analysis: None,
         })
     }
 
@@ -377,11 +379,20 @@ impl RecoveryOwnershipPartitionAnalysis {
     /// Returns behavior-neutral section-pairing diagnostics derived from the
     /// normalized blocks and trusted-run evidence.
     pub fn section_pairing_metrics(&self) -> Option<SectionPairingMetrics> {
-        self.section_pairing_metrics
+        self.section_pairing_analysis
+            .as_ref()
+            .map(|analysis| analysis.metrics)
     }
 
-    pub(crate) fn set_section_pairing_metrics(&mut self, metrics: SectionPairingMetrics) {
-        self.section_pairing_metrics = Some(metrics);
+    /// Returns the atomic section-pairing proposal outcome, when diagnostics ran.
+    pub fn section_pairing_proposal_outcome(&self) -> Option<&SectionPairingProposalOutcome> {
+        self.section_pairing_analysis
+            .as_ref()
+            .map(|analysis| &analysis.proposal_outcome)
+    }
+
+    pub(crate) fn set_section_pairing_analysis(&mut self, analysis: SectionPairingAnalysis) {
+        self.section_pairing_analysis = Some(analysis);
     }
 }
 
@@ -901,6 +912,19 @@ mod tests {
             ownership,
             context: RecoveryOwnershipContext::default(),
         }
+    }
+
+    #[test]
+    fn section_pairing_analysis_is_absent_until_diagnostic_gate_runs() {
+        let side = RecoveryOwnershipSideAnalysis {
+            metrics: RecoveryOwnershipSideMetrics::default(),
+            samples: RecoveryOwnershipSideSamples::default(),
+        };
+        let analysis = RecoveryOwnershipPartitionAnalysis::try_new(side.clone(), side)
+            .expect("two-side allocation fits");
+
+        assert_eq!(analysis.section_pairing_metrics(), None);
+        assert_eq!(analysis.section_pairing_proposal_outcome(), None);
     }
 
     #[test]

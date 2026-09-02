@@ -95,6 +95,8 @@ mod fragment_review;
 mod revision_diagnostics;
 #[path = "revision_scopes.rs"]
 mod revision_scopes;
+#[path = "revisions/section_pairing_review.rs"]
+mod section_pairing_review;
 
 use fragment_review::{
     LocalFragmentReviewBundleReport, build_local_fragment_review_bundle,
@@ -104,6 +106,9 @@ use revision_diagnostics::{ComparisonDiagnosticInput, evaluate_reviewed_diagnost
 use revision_scopes::{
     SCOPED_CHANGE_INDETERMINATE, classify_scoped_changes, classify_scoped_proven_changed_regions,
     evaluate_scoped_token_metrics, resolve_revision_scopes, validate_scoped_expected_changes,
+};
+use section_pairing_review::{
+    SectionPairingProposalReviewBundleReport, build_section_pairing_proposal_review_bundle,
 };
 
 pub const QUALITY_SKIP_RESOURCE_LIMIT: &str = "comparison stopped at a resource limit";
@@ -1721,6 +1726,8 @@ pub struct SectionPairingMetricsReport {
 pub struct SentenceRecoveryMetricsReport {
     pub change_origins: ChangeOriginMetricsReport,
     pub local_fragment_review_bundle: LocalFragmentReviewBundleReport,
+    pub section_pairing_proposal_review_bundle:
+        Option<Box<SectionPairingProposalReviewBundleReport>>,
     pub recovery_leaf_partition_complete: Option<bool>,
     pub recovery_leaf_partition_stop_reason: Option<RecoveryOwnershipErrorReport>,
     pub recovery_ownership_partition: Option<RecoveryOwnershipPartitionReport>,
@@ -4699,6 +4706,7 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
         Self {
             change_origins: metrics.change_origins.into(),
             local_fragment_review_bundle: LocalFragmentReviewBundleReport::default(),
+            section_pairing_proposal_review_bundle: None,
             recovery_leaf_partition_complete: metrics.recovery_leaf_partition_complete,
             recovery_leaf_partition_stop_reason: metrics
                 .recovery_leaf_partition_stop_reason
@@ -13768,6 +13776,26 @@ fn compare_outcomes_with_metrics(
             .map_err(|message| {
                 RevisionRunError::Other("local-fragment review contract violation", message)
             })?;
+            report.section_pairing_proposal_review_bundle =
+                build_section_pairing_proposal_review_bundle(
+                    recovery_ownership_partition.as_ref().and_then(
+                        RecoveryOwnershipPartitionAnalysis::section_pairing_proposal_outcome,
+                    ),
+                    recovery_ownership_partition
+                        .as_ref()
+                        .and_then(RecoveryOwnershipPartitionAnalysis::section_pairing_metrics),
+                    &outcome.comparison,
+                    &outcome.old_blocks,
+                    &outcome.new_blocks,
+                    &outcome.old_glyph_evidence,
+                    &outcome.new_glyph_evidence,
+                )
+                .map_err(|message| {
+                    RevisionRunError::Other(
+                        "section-pairing proposal review contract violation",
+                        message,
+                    )
+                })?;
             Some(report)
         }
         None if recovery_ownership_partition.is_some() => {
@@ -14041,7 +14069,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 62;
+    pub const SCHEMA_VERSION: u32 = 63;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -15947,7 +15975,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 62);
+        assert_eq!(completed["schema_version"], 63);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -16021,7 +16049,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 62);
+        assert_eq!(legacy_summary["schema_version"], 63);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -16098,7 +16126,7 @@ mod tests {
         assert!(full.get("reviewed_recall_metrics").is_none());
         let summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[report]))
             .expect("summary serializes");
-        assert_eq!(summary["schema_version"], 62);
+        assert_eq!(summary["schema_version"], 63);
         assert_eq!(
             summary["records"][0]["reviewed_recall_metrics"],
             serde_json::json!({
@@ -18883,6 +18911,24 @@ mod tests {
                     complete: true,
                     ..SectionPairingMetricsReport::default()
                 })),
+                section_pairing_proposal_review_bundle: Some(Box::new(
+                    SectionPairingProposalReviewBundleReport::Complete {
+                        total: 0,
+                        strong: 0,
+                        number_only: 0,
+                        ownership_adoptable: 0,
+                        exact_edits: 0,
+                        edit_distance_exceeded: 0,
+                        existing_change_overlap: 0,
+                        initial_structural_gate: 0,
+                        sample_limit: 256,
+                        truncated: false,
+                        fingerprint_sha256:
+                            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                                .to_owned(),
+                        samples: Vec::new(),
+                    },
+                )),
                 structural_pairing_available: true,
                 near_relation_complete: true,
                 sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetricsReport {
@@ -19114,7 +19160,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 62);
+        assert_eq!(json["schema_version"], 63);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -26382,6 +26428,24 @@ mod tests {
                         monotone_pairs: 1,
                         ..SectionPairingMetricsReport::default()
                     })),
+                    section_pairing_proposal_review_bundle: Some(Box::new(
+                        SectionPairingProposalReviewBundleReport::Complete {
+                            total: 0,
+                            strong: 0,
+                            number_only: 0,
+                            ownership_adoptable: 0,
+                            exact_edits: 0,
+                            edit_distance_exceeded: 0,
+                            existing_change_overlap: 0,
+                            initial_structural_gate: 0,
+                            sample_limit: 256,
+                            truncated: false,
+                            fingerprint_sha256:
+                                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                                    .to_owned(),
+                            samples: Vec::new(),
+                        },
+                    )),
                     old_trusted_run_source_tokens: 42,
                     near_relation_complete: true,
                     sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetricsReport {
@@ -26531,7 +26595,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 62);
+        assert_eq!(value["schema_version"], 63);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -26702,6 +26766,7 @@ mod tests {
             "local_fragment_proposals_considered".to_owned(),
             "local_fragment_proposals_committed".to_owned(),
             "local_fragment_review_bundle".to_owned(),
+            "section_pairing_proposal_review_bundle".to_owned(),
             "sentence_edge_filter_complete".to_owned(),
             "sentence_edge_filter_pairs_examined".to_owned(),
             "sentence_edge_filter_pairs_attempted".to_owned(),
@@ -26853,6 +26918,31 @@ mod tests {
                 "total_occurrences".to_owned(),
                 "sample_limit".to_owned(),
                 "truncated".to_owned(),
+                "samples".to_owned(),
+            ])
+        );
+        let section_proposal_bundle =
+            records[0]["sentence_recovery_metrics"]["section_pairing_proposal_review_bundle"]
+                .as_object()
+                .expect("section-pairing proposal review bundle object");
+        assert_eq!(
+            section_proposal_bundle
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>(),
+            HashSet::from([
+                "status".to_owned(),
+                "total".to_owned(),
+                "strong".to_owned(),
+                "number_only".to_owned(),
+                "ownership_adoptable".to_owned(),
+                "exact_edits".to_owned(),
+                "edit_distance_exceeded".to_owned(),
+                "existing_change_overlap".to_owned(),
+                "initial_structural_gate".to_owned(),
+                "sample_limit".to_owned(),
+                "truncated".to_owned(),
+                "fingerprint_sha256".to_owned(),
                 "samples".to_owned(),
             ])
         );
