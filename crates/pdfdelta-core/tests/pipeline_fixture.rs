@@ -1012,6 +1012,7 @@ fn records_each_completed_pipeline_phase_with_bounded_metrics() -> Result<()> {
         .find(|record| record.phase == PipelinePhase::ExactDiff)
         .expect("exact diff should be recorded");
     assert_eq!(exact_diff.metrics.changes, Some(1));
+    assert_eq!(exact_diff.metrics.proven_changed_regions, Some(0));
     Ok(())
 }
 

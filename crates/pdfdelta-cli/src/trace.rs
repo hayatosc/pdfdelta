@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 24;
+const TRACE_SCHEMA_VERSION: u8 = 25;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -530,6 +530,7 @@ fn pipeline_metrics(
         ),
         ("max_candidate_visits", metrics.max_candidate_visits),
         ("changes", metrics.changes),
+        ("proven_changed_regions", metrics.proven_changed_regions),
         ("formatting_changes", metrics.formatting_changes),
         ("unresolved_regions", metrics.unresolved_regions),
     ]
@@ -1852,8 +1853,8 @@ mod tests {
     use super::{TRACE_SCHEMA_VERSION, bounded_message, pipeline_metrics};
 
     #[test]
-    fn trace_schema_version_covers_direct_execution_provenance() {
-        assert_eq!(TRACE_SCHEMA_VERSION, 24);
+    fn trace_schema_version_covers_proven_changed_region_metrics() {
+        assert_eq!(TRACE_SCHEMA_VERSION, 25);
     }
 
     #[test]
@@ -3261,5 +3262,22 @@ mod tests {
                 .keys()
                 .any(|name| name.starts_with("sentence_recovery_"))
         );
+    }
+
+    #[test]
+    fn serializes_presence_only_exact_diff_metrics() {
+        let metrics = pipeline_metrics(
+            PipelineMetrics {
+                changes: Some(0),
+                proven_changed_regions: Some(1),
+                unresolved_regions: Some(1),
+                ..PipelineMetrics::default()
+            },
+            None,
+        );
+
+        assert_eq!(metrics["changes"], 0);
+        assert_eq!(metrics["proven_changed_regions"], 1);
+        assert_eq!(metrics["unresolved_regions"], 1);
     }
 }

@@ -2041,6 +2041,7 @@ mod tests {
         };
         Comparison {
             changes,
+            proven_changed_regions: Vec::new(),
             formatting_changes: Vec::new(),
             unresolved_regions,
             old_coverage: coverage,

@@ -9,7 +9,10 @@ use std::collections::{BTreeMap, HashSet};
 use crate::{
     Error, Result,
     alignment::BlockSeparator,
-    diff::{ChangeKind, ChangeTag, Comparison, Confidence, TextSpan},
+    diff::{
+        ChangeKind, ChangeTag, ChangedRegionProof, Comparison, Confidence, ProvenChangedRegion,
+        TextSpan,
+    },
     layout::BlockId,
     model::FontProgramHash,
     normalize::{BlockText, ComparableToken},
@@ -105,6 +108,8 @@ impl Default for ExtractionStatus {
 pub struct ReportSummary {
     /// Number of reportable semantic content changes (replacements, deletions, insertions, moves).
     pub content_changes: usize,
+    /// Number of regions with a proven content difference but no exact semantic relation.
+    pub proven_changed_regions: usize,
     /// Number of non-content formatting/structural changes between canonically equivalent text spans.
     pub formatting_only_changes: usize,
     /// Number of content changes with [`Confidence::Low`].
@@ -153,13 +158,15 @@ pub fn summarize(comparison: &Comparison, extraction: &ExtractionStatus) -> Resu
         extraction.new_complete,
     )?;
 
-    let comparison_complete = comparison.unresolved_regions.is_empty()
+    let comparison_complete = comparison.proven_changed_regions.is_empty()
+        && comparison.unresolved_regions.is_empty()
         && comparison.old_coverage.resolved_tokens == comparison.old_coverage.total_tokens
         && comparison.new_coverage.resolved_tokens == comparison.new_coverage.total_tokens
         && extraction.old_complete
         && extraction.new_complete;
     Ok(ReportSummary {
         content_changes: comparison.changes.len(),
+        proven_changed_regions: comparison.proven_changed_regions.len(),
         formatting_only_changes: comparison.formatting_changes.len(),
         uncertain_changes: comparison
             .changes
@@ -364,7 +371,7 @@ pub fn exit_status(
     let summary = summarize(comparison, extraction)?;
     if strict && !summary.comparison_complete {
         Ok(ExitStatus::IncompleteComparison)
-    } else if summary.content_changes > 0 {
+    } else if summary.content_changes > 0 || summary.proven_changed_regions > 0 {
         Ok(ExitStatus::ContentChanges)
     } else {
         Ok(ExitStatus::NoContentChanges)
@@ -433,6 +440,10 @@ fn validate_comparison(comparison: &Comparison) -> Result<()> {
         }
     }
 
+    for region in &comparison.proven_changed_regions {
+        validate_proven_changed_region(region)?;
+    }
+
     for change in &comparison.formatting_changes {
         validate_text_span("formatting change", &change.old_span)?;
         validate_text_span("formatting change", &change.new_span)?;
@@ -454,6 +465,28 @@ fn validate_comparison(comparison: &Comparison) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn validate_proven_changed_region(region: &ProvenChangedRegion) -> Result<()> {
+    for span in region.old_span.iter().chain(region.new_span.iter()) {
+        validate_text_span("proven changed region", span)?;
+    }
+    let old_non_empty = region.old_span.as_ref().is_some_and(non_empty_span);
+    let new_non_empty = region.new_span.as_ref().is_some_and(non_empty_span);
+    let valid = match region.proof {
+        ChangedRegionProof::ExactTokenMultisetMismatch => old_non_empty && new_non_empty,
+        ChangedRegionProof::OneSidedNonEmptyRange => old_non_empty ^ new_non_empty,
+    };
+    if !valid {
+        return Err(Error::InvalidConfiguration(
+            "proven changed region span shape does not match its proof".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn non_empty_span(span: &TextSpan) -> bool {
+    span.comparable_range.start < span.comparable_range.end
 }
 
 fn validate_change_occurrence(

@@ -6,8 +6,8 @@ use crate::{
     Error, Result,
     alignment::{AlignmentEvidence, BlockSeparator, CandidateSource},
     diff::{
-        ChangeEvent, Comparison, Coverage, FormattingChange, FormattingReason, TextSpan,
-        UnresolvedRegion,
+        ChangeEvent, ChangedRegionProof, Comparison, Coverage, FormattingChange, FormattingReason,
+        ProvenChangedRegion, TextSpan, UnresolvedRegion,
     },
     model::{GlyphEvidence, Rect},
     normalize::BlockText,
@@ -20,7 +20,7 @@ use super::{
     side_name, summarize,
 };
 
-const SCHEMA_VERSION: u32 = 8;
+const SCHEMA_VERSION: u32 = 9;
 
 pub fn write_json<W: Write>(
     mut writer: W,
@@ -65,6 +65,7 @@ struct JsonReport<'a> {
     schema_version: u32,
     summary: JsonSummary,
     changes: Vec<JsonChange>,
+    proven_changed_regions: Vec<JsonProvenChangedRegion>,
     formatting_only_changes: Vec<JsonFormattingChange>,
     unresolved_regions: Vec<JsonUnresolvedRegion>,
     extraction: JsonExtraction<'a>,
@@ -90,6 +91,11 @@ impl<'a> JsonReport<'a> {
             .iter()
             .map(|change| JsonFormattingChange::new(change, old, new, old_sources, new_sources))
             .collect::<Result<Vec<_>>>()?;
+        let proven_changed_regions = comparison
+            .proven_changed_regions
+            .iter()
+            .map(|region| JsonProvenChangedRegion::new(region, old, new, old_sources, new_sources))
+            .collect::<Result<Vec<_>>>()?;
         let unresolved_regions = comparison
             .unresolved_regions
             .iter()
@@ -99,6 +105,7 @@ impl<'a> JsonReport<'a> {
             schema_version: SCHEMA_VERSION,
             summary: JsonSummary::new(summary, comparison),
             changes,
+            proven_changed_regions,
             formatting_only_changes,
             unresolved_regions,
             extraction: JsonExtraction::new(extraction),
@@ -109,6 +116,7 @@ impl<'a> JsonReport<'a> {
 #[derive(Serialize)]
 struct JsonSummary {
     content_changes: usize,
+    proven_changed_regions: usize,
     formatting_only_changes: usize,
     uncertain_changes: usize,
     unresolved_regions: usize,
@@ -124,6 +132,7 @@ impl JsonSummary {
     fn new(summary: ReportSummary, comparison: &Comparison) -> Self {
         Self {
             content_changes: summary.content_changes,
+            proven_changed_regions: summary.proven_changed_regions,
             formatting_only_changes: summary.formatting_only_changes,
             uncertain_changes: summary.uncertain_changes,
             unresolved_regions: summary.unresolved_regions,
@@ -134,6 +143,42 @@ impl JsonSummary {
             new_alignment_coverage: comparison.new_coverage.into(),
             comparison_coverage_ratio: summary.comparison_coverage,
         }
+    }
+}
+
+#[derive(Serialize)]
+struct JsonProvenChangedRegion {
+    old_span: Option<JsonTextSpan>,
+    new_span: Option<JsonTextSpan>,
+    proof: &'static str,
+    confidence: &'static str,
+}
+
+impl JsonProvenChangedRegion {
+    fn new(
+        region: &ProvenChangedRegion,
+        old: &SideIndex<'_>,
+        new: &SideIndex<'_>,
+        old_sources: &SpanSourceProjector<'_>,
+        new_sources: &SpanSourceProjector<'_>,
+    ) -> Result<Self> {
+        Ok(Self {
+            old_span: region
+                .old_span
+                .as_ref()
+                .map(|span| JsonTextSpan::new(span, old, old_sources))
+                .transpose()?,
+            new_span: region
+                .new_span
+                .as_ref()
+                .map(|span| JsonTextSpan::new(span, new, new_sources))
+                .transpose()?,
+            proof: match region.proof {
+                ChangedRegionProof::ExactTokenMultisetMismatch => "exact_token_multiset_mismatch",
+                ChangedRegionProof::OneSidedNonEmptyRange => "one_sided_non_empty_range",
+            },
+            confidence: confidence(region.confidence),
+        })
     }
 }
 

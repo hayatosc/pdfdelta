@@ -583,7 +583,7 @@ fn writes_json_report_atomically() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let json = fs::read_to_string(report).expect("JSON report should be readable");
-    assert!(json.contains("\"schema_version\": 8"));
+    assert!(json.contains("\"schema_version\": 9"));
     assert!(json.contains("\"content_changes\": 0"));
     assert_no_temporary_reports(&directory);
 }
@@ -612,7 +612,7 @@ fn writes_complete_phase_trace_separately_from_the_report() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let trace = read_json(&trace);
-    assert_eq!(trace["trace_schema_version"], 24);
+    assert_eq!(trace["trace_schema_version"], 25);
     assert_eq!(trace["command"]["kind"], "compare");
     assert_eq!(trace["result"]["status"], "completed");
     assert_eq!(trace["result"]["exit_code"], 0);
@@ -1026,7 +1026,7 @@ fn malformed_type0_extraction_reports_without_false_changes() {
         &fs::read(report_path).expect("incomplete JSON report should be readable"),
     )
     .expect("incomplete JSON report should be valid");
-    assert_eq!(report["schema_version"], 8);
+    assert_eq!(report["schema_version"], 9);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["comparison_complete"], false);
     assert_eq!(report["summary"]["unresolved_extraction_issues"], 1);
@@ -1098,7 +1098,7 @@ fn localized_page_tree_gap_preserves_known_change_and_reports_boundary() {
         &fs::read(report_path).expect("page-gap JSON report should be readable"),
     )
     .expect("page-gap JSON report should be valid");
-    assert_eq!(report["schema_version"], 8);
+    assert_eq!(report["schema_version"], 9);
     assert_eq!(report["summary"]["content_changes"], 1);
     assert_eq!(report["summary"]["unresolved_regions"], 1);
     assert_eq!(report["extraction"]["issues"][0]["scope"], "page_gap");
@@ -1556,7 +1556,7 @@ fn externally_rendered_typst_case3_revision_pair_reports_exact_replacement() {
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 8);
+    assert_eq!(report["schema_version"], 9);
     assert_eq!(report["summary"]["content_changes"], 1);
     assert_eq!(report["summary"]["formatting_only_changes"], 0);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -1703,7 +1703,7 @@ fn externally_rendered_typst_japanese_revision_pair_reports_exact_replacement() 
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 8);
+    assert_eq!(report["schema_version"], 9);
     assert_eq!(report["summary"]["content_changes"], 1);
     assert_eq!(report["summary"]["formatting_only_changes"], 0);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -1857,7 +1857,7 @@ fn externally_rendered_typst_japanese_case1_wrap_revision_pair_reports_zero_cont
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 8);
+    assert_eq!(report["schema_version"], 9);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["formatting_only_changes"], 2);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -2042,7 +2042,7 @@ fn externally_rendered_typst_japanese_case2_pagebreak_revision_pair_reports_zero
     let report: serde_json::Value =
         serde_json::from_str(&json_text).expect("JSON report should parse");
 
-    assert_eq!(report["schema_version"], 8);
+    assert_eq!(report["schema_version"], 9);
     assert_eq!(report["summary"]["content_changes"], 0);
     assert_eq!(report["summary"]["formatting_only_changes"], 1);
     assert_eq!(report["summary"]["uncertain_changes"], 0);
@@ -2208,7 +2208,7 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     let forward_report: serde_json::Value =
         serde_json::from_str(&forward_json_text).expect("forward JSON report should parse");
 
-    assert_eq!(forward_report["schema_version"], 8);
+    assert_eq!(forward_report["schema_version"], 9);
     assert_eq!(forward_report["summary"]["content_changes"], 1);
     assert_eq!(forward_report["summary"]["formatting_only_changes"], 1);
     assert_eq!(forward_report["summary"]["uncertain_changes"], 0);
@@ -2342,7 +2342,7 @@ fn externally_rendered_typst_japanese_case4_case5_revision_pair_reports_exact_in
     let reverse_report: serde_json::Value =
         serde_json::from_str(&reverse_json_text).expect("reverse JSON report should parse");
 
-    assert_eq!(reverse_report["schema_version"], 8);
+    assert_eq!(reverse_report["schema_version"], 9);
     assert_eq!(reverse_report["summary"]["content_changes"], 1);
     assert_eq!(reverse_report["summary"]["formatting_only_changes"], 1);
     assert_eq!(reverse_report["summary"]["uncertain_changes"], 0);
@@ -2650,11 +2650,16 @@ fn assert_complete_json_report(
 ) {
     let json = fs::read_to_string(report_path).expect("JSON report should be readable");
     let report: Value = serde_json::from_str(&json).expect("JSON report should be valid");
-    assert_eq!(report["schema_version"], 8, "{report:#}");
+    assert_eq!(report["schema_version"], 9, "{report:#}");
     let summary = &report["summary"];
     assert_eq!(
         summary["content_changes"].as_u64(),
         Some(u64::try_from(expected_changes).expect("expected change count should fit in u64")),
+        "{report:#}"
+    );
+    assert_eq!(
+        summary["proven_changed_regions"].as_u64(),
+        Some(0),
         "{report:#}"
     );
     assert_eq!(
@@ -2683,6 +2688,10 @@ fn assert_complete_json_report(
         .as_array()
         .expect("unresolved regions should be an array");
     assert!(unresolved.is_empty(), "{report:#}");
+    let proven = report["proven_changed_regions"]
+        .as_array()
+        .expect("proven changed regions should be an array");
+    assert!(proven.is_empty(), "{report:#}");
     let changes = report["changes"]
         .as_array()
         .expect("changes should be an array");

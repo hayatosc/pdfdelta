@@ -2,8 +2,9 @@ use pdfdelta_core::{
     Error, Result,
     alignment::{AlignmentEvidence, BlockSeparator, CandidateSource},
     diff::{
-        Change, ChangeKind, ChangeOccurrence, ChangeTag, Comparison, Confidence, Coverage,
-        FormattingChange, FormattingReason, TextSpan, TokenRange, UnresolvedRegion,
+        Change, ChangeKind, ChangeOccurrence, ChangeTag, ChangedRegionProof, Comparison,
+        Confidence, Coverage, FormattingChange, FormattingReason, ProvenChangedRegion, TextSpan,
+        TokenRange, UnresolvedRegion,
     },
     layout::BlockId,
     model::{
@@ -44,7 +45,7 @@ fn text_report_always_states_completeness_and_coverage() -> Result<()> {
 
     assert_eq!(
         report,
-        "content changes: 0 · formatting-only: 0 · uncertain: 0 · \
+        "content changes: 0 · proven changed regions: 0 · formatting-only: 0 · uncertain: 0 · \
          unresolved regions: 0 · coverage 100.0%\n\
          \n\
          --- old.pdf\n\
@@ -131,6 +132,107 @@ fn strict_incompleteness_takes_priority_over_content_changes() -> Result<()> {
 }
 
 #[test]
+fn proven_content_difference_changes_non_strict_exit_status() -> Result<()> {
+    let mut comparison = empty_comparison();
+    comparison.proven_changed_regions.push(ProvenChangedRegion {
+        old_span: Some(span(1, 0, 4, 0, 4)),
+        new_span: Some(span(101, 0, 4, 0, 4)),
+        proof: ChangedRegionProof::ExactTokenMultisetMismatch,
+        confidence: Confidence::High,
+    });
+    assert_eq!(
+        exit_status(&comparison, &ExtractionStatus::complete(), false)?,
+        ExitStatus::ContentChanges
+    );
+    assert_eq!(
+        exit_status(&comparison, &ExtractionStatus::complete(), true)?,
+        ExitStatus::IncompleteComparison
+    );
+    let summary = summarize(&comparison, &ExtractionStatus::complete())?;
+    assert_eq!(summary.content_changes, 0);
+    assert!(!summary.comparison_complete);
+    Ok(())
+}
+
+#[test]
+fn reports_proven_content_difference_separately_from_exact_changes() -> Result<()> {
+    let old_blocks = vec![block_with_text(12, "alpha beta")];
+    let new_blocks = vec![block_with_text(112, "alpha delta")];
+    let mut comparison = empty_comparison();
+    comparison.proven_changed_regions.push(ProvenChangedRegion {
+        old_span: Some(full_span(12, "alpha beta")),
+        new_span: Some(full_span(112, "alpha delta")),
+        proof: ChangedRegionProof::ExactTokenMultisetMismatch,
+        confidence: Confidence::High,
+    });
+
+    let text = render_text(
+        &old_blocks,
+        &new_blocks,
+        &comparison,
+        &ExtractionStatus::complete(),
+        &plain_options(),
+    )?;
+    assert!(text.contains("content changes: 0 · proven changed regions: 1"));
+    assert!(text.contains("PROVEN CONTENT DIFFERENCE"));
+    assert!(text.contains("exact token multiset mismatch; confidence: high"));
+
+    let mut output = Vec::new();
+    write_json(
+        &mut output,
+        &old_blocks,
+        &new_blocks,
+        &[],
+        &[],
+        &comparison,
+        &ExtractionStatus::complete(),
+    )?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&output).expect("report should be valid JSON");
+    assert_eq!(json["schema_version"], 9);
+    assert_eq!(json["summary"]["content_changes"], 0);
+    assert_eq!(json["summary"]["proven_changed_regions"], 1);
+    assert_eq!(
+        json["proven_changed_regions"][0]["proof"],
+        "exact_token_multiset_mismatch"
+    );
+    Ok(())
+}
+
+#[test]
+fn rejects_proven_change_with_a_proof_mismatched_span_shape() {
+    let mut comparison = empty_comparison();
+    comparison.proven_changed_regions.push(ProvenChangedRegion {
+        old_span: Some(span(1, 0, 4, 0, 4)),
+        new_span: None,
+        proof: ChangedRegionProof::ExactTokenMultisetMismatch,
+        confidence: Confidence::High,
+    });
+
+    assert!(matches!(
+        summarize(&comparison, &ExtractionStatus::complete()),
+        Err(Error::InvalidConfiguration(message))
+            if message.contains("span shape does not match its proof")
+    ));
+}
+
+#[test]
+fn accepts_one_sided_non_empty_proven_change() -> Result<()> {
+    let mut comparison = empty_comparison();
+    comparison.proven_changed_regions.push(ProvenChangedRegion {
+        old_span: None,
+        new_span: Some(span(101, 0, 4, 0, 4)),
+        proof: ChangedRegionProof::OneSidedNonEmptyRange,
+        confidence: Confidence::High,
+    });
+
+    let summary = summarize(&comparison, &ExtractionStatus::complete())?;
+    assert_eq!(summary.proven_changed_regions, 1);
+    assert!(!summary.comparison_complete);
+    Ok(())
+}
+
+#[test]
 fn strict_mode_rejects_incomplete_alignment_coverage() -> Result<()> {
     let mut comparison = empty_comparison();
     comparison.old_coverage = Coverage {
@@ -212,7 +314,9 @@ fn reports_incomplete_extraction_in_text_and_strict_status() -> Result<()> {
     let report = render_text(&[], &[], &comparison, &extraction, &plain_options())?;
 
     assert!(
-        report.contains("content changes: 0 · formatting-only: 0 · uncertain: 0"),
+        report.contains(
+            "content changes: 0 · proven changed regions: 0 · formatting-only: 0 · uncertain: 0"
+        ),
         "{report}"
     );
     assert!(report.contains("coverage unknown"), "{report}");
@@ -256,7 +360,7 @@ fn reports_page_tree_gap_scope_without_synthesizing_a_page() -> Result<()> {
     write_json(&mut output, &[], &[], &[], &[], &comparison, &extraction)?;
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
-    assert_eq!(json["schema_version"], 8);
+    assert_eq!(json["schema_version"], 9);
     assert_eq!(json["extraction"]["issues"][0]["scope"], "page_gap");
     assert_eq!(json["extraction"]["issues"][0]["retained_pages_before"], 2);
     assert!(json["extraction"]["issues"][0].get("page").is_none());
@@ -338,7 +442,7 @@ fn json_report_preserves_ranges_evidence_and_side_specific_coverage() -> Result<
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 8);
+    assert_eq!(json["schema_version"], 9);
     assert_eq!(json["summary"]["content_changes"], 1);
     assert_eq!(
         json["summary"]["old_alignment_coverage"]["resolved_tokens"],
@@ -402,7 +506,7 @@ fn json_report_serializes_multi_block_separators() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 8);
+    assert_eq!(json["schema_version"], 9);
     assert_eq!(
         json["formatting_only_changes"][0]["old_span"]["block_separator"],
         "space"
@@ -465,7 +569,7 @@ fn json_report_serializes_unknown_reading_order_evidence() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 8);
+    assert_eq!(json["schema_version"], 9);
     assert_eq!(
         json["unresolved_regions"][0]["evidence"][0],
         "reading_order_unknown"
@@ -503,7 +607,7 @@ fn json_report_projects_replacement_glyph_provenance() -> Result<()> {
     let json: serde_json::Value = serde_json::from_slice(&output).expect("valid JSON report");
     let source = &json["changes"][0]["occurrences"][0]["old_span"]["sources"][0];
 
-    assert_eq!(json["schema_version"], 8);
+    assert_eq!(json["schema_version"], 9);
     assert_eq!(source["kind"], "glyph");
     assert_eq!(source["glyph_id"], 1);
     assert_eq!(source["page"], 0);
@@ -1610,7 +1714,7 @@ fn text_report_renders_replacement_insertion_and_deletion_hunks() -> Result<()> 
 
     assert_eq!(
         report,
-        "content changes: 3 · formatting-only: 0 · uncertain: 0 · \
+        "content changes: 3 · proven changed regions: 0 · formatting-only: 0 · uncertain: 0 · \
          unresolved regions: 0 · coverage 100.0%\n\
          \n\
          --- old.pdf\n\
@@ -1996,7 +2100,7 @@ fn text_report_renders_unresolved_regions_explicitly() -> Result<()> {
 
     assert_eq!(
         report,
-        "content changes: 0 · formatting-only: 0 · uncertain: 0 · \
+        "content changes: 0 · proven changed regions: 0 · formatting-only: 0 · uncertain: 0 · \
          unresolved regions: 1 · coverage 100.0%\n\
          \n\
          --- old.pdf\n\
@@ -2161,7 +2265,7 @@ fn json_report_resolves_span_text_pages_and_unmapped_tokens() -> Result<()> {
     let json: serde_json::Value =
         serde_json::from_slice(&output).expect("report should be valid JSON");
 
-    assert_eq!(json["schema_version"], 8);
+    assert_eq!(json["schema_version"], 9);
     assert_eq!(json["changes"][0]["kind"], "replacement");
     assert_eq!(json["changes"][0]["confidence"], "low");
     assert_eq!(json["changes"][0]["tags"][0], "ocr_confusion");
@@ -2272,7 +2376,7 @@ fn text_report_renders_pure_unmapped_replacement_in_the_changed_segment() -> Res
 
     assert_eq!(
         report,
-        "content changes: 1 · formatting-only: 0 · uncertain: 1 · \
+        "content changes: 1 · proven changed regions: 0 · formatting-only: 0 · uncertain: 1 · \
          unresolved regions: 0 · coverage 100.0%\n\
          \n\
          --- old.pdf\n\
@@ -2462,6 +2566,7 @@ fn separator_mismatch_keeps_adjacent_edits_in_separate_hunks() -> Result<()> {
 fn empty_comparison() -> Comparison {
     Comparison {
         changes: Vec::new(),
+        proven_changed_regions: Vec::new(),
         formatting_changes: Vec::new(),
         unresolved_regions: Vec::new(),
         old_coverage: Coverage {
@@ -3150,7 +3255,7 @@ fn text_and_json_report_renders_promoted_move_with_formatting_normalization_chan
     )?;
     assert!(
         report.contains(
-            "content changes: 1 · formatting-only: 1 · uncertain: 0 · unresolved regions: 0"
+            "content changes: 1 · proven changed regions: 0 · formatting-only: 1 · uncertain: 0 · unresolved regions: 0"
         ),
         "{report}"
     );
@@ -3411,6 +3516,7 @@ fn reports_render_and_serialize_calibrated_confidence_levels() -> Result<()> {
                 tags: Vec::new(),
             },
         ],
+        proven_changed_regions: Vec::new(),
         formatting_changes: vec![FormattingChange {
             old_span: full_span(1, "Exact anchor block text"),
             new_span: full_span(101, "Exact anchor block text"),
@@ -3491,6 +3597,7 @@ fn formatting_changes_with_low_confidence_do_not_increment_uncertain_changes() -
     // Low confidence formatting-only change (e.g. split/merge with normalization issue)
     let comparison = Comparison {
         changes: Vec::new(),
+        proven_changed_regions: Vec::new(),
         formatting_changes: vec![FormattingChange {
             old_span: full_span(1, "Combined text line one line two"),
             new_span: full_span(101, "Combined text line one"),

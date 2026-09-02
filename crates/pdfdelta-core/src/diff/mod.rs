@@ -163,6 +163,28 @@ pub struct UnresolvedRegion {
     pub evidence: Vec<AlignmentEvidence>,
 }
 
+/// Exact evidence that content differs without claiming an old/new semantic relation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChangedRegionProof {
+    /// Both sides are non-empty and have different exact token multiplicities.
+    ExactTokenMultisetMismatch,
+    /// Exactly one side contains source-backed content.
+    OneSidedNonEmptyRange,
+}
+
+/// A source-backed region whose content is proven to differ but is not exactly localized.
+///
+/// These regions remain unresolved and do not contribute to alignment coverage. They let
+/// callers distinguish a proven content difference from a region whose content relation is
+/// wholly unknown.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProvenChangedRegion {
+    pub old_span: Option<TextSpan>,
+    pub new_span: Option<TextSpan>,
+    pub proof: ChangedRegionProof,
+    pub confidence: Confidence,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Coverage {
     pub resolved_tokens: usize,
@@ -173,6 +195,7 @@ pub struct Coverage {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Comparison {
     pub changes: Vec<ChangeEvent>,
+    pub proven_changed_regions: Vec<ProvenChangedRegion>,
     pub formatting_changes: Vec<FormattingChange>,
     pub unresolved_regions: Vec<UnresolvedRegion>,
     pub old_coverage: Coverage,
@@ -2680,6 +2703,7 @@ fn compare_aligned_inner(
     Ok(ComparisonWithSentenceRecoveryMetrics {
         comparison: Comparison {
             changes,
+            proven_changed_regions: Vec::new(),
             formatting_changes,
             unresolved_regions,
             old_coverage: coverage(resolved_old, old.total_tokens),

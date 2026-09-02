@@ -7,7 +7,9 @@ use std::fmt::Write;
 
 use crate::{
     Error, Result,
-    diff::{ChangeEvent, ChangeKind, ChangeTag, Comparison, Confidence, TextSpan},
+    diff::{
+        ChangeEvent, ChangeKind, ChangeTag, ChangedRegionProof, Comparison, Confidence, TextSpan,
+    },
     layout::BlockId,
     model::FontProgramHash,
     normalize::{BlockText, ComparableToken},
@@ -52,8 +54,9 @@ pub(super) fn render(
     let mut output = String::new();
     writeln!(
         output,
-        "content changes: {} · formatting-only: {} · uncertain: {} · unresolved regions: {} · coverage {}",
+        "content changes: {} · proven changed regions: {} · formatting-only: {} · uncertain: {} · unresolved regions: {} · coverage {}",
         summary.content_changes,
+        summary.proven_changed_regions,
         summary.formatting_only_changes,
         summary.uncertain_changes,
         summary.unresolved_regions,
@@ -128,6 +131,57 @@ pub(super) fn render(
         .map_err(|error| Error::Report(error.to_string()))?;
         for line in body {
             writeln!(output, "{line}").map_err(|error| Error::Report(error.to_string()))?;
+        }
+    }
+
+    for region in &comparison.proven_changed_regions {
+        writeln!(output).map_err(|error| Error::Report(error.to_string()))?;
+        let mut pages = Vec::new();
+        let mut side_notes = Vec::new();
+        for span in region.old_span.iter() {
+            let window = resolve_window(&old, span)?;
+            pages.extend_from_slice(&window.pages);
+            side_notes.push(("old", window.render_marked_region()));
+        }
+        for span in region.new_span.iter() {
+            let window = resolve_window(&new, span)?;
+            pages.extend_from_slice(&window.pages);
+            side_notes.push(("new", window.render_marked_region()));
+        }
+        pages.sort_unstable();
+        pages.dedup();
+        writeln!(
+            output,
+            "{}",
+            painter.paint(
+                CODE_HUNK_HEADER,
+                &format!("@@ {} · PROVEN CONTENT DIFFERENCE @@", format_pages(&pages)),
+            )
+        )
+        .map_err(|error| Error::Report(error.to_string()))?;
+        let proof = match region.proof {
+            ChangedRegionProof::ExactTokenMultisetMismatch => "exact token multiset mismatch",
+            ChangedRegionProof::OneSidedNonEmptyRange => "one-sided non-empty range",
+        };
+        writeln!(
+            output,
+            "{}",
+            painter.paint(
+                CODE_WARNING,
+                &format!(
+                    "! content differs ({proof}; confidence: {})",
+                    confidence_name(region.confidence)
+                ),
+            )
+        )
+        .map_err(|error| Error::Report(error.to_string()))?;
+        for (side, text) in side_notes {
+            writeln!(
+                output,
+                "{}",
+                painter.paint(CODE_WARNING, &format!("! {side}: {text}"))
+            )
+            .map_err(|error| Error::Report(error.to_string()))?;
         }
     }
 

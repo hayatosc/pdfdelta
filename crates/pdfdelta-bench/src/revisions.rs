@@ -15713,6 +15713,7 @@ mod tests {
                 pdfdelta_core::diff::Confidence::High,
                 Vec::new(),
             )],
+            proven_changed_regions: Vec::new(),
             formatting_changes: Vec::new(),
             unresolved_regions: Vec::new(),
             old_coverage: pdfdelta_core::diff::Coverage {
@@ -17520,6 +17521,7 @@ mod tests {
                 pdfdelta_core::diff::Confidence::High,
                 Vec::new(),
             )],
+            proven_changed_regions: Vec::new(),
             formatting_changes: Vec::new(),
             unresolved_regions: Vec::new(),
             // Multi-block span separators contribute to change coordinates but

@@ -252,6 +252,7 @@ pub struct PipelineMetrics {
     /// compared against.
     pub max_candidate_visits: Option<usize>,
     pub changes: Option<usize>,
+    pub proven_changed_regions: Option<usize>,
     pub formatting_changes: Option<usize>,
     pub unresolved_regions: Option<usize>,
     /// Sentence recovery diagnostics for the completed exact-diff phase.
@@ -675,6 +676,7 @@ fn compare_extraction_outcomes_with_recovery_watch_inner(
         outcome: ComparisonOutcome {
             comparison: Comparison {
                 changes: Vec::new(),
+                proven_changed_regions: Vec::new(),
                 formatting_changes: Vec::new(),
                 unresolved_regions: Vec::new(),
                 old_coverage: conservative_coverage(old_tokens, old_complete),
@@ -1053,6 +1055,7 @@ fn compare_validated_glyph_documents_inner(
         None,
         PipelineMetrics {
             changes: Some(comparison.changes.len()),
+            proven_changed_regions: Some(comparison.proven_changed_regions.len()),
             formatting_changes: Some(comparison.formatting_changes.len()),
             unresolved_regions: Some(comparison.unresolved_regions.len()),
             sentence_recovery_metrics,
