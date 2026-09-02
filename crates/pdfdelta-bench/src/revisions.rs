@@ -33,33 +33,34 @@ use pdfdelta_core::{
         LocalFragmentRecheckMembershipOutcomeWork, LocalFragmentRecheckReuseShadowMetrics,
         LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
         LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics, MatchedAtomicDiff,
-        NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveredAtomicDiff,
-        RecoveryGapReason, RecoveryLeafKind, RecoveryOwnership, RecoveryOwnershipBlockError,
-        RecoveryOwnershipContext, RecoveryOwnershipError, RecoveryOwnershipInvariant,
-        RecoveryOwnershipMetrics, RecoveryOwnershipPartitionAnalysis, RecoveryOwnershipRangeError,
-        RecoveryOwnershipRect, RecoveryOwnershipResource, RecoveryOwnershipRole,
-        RecoveryOwnershipRoleMetrics, RecoveryOwnershipSample, RecoveryOwnershipSideMetrics,
-        RecoveryOwnershipTrustMetrics, RecoveryRemainderAttributionMetrics,
-        RecoveryRemainderAttributionStopReason, RecoveryRemainderCauseMetrics,
-        RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence, RecoveryWatchGranularRelation,
-        RecoveryWatchGranularStopReason, RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope,
-        RecoveryWatchOccurrence, RecoveryWatchOccurrenceEvidence,
-        RecoveryWatchOneSidedOpponentEvidence, RecoveryWatchOneSidedVetoEvidence,
-        RecoveryWatchPairEvidence, RecoveryWatchQuery, RecoveryWatchQuoteLocalEditEvidence,
-        RecoveryWatchQuoteLocalPairEvidence, RecoveryWatchQuoteLocalScoreEvidence,
-        RecoveryWatchQuoteLocalSideEvidence, RecoveryWatchQuoteLocalStatus,
-        RecoveryWatchQuoteLocalStopReason, RecoveryWatchQuoteLocalUnitEvidence,
-        RecoveryWatchRelation, RecoveryWatchSegmentPairEvidence,
-        RecoveryWatchSegmentTopologyDiagnostics, RecoveryWatchSegmentTopologyEvidence,
-        RecoveryWatchSegmentTopologyShadow, RecoveryWatchSide, RecoveryWatchUnitKind,
-        RunSignatureStopReason, SegmentStopReason, SegmentTopologyNotApplicableReason,
-        SegmentTopologyShadowStopReason, SegmentTopologyUnknownReason,
-        SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
+        NearRelationStopReason, NearSearchScopeMetrics, NearSearchWorkMetrics, NearVetoReasonCount,
+        NearVetoReasonMetrics, RecoveredAtomicDiff, RecoveryGapReason, RecoveryLeafKind,
+        RecoveryOwnership, RecoveryOwnershipBlockError, RecoveryOwnershipContext,
+        RecoveryOwnershipError, RecoveryOwnershipInvariant, RecoveryOwnershipMetrics,
+        RecoveryOwnershipPartitionAnalysis, RecoveryOwnershipRangeError, RecoveryOwnershipRect,
+        RecoveryOwnershipResource, RecoveryOwnershipRole, RecoveryOwnershipRoleMetrics,
+        RecoveryOwnershipSample, RecoveryOwnershipSideMetrics, RecoveryOwnershipTrustMetrics,
+        RecoveryRemainderAttributionMetrics, RecoveryRemainderAttributionStopReason,
+        RecoveryRemainderCauseMetrics, RecoveryWatchDiagnostics, RecoveryWatchGranularPairEvidence,
+        RecoveryWatchGranularRelation, RecoveryWatchGranularStopReason,
+        RecoveryWatchGranularUnitEvidence, RecoveryWatchNearScope, RecoveryWatchOccurrence,
+        RecoveryWatchOccurrenceEvidence, RecoveryWatchOneSidedOpponentEvidence,
+        RecoveryWatchOneSidedVetoEvidence, RecoveryWatchPairEvidence, RecoveryWatchQuery,
+        RecoveryWatchQuoteLocalEditEvidence, RecoveryWatchQuoteLocalPairEvidence,
+        RecoveryWatchQuoteLocalScoreEvidence, RecoveryWatchQuoteLocalSideEvidence,
+        RecoveryWatchQuoteLocalStatus, RecoveryWatchQuoteLocalStopReason,
+        RecoveryWatchQuoteLocalUnitEvidence, RecoveryWatchRelation,
+        RecoveryWatchSegmentPairEvidence, RecoveryWatchSegmentTopologyDiagnostics,
+        RecoveryWatchSegmentTopologyEvidence, RecoveryWatchSegmentTopologyShadow,
+        RecoveryWatchSide, RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
+        SegmentTopologyNotApplicableReason, SegmentTopologyShadowStopReason,
+        SegmentTopologyUnknownReason, SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
         SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
         SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
         SentenceEdgeSignatureReferenceOracleMetrics,
         SentenceEdgeSignatureReferenceOracleStopReason, SentenceEdgeSignatureShadowMetrics,
-        SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics, TextSpan,
+        SentenceEdgeSignatureShadowStopReason, SentenceRecoveryMetrics,
+        SequenceRelationShadowMetrics, SequenceRelationShadowStopReason, TextSpan,
         TrustedResidualExactStopReason,
     },
     layout::BlockRole,
@@ -1538,6 +1539,60 @@ pub struct RecoveryOwnershipPartitionReport {
     pub new: RecoveryOwnershipSideReport,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct NearVetoReasonCountReport {
+    pub old_candidate_units: usize,
+    pub new_candidate_units: usize,
+    pub old_source_tokens: usize,
+    pub new_source_tokens: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct NearVetoReasonMetricsReport {
+    pub tied_best: NearVetoReasonCountReport,
+    pub insufficient_margin: NearVetoReasonCountReport,
+    pub disqualifying_competitor: NearVetoReasonCountReport,
+    pub reciprocal_failure: NearVetoReasonCountReport,
+    pub crossing_relation: NearVetoReasonCountReport,
+    pub fragment_completion: NearVetoReasonCountReport,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SequenceRelationShadowStopReasonReport {
+    EdgeItemLimit,
+    IntervalItemLimit,
+    FenwickOperationLimit,
+    ExclusionRunLimit,
+    PredecessorItemLimit,
+    EstimatedByteLimit,
+    AllocationFailure,
+    CounterOverflow,
+    InvalidEvidence,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct SequenceRelationShadowMetricsReport {
+    pub complete: bool,
+    pub stop_reason: Option<SequenceRelationShadowStopReasonReport>,
+    pub qualified_edges: usize,
+    pub intervals: usize,
+    pub canonical_path_edges: usize,
+    pub locally_vetoed_edges: usize,
+    pub globally_forced_edges: usize,
+    pub downstream_vetoed_forced_edges: usize,
+    pub adoptable_forced_edges: usize,
+    pub crossing_vetoes: usize,
+    pub fragment_completion_vetoes: usize,
+    pub exact_tail_conflict_vetoes: usize,
+    pub external_competitor_vetoes: usize,
+    pub path_margin_count: usize,
+    pub path_margin_sum: u64,
+    pub path_margin_min: Option<u64>,
+    pub path_margin_max: Option<u64>,
+    pub veto_reasons: NearVetoReasonMetricsReport,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct SentenceRecoveryMetricsReport {
     pub change_origins: ChangeOriginMetricsReport,
@@ -1605,6 +1660,7 @@ pub struct SentenceRecoveryMetricsReport {
     pub trusted_residual_exact_old_candidates: usize,
     pub trusted_residual_exact_new_candidates: usize,
     pub trusted_residual_exact_matches_selected: usize,
+    pub paired_sequence_relation_shadow: Option<SequenceRelationShadowMetricsReport>,
     pub near_relation_complete: bool,
     pub relation_floor_pairs_considered: usize,
     pub relation_floor_word_scans: usize,
@@ -4328,6 +4384,71 @@ impl From<LocalFragmentPairEvidence> for LocalFragmentPairEvidenceReport {
     }
 }
 
+impl From<NearVetoReasonCount> for NearVetoReasonCountReport {
+    fn from(count: NearVetoReasonCount) -> Self {
+        Self {
+            old_candidate_units: count.old_candidate_units,
+            new_candidate_units: count.new_candidate_units,
+            old_source_tokens: count.old_source_tokens,
+            new_source_tokens: count.new_source_tokens,
+        }
+    }
+}
+
+impl From<NearVetoReasonMetrics> for NearVetoReasonMetricsReport {
+    fn from(metrics: NearVetoReasonMetrics) -> Self {
+        Self {
+            tied_best: metrics.tied_best.into(),
+            insufficient_margin: metrics.insufficient_margin.into(),
+            disqualifying_competitor: metrics.disqualifying_competitor.into(),
+            reciprocal_failure: metrics.reciprocal_failure.into(),
+            crossing_relation: metrics.crossing_relation.into(),
+            fragment_completion: metrics.fragment_completion.into(),
+        }
+    }
+}
+
+impl From<SequenceRelationShadowStopReason> for SequenceRelationShadowStopReasonReport {
+    fn from(reason: SequenceRelationShadowStopReason) -> Self {
+        match reason {
+            SequenceRelationShadowStopReason::EdgeItemLimit => Self::EdgeItemLimit,
+            SequenceRelationShadowStopReason::IntervalItemLimit => Self::IntervalItemLimit,
+            SequenceRelationShadowStopReason::FenwickOperationLimit => Self::FenwickOperationLimit,
+            SequenceRelationShadowStopReason::ExclusionRunLimit => Self::ExclusionRunLimit,
+            SequenceRelationShadowStopReason::PredecessorItemLimit => Self::PredecessorItemLimit,
+            SequenceRelationShadowStopReason::EstimatedByteLimit => Self::EstimatedByteLimit,
+            SequenceRelationShadowStopReason::AllocationFailure => Self::AllocationFailure,
+            SequenceRelationShadowStopReason::CounterOverflow => Self::CounterOverflow,
+            SequenceRelationShadowStopReason::InvalidEvidence => Self::InvalidEvidence,
+        }
+    }
+}
+
+impl From<SequenceRelationShadowMetrics> for SequenceRelationShadowMetricsReport {
+    fn from(metrics: SequenceRelationShadowMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            stop_reason: metrics.stop_reason.map(Into::into),
+            qualified_edges: metrics.qualified_edges,
+            intervals: metrics.intervals,
+            canonical_path_edges: metrics.canonical_path_edges,
+            locally_vetoed_edges: metrics.locally_vetoed_edges,
+            globally_forced_edges: metrics.globally_forced_edges,
+            downstream_vetoed_forced_edges: metrics.downstream_vetoed_forced_edges,
+            adoptable_forced_edges: metrics.adoptable_forced_edges,
+            crossing_vetoes: metrics.crossing_vetoes,
+            fragment_completion_vetoes: metrics.fragment_completion_vetoes,
+            exact_tail_conflict_vetoes: metrics.exact_tail_conflict_vetoes,
+            external_competitor_vetoes: metrics.external_competitor_vetoes,
+            path_margin_count: metrics.path_margin_count,
+            path_margin_sum: metrics.path_margin_sum,
+            path_margin_min: metrics.path_margin_min,
+            path_margin_max: metrics.path_margin_max,
+            veto_reasons: metrics.veto_reasons.into(),
+        }
+    }
+}
+
 impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
     fn from(metrics: SentenceRecoveryMetrics) -> Self {
         Self {
@@ -4410,6 +4531,9 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
             trusted_residual_exact_new_candidates: metrics.trusted_residual_exact_new_candidates,
             trusted_residual_exact_matches_selected: metrics
                 .trusted_residual_exact_matches_selected,
+            paired_sequence_relation_shadow: metrics
+                .paired_sequence_relation_shadow
+                .map(Into::into),
             near_relation_complete: metrics.near_relation_complete,
             relation_floor_pairs_considered: metrics.relation_floor_pairs_considered,
             relation_floor_word_scans: metrics.relation_floor_word_scans,
@@ -8175,6 +8299,7 @@ fn validate_sentence_recovery_metrics(
     validate_recovery_remainder_attribution(metrics)?;
     validate_structural_pairing_metrics(metrics)?;
     validate_run_signature_metrics(metrics)?;
+    validate_sequence_relation_shadow(metrics.paired_sequence_relation_shadow)?;
     validate_near_search_work_metrics(metrics)?;
     validate_known_span_sentence_shadow_metrics(metrics)?;
     validate_sentence_edge_gate_shadow_metrics(metrics)?;
@@ -8355,6 +8480,95 @@ fn validate_sentence_recovery_metrics(
         .checked_add(metrics.unresolved_remainder_new_source_tokens)
         .ok_or_else(|| "new eligible source token counters overflow".to_owned())?;
     Ok(metrics.into())
+}
+
+fn validate_sequence_relation_shadow(
+    shadow: Option<SequenceRelationShadowMetrics>,
+) -> std::result::Result<(), String> {
+    let Some(shadow) = shadow else {
+        return Ok(());
+    };
+    if !shadow.complete {
+        let Some(stop_reason) = shadow.stop_reason else {
+            return Err("stopped sequence-relation shadow has no stop reason".to_owned());
+        };
+        let expected = SequenceRelationShadowMetrics {
+            complete: false,
+            stop_reason: Some(stop_reason),
+            ..SequenceRelationShadowMetrics::default()
+        };
+        if shadow != expected {
+            return Err("stopped sequence-relation shadow exposes partial output".to_owned());
+        }
+        return Ok(());
+    }
+    if shadow.stop_reason.is_some() {
+        return Err("complete sequence-relation shadow has a stop reason".to_owned());
+    }
+    if shadow.canonical_path_edges > shadow.qualified_edges {
+        return Err("sequence path edges exceed qualified edges".to_owned());
+    }
+    if shadow.intervals > shadow.qualified_edges {
+        return Err("sequence intervals exceed qualified edges".to_owned());
+    }
+    if shadow.path_margin_count != shadow.canonical_path_edges {
+        return Err("sequence path margin count does not match path edges".to_owned());
+    }
+    if shadow.globally_forced_edges > shadow.canonical_path_edges {
+        return Err("globally forced sequence edges exceed path edges".to_owned());
+    }
+    if shadow.locally_vetoed_edges > shadow.qualified_edges {
+        return Err("locally vetoed sequence edges exceed qualified edges".to_owned());
+    }
+    if shadow.adoptable_forced_edges > shadow.locally_vetoed_edges {
+        return Err("adoptable sequence edges exceed locally vetoed edges".to_owned());
+    }
+    if shadow.adoptable_forced_edges > shadow.globally_forced_edges {
+        return Err("adoptable sequence edges exceed globally forced edges".to_owned());
+    }
+    if shadow.downstream_vetoed_forced_edges > shadow.globally_forced_edges {
+        return Err("downstream-vetoed sequence edges exceed globally forced edges".to_owned());
+    }
+    if shadow.external_competitor_vetoes > shadow.globally_forced_edges {
+        return Err("external-vetoed sequence edges exceed globally forced edges".to_owned());
+    }
+    if shadow.exact_tail_conflict_vetoes > shadow.globally_forced_edges {
+        return Err("exact-tail-vetoed sequence edges exceed globally forced edges".to_owned());
+    }
+    if shadow.exact_tail_conflict_vetoes > shadow.downstream_vetoed_forced_edges {
+        return Err("exact-tail sequence vetoes exceed downstream vetoes".to_owned());
+    }
+    if shadow.fragment_completion_vetoes != 0
+        || shadow.veto_reasons.fragment_completion != NearVetoReasonCount::default()
+    {
+        return Err("paired-stage sequence shadow exposes fragment-completion metrics".to_owned());
+    }
+    match (
+        shadow.path_margin_count,
+        shadow.path_margin_sum,
+        shadow.path_margin_min,
+        shadow.path_margin_max,
+    ) {
+        (0, 0, None, None) => {}
+        (0, _, _, _) => {
+            return Err("empty sequence path exposes margin output".to_owned());
+        }
+        (count, sum, Some(min), Some(max)) if min <= max => {
+            let count = u64::try_from(count)
+                .map_err(|_| "sequence path margin count exceeds u64".to_owned())?;
+            let minimum_sum = min
+                .checked_mul(count)
+                .ok_or_else(|| "sequence path minimum margin sum overflows".to_owned())?;
+            let maximum_sum = max
+                .checked_mul(count)
+                .ok_or_else(|| "sequence path maximum margin sum overflows".to_owned())?;
+            if sum < minimum_sum || sum > maximum_sum {
+                return Err("sequence path margin sum is outside its bounds".to_owned());
+            }
+        }
+        _ => return Err("sequence path margin bounds are incomplete or inverted".to_owned()),
+    }
+    Ok(())
 }
 
 fn validate_sentence_recovery_metrics_with_partition(
@@ -12428,7 +12642,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 58;
+    pub const SCHEMA_VERSION: u32 = 59;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -14330,7 +14544,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 58);
+        assert_eq!(completed["schema_version"], 59);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -14404,7 +14618,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 58);
+        assert_eq!(legacy_summary["schema_version"], 59);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -16604,7 +16818,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 58);
+        assert_eq!(json["schema_version"], 59);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -16842,6 +17056,150 @@ mod tests {
             validated.run_signature_stop_reason,
             Some(RunSignatureStopReasonReport::CandidatePairLimit)
         );
+    }
+
+    #[test]
+    fn validates_sequence_relation_shadow_contract() {
+        let complete = SentenceRecoveryMetrics {
+            paired_sequence_relation_shadow: Some(SequenceRelationShadowMetrics {
+                complete: true,
+                qualified_edges: 4,
+                intervals: 1,
+                canonical_path_edges: 2,
+                locally_vetoed_edges: 1,
+                globally_forced_edges: 2,
+                downstream_vetoed_forced_edges: 1,
+                adoptable_forced_edges: 1,
+                exact_tail_conflict_vetoes: 1,
+                path_margin_count: 2,
+                path_margin_sum: 1_000,
+                path_margin_min: Some(500),
+                path_margin_max: Some(500),
+                veto_reasons: NearVetoReasonMetrics {
+                    tied_best: NearVetoReasonCount {
+                        old_candidate_units: 1,
+                        old_source_tokens: 10,
+                        ..NearVetoReasonCount::default()
+                    },
+                    ..NearVetoReasonMetrics::default()
+                },
+                ..SequenceRelationShadowMetrics::default()
+            }),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        let report = validate_sentence_recovery_metrics(complete)
+            .expect("complete sequence shadow satisfies the contract")
+            .paired_sequence_relation_shadow
+            .expect("sequence shadow is preserved");
+        assert!(report.complete);
+        assert_eq!(report.adoptable_forced_edges, 1);
+        assert_eq!(report.exact_tail_conflict_vetoes, 1);
+        assert_eq!(report.veto_reasons.tied_best.old_source_tokens, 10);
+        let json = serde_json::to_value(report).expect("sequence shadow serializes");
+        assert_eq!(
+            json.as_object()
+                .expect("sequence shadow object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>(),
+            HashSet::from([
+                "complete".to_owned(),
+                "stop_reason".to_owned(),
+                "qualified_edges".to_owned(),
+                "intervals".to_owned(),
+                "canonical_path_edges".to_owned(),
+                "locally_vetoed_edges".to_owned(),
+                "globally_forced_edges".to_owned(),
+                "downstream_vetoed_forced_edges".to_owned(),
+                "adoptable_forced_edges".to_owned(),
+                "crossing_vetoes".to_owned(),
+                "fragment_completion_vetoes".to_owned(),
+                "exact_tail_conflict_vetoes".to_owned(),
+                "external_competitor_vetoes".to_owned(),
+                "path_margin_count".to_owned(),
+                "path_margin_sum".to_owned(),
+                "path_margin_min".to_owned(),
+                "path_margin_max".to_owned(),
+                "veto_reasons".to_owned(),
+            ])
+        );
+        assert_eq!(
+            json["veto_reasons"]
+                .as_object()
+                .expect("veto reason object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>(),
+            HashSet::from([
+                "tied_best".to_owned(),
+                "insufficient_margin".to_owned(),
+                "disqualifying_competitor".to_owned(),
+                "reciprocal_failure".to_owned(),
+                "crossing_relation".to_owned(),
+                "fragment_completion".to_owned(),
+            ])
+        );
+        assert_eq!(
+            json["veto_reasons"]["tied_best"]
+                .as_object()
+                .expect("veto reason count object")
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>(),
+            HashSet::from([
+                "old_candidate_units".to_owned(),
+                "new_candidate_units".to_owned(),
+                "old_source_tokens".to_owned(),
+                "new_source_tokens".to_owned(),
+            ])
+        );
+
+        let stopped = SentenceRecoveryMetrics {
+            paired_sequence_relation_shadow: Some(SequenceRelationShadowMetrics {
+                stop_reason: Some(SequenceRelationShadowStopReason::FenwickOperationLimit),
+                ..SequenceRelationShadowMetrics::default()
+            }),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(stopped).is_ok());
+
+        let stopped_with_partial_output = SentenceRecoveryMetrics {
+            paired_sequence_relation_shadow: Some(SequenceRelationShadowMetrics {
+                stop_reason: Some(SequenceRelationShadowStopReason::EdgeItemLimit),
+                qualified_edges: 1,
+                ..SequenceRelationShadowMetrics::default()
+            }),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(stopped_with_partial_output).is_err());
+
+        let complete_with_reason = SentenceRecoveryMetrics {
+            paired_sequence_relation_shadow: Some(SequenceRelationShadowMetrics {
+                complete: true,
+                stop_reason: Some(SequenceRelationShadowStopReason::InvalidEvidence),
+                ..SequenceRelationShadowMetrics::default()
+            }),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(complete_with_reason).is_err());
+
+        let mismatched_margins = SentenceRecoveryMetrics {
+            paired_sequence_relation_shadow: Some(SequenceRelationShadowMetrics {
+                complete: true,
+                qualified_edges: 1,
+                canonical_path_edges: 1,
+                path_margin_min: Some(500),
+                path_margin_max: Some(500),
+                ..SequenceRelationShadowMetrics::default()
+            }),
+            sentence_edge_filter_complete: true,
+            ..SentenceRecoveryMetrics::default()
+        };
+        assert!(validate_sentence_recovery_metrics(mismatched_margins).is_err());
     }
 
     #[test]
@@ -23563,7 +23921,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 58);
+        assert_eq!(value["schema_version"], 59);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -23695,6 +24053,7 @@ mod tests {
             "trusted_residual_exact_old_candidates".to_owned(),
             "trusted_residual_exact_new_candidates".to_owned(),
             "trusted_residual_exact_matches_selected".to_owned(),
+            "paired_sequence_relation_shadow".to_owned(),
             "near_relation_complete".to_owned(),
             "relation_floor_pairs_considered".to_owned(),
             "relation_floor_word_scans".to_owned(),

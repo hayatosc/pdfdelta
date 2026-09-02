@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    mem::size_of,
     ops::Range,
 };
 
@@ -77,9 +78,10 @@ use super::{
     LocalFragmentRecheckReuseWorkAttribution, LocalFragmentShadowMetrics,
     LocalFragmentShadowStopReason, LocalFragmentShadowWorkMetrics,
     MAX_SENTENCE_RECOVERY_OUTPUT_BYTES, MAX_SENTENCE_RECOVERY_OUTPUT_ITEMS, NearRelationStopReason,
-    NearSearchScopeMetrics, NearSearchWorkMetrics, RecoveryGapReason, RecoveryLeafKind,
-    RecoveryOwnership, RecoveryOwnershipBlockError, RecoveryOwnershipContext,
-    RecoveryOwnershipError, RecoveryOwnershipInvariant, RecoveryOwnershipPartitionAnalysis,
+    NearSearchScopeMetrics, NearSearchWorkMetrics, NearVetoReason, NearVetoReasonCount,
+    NearVetoReasonMetrics, RecoveryGapReason, RecoveryLeafKind, RecoveryOwnership,
+    RecoveryOwnershipBlockError, RecoveryOwnershipContext, RecoveryOwnershipError,
+    RecoveryOwnershipInvariant, RecoveryOwnershipPartitionAnalysis,
     RecoveryOwnershipPartitionMetrics, RecoveryOwnershipRect, RecoveryOwnershipResource,
     RecoveryOwnershipRole, RecoveryOwnershipSideAnalysis, RecoveryRemainderAttributionMetrics,
     RecoveryRemainderAttributionStopReason, RecoveryRemainderCauseMetrics,
@@ -100,8 +102,8 @@ use super::{
     SentenceEdgeSignatureDirectExecution, SentenceEdgeSignatureDirectShadowMetrics,
     SentenceEdgeSignatureDirectShadowStopReason, SentenceEdgeSignatureShadowMetrics,
     SentenceEdgeSignatureShadowStopReason, SentenceRecoveryCommittedTokens, SentenceRecoveryInput,
-    SentenceRecoveryMetrics, Side, TokenRange, TrustedResidualExactStopReason,
-    TrustedRunRecoveryInput,
+    SentenceRecoveryMetrics, SequenceRelationShadowMetrics, SequenceRelationShadowStopReason, Side,
+    TokenRange, TrustedResidualExactStopReason, TrustedRunRecoveryInput,
 };
 #[cfg(test)]
 use super::{
@@ -5380,6 +5382,631 @@ struct ModifiedSentenceRelations {
     complete: bool,
     edge_gate_shadow: Option<SentenceEdgeGateShadow>,
     edge_signature_shadow: Option<SentenceEdgeSignatureShadow>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SequenceRelationEdge {
+    interval: PairedInterval,
+    old_candidate: usize,
+    new_candidate: usize,
+    old_ordinal: usize,
+    new_ordinal: usize,
+    score: u16,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SequenceRelationShadowLimits {
+    edge_items: usize,
+    interval_items: usize,
+    fenwick_ops: usize,
+    exclusion_runs: usize,
+    predecessor_items: usize,
+    estimated_bytes: usize,
+}
+
+impl SequenceRelationShadowLimits {
+    fn for_budget(budget: &RecoveryBudget) -> Self {
+        Self {
+            edge_items: budget.output_range_limit,
+            interval_items: budget.output_range_limit,
+            fenwick_ops: budget.comparison_limit,
+            exclusion_runs: budget.output_range_limit,
+            predecessor_items: budget.output_range_limit,
+            estimated_bytes: MAX_SENTENCE_RECOVERY_OUTPUT_BYTES,
+        }
+    }
+}
+
+#[derive(Default)]
+struct SequenceRelationShadowCollector {
+    edges: Vec<SequenceRelationEdge>,
+    old_external_max: Vec<u16>,
+    new_external_max: Vec<u16>,
+}
+
+impl SequenceRelationShadowCollector {
+    fn new(old_candidates: usize, new_candidates: usize) -> Option<Self> {
+        let mut old_external_max = Vec::new();
+        let mut new_external_max = Vec::new();
+        old_external_max.try_reserve_exact(old_candidates).ok()?;
+        new_external_max.try_reserve_exact(new_candidates).ok()?;
+        old_external_max.resize(old_candidates, 0);
+        new_external_max.resize(new_candidates, 0);
+        Some(Self {
+            edges: Vec::new(),
+            old_external_max,
+            new_external_max,
+        })
+    }
+
+    fn record_edge(
+        &mut self,
+        edge: SequenceRelationEdge,
+        limit: usize,
+    ) -> SequenceShadowResult<()> {
+        if edge.score < MIN_NEAR_SCORE {
+            return Ok(());
+        }
+        if self.edges.len() == limit {
+            return Err(SequenceRelationShadowStopReason::EdgeItemLimit);
+        }
+        self.edges
+            .try_reserve(1)
+            .map_err(|_| SequenceRelationShadowStopReason::AllocationFailure)?;
+        self.edges.push(edge);
+        Ok(())
+    }
+
+    fn record_external(
+        &mut self,
+        old_candidate: Option<usize>,
+        new_candidate: Option<usize>,
+        score: u16,
+    ) -> SequenceShadowResult<()> {
+        if let Some(index) = old_candidate {
+            let value = self
+                .old_external_max
+                .get_mut(index)
+                .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?;
+            *value = (*value).max(score);
+        }
+        if let Some(index) = new_candidate {
+            let value = self
+                .new_external_max
+                .get_mut(index)
+                .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?;
+            *value = (*value).max(score);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct SequenceRelationShadowWork {
+    fenwick_ops: usize,
+    exclusion_runs: usize,
+    predecessor_items: usize,
+}
+
+type SequenceShadowResult<T> = std::result::Result<T, SequenceRelationShadowStopReason>;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct SequencePathState {
+    weight: u64,
+    last_edge: Option<usize>,
+}
+
+fn better_sequence_path(left: SequencePathState, right: SequencePathState) -> SequencePathState {
+    match left.weight.cmp(&right.weight) {
+        std::cmp::Ordering::Greater => left,
+        std::cmp::Ordering::Less => right,
+        std::cmp::Ordering::Equal => match (left.last_edge, right.last_edge) {
+            (None, _) => left,
+            (_, None) => right,
+            (Some(left_index), Some(right_index)) if left_index <= right_index => left,
+            _ => right,
+        },
+    }
+}
+
+fn charge_sequence_work(
+    value: &mut usize,
+    amount: usize,
+    limit: usize,
+    reason: SequenceRelationShadowStopReason,
+) -> SequenceShadowResult<()> {
+    let next = value
+        .checked_add(amount)
+        .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+    if next > limit {
+        return Err(reason);
+    }
+    *value = next;
+    Ok(())
+}
+
+fn maximum_monotone_sequence_path(
+    edges: &[SequenceRelationEdge],
+    excluded: Option<usize>,
+    retain_path: bool,
+    work: &mut SequenceRelationShadowWork,
+    limits: SequenceRelationShadowLimits,
+) -> SequenceShadowResult<(u64, Vec<usize>)> {
+    let mut new_ordinals = Vec::new();
+    new_ordinals
+        .try_reserve_exact(edges.len())
+        .map_err(|_| SequenceRelationShadowStopReason::AllocationFailure)?;
+    new_ordinals.extend(edges.iter().map(|edge| edge.new_ordinal));
+    new_ordinals.sort_unstable();
+    new_ordinals.dedup();
+
+    let mut fenwick = Vec::new();
+    fenwick
+        .try_reserve_exact(new_ordinals.len().saturating_add(1))
+        .map_err(|_| SequenceRelationShadowStopReason::AllocationFailure)?;
+    fenwick.resize(
+        new_ordinals.len().saturating_add(1),
+        SequencePathState::default(),
+    );
+    let mut predecessors = Vec::new();
+    if retain_path {
+        charge_sequence_work(
+            &mut work.predecessor_items,
+            edges.len(),
+            limits.predecessor_items,
+            SequenceRelationShadowStopReason::PredecessorItemLimit,
+        )?;
+        predecessors
+            .try_reserve_exact(edges.len())
+            .map_err(|_| SequenceRelationShadowStopReason::AllocationFailure)?;
+        predecessors.resize(edges.len(), None);
+    }
+
+    let mut start = 0usize;
+    while start < edges.len() {
+        let old_ordinal = edges[start].old_ordinal;
+        let end = start
+            .checked_add(edges[start..].partition_point(|edge| edge.old_ordinal == old_ordinal))
+            .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+        let mut pending = Vec::new();
+        pending
+            .try_reserve_exact(end - start)
+            .map_err(|_| SequenceRelationShadowStopReason::AllocationFailure)?;
+        for (edge_index, edge) in edges.iter().enumerate().take(end).skip(start) {
+            if excluded == Some(edge_index) {
+                continue;
+            }
+            let rank = new_ordinals
+                .binary_search(&edge.new_ordinal)
+                .map_err(|_| SequenceRelationShadowStopReason::InvalidEvidence)?;
+            let mut cursor = rank;
+            let mut prior = SequencePathState::default();
+            while cursor > 0 {
+                charge_sequence_work(
+                    &mut work.fenwick_ops,
+                    1,
+                    limits.fenwick_ops,
+                    SequenceRelationShadowStopReason::FenwickOperationLimit,
+                )?;
+                prior = better_sequence_path(prior, fenwick[cursor]);
+                cursor &= cursor - 1;
+            }
+            let state = SequencePathState {
+                weight: prior
+                    .weight
+                    .checked_add(u64::from(edge.score))
+                    .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?,
+                last_edge: Some(edge_index),
+            };
+            if retain_path {
+                predecessors[edge_index] = prior.last_edge;
+            }
+            pending.push((rank + 1, state));
+        }
+        for (mut cursor, state) in pending {
+            while cursor < fenwick.len() {
+                charge_sequence_work(
+                    &mut work.fenwick_ops,
+                    1,
+                    limits.fenwick_ops,
+                    SequenceRelationShadowStopReason::FenwickOperationLimit,
+                )?;
+                fenwick[cursor] = better_sequence_path(fenwick[cursor], state);
+                cursor = cursor
+                    .checked_add(cursor.isolate_lowest_one())
+                    .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+            }
+        }
+        start = end;
+    }
+    let mut best = SequencePathState::default();
+    let mut cursor = fenwick.len().saturating_sub(1);
+    while cursor > 0 {
+        charge_sequence_work(
+            &mut work.fenwick_ops,
+            1,
+            limits.fenwick_ops,
+            SequenceRelationShadowStopReason::FenwickOperationLimit,
+        )?;
+        best = better_sequence_path(best, fenwick[cursor]);
+        cursor &= cursor - 1;
+    }
+    let mut path = Vec::new();
+    if retain_path {
+        let mut edge = best.last_edge;
+        while let Some(index) = edge {
+            path.try_reserve(1)
+                .map_err(|_| SequenceRelationShadowStopReason::AllocationFailure)?;
+            path.push(index);
+            edge = *predecessors
+                .get(index)
+                .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?;
+        }
+        path.reverse();
+    }
+    Ok((best.weight, path))
+}
+
+fn sequence_reason_counter(
+    metrics: &mut NearVetoReasonMetrics,
+    reason: NearVetoReason,
+) -> &mut NearVetoReasonCount {
+    match reason {
+        NearVetoReason::TiedBest => &mut metrics.tied_best,
+        NearVetoReason::InsufficientMargin => &mut metrics.insufficient_margin,
+        NearVetoReason::DisqualifyingCompetitor => &mut metrics.disqualifying_competitor,
+        NearVetoReason::ReciprocalFailure => &mut metrics.reciprocal_failure,
+        NearVetoReason::CrossingRelation => &mut metrics.crossing_relation,
+        NearVetoReason::FragmentCompletion => &mut metrics.fragment_completion,
+    }
+}
+
+fn primary_near_veto_reason(
+    candidate: usize,
+    relation: CandidateNearRelation,
+    reciprocal_relations: &[CandidateNearRelation],
+    old_side: bool,
+    crossing: &HashSet<(usize, usize)>,
+    fragment: &HashSet<(usize, usize)>,
+) -> Option<NearVetoReason> {
+    if !relation.vetoed() {
+        return None;
+    }
+    if fragment.iter().any(|&(old, new)| {
+        if old_side {
+            old == candidate
+        } else {
+            new == candidate
+        }
+    }) {
+        return Some(NearVetoReason::FragmentCompletion);
+    }
+    if crossing.iter().any(|&(old, new)| {
+        if old_side {
+            old == candidate
+        } else {
+            new == candidate
+        }
+    }) {
+        return Some(NearVetoReason::CrossingRelation);
+    }
+    let Some(partner) = relation.best_partner else {
+        return Some(NearVetoReason::DisqualifyingCompetitor);
+    };
+    if relation.best_score == relation.second_score {
+        return Some(NearVetoReason::TiedBest);
+    }
+    if relation.best_score.saturating_sub(relation.second_score) < MIN_NEAR_SCORE_MARGIN {
+        return Some(NearVetoReason::InsufficientMargin);
+    }
+    if relation.unique_partner().is_none() {
+        return Some(NearVetoReason::DisqualifyingCompetitor);
+    }
+    let reciprocal = reciprocal_relations.get(partner).copied()?;
+    (reciprocal.unique_partner() != Some(candidate)).then_some(NearVetoReason::ReciprocalFailure)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn analyze_sequence_relation_shadow(
+    mut collector: SequenceRelationShadowCollector,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &PairedNearCandidates,
+    new_candidates: &PairedNearCandidates,
+    relations: &ModifiedSentenceRelations,
+    crossing: &HashSet<(usize, usize)>,
+    fragment: &HashSet<(usize, usize)>,
+    exact_tail_census: Option<&ExactTailCensus>,
+    limits: SequenceRelationShadowLimits,
+) -> SequenceShadowResult<SequenceRelationShadowMetrics> {
+    collector.edges.sort_unstable_by_key(|edge| {
+        (
+            edge.interval,
+            edge.old_ordinal,
+            edge.new_ordinal,
+            edge.old_candidate,
+            edge.new_candidate,
+            edge.score,
+        )
+    });
+    collector.edges.dedup();
+    let estimated_bytes = collector
+        .edges
+        .capacity()
+        .checked_mul(size_of::<SequenceRelationEdge>())
+        .and_then(|value| {
+            value.checked_add(
+                collector
+                    .old_external_max
+                    .capacity()
+                    .checked_mul(size_of::<u16>())?,
+            )
+        })
+        .and_then(|value| {
+            let per_edge_temporary = size_of::<usize>()
+                .checked_add(size_of::<SequencePathState>())?
+                .checked_add(size_of::<Option<usize>>())?
+                .checked_add(size_of::<(usize, SequencePathState)>())?;
+            value.checked_add(collector.edges.len().checked_mul(per_edge_temporary)?)
+        })
+        .and_then(|value| {
+            value.checked_add(
+                collector
+                    .new_external_max
+                    .capacity()
+                    .checked_mul(size_of::<u16>())?,
+            )
+        })
+        .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+    if estimated_bytes > limits.estimated_bytes {
+        return Err(SequenceRelationShadowStopReason::EstimatedByteLimit);
+    }
+
+    let mut metrics = SequenceRelationShadowMetrics {
+        qualified_edges: collector.edges.len(),
+        crossing_vetoes: crossing.len(),
+        fragment_completion_vetoes: fragment.len(),
+        ..SequenceRelationShadowMetrics::default()
+    };
+    for edge in &collector.edges {
+        let locally_adopted = mutual_replacement_partner(
+            edge.old_candidate,
+            *relations
+                .old
+                .get(edge.old_candidate)
+                .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?,
+            &relations.new,
+        ) == Some(edge.new_candidate);
+        metrics.locally_vetoed_edges = metrics
+            .locally_vetoed_edges
+            .checked_add(usize::from(!locally_adopted))
+            .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+    }
+    let mut work = SequenceRelationShadowWork::default();
+    let mut start = 0usize;
+    while start < collector.edges.len() {
+        charge_sequence_work(
+            &mut metrics.intervals,
+            1,
+            limits.interval_items,
+            SequenceRelationShadowStopReason::IntervalItemLimit,
+        )?;
+        let interval = collector.edges[start].interval;
+        let end = start
+            .checked_add(collector.edges[start..].partition_point(|edge| edge.interval == interval))
+            .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+        let edges = &collector.edges[start..end];
+        let (best_weight, path) =
+            maximum_monotone_sequence_path(edges, None, true, &mut work, limits)?;
+        metrics.canonical_path_edges = metrics
+            .canonical_path_edges
+            .checked_add(path.len())
+            .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+        for edge_index in path {
+            charge_sequence_work(
+                &mut work.exclusion_runs,
+                1,
+                limits.exclusion_runs,
+                SequenceRelationShadowStopReason::ExclusionRunLimit,
+            )?;
+            let (without, _) =
+                maximum_monotone_sequence_path(edges, Some(edge_index), false, &mut work, limits)?;
+            let margin = best_weight
+                .checked_sub(without)
+                .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?;
+            metrics.path_margin_count = metrics
+                .path_margin_count
+                .checked_add(1)
+                .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+            metrics.path_margin_sum = metrics
+                .path_margin_sum
+                .checked_add(margin)
+                .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+            metrics.path_margin_min =
+                Some(metrics.path_margin_min.map_or(margin, |v| v.min(margin)));
+            metrics.path_margin_max =
+                Some(metrics.path_margin_max.map_or(margin, |v| v.max(margin)));
+            if margin < u64::from(MIN_NEAR_SCORE_MARGIN) {
+                continue;
+            }
+            metrics.globally_forced_edges = metrics
+                .globally_forced_edges
+                .checked_add(1)
+                .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+            let edge = edges
+                .get(edge_index)
+                .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?;
+            let locally_adopted = mutual_replacement_partner(
+                edge.old_candidate,
+                *relations
+                    .old
+                    .get(edge.old_candidate)
+                    .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?,
+                &relations.new,
+            ) == Some(edge.new_candidate);
+            let threshold = edge.score.saturating_sub(MIN_NEAR_SCORE_MARGIN);
+            let external = collector
+                .old_external_max
+                .get(edge.old_candidate)
+                .copied()
+                .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?
+                .max(
+                    collector
+                        .new_external_max
+                        .get(edge.new_candidate)
+                        .copied()
+                        .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?,
+                )
+                > threshold;
+            let downstream = crossing.contains(&(edge.old_candidate, edge.new_candidate))
+                || fragment.contains(&(edge.old_candidate, edge.new_candidate));
+            let exact_tail_conflict = if let Some(census) = exact_tail_census {
+                let old_occurrence = old_candidates
+                    .recoveries
+                    .get(edge.old_candidate)
+                    .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?
+                    .occurrence_index;
+                let new_occurrence = new_candidates
+                    .recoveries
+                    .get(edge.new_candidate)
+                    .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?
+                    .occurrence_index;
+                census
+                    .old_normal_conflicts
+                    .get(old_occurrence)
+                    .copied()
+                    .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?
+                    || census
+                        .new_normal_conflicts
+                        .get(new_occurrence)
+                        .copied()
+                        .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?
+            } else {
+                false
+            };
+            if external {
+                metrics.external_competitor_vetoes = metrics
+                    .external_competitor_vetoes
+                    .checked_add(1)
+                    .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+            }
+            if exact_tail_conflict {
+                metrics.exact_tail_conflict_vetoes = metrics
+                    .exact_tail_conflict_vetoes
+                    .checked_add(1)
+                    .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+            }
+            if downstream || exact_tail_conflict {
+                metrics.downstream_vetoed_forced_edges = metrics
+                    .downstream_vetoed_forced_edges
+                    .checked_add(1)
+                    .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+            }
+            // Only currently vetoed edges represent potential new recovery.
+            if !locally_adopted && !external && !downstream && !exact_tail_conflict {
+                metrics.adoptable_forced_edges = metrics
+                    .adoptable_forced_edges
+                    .checked_add(1)
+                    .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+            }
+        }
+        start = end;
+    }
+
+    classify_paired_near_veto_reasons(
+        &mut metrics.veto_reasons,
+        old_occurrences,
+        new_occurrences,
+        old_candidates,
+        new_candidates,
+        relations,
+        crossing,
+        fragment,
+    )?;
+    metrics.complete = true;
+    Ok(metrics)
+}
+
+fn stopped_sequence_relation_metrics(
+    reason: SequenceRelationShadowStopReason,
+) -> SequenceRelationShadowMetrics {
+    SequenceRelationShadowMetrics {
+        complete: false,
+        stop_reason: Some(reason),
+        ..SequenceRelationShadowMetrics::default()
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn classify_paired_near_veto_reasons(
+    metrics: &mut NearVetoReasonMetrics,
+    old_occurrences: &[SentenceOccurrence],
+    new_occurrences: &[SentenceOccurrence],
+    old_candidates: &PairedNearCandidates,
+    new_candidates: &PairedNearCandidates,
+    relations: &ModifiedSentenceRelations,
+    crossing: &HashSet<(usize, usize)>,
+    fragment: &HashSet<(usize, usize)>,
+) -> SequenceShadowResult<()> {
+    for (index, relation) in relations.old.iter().copied().enumerate() {
+        let Some(reason) =
+            primary_near_veto_reason(index, relation, &relations.new, true, crossing, fragment)
+        else {
+            continue;
+        };
+        let occurrence_index = old_candidates
+            .recoveries
+            .get(index)
+            .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?
+            .occurrence_index;
+        let tokens = old_occurrences
+            .get(occurrence_index)
+            .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?
+            .location
+            .as_ref()
+            .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?
+            .recovery
+            .source_tokens;
+        let counter = sequence_reason_counter(metrics, reason);
+        counter.old_candidate_units = counter
+            .old_candidate_units
+            .checked_add(1)
+            .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+        counter.old_source_tokens = counter
+            .old_source_tokens
+            .checked_add(tokens)
+            .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+    }
+    for (index, relation) in relations.new.iter().copied().enumerate() {
+        let Some(reason) =
+            primary_near_veto_reason(index, relation, &relations.old, false, crossing, fragment)
+        else {
+            continue;
+        };
+        let occurrence_index = new_candidates
+            .recoveries
+            .get(index)
+            .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?
+            .occurrence_index;
+        let tokens = new_occurrences
+            .get(occurrence_index)
+            .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?
+            .location
+            .as_ref()
+            .ok_or(SequenceRelationShadowStopReason::InvalidEvidence)?
+            .recovery
+            .source_tokens;
+        let counter = sequence_reason_counter(metrics, reason);
+        counter.new_candidate_units = counter
+            .new_candidate_units
+            .checked_add(1)
+            .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+        counter.new_source_tokens = counter
+            .new_source_tokens
+            .checked_add(tokens)
+            .ok_or(SequenceRelationShadowStopReason::CounterOverflow)?;
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy)]
@@ -23406,6 +24033,7 @@ fn append_paired_stream_replacements<'a>(
         pairs,
         &old_pair_by_stream,
         &new_pair_by_stream,
+        exact_tail_census,
         budget,
         diagnostics,
         signature_checkpoint,
@@ -24065,6 +24693,7 @@ fn paired_modified_sentence_relations(
         pairs,
         old_pair_by_stream,
         new_pair_by_stream,
+        None,
         budget,
         diagnostics,
         &mut checkpoint,
@@ -24081,6 +24710,7 @@ fn paired_modified_sentence_relations_tracked(
     pairs: &[PairedTrustedStream],
     old_pair_by_stream: &HashMap<usize, usize>,
     new_pair_by_stream: &HashMap<usize, usize>,
+    exact_tail_census: Option<&ExactTailCensus>,
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
@@ -24088,6 +24718,17 @@ fn paired_modified_sentence_relations_tracked(
 ) -> Option<ModifiedSentenceRelations> {
     let mut relations =
         empty_modified_sentence_relations(&old_candidates.recoveries, &new_candidates.recoveries)?;
+    let sequence_limits = SequenceRelationShadowLimits::for_budget(budget);
+    let mut sequence_stop_reason = None;
+    let mut sequence_collector = diagnostics.as_ref().and_then(|_| {
+        SequenceRelationShadowCollector::new(
+            old_candidates.recoveries.len(),
+            new_candidates.recoveries.len(),
+        )
+    });
+    if diagnostics.is_some() && sequence_collector.is_none() {
+        sequence_stop_reason = Some(SequenceRelationShadowStopReason::AllocationFailure);
+    }
     if budget.enable_sentence_edge_gate_shadow {
         enable_sentence_edge_gate_shadow(&mut relations);
     }
@@ -24268,6 +24909,34 @@ fn paired_modified_sentence_relations_tracked(
             if let Some(new_candidate_index) = new_candidate_index
                 && new_candidates.intervals.get(new_candidate_index).copied() == Some(interval)
             {
+                if old_occurrence.kind == RecoveryUnitKind::Sentence
+                    && let Some(collector) = sequence_collector.as_mut()
+                    && let Err(reason) = if score >= MIN_NEAR_SCORE {
+                        collector.record_edge(
+                            SequenceRelationEdge {
+                                interval,
+                                old_candidate: old_candidate_index,
+                                new_candidate: new_candidate_index,
+                                old_ordinal: *old_candidates.ordinals.get(old_candidate_index)?,
+                                new_ordinal: *new_candidates.ordinals.get(new_candidate_index)?,
+                                score,
+                            },
+                            sequence_limits.edge_items,
+                        )
+                    } else {
+                        // A sub-threshold same-interval edge cannot enter the
+                        // graph, but it can still defeat the 500-point global
+                        // margin of either endpoint.
+                        collector.record_external(
+                            Some(old_candidate_index),
+                            Some(new_candidate_index),
+                            score,
+                        )
+                    }
+                {
+                    sequence_stop_reason = Some(reason);
+                    sequence_collector = None;
+                }
                 relations.old[old_candidate_index].record_eligible_in_scope(
                     new_candidate_index,
                     score,
@@ -24279,6 +24948,16 @@ fn paired_modified_sentence_relations_tracked(
                     RecoveryWatchNearScope::PairedStream,
                 );
             } else {
+                if let Some(collector) = sequence_collector.as_mut()
+                    && let Err(reason) = collector.record_external(
+                        Some(old_candidate_index),
+                        new_candidate_index,
+                        score,
+                    )
+                {
+                    sequence_stop_reason = Some(reason);
+                    sequence_collector = None;
+                }
                 relations.old[old_candidate_index].record_disqualifying(score);
                 if let Some(new_candidate_index) = new_candidate_by_occurrence[new_occurrence_index]
                 {
@@ -24419,6 +25098,16 @@ fn paired_modified_sentence_relations_tracked(
                 );
             }
             relations.new[new_candidate_index].record_disqualifying(score);
+            if let Some(collector) = sequence_collector.as_mut()
+                && let Err(reason) = collector.record_external(
+                    old_candidate_by_occurrence[old_occurrence_index],
+                    Some(new_candidate_index),
+                    score,
+                )
+            {
+                sequence_stop_reason = Some(reason);
+                sequence_collector = None;
+            }
             if score >= MIN_NEAR_SCORE {
                 record_near_pair(diagnostics);
             }
@@ -24438,7 +25127,38 @@ fn paired_modified_sentence_relations_tracked(
         diagnostics,
         signature_checkpoint,
         watch,
+        &mut sequence_collector,
+        &mut sequence_stop_reason,
     )?;
+    if let Some(diagnostics) = diagnostics.as_mut() {
+        diagnostics.metrics.paired_sequence_relation_shadow =
+            Some(if let Some(reason) = sequence_stop_reason {
+                stopped_sequence_relation_metrics(reason)
+            } else if let Some(collector) = sequence_collector {
+                match paired_crossing_veto_pairs(old_candidates, new_candidates, &relations) {
+                    Some(crossing) => match analyze_sequence_relation_shadow(
+                        collector,
+                        old_occurrences,
+                        new_occurrences,
+                        old_candidates,
+                        new_candidates,
+                        &relations,
+                        &crossing,
+                        &HashSet::new(),
+                        exact_tail_census,
+                        sequence_limits,
+                    ) {
+                        Ok(metrics) => metrics,
+                        Err(reason) => stopped_sequence_relation_metrics(reason),
+                    },
+                    None => stopped_sequence_relation_metrics(
+                        SequenceRelationShadowStopReason::InvalidEvidence,
+                    ),
+                }
+            } else {
+                stopped_sequence_relation_metrics(SequenceRelationShadowStopReason::InvalidEvidence)
+            });
+    }
     relations.complete = true;
     Some(relations)
 }
@@ -24491,6 +25211,8 @@ fn record_cross_interval_disqualifying_relations(
     watch: Option<&mut RecoveryWatchState>,
 ) -> Option<()> {
     let mut checkpoint = None;
+    let mut sequence_collector = None;
+    let mut sequence_stop_reason = None;
     record_cross_interval_disqualifying_relations_tracked(
         old_occurrences,
         new_occurrences,
@@ -24505,6 +25227,8 @@ fn record_cross_interval_disqualifying_relations(
         diagnostics,
         &mut checkpoint,
         watch,
+        &mut sequence_collector,
+        &mut sequence_stop_reason,
     )
 }
 
@@ -24523,6 +25247,8 @@ fn record_cross_interval_disqualifying_relations_tracked(
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
     mut watch: Option<&mut RecoveryWatchState>,
+    sequence_collector: &mut Option<SequenceRelationShadowCollector>,
+    sequence_stop_reason: &mut Option<SequenceRelationShadowStopReason>,
 ) -> Option<()> {
     let Some(old_index) = UnitCandidateIndex::new(
         old_occurrences,
@@ -24707,6 +25433,13 @@ fn record_cross_interval_disqualifying_relations_tracked(
                 .old
                 .get_mut(old_candidate_index)?
                 .record_disqualifying(score);
+            if let Some(collector) = sequence_collector.as_mut()
+                && let Err(reason) =
+                    collector.record_external(Some(old_candidate_index), new_candidate_index, score)
+            {
+                *sequence_stop_reason = Some(reason);
+                *sequence_collector = None;
+            }
             if let Some(new_candidate_index) = new_candidate_index {
                 relations
                     .new
@@ -24877,6 +25610,16 @@ fn record_cross_interval_disqualifying_relations_tracked(
                 .new
                 .get_mut(new_candidate_index)?
                 .record_disqualifying(score);
+            if let Some(collector) = sequence_collector.as_mut()
+                && let Err(reason) = collector.record_external(
+                    old_candidate_by_occurrence[old_occurrence_index],
+                    Some(new_candidate_index),
+                    score,
+                )
+            {
+                *sequence_stop_reason = Some(reason);
+                *sequence_collector = None;
+            }
             if score >= MIN_NEAR_SCORE {
                 record_near_pair(diagnostics);
             }
@@ -24910,6 +25653,49 @@ fn reject_crossing_paired_replacements(
         shadow.disable(reason);
     }
     Ok(())
+}
+
+fn paired_crossing_veto_pairs(
+    old_candidates: &PairedNearCandidates,
+    new_candidates: &PairedNearCandidates,
+    relations: &ModifiedSentenceRelations,
+) -> Option<HashSet<(usize, usize)>> {
+    let mut proposals = Vec::new();
+    proposals.try_reserve_exact(relations.old.len()).ok()?;
+    for (old_index, relation) in relations.old.iter().copied().enumerate() {
+        let Some(new_index) = mutual_replacement_partner(old_index, relation, &relations.new)
+        else {
+            continue;
+        };
+        proposals.push((
+            *old_candidates.intervals.get(old_index)?,
+            *old_candidates.ordinals.get(old_index)?,
+            *new_candidates.ordinals.get(new_index)?,
+            old_index,
+            new_index,
+        ));
+    }
+    proposals.sort_unstable();
+    let mut vetoes = HashSet::new();
+    vetoes.try_reserve(proposals.len()).ok()?;
+    let mut start = 0usize;
+    while start < proposals.len() {
+        let interval = proposals[start].0;
+        let end = start
+            .checked_add(proposals[start..].partition_point(|proposal| proposal.0 == interval))?;
+        if !proposals[start..end]
+            .windows(2)
+            .all(|pair| pair[0].1 < pair[1].1 && pair[0].2 < pair[1].2)
+        {
+            vetoes.extend(
+                proposals[start..end]
+                    .iter()
+                    .map(|proposal| (proposal.3, proposal.4)),
+            );
+        }
+        start = end;
+    }
+    Some(vetoes)
 }
 
 fn reject_crossing_paired_replacements_for(
@@ -29532,6 +30318,553 @@ mod tests {
         occurrence
     }
 
+    fn sequence_test_limits() -> SequenceRelationShadowLimits {
+        SequenceRelationShadowLimits {
+            edge_items: 64,
+            interval_items: 64,
+            fenwick_ops: 10_000,
+            exclusion_runs: 64,
+            predecessor_items: 64,
+            estimated_bytes: 1_000_000,
+        }
+    }
+
+    fn sequence_test_analysis(
+        edges: &[(usize, usize, u16)],
+        external: &[(Option<usize>, Option<usize>, u16)],
+        crossing: &[(usize, usize)],
+        fragment: &[(usize, usize)],
+        limits: SequenceRelationShadowLimits,
+    ) -> SequenceShadowResult<SequenceRelationShadowMetrics> {
+        let old_count = edges
+            .iter()
+            .map(|edge| edge.0)
+            .chain(external.iter().filter_map(|edge| edge.0))
+            .max()
+            .map_or(0, |value| value + 1);
+        let new_count = edges
+            .iter()
+            .map(|edge| edge.1)
+            .chain(external.iter().filter_map(|edge| edge.1))
+            .max()
+            .map_or(0, |value| value + 1);
+        let old_occurrences = (0..old_count)
+            .map(|index| positioned_occurrence("old", index as u64 + 1, 0, index))
+            .collect::<Vec<_>>();
+        let new_occurrences = (0..new_count)
+            .map(|index| positioned_occurrence("new", index as u64 + 101, 1, index))
+            .collect::<Vec<_>>();
+        let interval = PairedInterval {
+            pair_index: 0,
+            interval_index: 0,
+        };
+        let old_candidates = PairedNearCandidates {
+            recoveries: (0..old_count)
+                .map(|occurrence_index| RecoveryCandidate {
+                    occurrence_index,
+                    span_index: 0,
+                })
+                .collect(),
+            intervals: vec![interval; old_count],
+            ordinals: (0..old_count).collect(),
+        };
+        let new_candidates = PairedNearCandidates {
+            recoveries: (0..new_count)
+                .map(|occurrence_index| RecoveryCandidate {
+                    occurrence_index,
+                    span_index: 0,
+                })
+                .collect(),
+            intervals: vec![interval; new_count],
+            ordinals: (0..new_count).collect(),
+        };
+        let mut relations = empty_modified_sentence_relations(
+            &old_candidates.recoveries,
+            &new_candidates.recoveries,
+        )
+        .expect("relation buffers");
+        relations.complete = true;
+        let mut collector =
+            SequenceRelationShadowCollector::new(old_count, new_count).expect("collector buffers");
+        for &(old, new, score) in edges {
+            collector.record_edge(
+                SequenceRelationEdge {
+                    interval,
+                    old_candidate: old,
+                    new_candidate: new,
+                    old_ordinal: old,
+                    new_ordinal: new,
+                    score,
+                },
+                limits.edge_items,
+            )?;
+        }
+        for &(old, new, score) in external {
+            collector.record_external(old, new, score)?;
+        }
+        analyze_sequence_relation_shadow(
+            collector,
+            &old_occurrences,
+            &new_occurrences,
+            &old_candidates,
+            &new_candidates,
+            &relations,
+            &crossing.iter().copied().collect(),
+            &fragment.iter().copied().collect(),
+            None,
+            limits,
+        )
+    }
+
+    #[test]
+    fn sequence_shadow_finds_unique_monotone_path() {
+        let metrics = sequence_test_analysis(
+            &[(0, 0, 7_500), (1, 1, 7_500)],
+            &[],
+            &[],
+            &[],
+            sequence_test_limits(),
+        )
+        .expect("shadow completes");
+        assert!(metrics.complete);
+        assert_eq!(metrics.canonical_path_edges, 2);
+        assert_eq!(metrics.globally_forced_edges, 2);
+        assert_eq!(metrics.adoptable_forced_edges, 2);
+    }
+
+    #[test]
+    fn sequence_shadow_equal_alternative_has_zero_margin() {
+        let metrics = sequence_test_analysis(
+            &[(0, 0, 7_500), (0, 1, 7_500), (1, 2, 7_500)],
+            &[],
+            &[],
+            &[],
+            sequence_test_limits(),
+        )
+        .expect("shadow completes");
+        assert_eq!(metrics.path_margin_min, Some(0));
+        assert_eq!(metrics.globally_forced_edges, 1);
+    }
+
+    #[test]
+    fn sequence_shadow_enforces_499_and_500_path_margin_boundary() {
+        let below = sequence_test_analysis(
+            &[(0, 0, 7_500), (0, 1, 7_001)],
+            &[],
+            &[],
+            &[],
+            sequence_test_limits(),
+        )
+        .expect("shadow completes");
+        let at = sequence_test_analysis(
+            &[(0, 0, 7_500), (0, 1, 7_000)],
+            &[],
+            &[],
+            &[],
+            sequence_test_limits(),
+        )
+        .expect("shadow completes");
+        assert_eq!(below.path_margin_min, Some(499));
+        assert_eq!(below.globally_forced_edges, 0);
+        assert_eq!(at.path_margin_min, Some(500));
+        assert_eq!(at.globally_forced_edges, 1);
+    }
+
+    #[test]
+    fn sequence_shadow_never_combines_equal_old_or_new_ordinals() {
+        let metrics = sequence_test_analysis(
+            &[(0, 0, 7_500), (0, 1, 7_500), (1, 0, 7_500)],
+            &[],
+            &[],
+            &[],
+            sequence_test_limits(),
+        )
+        .expect("shadow completes");
+        assert_eq!(metrics.canonical_path_edges, 1);
+    }
+
+    #[test]
+    fn sequence_shadow_external_competitor_uses_strict_margin_boundary() {
+        let vetoed = sequence_test_analysis(
+            &[(0, 0, 7_000)],
+            &[(Some(0), None, 6_501)],
+            &[],
+            &[],
+            sequence_test_limits(),
+        )
+        .expect("shadow completes");
+        let allowed = sequence_test_analysis(
+            &[(0, 0, 7_000)],
+            &[(Some(0), None, 6_500)],
+            &[],
+            &[],
+            sequence_test_limits(),
+        )
+        .expect("shadow completes");
+        assert_eq!(vetoed.external_competitor_vetoes, 1);
+        assert_eq!(vetoed.adoptable_forced_edges, 0);
+        assert_eq!(allowed.external_competitor_vetoes, 0);
+        assert_eq!(allowed.adoptable_forced_edges, 1);
+    }
+
+    fn paired_sequence_margin_fixture(
+        competitor_shared: usize,
+    ) -> (ModifiedSentenceRelations, SequenceRelationShadowMetrics) {
+        const TOKEN_COUNT: usize = 10_000;
+        let mut old = positioned_occurrence("old", 1, 0, 0);
+        old.tokens = vec![SentenceEvidenceToken::Scalar('a'); TOKEN_COUNT];
+        let mut target = positioned_occurrence("target", 2, 1, 0);
+        target.tokens = vec![SentenceEvidenceToken::Scalar('b'); TOKEN_COUNT];
+        target.tokens[..7_000].fill(SentenceEvidenceToken::Scalar('a'));
+        let mut competitor = positioned_occurrence("competitor", 3, 1, 1);
+        competitor.tokens = vec![SentenceEvidenceToken::Scalar('c'); TOKEN_COUNT];
+        competitor.tokens[..competitor_shared].fill(SentenceEvidenceToken::Scalar('a'));
+        let interval = PairedInterval {
+            pair_index: 0,
+            interval_index: 0,
+        };
+        let old_candidates = paired_test_candidates(0, interval);
+        let new_candidates = PairedNearCandidates {
+            recoveries: vec![
+                RecoveryCandidate {
+                    occurrence_index: 0,
+                    span_index: 0,
+                },
+                RecoveryCandidate {
+                    occurrence_index: 1,
+                    span_index: 0,
+                },
+            ],
+            intervals: vec![interval; 2],
+            ordinals: vec![0, 1],
+        };
+        let pairs = [PairedTrustedStream {
+            old_stream: 0,
+            new_stream: 1,
+            anchors: Vec::new(),
+        }];
+        let mut budget = RecoveryBudget::new(TOKEN_COUNT, TOKEN_COUNT * 2, TOKEN_COUNT * 3, 1)
+            .expect("budget is valid");
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+            signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+            signature_retained_fingerprint_valid: false,
+        });
+        let relations = paired_modified_sentence_relations(
+            std::slice::from_ref(&old),
+            &[target, competitor],
+            &old_candidates,
+            &new_candidates,
+            &pairs,
+            &HashMap::from([(0, 0)]),
+            &HashMap::from([(1, 0)]),
+            &mut budget,
+            &mut diagnostics,
+            None,
+        )
+        .expect("paired relations compute");
+        let metrics = diagnostics
+            .expect("diagnostics remain")
+            .metrics
+            .paired_sequence_relation_shadow
+            .expect("sequence shadow runs");
+        (relations, metrics)
+    }
+
+    #[test]
+    fn paired_sequence_path_retains_subthreshold_same_interval_margin_evidence() {
+        let (vetoed_relations, vetoed) = paired_sequence_margin_fixture(6_501);
+        assert_eq!(vetoed_relations.old[0].best_score, 7_000);
+        assert_eq!(vetoed_relations.old[0].second_score, 6_501);
+        assert_eq!(vetoed.external_competitor_vetoes, 1);
+        assert_eq!(vetoed.adoptable_forced_edges, 0);
+
+        let (allowed_relations, allowed) = paired_sequence_margin_fixture(6_500);
+        assert_eq!(allowed_relations.old[0].best_score, 7_000);
+        assert_eq!(allowed_relations.old[0].second_score, 6_500);
+        assert_eq!(allowed.external_competitor_vetoes, 0);
+        assert_eq!(
+            mutual_replacement_partner(0, allowed_relations.old[0], &allowed_relations.new),
+            Some(0)
+        );
+    }
+
+    fn exact_tail_conflict_call_path(
+        old_conflict: bool,
+    ) -> (
+        SentenceRecoveryPlan,
+        PairedNearVetoes,
+        SequenceRelationShadowMetrics,
+    ) {
+        let mut old = [positioned_occurrence("old-key", 1, 0, 0)];
+        old[0].tokens = vec![SentenceEvidenceToken::Scalar('a'); 10];
+        let mut new = [positioned_occurrence("new-key", 2, 1, 0)];
+        new[0].tokens = vec![SentenceEvidenceToken::Scalar('b'); 10];
+        new[0].tokens[..7].fill(SentenceEvidenceToken::Scalar('a'));
+        let pairs = [PairedTrustedStream {
+            old_stream: 0,
+            new_stream: 1,
+            anchors: Vec::new(),
+        }];
+        let census = ExactTailCensus {
+            counts: HashMap::new(),
+            old_tail_keys: Vec::new(),
+            new_tail_keys: Vec::new(),
+            old_normal_conflicts: vec![old_conflict],
+            new_normal_conflicts: vec![false],
+            units_examined: 0,
+            token_comparisons: 0,
+        };
+        let mut budget = RecoveryBudget::new(10, 10, 20, 1).expect("budget is valid");
+        let mut diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+            signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+            signature_retained_fingerprint_valid: false,
+        });
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut vetoes = PairedNearVetoes::default();
+        let mut stop_reason = None;
+        append_paired_stream_replacements(
+            &mut plan,
+            &mut old,
+            &mut new,
+            &pairs,
+            &[true],
+            1,
+            Some(&census),
+            &mut budget,
+            &mut diagnostics,
+            &mut None,
+            &mut vetoes,
+            None,
+            &mut stop_reason,
+        )
+        .expect("paired call path completes");
+        assert!(stop_reason.is_none());
+        let metrics = diagnostics
+            .expect("diagnostics remain")
+            .metrics
+            .paired_sequence_relation_shadow
+            .expect("sequence shadow runs");
+        (plan, vetoes, metrics)
+    }
+
+    #[test]
+    fn paired_sequence_exact_tail_conflict_is_a_downstream_gate() {
+        let (clear_plan, _, clear) = exact_tail_conflict_call_path(false);
+        assert_eq!(clear_plan.replacements.len(), 1);
+        assert_eq!(clear.exact_tail_conflict_vetoes, 0);
+
+        let (conflicted_plan, conflicted_vetoes, conflicted) = exact_tail_conflict_call_path(true);
+        assert!(conflicted_plan.replacements.is_empty());
+        assert_eq!(conflicted_vetoes.old_occurrences, vec![0]);
+        assert_eq!(conflicted_vetoes.new_occurrences, vec![0]);
+        assert_eq!(conflicted.exact_tail_conflict_vetoes, 1);
+        assert_eq!(conflicted.downstream_vetoed_forced_edges, 1);
+        assert_eq!(conflicted.adoptable_forced_edges, 0);
+    }
+
+    #[test]
+    fn sequence_shadow_downstream_veto_is_not_adoptable() {
+        let crossing = sequence_test_analysis(
+            &[(0, 0, 7_500)],
+            &[],
+            &[(0, 0)],
+            &[],
+            sequence_test_limits(),
+        )
+        .expect("shadow completes");
+        let fragment = sequence_test_analysis(
+            &[(0, 0, 7_500)],
+            &[],
+            &[],
+            &[(0, 0)],
+            sequence_test_limits(),
+        )
+        .expect("shadow completes");
+        assert_eq!(crossing.downstream_vetoed_forced_edges, 1);
+        assert_eq!(crossing.adoptable_forced_edges, 0);
+        assert_eq!(fragment.downstream_vetoed_forced_edges, 1);
+        assert_eq!(fragment.adoptable_forced_edges, 0);
+    }
+
+    #[test]
+    fn sequence_shadow_is_deterministic_under_shuffled_edges() {
+        let edges = [(0, 0, 7_500), (0, 1, 7_000), (1, 2, 8_000)];
+        let shuffled = [edges[2], edges[0], edges[1]];
+        let left = sequence_test_analysis(&edges, &[], &[], &[], sequence_test_limits())
+            .expect("shadow completes");
+        let right = sequence_test_analysis(&shuffled, &[], &[], &[], sequence_test_limits())
+            .expect("shadow completes");
+        assert_eq!(left, right);
+    }
+
+    #[test]
+    fn sequence_shadow_budget_stops_publish_no_partial_metrics() {
+        let edges = [(0, 0, 7_500), (1, 1, 7_500)];
+        let cases = [
+            (
+                SequenceRelationShadowLimits {
+                    interval_items: 0,
+                    ..sequence_test_limits()
+                },
+                SequenceRelationShadowStopReason::IntervalItemLimit,
+            ),
+            (
+                SequenceRelationShadowLimits {
+                    fenwick_ops: 0,
+                    ..sequence_test_limits()
+                },
+                SequenceRelationShadowStopReason::FenwickOperationLimit,
+            ),
+            (
+                SequenceRelationShadowLimits {
+                    exclusion_runs: 0,
+                    ..sequence_test_limits()
+                },
+                SequenceRelationShadowStopReason::ExclusionRunLimit,
+            ),
+            (
+                SequenceRelationShadowLimits {
+                    predecessor_items: 0,
+                    ..sequence_test_limits()
+                },
+                SequenceRelationShadowStopReason::PredecessorItemLimit,
+            ),
+            (
+                SequenceRelationShadowLimits {
+                    estimated_bytes: 0,
+                    ..sequence_test_limits()
+                },
+                SequenceRelationShadowStopReason::EstimatedByteLimit,
+            ),
+        ];
+        for (limits, expected) in cases {
+            let reason =
+                sequence_test_analysis(&edges, &[], &[], &[], limits).expect_err("budget stops");
+            assert_eq!(reason, expected);
+            assert_eq!(
+                stopped_sequence_relation_metrics(reason),
+                SequenceRelationShadowMetrics {
+                    complete: false,
+                    stop_reason: Some(expected),
+                    ..SequenceRelationShadowMetrics::default()
+                }
+            );
+        }
+
+        let mut collector = SequenceRelationShadowCollector::new(1, 1).expect("collector");
+        let reason = collector
+            .record_edge(
+                SequenceRelationEdge {
+                    interval: PairedInterval {
+                        pair_index: 0,
+                        interval_index: 0,
+                    },
+                    old_candidate: 0,
+                    new_candidate: 0,
+                    old_ordinal: 0,
+                    new_ordinal: 0,
+                    score: 7_500,
+                },
+                0,
+            )
+            .expect_err("edge budget stops");
+        assert_eq!(reason, SequenceRelationShadowStopReason::EdgeItemLimit);
+        assert_eq!(stopped_sequence_relation_metrics(reason).qualified_edges, 0);
+    }
+
+    #[test]
+    fn paired_near_veto_primary_reasons_are_disjoint() {
+        let tied = CandidateNearRelation {
+            best_score: 7_500,
+            second_score: 7_500,
+            best_partner: Some(0),
+            best_scope: None,
+        };
+        let insufficient = CandidateNearRelation {
+            best_score: 7_500,
+            second_score: 7_001,
+            best_partner: Some(0),
+            best_scope: None,
+        };
+        let disqualifying = CandidateNearRelation {
+            best_score: 7_500,
+            second_score: 7_000,
+            best_partner: None,
+            best_scope: None,
+        };
+        let unique = CandidateNearRelation {
+            best_score: 7_500,
+            second_score: 6_000,
+            best_partner: Some(0),
+            best_scope: None,
+        };
+        let reciprocal_failure = [CandidateNearRelation {
+            best_score: 7_500,
+            second_score: 6_000,
+            best_partner: Some(1),
+            best_scope: None,
+        }];
+        let empty = HashSet::new();
+        assert_eq!(
+            primary_near_veto_reason(0, tied, &[unique], true, &empty, &empty),
+            Some(NearVetoReason::TiedBest)
+        );
+        assert_eq!(
+            primary_near_veto_reason(0, insufficient, &[unique], true, &empty, &empty),
+            Some(NearVetoReason::InsufficientMargin)
+        );
+        assert_eq!(
+            primary_near_veto_reason(0, disqualifying, &[unique], true, &empty, &empty),
+            Some(NearVetoReason::DisqualifyingCompetitor)
+        );
+        assert_eq!(
+            primary_near_veto_reason(0, unique, &reciprocal_failure, true, &empty, &empty,),
+            Some(NearVetoReason::ReciprocalFailure)
+        );
+        assert_eq!(
+            primary_near_veto_reason(
+                0,
+                unique,
+                &[unique],
+                true,
+                &[(0, 0)].into_iter().collect(),
+                &empty,
+            ),
+            Some(NearVetoReason::CrossingRelation)
+        );
+        assert_eq!(
+            primary_near_veto_reason(
+                0,
+                unique,
+                &[unique],
+                true,
+                &empty,
+                &[(0, 0)].into_iter().collect(),
+            ),
+            Some(NearVetoReason::FragmentCompletion)
+        );
+        assert_eq!(
+            primary_near_veto_reason(
+                0,
+                CandidateNearRelation {
+                    best_score: 6_999,
+                    ..CandidateNearRelation::default()
+                },
+                &[],
+                true,
+                &empty,
+                &empty,
+            ),
+            None
+        );
+    }
+
     fn topology_test_block(id: u64, role: BlockRole) -> BlockText {
         let mut block = collection_test_block(id, "x", Some(Vec::new()));
         block.role = role;
@@ -33707,8 +35040,38 @@ mod tests {
             None,
         )
         .expect("paired relations compute");
+        let mut shadow_budget = RecoveryBudget::new(15, 10, 25, 1).expect("budget is valid");
+        let mut shadow_diagnostics = Some(SentenceRecoveryDiagnostics {
+            metrics: SentenceRecoveryMetrics::default(),
+            eligible_old_source_tokens: 0,
+            eligible_new_source_tokens: 0,
+            signature_retained_fingerprint: SentenceEdgeRetainedFingerprint::default(),
+            signature_retained_fingerprint_valid: false,
+        });
+        let shadow_relations = paired_modified_sentence_relations(
+            &old,
+            &new,
+            &old_candidates,
+            &new_candidates,
+            &pairs,
+            &old_pair_by_stream,
+            &new_pair_by_stream,
+            &mut shadow_budget,
+            &mut shadow_diagnostics,
+            None,
+        )
+        .expect("paired relations compute with diagnostics");
 
         assert!(relations.complete);
+        assert_eq!(relations.old, shadow_relations.old);
+        assert_eq!(relations.new, shadow_relations.new);
+        assert!(
+            shadow_diagnostics
+                .expect("diagnostics remain")
+                .metrics
+                .paired_sequence_relation_shadow
+                .is_some()
+        );
         assert_eq!(
             budget
                 .paired_interval_work

@@ -1878,6 +1878,81 @@ pub enum TrustedResidualExactStopReason {
     OutputCommitFailed,
 }
 
+/// Primary reason a qualified near candidate remained unresolved.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NearVetoReason {
+    TiedBest,
+    InsufficientMargin,
+    DisqualifyingCompetitor,
+    ReciprocalFailure,
+    CrossingRelation,
+    FragmentCompletion,
+}
+
+/// Resource that atomically stopped paired sequence-relation diagnostics.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SequenceRelationShadowStopReason {
+    EdgeItemLimit,
+    IntervalItemLimit,
+    FenwickOperationLimit,
+    ExclusionRunLimit,
+    PredecessorItemLimit,
+    EstimatedByteLimit,
+    AllocationFailure,
+    CounterOverflow,
+    InvalidEvidence,
+}
+
+/// Candidate-unit and source-token mass assigned to one veto reason.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NearVetoReasonCount {
+    pub old_candidate_units: usize,
+    pub new_candidate_units: usize,
+    pub old_source_tokens: usize,
+    pub new_source_tokens: usize,
+}
+
+/// Disjoint primary-reason attribution for paired-stage near vetoes.
+///
+/// Exact-tail conflicts are a downstream gate and are intentionally excluded
+/// from these local-relation reason buckets.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NearVetoReasonMetrics {
+    pub tied_best: NearVetoReasonCount,
+    pub insufficient_margin: NearVetoReasonCount,
+    pub disqualifying_competitor: NearVetoReasonCount,
+    pub reciprocal_failure: NearVetoReasonCount,
+    pub crossing_relation: NearVetoReasonCount,
+    /// Reserved for a future combined-stage analysis; paired stage has no
+    /// fragment-completion pass and therefore reports zero.
+    pub fragment_completion: NearVetoReasonCount,
+}
+
+/// Behavior-neutral sequence-constrained relation diagnostics for paired streams.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SequenceRelationShadowMetrics {
+    pub complete: bool,
+    pub stop_reason: Option<SequenceRelationShadowStopReason>,
+    pub qualified_edges: usize,
+    pub intervals: usize,
+    pub canonical_path_edges: usize,
+    pub locally_vetoed_edges: usize,
+    pub globally_forced_edges: usize,
+    pub downstream_vetoed_forced_edges: usize,
+    pub adoptable_forced_edges: usize,
+    pub crossing_vetoes: usize,
+    /// Always zero in the current paired-stage-only shadow.
+    pub fragment_completion_vetoes: usize,
+    /// Globally forced edges rejected by the existing exact-tail conflict gate.
+    pub exact_tail_conflict_vetoes: usize,
+    pub external_competitor_vetoes: usize,
+    pub path_margin_count: usize,
+    pub path_margin_sum: u64,
+    pub path_margin_min: Option<u64>,
+    pub path_margin_max: Option<u64>,
+    pub veto_reasons: NearVetoReasonMetrics,
+}
+
 /// Constant-space diagnostics for sentence recovery inside uncertain spans.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SentenceRecoveryMetrics {
@@ -1946,6 +2021,8 @@ pub struct SentenceRecoveryMetrics {
     pub trusted_residual_exact_old_candidates: usize,
     pub trusted_residual_exact_new_candidates: usize,
     pub trusted_residual_exact_matches_selected: usize,
+    /// Paired trusted-stream sequence shadow; general-stage vetoes are excluded.
+    pub paired_sequence_relation_shadow: Option<SequenceRelationShadowMetrics>,
     pub near_relation_complete: bool,
     pub relation_floor_pairs_considered: usize,
     pub relation_floor_word_scans: usize,
