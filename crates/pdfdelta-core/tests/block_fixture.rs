@@ -368,7 +368,7 @@ fn established_footer_template_is_recovered_on_a_sparse_page() {
 }
 
 #[test]
-fn one_band_sparse_page_does_not_infer_a_margin_edge() {
+fn one_band_page_inherits_an_exact_established_margin_role() {
     let mut specs = Vec::new();
     for page in 0..3 {
         let base = u64::from(page) * 10;
@@ -383,13 +383,133 @@ fn one_band_sparse_page_does_not_infer_a_margin_edge() {
     let fixture = Fixture::new(specs);
 
     let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
-        .expect("one physical band cannot prove header or footer orientation");
+        .expect("established geometry should prove the role on a one-band page");
 
-    assert_eq!(role_for_line(&blocks, LineId(31)), BlockRole::Body);
+    assert_eq!(
+        role_for_line(&blocks, LineId(31)),
+        BlockRole::RepeatedFooter
+    );
 }
 
 #[test]
-fn header_and_footer_template_ambiguity_blocks_sparse_promotion() {
+fn lower_decoration_does_not_hide_an_exact_established_footer() {
+    let mut specs = Vec::new();
+    for page in 0..3 {
+        let base = u64::from(page) * 10;
+        specs.extend([
+            LineSpec::margin(base + 1, page, "Repeated header", 120.0),
+            LineSpec::body(base + 2, page, "first body line", 100.0),
+            LineSpec::body(base + 3, page, "second body line", 88.0),
+            LineSpec::margin(base + 4, page, "Repeated footer", 10.0),
+        ]);
+    }
+    specs.extend([
+        LineSpec::margin(31, 3, "Repeated header", 120.0),
+        LineSpec::body(32, 3, "first body line", 100.0),
+        LineSpec::body(33, 3, "second body line", 88.0),
+        LineSpec::margin(34, 3, "Repeated footer", 10.0),
+        LineSpec::margin(35, 3, "page-specific decoration", 0.0),
+    ]);
+    let fixture = Fixture::new(specs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("an outer decoration must not hide an established exact footer");
+
+    assert_eq!(
+        role_for_line(&blocks, LineId(34)),
+        BlockRole::RepeatedFooter
+    );
+    assert_eq!(role_for_line(&blocks, LineId(35)), BlockRole::Body);
+}
+
+#[test]
+fn shifted_exact_footer_inherits_role_at_the_physical_outer_edge() {
+    let mut specs = Vec::new();
+    for page in 0..3 {
+        let base = u64::from(page) * 10;
+        specs.extend([
+            LineSpec::margin(base + 1, page, "Repeated header", 120.0),
+            LineSpec::body(base + 2, page, "first body line", 100.0),
+            LineSpec::body(base + 3, page, "second body line", 88.0),
+            LineSpec::margin(base + 4, page, "Repeated footer", 0.0),
+        ]);
+    }
+    let mut shifted_footer = LineSpec::margin(34, 3, "Repeated footer", 0.0);
+    shifted_footer.x = 200.0;
+    specs.extend([
+        LineSpec::margin(31, 3, "page-specific header", 120.0),
+        LineSpec::body(32, 3, "first body line", 100.0),
+        LineSpec::body(33, 3, "second body line", 88.0),
+        shifted_footer,
+    ]);
+    let fixture = Fixture::new(specs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("the matching physical edge should tolerate a horizontal shift");
+
+    assert_eq!(
+        role_for_line(&blocks, LineId(34)),
+        BlockRole::RepeatedFooter
+    );
+}
+
+#[test]
+fn shifted_exact_footer_away_from_the_outer_edge_stays_body() {
+    let mut specs = Vec::new();
+    for page in 0..3 {
+        let base = u64::from(page) * 10;
+        specs.extend([
+            LineSpec::margin(base + 1, page, "Repeated header", 120.0),
+            LineSpec::body(base + 2, page, "first body line", 100.0),
+            LineSpec::body(base + 3, page, "second body line", 88.0),
+            LineSpec::margin(base + 4, page, "Repeated footer", 0.0),
+        ]);
+    }
+    let mut shifted_footer = LineSpec::margin(34, 3, "Repeated footer", 0.0);
+    shifted_footer.x = 200.0;
+    specs.extend([
+        LineSpec::margin(31, 3, "page-specific header", 120.0),
+        LineSpec::body(32, 3, "first body line", 100.0),
+        LineSpec::body(33, 3, "second body line", 88.0),
+        shifted_footer,
+        LineSpec::margin(35, 3, "lower decoration", -20.0),
+    ]);
+    let fixture = Fixture::new(specs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("a shifted interior line lacks compatible geometry evidence");
+
+    assert_eq!(role_for_line(&blocks, LineId(34)), BlockRole::Body);
+}
+
+#[test]
+fn exact_margin_text_at_body_geometry_stays_body() {
+    let mut specs = Vec::new();
+    for page in 0..3 {
+        let base = u64::from(page) * 10;
+        specs.extend([
+            LineSpec::margin(base + 1, page, "Repeated header", 120.0),
+            LineSpec::body(base + 2, page, "first body line", 100.0),
+            LineSpec::body(base + 3, page, "second body line", 88.0),
+            LineSpec::margin(base + 4, page, "Repeated footer", 0.0),
+        ]);
+    }
+    specs.extend([
+        LineSpec::margin(31, 3, "page-specific header", 120.0),
+        LineSpec::body(32, 3, "Repeated footer", 100.0),
+        LineSpec::body(33, 3, "page-specific body", 88.0),
+        LineSpec::margin(34, 3, "page-specific footer", 0.0),
+    ]);
+    let fixture = Fixture::new(specs);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("exact text without matching margin geometry must remain body text");
+
+    assert_eq!(role_for_line(&blocks, LineId(32)), BlockRole::Body);
+}
+
+#[test]
+fn header_and_footer_template_ambiguity_blocks_exact_promotion() {
     let mut specs = Vec::new();
     for page in 0..3 {
         let base = u64::from(page) * 10;

@@ -1054,40 +1054,35 @@ fn detect_repeated_margins(
         }
     }
 
-    promote_established_margins_on_sparse_pages(
-        &mut roles,
-        stats,
-        &page_bands,
-        &established,
-        options,
-    );
+    promote_exact_established_margins(&mut roles, stats, &page_bands, &established, options);
 
     roles
 }
 
-fn promote_established_margins_on_sparse_pages(
+fn promote_exact_established_margins(
     roles: &mut [BlockRole],
     stats: &[LineStats<'_>],
     page_bands: &[Vec<Vec<usize>>],
     established: &BTreeMap<Vec<SignatureToken>, Vec<EstablishedMarginStyle>>,
     options: BlockOptions,
 ) {
-    let dense_band_threshold = options.repeated_edge_line_limit.saturating_mul(2);
     for bands in page_bands {
-        if bands.len() < 2 || bands.len() > dense_band_threshold {
-            continue;
-        }
-        for (edge, band) in [
-            (MarginEdge::Header, &bands[0]),
-            (MarginEdge::Footer, &bands[bands.len() - 1]),
-        ] {
+        for (band_index, band) in bands.iter().enumerate() {
             for index in band {
+                if roles[*index] != BlockRole::Body {
+                    continue;
+                }
                 let Some(styles) = established.get(&stats[*index].signature) else {
                     continue;
                 };
+                let edge = styles[0].edge;
                 if styles.iter().any(|style| style.edge != edge) {
                     continue;
                 }
+                let matches_outer_edge = match edge {
+                    MarginEdge::Header => band_index == 0,
+                    MarginEdge::Footer => band_index + 1 == bands.len(),
+                };
                 let compatible =
                     styles
                         .iter()
@@ -1098,6 +1093,7 @@ fn promote_established_margins_on_sparse_pages(
                                 && margin_geometry_is_compatible(
                                     &stats[*reference],
                                     &stats[*index],
+                                    matches_outer_edge,
                                     options,
                                 )
                         });
@@ -1112,6 +1108,7 @@ fn promote_established_margins_on_sparse_pages(
 fn margin_geometry_is_compatible(
     reference: &LineStats<'_>,
     candidate: &LineStats<'_>,
+    matches_outer_edge: bool,
     options: BlockOptions,
 ) -> bool {
     if !directions_are_compatible(reference.direction, candidate.direction) {
@@ -1123,8 +1120,9 @@ fn margin_geometry_is_compatible(
         .max(f64::EPSILON);
     let baseline_distance = (reference.line.baseline.y - candidate.line.baseline.y).abs();
     baseline_distance <= height
-        && interval_overlap_ratio(reference.inline_interval, candidate.inline_interval)
-            >= options.min_cross_page_horizontal_overlap_ratio
+        && (matches_outer_edge
+            || interval_overlap_ratio(reference.inline_interval, candidate.inline_interval)
+                >= options.min_cross_page_horizontal_overlap_ratio)
 }
 
 fn should_join_body(
