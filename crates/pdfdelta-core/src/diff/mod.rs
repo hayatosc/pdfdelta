@@ -16,6 +16,7 @@ pub use recovery::ownership::{
     RecoveryOwnershipSideAnalysis, RecoveryOwnershipSideMetrics, RecoveryOwnershipSideSamples,
     RecoveryOwnershipTrustMetrics,
 };
+pub use recovery::section_pairing::{SectionPairingMetrics, SectionPairingStopReason};
 
 /// Keeps the retained Myers frontier and trace below the internal 64 MiB
 /// allocation budget while allowing benchmark runs to exceed the default.
@@ -2707,6 +2708,23 @@ fn compare_aligned_inner(
             )
         });
 
+    // Section pairing is a benchmark experiment. Keep its full-document work
+    // off ordinary comparison paths until the shadow evidence supports a
+    // behavior change.
+    let section_pairing_shadow = sentence_recovery
+        .validated_recovery_ownership_proof_ledgers()
+        .zip(recovery.filter(|input| input.enable_known_span_sentence_shadow))
+        .map(|(_, recovery)| {
+            recovery::section_pairing::analyze_section_pairing_shadow(
+                [&old, &new],
+                alignment,
+                recovery,
+                recovery::section_pairing::SectionPairingLimits::from_max_tokens(
+                    options.max_tokens,
+                ),
+            )
+        });
+
     let proven_changed_regions = sentence_recovery
         .validated_recovery_ownership_proof_ledgers()
         .and_then(|ledgers| {
@@ -2731,6 +2749,12 @@ fn compare_aligned_inner(
         structural_container_shadow,
     ) {
         partition.set_structural_container_metrics(metrics);
+    }
+    if let (Some(partition), Some(metrics)) = (
+        recovery_ownership_partition.as_mut(),
+        section_pairing_shadow,
+    ) {
+        partition.set_section_pairing_metrics(metrics);
     }
     if let Some(metrics) = sentence_recovery_metrics.as_mut()
         && apply_ordered_alignment_origin(metrics, &changes, resolved_old, resolved_new).is_none()
@@ -10364,6 +10388,13 @@ mod tests {
                 .as_ref()
                 .map(RecoveryOwnershipPartitionAnalysis::metrics),
             Some(RecoveryOwnershipPartitionMetrics::default())
+        );
+        assert_eq!(
+            outcome
+                .recovery_ownership_partition
+                .as_ref()
+                .and_then(RecoveryOwnershipPartitionAnalysis::section_pairing_metrics),
+            None
         );
     }
 

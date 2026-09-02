@@ -52,9 +52,10 @@ use pdfdelta_core::{
         RecoveryWatchQuoteLocalUnitEvidence, RecoveryWatchRelation,
         RecoveryWatchSegmentPairEvidence, RecoveryWatchSegmentTopologyDiagnostics,
         RecoveryWatchSegmentTopologyEvidence, RecoveryWatchSegmentTopologyShadow,
-        RecoveryWatchSide, RecoveryWatchUnitKind, RunSignatureStopReason, SegmentStopReason,
-        SegmentTopologyNotApplicableReason, SegmentTopologyShadowStopReason,
-        SegmentTopologyUnknownReason, SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
+        RecoveryWatchSide, RecoveryWatchUnitKind, RunSignatureStopReason, SectionPairingMetrics,
+        SectionPairingStopReason, SegmentStopReason, SegmentTopologyNotApplicableReason,
+        SegmentTopologyShadowStopReason, SegmentTopologyUnknownReason,
+        SentenceEdgeFilterStopReason, SentenceEdgeGateShadowMetrics,
         SentenceEdgeGateShadowStopReason, SentenceEdgeSignatureDirectExecution,
         SentenceEdgeSignatureDirectShadowMetrics, SentenceEdgeSignatureDirectShadowStopReason,
         SentenceEdgeSignatureReferenceOracleMetrics,
@@ -1651,6 +1652,71 @@ pub struct StructuralContainerMetricsReport {
     pub new: StructuralContainerSideMetricsReport,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SectionPairingStopReasonReport {
+    BlockLimit,
+    TokenLimit,
+    FontEvidenceLimit,
+    ContainerLimit,
+    SpanLimit,
+    ParagraphLimit,
+    ParagraphPairLimit,
+    ParagraphComparisonLimit,
+    GapLimit,
+    AllocationFailure,
+    CounterOverflow,
+    InvalidInput,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct SectionPairingMetricsReport {
+    pub complete: bool,
+    pub stop_reason: Option<SectionPairingStopReasonReport>,
+    pub old_sections: usize,
+    pub new_sections: usize,
+    pub old_paragraphs: usize,
+    pub new_paragraphs: usize,
+    pub old_strong_paragraph_memberships: usize,
+    pub new_strong_paragraph_memberships: usize,
+    pub old_number_only_paragraph_memberships: usize,
+    pub new_number_only_paragraph_memberships: usize,
+    pub match_spans_examined: usize,
+    pub ambiguous_span_vetoes: usize,
+    pub exact_heading_pairs: usize,
+    pub stripped_heading_pairs: usize,
+    pub strong_heading_pairs: usize,
+    pub number_only_section_pairs: usize,
+    pub parent_consistent_pairs: usize,
+    pub parent_changed_pairs: usize,
+    pub parent_unknown_pairs: usize,
+    pub number_only_parent_consistent: usize,
+    pub number_only_parent_changed: usize,
+    pub number_only_parent_unknown: usize,
+    pub monotone_pairs: usize,
+    pub crossing_pairs: usize,
+    pub topology_unknown_pairs: usize,
+    pub strong_paragraph_anchor_pairs: usize,
+    pub number_only_paragraph_anchor_pairs: usize,
+    pub paragraph_pair_visits_attempted: usize,
+    pub paragraph_pair_visits_examined: usize,
+    pub paragraph_token_comparisons_attempted: usize,
+    pub paragraph_token_comparisons_examined: usize,
+    pub paragraph_anchor_crossing_vetoes: usize,
+    pub insertion_gaps: usize,
+    pub deletion_gaps: usize,
+    pub one_to_one_gaps: usize,
+    pub many_to_many_gaps: usize,
+    pub changed_one_to_one_gaps: usize,
+    pub changed_one_to_one_same_unresolved_span: usize,
+    pub number_only_insertion_gaps: usize,
+    pub number_only_deletion_gaps: usize,
+    pub number_only_one_to_one_gaps: usize,
+    pub number_only_many_to_many_gaps: usize,
+    pub number_only_changed_one_to_one_gaps: usize,
+    pub number_only_changed_one_to_one_same_unresolved_span: usize,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct SentenceRecoveryMetricsReport {
     pub change_origins: ChangeOriginMetricsReport,
@@ -1659,6 +1725,7 @@ pub struct SentenceRecoveryMetricsReport {
     pub recovery_leaf_partition_stop_reason: Option<RecoveryOwnershipErrorReport>,
     pub recovery_ownership_partition: Option<RecoveryOwnershipPartitionReport>,
     pub structural_container_shadow: Option<StructuralContainerMetricsReport>,
+    pub section_pairing_shadow: Option<Box<SectionPairingMetricsReport>>,
     pub old_trusted_run_source_tokens: usize,
     pub new_trusted_run_source_tokens: usize,
     pub structural_pairing_available: bool,
@@ -4555,6 +4622,78 @@ impl From<StructuralContainerMetrics> for StructuralContainerMetricsReport {
     }
 }
 
+impl From<SectionPairingStopReason> for SectionPairingStopReasonReport {
+    fn from(reason: SectionPairingStopReason) -> Self {
+        match reason {
+            SectionPairingStopReason::BlockLimit => Self::BlockLimit,
+            SectionPairingStopReason::TokenLimit => Self::TokenLimit,
+            SectionPairingStopReason::FontEvidenceLimit => Self::FontEvidenceLimit,
+            SectionPairingStopReason::ContainerLimit => Self::ContainerLimit,
+            SectionPairingStopReason::SpanLimit => Self::SpanLimit,
+            SectionPairingStopReason::ParagraphLimit => Self::ParagraphLimit,
+            SectionPairingStopReason::ParagraphPairLimit => Self::ParagraphPairLimit,
+            SectionPairingStopReason::ParagraphComparisonLimit => Self::ParagraphComparisonLimit,
+            SectionPairingStopReason::GapLimit => Self::GapLimit,
+            SectionPairingStopReason::AllocationFailure => Self::AllocationFailure,
+            SectionPairingStopReason::CounterOverflow => Self::CounterOverflow,
+            SectionPairingStopReason::InvalidInput => Self::InvalidInput,
+        }
+    }
+}
+
+impl From<SectionPairingMetrics> for SectionPairingMetricsReport {
+    fn from(metrics: SectionPairingMetrics) -> Self {
+        Self {
+            complete: metrics.complete,
+            stop_reason: metrics.stop_reason.map(Into::into),
+            old_sections: metrics.old_sections,
+            new_sections: metrics.new_sections,
+            old_paragraphs: metrics.old_paragraphs,
+            old_strong_paragraph_memberships: metrics.old_strong_paragraph_memberships,
+            new_strong_paragraph_memberships: metrics.new_strong_paragraph_memberships,
+            old_number_only_paragraph_memberships: metrics.old_number_only_paragraph_memberships,
+            new_number_only_paragraph_memberships: metrics.new_number_only_paragraph_memberships,
+            new_paragraphs: metrics.new_paragraphs,
+            match_spans_examined: metrics.match_spans_examined,
+            ambiguous_span_vetoes: metrics.ambiguous_span_vetoes,
+            exact_heading_pairs: metrics.exact_heading_pairs,
+            stripped_heading_pairs: metrics.stripped_heading_pairs,
+            strong_heading_pairs: metrics.strong_heading_pairs,
+            number_only_section_pairs: metrics.number_only_section_pairs,
+            parent_consistent_pairs: metrics.parent_consistent_pairs,
+            parent_changed_pairs: metrics.parent_changed_pairs,
+            parent_unknown_pairs: metrics.parent_unknown_pairs,
+            number_only_parent_consistent: metrics.number_only_parent_consistent,
+            number_only_parent_changed: metrics.number_only_parent_changed,
+            number_only_parent_unknown: metrics.number_only_parent_unknown,
+            monotone_pairs: metrics.monotone_pairs,
+            crossing_pairs: metrics.crossing_pairs,
+            topology_unknown_pairs: metrics.topology_unknown_pairs,
+            strong_paragraph_anchor_pairs: metrics.strong_paragraph_anchor_pairs,
+            number_only_paragraph_anchor_pairs: metrics.number_only_paragraph_anchor_pairs,
+            paragraph_pair_visits_attempted: metrics.paragraph_pair_visits_attempted,
+            paragraph_pair_visits_examined: metrics.paragraph_pair_visits_examined,
+            paragraph_token_comparisons_attempted: metrics.paragraph_token_comparisons_attempted,
+            paragraph_token_comparisons_examined: metrics.paragraph_token_comparisons_examined,
+            paragraph_anchor_crossing_vetoes: metrics.paragraph_anchor_crossing_vetoes,
+            insertion_gaps: metrics.insertion_gaps,
+            deletion_gaps: metrics.deletion_gaps,
+            one_to_one_gaps: metrics.one_to_one_gaps,
+            many_to_many_gaps: metrics.many_to_many_gaps,
+            changed_one_to_one_gaps: metrics.changed_one_to_one_gaps,
+            changed_one_to_one_same_unresolved_span: metrics
+                .changed_one_to_one_same_unresolved_span,
+            number_only_insertion_gaps: metrics.number_only_insertion_gaps,
+            number_only_deletion_gaps: metrics.number_only_deletion_gaps,
+            number_only_one_to_one_gaps: metrics.number_only_one_to_one_gaps,
+            number_only_many_to_many_gaps: metrics.number_only_many_to_many_gaps,
+            number_only_changed_one_to_one_gaps: metrics.number_only_changed_one_to_one_gaps,
+            number_only_changed_one_to_one_same_unresolved_span: metrics
+                .number_only_changed_one_to_one_same_unresolved_span,
+        }
+    }
+}
+
 impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
     fn from(metrics: SentenceRecoveryMetrics) -> Self {
         Self {
@@ -4566,6 +4705,7 @@ impl From<SentenceRecoveryMetrics> for SentenceRecoveryMetricsReport {
                 .map(Into::into),
             recovery_ownership_partition: None,
             structural_container_shadow: None,
+            section_pairing_shadow: None,
             old_trusted_run_source_tokens: metrics.old_trusted_run_source_tokens,
             new_trusted_run_source_tokens: metrics.new_trusted_run_source_tokens,
             structural_pairing_available: metrics.structural_pairing_available,
@@ -9287,6 +9427,242 @@ fn validate_structural_container_shadow(
     Ok(())
 }
 
+fn checked_section_pairing_sum(
+    label: &str,
+    values: &[usize],
+) -> std::result::Result<usize, String> {
+    values.iter().try_fold(0usize, |total, value| {
+        total
+            .checked_add(*value)
+            .ok_or_else(|| format!("{label} counters overflow"))
+    })
+}
+
+fn validate_section_pairing_shadow(
+    shadow: Option<SectionPairingMetrics>,
+) -> std::result::Result<(), String> {
+    let Some(shadow) = shadow else {
+        return Ok(());
+    };
+    if !shadow.complete {
+        let Some(reason) = shadow.stop_reason else {
+            return Err("stopped section-pairing shadow has no stop reason".to_owned());
+        };
+        let expected = SectionPairingMetrics {
+            complete: false,
+            stop_reason: Some(reason),
+            ..SectionPairingMetrics::default()
+        };
+        if shadow != expected {
+            return Err("stopped section-pairing shadow exposes partial metrics".to_owned());
+        }
+        return Ok(());
+    }
+    if shadow.stop_reason.is_some() {
+        return Err("complete section-pairing shadow has a stop reason".to_owned());
+    }
+
+    let heading_pairs = checked_section_pairing_sum(
+        "section-pairing heading pair",
+        &[shadow.exact_heading_pairs, shadow.stripped_heading_pairs],
+    )?;
+    let classified_pairs = checked_section_pairing_sum(
+        "section-pairing classified pair",
+        &[
+            shadow.strong_heading_pairs,
+            shadow.number_only_section_pairs,
+        ],
+    )?;
+    if heading_pairs != classified_pairs
+        || heading_pairs > shadow.old_sections
+        || heading_pairs > shadow.new_sections
+        || heading_pairs > shadow.match_spans_examined
+    {
+        return Err("section-pairing heading pair partition is inconsistent".to_owned());
+    }
+    if shadow.ambiguous_span_vetoes > shadow.match_spans_examined {
+        return Err("section-pairing ambiguous spans exceed examined match spans".to_owned());
+    }
+
+    let strong_parents = checked_section_pairing_sum(
+        "section-pairing strong parent",
+        &[
+            shadow.parent_consistent_pairs,
+            shadow.parent_changed_pairs,
+            shadow.parent_unknown_pairs,
+        ],
+    )?;
+    let number_only_parents = checked_section_pairing_sum(
+        "section-pairing number-only parent",
+        &[
+            shadow.number_only_parent_consistent,
+            shadow.number_only_parent_changed,
+            shadow.number_only_parent_unknown,
+        ],
+    )?;
+    if strong_parents != shadow.strong_heading_pairs
+        || number_only_parents != shadow.number_only_section_pairs
+    {
+        return Err("section-pairing parent partition is inconsistent".to_owned());
+    }
+
+    let strong_topology = checked_section_pairing_sum(
+        "section-pairing strong topology",
+        &[
+            shadow.monotone_pairs,
+            shadow.crossing_pairs,
+            shadow.topology_unknown_pairs,
+        ],
+    )?;
+    if strong_topology != shadow.strong_heading_pairs {
+        return Err("section-pairing strong topology partition is inconsistent".to_owned());
+    }
+    for (label, paragraphs, strong_memberships, number_only_memberships) in [
+        (
+            "old",
+            shadow.old_paragraphs,
+            shadow.old_strong_paragraph_memberships,
+            shadow.old_number_only_paragraph_memberships,
+        ),
+        (
+            "new",
+            shadow.new_paragraphs,
+            shadow.new_strong_paragraph_memberships,
+            shadow.new_number_only_paragraph_memberships,
+        ),
+    ] {
+        let memberships = strong_memberships
+            .checked_add(number_only_memberships)
+            .ok_or_else(|| format!("{label} section-pairing membership counters overflow"))?;
+        let maximum_memberships = paragraphs
+            .checked_mul(2)
+            .ok_or_else(|| format!("{label} section-pairing membership bound overflows"))?;
+        if number_only_memberships != paragraphs
+            || strong_memberships > paragraphs
+            || memberships > maximum_memberships
+        {
+            return Err(format!(
+                "{label} section-pairing paragraph membership inventory is inconsistent"
+            ));
+        }
+    }
+    if shadow.strong_paragraph_anchor_pairs
+        > shadow
+            .old_strong_paragraph_memberships
+            .min(shadow.new_strong_paragraph_memberships)
+        || shadow.number_only_paragraph_anchor_pairs
+            > shadow
+                .old_number_only_paragraph_memberships
+                .min(shadow.new_number_only_paragraph_memberships)
+    {
+        return Err("section-pairing paragraph anchors exceed view memberships".to_owned());
+    }
+    if shadow.paragraph_anchor_crossing_vetoes > heading_pairs {
+        return Err("section-pairing paragraph crossing vetoes exceed pairs".to_owned());
+    }
+    if shadow.paragraph_pair_visits_examined > shadow.paragraph_pair_visits_attempted
+        || shadow.paragraph_token_comparisons_examined
+            > shadow.paragraph_token_comparisons_attempted
+    {
+        return Err("section-pairing examined work exceeds attempted work".to_owned());
+    }
+    if shadow.paragraph_pair_visits_attempted != shadow.paragraph_pair_visits_examined
+        || shadow.paragraph_token_comparisons_attempted
+            != shadow.paragraph_token_comparisons_examined
+    {
+        return Err("complete section-pairing work counters are inconsistent".to_owned());
+    }
+
+    let strong_gaps = checked_section_pairing_sum(
+        "section-pairing strong gap",
+        &[
+            shadow.insertion_gaps,
+            shadow.deletion_gaps,
+            shadow.one_to_one_gaps,
+            shadow.many_to_many_gaps,
+        ],
+    )?;
+    let number_only_gaps = checked_section_pairing_sum(
+        "section-pairing number-only gap",
+        &[
+            shadow.number_only_insertion_gaps,
+            shadow.number_only_deletion_gaps,
+            shadow.number_only_one_to_one_gaps,
+            shadow.number_only_many_to_many_gaps,
+        ],
+    )?;
+    let maximum_strong_gaps = shadow
+        .strong_paragraph_anchor_pairs
+        .checked_add(shadow.strong_heading_pairs)
+        .ok_or_else(|| "section-pairing strong gap bound overflows".to_owned())?;
+    let maximum_number_only_gaps = shadow
+        .number_only_paragraph_anchor_pairs
+        .checked_add(shadow.number_only_section_pairs)
+        .ok_or_else(|| "section-pairing number-only gap bound overflows".to_owned())?;
+    if strong_gaps > maximum_strong_gaps
+        || number_only_gaps > maximum_number_only_gaps
+        || shadow.insertion_gaps > shadow.new_strong_paragraph_memberships
+        || shadow.deletion_gaps > shadow.old_strong_paragraph_memberships
+        || shadow.number_only_insertion_gaps > shadow.new_number_only_paragraph_memberships
+        || shadow.number_only_deletion_gaps > shadow.old_number_only_paragraph_memberships
+    {
+        return Err("section-pairing gap counts exceed view memberships".to_owned());
+    }
+    if (shadow.old_strong_paragraph_memberships == 0
+        && (shadow.strong_paragraph_anchor_pairs != 0
+            || shadow.deletion_gaps != 0
+            || shadow.one_to_one_gaps != 0
+            || shadow.many_to_many_gaps != 0))
+        || (shadow.new_strong_paragraph_memberships == 0
+            && (shadow.strong_paragraph_anchor_pairs != 0
+                || shadow.insertion_gaps != 0
+                || shadow.one_to_one_gaps != 0
+                || shadow.many_to_many_gaps != 0))
+        || (shadow.old_number_only_paragraph_memberships == 0
+            && (shadow.number_only_paragraph_anchor_pairs != 0
+                || shadow.number_only_deletion_gaps != 0
+                || shadow.number_only_one_to_one_gaps != 0
+                || shadow.number_only_many_to_many_gaps != 0))
+        || (shadow.new_number_only_paragraph_memberships == 0
+            && (shadow.number_only_paragraph_anchor_pairs != 0
+                || shadow.number_only_insertion_gaps != 0
+                || shadow.number_only_one_to_one_gaps != 0
+                || shadow.number_only_many_to_many_gaps != 0))
+    {
+        return Err("section-pairing view output exists without paragraph membership".to_owned());
+    }
+    let old_memberships = shadow
+        .old_strong_paragraph_memberships
+        .checked_add(shadow.old_number_only_paragraph_memberships)
+        .ok_or_else(|| "section-pairing old membership counters overflow".to_owned())?;
+    if old_memberships == 0
+        && (shadow.paragraph_pair_visits_attempted != 0
+            || shadow.paragraph_token_comparisons_attempted != 0)
+    {
+        return Err("section-pairing paragraph work exists without old membership".to_owned());
+    }
+    if (shadow.strong_heading_pairs == 0 && strong_gaps != 0)
+        || (shadow.number_only_section_pairs == 0 && number_only_gaps != 0)
+        || shadow.changed_one_to_one_gaps > shadow.one_to_one_gaps
+        || shadow.changed_one_to_one_same_unresolved_span > shadow.changed_one_to_one_gaps
+        || shadow.number_only_changed_one_to_one_gaps > shadow.number_only_one_to_one_gaps
+        || shadow.number_only_changed_one_to_one_same_unresolved_span
+            > shadow.number_only_changed_one_to_one_gaps
+    {
+        return Err("section-pairing gap partition is inconsistent".to_owned());
+    }
+    if heading_pairs == 0
+        && (shadow.strong_paragraph_anchor_pairs != 0
+            || shadow.number_only_paragraph_anchor_pairs != 0
+            || shadow.paragraph_anchor_crossing_vetoes != 0
+            || shadow.paragraph_pair_visits_attempted != 0
+            || shadow.paragraph_token_comparisons_attempted != 0)
+    {
+        return Err("section-pairing paragraph work exists without a section pair".to_owned());
+    }
+    Ok(())
+}
+
 fn validate_recovery_ownership_status(
     metrics: SentenceRecoveryMetrics,
 ) -> std::result::Result<(), String> {
@@ -9593,10 +9969,14 @@ fn validate_sentence_recovery_metrics_with_partition(
     let mut report = validate_sentence_recovery_metrics(metrics)?;
     let structural_container_shadow =
         partition.and_then(RecoveryOwnershipPartitionAnalysis::structural_container_metrics);
+    let section_pairing_shadow =
+        partition.and_then(RecoveryOwnershipPartitionAnalysis::section_pairing_metrics);
     validate_structural_container_shadow(structural_container_shadow)?;
+    validate_section_pairing_shadow(section_pairing_shadow)?;
     report.recovery_ownership_partition =
         validate_recovery_ownership_partition(metrics, partition)?;
     report.structural_container_shadow = structural_container_shadow.map(Into::into);
+    report.section_pairing_shadow = section_pairing_shadow.map(|metrics| Box::new(metrics.into()));
     Ok(report)
 }
 
@@ -13661,7 +14041,7 @@ pub struct RevisionSummaryReport {
 }
 
 impl RevisionSummaryReport {
-    pub const SCHEMA_VERSION: u32 = 61;
+    pub const SCHEMA_VERSION: u32 = 62;
 
     pub fn from_reports(reports: &[PairRunReport]) -> Self {
         Self {
@@ -15567,7 +15947,7 @@ mod tests {
         });
         let completed = RevisionSummaryReport::from_reports(&[report]);
         let completed = serde_json::to_value(completed).expect("summary serializes");
-        assert_eq!(completed["schema_version"], 61);
+        assert_eq!(completed["schema_version"], 62);
         assert_eq!(completed["records"][0]["candidate_recall"]["top_k"], 32);
         assert_eq!(
             completed["records"][0]["candidate_recall"]["recall_at_k"],
@@ -15641,7 +16021,7 @@ mod tests {
         assert!(legacy_full.get("scoped_event_metrics").is_none());
         let legacy_summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[legacy]))
             .expect("summary serializes");
-        assert_eq!(legacy_summary["schema_version"], 61);
+        assert_eq!(legacy_summary["schema_version"], 62);
         assert!(
             legacy_summary["records"][0]
                 .get("scoped_event_metrics")
@@ -15718,7 +16098,7 @@ mod tests {
         assert!(full.get("reviewed_recall_metrics").is_none());
         let summary = serde_json::to_value(RevisionSummaryReport::from_reports(&[report]))
             .expect("summary serializes");
-        assert_eq!(summary["schema_version"], 61);
+        assert_eq!(summary["schema_version"], 62);
         assert_eq!(
             summary["records"][0]["reviewed_recall_metrics"],
             serde_json::json!({
@@ -18472,6 +18852,15 @@ mod tests {
             ..
         } = compare_outcomes_with_metrics(old, new, PipelineOptions::default(), &[])
             .expect("empty comparison succeeds");
+        let section_pairing = sentence_recovery_metrics
+            .as_ref()
+            .and_then(|metrics| metrics.section_pairing_shadow.as_deref())
+            .expect("diagnostic entry point records section pairing");
+        assert!(section_pairing.complete);
+        let section_pairing_json =
+            serde_json::to_value(section_pairing).expect("section pairing shadow serializes");
+        assert_eq!(section_pairing_json["complete"], true);
+        assert_eq!(section_pairing_json["stop_reason"], serde_json::Value::Null);
 
         assert_eq!(
             sentence_recovery_metrics,
@@ -18490,6 +18879,10 @@ mod tests {
                     },
                     ..StructuralContainerMetricsReport::default()
                 }),
+                section_pairing_shadow: Some(Box::new(SectionPairingMetricsReport {
+                    complete: true,
+                    ..SectionPairingMetricsReport::default()
+                })),
                 structural_pairing_available: true,
                 near_relation_complete: true,
                 sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetricsReport {
@@ -18721,7 +19114,7 @@ mod tests {
         let summary = RevisionSummaryReport::from_reports(&[record(PairRunStatus::Ok)]);
         let json = serde_json::to_value(summary).expect("summary serializes");
 
-        assert_eq!(json["schema_version"], 61);
+        assert_eq!(json["schema_version"], 62);
         assert_eq!(
             json["records"][0]["sentence_recovery_metrics"],
             serde_json::Value::Null
@@ -18806,6 +19199,200 @@ mod tests {
             ..complete
         };
         assert!(validate_structural_container_shadow(Some(complete_with_reason)).is_err());
+    }
+    #[test]
+    fn validates_section_pairing_shadow_atomic_contract() {
+        let complete = SectionPairingMetrics {
+            complete: true,
+            old_sections: 2,
+            new_sections: 2,
+            old_paragraphs: 3,
+            new_paragraphs: 3,
+            old_strong_paragraph_memberships: 3,
+            new_strong_paragraph_memberships: 3,
+            old_number_only_paragraph_memberships: 3,
+            new_number_only_paragraph_memberships: 3,
+            match_spans_examined: 2,
+            exact_heading_pairs: 1,
+            stripped_heading_pairs: 1,
+            strong_heading_pairs: 1,
+            number_only_section_pairs: 1,
+            parent_consistent_pairs: 1,
+            number_only_parent_unknown: 1,
+            monotone_pairs: 1,
+            strong_paragraph_anchor_pairs: 1,
+            number_only_paragraph_anchor_pairs: 1,
+            paragraph_pair_visits_attempted: 4,
+            paragraph_pair_visits_examined: 4,
+            paragraph_token_comparisons_attempted: 3,
+            paragraph_token_comparisons_examined: 3,
+            one_to_one_gaps: 1,
+            changed_one_to_one_gaps: 1,
+            changed_one_to_one_same_unresolved_span: 1,
+            number_only_one_to_one_gaps: 1,
+            number_only_changed_one_to_one_gaps: 1,
+            ..SectionPairingMetrics::default()
+        };
+        assert_eq!(validate_section_pairing_shadow(Some(complete)), Ok(()));
+        let shared_paragraph_in_both_views = SectionPairingMetrics {
+            complete: true,
+            old_sections: 2,
+            new_sections: 2,
+            old_paragraphs: 1,
+            new_paragraphs: 1,
+            old_strong_paragraph_memberships: 1,
+            new_strong_paragraph_memberships: 1,
+            old_number_only_paragraph_memberships: 1,
+            new_number_only_paragraph_memberships: 1,
+            match_spans_examined: 2,
+            exact_heading_pairs: 2,
+            strong_heading_pairs: 1,
+            number_only_section_pairs: 1,
+            parent_consistent_pairs: 1,
+            number_only_parent_consistent: 1,
+            monotone_pairs: 1,
+            strong_paragraph_anchor_pairs: 1,
+            number_only_paragraph_anchor_pairs: 1,
+            ..SectionPairingMetrics::default()
+        };
+        assert_eq!(
+            validate_section_pairing_shadow(Some(shared_paragraph_in_both_views)),
+            Ok(())
+        );
+        assert!(
+            shared_paragraph_in_both_views
+                .strong_paragraph_anchor_pairs
+                .checked_add(shared_paragraph_in_both_views.number_only_paragraph_anchor_pairs)
+                .is_some_and(|anchors| anchors > shared_paragraph_in_both_views.old_paragraphs)
+        );
+
+        let report = SectionPairingMetricsReport::from(complete);
+        let json = serde_json::to_value(report).expect("section pairing report serializes");
+        assert_eq!(json["complete"], true);
+        assert_eq!(json["changed_one_to_one_gaps"], 1);
+        assert_eq!(json["paragraph_pair_visits_examined"], 4);
+        assert_eq!(json["old_strong_paragraph_memberships"], 3);
+        assert_eq!(json["number_only_paragraph_anchor_pairs"], 1);
+        assert_eq!(
+            serde_json::to_value(SectionPairingStopReasonReport::from(
+                SectionPairingStopReason::ParagraphComparisonLimit,
+            ))
+            .expect("stop reason serializes"),
+            "paragraph_comparison_limit"
+        );
+
+        let stopped = SectionPairingMetrics {
+            complete: false,
+            stop_reason: Some(SectionPairingStopReason::ParagraphPairLimit),
+            ..SectionPairingMetrics::default()
+        };
+        assert_eq!(validate_section_pairing_shadow(Some(stopped)), Ok(()));
+
+        let partial_stop = SectionPairingMetrics {
+            old_sections: 1,
+            ..stopped
+        };
+        assert!(validate_section_pairing_shadow(Some(partial_stop)).is_err());
+
+        let complete_with_reason = SectionPairingMetrics {
+            stop_reason: Some(SectionPairingStopReason::GapLimit),
+            ..complete
+        };
+        assert!(validate_section_pairing_shadow(Some(complete_with_reason)).is_err());
+
+        for invalid in [
+            SectionPairingMetrics {
+                strong_heading_pairs: 2,
+                ..complete
+            },
+            SectionPairingMetrics {
+                parent_unknown_pairs: 1,
+                ..complete
+            },
+            SectionPairingMetrics {
+                crossing_pairs: 1,
+                ..complete
+            },
+            SectionPairingMetrics {
+                changed_one_to_one_gaps: 2,
+                ..complete
+            },
+            SectionPairingMetrics {
+                paragraph_pair_visits_attempted: 5,
+                ..complete
+            },
+            SectionPairingMetrics {
+                strong_paragraph_anchor_pairs: 4,
+                ..complete
+            },
+            SectionPairingMetrics {
+                insertion_gaps: 4,
+                ..complete
+            },
+            SectionPairingMetrics {
+                deletion_gaps: 4,
+                ..complete
+            },
+            SectionPairingMetrics {
+                strong_paragraph_anchor_pairs: 0,
+                many_to_many_gaps: 1,
+                ..complete
+            },
+            SectionPairingMetrics {
+                old_strong_paragraph_memberships: 0,
+                ..complete
+            },
+            SectionPairingMetrics {
+                paragraph_pair_visits_examined: 5,
+                ..complete
+            },
+            SectionPairingMetrics {
+                number_only_paragraph_anchor_pairs: 4,
+                ..complete
+            },
+            SectionPairingMetrics {
+                number_only_insertion_gaps: 4,
+                ..complete
+            },
+            SectionPairingMetrics {
+                number_only_deletion_gaps: 4,
+                ..complete
+            },
+            SectionPairingMetrics {
+                new_number_only_paragraph_memberships: 0,
+                ..complete
+            },
+            SectionPairingMetrics {
+                complete: true,
+                old_strong_paragraph_memberships: 1,
+                ..SectionPairingMetrics::default()
+            },
+            SectionPairingMetrics {
+                complete: true,
+                old_paragraphs: 1,
+                ..SectionPairingMetrics::default()
+            },
+            SectionPairingMetrics {
+                complete: true,
+                old_paragraphs: 1,
+                old_strong_paragraph_memberships: 2,
+                old_number_only_paragraph_memberships: 1,
+                ..SectionPairingMetrics::default()
+            },
+            SectionPairingMetrics {
+                complete: true,
+                old_paragraphs: usize::MAX,
+                old_strong_paragraph_memberships: usize::MAX,
+                old_number_only_paragraph_memberships: usize::MAX,
+                ..SectionPairingMetrics::default()
+            },
+            SectionPairingMetrics {
+                exact_heading_pairs: usize::MAX,
+                ..complete
+            },
+        ] {
+            assert!(validate_section_pairing_shadow(Some(invalid)).is_err());
+        }
     }
 
     #[test]
@@ -25784,6 +26371,17 @@ mod tests {
                             ..StructuralContainerSideMetricsReport::default()
                         },
                     }),
+                    section_pairing_shadow: Some(Box::new(SectionPairingMetricsReport {
+                        complete: true,
+                        old_sections: 1,
+                        new_sections: 1,
+                        match_spans_examined: 1,
+                        exact_heading_pairs: 1,
+                        strong_heading_pairs: 1,
+                        parent_consistent_pairs: 1,
+                        monotone_pairs: 1,
+                        ..SectionPairingMetricsReport::default()
+                    })),
                     old_trusted_run_source_tokens: 42,
                     near_relation_complete: true,
                     sentence_edge_gate_shadow: Some(SentenceEdgeGateShadowMetricsReport {
@@ -25933,7 +26531,7 @@ mod tests {
             .collect::<HashSet<_>>();
         let expected_top_keys = HashSet::from(["schema_version".to_owned(), "records".to_owned()]);
         assert_eq!(top_keys, expected_top_keys);
-        assert_eq!(value["schema_version"], 61);
+        assert_eq!(value["schema_version"], 62);
 
         let records = value["records"].as_array().expect("records array");
         assert_eq!(records.len(), 3);
@@ -26009,6 +26607,7 @@ mod tests {
             "recovery_leaf_partition_stop_reason".to_owned(),
             "recovery_ownership_partition".to_owned(),
             "structural_container_shadow".to_owned(),
+            "section_pairing_shadow".to_owned(),
             "old_trusted_run_source_tokens".to_owned(),
             "new_trusted_run_source_tokens".to_owned(),
             "structural_pairing_available".to_owned(),
@@ -26190,6 +26789,58 @@ mod tests {
                 expected_structural_container_side_keys
             );
         }
+        let section_pairing = records[0]["sentence_recovery_metrics"]["section_pairing_shadow"]
+            .as_object()
+            .expect("section pairing shadow object");
+        assert_eq!(
+            section_pairing.keys().cloned().collect::<HashSet<_>>(),
+            HashSet::from([
+                "complete".to_owned(),
+                "stop_reason".to_owned(),
+                "old_sections".to_owned(),
+                "new_sections".to_owned(),
+                "old_paragraphs".to_owned(),
+                "new_paragraphs".to_owned(),
+                "old_strong_paragraph_memberships".to_owned(),
+                "new_strong_paragraph_memberships".to_owned(),
+                "old_number_only_paragraph_memberships".to_owned(),
+                "new_number_only_paragraph_memberships".to_owned(),
+                "match_spans_examined".to_owned(),
+                "ambiguous_span_vetoes".to_owned(),
+                "exact_heading_pairs".to_owned(),
+                "stripped_heading_pairs".to_owned(),
+                "strong_heading_pairs".to_owned(),
+                "number_only_section_pairs".to_owned(),
+                "parent_consistent_pairs".to_owned(),
+                "parent_changed_pairs".to_owned(),
+                "parent_unknown_pairs".to_owned(),
+                "number_only_parent_consistent".to_owned(),
+                "number_only_parent_changed".to_owned(),
+                "number_only_parent_unknown".to_owned(),
+                "monotone_pairs".to_owned(),
+                "crossing_pairs".to_owned(),
+                "topology_unknown_pairs".to_owned(),
+                "strong_paragraph_anchor_pairs".to_owned(),
+                "number_only_paragraph_anchor_pairs".to_owned(),
+                "paragraph_pair_visits_attempted".to_owned(),
+                "paragraph_pair_visits_examined".to_owned(),
+                "paragraph_token_comparisons_attempted".to_owned(),
+                "paragraph_token_comparisons_examined".to_owned(),
+                "paragraph_anchor_crossing_vetoes".to_owned(),
+                "insertion_gaps".to_owned(),
+                "deletion_gaps".to_owned(),
+                "one_to_one_gaps".to_owned(),
+                "many_to_many_gaps".to_owned(),
+                "changed_one_to_one_gaps".to_owned(),
+                "changed_one_to_one_same_unresolved_span".to_owned(),
+                "number_only_insertion_gaps".to_owned(),
+                "number_only_deletion_gaps".to_owned(),
+                "number_only_one_to_one_gaps".to_owned(),
+                "number_only_many_to_many_gaps".to_owned(),
+                "number_only_changed_one_to_one_gaps".to_owned(),
+                "number_only_changed_one_to_one_same_unresolved_span".to_owned(),
+            ])
+        );
         let fragment_bundle =
             records[0]["sentence_recovery_metrics"]["local_fragment_review_bundle"]
                 .as_object()

@@ -1,6 +1,7 @@
 //! Bounded verification and aggregation for recovery token ownership.
 
 use super::container::StructuralContainerMetrics;
+use super::section_pairing::SectionPairingMetrics;
 #[cfg(test)]
 const RECOVERY_OWNERSHIP_SAMPLE_LIMIT: usize = 1;
 
@@ -328,6 +329,7 @@ pub struct RecoveryOwnershipPartitionSamples {
 pub struct RecoveryOwnershipPartitionAnalysis {
     sides: Vec<RecoveryOwnershipSideAnalysis>,
     structural_container_metrics: Option<StructuralContainerMetrics>,
+    section_pairing_metrics: Option<SectionPairingMetrics>,
 }
 
 impl RecoveryOwnershipPartitionAnalysis {
@@ -344,6 +346,7 @@ impl RecoveryOwnershipPartitionAnalysis {
         Ok(Self {
             sides,
             structural_container_metrics: None,
+            section_pairing_metrics: None,
         })
     }
 
@@ -369,6 +372,16 @@ impl RecoveryOwnershipPartitionAnalysis {
 
     pub(crate) fn set_structural_container_metrics(&mut self, metrics: StructuralContainerMetrics) {
         self.structural_container_metrics = Some(metrics);
+    }
+
+    /// Returns behavior-neutral section-pairing diagnostics derived from the
+    /// normalized blocks and trusted-run evidence.
+    pub fn section_pairing_metrics(&self) -> Option<SectionPairingMetrics> {
+        self.section_pairing_metrics
+    }
+
+    pub(crate) fn set_section_pairing_metrics(&mut self, metrics: SectionPairingMetrics) {
+        self.section_pairing_metrics = Some(metrics);
     }
 }
 
