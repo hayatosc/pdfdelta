@@ -5,21 +5,21 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-03
-- **Generator / engine commit**: [`6390d01`](https://github.com/hayatosc/pdfdelta/commit/6390d01)
+- **Generator / engine commit**: [`0e071cf`](https://github.com/hayatosc/pdfdelta/commit/0e071cf)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-03-6390d01.json`](2026-09-03-6390d01.json)
-  - Schema: v62
-  - Size: 8,470,010 bytes
-  - SHA-256: `dd0b7559560584120c3954cdff50efa93468442e666162b8216066c47bf96335`
+  - File: [`2026-09-03-0e071cf.json`](2026-09-03-0e071cf.json)
+  - Schema: v63
+  - Size: 8,825,748 bytes
+  - SHA-256: `199688d05555a1c2a102a4e0e752211647ffd20c9a054e090dd829e1144ab28a`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
-**Schema parity**: PASS against `2026-09-02-5ed948e.json` after excluding only
-`section_pairing_shadow` and the schema number.
+**Schema parity**: PASS against `2026-09-03-6390d01.json` after excluding only
+`section_pairing_proposal_review_bundle` and the schema number.
 
 ## Reproduction
 
@@ -29,9 +29,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-03-6390d01.json \
+cp benchmark/realworld/results/2026-09-03-0e071cf.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 6390d01
+git switch --detach 0e071cf
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -47,9 +47,9 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-09-02-5ed948e.json \
   benchmark/realworld/results/2026-09-03-6390d01.json \
-  section_pairing_shadow
+  benchmark/realworld/results/2026-09-03-0e071cf.json \
+  section_pairing_proposal_review_bundle
 ```
 
 The preceding exact-boundary capture can be checked in the same way:
@@ -135,6 +135,27 @@ at 1/3 presence because none of its unmatched rewrites satisfies the current
 conservative anchor-window proof.
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
+Schema v63 adds a bounded, deterministic review bundle for changed one-to-one
+paragraph gaps identified by the schema-v62 section-pairing shadow. Sixteen of
+18 applicable builds publish complete bundles; SP 800-57 stops atomically at
+the proposal-work limit, and EDPB Right of Access stops atomically because
+duplicate structural evidence makes a proposal ambiguous. No partial counters
+or samples are published for either stopped build. Removing `schema_version`
+and `section_pairing_proposal_review_bundle` yields exact JSON parity with
+`2026-09-03-6390d01.json`.
+
+The complete bundles contain 20 proposals: 12 strong and eight number-only.
+All 20 have exact bounded edit traces, 12 have leaf-only ownership, seven
+overlap existing content events, and one passes the initial structural gate.
+The development set contains ten proposals but none passes that gate. Its two
+strong proposals are W3C and ECMA paragraph changes that already overlap an
+existing event; the ECMA proposal is unrelated to the remaining reviewed
+28-occurrence footer-year miss. FIPS and MQTT expose only number-only
+proposals. The single passing proposal is in the holdout set and is not used to
+tune or activate behavior. Schema v63 therefore provides evidence against
+promoting SectionGap recovery under the current structural proof, rather than
+claiming an accuracy improvement.
+
 Schema v62 adds a behavior-neutral full-document section-pairing shadow, gated
 on the verified recovery-ownership sidecar and reported alongside the
 schema-v61 structural-container inventory. The two diagnostics have separate
@@ -1031,10 +1052,16 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v62)
+## Current Writer Schema (v63)
 
-The benchmark writer and latest committed capture use schema v62. Older
-captures retain their recorded schemas. Schema v62 records a bounded, atomic,
+The benchmark writer and latest committed capture use schema v63. Older
+captures retain their recorded schemas. Schema v63 records bounded proposal
+review evidence for schema-v62 changed one-to-one paragraph gaps. Each complete
+bundle includes exact edit traces, source provenance, recovery ownership,
+existing-change overlap, structural evidence, a full-evidence fingerprint, and
+a deliberately strict audit-only gate. A typed stop publishes no partial
+proposal data. Removing `section_pairing_proposal_review_bundle` and the schema
+number yields exact parity with schema v62. Schema v62 records a bounded, atomic,
 behavior-neutral full-document section-pairing shadow gated on the verified
 recovery-ownership sidecar and reported alongside the schema-v61
 structural-container inventory. Their populations and counters are separate.
