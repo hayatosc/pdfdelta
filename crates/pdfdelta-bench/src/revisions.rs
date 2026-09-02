@@ -6631,6 +6631,16 @@ fn recovered_relation_trace(trace: &RecoveredAtomicDiff) -> ActualRelationTrace 
     }
 }
 
+fn optional_span_comparable_len(span: Option<&TextSpan>) -> Option<usize> {
+    match span {
+        Some(span) => span
+            .comparable_range
+            .end
+            .checked_sub(span.comparable_range.start),
+        None => Some(0),
+    }
+}
+
 fn recovered_event_evidence(
     traces: &[RecoveredAtomicDiff],
     blocks_by_side: [&HashMap<u64, &BlockText>; 2],
@@ -6663,24 +6673,10 @@ fn recovered_event_evidence(
                 .changed_occurrences
                 .iter()
                 .try_fold((0usize, 0usize), |(old, new), changed| {
-                    let old_len = changed
-                        .occurrence
-                        .old_span
-                        .as_ref()?
-                        .comparable_range
-                        .end
-                        .checked_sub(
-                            changed.occurrence.old_span.as_ref()?.comparable_range.start,
-                        )?;
-                    let new_len = changed
-                        .occurrence
-                        .new_span
-                        .as_ref()?
-                        .comparable_range
-                        .end
-                        .checked_sub(
-                            changed.occurrence.new_span.as_ref()?.comparable_range.start,
-                        )?;
+                    let old_len =
+                        optional_span_comparable_len(changed.occurrence.old_span.as_ref())?;
+                    let new_len =
+                        optional_span_comparable_len(changed.occurrence.new_span.as_ref())?;
                     Some((old.checked_add(old_len)?, new.checked_add(new_len)?))
                 });
         let semantic_hunks = trace
@@ -18408,6 +18404,117 @@ mod tests {
         );
     }
 
+    fn repeated_one_sided_recovered_fixture(
+        kind: ChangeKind,
+        occurrence_count: usize,
+    ) -> (
+        Vec<BlockText>,
+        Vec<BlockText>,
+        Comparison,
+        Vec<RecoveredAtomicDiff>,
+    ) {
+        assert!(matches!(kind, ChangeKind::Deletion | ChangeKind::Insertion));
+        let (old_blocks, new_blocks, mut comparison, mut traces) =
+            repeated_recovered_fixture(occurrence_count);
+        comparison.changes[0].kind = kind;
+        for occurrence in &mut comparison.changes[0].occurrences {
+            match kind {
+                ChangeKind::Deletion => occurrence.new_span = None,
+                ChangeKind::Insertion => occurrence.old_span = None,
+                ChangeKind::Replacement | ChangeKind::Move => unreachable!(),
+            }
+        }
+        for trace in &mut traces {
+            let changed = &mut trace.changed_occurrences[0];
+            let edit = &mut trace.edits[0];
+            match kind {
+                ChangeKind::Deletion => {
+                    changed.occurrence.new_span = None;
+                    edit.new.end = edit.new.start;
+                }
+                ChangeKind::Insertion => {
+                    changed.occurrence.old_span = None;
+                    edit.old.end = edit.old.start;
+                }
+                ChangeKind::Replacement | ChangeKind::Move => unreachable!(),
+            }
+        }
+        (old_blocks, new_blocks, comparison, traces)
+    }
+
+    fn assert_repeated_one_sided_recovered_event(kind: ChangeKind) {
+        let occurrence_count = 3;
+        let (old_blocks, new_blocks, comparison, traces) =
+            repeated_one_sided_recovered_fixture(kind, occurrence_count);
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+
+        let actuals = flatten_actual_changes(&comparison, [&old_map, &new_map], &[], &traces);
+
+        assert_eq!(actuals[0].kind, kind);
+        assert_eq!(actuals[0].occurrences.len(), occurrence_count);
+        for (index, occurrence) in actuals[0].occurrences.iter().enumerate() {
+            let changed_at = format!("page{} z", index + 1).chars().count() - 1;
+            let hunk = &occurrence.semantic_hunks.as_ref().expect("exact hunk")[0];
+            match kind {
+                ChangeKind::Deletion => {
+                    assert_eq!(occurrence.old_semantic_changed_tokens, Some(1));
+                    assert_eq!(occurrence.new_semantic_changed_tokens, Some(0));
+                    assert_eq!(hunk.old_text.as_deref(), Some("z"));
+                    assert_eq!(hunk.new_text, None);
+                    assert_eq!(hunk.old_range, Some(changed_at..changed_at + 1));
+                    assert_eq!(hunk.new_range, None);
+                }
+                ChangeKind::Insertion => {
+                    assert_eq!(occurrence.old_semantic_changed_tokens, Some(0));
+                    assert_eq!(occurrence.new_semantic_changed_tokens, Some(1));
+                    assert_eq!(hunk.old_text, None);
+                    assert_eq!(hunk.new_text.as_deref(), Some("q"));
+                    assert_eq!(hunk.old_range, None);
+                    assert_eq!(hunk.new_range, Some(changed_at..changed_at + 1));
+                }
+                ChangeKind::Replacement | ChangeKind::Move => unreachable!(),
+            }
+        }
+
+        let (expected_kind, old_quote, new_quote) = match kind {
+            ChangeKind::Deletion => (ExpectedKind::Deletion, Some("z"), None),
+            ChangeKind::Insertion => (ExpectedKind::Insertion, None, Some("q")),
+            ChangeKind::Replacement | ChangeKind::Move => unreachable!(),
+        };
+        let mut expected =
+            expected_change("repeated-one-sided", expected_kind, old_quote, new_quote);
+        expected.occurrence_count = Some(occurrence_count);
+        match kind {
+            ChangeKind::Deletion => {
+                expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+            }
+            ChangeKind::Insertion => {
+                expected.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 0, end: 1 }]);
+            }
+            ChangeKind::Replacement | ChangeKind::Move => unreachable!(),
+        }
+        let needles = normalized_expected_quotes(&expected);
+        for mode in [
+            ReviewedEventMode::Presence,
+            ReviewedEventMode::ExactLocalization,
+            ReviewedEventMode::SemanticRelation,
+        ] {
+            let mut budget = MatchingScanBudget::default();
+            assert!(
+                actual_matches_reviewed_mode(
+                    &expected,
+                    &needles,
+                    &actuals[0],
+                    mode,
+                    &mut budget,
+                    MatchingLimits::default(),
+                )
+                .expect("matching stays within default limits")
+            );
+        }
+    }
+
     #[test]
     fn repeated_recovered_event_preserves_occurrences_and_exact_evidence() {
         assert_repeated_recovered_event(3);
@@ -18416,6 +18523,37 @@ mod tests {
     #[test]
     fn repeated_recovered_event_supports_twenty_eight_ordered_occurrences() {
         assert_repeated_recovered_event(28);
+    }
+
+    #[test]
+    fn repeated_recovered_deletion_preserves_exact_one_sided_evidence() {
+        assert_repeated_one_sided_recovered_event(ChangeKind::Deletion);
+    }
+
+    #[test]
+    fn repeated_recovered_insertion_preserves_exact_one_sided_evidence() {
+        assert_repeated_one_sided_recovered_event(ChangeKind::Insertion);
+    }
+
+    #[test]
+    fn recovered_one_sided_event_rejects_malformed_present_span() {
+        let (old_blocks, new_blocks, _, mut traces) =
+            repeated_one_sided_recovered_fixture(ChangeKind::Deletion, 1);
+        let old_map = build_block_map(&old_blocks);
+        let new_map = build_block_map(&new_blocks);
+        let changed = &mut traces[0].changed_occurrences[0].occurrence;
+        let old_span = changed.old_span.as_mut().expect("present deletion span");
+        old_span.comparable_range = TokenRange { start: 2, end: 1 };
+        let key = vec![changed.clone()];
+
+        let evidence = recovered_event_evidence(
+            &traces,
+            [&old_map, &new_map],
+            &mut RecoveredEvidenceBuildBudget::new(MAX_MATCH_TEXT_BYTES),
+        )
+        .expect("evidence index allocation succeeds");
+
+        assert_eq!(evidence.get(&key).map(Option::is_none), Some(true));
     }
 
     #[test]

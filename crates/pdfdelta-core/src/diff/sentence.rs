@@ -837,6 +837,30 @@ struct PairedNearVetoes {
 struct RepeatedRunningMatterVetoes {
     old_occurrences: Vec<usize>,
     new_occurrences: Vec<usize>,
+    old_group_by_occurrence: Vec<Option<usize>>,
+    new_group_by_occurrence: Vec<Option<usize>>,
+    // Exact containment remains eligible for one-sided recovery. Only the
+    // rejected group edge is omitted from later near-replacement relations.
+    rejected_group_pairs: Vec<(usize, usize)>,
+}
+
+impl RepeatedRunningMatterVetoes {
+    fn allows_near_relation(&self, old_occurrence: usize, new_occurrence: usize) -> Option<bool> {
+        if self.rejected_group_pairs.is_empty() {
+            return Some(true);
+        }
+        let Some(old_group) = *self.old_group_by_occurrence.get(old_occurrence)? else {
+            return Some(true);
+        };
+        let Some(new_group) = *self.new_group_by_occurrence.get(new_occurrence)? else {
+            return Some(true);
+        };
+        Some(
+            self.rejected_group_pairs
+                .binary_search(&(old_group, new_group))
+                .is_err(),
+        )
+    }
 }
 
 struct ExactMatchCandidate {
@@ -13875,6 +13899,7 @@ fn build_sentence_recovery_plan_inner_impl(
         &old_candidates,
         &new_candidates,
         &paired_streams,
+        &repeated_running_matter_vetoes,
         &mut budget,
         &mut diagnostics,
         signature_checkpoint,
@@ -24229,6 +24254,7 @@ fn append_paired_stream_replacements<'a>(
         &old_pair_by_stream,
         &new_pair_by_stream,
         exact_tail_census,
+        repeated_vetoes,
         budget,
         diagnostics,
         signature_checkpoint,
@@ -24880,6 +24906,7 @@ fn paired_modified_sentence_relations(
     watch: Option<&mut RecoveryWatchState>,
 ) -> Option<ModifiedSentenceRelations> {
     let mut checkpoint = None;
+    let repeated_vetoes = RepeatedRunningMatterVetoes::default();
     paired_modified_sentence_relations_tracked(
         old_occurrences,
         new_occurrences,
@@ -24889,6 +24916,7 @@ fn paired_modified_sentence_relations(
         old_pair_by_stream,
         new_pair_by_stream,
         None,
+        &repeated_vetoes,
         budget,
         diagnostics,
         &mut checkpoint,
@@ -24906,6 +24934,7 @@ fn paired_modified_sentence_relations_tracked(
     old_pair_by_stream: &HashMap<usize, usize>,
     new_pair_by_stream: &HashMap<usize, usize>,
     exact_tail_census: Option<&ExactTailCensus>,
+    repeated_vetoes: &RepeatedRunningMatterVetoes,
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
@@ -25079,6 +25108,11 @@ fn paired_modified_sentence_relations_tracked(
         }
         for pair_index in 0..retained_count {
             let (new_occurrence_index, cached) = edge_filter.pair(&plausible, pair_index)?;
+            if !repeated_vetoes
+                .allows_near_relation(old_candidate.occurrence_index, new_occurrence_index)?
+            {
+                continue;
+            }
             let new_occurrence = new_occurrences.get(new_occurrence_index)?;
             let new_candidate_index = new_candidate_by_occurrence[new_occurrence_index];
             let score = score_and_record_sentence_edge_gate_shadow(
@@ -25271,6 +25305,11 @@ fn paired_modified_sentence_relations_tracked(
         }
         for pair_index in 0..retained_count {
             let (old_occurrence_index, cached) = edge_filter.pair(&plausible, pair_index)?;
+            if !repeated_vetoes
+                .allows_near_relation(old_occurrence_index, new_candidate.occurrence_index)?
+            {
+                continue;
+            }
             let old_occurrence = old_occurrences.get(old_occurrence_index)?;
             let score = score_and_record_sentence_edge_gate_shadow(
                 old_occurrence,
@@ -25317,6 +25356,7 @@ fn paired_modified_sentence_relations_tracked(
         &new_candidate_by_occurrence,
         &old_intervals,
         &new_intervals,
+        repeated_vetoes,
         &mut relations,
         budget,
         diagnostics,
@@ -25408,6 +25448,7 @@ fn record_cross_interval_disqualifying_relations(
     let mut checkpoint = None;
     let mut sequence_collector = None;
     let mut sequence_stop_reason = None;
+    let repeated_vetoes = RepeatedRunningMatterVetoes::default();
     record_cross_interval_disqualifying_relations_tracked(
         old_occurrences,
         new_occurrences,
@@ -25417,6 +25458,7 @@ fn record_cross_interval_disqualifying_relations(
         new_candidate_by_occurrence,
         old_intervals,
         new_intervals,
+        &repeated_vetoes,
         relations,
         budget,
         diagnostics,
@@ -25437,6 +25479,7 @@ fn record_cross_interval_disqualifying_relations_tracked(
     new_candidate_by_occurrence: &[Option<usize>],
     old_intervals: &[Option<PairedInterval>],
     new_intervals: &[Option<PairedInterval>],
+    repeated_vetoes: &RepeatedRunningMatterVetoes,
     relations: &mut ModifiedSentenceRelations,
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
@@ -25599,6 +25642,11 @@ fn record_cross_interval_disqualifying_relations_tracked(
         }
         for pair_index in 0..retained_count {
             let (new_occurrence_index, cached) = edge_filter.pair(&plausible, pair_index)?;
+            if !repeated_vetoes
+                .allows_near_relation(old_candidate.occurrence_index, new_occurrence_index)?
+            {
+                continue;
+            }
             let new_occurrence = new_occurrences.get(new_occurrence_index)?;
             let new_candidate_index = new_candidate_by_occurrence
                 .get(new_occurrence_index)
@@ -25780,6 +25828,11 @@ fn record_cross_interval_disqualifying_relations_tracked(
         }
         for pair_index in 0..retained_count {
             let (old_occurrence_index, cached) = edge_filter.pair(&plausible, pair_index)?;
+            if !repeated_vetoes
+                .allows_near_relation(old_occurrence_index, new_candidate.occurrence_index)?
+            {
+                continue;
+            }
             let old_occurrence = old_occurrences.get(old_occurrence_index)?;
             let score = score_and_record_sentence_edge_gate_shadow(
                 old_occurrence,
@@ -25970,12 +26023,14 @@ fn modified_sentence_relations(
     watch: Option<&mut RecoveryWatchState>,
 ) -> Option<ModifiedSentenceRelations> {
     let mut checkpoint = None;
+    let repeated_vetoes = RepeatedRunningMatterVetoes::default();
     modified_sentence_relations_tracked(
         old_occurrences,
         new_occurrences,
         old_candidates,
         new_candidates,
         paired_streams,
+        &repeated_vetoes,
         budget,
         diagnostics,
         &mut checkpoint,
@@ -25990,6 +26045,7 @@ fn modified_sentence_relations_tracked(
     old_candidates: &[RecoveryCandidate],
     new_candidates: &[RecoveryCandidate],
     paired_streams: &[PairedTrustedStream],
+    repeated_vetoes: &RepeatedRunningMatterVetoes,
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
     signature_checkpoint: &mut Option<SentenceRecoveryDiagnostics>,
@@ -26018,6 +26074,7 @@ fn modified_sentence_relations_tracked(
         old_candidates,
         new_candidates,
         NearRelationScope::SameOrAmbiguous,
+        repeated_vetoes,
         &mut relations,
         budget,
         diagnostics,
@@ -26043,6 +26100,7 @@ fn modified_sentence_relations_tracked(
         old_candidates,
         new_candidates,
         NearRelationScope::CrossSpan,
+        repeated_vetoes,
         &mut cross_relations,
         &mut cross_budget,
         &mut cross_diagnostics,
@@ -26563,12 +26621,14 @@ fn extend_modified_sentence_relations(
     shadow: Option<KnownSpanSentenceReplay<'_>>,
 ) -> Option<()> {
     let mut checkpoint = None;
+    let repeated_vetoes = RepeatedRunningMatterVetoes::default();
     extend_modified_sentence_relations_tracked(
         old_occurrences,
         new_occurrences,
         old_candidates,
         new_candidates,
         scope,
+        &repeated_vetoes,
         relations,
         budget,
         diagnostics,
@@ -26585,6 +26645,7 @@ fn extend_modified_sentence_relations_tracked(
     old_candidates: &[RecoveryCandidate],
     new_candidates: &[RecoveryCandidate],
     scope: NearRelationScope,
+    repeated_vetoes: &RepeatedRunningMatterVetoes,
     relations: &mut ModifiedSentenceRelations,
     budget: &mut RecoveryBudget,
     diagnostics: &mut Option<SentenceRecoveryDiagnostics>,
@@ -26776,6 +26837,11 @@ fn extend_modified_sentence_relations_tracked(
         }
         for pair_index in 0..retained_count {
             let (new_occurrence_index, cached) = edge_filter.pair(&plausible, pair_index)?;
+            if !repeated_vetoes
+                .allows_near_relation(old_candidate.occurrence_index, new_occurrence_index)?
+            {
+                continue;
+            }
             let new_occurrence = new_occurrences.get(new_occurrence_index)?;
             let new_candidate_index = new_candidate_by_occurrence[new_occurrence_index];
             let mut relation_floor_probe = diagnostics.as_ref().and_then(|_| {
@@ -27011,6 +27077,11 @@ fn extend_modified_sentence_relations_tracked(
         }
         for pair_index in 0..retained_count {
             let (old_occurrence_index, cached) = edge_filter.pair(&plausible, pair_index)?;
+            if !repeated_vetoes
+                .allows_near_relation(old_occurrence_index, new_candidate.occurrence_index)?
+            {
+                continue;
+            }
             let old_occurrence = old_occurrences.get(old_occurrence_index)?;
             let mut relation_floor_probe = diagnostics.as_ref().and_then(|_| {
                 relation_floor_probe(
@@ -28594,6 +28665,39 @@ fn running_matter_group_score(
     Some(edge_score.max(basis_points(shared_words.checked_mul(2)?, total_words)?))
 }
 
+fn running_matter_minimal_edit_changes_both_sides(
+    old: &SentenceOccurrence,
+    new: &SentenceOccurrence,
+    budget: &mut RecoveryBudget,
+) -> Option<bool> {
+    debug_assert_ne!(old.tokens, new.tokens);
+    // For unequal sequences, an insertion-only or deletion-only minimal edit
+    // exists exactly when the shorter sequence is an exact subsequence.
+    let (shorter, longer) = match old.tokens.len().cmp(&new.tokens.len()) {
+        std::cmp::Ordering::Less => (&old.tokens, &new.tokens),
+        std::cmp::Ordering::Greater => (&new.tokens, &old.tokens),
+        std::cmp::Ordering::Equal => return Some(true),
+    };
+    let mut shorter_index = 0usize;
+    for token in longer {
+        if !budget.charge_comparisons_in_scope_split(
+            1,
+            RecoveryUnitKind::Sentence,
+            NearSearchScope::SameOrAmbiguousSpan,
+            NearSearchWorkSplit::shared(1),
+        ) {
+            return None;
+        }
+        if shorter.get(shorter_index) == Some(token) {
+            shorter_index = shorter_index.checked_add(1)?;
+            if shorter_index == shorter.len() {
+                return Some(false);
+            }
+        }
+    }
+    Some(true)
+}
+
 fn append_repeated_running_matter_replacements(
     plan: &mut SentenceRecoveryPlan,
     old_occurrences: &mut [SentenceOccurrence],
@@ -28603,6 +28707,46 @@ fn append_repeated_running_matter_replacements(
     let old_groups = repeated_running_matter_groups(old_occurrences, budget)?;
     let new_groups = repeated_running_matter_groups(new_occurrences, budget)?;
     let mut vetoes = RepeatedRunningMatterVetoes::default();
+    charge_running_matter_capacity::<Option<usize>>(budget, old_occurrences.len())?;
+    vetoes
+        .old_group_by_occurrence
+        .try_reserve_exact(old_occurrences.len())
+        .ok()?;
+    vetoes
+        .old_group_by_occurrence
+        .resize(old_occurrences.len(), None);
+    for (group_index, group) in old_groups.iter().enumerate() {
+        for occurrence_index in &group.occurrences {
+            if vetoes
+                .old_group_by_occurrence
+                .get_mut(*occurrence_index)?
+                .replace(group_index)
+                .is_some()
+            {
+                return None;
+            }
+        }
+    }
+    charge_running_matter_capacity::<Option<usize>>(budget, new_occurrences.len())?;
+    vetoes
+        .new_group_by_occurrence
+        .try_reserve_exact(new_occurrences.len())
+        .ok()?;
+    vetoes
+        .new_group_by_occurrence
+        .resize(new_occurrences.len(), None);
+    for (group_index, group) in new_groups.iter().enumerate() {
+        for occurrence_index in &group.occurrences {
+            if vetoes
+                .new_group_by_occurrence
+                .get_mut(*occurrence_index)?
+                .replace(group_index)
+                .is_some()
+            {
+                return None;
+            }
+        }
+    }
     charge_running_matter_capacity::<usize>(budget, old_occurrences.len())?;
     vetoes
         .old_occurrences
@@ -28637,7 +28781,6 @@ fn append_repeated_running_matter_replacements(
     charge_running_matter_capacity::<CandidateNearRelation>(budget, new_groups.len())?;
     new_relations.try_reserve_exact(new_groups.len()).ok()?;
     new_relations.resize(new_groups.len(), CandidateNearRelation::default());
-
     let mut new_groups_by_role: [Vec<usize>; 2] = std::array::from_fn(|_| Vec::new());
     for (new_index, new_group) in new_groups.iter().enumerate() {
         if new_group.duplicate_page || !new_group.tokens_exact {
@@ -28678,6 +28821,16 @@ fn append_repeated_running_matter_replacements(
             if shared < 2 {
                 continue;
             }
+            if !running_matter_minimal_edit_changes_both_sides(
+                old_occurrence,
+                new_occurrence,
+                budget,
+            )? {
+                charge_running_matter_capacity::<(usize, usize)>(budget, 1)?;
+                vetoes.rejected_group_pairs.try_reserve_exact(1).ok()?;
+                vetoes.rejected_group_pairs.push((old_index, new_index));
+                continue;
+            }
             let score = running_matter_group_score(
                 old_group,
                 new_group,
@@ -28689,6 +28842,8 @@ fn append_repeated_running_matter_replacements(
             new_relations[new_index].record_eligible_with_scope(old_index, score, None);
         }
     }
+    vetoes.rejected_group_pairs.sort_unstable();
+    vetoes.rejected_group_pairs.dedup();
 
     let mut selected = Vec::<(usize, usize, Vec<(usize, usize)>, RecoveryRelationEvidence)>::new();
     charge_running_matter_capacity::<(usize, usize, Vec<(usize, usize)>, RecoveryRelationEvidence)>(
@@ -29605,6 +29760,21 @@ mod tests {
     };
 
     const TEST_NEAR_SCOPE: NearSearchScope = NearSearchScope::SameOrAmbiguousSpan;
+
+    #[test]
+    fn repeated_running_matter_rejects_only_the_containment_group_edge() {
+        let vetoes = RepeatedRunningMatterVetoes {
+            old_group_by_occurrence: vec![Some(0), Some(1)],
+            new_group_by_occurrence: vec![Some(0), Some(1)],
+            rejected_group_pairs: vec![(0, 0)],
+            ..RepeatedRunningMatterVetoes::default()
+        };
+
+        assert_eq!(vetoes.allows_near_relation(0, 0), Some(false));
+        assert_eq!(vetoes.allows_near_relation(0, 1), Some(true));
+        assert_eq!(vetoes.allows_near_relation(1, 0), Some(true));
+        assert_eq!(vetoes.allows_near_relation(1, 1), Some(true));
+    }
 
     fn trusted_residual_occurrence(
         block: u64,
@@ -35224,6 +35394,7 @@ mod tests {
             &old_candidates,
             &new_candidates,
             &[],
+            &RepeatedRunningMatterVetoes::default(),
             &mut budget,
             &mut diagnostics,
             &mut checkpoint,
@@ -35394,6 +35565,7 @@ mod tests {
             &old_candidates,
             &new_candidates,
             &[],
+            &RepeatedRunningMatterVetoes::default(),
             &mut budget,
             &mut diagnostics,
             &mut checkpoint,

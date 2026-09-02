@@ -8166,6 +8166,123 @@ mod tests {
     }
 
     #[test]
+    fn repeated_footer_exact_containment_remains_one_sided() {
+        let old = repeated_paged_role_blocks(
+            1..=3,
+            "Adopted - version for public consultation.",
+            BlockRole::RepeatedFooter,
+            1,
+        );
+        let new = repeated_paged_role_blocks(1..=3, "Adopted.", BlockRole::RepeatedFooter, 101);
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)); 3],
+            &[Some(TrustedRunId(2)); 3],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        assert!(
+            result
+                .changes
+                .iter()
+                .all(|change| change.kind != ChangeKind::Replacement)
+        );
+        let deletion = result
+            .changes
+            .iter()
+            .find(|change| change.kind == ChangeKind::Deletion)
+            .expect("full repeated old units remain deletions");
+        assert_eq!(deletion.occurrences.len(), 3);
+        assert!(deletion.occurrences.iter().all(|occurrence| {
+            occurrence.new_span.is_none()
+                && occurrence.old_span.as_ref().is_some_and(|span| {
+                    span.comparable_range.start == 0
+                        && span.comparable_range.end
+                            == "Adopted - version for public consultation.".chars().count()
+                })
+        }));
+        let insertion = result
+            .changes
+            .iter()
+            .find(|change| change.kind == ChangeKind::Insertion)
+            .expect("full repeated new units remain insertions");
+        assert_eq!(insertion.occurrences.len(), 3);
+        assert!(insertion.occurrences.iter().all(|occurrence| {
+            occurrence.old_span.is_none()
+                && occurrence.new_span.as_ref().is_some_and(|span| {
+                    span.comparable_range.start == 0
+                        && span.comparable_range.end == "Adopted.".chars().count()
+                })
+        }));
+        assert!(result.unresolved_regions.is_empty());
+    }
+
+    #[test]
+    fn repeated_footer_containment_preserves_other_template_relations() {
+        let mut old = repeated_paged_role_blocks(
+            1..=2,
+            "Adopted - version for public consultation.",
+            BlockRole::RepeatedFooter,
+            1,
+        );
+        old.extend(repeated_paged_role_blocks(
+            3..=4,
+            "Acme security standard 2024.",
+            BlockRole::RepeatedFooter,
+            3,
+        ));
+        let mut new = repeated_paged_role_blocks(1..=2, "Adopted.", BlockRole::RepeatedFooter, 101);
+        new.extend(repeated_paged_role_blocks(
+            3..=4,
+            "Acme security standard 2025.",
+            BlockRole::RepeatedFooter,
+            103,
+        ));
+        let result = compare_sentence_recovery(
+            &old,
+            &new,
+            &[Some(TrustedRunId(1)); 4],
+            &[Some(TrustedRunId(2)); 4],
+            5,
+            vec![AlignmentEvidence::ReadingOrderUnknown],
+        );
+
+        let replacement = result
+            .changes
+            .iter()
+            .find(|change| change.kind == ChangeKind::Replacement)
+            .expect("unrelated repeated template remains a replacement");
+        assert_eq!(replacement.occurrences.len(), 2);
+        assert!(replacement.occurrences.iter().all(|occurrence| {
+            occurrence
+                .old_span
+                .as_ref()
+                .is_some_and(|span| span.comparable_range.end - span.comparable_range.start == 1)
+                && occurrence.new_span.as_ref().is_some_and(|span| {
+                    span.comparable_range.end - span.comparable_range.start == 1
+                })
+        }));
+        assert_eq!(
+            result
+                .changes
+                .iter()
+                .find(|change| change.kind == ChangeKind::Deletion)
+                .map(|change| change.occurrences.len()),
+            Some(2)
+        );
+        assert_eq!(
+            result
+                .changes
+                .iter()
+                .find(|change| change.kind == ChangeKind::Insertion)
+                .map(|change| change.occurrences.len()),
+            Some(2)
+        );
+    }
+
+    #[test]
     fn repeated_footer_value_change_pairs_sentence_and_line_units() {
         let mut old = repeated_paged_role_blocks(
             1..=3,
