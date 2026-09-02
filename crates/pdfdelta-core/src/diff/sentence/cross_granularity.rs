@@ -1042,7 +1042,6 @@ pub(super) fn append_cross_granularity_replacements(
                 },
                 hunk_policy: RecoveryHunkPolicy::Atomic,
                 edits: None,
-                repeated_group: None,
             });
         }
 

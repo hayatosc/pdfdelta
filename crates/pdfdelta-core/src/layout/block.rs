@@ -132,7 +132,7 @@ impl Default for BlockOptions {
             min_cross_page_horizontal_overlap_ratio: 0.9,
             min_cross_page_font_similarity: 0.9,
             max_cross_page_cadence_difference: 0.1,
-            repeated_edge_line_limit: 2,
+            repeated_edge_line_limit: 1,
             repeated_min_pages: 3,
             min_repeated_margin_font_similarity: 0.95,
         }
@@ -797,16 +797,9 @@ impl MarginEdge {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct MarginKey {
     edge: MarginEdge,
+    ordinal: usize,
     signature: Vec<SignatureToken>,
 }
-
-struct MarginBand {
-    lines: Vec<usize>,
-    y_interval: (f64, f64),
-}
-
-type EstablishedMarginTemplateIndex =
-    BTreeMap<MarginEdge, BTreeMap<Vec<SignatureToken>, BTreeMap<FontId, Vec<usize>>>>;
 
 impl<'a> LineStats<'a> {
     fn new(
@@ -926,43 +919,37 @@ fn detect_repeated_margins(
 
     let mut candidates = BTreeMap::<MarginKey, Vec<usize>>::new();
     for page in pages {
-        let bands = horizontal_margin_bands(stats, page);
+        let horizontal: Vec<_> = page
+            .iter()
+            .copied()
+            .filter(|index| is_horizontal(stats[*index].direction))
+            .collect();
+        if horizontal.len() <= options.repeated_edge_line_limit.saturating_mul(2) {
+            continue;
+        }
         for ordinal in 0..options.repeated_edge_line_limit {
-            // Preserve an inward line beyond both edge bands so sparse pages
-            // still admit ordinal zero without letting the bands overlap.
-            let reserved_edge_lines = ordinal.saturating_add(1).saturating_mul(2);
-            if bands.len() <= reserved_edge_lines {
-                break;
-            }
-            if inner_margin_band_is_supported(&bands, MarginEdge::Header, ordinal) {
-                for &header in &bands[ordinal].lines {
-                    candidates
-                        .entry(MarginKey {
-                            edge: MarginEdge::Header,
-                            signature: stats[header].signature.clone(),
-                        })
-                        .or_default()
-                        .push(header);
-                }
-            }
+            let header = horizontal[ordinal];
+            candidates
+                .entry(MarginKey {
+                    edge: MarginEdge::Header,
+                    ordinal,
+                    signature: stats[header].signature.clone(),
+                })
+                .or_default()
+                .push(header);
 
-            let footer_band = bands.len() - ordinal - 1;
-            if inner_margin_band_is_supported(&bands, MarginEdge::Footer, ordinal) {
-                for &footer in &bands[footer_band].lines {
-                    candidates
-                        .entry(MarginKey {
-                            edge: MarginEdge::Footer,
-                            signature: stats[footer].signature.clone(),
-                        })
-                        .or_default()
-                        .push(footer);
-                }
-            }
+            let footer = horizontal[horizontal.len() - ordinal - 1];
+            candidates
+                .entry(MarginKey {
+                    edge: MarginEdge::Footer,
+                    ordinal,
+                    signature: stats[footer].signature.clone(),
+                })
+                .or_default()
+                .push(footer);
         }
     }
 
-    let mut templates = EstablishedMarginTemplateIndex::new();
-    let mut template_reference_count = 0usize;
     for (key, mut remaining) in candidates {
         // Greedily clusters candidates with similar margin fonts using deterministic page ordering.
         while let Some(reference) = remaining.pop() {
@@ -977,224 +964,16 @@ fn detect_repeated_margins(
                     different_style.push(candidate);
                 }
             }
-            let distinct_pages = cluster
-                .iter()
-                .map(|index| stats[*index].line.page)
-                .collect::<HashSet<_>>()
-                .len();
-            if distinct_pages >= options.repeated_min_pages {
+            if cluster.len() >= options.repeated_min_pages {
                 for index in cluster {
                     roles[index] = key.edge.role();
                 }
-                templates
-                    .entry(key.edge)
-                    .or_default()
-                    .entry(key.signature.clone())
-                    .or_default()
-                    .entry(stats[reference].dominant_font)
-                    .or_default()
-                    .push(reference);
-                template_reference_count += 1;
             }
             remaining = different_style;
         }
     }
 
-    // Each reference owns a disjoint candidate cluster, so the index stays
-    // within the already-materialized line evidence bound.
-    debug_assert!(template_reference_count <= stats.len());
-    for by_signature in templates.values_mut() {
-        for by_font in by_signature.values_mut() {
-            for references in by_font.values_mut() {
-                references.sort_by(|left, right| {
-                    stats[*left]
-                        .median_font_size
-                        .total_cmp(&stats[*right].median_font_size)
-                        .then_with(|| left.cmp(right))
-                });
-            }
-        }
-    }
-
-    promote_sparse_margin_templates(stats, pages, options, &templates, &mut roles);
-
     roles
-}
-
-fn promote_sparse_margin_templates(
-    stats: &[LineStats<'_>],
-    pages: &[Vec<usize>],
-    options: BlockOptions,
-    templates: &EstablishedMarginTemplateIndex,
-    roles: &mut [BlockRole],
-) {
-    for page in pages {
-        let bands = horizontal_margin_bands(stats, page);
-        if bands.len() < 2 {
-            continue;
-        }
-        let edge_band_count = options.repeated_edge_line_limit.min(bands.len());
-        for (band_index, band) in bands.iter().enumerate() {
-            let header_ordinal = band_index;
-            let footer_ordinal = bands.len() - band_index - 1;
-            let header_in_scope = header_ordinal < edge_band_count;
-            let footer_in_scope = footer_ordinal < edge_band_count;
-            if !header_in_scope && !footer_in_scope {
-                continue;
-            }
-            for &index in &band.lines {
-                if roles[index] != BlockRole::Body {
-                    continue;
-                }
-                let matches_header = header_in_scope
-                    && matches_established_margin_template(
-                        stats,
-                        index,
-                        MarginEdge::Header,
-                        options,
-                        templates,
-                    );
-                let matches_footer = footer_in_scope
-                    && matches_established_margin_template(
-                        stats,
-                        index,
-                        MarginEdge::Footer,
-                        options,
-                        templates,
-                    );
-                roles[index] = match (matches_header, matches_footer) {
-                    (true, false)
-                        if inner_margin_band_is_supported(
-                            &bands,
-                            MarginEdge::Header,
-                            header_ordinal,
-                        ) =>
-                    {
-                        BlockRole::RepeatedHeader
-                    }
-                    (false, true)
-                        if inner_margin_band_is_supported(
-                            &bands,
-                            MarginEdge::Footer,
-                            footer_ordinal,
-                        ) =>
-                    {
-                        BlockRole::RepeatedFooter
-                    }
-                    _ => BlockRole::Body,
-                };
-            }
-        }
-    }
-}
-
-fn matches_established_margin_template(
-    stats: &[LineStats<'_>],
-    candidate: usize,
-    edge: MarginEdge,
-    options: BlockOptions,
-    templates: &EstablishedMarginTemplateIndex,
-) -> bool {
-    let Some(references) = templates
-        .get(&edge)
-        .and_then(|by_signature| by_signature.get(&stats[candidate].signature))
-        .and_then(|by_font| by_font.get(&stats[candidate].dominant_font))
-    else {
-        return false;
-    };
-    let minimum_reference_size =
-        stats[candidate].median_font_size * options.min_repeated_margin_font_similarity;
-    let first_plausible = references
-        .partition_point(|reference| stats[*reference].median_font_size < minimum_reference_size);
-    references.get(first_plausible).is_some_and(|reference| {
-        font_similarity(&stats[*reference], &stats[candidate])
-            >= options.min_repeated_margin_font_similarity
-    })
-}
-
-fn horizontal_margin_bands(stats: &[LineStats<'_>], page: &[usize]) -> Vec<MarginBand> {
-    let mut horizontal = page
-        .iter()
-        .copied()
-        .filter(|index| is_horizontal(stats[*index].direction))
-        .collect::<Vec<_>>();
-    horizontal.sort_by(|left, right| {
-        stats[*right]
-            .line
-            .bbox
-            .max
-            .y
-            .total_cmp(&stats[*left].line.bbox.max.y)
-            .then_with(|| {
-                stats[*right]
-                    .line
-                    .bbox
-                    .min
-                    .y
-                    .total_cmp(&stats[*left].line.bbox.min.y)
-            })
-            .then_with(|| {
-                stats[*left]
-                    .inline_start
-                    .total_cmp(&stats[*right].inline_start)
-            })
-            .then_with(|| stats[*left].line.id.0.cmp(&stats[*right].line.id.0))
-    });
-
-    let mut bands = Vec::<MarginBand>::new();
-    for index in horizontal {
-        let interval = (stats[index].line.bbox.min.y, stats[index].line.bbox.max.y);
-        if let Some(band) = bands.last_mut()
-            && interval.1 + GEOMETRY_TOLERANCE >= band.y_interval.0
-        {
-            band.lines.push(index);
-            band.y_interval.0 = band.y_interval.0.min(interval.0);
-            band.y_interval.1 = band.y_interval.1.max(interval.1);
-        } else {
-            bands.push(MarginBand {
-                lines: vec![index],
-                y_interval: interval,
-            });
-        }
-    }
-    bands
-}
-
-fn inner_margin_band_is_supported(bands: &[MarginBand], edge: MarginEdge, ordinal: usize) -> bool {
-    if bands.is_empty() {
-        return false;
-    }
-    if ordinal == 0 {
-        return true;
-    }
-    if bands.len() <= ordinal.saturating_add(1) {
-        return false;
-    }
-
-    // Inner edge lines need geometric evidence that they belong to a compact
-    // margin group rather than merely repeating at the end of the body flow.
-    let candidate_position = match edge {
-        MarginEdge::Header => ordinal,
-        MarginEdge::Footer => bands.len() - ordinal - 1,
-    };
-    let outer_position = match edge {
-        MarginEdge::Header => candidate_position - 1,
-        MarginEdge::Footer => candidate_position + 1,
-    };
-    let inward_position = match edge {
-        MarginEdge::Header => candidate_position + 1,
-        MarginEdge::Footer => candidate_position - 1,
-    };
-    let edge_gap = interval_gap(
-        bands[candidate_position].y_interval,
-        bands[outer_position].y_interval,
-    );
-    let inward_gap = interval_gap(
-        bands[candidate_position].y_interval,
-        bands[inward_position].y_interval,
-    );
-
-    edge_gap < inward_gap
 }
 
 fn should_join_body(

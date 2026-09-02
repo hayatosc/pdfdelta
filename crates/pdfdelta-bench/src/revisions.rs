@@ -5860,7 +5860,6 @@ struct RecoveredOccurrenceEvidence {
     context: Option<RelationContext>,
     old_atomic_changed_tokens: usize,
     new_atomic_changed_tokens: usize,
-    semantic_hunk: ActualSemanticHunk,
     trace: ActualRelationTrace,
 }
 
@@ -5887,41 +5886,6 @@ fn recovered_relation_trace(trace: &RecoveredAtomicDiff) -> ActualRelationTrace 
         new_second_score: Some(trace.new_second_score),
         new_best_scope: trace.new_best_scope.map(Into::into),
     }
-}
-
-fn recovered_semantic_hunk(
-    occurrence: &ChangeOccurrence,
-    edits: &[pdfdelta_core::diff::AtomicEdit],
-    old_context: &TextSpan,
-    new_context: &TextSpan,
-    blocks_by_side: [&HashMap<u64, &BlockText>; 2],
-) -> Option<ActualSemanticHunk> {
-    let (old_atomic_changed_tokens, new_atomic_changed_tokens) =
-        edits
-            .iter()
-            .try_fold((0usize, 0usize), |(old, new), edit| {
-                Some((
-                    old.checked_add(edit.old.end.checked_sub(edit.old.start)?)?,
-                    new.checked_add(edit.new.end.checked_sub(edit.new.start)?)?,
-                ))
-            })?;
-    let old_text = occurrence
-        .old_span
-        .as_ref()
-        .and_then(|span| resolve_span(blocks_by_side[0], span))
-        .map(|(text, _)| collapse_whitespace(&text));
-    let new_text = occurrence
-        .new_span
-        .as_ref()
-        .and_then(|span| resolve_span(blocks_by_side[1], span))
-        .map(|(text, _)| collapse_whitespace(&text));
-    Some(ActualSemanticHunk {
-        old_text,
-        new_text,
-        old_atomic_changed_tokens,
-        new_atomic_changed_tokens,
-        atomic_fragments: resolve_atomic_fragments(edits, old_context, new_context, blocks_by_side),
-    })
 }
 
 fn recovered_event_evidence(
@@ -5979,13 +5943,38 @@ fn recovered_event_evidence(
             .iter()
             .map(|changed| {
                 let edits = trace.edits.get(changed.edit_range.clone())?;
-                recovered_semantic_hunk(
-                    &changed.occurrence,
-                    edits,
-                    &trace.old_context,
-                    &trace.new_context,
-                    blocks_by_side,
-                )
+                let (old_atomic_changed_tokens, new_atomic_changed_tokens) = edits
+                    .iter()
+                    .try_fold((0usize, 0usize), |(old, new), edit| {
+                        Some((
+                            old.checked_add(edit.old.end.checked_sub(edit.old.start)?)?,
+                            new.checked_add(edit.new.end.checked_sub(edit.new.start)?)?,
+                        ))
+                    })?;
+                let old_text = changed
+                    .occurrence
+                    .old_span
+                    .as_ref()
+                    .and_then(|span| resolve_span(blocks_by_side[0], span))
+                    .map(|(text, _)| collapse_whitespace(&text));
+                let new_text = changed
+                    .occurrence
+                    .new_span
+                    .as_ref()
+                    .and_then(|span| resolve_span(blocks_by_side[1], span))
+                    .map(|(text, _)| collapse_whitespace(&text));
+                Some(ActualSemanticHunk {
+                    old_text,
+                    new_text,
+                    old_atomic_changed_tokens,
+                    new_atomic_changed_tokens,
+                    atomic_fragments: resolve_atomic_fragments(
+                        edits,
+                        &trace.old_context,
+                        &trace.new_context,
+                        blocks_by_side,
+                    ),
+                })
             })
             .collect::<Option<Vec<_>>>();
         let value = context
@@ -6048,24 +6037,14 @@ fn recovered_occurrence_evidence(
                     new.checked_add(edit.new.end.checked_sub(edit.new.start)?)?,
                 ))
             });
-            let semantic_hunk = recovered_semantic_hunk(
-                &changed.occurrence,
-                edits,
-                &trace.old_context,
-                &trace.new_context,
-                blocks_by_side,
-            );
-            let evidence = counts.zip(semantic_hunk).map(
-                |((old_atomic_changed_tokens, new_atomic_changed_tokens), semantic_hunk)| {
-                    RecoveredOccurrenceEvidence {
-                        context: context.clone(),
-                        old_atomic_changed_tokens,
-                        new_atomic_changed_tokens,
-                        semantic_hunk,
-                        trace: recovered_relation_trace(trace),
-                    }
-                },
-            );
+            let evidence = counts.map(|(old_atomic_changed_tokens, new_atomic_changed_tokens)| {
+                RecoveredOccurrenceEvidence {
+                    context: context.clone(),
+                    old_atomic_changed_tokens,
+                    new_atomic_changed_tokens,
+                    trace: recovered_relation_trace(trace),
+                }
+            });
             insert_relation_context(&mut contexts, changed.occurrence.clone(), evidence);
         }
     }
@@ -6306,7 +6285,6 @@ fn flatten_actual_changes(
                     let (old_text, old_comparable_len) = unwrap_resolved(old_resolved);
                     let (new_text, new_comparable_len) = unwrap_resolved(new_resolved);
                     let semantic_hunks = match (recovered, matched_context) {
-                        (Some(Some(evidence)), None) => Some(vec![evidence.semantic_hunk.clone()]),
                         (None, Some(Some(evidence))) => matched_atomic_diffs
                             .get(evidence.trace_index)
                             .and_then(|trace| {
@@ -15835,108 +15813,6 @@ mod tests {
             evidence.trace.new_best_scope,
             Some(RecoveryWatchNearScopeReport::CrossSpan)
         );
-    }
-
-    #[test]
-    fn grouped_recovered_occurrences_keep_atomic_evidence_for_review_matching() {
-        let old_blocks = [
-            relation_block(1, "footer 2020"),
-            relation_block(3, "footer 2020"),
-        ];
-        let new_blocks = [
-            relation_block(2, "footer 2025"),
-            relation_block(4, "footer 2025"),
-        ];
-        let old_map = build_block_map(&old_blocks);
-        let new_map = build_block_map(&new_blocks);
-        let occurrence_span = |block| TextSpan {
-            blocks: vec![BlockId(block)],
-            separator: None,
-            canonical_range: ScalarRange { start: 10, end: 11 },
-            comparable_range: TokenRange { start: 10, end: 11 },
-        };
-        let occurrences = [(1, 2), (3, 4)]
-            .into_iter()
-            .map(|(old, new)| ChangeOccurrence {
-                old_span: Some(occurrence_span(old)),
-                new_span: Some(occurrence_span(new)),
-            })
-            .collect::<Vec<_>>();
-        let traces = [(1, 2), (3, 4)]
-            .into_iter()
-            .zip(&occurrences)
-            .map(|((old, new), occurrence)| RecoveredAtomicDiff {
-                origin: ChangeOrigin::RunningMatter,
-                old_alignment_span_index: old as usize,
-                new_alignment_span_index: new as usize,
-                old_context: relation_span(vec![BlockId(old)], None, 11),
-                new_context: relation_span(vec![BlockId(new)], None, 11),
-                changed_occurrences: vec![pdfdelta_core::diff::RecoveredAtomicOccurrence {
-                    occurrence: occurrence.clone(),
-                    edit_range: 0..1,
-                }],
-                edits: vec![pdfdelta_core::diff::AtomicEdit {
-                    old: 10..11,
-                    new: 10..11,
-                }],
-                old_best_score: 9_000,
-                old_second_score: 0,
-                old_best_scope: Some(RecoveryWatchNearScope::SameSpan),
-                new_best_score: 9_000,
-                new_second_score: 0,
-                new_best_scope: Some(RecoveryWatchNearScope::SameSpan),
-            })
-            .collect::<Vec<_>>();
-        let comparison = Comparison {
-            changes: vec![pdfdelta_core::diff::ChangeEvent {
-                kind: ChangeKind::Replacement,
-                occurrences,
-                confidence: pdfdelta_core::diff::Confidence::High,
-                tags: Vec::new(),
-            }],
-            formatting_changes: Vec::new(),
-            unresolved_regions: Vec::new(),
-            old_coverage: pdfdelta_core::diff::Coverage {
-                resolved_tokens: 22,
-                total_tokens: 22,
-                ratio: Some(1.0),
-            },
-            new_coverage: pdfdelta_core::diff::Coverage {
-                resolved_tokens: 22,
-                total_tokens: 22,
-                ratio: Some(1.0),
-            },
-        };
-        let actual = flatten_actual_changes(&comparison, [&old_map, &new_map], &[], &traces);
-        assert_eq!(actual[0].occurrences.len(), 2);
-        assert!(actual[0].occurrences.iter().all(|occurrence| {
-            occurrence.semantic_hunks.as_ref().is_some_and(|hunks| {
-                hunks.len() == 1
-                    && hunks[0].old_atomic_changed_tokens == 1
-                    && hunks[0].new_atomic_changed_tokens == 1
-            })
-        }));
-
-        let mut expected = expected_change(
-            "repeated",
-            ExpectedKind::Replacement,
-            Some("footer 2020"),
-            Some("footer 2025"),
-        );
-        expected.occurrence_count = Some(2);
-        expected.old_changed_ranges = Some(vec![ExpectedChangedRange { start: 10, end: 11 }]);
-        expected.new_changed_ranges = Some(vec![ExpectedChangedRange { start: 10, end: 11 }]);
-        assert_eq!(match_changes(&[expected.clone()], &actual).matched, 1);
-
-        let mut incomplete_evidence = actual.clone();
-        incomplete_evidence[0].occurrences[1].semantic_hunks = None;
-        assert_eq!(
-            match_changes(&[expected.clone()], &incomplete_evidence).matched,
-            0
-        );
-
-        expected.occurrence_count = Some(3);
-        assert_eq!(match_changes(&[expected], &actual).matched, 0);
     }
 
     #[test]

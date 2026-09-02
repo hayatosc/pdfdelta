@@ -16,11 +16,11 @@
       "id": "copyright-year",
       "kind": "replacement",
       "occurrence_count": 28,
-      "old_quote": "© Ecma International 2020",
-      "new_quote": "© Ecma International 2025",
-      "old_changed_ranges": [{ "start": 24, "end": 25 }],
-      "new_changed_ranges": [{ "start": 24, "end": 25 }],
-      "note": "The repeated document footer updates its copyright year. Its leading label is a separate layout unit, so the reviewed source-backed quote starts at the copyright symbol. The old PDF has 29 instances and the new PDF has 28; 28 page-ordered instances form the expected replacement event."
+      "old_quote": "COPYRIGHT PROTECTED DOCUMENT © Ecma International 2020",
+      "new_quote": "COPYRIGHT PROTECTED DOCUMENT © Ecma International 2025",
+      "old_changed_ranges": [{ "start": 53, "end": 54 }],
+      "new_changed_ranges": [{ "start": 53, "end": 54 }],
+      "note": "The repeated document footer updates its copyright year. The old PDF has 29 instances and the new PDF has 28; 28 page-ordered instances form the expected replacement event."
     },
     {
       "id": "copyright-notice-updated",
