@@ -5,26 +5,23 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 ## Latest Capture
 
 - **Capture date**: 2026-09-03
-- **Generator / engine commit**: [`3edac2d`](https://github.com/hayatosc/pdfdelta/commit/3edac2d)
+- **Generator / engine commit**: [`047786f`](https://github.com/hayatosc/pdfdelta/commit/047786f)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-03-3edac2d.json`](2026-09-03-3edac2d.json)
-  - Schema: v63
-  - Size: 8,844,037 bytes
-  - SHA-256: `d1bcbfa68dc065a19616ecd7b129f7dc160a87e25a6683430c265c2da1a0c475`
+  - File: [`2026-09-03-047786f.json`](2026-09-03-047786f.json)
+  - Schema: v64
+  - Size: 8,950,803 bytes
+  - SHA-256: `fa37e157804f80d4113c291fb69c8fd21df7f08713f361865634e2fdff6b878b`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
-This is a behavior capture, not a schema-only parity capture. Relative to
-`2026-09-03-0e071cf.json`, it includes geometric repeated-margin
-classification, exact margin-template propagation, dedicated running-matter
-alignment, and one-sided containment safety. Seventeen records change at least
-one top-level comparison metric. All existing scoped event/token metrics and
-candidate-recall values remain unchanged; ECMA-109 is the only pair whose
-reviewed recall changes.
+This is a schema-only diagnostic capture. Removing `schema_version` and
+`sentence_recovery_metrics.exact_range_parent_outcome` yields exact JSON parity
+with `2026-09-03-3edac2d.json`; comparison, coverage, change, quality, and
+candidate-recall values are unchanged.
 
 ## Reproduction
 
@@ -34,9 +31,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-03-3edac2d.json \
+cp benchmark/realworld/results/2026-09-03-047786f.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 3edac2d
+git switch --detach 047786f
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -52,9 +49,9 @@ ad-hoc `jq` filter:
 
 ```bash
 mise run bench-revisions-schema-parity -- \
-  benchmark/realworld/results/2026-09-03-6390d01.json \
-  benchmark/realworld/results/2026-09-03-0e071cf.json \
-  section_pairing_proposal_review_bundle
+  benchmark/realworld/results/2026-09-03-3edac2d.json \
+  benchmark/realworld/results/2026-09-03-047786f.json \
+  exact_range_parent_outcome
 ```
 
 The preceding exact-boundary capture can be checked in the same way:
@@ -159,6 +156,19 @@ remains at 1/3 presence because none of its unmatched rewrites satisfies the
 current conservative anchor-window proof.
 
 The full artifact also records unannotated pairs, extraction boundaries, unresolved token shares, candidate recall, miss diagnostics, and sentence-recovery metrics.
+Schema v64 adds a bounded, behavior-neutral diagnostic that joins exact,
+candidate-unique ranges of one to eight adjacent recovery-ownership leaves to
+strong reciprocal Section parents. All 18 applicable builds complete without a
+stop. The nine development builds contain 35 unique exact pairs: none has a
+same or changed paired parent, ten have unknown parent evidence, and 25 are
+rejected for overlap. FIPS contributes two unique pairs, but one has unknown
+parent evidence and one overlaps existing recovery; its only published sample
+contains 180 tokens and is not the reviewed 102-token domain-parameter move.
+The only two changed-parent samples occur in the OASIS CSAF holdout pair, so
+they are not used to tune or activate Move behavior. This capture therefore
+provides evidence against productionizing exact parent-change Move under the
+current Section proof.
+
 The preceding `2026-09-03-0e071cf.json` capture introduced schema v63 with a
 bounded, deterministic review bundle for changed one-to-one
 paragraph gaps identified by the schema-v62 section-pairing shadow. Sixteen of
@@ -1078,10 +1088,15 @@ records reach an existing near comparison and two are reciprocal. Pair evidence
 is omitted for the OASIS CSAF URL and IRS W-4 footer because their found
 occurrences have no alignment-span location.
 
-## Current Writer Schema (v63)
+## Current Writer Schema (v64)
 
-The benchmark writer and latest committed capture use schema v63. Older
-captures retain their recorded schemas. Schema v63 records bounded proposal
+The benchmark writer and latest committed capture use schema v64. Older
+captures retain their recorded schemas. Schema v64 records bounded exact-range
+parent diagnostics over verified recovery ownership. It reports typed atomic
+stops, exact token revalidation, uniqueness, overlap and nesting vetoes, and
+strong reciprocal Section-parent evidence without changing comparison
+behavior. Removing `exact_range_parent_outcome` and the schema number yields
+exact parity with schema v63. Schema v63 records bounded proposal
 review evidence for schema-v62 changed one-to-one paragraph gaps. Each complete
 bundle includes exact edit traces, source provenance, recovery ownership,
 existing-change overlap, structural evidence, a full-evidence fingerprint, and
