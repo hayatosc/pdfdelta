@@ -19,7 +19,7 @@ use crate::{
     },
     layout::{
         BlockOptions, LayoutIssue, LineOptions, TrustedRegionEdge, TrustedRunDescriptor,
-        TrustedRunInterval, reconstruct_blocks_with_issues, reconstruct_lines,
+        TrustedRunInterval, UncertainLineReason, reconstruct_blocks_with_issues, reconstruct_lines,
         validate_block_options, validate_line_options,
     },
     model::{Document, Glyph, GlyphCropStatus, GlyphEvidence, GlyphPathClipStatus, TextRenderMode},
@@ -220,6 +220,13 @@ pub struct PipelineMetrics {
     pub lines: Option<usize>,
     pub blocks: Option<usize>,
     pub normalized_blocks: Option<usize>,
+    /// Uncertain lines whose partition has several regions with an unproven
+    /// inter-region order.
+    pub uncertain_lines_unproven_inter_region_order: Option<usize>,
+    /// Uncertain lines outside the proven monotone runs of a single leaf.
+    pub uncertain_lines_render_disorder: Option<usize>,
+    /// Uncertain lines outside the trusted runs of a known region order.
+    pub uncertain_lines_untrusted_in_known_order: Option<usize>,
     pub raw_tokens: Option<usize>,
     pub ngram_token_elements: Option<usize>,
     pub features: Option<usize>,
@@ -1398,6 +1405,28 @@ fn prepare(
     let trusted_run_intervals = reconstruction.trusted_run_intervals;
     let trusted_run_descriptors = reconstruction.trusted_run_descriptors;
     let trusted_region_edges = reconstruction.trusted_region_edges;
+    let mut uncertain_inter_region = 0usize;
+    let mut uncertain_render_disorder = 0usize;
+    let mut uncertain_untrusted_known = 0usize;
+    for issue in &reconstruction.issues {
+        let LayoutIssue::UnknownReadingOrder {
+            page: _,
+            line_ids,
+            reason,
+        } = issue;
+        let count = line_ids.len();
+        match reason {
+            UncertainLineReason::UnprovenInterRegionOrder => {
+                uncertain_inter_region += count;
+            }
+            UncertainLineReason::RenderDisorderOutsideTrustedRuns => {
+                uncertain_render_disorder += count;
+            }
+            UncertainLineReason::UntrustedLinesInKnownOrder => {
+                uncertain_untrusted_known += count;
+            }
+        }
+    }
     if let Err(error) =
         validate_trusted_run_interval_count(blocks.len(), trusted_run_intervals.len())
     {
@@ -1415,6 +1444,9 @@ fn prepare(
             painting_glyphs: Some(painting_glyphs),
             lines: Some(lines.len()),
             blocks: Some(blocks.len()),
+            uncertain_lines_unproven_inter_region_order: Some(uncertain_inter_region),
+            uncertain_lines_render_disorder: Some(uncertain_render_disorder),
+            uncertain_lines_untrusted_in_known_order: Some(uncertain_untrusted_known),
             ..PipelineMetrics::default()
         },
     );
@@ -1452,7 +1484,11 @@ fn prepare(
         .issues
         .into_iter()
         .flat_map(|issue| match issue {
-            LayoutIssue::UnknownReadingOrder { page: _, line_ids } => line_ids,
+            LayoutIssue::UnknownReadingOrder {
+                page: _,
+                line_ids,
+                reason: _,
+            } => line_ids,
         })
         .collect::<std::collections::HashSet<_>>();
     let uncertain_blocks = blocks

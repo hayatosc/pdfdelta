@@ -12,7 +12,7 @@ use super::{
         directions_are_compatible, interval_gap, interval_overlap_ratio, is_horizontal,
         length_squared, median, normalize, perpendicular, projected_extent, projected_interval,
     },
-    region::{RegionId, RegionRelation},
+    region::{RegionId, RegionRelation, UncertainLineReason},
 };
 
 const WEIGHT_SUM_TOLERANCE: f64 = 1.0e-9;
@@ -103,7 +103,11 @@ pub(crate) struct BlockReconstruction {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum LayoutIssue {
-    UnknownReadingOrder { page: PageId, line_ids: Vec<LineId> },
+    UnknownReadingOrder {
+        page: PageId,
+        line_ids: Vec<LineId>,
+        reason: UncertainLineReason,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -331,10 +335,13 @@ pub(crate) fn reconstruct_blocks_with_issues(
                 )?;
             }
             reading_order => {
-                if matches!(reading_order, super::region::ReadingOrder::Unknown) {
+                if matches!(reading_order, super::region::ReadingOrder::Unknown)
+                    && let Some(reason) = partition.uncertain_reason
+                {
                     issues.push(LayoutIssue::UnknownReadingOrder {
                         page,
                         line_ids: partition.uncertain_line_ids,
+                        reason,
                     });
                 }
                 for region in &graph.regions {

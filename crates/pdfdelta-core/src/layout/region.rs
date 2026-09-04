@@ -139,8 +139,27 @@ pub fn partition_regions_with_vector_lines(
 pub(super) struct RegionPartition {
     pub graph: RegionGraph,
     pub uncertain_line_ids: Vec<LineId>,
+    pub uncertain_reason: Option<UncertainLineReason>,
     pub trusted_runs: Vec<TrustedLineRun>,
     pub trusted_run_provenance: Vec<TrustedLineRunProvenance>,
+}
+
+/// Why a partition's lines are uncertain, for layout diagnostics.
+///
+/// Each reason mirrors one classification branch: no inference is involved,
+/// and the reason travels with the uncertain lines so reports can attribute
+/// unresolved regions to the exact unproven aspect.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum UncertainLineReason {
+    /// Several regions with an unproven inter-region order; the whole
+    /// partition stays uncertain.
+    UnprovenInterRegionOrder,
+    /// One leaf with render disorder; only lines outside the proven
+    /// monotone runs stay uncertain.
+    RenderDisorderOutsideTrustedRuns,
+    /// A known region order containing lines outside the trusted runs;
+    /// only those lines stay uncertain.
+    UntrustedLinesInKnownOrder,
 }
 
 /// A maximal contiguous selected segment within one leaf region.
@@ -162,6 +181,7 @@ pub(crate) struct TrustedLineRunProvenance {
 struct ReadingOrderClassification {
     reading_order: ReadingOrder,
     uncertain_line_ids: Vec<LineId>,
+    uncertain_reason: Option<UncertainLineReason>,
     trusted_runs: Vec<TrustedLineRun>,
     trusted_run_provenance: Vec<TrustedLineRunProvenance>,
 }
@@ -182,6 +202,7 @@ pub(super) fn partition_regions_from_refs(
             reading_order: classification.reading_order,
         },
         uncertain_line_ids: classification.uncertain_line_ids,
+        uncertain_reason: classification.uncertain_reason,
         trusted_runs: classification.trusted_runs,
         trusted_run_provenance: classification.trusted_run_provenance,
     })
@@ -231,11 +252,16 @@ fn classify_reading_order(
         &lines_by_id,
         vector_lines,
     );
-    let (reading_order, uncertain_line_ids, trusted_runs) =
+    let (reading_order, uncertain_line_ids, uncertain_reason, trusted_runs) =
         if matches!(supported_order, ReadingOrder::Unknown) && regions.len() != 1 {
             // An unproven inter-region order invalidates the whole partition order downstream
             // while preserving proven region-local sub-orders in trusted_runs.
-            (ReadingOrder::Unknown, sorted_line_ids(lines), trusted_runs)
+            (
+                ReadingOrder::Unknown,
+                sorted_line_ids(lines),
+                Some(UncertainLineReason::UnprovenInterRegionOrder),
+                trusted_runs,
+            )
         } else if matches!(supported_order, ReadingOrder::Unknown) {
             // Single leaf: no inter-region order exists, so the only unproven
             // aspect is intra-leaf render disorder. Scope uncertainty to lines
@@ -250,7 +276,12 @@ fn classify_reading_order(
             if uncertain.is_empty() {
                 uncertain = sorted_line_ids(lines);
             }
-            (ReadingOrder::Unknown, uncertain, trusted_runs)
+            (
+                ReadingOrder::Unknown,
+                uncertain,
+                Some(UncertainLineReason::RenderDisorderOutsideTrustedRuns),
+                trusted_runs,
+            )
         } else {
             let uncertain_line_ids = sorted_line_ids(lines)
                 .into_iter()
@@ -266,17 +297,23 @@ fn classify_reading_order(
                     ReadingOrder::KnownLines(_) => Vec::new(),
                     _ => trusted_runs,
                 };
-                (supported_order, Vec::new(), trusted_runs)
+                (supported_order, Vec::new(), None, trusted_runs)
             } else {
                 // When region order is known but contains unsupported lines, scope uncertainty
                 // only to those unsupported lines rather than invalidating proven runs.
-                (ReadingOrder::Unknown, uncertain_line_ids, trusted_runs)
+                (
+                    ReadingOrder::Unknown,
+                    uncertain_line_ids,
+                    Some(UncertainLineReason::UntrustedLinesInKnownOrder),
+                    trusted_runs,
+                )
             }
         };
     let trusted_run_provenance = trusted_run_provenance(&trusted_runs, regions, &lines_by_id)?;
     Ok(ReadingOrderClassification {
         reading_order,
         uncertain_line_ids,
+        uncertain_reason,
         trusted_runs,
         trusted_run_provenance,
     })
@@ -1335,6 +1372,82 @@ mod tests {
             text_direction: LineTextDirection::LeftToRight,
             render_order: id as u32..=id as u32,
         }
+    }
+
+    fn rendered_line(id: u64, render: u32, x: f64, y: f64) -> Line {
+        Line {
+            id: LineId(id),
+            page: PageId(0),
+            glyphs: Vec::new(),
+            synthetic_spaces: Vec::new(),
+            bbox: Rect {
+                min: Vec2 { x, y },
+                max: Vec2 {
+                    x: x + 100.0,
+                    y: y + 12.0,
+                },
+            },
+            baseline: Vec2 { x, y },
+            direction: Vec2 { x: 1.0, y: 0.0 },
+            text_direction: LineTextDirection::LeftToRight,
+            render_order: render..=render,
+        }
+    }
+
+    #[test]
+    fn multi_region_unknown_reports_inter_region_reason() {
+        // Three regions defeat the column-pair fast path; scrambled render
+        // order across regions defeats the spatial proof.
+        let owned = [
+            rendered_line(1, 4, 50.0, 700.0),
+            rendered_line(2, 3, 50.0, 680.0),
+            rendered_line(3, 1, 250.0, 700.0),
+            rendered_line(4, 2, 250.0, 680.0),
+        ];
+        let refs = owned.iter().collect::<Vec<_>>();
+        let regions = [
+            leaf_region(0, &[1, 2]),
+            leaf_region(1, &[3]),
+            leaf_region(2, &[4]),
+        ];
+        let classification =
+            classify_reading_order(&refs, &[], &regions, &[]).expect("fixture classifies");
+        assert!(matches!(
+            classification.reading_order,
+            ReadingOrder::Unknown
+        ));
+        assert_eq!(
+            classification.uncertain_reason,
+            Some(UncertainLineReason::UnprovenInterRegionOrder)
+        );
+        assert_eq!(classification.uncertain_line_ids.len(), 4);
+    }
+
+    #[test]
+    fn single_leaf_unknown_reports_render_disorder_reason() {
+        // One leaf whose lines overlap so no row order exists: the supported
+        // order is Unknown, the trusted complement is empty, and the fallback
+        // keeps the whole leaf uncertain with the render-disorder reason.
+        let owned = [
+            line(1, 10.0, 10.0, 20.0, 20.0),
+            line(2, 30.0, 8.0, 100.0, 20.1),
+        ];
+        let refs = owned.iter().collect::<Vec<_>>();
+        let regions = [leaf_region(0, &[1, 2])];
+        let classification =
+            classify_reading_order(&refs, &[], &regions, &[]).expect("fixture classifies");
+        assert!(matches!(
+            classification.reading_order,
+            ReadingOrder::Unknown
+        ));
+        assert_eq!(
+            classification.uncertain_reason,
+            Some(UncertainLineReason::RenderDisorderOutsideTrustedRuns)
+        );
+        assert_eq!(
+            classification.uncertain_line_ids,
+            vec![LineId(1), LineId(2)]
+        );
     }
 
     fn partition(lines: &[Line]) -> RegionPartition {
