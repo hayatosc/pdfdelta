@@ -40563,6 +40563,7 @@ mod tests {
                 },
                 hunk_policy: RecoveryHunkPolicy::Semantic,
                 edits: None,
+                repeated_group: None,
             }
         }
         let run = MergedClauseRun {

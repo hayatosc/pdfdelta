@@ -4134,6 +4134,7 @@ fn prepare_sentence_recovery(
                 Vec::new(),
             ),
             origin: relocated.old.origin,
+            repeated_group: None,
         });
     }
     let resolved_old = exact_match_old
