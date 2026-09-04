@@ -232,12 +232,28 @@ fn classify_reading_order(
         vector_lines,
     );
     let (reading_order, uncertain_line_ids, trusted_runs) =
-        if matches!(supported_order, ReadingOrder::Unknown) {
+        if matches!(supported_order, ReadingOrder::Unknown) && regions.len() != 1 {
+            // An unproven inter-region order invalidates the whole partition order downstream
+            // while preserving proven region-local sub-orders in trusted_runs.
             (ReadingOrder::Unknown, sorted_line_ids(lines), trusted_runs)
+        } else if matches!(supported_order, ReadingOrder::Unknown) {
+            // Single leaf: no inter-region order exists, so the only unproven
+            // aspect is intra-leaf render disorder. Scope uncertainty to lines
+            // outside the proven monotone runs (typically a footer emitted
+            // before the body) instead of discarding the runs. The complement
+            // is non-empty here: a fully trusted leaf would be monotone and
+            // therefore Known. The fallback below is dead-code insurance.
+            let mut uncertain = sorted_line_ids(lines)
+                .into_iter()
+                .filter(|line_id| !trusted_line_ids.contains(line_id))
+                .collect::<Vec<_>>();
+            if uncertain.is_empty() {
+                uncertain = sorted_line_ids(lines);
+            }
+            (ReadingOrder::Unknown, uncertain, trusted_runs)
         } else {
-            let uncertain_line_ids = lines
-                .iter()
-                .map(|line| line.id)
+            let uncertain_line_ids = sorted_line_ids(lines)
+                .into_iter()
                 .filter(|line_id| !trusted_line_ids.contains(line_id))
                 .collect::<Vec<_>>();
             if uncertain_line_ids.is_empty() {
@@ -251,11 +267,9 @@ fn classify_reading_order(
                     _ => trusted_runs,
                 };
                 (supported_order, Vec::new(), trusted_runs)
-            } else if matches!(supported_order, ReadingOrder::KnownLines(_)) {
-                // Block reconstruction cannot merge a proven row-major line order
-                // with unsupported lines without inventing their relative position.
-                (ReadingOrder::Unknown, sorted_line_ids(lines), trusted_runs)
             } else {
+                // When region order is known but contains unsupported lines, scope uncertainty
+                // only to those unsupported lines rather than invalidating proven runs.
                 (ReadingOrder::Unknown, uncertain_line_ids, trusted_runs)
             }
         };
@@ -471,7 +485,7 @@ fn classify_supported_region_order(
     }
 
     banded_two_column_order(regions, edges, lines_by_id)
-        .or_else(|| uniquely_rendered_spatial_order(regions, edges, lines_by_id))
+        .or_else(|| uniquely_proven_spatial_order(regions, edges, lines_by_id))
         .map_or(ReadingOrder::Unknown, ReadingOrder::Known)
 }
 
@@ -743,10 +757,10 @@ fn banded_two_column_order(
         return None;
     }
 
-    uniquely_rendered_spatial_order(regions, edges, lines)
+    uniquely_proven_spatial_order(regions, edges, lines)
 }
 
-fn uniquely_rendered_spatial_order(
+fn uniquely_proven_spatial_order(
     regions: &[Region],
     edges: &[(RegionId, RegionId, RegionRelation)],
     lines: &HashMap<LineId, &Line>,
@@ -758,9 +772,6 @@ fn uniquely_rendered_spatial_order(
         return None;
     }
     let order = unique_spatial_order(regions, edges)?;
-    if order != regions.iter().map(|region| region.id).collect::<Vec<_>>() {
-        return None;
-    }
     let regions_by_id = regions
         .iter()
         .map(|region| (region.id, region))
@@ -1437,7 +1448,7 @@ mod tests {
     }
 
     #[test]
-    fn partial_known_lines_preserve_region_local_runs() {
+    fn unsupported_lines_in_known_row_order_do_not_invalidate_proven_runs() {
         let mut lines = [
             line(1, 50.0, 700.0, 150.0, 712.0),
             line(2, 250.0, 700.0, 350.0, 712.0),
@@ -1454,10 +1465,7 @@ mod tests {
         let partition = partition(&lines);
 
         assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
-        assert_eq!(
-            partition.uncertain_line_ids,
-            (1..=8).map(LineId).collect::<Vec<_>>()
-        );
+        assert_eq!(partition.uncertain_line_ids, vec![LineId(7), LineId(8)]);
         assert_eq!(
             partition.trusted_runs,
             vec![
@@ -1667,6 +1675,33 @@ mod tests {
     }
 
     #[test]
+    fn single_leaf_scopes_uncertainty_to_footer_first_lines() {
+        let mut lines = vec![
+            line(1, 50.0, 700.0, 250.0, 710.0),
+            line(2, 50.0, 680.0, 250.0, 690.0),
+            line(3, 50.0, 100.0, 250.0, 110.0),
+        ];
+        lines[0].render_order = 2..=2;
+        lines[1].render_order = 3..=3;
+        lines[2].render_order = 1..=1;
+
+        let partition = partition(&lines);
+
+        // One leaf has no inter-region order to prove; the footer emitted
+        // before the body is the only unproven position. The body run stays
+        // proven instead of being invalidated with the whole page.
+        assert_eq!(partition.graph.regions.len(), 1);
+        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+        assert_eq!(partition.uncertain_line_ids, vec![LineId(3)]);
+        assert_eq!(
+            partition.trusted_runs,
+            vec![TrustedLineRun {
+                line_ids: vec![LineId(1), LineId(2)],
+            }]
+        );
+    }
+
+    #[test]
     fn horizontally_overlapping_row_lines_remain_unknown() {
         let lines = vec![
             line(2, 10.0, 10.0, 60.0, 20.0),
@@ -1690,5 +1725,31 @@ mod tests {
 
         assert_eq!(proven_row_cluster_order(&line_refs), None);
         assert_eq!(partition(&lines).graph.reading_order, ReadingOrder::Unknown);
+    }
+
+    #[test]
+    fn uniquely_proven_spatial_order_accepts_proven_order_differing_from_input_slice_order() {
+        let lines = [
+            line(1, 50.0, 800.0, 250.0, 810.0),
+            line(2, 50.0, 600.0, 250.0, 610.0),
+            line(3, 50.0, 400.0, 250.0, 410.0),
+        ];
+        let lines_by_id = lines.iter().map(|l| (l.id, l)).collect::<HashMap<_, _>>();
+
+        let r1 = leaf_region(1, &[1]);
+        let r2 = leaf_region(2, &[2]);
+        let r3 = leaf_region(3, &[3]);
+
+        let edges = [
+            (RegionId(1), RegionId(2), RegionRelation::Above),
+            (RegionId(2), RegionId(3), RegionRelation::Above),
+        ];
+
+        let regions = [r3, r1, r2];
+
+        assert_eq!(
+            uniquely_proven_spatial_order(&regions, &edges, &lines_by_id),
+            Some(vec![RegionId(1), RegionId(2), RegionId(3)])
+        );
     }
 }

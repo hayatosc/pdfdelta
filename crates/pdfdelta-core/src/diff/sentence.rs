@@ -133,7 +133,7 @@ pub(super) struct LocalSentenceRange {
     pub comparable: TokenRange,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct RecoveredSentence {
     pub origin: ChangeOrigin,
     pub span_index: usize,
@@ -194,11 +194,346 @@ pub(super) struct RecoveredExactMatch {
     pub new: RecoveredSentence,
 }
 
+/// An exact sentence or clause run relocated across pages.
+///
+/// Pushed alongside cross-span exact matches for pairs that are trusted,
+/// unique, token-identical, role-compatible, and on different pages, with
+/// locations in recovery spans. Same-page pairs stay silent (reflow
+/// ambiguity). Sentence pairs are further restricted to single-block
+/// occurrences (block-granularity moves own the multi-block ones); clause
+/// runs have no block-level owner, so they may span blocks with exactly
+/// assembled ranges. Each element is one indivisible pair or merged run:
+/// the vector is append-only and never reordered, and consumers emit each
+/// pair at most once (owned by its old span).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct RecoveredCrossPageMove {
+    pub old: RecoveredSentence,
+    pub new: RecoveredSentence,
+    pub old_consumed: Vec<LocalSentenceRange>,
+    pub new_consumed: Vec<LocalSentenceRange>,
+}
+
+/// Adjacent clause pairs merged into one relocatable run.
+///
+/// Members are consecutive in each side's clause order, share one span pair
+/// and stream per side, and carry uniform roles, so their union is a
+/// contiguous exact run. Merging lets one move cover a relocated passage
+/// even when the quote starts mid-piece, where fragmented tiling could never
+/// align its edges. Run state beyond members is re-derived from the clause
+/// vectors, so adjacency stays checkable without staleness.
+struct MergedClauseRun {
+    old_span: usize,
+    new_span: usize,
+    old_role: BlockRole,
+    new_role: BlockRole,
+    members: Vec<(usize, usize)>,
+}
+
+/// Assembled clause run ready to commit.
+struct AssembledClauseRun {
+    old_sentence: RecoveredSentence,
+    new_sentence: RecoveredSentence,
+    old_consumed: Vec<LocalSentenceRange>,
+    new_consumed: Vec<LocalSentenceRange>,
+    old_page: u32,
+    new_page: u32,
+}
+
+/// Assembles one merged run into cross-span entries, consumed ranges, and pages.
+///
+/// Unions member ranges per side in run order (members tile contiguously by
+/// construction, so same-block neighbors merge); any gap, lookup failure,
+/// or page/role drift skips the run. Returned pages are uniform per side.
+#[allow(clippy::too_many_lines)]
+fn assemble_merged_clause_run(
+    old_clauses: &[SentenceOccurrence],
+    new_clauses: &[SentenceOccurrence],
+    run: &MergedClauseRun,
+) -> Option<AssembledClauseRun> {
+    /// Shared leading run of two clause texts, in characters.
+    fn common_prefix_len(left: &str, right: &str) -> usize {
+        left.chars()
+            .zip(right.chars())
+            .take_while(|(left, right)| left == right)
+            .count()
+    }
+    fn union_consumed(
+        old_clauses: &[SentenceOccurrence],
+        new_clauses: &[SentenceOccurrence],
+        members: &[(usize, usize)],
+        side: OccurrenceSide,
+    ) -> Option<Vec<LocalSentenceRange>> {
+        let mut union = Vec::new();
+        for &(old_index, new_index) in members {
+            let (clauses, index, other_clauses, other_index) = match side {
+                OccurrenceSide::Old => (old_clauses, old_index, new_clauses, new_index),
+                OccurrenceSide::New => (new_clauses, new_index, old_clauses, old_index),
+            };
+            let occurrence = clauses.get(index)?;
+            let other = other_clauses.get(other_index)?;
+            let location = occurrence.location.as_ref()?;
+            // Truncate divergent members to their shared leading run;
+            // identical members keep everything (no-op by construction).
+            // Slicing by character offsets stays on char boundaries via the
+            // trimmed views below (never by byte indexing).
+            let keep = if occurrence.key == other.key {
+                0..occurrence.key.chars().count()
+            } else {
+                let trimmed = occurrence.key.trim_start_matches(char::is_whitespace);
+                let other_trimmed = other.key.trim_start_matches(char::is_whitespace);
+                let trim = occurrence
+                    .key
+                    .chars()
+                    .count()
+                    .checked_sub(trimmed.chars().count())?;
+                let shared = common_prefix_len(trimmed, other_trimmed);
+                trim..trim.checked_add(shared)?
+            };
+            let mut offset = 0usize;
+            for range in &location.consumed {
+                let len = range.canonical.end.checked_sub(range.canonical.start)?;
+                if range.comparable.end.checked_sub(range.comparable.start)? != len {
+                    return None;
+                }
+                let end = offset.checked_add(len)?;
+                let overlap_start = offset.max(keep.start);
+                let overlap_end = end.min(keep.end);
+                if overlap_start < overlap_end {
+                    let trimmed = LocalSentenceRange {
+                        block: range.block,
+                        canonical: ScalarRange {
+                            start: range.canonical.start.checked_add(overlap_start - offset)?,
+                            end: range.canonical.start.checked_add(overlap_end - offset)?,
+                        },
+                        comparable: TokenRange {
+                            start: range.comparable.start.checked_add(overlap_start - offset)?,
+                            end: range.comparable.start.checked_add(overlap_end - offset)?,
+                        },
+                    };
+                    if let Some(last) = union.last_mut() {
+                        let last: &mut LocalSentenceRange = last;
+                        if last.block == trimmed.block
+                            && trimmed.canonical.start <= last.canonical.end
+                            && trimmed.comparable.start <= last.comparable.end
+                        {
+                            last.canonical.end = last.canonical.end.max(trimmed.canonical.end);
+                            last.comparable.end = last.comparable.end.max(trimmed.comparable.end);
+                            offset = end;
+                            continue;
+                        }
+                    }
+                    union.try_reserve_exact(1).ok()?;
+                    union.push(trimmed);
+                }
+                offset = end;
+            }
+        }
+        (!union.is_empty()).then_some(union)
+    }
+    fn run_pages(
+        clauses: &[SentenceOccurrence],
+        members: &[(usize, usize)],
+        side: OccurrenceSide,
+    ) -> Option<u32> {
+        let mut page = None;
+        for &(old_index, new_index) in members {
+            let index = match side {
+                OccurrenceSide::Old => old_index,
+                OccurrenceSide::New => new_index,
+            };
+            let occurrence_page = clauses.get(index)?.page?;
+            if page.is_some_and(|page| page != occurrence_page) {
+                return None;
+            }
+            page = Some(occurrence_page);
+        }
+        page
+    }
+    let old_consumed = union_consumed(old_clauses, new_clauses, &run.members, OccurrenceSide::Old)?;
+    let new_consumed = union_consumed(old_clauses, new_clauses, &run.members, OccurrenceSide::New)?;
+    let (old_page, new_page) = (
+        run_pages(old_clauses, &run.members, OccurrenceSide::Old)?,
+        run_pages(new_clauses, &run.members, OccurrenceSide::New)?,
+    );
+    let source_token_sum = |consumed: &[LocalSentenceRange]| {
+        consumed.iter().try_fold(0usize, |total, range| {
+            total.checked_add(range.comparable.end.checked_sub(range.comparable.start)?)
+        })
+    };
+    let old_source_tokens = source_token_sum(&old_consumed)?;
+    let new_source_tokens = source_token_sum(&new_consumed)?;
+    if old_source_tokens == 0 || new_source_tokens == 0 {
+        return None;
+    }
+    let first_old = old_consumed.first()?;
+    let last_old = old_consumed.last()?;
+    let first_new = new_consumed.first()?;
+    let last_new = new_consumed.last()?;
+    let old_blocks = ordered_unique_blocks(&old_consumed)?;
+    let new_blocks = ordered_unique_blocks(&new_consumed)?;
+    let origin = |role: BlockRole| {
+        if role != BlockRole::Body {
+            ChangeOrigin::RunningMatter
+        } else {
+            ChangeOrigin::LocalFragment
+        }
+    };
+    let separator = |blocks: &[BlockId]| {
+        if blocks.len() > 1 {
+            Some(BlockSeparator::Space)
+        } else {
+            None
+        }
+    };
+    let (old_separator, new_separator) = (separator(&old_blocks), separator(&new_blocks));
+    Some(AssembledClauseRun {
+        old_sentence: RecoveredSentence {
+            origin: origin(run.old_role),
+            span_index: run.old_span,
+            kind: RecoveryUnitKind::Sentence,
+            role: run.old_role.into(),
+            blocks: old_blocks,
+            separator: old_separator,
+            canonical: ScalarRange {
+                start: first_old.canonical.start,
+                end: last_old.canonical.end,
+            },
+            comparable: TokenRange {
+                start: first_old.comparable.start,
+                end: last_old.comparable.end,
+            },
+            source_tokens: old_source_tokens,
+        },
+        new_sentence: RecoveredSentence {
+            origin: origin(run.new_role),
+            span_index: run.new_span,
+            kind: RecoveryUnitKind::Sentence,
+            role: run.new_role.into(),
+            blocks: new_blocks,
+            separator: new_separator,
+            canonical: ScalarRange {
+                start: first_new.canonical.start,
+                end: last_new.canonical.end,
+            },
+            comparable: TokenRange {
+                start: first_new.comparable.start,
+                end: last_new.comparable.end,
+            },
+            source_tokens: new_source_tokens,
+        },
+        old_consumed,
+        new_consumed,
+        old_page,
+        new_page,
+    })
+}
+
+/// Ordered unique block ids preserving first-seen order.
+fn ordered_unique_blocks(consumed: &[LocalSentenceRange]) -> Option<Vec<BlockId>> {
+    let mut blocks = Vec::new();
+    blocks.try_reserve(consumed.len()).ok()?;
+    for range in consumed {
+        if blocks.last() != Some(&range.block) && !blocks.contains(&range.block) {
+            blocks.try_reserve_exact(1).ok()?;
+            blocks.push(range.block);
+        }
+    }
+    (!blocks.is_empty()).then_some(blocks)
+}
+
+/// Merges adjacent clause pairs into relocation runs.
+///
+/// Candidates arrive in deterministic order; runs chain while consecutive
+/// positions share one span pair, one trusted stream per side, and uniform
+/// roles. Anything else starts a new run (or is skipped when occurrence
+/// lookups fail), so malformed input degrades to smaller runs, never to
+/// invented order.
+fn merge_adjacent_clause_pairs(
+    candidates: &[ExactMatchCandidate],
+    old_clauses: &[SentenceOccurrence],
+    new_clauses: &[SentenceOccurrence],
+) -> Vec<MergedClauseRun> {
+    fn stream_of(occurrence: &SentenceOccurrence) -> Option<usize> {
+        occurrence
+            .trusted_position
+            .map(|position| position.stream_index)
+    }
+    fn role_of(occurrence: &SentenceOccurrence) -> Option<BlockRole> {
+        occurrence.role
+    }
+    let mut runs: Vec<MergedClauseRun> = Vec::new();
+    for candidate in candidates {
+        let (Some(old), Some(new)) = (
+            old_clauses.get(candidate.old_occurrence_index),
+            new_clauses.get(candidate.new_occurrence_index),
+        ) else {
+            continue;
+        };
+        let (Some(old_role), Some(new_role)) = (role_of(old), role_of(new)) else {
+            continue;
+        };
+        let (Some(old_stream), Some(new_stream)) = (stream_of(old), stream_of(new)) else {
+            continue;
+        };
+        let mut extendable = false;
+        if let Some(run) = runs.last()
+            && let Some(&(last_old, last_new)) = run.members.last()
+        {
+            let (Some(last_old_occurrence), Some(last_new_occurrence)) =
+                (old_clauses.get(last_old), new_clauses.get(last_new))
+            else {
+                continue;
+            };
+            extendable = run.old_span == candidate.old_span_index
+                && run.new_span == candidate.new_span_index
+                && run.old_role == old_role
+                && run.new_role == new_role
+                && stream_of(last_old_occurrence) == Some(old_stream)
+                && stream_of(last_new_occurrence) == Some(new_stream)
+                && last_old.checked_add(1) == Some(candidate.old_occurrence_index)
+                && last_new.checked_add(1) == Some(candidate.new_occurrence_index);
+        }
+        if extendable {
+            let Some(run) = runs.last_mut() else {
+                continue;
+            };
+            if run.members.try_reserve(1).is_err() {
+                break;
+            }
+            run.members.push((
+                candidate.old_occurrence_index,
+                candidate.new_occurrence_index,
+            ));
+            continue;
+        }
+        if runs.try_reserve(1).is_err() {
+            break;
+        }
+        let mut members = Vec::new();
+        if members.try_reserve_exact(1).is_err() {
+            break;
+        }
+        members.push((
+            candidate.old_occurrence_index,
+            candidate.new_occurrence_index,
+        ));
+        runs.push(MergedClauseRun {
+            old_span: candidate.old_span_index,
+            new_span: candidate.new_span_index,
+            old_role,
+            new_role,
+            members,
+        });
+    }
+    runs
+}
+
 #[derive(Default, PartialEq, Eq)]
 pub(super) struct SentenceRecoveryPlan {
     pub matches: Vec<RecoveredExactMatch>,
     pub cross_span_match_old: Vec<RecoveredSentence>,
     pub cross_span_match_new: Vec<RecoveredSentence>,
+    pub cross_page_moves: Vec<RecoveredCrossPageMove>,
     pub cross_span_replacement_new_spans: Vec<usize>,
     pub deletions: Vec<RecoveredSentence>,
     pub insertions: Vec<RecoveredSentence>,
@@ -218,6 +553,10 @@ impl SentenceRecoveryPlan {
         !matches_for_span(&self.matches, span_index).is_empty()
             || !recoveries_for_span(&self.cross_span_match_old, span_index).is_empty()
             || !recoveries_for_span(&self.cross_span_match_new, span_index).is_empty()
+            || self
+                .cross_page_moves
+                .iter()
+                .any(|relocated| relocated.old.span_index == span_index)
             || !recoveries_for_span(&self.deletions, span_index).is_empty()
             || !recoveries_for_span(&self.insertions, span_index).is_empty()
             || !replacements_for_span(&self.replacements, span_index).is_empty()
@@ -661,6 +1000,12 @@ struct OccurrenceCollection {
     fragments: Vec<SentenceFragment>,
     exact_tail_occurrences: Vec<SentenceOccurrence>,
     exact_tail_complete: bool,
+    /// Sub-sentence clause occurrences (kind `Fragment`) with trusted
+    /// locations, for exact relocation pairing below sentence granularity.
+    /// Built only from located sentence occurrences, so every entry already
+    /// satisfies the trusted, recovery-span, role, and page gates its parent
+    /// passed; pairing rechecks uniqueness and length.
+    clauses: Vec<SentenceOccurrence>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -13503,12 +13848,14 @@ fn build_sentence_recovery_plan_inner_impl(
         fragments: old_fragments,
         exact_tail_occurrences: mut old_exact_tail_occurrences,
         exact_tail_complete: old_exact_tail_complete,
+        clauses: mut old_clauses,
     } = old_collection;
     let OccurrenceCollection {
         occurrences: mut new_occurrences,
         fragments: new_fragments,
         exact_tail_occurrences: mut new_exact_tail_occurrences,
         exact_tail_complete: new_exact_tail_complete,
+        clauses: mut new_clauses,
     } = new_collection;
     if validate_occurrence_evidence(&old_occurrences, structural_evidence.old.as_ref()).is_none()
         || validate_occurrence_evidence(&new_occurrences, structural_evidence.new.as_ref())
@@ -14143,8 +14490,24 @@ fn build_sentence_recovery_plan_inner_impl(
             &mut budget,
         )
         .is_none()
-        || !normalize_recovery_ranges(&mut plan)
     {
+        if watch.is_some() {
+            return Ok(SentenceRecoveryBuildOutcome {
+                plan: None,
+                diagnostics: None,
+                watch_diagnostics: watch.map(|watch| watch.finish(None)),
+                ..SentenceRecoveryBuildOutcome::default()
+            });
+        }
+        return Ok(SentenceRecoveryBuildOutcome::default());
+    }
+    // Sub-sentence clause enrichment runs after every sentence-level commit
+    // above, so its overlap check observes the final consumed ranges and a
+    // conflicting clause is skipped instead of invalidating the plan. Later
+    // stages (tails, fragments, secondary batches, residuals) either occupy
+    // disjoint trailing ranges or skip clause ranges the same way.
+    append_clause_exact_matches(&mut plan, &mut old_clauses, &mut new_clauses, &mut budget);
+    if !normalize_recovery_ranges(&mut plan) {
         if watch.is_some() {
             return Ok(SentenceRecoveryBuildOutcome {
                 plan: None,
@@ -14553,6 +14916,150 @@ fn is_presence_ownership_span(kind: AlignmentKind, evidence: &[AlignmentEvidence
     kind == AlignmentKind::Unresolved && !evidence.contains(&AlignmentEvidence::ExtractionGap)
 }
 
+/// Minimum trimmed clause length (in scalars) for exact relocation candidacy.
+///
+/// Below this, clauses are connectives (`of the`) that only add posting
+/// noise; above it sit citations and boilerplate with relocation signal.
+/// Short pieces still tile quotes through their longer neighbors only when
+/// paired, so this floor never creates gaps by itself: unpaired pieces stay
+/// silent like any other unmatched content.
+const MIN_CLAUSE_EXACT_TOKENS: usize = 8;
+
+/// Subdivides a located sentence occurrence into clause occurrences.
+///
+/// Clauses inherit every gate their parent passed (trusted stream with a
+/// recovery-span location, single role and page) and carry their own
+/// locations, so pairing below rechecks only uniqueness and length. Only
+/// [`RecoveryUnitKind::Sentence`] parents qualify; fragments and atomic
+/// lines are already sub-sentence. Anything unexpected (unmapped token
+/// layouts, budget exhaustion, a single piece covering the whole sentence)
+/// skips clause enrichment for that occurrence without affecting it.
+fn collect_clause_occurrences(
+    side: &Side<'_>,
+    stream: &Stream,
+    boundary: SentenceBoundary,
+    occurrence: &SentenceOccurrence,
+    budget: &mut RecoveryBudget,
+    clauses: &mut Vec<SentenceOccurrence>,
+) {
+    let (Some(span_index), Some(role)) = (occurrence.span_index, occurrence.role) else {
+        return;
+    };
+    if occurrence.kind != RecoveryUnitKind::Sentence
+        || occurrence.location.is_none()
+        || occurrence.tokens.len() != occurrence.key.chars().count()
+    {
+        return;
+    }
+    let pieces = split_clauses(&occurrence.key);
+    let mut kept = 0usize;
+    let mut covers_all = false;
+    for piece in &pieces {
+        let text: String = occurrence
+            .key
+            .chars()
+            .skip(piece.scalar_start)
+            .take(piece.scalar_end - piece.scalar_start)
+            .collect();
+        if text.trim().chars().count() < MIN_CLAUSE_EXACT_TOKENS {
+            continue;
+        }
+        kept += 1;
+        covers_all = piece.scalar_start == 0 && piece.scalar_end == occurrence.key.chars().count();
+    }
+    if kept == 0 || (kept == 1 && covers_all) {
+        return;
+    }
+    for piece in &pieces {
+        let text: String = occurrence
+            .key
+            .chars()
+            .skip(piece.scalar_start)
+            .take(piece.scalar_end - piece.scalar_start)
+            .collect();
+        if text.trim().chars().count() < MIN_CLAUSE_EXACT_TOKENS {
+            continue;
+        }
+        let Some(clause) = build_clause_occurrence(
+            side, stream, boundary, occurrence, span_index, role, piece, budget,
+        ) else {
+            continue;
+        };
+        if clauses.try_reserve(1).is_err() {
+            break;
+        }
+        clauses.push(clause);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_clause_occurrence(
+    side: &Side<'_>,
+    stream: &Stream,
+    boundary: SentenceBoundary,
+    occurrence: &SentenceOccurrence,
+    span_index: usize,
+    role: BlockRole,
+    piece: &ClauseSplit,
+    budget: &mut RecoveryBudget,
+) -> Option<SentenceOccurrence> {
+    let key = occurrence.key.get(piece.byte_start..piece.byte_end)?;
+    if !budget.charge_key_bytes(key.len()) {
+        return None;
+    }
+    if !budget.charge_occurrences(1) {
+        return None;
+    }
+    let tokens = occurrence
+        .tokens
+        .get(piece.scalar_start..piece.scalar_end)?
+        .to_vec();
+    if !budget.charge_evidence_tokens(tokens.len()) {
+        return None;
+    }
+    let clause_boundary = SentenceBoundary {
+        byte_start: boundary.byte_start.checked_add(piece.byte_start)?,
+        byte_end: boundary.byte_start.checked_add(piece.byte_end)?,
+        scalar_start: boundary.scalar_start.checked_add(piece.scalar_start)?,
+        scalar_end: boundary.scalar_start.checked_add(piece.scalar_end)?,
+    };
+    let touched_blocks = sentence_stream_block_range(stream, clause_boundary)?;
+    let location = sentence_location(
+        side,
+        stream,
+        clause_boundary,
+        touched_blocks,
+        span_index,
+        (
+            RecoveryUnitKind::Sentence,
+            role,
+            if role != BlockRole::Body {
+                ChangeOrigin::RunningMatter
+            } else {
+                ChangeOrigin::LocalFragment
+            },
+        ),
+        budget,
+    )?;
+    location.as_ref()?;
+    let mut owned_key = String::new();
+    owned_key.try_reserve_exact(key.len()).ok()?;
+    owned_key.push_str(key);
+    Some(SentenceOccurrence {
+        key: owned_key,
+        tokens,
+        word_ranges: Vec::new(),
+        kind: RecoveryUnitKind::Sentence,
+        role: Some(role),
+        location,
+        span_index: Some(span_index),
+        trusted_position: occurrence.trusted_position,
+        run_descriptor_index: occurrence.run_descriptor_index,
+        page: occurrence.page,
+        evidence_block_index: occurrence.evidence_block_index,
+    })
+}
+
 fn collect_occurrences(
     side: &Side<'_>,
     trusted_run_intervals: &[Option<TrustedRunInterval>],
@@ -14567,6 +15074,7 @@ fn collect_occurrences(
     let mut fragments = Vec::new();
     let mut exact_tail_occurrences = Vec::new();
     let mut exact_tail_complete = true;
+    let mut clauses = Vec::new();
     for (stream_index, plan) in plans.into_iter().enumerate() {
         let run_descriptor_index = match (plan.run_id, run_evidence) {
             (Some(run_id), Some(evidence)) => Some(evidence.descriptor_index(run_id)?),
@@ -14630,6 +15138,7 @@ fn collect_occurrences(
                 occurrence_origin,
                 budget,
             )?;
+            collect_clause_occurrences(side, &stream, boundary, &occurrence, budget, &mut clauses);
             occurrences.try_reserve(1).ok()?;
             occurrences.push(occurrence);
         }
@@ -14693,6 +15202,7 @@ fn collect_occurrences(
         fragments,
         exact_tail_occurrences,
         exact_tail_complete,
+        clauses,
     })
 }
 
@@ -14844,6 +15354,61 @@ fn sentence_role(
             })
             .then_some(role),
     )
+}
+
+/// A clause subdivision of a sentence occurrence, as scalar offsets.
+///
+/// Clauses split on author-inserted `,`, `;`, `:` boundaries (never on
+/// sentence terminals, which already split occurrences). Delimiters attach
+/// left and following whitespace attaches right, so pieces tile their range
+/// exhaustively with no gaps: tiled clause pairings reconstruct the quote.
+/// A colon between two ASCII digits (`12:30`) never splits. Zero-width
+/// trailing pieces may be skipped freely without breaking contiguity.
+/// Byte offsets locate the piece in the source text; scalar offsets index
+/// its characters (and, for located occurrences, its evidence tokens).
+struct ClauseSplit {
+    byte_start: usize,
+    byte_end: usize,
+    scalar_start: usize,
+    scalar_end: usize,
+}
+
+fn split_clauses(key: &str) -> Vec<ClauseSplit> {
+    let mut pieces = Vec::new();
+    let mut piece_byte_start = 0usize;
+    let mut piece_scalar_start = 0usize;
+    let mut scalar_cursor = 0usize;
+    let mut previous_was_digit = false;
+    let mut characters = key.char_indices().peekable();
+    while let Some((byte_index, character)) = characters.next() {
+        let splits = matches!(character, ',' | ';')
+            || (character == ':'
+                && !(previous_was_digit
+                    && characters
+                        .peek()
+                        .is_some_and(|(_, next)| next.is_ascii_digit())));
+        previous_was_digit = character.is_ascii_digit();
+        scalar_cursor += 1;
+        if !splits {
+            continue;
+        }
+        let byte_end = byte_index + character.len_utf8();
+        pieces.push(ClauseSplit {
+            byte_start: piece_byte_start,
+            byte_end,
+            scalar_start: piece_scalar_start,
+            scalar_end: scalar_cursor,
+        });
+        piece_byte_start = byte_end;
+        piece_scalar_start = scalar_cursor;
+    }
+    pieces.push(ClauseSplit {
+        byte_start: piece_byte_start,
+        byte_end: key.len(),
+        scalar_start: piece_scalar_start,
+        scalar_end: scalar_cursor,
+    });
+    pieces
 }
 
 fn sorted_word_ranges(text: &str, budget: &mut RecoveryBudget) -> Option<Vec<Range<usize>>> {
@@ -28311,6 +28876,300 @@ fn append_isolated_exact_tail_matches(
     }
 }
 
+/// Commits exact clause pairs for sub-sentence relocation reporting.
+///
+/// Clauses pair only when globally unique on both sides, role-compatible,
+/// located, and long enough; pairs overlapping any committed sentence range
+/// are skipped (never fail the plan). Commit reuses [`append_exact_matches`],
+/// so cross-span pairs resolve silently exactly like sentences while the
+/// cross-page hook additionally reports relocations as moves.
+fn append_clause_exact_matches(
+    plan: &mut SentenceRecoveryPlan,
+    old_clauses: &mut [SentenceOccurrence],
+    new_clauses: &mut [SentenceOccurrence],
+    budget: &mut RecoveryBudget,
+) {
+    if old_clauses.is_empty() || new_clauses.is_empty() {
+        return;
+    }
+    let Some(counts) = occurrence_counts(old_clauses, new_clauses) else {
+        return;
+    };
+    let Some(mut candidates) = exact_clause_candidates(
+        old_clauses,
+        new_clauses,
+        &counts,
+        budget.output_range_limit / 8,
+    ) else {
+        return;
+    };
+    // Prefix pairing covers renumbered or reflowed tails that exact pairing
+    // cannot see; clauses already exactly paired are excluded so no pair is
+    // ever committed twice.
+    let mut used_old = HashSet::new();
+    let mut used_new = HashSet::new();
+    for candidate in &candidates {
+        used_old.insert(candidate.old_occurrence_index);
+        used_new.insert(candidate.new_occurrence_index);
+    }
+    if let Some(mut prefixed) = exact_clause_prefix_candidates(
+        old_clauses,
+        new_clauses,
+        &used_old,
+        &used_new,
+        budget.output_range_limit / 8,
+    ) {
+        candidates.append(&mut prefixed);
+        candidates.sort_unstable_by_key(|candidate| {
+            (
+                candidate.old_span_index,
+                candidate.new_span_index,
+                candidate.old_occurrence_index,
+                candidate.new_occurrence_index,
+            )
+        });
+    }
+    // Overlap with committed ranges is resolved per run at commit time
+    // (silent accounting only when disjoint; move events regardless), so
+    // pairing itself never drops candidates here.
+    let runs = merge_adjacent_clause_pairs(&candidates, old_clauses, new_clauses);
+    // Pairing, merging, and commit are best-effort enrichment: exhaustion
+    // skips the remaining runs without touching the sentence-level plan.
+    for run in &runs {
+        commit_merged_clause_run(plan, old_clauses, new_clauses, run, budget);
+    }
+}
+
+/// Commits one merged clause run as a cross-page move event.
+///
+/// Moves-only enrichment by design: the run never extends the consumed
+/// vectors and never resolves silently, so sentence-level ownership
+/// accounting (which only tracks sentence units) stays balanced. The
+/// reported move may overlap a whole-sentence deletion or insertion of its
+/// parent sentences; that overlap is honest—both the change and the
+/// relocation are true—and coverage is untouched because moves add no
+/// resolved tokens. Same-span runs stay fully silent (identical content
+/// placed together is a match, not a move), as do same-page runs (reflow
+/// ambiguity).
+fn commit_merged_clause_run(
+    plan: &mut SentenceRecoveryPlan,
+    old_clauses: &[SentenceOccurrence],
+    new_clauses: &[SentenceOccurrence],
+    run: &MergedClauseRun,
+    budget: &mut RecoveryBudget,
+) {
+    let Some(assembled) = assemble_merged_clause_run(old_clauses, new_clauses, run) else {
+        return;
+    };
+    let old_tokens = assembled.old_sentence.source_tokens;
+    let new_tokens = assembled.new_sentence.source_tokens;
+    let Some(source_tokens) = old_tokens.checked_add(new_tokens) else {
+        return;
+    };
+    if !budget.charge_outputs(2, source_tokens) {
+        return;
+    }
+    if plan.cross_page_moves.try_reserve_exact(1).is_err() {
+        return;
+    }
+    // Same-span runs resolve through their sentences (identical content
+    // placed together is a match, not a move); only cross-span relocations
+    // surface as moves.
+    if assembled.old_page == assembled.new_page
+        || assembled.old_sentence.span_index == assembled.new_sentence.span_index
+    {
+        return;
+    }
+    plan.cross_page_moves.push(RecoveredCrossPageMove {
+        old: assembled.old_sentence,
+        new: assembled.new_sentence,
+        old_consumed: assembled.old_consumed,
+        new_consumed: assembled.new_consumed,
+    });
+}
+
+/// Shared-prefix length (in scalars) keying prefix clause pairing.
+///
+/// Clauses sharing fewer leading scalars pair by full identity instead; the
+/// floor keeps boilerplate openings (`The controller shall …`) out of the
+/// postings while admitting citation fragments (`C-553/07, …`). Paired spans
+/// cover the computed common prefix, which may extend well beyond this floor.
+const CLAUSE_PREFIX_PAIR_CHARS: usize = 32;
+
+/// Pairs globally unique exact clause occurrences across sides.
+///
+/// Mirrors [`exact_match_candidates`] without kind phases (clauses share one
+/// homogeneous shape): each clause must be role-compatible, located on both
+/// sides, long enough to carry relocation signal, and the only bearer of its
+/// token sequence on each side.
+fn exact_clause_candidates(
+    old_clauses: &[SentenceOccurrence],
+    new_clauses: &[SentenceOccurrence],
+    counts: &HashMap<OccurrenceKey<'_>, OccurrenceCount>,
+    max_candidates: usize,
+) -> Option<Vec<ExactMatchCandidate>> {
+    let mut candidates = Vec::new();
+    candidates
+        .try_reserve_exact(counts.len().min(max_candidates))
+        .ok()?;
+    for (old_occurrence_index, old) in old_clauses.iter().enumerate() {
+        let Some(old_role) = old.role else {
+            continue;
+        };
+        let Some(count) = counts.get(&(old.key.as_str(), old.kind, old_role.into())) else {
+            continue;
+        };
+        if count.old != 1 || count.new != 1 || count.old_index != Some(old_occurrence_index) {
+            continue;
+        }
+        let new_occurrence_index = count.new_index?;
+        let new = new_clauses.get(new_occurrence_index)?;
+        if !new
+            .role
+            .is_some_and(|new_role| old_role.is_alignment_compatible(new_role))
+        {
+            continue;
+        }
+        let (Some(old_span_index), Some(new_span_index)) = (old.span_index, new.span_index) else {
+            continue;
+        };
+        if old.location.is_none()
+            || new.location.is_none()
+            || old.tokens.len() < MIN_CLAUSE_EXACT_TOKENS
+            || new.tokens.len() < MIN_CLAUSE_EXACT_TOKENS
+        {
+            continue;
+        }
+        if candidates.len() == max_candidates {
+            break;
+        }
+        candidates.push(ExactMatchCandidate {
+            old_span_index,
+            new_span_index,
+            old_occurrence_index,
+            new_occurrence_index,
+        });
+    }
+    candidates.sort_unstable_by_key(|candidate| {
+        (
+            candidate.old_span_index,
+            candidate.new_span_index,
+            candidate.old_occurrence_index,
+            candidate.new_occurrence_index,
+        )
+    });
+    Some(candidates)
+}
+
+/// Pairs clauses sharing a long identical prefix across sides.
+///
+/// Fallback for pairs whose tails diverge (renumbered footnotes, reflowed
+/// endings): exact pairing already claimed the fully identical ones, so this
+/// only considers clauses unused by it. The prefix key is the trimmed text's
+/// leading scalars; pairing requires global uniqueness of that key on both
+/// sides, role compatibility, locations, and the length floor. Commit
+/// truncates each pair to their common prefix, so divergent tails are never
+/// claimed.
+fn exact_clause_prefix_candidates(
+    old_clauses: &[SentenceOccurrence],
+    new_clauses: &[SentenceOccurrence],
+    used_old: &HashSet<usize>,
+    used_new: &HashSet<usize>,
+    max_candidates: usize,
+) -> Option<Vec<ExactMatchCandidate>> {
+    fn prefix_key(key: &str) -> Option<&str> {
+        let trimmed = key.trim_start_matches(char::is_whitespace);
+        if trimmed.chars().count() < CLAUSE_PREFIX_PAIR_CHARS {
+            return None;
+        }
+        let end = trimmed
+            .char_indices()
+            .nth(CLAUSE_PREFIX_PAIR_CHARS)
+            .map(|(byte, _)| byte)
+            .unwrap_or(trimmed.len());
+        trimmed.get(..end)
+    }
+    fn index_postings<'a>(
+        clauses: &'a [SentenceOccurrence],
+        used: &HashSet<usize>,
+    ) -> Option<HashMap<&'a str, Vec<usize>>> {
+        let mut postings: HashMap<&str, Vec<usize>> = HashMap::new();
+        postings.try_reserve(clauses.len()).ok()?;
+        for (index, occurrence) in clauses.iter().enumerate() {
+            if used.contains(&index)
+                || occurrence.role.is_none()
+                || occurrence.span_index.is_none()
+                || occurrence.location.is_none()
+                || occurrence.page.is_none()
+                || occurrence.tokens.len() < MIN_CLAUSE_EXACT_TOKENS
+            {
+                continue;
+            }
+            let Some(prefix) = prefix_key(&occurrence.key) else {
+                continue;
+            };
+            if postings.try_reserve(1).is_err() {
+                return None;
+            }
+            postings.entry(prefix).or_default().push(index);
+        }
+        Some(postings)
+    }
+    let old_postings = index_postings(old_clauses, used_old)?;
+    let new_postings = index_postings(new_clauses, used_new)?;
+    let mut candidates = Vec::new();
+    candidates
+        .try_reserve_exact(old_postings.len().min(max_candidates))
+        .ok()?;
+    for (prefix, old_indices) in &old_postings {
+        let Some(new_indices) = new_postings.get(*prefix) else {
+            continue;
+        };
+        let ([old_index], [new_index]) = (old_indices.as_slice(), new_indices.as_slice()) else {
+            continue;
+        };
+        let (Some(old), Some(new)) = (old_clauses.get(*old_index), new_clauses.get(*new_index))
+        else {
+            continue;
+        };
+        let (Some(old_role), Some(new_role)) = (old.role, new.role) else {
+            continue;
+        };
+        if !old_role.is_alignment_compatible(new_role) {
+            continue;
+        }
+        let (Some(old_span_index), Some(new_span_index)) = (old.span_index, new.span_index) else {
+            continue;
+        };
+        if candidates.len() == max_candidates {
+            break;
+        }
+        candidates.push(ExactMatchCandidate {
+            old_span_index,
+            new_span_index,
+            old_occurrence_index: *old_index,
+            new_occurrence_index: *new_index,
+        });
+    }
+    candidates.sort_unstable_by_key(|candidate| {
+        (
+            candidate.old_span_index,
+            candidate.new_span_index,
+            candidate.old_occurrence_index,
+            candidate.new_occurrence_index,
+        )
+    });
+    Some(candidates)
+}
+
+/// Merges adjacent clause pairs into relocation runs.
+///
+/// Pairs must share one span pair and uniform roles, be consecutive in each
+/// side's clause order within one trusted stream, and disagree with nothing
+/// already committed (checked by the caller beforehand; union preserves
+/// disjointness). A merged run lets one move cover a relocated passage even
+/// when the quote starts mid-piece, where fragmented tiling could never
+/// align its edges.
 fn append_exact_matches(
     plan: &mut SentenceRecoveryPlan,
     old_occurrences: &mut [SentenceOccurrence],
@@ -28359,6 +29218,9 @@ fn append_exact_matches(
     plan.cross_span_match_new
         .try_reserve_exact(cross_span_count)
         .ok()?;
+    plan.cross_page_moves
+        .try_reserve_exact(cross_span_count)
+        .ok()?;
     plan.deletion_consumed
         .try_reserve_exact(old_consumed_count)
         .ok()?;
@@ -28367,6 +29229,8 @@ fn append_exact_matches(
         .ok()?;
 
     for candidate in candidates {
+        let old_page = old_occurrences.get(candidate.old_occurrence_index)?.page;
+        let new_page = new_occurrences.get(candidate.new_occurrence_index)?.page;
         let old_location = old_occurrences
             .get_mut(candidate.old_occurrence_index)?
             .location
@@ -28381,6 +29245,27 @@ fn append_exact_matches(
                 new: new_location.recovery,
             });
         } else {
+            // Identical unique sentences relocated across pages surface as
+            // moves (owned by the old span at commit). Same-page pairs stay
+            // silent (reflow ambiguity), as do multi-block occurrences
+            // (block-granularity moves own them) and role changes.
+            if let (Some(old_page), Some(new_page), [_], [_], [old_consumed], [new_consumed]) = (
+                old_page,
+                new_page,
+                old_location.recovery.blocks.as_slice(),
+                new_location.recovery.blocks.as_slice(),
+                old_location.consumed.as_slice(),
+                new_location.consumed.as_slice(),
+            ) && old_page != new_page
+                && old_location.recovery.role == new_location.recovery.role
+            {
+                plan.cross_page_moves.push(RecoveredCrossPageMove {
+                    old: old_location.recovery.clone(),
+                    new: new_location.recovery.clone(),
+                    old_consumed: vec![*old_consumed],
+                    new_consumed: vec![*new_consumed],
+                });
+            }
             plan.cross_span_match_old.push(old_location.recovery);
             plan.cross_span_match_new.push(new_location.recovery);
         }
@@ -29637,6 +30522,43 @@ fn is_true_sentence_terminal(text: &str) -> bool {
         && !is_structural_abbreviation(atom)
         && !is_short_mixed_case_abbreviation(atom)
         && !atom.contains('.')
+}
+
+/// Reports whether text is only a list-item marker.
+///
+/// Accepts short digits (`2.`), roman numerals (`iv.`), single letters
+/// (`a.`, `(b)`), and bracketed forms (`[3]`), each with one closing mark.
+/// Used to recognize label crumbs adjoining a recovered sentence: a bare
+/// marker carries no sentence content of its own. Four-digit numbers are
+/// excluded (standalone they read as years, e.g. `2021.`).
+pub(super) fn is_bare_list_marker(segment: &str) -> bool {
+    let core = segment.trim();
+    let Some(without_closer) = core.strip_suffix(['.', ':', ')', ']']) else {
+        return false;
+    };
+    let without_opener = without_closer
+        .strip_prefix(['(', '['])
+        .unwrap_or(without_closer);
+    if without_opener.is_empty() {
+        return false;
+    }
+    (without_opener.len() <= 3
+        && without_opener
+            .chars()
+            .all(|character| character.is_ascii_digit()))
+        || is_roman_numeral(without_opener)
+        || (without_opener.len() == 1 && without_opener.chars().all(|c| c.is_ascii_alphabetic()))
+}
+
+/// Reports whether text is a non-empty roman numeral (case-insensitive).
+fn is_roman_numeral(text: &str) -> bool {
+    !text.is_empty()
+        && text.chars().all(|character| {
+            matches!(
+                character,
+                'i' | 'v' | 'x' | 'l' | 'c' | 'd' | 'm' | 'I' | 'V' | 'X' | 'L' | 'C' | 'D' | 'M'
+            )
+        })
 }
 
 fn is_closing_punctuation(character: char) -> bool {
@@ -38049,6 +38971,7 @@ mod tests {
             fragments,
             exact_tail_occurrences,
             exact_tail_complete,
+            clauses: _,
         } = collect_test_occurrences(&parts, true, false, &mut budget)
             .expect("trusted run collection fits budget");
 
@@ -38087,6 +39010,7 @@ mod tests {
             fragments,
             exact_tail_occurrences,
             exact_tail_complete,
+            clauses: _,
         } = collect_test_occurrences(&[(text, None)], true, false, &mut budget)
             .expect("trusted run collection fits budget");
 
@@ -39053,6 +39977,7 @@ mod tests {
             fragments,
             exact_tail_occurrences,
             exact_tail_complete,
+            clauses: _,
         } = collect_test_occurrences(&[(text, Some(Vec::new()))], false, false, &mut budget)
             .expect("untrusted line collection fits budget");
 
@@ -39078,6 +40003,7 @@ mod tests {
             fragments,
             exact_tail_occurrences,
             exact_tail_complete,
+            clauses: _,
         } = collect_test_occurrences(&parts, true, false, &mut budget)
             .expect("trusted run collection fits budget");
 
@@ -39108,6 +40034,7 @@ mod tests {
             fragments,
             exact_tail_occurrences,
             exact_tail_complete,
+            clauses: _,
         } = collect_test_occurrences(&parts, true, false, &mut collection_budget)
             .expect("trusted run collection fits budget");
         assert_eq!(promoted.len(), 1);
@@ -39168,6 +40095,7 @@ mod tests {
             fragments,
             exact_tail_occurrences,
             exact_tail_complete,
+            clauses: _,
         } = collect_test_occurrences(&[(text, None)], true, false, &mut budget)
             .expect("trusted run collection fits budget");
 
@@ -39194,6 +40122,7 @@ mod tests {
             fragments,
             exact_tail_occurrences,
             exact_tail_complete,
+            clauses: _,
         } = collect_test_occurrences(&[(fragment_text, None)], true, true, &mut collection_budget)
             .expect("trusted run collection fits budget");
         assert!(promoted.is_empty());
@@ -39279,6 +40208,225 @@ mod tests {
             assert_eq!(boundaries.len(), 1, "{text:?}");
             assert_eq!(boundaries[0], text, "{text:?}");
         }
+    }
+
+    #[test]
+    fn clause_splits_tile_exhaustively_without_gaps() {
+        let ranges = |text: &str| {
+            split_clauses(text)
+                .into_iter()
+                .map(|piece| {
+                    (
+                        piece.scalar_start,
+                        piece.scalar_end,
+                        piece.byte_start,
+                        piece.byte_end,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            ranges("European Union, C-553/07, 7 May 2009, College"),
+            vec![
+                (0, 15, 0, 15),
+                (15, 25, 15, 25),
+                (25, 37, 25, 37),
+                (37, 45, 37, 45)
+            ]
+        );
+        assert_eq!(ranges("no delimiters here"), vec![(0, 18, 0, 18)]);
+        assert_eq!(ranges("12:30 sharp"), vec![(0, 11, 0, 11)]);
+        assert_eq!(
+            ranges("a;b:c"),
+            vec![(0, 2, 0, 2), (2, 4, 2, 4), (4, 5, 4, 5)]
+        );
+        assert_eq!(ranges("café, au lait"), vec![(0, 5, 0, 6), (5, 13, 6, 14)]);
+    }
+
+    #[test]
+    fn exact_clause_candidates_pair_unique_long_clauses() {
+        fn clause(key: &str, block: u64, span: usize) -> SentenceOccurrence {
+            let len = key.chars().count();
+            SentenceOccurrence {
+                key: key.to_owned(),
+                tokens: key.chars().map(SentenceEvidenceToken::Scalar).collect(),
+                word_ranges: Vec::new(),
+                kind: RecoveryUnitKind::Sentence,
+                role: Some(BlockRole::Body),
+                location: Some(test_location(
+                    LocalSentenceRange {
+                        block: BlockId(block),
+                        canonical: ScalarRange { start: 0, end: len },
+                        comparable: TokenRange { start: 0, end: len },
+                    },
+                    span,
+                )),
+                span_index: Some(span),
+                trusted_position: None,
+                run_descriptor_index: None,
+                page: Some(0),
+                evidence_block_index: None,
+            }
+        }
+        let old = vec![
+            clause(" see the cited case law here.", 1, 0),
+            clause(" intro words here,", 2, 0),
+            clause(" repeated filler clause here.", 3, 0),
+            clause(" repeated filler clause here.", 4, 0),
+        ];
+        let new = vec![
+            clause(" see the cited case law here.", 11, 1),
+            clause(" different filler here.", 12, 1),
+            clause(" repeated filler clause here.", 13, 1),
+        ];
+        let counts = occurrence_counts(&old, &new).expect("clause counts fit budget");
+        let candidates =
+            exact_clause_candidates(&old, &new, &counts, 100).expect("clause pairing fits");
+        // Only the unique long clause pairs; the unmatched intro and the
+        // duplicated filler stay silent.
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].old_occurrence_index, 0);
+        assert_eq!(candidates[0].new_occurrence_index, 0);
+        assert_eq!(candidates[0].old_span_index, 0);
+        assert_eq!(candidates[0].new_span_index, 1);
+    }
+    #[test]
+    fn clause_collection_subdivides_located_sentences() {
+        let text = "Zebra stripes confuse predators at dusk, see the cited case law here.";
+        let token_count = text.chars().count();
+        let mut budget = RecoveryBudget::new(token_count, 0, token_count * 4, 1)
+            .expect("clause budget is valid");
+        let collection = collect_test_occurrences(&[(text, None)], true, false, &mut budget)
+            .expect("collection fits");
+
+        assert_eq!(collection.occurrences.len(), 1);
+        assert_eq!(collection.clauses.len(), 2);
+        assert_eq!(
+            collection.clauses[0].key,
+            "Zebra stripes confuse predators at dusk,"
+        );
+        assert_eq!(collection.clauses[1].key, " see the cited case law here.");
+        for clause in &collection.clauses {
+            assert!(clause.location.is_some());
+            assert_eq!(clause.span_index, collection.occurrences[0].span_index);
+            assert_eq!(
+                clause.tokens.len(),
+                clause.key.chars().count(),
+                "clause tokens stay 1:1 with key characters"
+            );
+        }
+    }
+
+    #[test]
+    fn prefix_clause_candidates_pair_shared_leading_runs() {
+        fn clause(key: &str, block: u64, span: usize) -> SentenceOccurrence {
+            let len = key.chars().count();
+            SentenceOccurrence {
+                key: key.to_owned(),
+                tokens: key.chars().map(SentenceEvidenceToken::Scalar).collect(),
+                word_ranges: Vec::new(),
+                kind: RecoveryUnitKind::Sentence,
+                role: Some(BlockRole::Body),
+                location: Some(test_location(
+                    LocalSentenceRange {
+                        block: BlockId(block),
+                        canonical: ScalarRange { start: 0, end: len },
+                        comparable: TokenRange { start: 0, end: len },
+                    },
+                    span,
+                )),
+                span_index: Some(span),
+                trusted_position: None,
+                run_descriptor_index: None,
+                page: Some(0),
+                evidence_block_index: None,
+            }
+        }
+        let old = vec![
+            clause(
+                " College van burgemeester en wethouders van Rotterdam v M. E. E. tail one.",
+                1,
+                0,
+            ),
+            clause(" short.", 2, 0),
+        ];
+        let new = vec![
+            clause(
+                " College van burgemeester en wethouders van Rotterdam v M. E. E. tail two.",
+                11,
+                1,
+            ),
+            clause(
+                " An entirely different passage about night trains in winter.",
+                12,
+                1,
+            ),
+        ];
+        // " short." is below the prefix floor; the distinct second new
+        // clause keeps the shared leading run one-to-one on both sides.
+        let empty = HashSet::new();
+        let candidates = exact_clause_prefix_candidates(&old, &new, &empty, &empty, 100)
+            .expect("prefix pairing fits");
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].old_occurrence_index, 0);
+        assert_eq!(candidates[0].new_occurrence_index, 0);
+    }
+
+    #[test]
+    fn merged_clause_runs_chain_only_adjacent_pairs() {
+        fn clause(key: &str, block: u64, span: usize, ordinal: usize) -> SentenceOccurrence {
+            let len = key.chars().count();
+            SentenceOccurrence {
+                key: key.to_owned(),
+                tokens: key.chars().map(SentenceEvidenceToken::Scalar).collect(),
+                word_ranges: Vec::new(),
+                kind: RecoveryUnitKind::Sentence,
+                role: Some(BlockRole::Body),
+                location: Some(test_location(
+                    LocalSentenceRange {
+                        block: BlockId(block),
+                        canonical: ScalarRange { start: 0, end: len },
+                        comparable: TokenRange { start: 0, end: len },
+                    },
+                    span,
+                )),
+                span_index: Some(span),
+                trusted_position: Some(TrustedStreamPosition {
+                    stream_index: 0,
+                    ordinal,
+                }),
+                run_descriptor_index: None,
+                page: Some(0),
+                evidence_block_index: None,
+            }
+        }
+        // Members without a trusted stream never merge; positions alone chain
+        // nothing.
+        let old = vec![
+            clause(" alpha clause here.", 1, 0, 0),
+            clause(" beta clause here.", 2, 0, 1),
+        ];
+        let new = vec![
+            clause(" alpha clause here.", 11, 1, 0),
+            clause(" beta clause here.", 12, 1, 1),
+        ];
+        let candidates = vec![
+            ExactMatchCandidate {
+                old_span_index: 0,
+                new_span_index: 1,
+                old_occurrence_index: 0,
+                new_occurrence_index: 0,
+            },
+            ExactMatchCandidate {
+                old_span_index: 0,
+                new_span_index: 1,
+                old_occurrence_index: 1,
+                new_occurrence_index: 1,
+            },
+        ];
+        let runs = merge_adjacent_clause_pairs(&candidates, &old, &new);
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].members.len(), 2);
     }
 
     #[test]

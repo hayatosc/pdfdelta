@@ -13093,6 +13093,9 @@ fn validate_sentence_edge_signature_direct_shadow_metrics(
         Some(SentenceEdgeSignatureDirectShadowStopReason::PairVisitLimit) => only_deficit(&[11]),
         Some(SentenceEdgeSignatureDirectShadowStopReason::SimilarityComparisonLimit) => {
             only_deficit(&[12])
+                || (only_deficit(&[])
+                    && !metrics.near_relation_complete
+                    && metrics.near_relation_stop_reason.is_some())
         }
         Some(SentenceEdgeSignatureDirectShadowStopReason::FragmentVetoPairVisitLimit) => {
             only_deficit(&[13])
@@ -25642,6 +25645,67 @@ mod tests {
                 ..SentenceRecoveryMetrics::default()
             })
             .is_ok()
+        );
+    }
+
+    #[test]
+    fn validates_direct_shadow_stopped_by_downstream_production_limit_without_shadow_deficits() {
+        let shadow = valid_sentence_edge_signature_direct_shadow();
+        let stopped_by_production = SentenceEdgeSignatureDirectShadowMetrics {
+            complete: false,
+            stop_reason: Some(
+                SentenceEdgeSignatureDirectShadowStopReason::SimilarityComparisonLimit,
+            ),
+            parity_evaluable: false,
+            plan_parity: false,
+            watch_preservation_evaluable: false,
+            watch_evidence_preserved: false,
+            watch_exact_parity_evaluable: false,
+            watch_exact_parity: false,
+            ..shadow
+        };
+
+        // Direct shadow retains its earlier typed stop while production later stops at another typed resource boundary.
+        let work = NearSearchWorkMetrics {
+            pair_visits_examined: 4,
+            pair_visits_attempted: 5,
+            ..NearSearchWorkMetrics::default()
+        };
+        assert!(
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                sentence_edge_signature_direct_shadow: Some(stopped_by_production),
+                sentence_edge_signature_direct_execution: Some(
+                    SentenceEdgeSignatureDirectExecution::ShadowReplay,
+                ),
+                near_relation_complete: false,
+                near_relation_stop_reason: Some(NearRelationStopReason::PairVisitLimit),
+                near_pair_visits_examined: 4,
+                near_pair_visits_attempted: 5,
+                near_sentence_work: work,
+                near_paired_interval_work: NearSearchScopeMetrics {
+                    sentence_work: work,
+                    ..NearSearchScopeMetrics::default()
+                },
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .is_ok()
+        );
+
+        // Without a corresponding production near-relation stop reason, a zero-deficit stopped shadow
+        // must still be rejected as an unbacked resource stop.
+        assert!(
+            validate_sentence_recovery_metrics(SentenceRecoveryMetrics {
+                sentence_edge_signature_direct_shadow: Some(stopped_by_production),
+                sentence_edge_signature_direct_execution: Some(
+                    SentenceEdgeSignatureDirectExecution::ShadowReplay,
+                ),
+                near_relation_complete: true,
+                near_relation_stop_reason: None,
+                sentence_edge_filter_complete: true,
+                ..SentenceRecoveryMetrics::default()
+            })
+            .is_err()
         );
     }
 

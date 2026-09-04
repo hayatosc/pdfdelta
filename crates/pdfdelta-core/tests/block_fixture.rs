@@ -48,6 +48,38 @@ fn groups_regular_lines_into_one_body_block() {
 }
 
 #[test]
+fn joins_a_ragged_hanging_indent_continuation_without_merging_the_next_item() {
+    let fixture = Fixture::new(vec![
+        LineSpec::column(
+            1,
+            0,
+            "first full line of the numbered item continues",
+            90.0,
+            600.0,
+            440.0,
+        ),
+        LineSpec::column(2, 0, "tail", 102.0, 592.0, 80.0),
+        LineSpec::column(
+            3,
+            0,
+            "next item starts here with full text",
+            90.0,
+            578.0,
+            440.0,
+        ),
+    ]);
+
+    let blocks = reconstruct_blocks(&fixture.document, &fixture.lines, options())
+        .expect("ragged continuation should join its paragraph");
+
+    // The short contained tail joins despite its hanging indent, while the
+    // following full line still starts a new block: the rule is asymmetric.
+    assert_eq!(blocks.len(), 2);
+    assert_eq!(blocks[0].lines, [LineId(1), LineId(2)]);
+    assert_eq!(blocks[1].lines, [LineId(3)]);
+}
+
+#[test]
 fn separates_paragraphs_with_a_large_relative_gap() {
     let fixture = Fixture::new(vec![
         LineSpec::body(1, 0, "first", 100.0),

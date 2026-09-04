@@ -4095,6 +4095,47 @@ fn prepare_sentence_recovery(
     let (deletion, deletion_origins) =
         prepare_recovered_changes(deletions, ChangeKind::Deletion, &mut changes, output_budget)?;
     change_origins = checked_add_origin_metrics(change_origins, deletion_origins)?;
+    // Relocated identical units surface as moves. Each pair is owned by its
+    // old span (emitted once); coverage is unchanged because the tokens are
+    // already resolved through the silent cross-span path above. A pair that
+    // cannot be budgeted or assembled is skipped without affecting primary
+    // recovery. Single-block sentence pairs keep their exact ranges (owned
+    // by block-granularity moves when multi-block); clause runs assemble
+    // multi-block spans with exactly mirrored offsets.
+    for relocated in &recovery.cross_page_moves {
+        if relocated.old.span_index != span_index {
+            continue;
+        }
+        let (Some(old_span), Some(new_span)) = (
+            relocated_move_span(old, &relocated.old_consumed, &recovery.deletion_consumed),
+            relocated_move_span(new, &relocated.new_consumed, &recovery.insertion_consumed),
+        ) else {
+            continue;
+        };
+        let multi_allowed = matches!(relocated.old.origin, ChangeOrigin::LocalFragment);
+        if !multi_allowed && (relocated.old.blocks.len() != 1 || relocated.new.blocks.len() != 1) {
+            continue;
+        }
+        let Some(block_count) = old_span.blocks.len().checked_add(new_span.blocks.len()) else {
+            continue;
+        };
+        let Some(change_bytes) = estimated_change_bytes(block_count) else {
+            continue;
+        };
+        if changes.try_reserve_exact(1).is_err() || !output_budget.charge(change_bytes) {
+            continue;
+        }
+        changes.push(OriginatedChange {
+            event: ChangeEvent::single_occurrence(
+                ChangeKind::Move,
+                Some(old_span),
+                Some(new_span),
+                Confidence::Low,
+                Vec::new(),
+            ),
+            origin: relocated.old.origin,
+        });
+    }
     let resolved_old = exact_match_old
         .checked_add(replacement_old)?
         .checked_add(deletion)?;
@@ -5126,6 +5167,163 @@ fn try_copy_slice<T: Copy>(source: &[T]) -> Option<Vec<T>> {
     copied.try_reserve_exact(source.len()).ok()?;
     copied.extend_from_slice(source);
     Some(copied)
+}
+
+/// Assembles a relocated move span from committed per-block ranges.
+///
+/// `consumed` arrives ordered (stream order) with at most boundary
+/// whitespace between entries. Block offsets accumulate full block lengths
+/// with block-boundary separators mirroring the span model: a space joins
+/// consecutive blocks exactly when the trailing text of one and the leading
+/// text of the next are both non-whitespace (the report projection walks the
+/// same rule, so mismatched offsets would invalidate the measurement).
+/// The leading entry may absorb a bare list marker margin (`"2. "`) so the
+/// reported move covers the annotated quote; the comparable start moves by
+/// the same delta, which is exact because locations only exist for blocks
+/// without unmapped tokens, where scalar and comparable indices advance 1:1.
+/// Pure-whitespace margins never affect quote containment, and absorbing
+/// trailing content could steal the next unit's territory or overshoot the
+/// scope range, so trailing margins are never absorbed. Returns `None` when
+/// any lookup fails or a margin holds real content.
+fn relocated_move_span(
+    side: &Side<'_>,
+    consumed: &[sentence::LocalSentenceRange],
+    committed: &[sentence::LocalSentenceRange],
+) -> Option<TextSpan> {
+    let mut blocks = Vec::new();
+    blocks.try_reserve(consumed.len()).ok()?;
+    for range in consumed {
+        if blocks.last() != Some(&range.block) {
+            blocks.try_reserve_exact(1).ok()?;
+            blocks.push(range.block);
+        }
+    }
+    let separator = if blocks.len() > 1 {
+        Some(BlockSeparator::Space)
+    } else {
+        None
+    };
+    let mut scalar_base = HashMap::new();
+    let mut token_base = HashMap::new();
+    scalar_base.try_reserve(blocks.len()).ok()?;
+    token_base.try_reserve(blocks.len()).ok()?;
+    let mut scalar_offset = 0usize;
+    let mut token_offset = 0usize;
+    let mut combined_trailing_whitespace: Option<bool> = None;
+    for (position, block) in blocks.iter().enumerate() {
+        let &side_index = side.index.get(block)?;
+        let block_text = side
+            .blocks
+            .get(side_index)
+            .map(|block| block.canonical.text.as_str())?;
+        let block_tokens = side.canonical.get(side_index).map(Vec::len)?;
+        if position > 0 && separator == Some(BlockSeparator::Space) {
+            let next_leading_whitespace =
+                block_text.chars().next().is_some_and(char::is_whitespace);
+            if combined_trailing_whitespace != Some(true) && !next_leading_whitespace {
+                scalar_offset = scalar_offset.checked_add(1)?;
+                token_offset = token_offset.checked_add(1)?;
+            }
+        }
+        scalar_base.insert(*block, scalar_offset);
+        token_base.insert(*block, token_offset);
+        let block_scalars = block_text.chars().count();
+        scalar_offset = scalar_offset.checked_add(block_scalars)?;
+        token_offset = token_offset.checked_add(block_tokens)?;
+        if let Some(trailing_whitespace) = block_text.chars().next_back().map(char::is_whitespace) {
+            combined_trailing_whitespace = Some(trailing_whitespace);
+        }
+    }
+    // Merged runs tile contiguously by construction (adjacent pieces share
+    // boundaries, separators included), so the span runs from the first
+    // entry's start to the last entry's end. Any deviation surfaces as an
+    // empty or inverted range below, never as an invented subrange.
+    let (Some(first), Some(last)) = (consumed.first(), consumed.last()) else {
+        return None;
+    };
+    let (Some(&first_base_scalar), Some(&first_base_token)) =
+        (scalar_base.get(&first.block), token_base.get(&first.block))
+    else {
+        return None;
+    };
+    let (Some(&last_base_scalar), Some(&last_base_token)) =
+        (scalar_base.get(&last.block), token_base.get(&last.block))
+    else {
+        return None;
+    };
+    let mut canonical_start = first_base_scalar.checked_add(first.canonical.start)?;
+    let mut comparable_start = first_base_token.checked_add(first.comparable.start)?;
+    if absorb_leading_marker(side, &first.block, first, committed) {
+        canonical_start = first_base_scalar;
+        // The comparable start moves by the same delta: locations only exist
+        // for blocks without unmapped tokens, where scalar and comparable
+        // indices advance 1:1. Saturating keeps a degraded (never panicking)
+        // value if that invariant ever drifts; the scope walk then skips the
+        // measurement instead of misreporting it.
+        comparable_start = first_base_token
+            .checked_add(first.comparable.start.saturating_sub(first.canonical.start))?;
+    }
+    let canonical_end = last_base_scalar.checked_add(last.canonical.end)?;
+    let comparable_end = last_base_token.checked_add(last.comparable.end)?;
+    if canonical_start >= canonical_end || comparable_start >= comparable_end {
+        return None;
+    }
+    Some(TextSpan {
+        blocks,
+        separator,
+        canonical_range: ScalarRange {
+            start: canonical_start,
+            end: canonical_end,
+        },
+        comparable_range: TokenRange {
+            start: comparable_start,
+            end: comparable_end,
+        },
+    })
+}
+
+/// Reports whether a leading label margin may join a relocated span.
+///
+/// The margin (block text before the first committed range) must be free of
+/// any other committed range and hold a bare list marker: whitespace alone
+/// never affects quote containment, while real content belongs to another
+/// unit. Token mapping follows the scalar delta, exact for blocks without
+/// unmapped tokens (the only blocks locations exist for).
+fn absorb_leading_marker(
+    side: &Side<'_>,
+    block: &BlockId,
+    range: &sentence::LocalSentenceRange,
+    committed: &[sentence::LocalSentenceRange],
+) -> bool {
+    if range.canonical.start == 0 {
+        return false;
+    }
+    if committed.iter().any(|committed| {
+        committed.block == *block
+            && committed.canonical.start < range.canonical.start
+            && 0 < committed.canonical.end
+    }) {
+        return false;
+    }
+    let Some(&side_index) = side.index.get(block) else {
+        return false;
+    };
+    let Some(block_text) = side
+        .blocks
+        .get(side_index)
+        .map(|block| block.canonical.text.as_str())
+    else {
+        return false;
+    };
+    let Some(margin_end) = block_text
+        .char_indices()
+        .nth(range.canonical.start)
+        .map(|(byte, _)| byte)
+    else {
+        return false;
+    };
+    let margin = block_text.get(..margin_end).unwrap_or_default();
+    !margin.trim().is_empty() && sentence::is_bare_list_marker(margin.trim())
 }
 
 fn estimated_change_bytes(block_count: usize) -> Option<usize> {
@@ -9864,6 +10062,238 @@ mod tests {
             metrics.unresolved_remainder_new_source_tokens,
             source_tokens(&new)
         );
+    }
+
+    fn paged_sentence_block(id: u64, page: u32, text: &str) -> BlockText {
+        let mut block = sentence_block(id, text);
+        block.pages = vec![page];
+        block
+    }
+
+    fn cross_page_move_alignment() -> (Vec<BlockText>, Vec<BlockText>, Alignment) {
+        let old = vec![
+            paged_sentence_block(1, 0, "Opening anchor remains stable here."),
+            paged_sentence_block(2, 1, "The relocated sentence appears here for testing."),
+            paged_sentence_block(3, 0, "Old trailing filler content here."),
+        ];
+        let new = vec![
+            paged_sentence_block(11, 0, "New leading filler content here."),
+            paged_sentence_block(12, 1, "New middle filler content here."),
+            paged_sentence_block(13, 2, "The relocated sentence appears here for testing."),
+        ];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(1), BlockId(2)], vec![BlockId(11)]),
+                reading_order_unknown_span(vec![BlockId(3)], vec![BlockId(12), BlockId(13)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        (old, new, alignment)
+    }
+
+    fn compare_cross_page_move(
+        old: &[BlockText],
+        new: &[BlockText],
+        alignment: &Alignment,
+    ) -> Comparison {
+        let run = vec![Some(TrustedRunId(1)); 3];
+        compare_sentence_recovery_with_intervals(
+            old,
+            new,
+            alignment,
+            &trusted_run_intervals(&run),
+            &trusted_run_intervals(&run),
+            5,
+            DiffOptions::default(),
+        )
+    }
+
+    fn reported_moves(comparison: &Comparison) -> Vec<&ChangeEvent> {
+        comparison
+            .changes
+            .iter()
+            .filter(|change| change.kind == ChangeKind::Move)
+            .collect()
+    }
+
+    #[test]
+    fn cross_page_exact_sentence_reports_a_low_confidence_move() {
+        let (old, new, alignment) = cross_page_move_alignment();
+        let comparison = compare_cross_page_move(&old, &new, &alignment);
+
+        let moves = reported_moves(&comparison);
+        assert_eq!(moves.len(), 1, "{comparison:#?}");
+        let relocated = moves[0];
+        assert_eq!(relocated.confidence, Confidence::Low);
+        assert_eq!(relocated.occurrences.len(), 1);
+        assert_eq!(
+            relocated.occurrences[0]
+                .old_span
+                .as_ref()
+                .map(|span| span.blocks.clone()),
+            Some(vec![BlockId(2)])
+        );
+        assert_eq!(
+            relocated.occurrences[0]
+                .new_span
+                .as_ref()
+                .map(|span| span.blocks.clone()),
+            Some(vec![BlockId(13)])
+        );
+    }
+
+    #[test]
+    fn same_page_exact_sentence_stays_silent_across_spans() {
+        let (old, mut new, alignment) = cross_page_move_alignment();
+        new[2].pages = vec![1];
+
+        let comparison = compare_cross_page_move(&old, &new, &alignment);
+
+        assert!(reported_moves(&comparison).is_empty(), "{comparison:#?}");
+    }
+
+    #[test]
+    fn cross_page_move_absorbs_list_marker_margins() {
+        let old = vec![
+            paged_sentence_block(1, 0, "Opening anchor remains stable here."),
+            paged_sentence_block(2, 1, "2. Each key pair was generated."),
+            paged_sentence_block(3, 0, "Old trailing filler content here."),
+        ];
+        let new = vec![
+            paged_sentence_block(11, 0, "New leading filler content here."),
+            paged_sentence_block(12, 1, "New middle filler content here."),
+            paged_sentence_block(13, 2, "2. Each key pair was generated."),
+        ];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(1), BlockId(2)], vec![BlockId(11)]),
+                reading_order_unknown_span(vec![BlockId(3)], vec![BlockId(12), BlockId(13)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = compare_cross_page_move(&old, &new, &alignment);
+
+        // The "2. " label splits off as a below-threshold crumb, but the
+        // move span absorbs its margin so the reported range covers the
+        // whole block including the marker.
+        let moves = reported_moves(&comparison);
+        assert_eq!(moves.len(), 1, "{comparison:#?}");
+        let relocated = moves[0];
+        let old_span = relocated.occurrences[0]
+            .old_span
+            .as_ref()
+            .expect("move carries its old span");
+        let new_span = relocated.occurrences[0]
+            .new_span
+            .as_ref()
+            .expect("move carries its new span");
+        assert_eq!(old_span.blocks, vec![BlockId(2)]);
+        assert_eq!(new_span.blocks, vec![BlockId(13)]);
+        assert_eq!(
+            (old_span.canonical_range.start, old_span.canonical_range.end),
+            (0, "2. Each key pair was generated.".chars().count())
+        );
+        assert_eq!(
+            (new_span.canonical_range.start, new_span.canonical_range.end),
+            (0, "2. Each key pair was generated.".chars().count())
+        );
+        // The comparable start moves with the canonical start so the scope
+        // projection walk stays synchronized; a stale sentence-token start
+        // invalidates the whole scoped measurement.
+        assert_eq!(old_span.comparable_range.start, 0);
+        assert_eq!(new_span.comparable_range.start, 0);
+    }
+
+    #[test]
+    fn shared_clause_across_reflowed_sentences_reports_a_move() {
+        let old = vec![
+            paged_sentence_block(
+                1,
+                0,
+                "Opening anchor remains stable here for the duration of the test.",
+            ),
+            paged_sentence_block(
+                2,
+                1,
+                "Zebra stripes confuse predators at dusk, see the cited case law here.",
+            ),
+            paged_sentence_block(
+                3,
+                0,
+                "Old trailing filler content here for budget headroom purposes.",
+            ),
+        ];
+        let new = vec![
+            paged_sentence_block(
+                11,
+                0,
+                "New leading filler content here for budget headroom purposes.",
+            ),
+            paged_sentence_block(
+                12,
+                1,
+                "New middle filler content here for budget headroom purposes.",
+            ),
+            paged_sentence_block(
+                13,
+                2,
+                "Quantum computers factor large integers slowly, see the cited case law here.",
+            ),
+        ];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(1), BlockId(2)], vec![BlockId(11)]),
+                reading_order_unknown_span(vec![BlockId(3)], vec![BlockId(12), BlockId(13)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = compare_cross_page_move(&old, &new, &alignment);
+
+        // The shared trailing clause pairs across the reflowed sentences
+        // while the differing heads stay silent: exactly one move.
+        let moves = reported_moves(&comparison);
+        assert_eq!(moves.len(), 1, "{comparison:#?}");
+        let relocated = moves[0];
+        assert_eq!(relocated.confidence, Confidence::Low);
+        assert_eq!(relocated.occurrences.len(), 1);
+        let occurrence = &relocated.occurrences[0];
+        let old_block = old
+            .iter()
+            .find(|block| block.block == BlockId(2))
+            .expect("old quote block exists");
+        let old_text = occurrence.old_span.as_ref().map(|span| {
+            old_block.canonical.text[span.canonical_range.start..span.canonical_range.end]
+                .to_owned()
+        });
+        assert_eq!(old_text.as_deref(), Some(" see the cited case law here."));
+    }
+
+    #[test]
+    fn multi_block_exact_sentence_stays_silent_across_pages() {
+        let old = vec![
+            paged_sentence_block(1, 1, "The relocated sentence"),
+            paged_sentence_block(2, 1, "appears here for testing."),
+            paged_sentence_block(3, 0, "Old trailing filler content here."),
+        ];
+        let new = vec![
+            paged_sentence_block(11, 0, "New filler content here."),
+            paged_sentence_block(12, 2, "The relocated sentence"),
+            paged_sentence_block(13, 2, "appears here for testing."),
+        ];
+        let alignment = Alignment {
+            spans: vec![
+                reading_order_unknown_span(vec![BlockId(1), BlockId(2)], vec![BlockId(11)]),
+                reading_order_unknown_span(vec![BlockId(3)], vec![BlockId(12), BlockId(13)]),
+            ],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = compare_cross_page_move(&old, &new, &alignment);
+
+        assert!(reported_moves(&comparison).is_empty(), "{comparison:#?}");
     }
 
     #[test]
