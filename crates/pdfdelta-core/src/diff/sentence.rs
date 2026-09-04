@@ -986,6 +986,11 @@ pub(super) struct SentenceOccurrence {
     /// Source page when every contributing block names the same single page.
     page: Option<u32>,
     evidence_block_index: Option<usize>,
+    /// Full ranges of the parent sentence occurrence, cloned at build time.
+    /// Clause runs whose parent sentence already carries a sentence-level
+    /// replacement stay silent: the replacement covers the relocation
+    /// context. Empty for non-clause occurrences.
+    parent_consumed: Vec<LocalSentenceRange>,
 }
 
 struct SentenceFragment {
@@ -15045,6 +15050,11 @@ fn build_clause_occurrence(
     let mut owned_key = String::new();
     owned_key.try_reserve_exact(key.len()).ok()?;
     owned_key.push_str(key);
+    let parent_consumed = occurrence
+        .location
+        .as_ref()
+        .map(|parent| parent.consumed.clone())
+        .unwrap_or_default();
     Some(SentenceOccurrence {
         key: owned_key,
         tokens,
@@ -15057,6 +15067,7 @@ fn build_clause_occurrence(
         run_descriptor_index: occurrence.run_descriptor_index,
         page: occurrence.page,
         evidence_block_index: occurrence.evidence_block_index,
+        parent_consumed,
     })
 }
 
@@ -15274,6 +15285,7 @@ fn build_sentence_occurrence(
         evidence_block_index: (!plan.trusted)
             .then(|| plan.block_indices.first().copied())
             .flatten(),
+        parent_consumed: Vec::new(),
     })
 }
 
@@ -28879,10 +28891,10 @@ fn append_isolated_exact_tail_matches(
 /// Commits exact clause pairs for sub-sentence relocation reporting.
 ///
 /// Clauses pair only when globally unique on both sides, role-compatible,
-/// located, and long enough; pairs overlapping any committed sentence range
-/// are skipped (never fail the plan). Commit reuses [`append_exact_matches`],
-/// so cross-span pairs resolve silently exactly like sentences while the
-/// cross-page hook additionally reports relocations as moves.
+/// located, and long enough; runs whose parent sentence already carries a
+/// sentence-level replacement stay silent (never fail the plan). Commit is
+/// moves-only: cross-span pairs never resolve silently, and only cross-page,
+/// cross-span relocations surface as moves.
 fn append_clause_exact_matches(
     plan: &mut SentenceRecoveryPlan,
     old_clauses: &mut [SentenceOccurrence],
@@ -28940,6 +28952,58 @@ fn append_clause_exact_matches(
     }
 }
 
+/// Reports whether any run member's parent sentence overlaps a committed
+/// sentence-level replacement, meaning the replacement already covers the
+/// relocation context. Deletions and insertions do not subsume: an unpaired
+/// head reporting separately while its shared clause relocated is exactly
+/// the move this path exists to surface.
+fn run_parents_overlap_replacements(
+    old_clauses: &[SentenceOccurrence],
+    new_clauses: &[SentenceOccurrence],
+    run: &MergedClauseRun,
+    replacements: &[RecoveredReplacement],
+) -> bool {
+    fn parent_overlaps(
+        clauses: &[SentenceOccurrence],
+        index: usize,
+        committed: &[LocalSentenceRange],
+    ) -> bool {
+        clauses.get(index).is_some_and(|occurrence| {
+            occurrence
+                .parent_consumed
+                .iter()
+                .any(|range| local_sentence_ranges_overlap(range, committed))
+        })
+    }
+    run.members.iter().any(|&(old_index, new_index)| {
+        replacements.iter().any(|replacement| {
+            let old_hit = replacement.old.blocks.iter().any(|block| {
+                parent_overlaps(
+                    old_clauses,
+                    old_index,
+                    &[LocalSentenceRange {
+                        block: *block,
+                        canonical: replacement.old.canonical,
+                        comparable: replacement.old.comparable,
+                    }],
+                )
+            });
+            let new_hit = replacement.new.blocks.iter().any(|block| {
+                parent_overlaps(
+                    new_clauses,
+                    new_index,
+                    &[LocalSentenceRange {
+                        block: *block,
+                        canonical: replacement.new.canonical,
+                        comparable: replacement.new.comparable,
+                    }],
+                )
+            });
+            old_hit || new_hit
+        })
+    })
+}
+
 /// Commits one merged clause run as a cross-page move event.
 ///
 /// Moves-only enrichment by design: the run never extends the consumed
@@ -28978,6 +29042,14 @@ fn commit_merged_clause_run(
     if assembled.old_page == assembled.new_page
         || assembled.old_sentence.span_index == assembled.new_sentence.span_index
     {
+        return;
+    }
+    // Runs whose parent sentence already carries a sentence-level replacement
+    // stay silent: the replacement covers the relocation context, and emitting
+    // both fragments validation (a scope covered by two changes is
+    // indeterminate). Unpaired heads reporting as deletion/insertion do not
+    // subsume: their shared clause relocating is exactly what moves report.
+    if run_parents_overlap_replacements(old_clauses, new_clauses, run, &plan.replacements) {
         return;
     }
     plan.cross_page_moves.push(RecoveredCrossPageMove {
@@ -32102,6 +32174,7 @@ mod tests {
             run_descriptor_index: None,
             page: None,
             evidence_block_index: None,
+            parent_consumed: Vec::new(),
         }
     }
 
@@ -35389,6 +35462,7 @@ mod tests {
             run_descriptor_index: None,
             page: None,
             evidence_block_index: None,
+            parent_consumed: Vec::new(),
         }
     }
 
@@ -37017,6 +37091,7 @@ mod tests {
             run_descriptor_index: None,
             page: None,
             evidence_block_index: None,
+            parent_consumed: Vec::new(),
         }
     }
 
@@ -37837,6 +37912,7 @@ mod tests {
             run_descriptor_index: None,
             page: None,
             evidence_block_index: None,
+            parent_consumed: Vec::new(),
         }];
         let new_occurrences = [SentenceOccurrence {
             key: "counterpart".to_owned(),
@@ -37850,6 +37926,7 @@ mod tests {
             run_descriptor_index: None,
             page: None,
             evidence_block_index: None,
+            parent_consumed: Vec::new(),
         }];
         let old_candidates = [RecoveryCandidate {
             occurrence_index: 0,
@@ -37928,6 +38005,7 @@ mod tests {
             run_descriptor_index: None,
             page: None,
             evidence_block_index: None,
+            parent_consumed: Vec::new(),
         };
         let old = occurrence("arXiv:1706.03762v6 [cs.CL] 24 Jul 2023");
         let new = occurrence("arXiv:1706.03762v7 [cs.CL] 2 Aug 2023");
@@ -40266,6 +40344,7 @@ mod tests {
                 run_descriptor_index: None,
                 page: Some(0),
                 evidence_block_index: None,
+                parent_consumed: Vec::new(),
             }
         }
         let old = vec![
@@ -40340,6 +40419,7 @@ mod tests {
                 run_descriptor_index: None,
                 page: Some(0),
                 evidence_block_index: None,
+                parent_consumed: Vec::new(),
             }
         }
         let old = vec![
@@ -40398,6 +40478,7 @@ mod tests {
                 run_descriptor_index: None,
                 page: Some(0),
                 evidence_block_index: None,
+                parent_consumed: Vec::new(),
             }
         }
         // Members without a trusted stream never merge; positions alone chain
@@ -40427,6 +40508,92 @@ mod tests {
         let runs = merge_adjacent_clause_pairs(&candidates, &old, &new);
         assert_eq!(runs.len(), 1);
         assert_eq!(runs[0].members.len(), 2);
+    }
+
+    #[test]
+    fn parent_covered_runs_skip_clause_moves() {
+        fn clause(parent_block: u64) -> SentenceOccurrence {
+            SentenceOccurrence {
+                key: " shared clause here.".to_owned(),
+                tokens: " shared clause here."
+                    .chars()
+                    .map(SentenceEvidenceToken::Scalar)
+                    .collect(),
+                word_ranges: Vec::new(),
+                kind: RecoveryUnitKind::Sentence,
+                role: Some(BlockRole::Body),
+                location: None,
+                span_index: Some(0),
+                trusted_position: None,
+                run_descriptor_index: None,
+                page: Some(0),
+                evidence_block_index: None,
+                parent_consumed: vec![LocalSentenceRange {
+                    block: BlockId(parent_block),
+                    canonical: ScalarRange { start: 0, end: 10 },
+                    comparable: TokenRange { start: 0, end: 10 },
+                }],
+            }
+        }
+        fn replacement(block: u64) -> RecoveredReplacement {
+            let sentence = || RecoveredSentence {
+                origin: ChangeOrigin::SentenceNear,
+                span_index: 0,
+                kind: RecoveryUnitKind::Sentence,
+                role: OccurrenceRole::Body,
+                blocks: vec![BlockId(block)],
+                separator: None,
+                canonical: ScalarRange { start: 0, end: 10 },
+                comparable: TokenRange { start: 0, end: 10 },
+                source_tokens: 10,
+            };
+            RecoveredReplacement {
+                origin: ChangeOrigin::SentenceNear,
+                old: sentence(),
+                new: sentence(),
+                old_consumed: Vec::new(),
+                new_consumed: Vec::new(),
+                relation: RecoveryRelationEvidence {
+                    old_best_score: 8000,
+                    old_second_score: 0,
+                    old_best_scope: None,
+                    new_best_score: 8000,
+                    new_second_score: 0,
+                    new_best_scope: None,
+                },
+                hunk_policy: RecoveryHunkPolicy::Semantic,
+                edits: None,
+            }
+        }
+        let run = MergedClauseRun {
+            old_span: 0,
+            new_span: 1,
+            old_role: BlockRole::Body,
+            new_role: BlockRole::Body,
+            members: vec![(0, 0)],
+        };
+        let replacements = vec![replacement(1)];
+        // Parent sentence already carries the replacement: skip.
+        assert!(run_parents_overlap_replacements(
+            &[clause(1)],
+            &[clause(11)],
+            &run,
+            &replacements,
+        ));
+        // Parent sentence untouched: the move still fires.
+        assert!(!run_parents_overlap_replacements(
+            &[clause(9)],
+            &[clause(11)],
+            &run,
+            &replacements,
+        ));
+        // No replacements at all: the move still fires.
+        assert!(!run_parents_overlap_replacements(
+            &[clause(1)],
+            &[clause(11)],
+            &run,
+            &[],
+        ));
     }
 
     #[test]
@@ -40853,6 +41020,7 @@ mod tests {
             run_descriptor_index: None,
             page: None,
             evidence_block_index: None,
+            parent_consumed: Vec::new(),
         }];
         let mut new_occurrences = [SentenceOccurrence {
             key: "same".to_owned(),
@@ -40866,6 +41034,7 @@ mod tests {
             run_descriptor_index: None,
             page: None,
             evidence_block_index: None,
+            parent_consumed: Vec::new(),
         }];
         let candidates = [ExactMatchCandidate {
             old_span_index: 0,
@@ -41198,6 +41367,7 @@ mod tests {
                 run_descriptor_index: None,
                 page: None,
                 evidence_block_index: None,
+                parent_consumed: Vec::new(),
             }
         };
         let old = [
@@ -41585,6 +41755,7 @@ mod tests {
                 run_descriptor_index: None,
                 page: None,
                 evidence_block_index: None,
+                parent_consumed: Vec::new(),
             },
             SentenceOccurrence {
                 key: "old-b".to_owned(),
@@ -41598,6 +41769,7 @@ mod tests {
                 run_descriptor_index: None,
                 page: None,
                 evidence_block_index: None,
+                parent_consumed: Vec::new(),
             },
         ];
         let new_occurrences = [SentenceOccurrence {
@@ -41612,6 +41784,7 @@ mod tests {
             run_descriptor_index: None,
             page: None,
             evidence_block_index: None,
+            parent_consumed: Vec::new(),
         }];
         let old_candidates = [
             RecoveryCandidate {
@@ -46011,6 +46184,7 @@ mod tests {
             run_descriptor_index: None,
             page: None,
             evidence_block_index: None,
+            parent_consumed: Vec::new(),
         };
         let old_occurrences = [occurrence("old-a", 0), occurrence("old-b", 1)];
         let new_occurrences = [occurrence("new-a", 0), occurrence("new-b", 1)];
@@ -46253,6 +46427,7 @@ mod tests {
             run_descriptor_index: None,
             page: None,
             evidence_block_index: None,
+            parent_consumed: Vec::new(),
         };
         let old_occurrences = [occurrence("old-a", 0), occurrence("old-b", 1)];
         let new_occurrences = [occurrence("new-a", 0), occurrence("new-b", 1)];
