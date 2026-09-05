@@ -29025,20 +29025,11 @@ fn commit_merged_clause_run(
     let Some(assembled) = assemble_merged_clause_run(old_clauses, new_clauses, run) else {
         return;
     };
-    let old_tokens = assembled.old_sentence.source_tokens;
-    let new_tokens = assembled.new_sentence.source_tokens;
-    let Some(source_tokens) = old_tokens.checked_add(new_tokens) else {
-        return;
-    };
-    if !budget.charge_outputs(2, source_tokens) {
-        return;
-    }
-    if plan.cross_page_moves.try_reserve_exact(1).is_err() {
-        return;
-    }
     // Same-span runs resolve through their sentences (identical content
     // placed together is a match, not a move); only cross-span relocations
-    // surface as moves.
+    // surface as moves. Checked ahead of the budget charge below: same-span
+    // (and same-page) runs are the common case and emit nothing here, so
+    // they must not spend output capacity that later recovery passes need.
     if assembled.old_page == assembled.new_page
         || assembled.old_sentence.span_index == assembled.new_sentence.span_index
     {
@@ -29049,7 +29040,20 @@ fn commit_merged_clause_run(
     // both fragments validation (a scope covered by two changes is
     // indeterminate). Unpaired heads reporting as deletion/insertion do not
     // subsume: their shared clause relocating is exactly what moves report.
+    // Also checked ahead of the charge, for the same reason: this filter is
+    // silent too and must not be metered as if it produced output.
     if run_parents_overlap_replacements(old_clauses, new_clauses, run, &plan.replacements) {
+        return;
+    }
+    let old_tokens = assembled.old_sentence.source_tokens;
+    let new_tokens = assembled.new_sentence.source_tokens;
+    let Some(source_tokens) = old_tokens.checked_add(new_tokens) else {
+        return;
+    };
+    if !budget.charge_outputs(2, source_tokens) {
+        return;
+    }
+    if plan.cross_page_moves.try_reserve_exact(1).is_err() {
         return;
     }
     plan.cross_page_moves.push(RecoveredCrossPageMove {
@@ -40595,6 +40599,60 @@ mod tests {
             &run,
             &[],
         ));
+    }
+
+    #[test]
+    fn silent_clause_runs_do_not_charge_the_output_budget() {
+        fn clause(key: &str, block: u64, span: usize, page: u32) -> SentenceOccurrence {
+            let len = key.chars().count();
+            SentenceOccurrence {
+                key: key.to_owned(),
+                tokens: key.chars().map(SentenceEvidenceToken::Scalar).collect(),
+                word_ranges: Vec::new(),
+                kind: RecoveryUnitKind::Sentence,
+                role: Some(BlockRole::Body),
+                location: Some(test_location(
+                    LocalSentenceRange {
+                        block: BlockId(block),
+                        canonical: ScalarRange { start: 0, end: len },
+                        comparable: TokenRange { start: 0, end: len },
+                    },
+                    span,
+                )),
+                span_index: Some(span),
+                trusted_position: None,
+                run_descriptor_index: None,
+                page: Some(page),
+                evidence_block_index: None,
+                parent_consumed: Vec::new(),
+            }
+        }
+        // Same span on both sides: identical content placed together is a
+        // match, not a move, so this run must resolve silently.
+        let old = vec![clause(" shared clause here.", 1, 0, 0)];
+        let new = vec![clause(" shared clause here.", 2, 0, 0)];
+        let run = MergedClauseRun {
+            old_span: 0,
+            new_span: 0,
+            old_role: BlockRole::Body,
+            new_role: BlockRole::Body,
+            members: vec![(0, 0)],
+        };
+        let mut plan = SentenceRecoveryPlan::default();
+        let mut budget = RecoveryBudget::new(5, 5, 1000, 1).expect("budget is valid");
+        commit_merged_clause_run(&mut plan, &old, &new, &run, &mut budget);
+        assert!(plan.cross_page_moves.is_empty());
+        // Before the fix, `charge_outputs`/`try_reserve_exact` ran ahead of
+        // this same-span filter, so a silent run still spent budget capacity
+        // that later exact-tail and fragment recovery passes need.
+        assert_eq!(
+            budget.output_ranges, 0,
+            "a silently-resolved run must not charge the output budget"
+        );
+        assert_eq!(
+            budget.output_tokens, 0,
+            "a silently-resolved run must not charge the output budget"
+        );
     }
 
     #[test]
