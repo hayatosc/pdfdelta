@@ -565,6 +565,7 @@ fn evidence(value: AlignmentEvidence) -> String {
         AlignmentEvidence::NormalizationIssue => "normalization_issue".to_owned(),
         AlignmentEvidence::ExtractionGap => "extraction_gap".to_owned(),
         AlignmentEvidence::ReadingOrderUnknown => "reading_order_unknown".to_owned(),
+        AlignmentEvidence::ReadingOrderInferred => "reading_order_inferred".to_owned(),
         AlignmentEvidence::MoveCandidate => "move_candidate".to_owned(),
         AlignmentEvidence::CandidateSource(source) => {
             format!("candidate_source:{}", candidate_source(source))

@@ -227,6 +227,10 @@ pub struct PipelineMetrics {
     pub uncertain_lines_render_disorder: Option<usize>,
     /// Uncertain lines outside the trusted runs of a known region order.
     pub uncertain_lines_untrusted_in_known_order: Option<usize>,
+    /// Lines ordered by a geometrically inferred region order rather than a
+    /// proven one; not uncertain, but changes derived from them are
+    /// reported at low confidence.
+    pub inferred_reading_order_lines: Option<usize>,
     pub raw_tokens: Option<usize>,
     pub ngram_token_elements: Option<usize>,
     pub features: Option<usize>,
@@ -767,6 +771,7 @@ fn compare_validated_glyph_documents_inner(
     let PreparedDocument {
         blocks: old,
         uncertain_block_indices: old_uncertain_block_indices,
+        inferred_order_block_indices: old_inferred_order_block_indices,
         trusted_run_intervals: old_trusted_run_intervals,
         trusted_run_descriptors: old_trusted_run_descriptors,
         trusted_region_edges: old_trusted_region_edges,
@@ -774,6 +779,7 @@ fn compare_validated_glyph_documents_inner(
     let PreparedDocument {
         blocks: new,
         uncertain_block_indices: new_uncertain_block_indices,
+        inferred_order_block_indices: new_inferred_order_block_indices,
         trusted_run_intervals: new_trusted_run_intervals,
         trusted_run_descriptors: new_trusted_run_descriptors,
         trusted_region_edges: new_trusted_region_edges,
@@ -841,6 +847,8 @@ fn compare_validated_glyph_documents_inner(
             &new_extraction_uncertain_block_indices,
             &old_uncertain_block_indices,
             &new_uncertain_block_indices,
+            &old_inferred_order_block_indices,
+            &new_inferred_order_block_indices,
         ),
     )?;
     let indexed_new_features = new_features
@@ -1405,6 +1413,7 @@ fn prepare(
     let trusted_run_intervals = reconstruction.trusted_run_intervals;
     let trusted_run_descriptors = reconstruction.trusted_run_descriptors;
     let trusted_region_edges = reconstruction.trusted_region_edges;
+    let inferred_order_line_ids = reconstruction.inferred_order_line_ids;
     let mut uncertain_inter_region = 0usize;
     let mut uncertain_render_disorder = 0usize;
     let mut uncertain_untrusted_known = 0usize;
@@ -1447,6 +1456,7 @@ fn prepare(
             uncertain_lines_unproven_inter_region_order: Some(uncertain_inter_region),
             uncertain_lines_render_disorder: Some(uncertain_render_disorder),
             uncertain_lines_untrusted_in_known_order: Some(uncertain_untrusted_known),
+            inferred_reading_order_lines: Some(inferred_order_line_ids.len()),
             ..PipelineMetrics::default()
         },
     );
@@ -1506,9 +1516,29 @@ fn prepare(
         .enumerate()
         .filter_map(|(index, block)| uncertain_blocks.contains(&block.block).then_some(index))
         .collect();
+    let inferred_order_blocks = blocks
+        .iter()
+        .filter(|block| {
+            block
+                .lines
+                .iter()
+                .any(|line_id| inferred_order_line_ids.contains(line_id))
+        })
+        .map(|block| block.id)
+        .collect::<std::collections::HashSet<_>>();
+    let inferred_order_block_indices = normalized
+        .iter()
+        .enumerate()
+        .filter_map(|(index, block)| {
+            inferred_order_blocks
+                .contains(&block.block)
+                .then_some(index)
+        })
+        .collect();
     Ok(PreparedDocument {
         blocks: normalized,
         uncertain_block_indices,
+        inferred_order_block_indices,
         trusted_run_intervals,
         trusted_run_descriptors,
         trusted_region_edges,
@@ -1518,6 +1548,10 @@ fn prepare(
 struct PreparedDocument {
     blocks: Vec<BlockText>,
     uncertain_block_indices: Vec<usize>,
+    /// Blocks placed by a geometrically inferred region order rather than a
+    /// proven one; not excluded from anchoring, but every change whose span
+    /// intersects one of them must be reported at low confidence.
+    inferred_order_block_indices: Vec<usize>,
     trusted_run_intervals: Vec<Option<TrustedRunInterval>>,
     trusted_run_descriptors: Vec<TrustedRunDescriptor>,
     trusted_region_edges: Vec<TrustedRegionEdge>,

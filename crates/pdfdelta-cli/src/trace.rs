@@ -518,6 +518,10 @@ fn pipeline_metrics(
             "uncertain_lines_untrusted_in_known_order",
             metrics.uncertain_lines_untrusted_in_known_order,
         ),
+        (
+            "inferred_reading_order_lines",
+            metrics.inferred_reading_order_lines,
+        ),
         ("raw_tokens", metrics.raw_tokens),
         ("ngram_token_elements", metrics.ngram_token_elements),
         ("features", metrics.features),

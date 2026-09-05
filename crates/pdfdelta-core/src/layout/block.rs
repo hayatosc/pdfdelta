@@ -99,6 +99,11 @@ pub(crate) struct BlockReconstruction {
     pub trusted_run_intervals: Vec<Option<TrustedRunInterval>>,
     pub trusted_run_descriptors: Vec<TrustedRunDescriptor>,
     pub trusted_region_edges: Vec<TrustedRegionEdge>,
+    /// Lines ordered by a geometrically [`Inferred`](super::region::ReadingOrder::Inferred)
+    /// region order rather than a proven one. These lines are ordered, not
+    /// uncertain: they never appear in `issues`, but every change derived
+    /// from them must be reported at low confidence.
+    pub inferred_order_line_ids: HashSet<LineId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -278,6 +283,7 @@ pub(crate) fn reconstruct_blocks_with_issues(
     let mut trusted_region_edges = Vec::new();
     let mut next_trusted_run_id = 0;
     let mut issues = Vec::new();
+    let mut inferred_order_line_ids = HashSet::new();
     for (page_num, page_lines) in page_lines_map {
         let page = PageId(page_num);
         let page_vector_lines = document
@@ -327,6 +333,26 @@ pub(crate) fn reconstruct_blocks_with_issues(
                     )?;
                 }
             }
+            super::region::ReadingOrder::Inferred(region_ids) => {
+                for region_id in region_ids {
+                    let region = graph
+                        .regions
+                        .iter()
+                        .find(|region| region.id == *region_id)
+                        .ok_or_else(|| {
+                            Error::Unresolved(format!(
+                                "reading order references missing region {}",
+                                region_id.0
+                            ))
+                        })?;
+                    inferred_order_line_ids.extend(region.line_ids.iter().copied());
+                    append_region_order(
+                        &mut stats_by_line_id,
+                        &mut ordered_stats,
+                        region.line_ids.iter().copied(),
+                    )?;
+                }
+            }
             super::region::ReadingOrder::KnownLines(line_ids) => {
                 append_region_order(
                     &mut stats_by_line_id,
@@ -354,10 +380,8 @@ pub(crate) fn reconstruct_blocks_with_issues(
                     append_region_order(&mut stats_by_line_id, &mut ordered_stats, remaining)?;
                 }
             }
-            reading_order => {
-                if matches!(reading_order, super::region::ReadingOrder::Unknown)
-                    && let Some(reason) = partition.uncertain_reason
-                {
+            super::region::ReadingOrder::Unknown => {
+                if let Some(reason) = partition.uncertain_reason {
                     issues.push(LayoutIssue::UnknownReadingOrder {
                         page,
                         line_ids: partition.uncertain_line_ids,
@@ -449,6 +473,7 @@ pub(crate) fn reconstruct_blocks_with_issues(
         trusted_run_intervals,
         trusted_run_descriptors,
         trusted_region_edges,
+        inferred_order_line_ids,
     })
 }
 

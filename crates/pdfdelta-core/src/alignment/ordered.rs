@@ -60,6 +60,11 @@ pub enum AlignmentEvidence {
     NormalizationIssue,
     ExtractionGap,
     ReadingOrderUnknown,
+    /// The span's evidence includes a geometrically inferred region order:
+    /// geometry uniquely determined the order but render order dissented.
+    /// Unlike [`ReadingOrderUnknown`](Self::ReadingOrderUnknown), this does
+    /// not force the window `Unresolved`; it only caps confidence.
+    ReadingOrderInferred,
     MoveCandidate,
     CandidateSource(CandidateSource),
 }
@@ -241,6 +246,12 @@ pub(crate) struct AlignmentGapPlan {
     forced_windows: BTreeMap<usize, ForcedWindowCauses>,
     excluded_old: HashSet<BlockId>,
     excluded_new: HashSet<BlockId>,
+    /// Blocks placed by a geometrically inferred region order. Unlike
+    /// `excluded_old`/`excluded_new`, these blocks remain eligible for
+    /// anchoring and their windows stay resolvable; they only mark the
+    /// resulting spans with [`AlignmentEvidence::ReadingOrderInferred`].
+    inferred_old: HashSet<BlockId>,
+    inferred_new: HashSet<BlockId>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -276,7 +287,7 @@ pub(crate) fn align_ordered_with_metrics(
     generator: &dyn CandidateGenerator,
     options: AlignmentOptions,
 ) -> AlignmentAttempt {
-    match plan_ordered_gaps(old, new, options, &[], &[], &[], &[], &[], &[]) {
+    match plan_ordered_gaps(old, new, options, &[], &[], &[], &[], &[], &[], &[], &[]) {
         Ok(plan) => align_ordered_with_metrics_and_gap_plan(old, new, generator, options, plan),
         Err(error) => AlignmentAttempt {
             result: Err(error),
@@ -298,6 +309,8 @@ pub(crate) fn plan_ordered_gaps(
     new_extraction_uncertain_indices: &[usize],
     old_uncertain_indices: &[usize],
     new_uncertain_indices: &[usize],
+    old_inferred_indices: &[usize],
+    new_inferred_indices: &[usize],
 ) -> Result<AlignmentGapPlan> {
     validate_alignment_options(options)?;
     validate_features("old", old)?;
@@ -317,6 +330,8 @@ pub(crate) fn plan_ordered_gaps(
     )?;
     validate_uncertain_indices("old", old_uncertain_indices, old.len())?;
     validate_uncertain_indices("new", new_uncertain_indices, new.len())?;
+    validate_uncertain_indices("old inferred", old_inferred_indices, old.len())?;
+    validate_uncertain_indices("new inferred", new_inferred_indices, new.len())?;
 
     if old == new
         && old_gap_boundaries.is_empty()
@@ -325,6 +340,8 @@ pub(crate) fn plan_ordered_gaps(
         && new_extraction_uncertain_indices.is_empty()
         && old_uncertain_indices.is_empty()
         && new_uncertain_indices.is_empty()
+        && old_inferred_indices.is_empty()
+        && new_inferred_indices.is_empty()
     {
         return Ok(AlignmentGapPlan {
             all_anchors: Vec::new(),
@@ -334,6 +351,8 @@ pub(crate) fn plan_ordered_gaps(
             forced_windows: BTreeMap::new(),
             excluded_old: HashSet::new(),
             excluded_new: HashSet::new(),
+            inferred_old: HashSet::new(),
+            inferred_new: HashSet::new(),
         });
     }
 
@@ -430,6 +449,15 @@ pub(crate) fn plan_ordered_gaps(
         );
     }
 
+    let inferred_old = old_inferred_indices
+        .iter()
+        .map(|&index| old[index].block)
+        .collect::<HashSet<_>>();
+    let inferred_new = new_inferred_indices
+        .iter()
+        .map(|&index| new[index].block)
+        .collect::<HashSet<_>>();
+
     Ok(AlignmentGapPlan {
         all_anchors,
         main_anchors,
@@ -438,6 +466,8 @@ pub(crate) fn plan_ordered_gaps(
         forced_windows,
         excluded_old,
         excluded_new,
+        inferred_old,
+        inferred_new,
     })
 }
 
@@ -608,12 +638,60 @@ fn align_ordered_inner(
         }
     }
     refine_masked_matches(&mut spans);
+    cap_confidence_for_inferred_reading_order(&mut spans, &plan.inferred_old, &plan.inferred_new);
 
     Ok(Alignment {
         spans,
         main_anchors: plan.main_anchors,
         move_candidates: plan.move_candidates,
     })
+}
+
+/// Caps confidence to `Low` and tags evidence for every resolved span
+/// touching a geometrically inferred reading order on either side.
+///
+/// Unlike a forced `ReadingOrderUnknown` window, inferred-order blocks stay
+/// eligible for anchoring and their windows stay resolvable; this is the
+/// only place their extra doubt reaches the alignment result, so every
+/// downstream `Change`/`FormattingChange` derived from `span.confidence`
+/// inherits it.
+///
+/// Skips `Unresolved` spans deliberately: their `confidence` never reaches a
+/// `Change`, and a large forced `ReadingOrderUnknown` window can incidentally
+/// span unrelated inferred-order blocks elsewhere in the document. Tagging
+/// it here would corrupt the exact-evidence gate the sentence-recovery
+/// fallback uses to decide which unresolved windows it may still recover
+/// (`diff::sentence::is_sentence_recovery_span`, which requires evidence to
+/// be exactly `[ReadingOrderUnknown]`).
+fn cap_confidence_for_inferred_reading_order(
+    spans: &mut [AlignmentSpan],
+    inferred_old: &HashSet<BlockId>,
+    inferred_new: &HashSet<BlockId>,
+) {
+    if inferred_old.is_empty() && inferred_new.is_empty() {
+        return;
+    }
+    for span in spans {
+        // Do not tag Unresolved spans: measured on nist-csf-v1-1-to-v2-0,
+        // doing so collapsed coverage from ~69% to ~0.03% by disqualifying
+        // the single page-wide `ReadingOrderUnknown` window from sentence
+        // recovery (see the exact-evidence gate this function's doc
+        // references). Keep this guard.
+        if span.kind == AlignmentKind::Unresolved {
+            continue;
+        }
+        let intersects_inferred_order = span.old.iter().any(|block| inferred_old.contains(block))
+            || span.new.iter().any(|block| inferred_new.contains(block));
+        if intersects_inferred_order {
+            span.confidence = AlignmentConfidence::Low;
+            if !span
+                .evidence
+                .contains(&AlignmentEvidence::ReadingOrderInferred)
+            {
+                span.evidence.push(AlignmentEvidence::ReadingOrderInferred);
+            }
+        }
+    }
 }
 
 fn validate_gap_boundaries(side: &str, boundaries: &[usize], block_count: usize) -> Result<()> {
@@ -2412,8 +2490,20 @@ mod tests {
             ..AlignmentOptions::default()
         };
 
-        let plan = plan_ordered_gaps(&old, &new, options, &[1], &[], &[], &[], &[1], &[])
-            .expect("uncertainty should produce a forced anchor interval");
+        let plan = plan_ordered_gaps(
+            &old,
+            &new,
+            options,
+            &[1],
+            &[],
+            &[],
+            &[],
+            &[1],
+            &[],
+            &[],
+            &[],
+        )
+        .expect("uncertainty should produce a forced anchor interval");
 
         assert!(
             plan.all_anchors
@@ -2458,8 +2548,20 @@ mod tests {
             anchor_min_tokens: 5,
             ..AlignmentOptions::default()
         };
-        let plan = plan_ordered_gaps(&old, &new, options, &[], &[], &[], &[], &[2], &[2])
-            .expect("reading-order uncertainty should be localized");
+        let plan = plan_ordered_gaps(
+            &old,
+            &new,
+            options,
+            &[],
+            &[],
+            &[],
+            &[],
+            &[2],
+            &[2],
+            &[],
+            &[],
+        )
+        .expect("reading-order uncertainty should be localized");
 
         assert_eq!(
             plan.main_anchors,
@@ -2535,8 +2637,20 @@ mod tests {
             ..AlignmentOptions::default()
         };
 
-        let plan = plan_ordered_gaps(&old, &new, options, &[], &[], &[], &[], &[1], &[1])
-            .expect("secondary anchors should exclude uncertain blocks");
+        let plan = plan_ordered_gaps(
+            &old,
+            &new,
+            options,
+            &[],
+            &[],
+            &[],
+            &[],
+            &[1],
+            &[1],
+            &[],
+            &[],
+        )
+        .expect("secondary anchors should exclude uncertain blocks");
 
         assert!(plan.windows.iter().all(|window| {
             window
@@ -2560,8 +2674,20 @@ mod tests {
             anchor_min_tokens: 2,
             ..AlignmentOptions::default()
         };
-        let plan = plan_ordered_gaps(&old, &new, options, &[], &[], &[], &[], &[1], &[1])
-            .expect("short exact coincidences must not become direct boundaries");
+        let plan = plan_ordered_gaps(
+            &old,
+            &new,
+            options,
+            &[],
+            &[],
+            &[],
+            &[],
+            &[1],
+            &[1],
+            &[],
+            &[],
+        )
+        .expect("short exact coincidences must not become direct boundaries");
 
         assert_eq!(plan.windows.len(), 1);
         assert_eq!(plan.windows[0].old_range, (0, old.len()));
@@ -2602,8 +2728,20 @@ mod tests {
             anchor_min_tokens: 5,
             ..AlignmentOptions::default()
         };
-        let plan = plan_ordered_gaps(&old, &new, options, &[], &[], &[1], &[1], &[], &[])
-            .expect("extraction uncertainty should remain conservative");
+        let plan = plan_ordered_gaps(
+            &old,
+            &new,
+            options,
+            &[],
+            &[],
+            &[1],
+            &[1],
+            &[],
+            &[],
+            &[],
+            &[],
+        )
+        .expect("extraction uncertainty should remain conservative");
 
         assert_eq!(plan.windows.len(), 1);
         assert_eq!(plan.windows[0].old_range, (0, old.len()));
