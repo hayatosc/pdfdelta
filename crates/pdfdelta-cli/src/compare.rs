@@ -63,37 +63,45 @@ pub fn compare_documents<W: Write>(
     if let Some(trace_path) = command.trace_path {
         ensure_trace_does_not_alias_input(trace_path, old_path, new_path)?;
     }
-    if let (Some(json_path), Some(trace_path)) = (command.options.json_path, command.trace_path)
-        && output_paths_refer_to_same_file(trace_path, json_path, "trace/report output collision")?
-    {
-        return Err(format!(
-            "refusing trace output {} because it refers to the JSON report {}",
-            trace_path.display(),
-            json_path.display()
-        ));
-    }
-    if let (Some(output_path), Some(trace_path)) = (command.options.output_path, command.trace_path)
-        && output_paths_refer_to_same_file(
-            trace_path,
-            output_path,
-            "trace/report output collision",
-        )?
-    {
-        return Err(format!(
-            "refusing trace output {} because it refers to the text report {}",
-            trace_path.display(),
-            output_path.display()
-        ));
-    }
-    if let (Some(output_path), Some(json_path)) =
-        (command.options.output_path, command.options.json_path)
-        && output_paths_refer_to_same_file(output_path, json_path, "report/json output collision")?
-    {
-        return Err(format!(
-            "refusing text report output {} because it refers to the JSON report {}",
-            output_path.display(),
-            json_path.display()
-        ));
+    // One guard per pair of output destinations; the pair table keeps the
+    // exact refusal messages next to the aliasing check they motivate.
+    const TRACE_REPORT: &str = "trace/report output collision";
+    const REPORT_JSON: &str = "report/json output collision";
+    let report_output = command.options.output_path;
+    let json_output = command.options.json_path;
+    let trace_output = command.trace_path;
+    for (left, right, label, left_noun, right_noun) in [
+        (
+            trace_output,
+            json_output,
+            TRACE_REPORT,
+            "trace output",
+            "JSON report",
+        ),
+        (
+            trace_output,
+            report_output,
+            TRACE_REPORT,
+            "trace output",
+            "text report",
+        ),
+        (
+            report_output,
+            json_output,
+            REPORT_JSON,
+            "text report output",
+            "JSON report",
+        ),
+    ] {
+        if let (Some(left), Some(right)) = (left, right)
+            && output_paths_refer_to_same_file(left, right, label)?
+        {
+            return Err(format!(
+                "refusing {left_noun} {} because it refers to the {right_noun} {}",
+                left.display(),
+                right.display()
+            ));
+        }
     }
 
     let mut trace = ExecutionTrace::new(old_path, new_path, command.options.strict);
@@ -177,32 +185,40 @@ pub fn compare_documents_traced<W: Write>(
     let old_font_identities = parse_external_font_identities(old_input.font_identities)?;
     let new_font_identities = parse_external_font_identities(new_input.font_identities)?;
     let extraction_cache = extraction_cache_dir.map(ExtractionCache::new);
-    let old = extract_comparison_outcome(
+    let mut extract_side = |input: &ComparisonInput<'_>,
+                            password: Option<&str>,
+                            font_identities: &ExternalFontIdentities,
+                            side: &str,
+                            trace_side: TraceSide| {
+        let outcome = extract_comparison_outcome(
+            side,
+            trace_side,
+            input.path,
+            ExtractionContext {
+                parse_limits,
+                password,
+                external_font_identities: font_identities,
+                cache: extraction_cache.as_ref(),
+            },
+            trace,
+        )?;
+        report_extraction_issues(diagnostics, side, input.path, outcome.issues())?;
+        Ok::<ExtractionOutcome, String>(outcome)
+    };
+    let old = extract_side(
+        &old_input,
+        old_password.as_deref(),
+        &old_font_identities,
         "old",
         TraceSide::Old,
-        old_input.path,
-        ExtractionContext {
-            parse_limits,
-            password: old_password.as_deref(),
-            external_font_identities: &old_font_identities,
-            cache: extraction_cache.as_ref(),
-        },
-        trace,
     )?;
-    report_extraction_issues(diagnostics, "old", old_input.path, old.issues())?;
-    let new = extract_comparison_outcome(
+    let new = extract_side(
+        &new_input,
+        new_password.as_deref(),
+        &new_font_identities,
         "new",
         TraceSide::New,
-        new_input.path,
-        ExtractionContext {
-            parse_limits,
-            password: new_password.as_deref(),
-            external_font_identities: &new_font_identities,
-            cache: extraction_cache.as_ref(),
-        },
-        trace,
     )?;
-    report_extraction_issues(diagnostics, "new", new_input.path, new.issues())?;
     let mut pipeline_diagnostics = PipelineDiagnostics::new();
     let outcome_result = compare_extraction_outcomes_with_sentence_edge_gate_shadow_diagnostics(
         old,

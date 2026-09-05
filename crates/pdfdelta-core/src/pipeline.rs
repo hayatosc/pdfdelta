@@ -82,7 +82,11 @@ impl PipelineOptions {
         validate_line_options(self.line)?;
         validate_block_options(self.block)?;
         validate_ngram_size(self.ngram_size)?;
-        validate_ngram_token_element_limit(self.max_ngram_token_elements)?;
+        if self.max_ngram_token_elements == 0 {
+            return Err(Error::InvalidConfiguration(
+                "pipeline max_ngram_token_elements must be greater than zero".to_owned(),
+            ));
+        }
         validate_alignment_options(self.alignment)?;
         validate_diff_options(self.diff)?;
         Ok(self)
@@ -454,33 +458,6 @@ pub fn compare_extraction_outcomes_with_alignment_diagnostics(
         },
     )
     .map(|outcome| (outcome.outcome, outcome.alignment))
-}
-
-/// Compares extracted documents and observes selected uncertain-region recovery evidence.
-///
-/// Empty queries are equivalent to
-/// [`compare_extraction_outcomes_with_alignment_diagnostics`] and do not add
-/// recovery scanning or similarity work.
-pub fn compare_extraction_outcomes_with_recovery_watch_diagnostics(
-    old: ExtractionOutcome,
-    new: ExtractionOutcome,
-    options: PipelineOptions,
-    diagnostics: &mut PipelineDiagnostics,
-    watch_queries: &[RecoveryWatchQuery<'_>],
-) -> Result<ComparisonOutcomeWithRecoveryWatch> {
-    compare_extraction_outcomes_with_recovery_watch_inner(
-        old,
-        new,
-        options,
-        diagnostics,
-        ExtractionComparisonInstrumentation {
-            watch_queries,
-            enable_known_span_sentence_shadow: false,
-            enable_sentence_edge_gate_shadow: false,
-            retain_atomic_edits: false,
-        },
-    )
-    .map(InstrumentedComparisonOutcome::into_recovery_watch)
 }
 
 /// Compares extracted documents while retaining exact edit traces from both
@@ -892,6 +869,17 @@ fn compare_validated_glyph_documents_inner(
         options.alignment,
         gap_plan,
     );
+    let visit_metrics = PipelineMetrics {
+        candidate_visits: Some(attempt.visit_metrics.candidate_visits),
+        candidate_visits_required: attempt.visit_metrics.candidate_visits_required,
+        candidate_visits_required_exact: attempt.visit_metrics.candidate_visits_required_exact,
+        candidate_visits_required_ngram: attempt.visit_metrics.candidate_visits_required_ngram,
+        candidate_visits_required_short_fallback: attempt
+            .visit_metrics
+            .candidate_visits_required_short_fallback,
+        max_candidate_visits: Some(attempt.visit_metrics.max_candidate_visits),
+        ..PipelineMetrics::default()
+    };
     let alignment = match attempt.result {
         Ok(alignment) => {
             diagnostics.completed(
@@ -899,44 +887,13 @@ fn compare_validated_glyph_documents_inner(
                 None,
                 PipelineMetrics {
                     alignment_spans: Some(alignment.spans.len()),
-                    candidate_visits: Some(attempt.visit_metrics.candidate_visits),
-                    candidate_visits_required: attempt.visit_metrics.candidate_visits_required,
-                    candidate_visits_required_exact: attempt
-                        .visit_metrics
-                        .candidate_visits_required_exact,
-                    candidate_visits_required_ngram: attempt
-                        .visit_metrics
-                        .candidate_visits_required_ngram,
-                    candidate_visits_required_short_fallback: attempt
-                        .visit_metrics
-                        .candidate_visits_required_short_fallback,
-                    max_candidate_visits: Some(attempt.visit_metrics.max_candidate_visits),
-                    ..PipelineMetrics::default()
+                    ..visit_metrics
                 },
             );
             alignment
         }
         Err(error) => {
-            diagnostics.failed_with_metrics(
-                PipelinePhase::Alignment,
-                None,
-                &error,
-                PipelineMetrics {
-                    candidate_visits: Some(attempt.visit_metrics.candidate_visits),
-                    candidate_visits_required: attempt.visit_metrics.candidate_visits_required,
-                    candidate_visits_required_exact: attempt
-                        .visit_metrics
-                        .candidate_visits_required_exact,
-                    candidate_visits_required_ngram: attempt
-                        .visit_metrics
-                        .candidate_visits_required_ngram,
-                    candidate_visits_required_short_fallback: attempt
-                        .visit_metrics
-                        .candidate_visits_required_short_fallback,
-                    max_candidate_visits: Some(attempt.visit_metrics.max_candidate_visits),
-                    ..PipelineMetrics::default()
-                },
-            );
+            diagnostics.failed_with_metrics(PipelinePhase::Alignment, None, &error, visit_metrics);
             return Err(error);
         }
     };
@@ -1244,34 +1201,30 @@ fn record_ngram_token_element_budget(
     options: PipelineOptions,
     diagnostics: &mut PipelineDiagnostics,
 ) -> Result<()> {
-    let old_elements = phase_result(
-        diagnostics,
-        PipelinePhase::NgramBudget,
-        Some(DocumentSide::Old),
-        estimate_ngram_token_elements(old, options.ngram_size, options.max_ngram_token_elements),
-    )?;
-    diagnostics.completed(
-        PipelinePhase::NgramBudget,
-        Some(DocumentSide::Old),
-        PipelineMetrics {
-            ngram_token_elements: Some(old_elements),
-            ..PipelineMetrics::default()
-        },
-    );
-    let new_elements = phase_result(
-        diagnostics,
-        PipelinePhase::NgramBudget,
-        Some(DocumentSide::New),
-        estimate_ngram_token_elements(new, options.ngram_size, options.max_ngram_token_elements),
-    )?;
-    diagnostics.completed(
-        PipelinePhase::NgramBudget,
-        Some(DocumentSide::New),
-        PipelineMetrics {
-            ngram_token_elements: Some(new_elements),
-            ..PipelineMetrics::default()
-        },
-    );
+    let record_side_elements =
+        |blocks: &[BlockText], side: DocumentSide, diagnostics: &mut PipelineDiagnostics| {
+            let elements = phase_result(
+                diagnostics,
+                PipelinePhase::NgramBudget,
+                Some(side),
+                estimate_ngram_token_elements(
+                    blocks,
+                    options.ngram_size,
+                    options.max_ngram_token_elements,
+                ),
+            )?;
+            diagnostics.completed(
+                PipelinePhase::NgramBudget,
+                Some(side),
+                PipelineMetrics {
+                    ngram_token_elements: Some(elements),
+                    ..PipelineMetrics::default()
+                },
+            );
+            Ok(elements)
+        };
+    let old_elements = record_side_elements(old, DocumentSide::Old, diagnostics)?;
+    let new_elements = record_side_elements(new, DocumentSide::New, diagnostics)?;
     let aggregate = old_elements
         .checked_add(new_elements)
         .ok_or(Error::LimitExceeded {
@@ -1292,71 +1245,43 @@ fn record_ngram_token_element_budget(
     Ok(())
 }
 
-fn validate_ngram_token_element_limit(limit: usize) -> Result<()> {
-    if limit == 0 {
-        return Err(Error::InvalidConfiguration(
-            "pipeline max_ngram_token_elements must be greater than zero".to_owned(),
-        ));
-    }
-    Ok(())
-}
-
 fn record_pre_layout_token_counts(
     old: &Document<Glyph>,
     new: &Document<Glyph>,
     options: DiffOptions,
     diagnostics: &mut PipelineDiagnostics,
 ) -> Result<(usize, usize)> {
-    let old_tokens = phase_result(
-        diagnostics,
-        PipelinePhase::PreLayoutBudget,
-        Some(DocumentSide::Old),
-        painting_raw_token_lower_bound(old, options.max_tokens),
-    )?;
-    if old_tokens > options.max_tokens {
-        return phase_result(
-            diagnostics,
-            PipelinePhase::PreLayoutBudget,
-            Some(DocumentSide::Old),
-            Err(Error::LimitExceeded {
-                resource: "diff raw evidence tokens",
-                limit: options.max_tokens,
-            }),
-        );
-    }
-    diagnostics.completed(
-        PipelinePhase::PreLayoutBudget,
-        Some(DocumentSide::Old),
-        PipelineMetrics {
-            raw_tokens: Some(old_tokens),
-            ..PipelineMetrics::default()
-        },
-    );
-    let new_tokens = phase_result(
-        diagnostics,
-        PipelinePhase::PreLayoutBudget,
-        Some(DocumentSide::New),
-        painting_raw_token_lower_bound(new, options.max_tokens),
-    )?;
-    if new_tokens > options.max_tokens {
-        return phase_result(
-            diagnostics,
-            PipelinePhase::PreLayoutBudget,
-            Some(DocumentSide::New),
-            Err(Error::LimitExceeded {
-                resource: "diff raw evidence tokens",
-                limit: options.max_tokens,
-            }),
-        );
-    }
-    diagnostics.completed(
-        PipelinePhase::PreLayoutBudget,
-        Some(DocumentSide::New),
-        PipelineMetrics {
-            raw_tokens: Some(new_tokens),
-            ..PipelineMetrics::default()
-        },
-    );
+    let record_side_tokens =
+        |document: &Document<Glyph>, side: DocumentSide, diagnostics: &mut PipelineDiagnostics| {
+            let tokens = phase_result(
+                diagnostics,
+                PipelinePhase::PreLayoutBudget,
+                Some(side),
+                painting_raw_token_lower_bound(document, options.max_tokens),
+            )?;
+            if tokens > options.max_tokens {
+                return phase_result(
+                    diagnostics,
+                    PipelinePhase::PreLayoutBudget,
+                    Some(side),
+                    Err(Error::LimitExceeded {
+                        resource: "diff raw evidence tokens",
+                        limit: options.max_tokens,
+                    }),
+                );
+            }
+            diagnostics.completed(
+                PipelinePhase::PreLayoutBudget,
+                Some(side),
+                PipelineMetrics {
+                    raw_tokens: Some(tokens),
+                    ..PipelineMetrics::default()
+                },
+            );
+            Ok(tokens)
+        };
+    let old_tokens = record_side_tokens(old, DocumentSide::Old, diagnostics)?;
+    let new_tokens = record_side_tokens(new, DocumentSide::New, diagnostics)?;
     phase_result(
         diagnostics,
         PipelinePhase::PreLayoutBudget,
