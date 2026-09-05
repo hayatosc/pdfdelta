@@ -20,6 +20,7 @@ use pdfdelta_core::{
 
 use crate::{
     args::{ColorChoice, CompareCommand, ComparisonInput, ComparisonOptions, resolve_color},
+    extraction_cache::{ExtractionCache, cache_key},
     fs::{
         InputReadError, ensure_named_output_does_not_alias_input,
         ensure_output_does_not_alias_input, ensure_trace_does_not_alias_input,
@@ -127,6 +128,7 @@ pub fn compare_documents<W: Write>(
         new_input,
         pipeline_options,
         command.options,
+        command.extraction_cache_dir,
         diagnostics,
         &mut trace,
     );
@@ -159,6 +161,7 @@ pub fn compare_documents_traced<W: Write>(
     new_input: ComparisonInput<'_>,
     pipeline_options: PipelineOptions,
     options: ComparisonOptions<'_>,
+    extraction_cache_dir: Option<&Path>,
     diagnostics: &mut W,
     trace: &mut ExecutionTrace,
 ) -> Result<(u8, bool), String> {
@@ -173,13 +176,17 @@ pub fn compare_documents_traced<W: Write>(
         .transpose()?;
     let old_font_identities = parse_external_font_identities(old_input.font_identities)?;
     let new_font_identities = parse_external_font_identities(new_input.font_identities)?;
+    let extraction_cache = extraction_cache_dir.map(ExtractionCache::new);
     let old = extract_comparison_outcome(
         "old",
         TraceSide::Old,
         old_input.path,
-        parse_limits,
-        old_password.as_deref(),
-        &old_font_identities,
+        ExtractionContext {
+            parse_limits,
+            password: old_password.as_deref(),
+            external_font_identities: &old_font_identities,
+            cache: extraction_cache.as_ref(),
+        },
         trace,
     )?;
     report_extraction_issues(diagnostics, "old", old_input.path, old.issues())?;
@@ -187,9 +194,12 @@ pub fn compare_documents_traced<W: Write>(
         "new",
         TraceSide::New,
         new_input.path,
-        parse_limits,
-        new_password.as_deref(),
-        &new_font_identities,
+        ExtractionContext {
+            parse_limits,
+            password: new_password.as_deref(),
+            external_font_identities: &new_font_identities,
+            cache: extraction_cache.as_ref(),
+        },
         trace,
     )?;
     report_extraction_issues(diagnostics, "new", new_input.path, new.issues())?;
@@ -304,16 +314,22 @@ pub fn compare_documents_traced<W: Write>(
     Ok((status.code(), !summary.comparison_complete))
 }
 
+/// Everything a single-side extraction needs besides the file itself.
+pub struct ExtractionContext<'a> {
+    pub parse_limits: ParseLimits,
+    pub password: Option<&'a str>,
+    pub external_font_identities: &'a ExternalFontIdentities,
+    pub cache: Option<&'a ExtractionCache>,
+}
+
 pub fn extract_comparison_outcome(
     side: &str,
     trace_side: TraceSide,
     path: &Path,
-    parse_limits: ParseLimits,
-    password: Option<&str>,
-    external_font_identities: &ExternalFontIdentities,
+    context: ExtractionContext<'_>,
     trace: &mut ExecutionTrace,
 ) -> Result<ExtractionOutcome, String> {
-    let bytes = match read_limited_typed(path, parse_limits.max_input_bytes) {
+    let bytes = match read_limited_typed(path, context.parse_limits.max_input_bytes) {
         Ok(bytes) => bytes,
         Err(error) => {
             match &error {
@@ -346,7 +362,43 @@ pub fn extract_comparison_outcome(
         [("input_bytes", bytes.len())],
     );
 
-    let parsed = match parse_lopdf(bytes, parse_limits, password) {
+    // The cache key covers the complete set of extraction-determining inputs,
+    // so a hit is exactly equivalent to re-running parse and extraction. Any
+    // cache failure falls through to the normal path below.
+    let cache_entry = context.cache.map(|cache| {
+        let key = cache_key(
+            &bytes,
+            &context.parse_limits,
+            &ExtractionLimits::default(),
+            context.password,
+            context.external_font_identities,
+        );
+        (cache, key)
+    });
+    if let Some((cache, key)) = &cache_entry
+        && let Some(outcome) = cache.load(key, &ExtractionLimits::default())
+    {
+        trace.skip_phase("pdf_parse", Some(trace_side), "extraction_cache_hit");
+        if outcome.is_complete() {
+            trace.complete(
+                "glyph_extraction",
+                Some(trace_side),
+                [
+                    ("glyphs", outcome.document().items().len()),
+                    ("issues", outcome.issues().len()),
+                ],
+            );
+        } else {
+            trace.incomplete_extraction(
+                trace_side,
+                outcome.document().items().len(),
+                outcome.issues(),
+            );
+        }
+        return Ok(outcome);
+    }
+
+    let parsed = match parse_lopdf(bytes, context.parse_limits, context.password) {
         Ok(parsed) => {
             let version = parsed.version();
             trace.complete(
@@ -380,9 +432,14 @@ pub fn extract_comparison_outcome(
     match ContentStreamGlyphExtractor.extract_outcome_with_external_font_identities(
         parsed.as_ref(),
         ExtractionLimits::default(),
-        external_font_identities,
+        context.external_font_identities,
     ) {
         Ok(outcome) => {
+            if let Some((cache, key)) = &cache_entry
+                && outcome.is_complete()
+            {
+                cache.store(key, &outcome);
+            }
             if outcome.is_complete() {
                 trace.complete(
                     "glyph_extraction",

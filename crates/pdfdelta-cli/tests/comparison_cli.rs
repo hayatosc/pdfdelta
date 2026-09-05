@@ -612,7 +612,7 @@ fn writes_complete_phase_trace_separately_from_the_report() {
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(output.stdout.is_empty());
     let trace = read_json(&trace);
-    assert_eq!(trace["trace_schema_version"], 25);
+    assert_eq!(trace["trace_schema_version"], 26);
     assert_eq!(trace["command"]["kind"], "compare");
     assert_eq!(trace["result"]["status"], "completed");
     assert_eq!(trace["result"]["exit_code"], 0);

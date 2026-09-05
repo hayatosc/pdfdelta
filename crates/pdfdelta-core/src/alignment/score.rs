@@ -1,6 +1,6 @@
 use crate::normalize::ComparableToken;
 
-use super::{BlockFeatures, features::token_ngram_counts, multiset_dice_similarity};
+use super::{BlockFeatures, NGramCounts, features::token_ngram_counts, multiset_dice_similarity};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BlockSeparator {
@@ -42,6 +42,10 @@ pub(crate) struct GroupScore {
 struct GroupVariant {
     canonical: Vec<ComparableToken>,
     matching: Vec<ComparableToken>,
+    /// Precomputed so each variant's n-gram counts are built once per group
+    /// instead of once per (old variant, new variant) scoring pair.
+    canonical_counts: NGramCounts,
+    matching_counts: NGramCounts,
     separator: Option<BlockSeparator>,
 }
 
@@ -63,8 +67,10 @@ pub(crate) fn score_groups(
         .first()
         .or(new.first())
         .map_or(3, |features| features.ngram_size);
-    let old_variants = group_variants(old);
-    let new_variants = group_variants(new);
+    // Feature construction already validated `ngram_size`; deriving it again
+    // here must not turn scoring into a fallible path.
+    let old_variants = group_variants(old, ngram_size);
+    let new_variants = group_variants(new, ngram_size);
     let numeric_mask = old
         .iter()
         .chain(new)
@@ -75,8 +81,18 @@ pub(crate) fn score_groups(
     for old in &old_variants {
         for new in &new_variants {
             let exact_canonical = old.canonical == new.canonical;
-            let canonical_similarity = token_similarity(&old.canonical, &new.canonical, ngram_size);
-            let matching_similarity = token_similarity(&old.matching, &new.matching, ngram_size);
+            let canonical_similarity = precomputed_token_similarity(
+                &old.canonical,
+                &old.canonical_counts,
+                &new.canonical,
+                &new.canonical_counts,
+            );
+            let matching_similarity = precomputed_token_similarity(
+                &old.matching,
+                &old.matching_counts,
+                &new.matching,
+                &new.matching_counts,
+            );
             let score = if exact_canonical {
                 1.0
             } else {
@@ -118,24 +134,26 @@ pub(crate) fn score_groups(
     }
 }
 
-fn group_variants(features: &[BlockFeatures]) -> Vec<GroupVariant> {
+fn group_variants(features: &[BlockFeatures], ngram_size: usize) -> Vec<GroupVariant> {
     let Some(first) = features.first() else {
-        return vec![GroupVariant {
-            canonical: Vec::new(),
-            matching: Vec::new(),
-            separator: None,
-        }];
+        return vec![empty_group_variant()];
     };
     if features.len() == 1 {
         return vec![GroupVariant {
             canonical: first.canonical_tokens.clone(),
             matching: first.matching_tokens.clone(),
+            canonical_counts: token_ngram_counts(&first.canonical_tokens, ngram_size),
+            matching_counts: token_ngram_counts(&first.matching_tokens, ngram_size),
             separator: None,
         }];
     }
 
-    let mut variants = vec![group_variant(features, BlockSeparator::Concatenate)];
-    let with_space = group_variant(features, BlockSeparator::Space);
+    let mut variants = vec![group_variant(
+        features,
+        BlockSeparator::Concatenate,
+        ngram_size,
+    )];
+    let with_space = group_variant(features, BlockSeparator::Space, ngram_size);
     if variants[0].canonical != with_space.canonical || variants[0].matching != with_space.matching
     {
         variants.push(with_space);
@@ -143,7 +161,21 @@ fn group_variants(features: &[BlockFeatures]) -> Vec<GroupVariant> {
     variants
 }
 
-fn group_variant(features: &[BlockFeatures], separator: BlockSeparator) -> GroupVariant {
+fn empty_group_variant() -> GroupVariant {
+    GroupVariant {
+        canonical: Vec::new(),
+        matching: Vec::new(),
+        canonical_counts: NGramCounts::new(),
+        matching_counts: NGramCounts::new(),
+        separator: None,
+    }
+}
+
+fn group_variant(
+    features: &[BlockFeatures],
+    separator: BlockSeparator,
+    ngram_size: usize,
+) -> GroupVariant {
     let first = &features[0];
     let mut canonical = first.canonical_tokens.clone();
     let mut matching = first.matching_tokens.clone();
@@ -152,6 +184,8 @@ fn group_variant(features: &[BlockFeatures], separator: BlockSeparator) -> Group
         separator.append(&mut matching, &next.matching_tokens);
     }
     GroupVariant {
+        canonical_counts: token_ngram_counts(&canonical, ngram_size),
+        matching_counts: token_ngram_counts(&matching, ngram_size),
         canonical,
         matching,
         separator: Some(separator),
@@ -162,12 +196,14 @@ fn is_space(token: &ComparableToken) -> bool {
     matches!(token, ComparableToken::Scalar(scalar) if scalar.is_whitespace())
 }
 
-fn token_similarity(left: &[ComparableToken], right: &[ComparableToken], ngram_size: usize) -> f64 {
+fn precomputed_token_similarity(
+    left: &[ComparableToken],
+    left_counts: &NGramCounts,
+    right: &[ComparableToken],
+    right_counts: &NGramCounts,
+) -> f64 {
     if left == right {
         return 1.0;
     }
-    multiset_dice_similarity(
-        &token_ngram_counts(left, ngram_size),
-        &token_ngram_counts(right, ngram_size),
-    )
+    multiset_dice_similarity(left_counts, right_counts)
 }

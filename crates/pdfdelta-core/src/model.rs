@@ -3,34 +3,44 @@ use std::collections::HashMap;
 use crate::pdf::ObjectRef;
 use crate::{Error, Result};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Vec2 {
     pub x: f64,
     pub y: f64,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Rect {
     pub min: Vec2,
     pub max: Vec2,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct GlyphId(pub u64);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct VectorLineId(pub u64);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct PageId(pub u32);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct FontId(pub u32);
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct FontProgramHash(pub Vec<u8>);
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum DecodedText {
     Mapped(String),
     Unmapped {
@@ -39,7 +49,7 @@ pub enum DecodedText {
     },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TextRenderMode {
     Fill,
     Stroke,
@@ -55,7 +65,7 @@ pub enum TextRenderMode {
 ///
 /// This records only the page-level crop boundary. It does not claim to
 /// resolve path clipping, transparency, or later paint operations.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum GlyphCropStatus {
     Inside,
     PartiallyOutside,
@@ -66,7 +76,7 @@ pub enum GlyphCropStatus {
 ///
 /// `Unclipped` means no explicit path clip was active. The page CropBox is
 /// recorded independently by [`GlyphCropStatus`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum GlyphPathClipStatus {
     Unclipped,
     Inside,
@@ -74,13 +84,13 @@ pub enum GlyphPathClipStatus {
     Outside,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct GlyphProvenance {
     pub content_stream: ObjectRef,
     pub operator_index: u32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Glyph {
     pub id: GlyphId,
     pub text: DecodedText,
@@ -99,7 +109,7 @@ pub struct Glyph {
 }
 
 /// One stroked straight path segment retained as layout and render evidence.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct VectorLine {
     pub id: VectorLineId,
     pub page: PageId,
@@ -115,7 +125,7 @@ pub struct VectorLine {
 /// `bbox` is the layout bounding box. `provenance.content_stream` uses the
 /// backend-neutral [`ObjectRef`] facade. Glyph ids are expected to be unique
 /// within one document side.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GlyphEvidence {
     pub id: GlyphId,
     pub page: PageId,
@@ -134,7 +144,7 @@ impl From<&Glyph> for GlyphEvidence {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Document<T> {
     items: Vec<T>,
     vector_lines: Vec<VectorLine>,

@@ -11,7 +11,7 @@ use pdfdelta_core::{
 };
 use serde::Serialize;
 
-const TRACE_SCHEMA_VERSION: u8 = 25;
+const TRACE_SCHEMA_VERSION: u8 = 26;
 const MAX_ERROR_MESSAGE_BYTES: usize = 2_048;
 
 macro_rules! extend_near_scope_metrics {
@@ -409,6 +409,25 @@ impl ExecutionTrace {
             .extend(diagnostics.records().iter().map(pipeline_record));
     }
 
+    /// Records an explicit phase skip so trace consumers see why an expected
+    /// phase is absent (for example, an extraction cache hit bypassing the
+    /// parser and extractor).
+    pub fn skip_phase(
+        &mut self,
+        name: &'static str,
+        side: Option<TraceSide>,
+        reason: &'static str,
+    ) {
+        self.phases.push(TracePhase {
+            name,
+            side,
+            status: TraceStatus::Skipped,
+            metrics: BTreeMap::new(),
+            error: None,
+            skip_reason: Some(reason),
+        });
+    }
+
     pub fn finish(&mut self, result: Result<u8, ()>, incomplete: bool) {
         self.result = match result {
             Ok(exit_code) => TraceResult {
@@ -471,6 +490,10 @@ impl ExecutionTrace {
 }
 
 fn pipeline_record(record: &PipelineDiagnosticRecord) -> TracePhase {
+    let mut metrics = pipeline_metrics(record.metrics, record.side);
+    if let Some(duration_us) = duration_us(record.duration) {
+        metrics.insert("duration_us", duration_us);
+    }
     TracePhase {
         name: pipeline_phase_name(record.phase),
         side: record.side.map(trace_side),
@@ -479,7 +502,7 @@ fn pipeline_record(record: &PipelineDiagnosticRecord) -> TracePhase {
             PipelinePhaseStatus::Incomplete => TraceStatus::Incomplete,
             PipelinePhaseStatus::Failed => TraceStatus::Failed,
         },
-        metrics: pipeline_metrics(record.metrics, record.side),
+        metrics,
         error: record.error.as_ref().map(|error| TraceError {
             kind: match error.kind {
                 PipelineErrorKind::Backend => "backend",
@@ -495,6 +518,14 @@ fn pipeline_record(record: &PipelineDiagnosticRecord) -> TracePhase {
         }),
         skip_reason: None,
     }
+}
+
+/// Clamps a phase duration into the `usize` trace metric; phases longer than
+/// `usize` cannot occur on the supported platforms.
+fn duration_us(duration: std::time::Duration) -> Option<usize> {
+    u64::try_from(duration.as_micros())
+        .ok()
+        .and_then(|v| usize::try_from(v).ok())
 }
 
 fn pipeline_metrics(
@@ -1854,7 +1885,9 @@ mod tests {
 
     #[test]
     fn trace_schema_version_covers_proven_changed_region_metrics() {
-        assert_eq!(TRACE_SCHEMA_VERSION, 25);
+        // 26 adds the per-phase `duration_us` metric emitted for pipeline
+        // diagnostics.
+        assert_eq!(TRACE_SCHEMA_VERSION, 26);
     }
 
     #[test]
