@@ -4,24 +4,41 @@ This directory contains immutable, dated, machine-readable summaries for the rea
 
 ## Latest Capture
 
-- **Capture date**: 2026-09-03
-- **Generator / engine commit**: [`047786f`](https://github.com/hayatosc/pdfdelta/commit/047786f)
+- **Capture date**: 2026-09-05
+- **Generator / engine commit**: [`7727975`](https://github.com/hayatosc/pdfdelta/commit/7727975)
 - **Environment**:
   - OS: Linux x86_64 (`6.6.87.2-microsoft-standard-WSL2`)
   - Compiler: `rustc 1.98.0 (88d9e12ae 2026-08-18)`
   - Profile: `pdfdelta-bench` release mode
 - **Artifact**:
-  - File: [`2026-09-03-047786f.json`](2026-09-03-047786f.json)
+  - File: [`2026-09-05-7727975.json`](2026-09-05-7727975.json)
   - Schema: v64
-  - Size: 8,950,803 bytes
-  - SHA-256: `fa37e157804f80d4113c291fb69c8fd21df7f08713f361865634e2fdff6b878b`
+  - Size: 9,234,821 bytes
+  - SHA-256: `c3c65e50df71249b73ab8770967bfbd010292032d4269b7106849a7297c1c962`
 
 The capture contains all 29 manifest pairs. Every pair finished with `ok` status: 19 completed extraction, 10 reproduced their documented incomplete-extraction boundaries, and none stopped at a resource limit or failed. Comparison remains incomplete for every pair.
 
-This is a schema-only diagnostic capture. Removing `schema_version` and
-`sentence_recovery_metrics.exact_range_parent_outcome` yields exact JSON parity
-with `2026-09-03-3edac2d.json`; comparison, coverage, change, quality, and
-candidate-recall values are unchanged.
+This capture adds relocated clause-run reporting, its subsumption guard, and
+uncertain-line classification reasons, together with six correctness fixes:
+silent clause runs no longer meter against the output budget, clause
+prefix-candidate selection is deterministic under its cap, `union_consumed`
+offsets stay aligned across inserted block separators, roman-numeral list
+markers require well-formed syntax within a bounded length, relocated move
+spans dedupe blocks with the shared strong check, and a proven `KnownLines`
+row order is forwarded to block reconstruction instead of being discarded to a
+region-slice fallback.
+
+Reviewed move recall rises from 2/4 to 4/4: the FIPS and EDPB relocated clause
+runs now report as moves. Legacy recall follows on those two pairs (0.857 to
+1.000 and 0.750 to 1.000). Unmatched tiny changes fall on SP 800-57 (103 to 86)
+and FIPS (104 to 102) and rise on no pair. Precision, kind accuracy, and
+unresolvable reported spans are unchanged everywhere.
+
+Reading-order coverage is deliberately not the subject of these changes and did
+not move: mean comparison coverage across the 19 completely extracted pairs
+goes from 59.19% to 59.10%, and unresolved-region count from 31,837 to 31,865.
+Reported uncertain changes rise from 525 to 785 because relocated clause runs
+surface as `Confidence::Low` cross-page moves rather than as asserted output.
 
 ## Reproduction
 
@@ -31,9 +48,9 @@ verify provenance, and compare it with the saved reference. Atomic publication
 refuses to overwrite existing files:
 
 ```bash
-cp benchmark/realworld/results/2026-09-03-047786f.json \
+cp benchmark/realworld/results/2026-09-05-7727975.json \
   /tmp/pdfdelta-reference-summary.json
-git switch --detach 047786f
+git switch --detach 7727975
 mise run bench-fetch
 mise run bench-revisions-capture -- /tmp/pdfdelta-reproduced-summary.json
 mise run bench-revisions-exact-parity -- \
@@ -93,17 +110,17 @@ still apply only to their recorded review items.
 
 | Pair | Set | Role | Coverage | Unresolved | Content | Recall | Kind | Hunks / Matched | Tiny |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|
-| `nist-fips-186-4-to-5` | dev | standard | 53.54% | 2,298 | 1,036 | 0.857 | 1.000 | 220.833 | 104 |
-| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.91% | 5,470 | 1,541 | 1.000 | 1.000 | 350.875 | 103 |
-| `irs-form-1040-2024-to-2025` | holdout | stress | 45.31% | 79 | 31 | 0.200 | 1.000 | 40.000 | 1 |
-| `edpb-right-of-access-v1-to-final` | holdout | standard | 76.21% | 2,142 | 493 | 0.750 | 1.000 | 284.000 | 56 |
+| `nist-fips-186-4-to-5` | dev | standard | 53.65% | 2,291 | 1,057 | 1.000 | 1.000 | 192.286 | 102 |
+| `nist-sp800-57-part1-r4-to-r5` | dev | standard | 52.86% | 5,505 | 1,549 | 1.000 | 1.000 | 352.500 | 86 |
+| `irs-form-1040-2024-to-2025` | holdout | stress | 45.31% | 79 | 32 | 0.200 | 1.000 | 41.000 | 1 |
+| `edpb-right-of-access-v1-to-final` | holdout | standard | 76.21% | 2,142 | 521 | 1.000 | 1.000 | 220.000 | 56 |
 | `arxiv-attention-v6-to-v7` | dev | stress | 95.33% | 63 | 1 | 1.000 | 1.000 | 2.000 | 0 |
-| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 62.34% | 458 | 143 | 1.000 | 1.000 | 1.000 | 0 |
+| `w3c-ws-policy-attach-20060927-to-20061102` | dev | standard | 62.34% | 458 | 148 | 1.000 | 1.000 | 1.000 | 0 |
 | `ecma-109-ed10-to-ed11` | dev | stress | 76.34% | 492 | 88 | 1.000 | 1.000 | 53.333 | 5 |
-| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 73.51% | 841 | 475 | 1.000 | 1.000 | 167.000 | 65 |
+| `oasis-csaf-v2-cs01-to-csd02` | holdout | standard | 73.51% | 841 | 479 | 1.000 | 1.000 | 168.333 | 65 |
 | `irs-w4-korean-2024-to-2025` | holdout | stress | 22.70% | 9 | 88 | 0.000 | N/A | N/A | 29 |
-| `bis-operational-risk-2011-to-2021` | dev | standard | 77.50% | 722 | 357 | 1.000 | 1.000 | 14.000 | 0 |
-| `oasis-mqtt-311-to-50` | dev | standard | 42.48% | 3,495 | 1,594 | 1.000 | N/A | N/A | 0 |
+| `bis-operational-risk-2011-to-2021` | dev | standard | 77.50% | 722 | 388 | 1.000 | 1.000 | 14.000 | 0 |
+| `oasis-mqtt-311-to-50` | dev | standard | 42.48% | 3,495 | 1,615 | 1.000 | N/A | N/A | 0 |
 | `nist-csf-v1-1-to-v2-0` | holdout | standard | 68.99% | 1,280 | 794 | 0.333 | 1.000 | 948.000 | 0 |
 
 
@@ -113,10 +130,10 @@ no expectation in that category.
 
 | Pair | Content presence | Exact localization | Semantic relation | Move |
 |---|---:|---:|---:|---:|
-| `nist-fips-186-4-to-5` | 6/6 | — | 6/6 | 0/1 |
+| `nist-fips-186-4-to-5` | 6/6 | — | 6/6 | 1/1 |
 | `nist-sp800-57-part1-r4-to-r5` | 8/8 | 3/5 | 8/8 | — |
 | `irs-form-1040-2024-to-2025` | 2/5 | — | 1/5 | — |
-| `edpb-right-of-access-v1-to-final` | 3/3 | — | 3/3 | 0/1 |
+| `edpb-right-of-access-v1-to-final` | 3/3 | — | 3/3 | 1/1 |
 | `arxiv-attention-v6-to-v7` | 1/1 | 1/1 | 1/1 | — |
 | `w3c-ws-policy-attach-20060927-to-20061102` | 3/3 | 3/3 | 3/3 | 1/1 |
 | `ecma-109-ed10-to-ed11` | 3/3 | 2/2 | 3/3 | — |
@@ -125,28 +142,27 @@ no expectation in that category.
 | `bis-operational-risk-2011-to-2021` | 1/1 | 1/1 | 1/1 | — |
 | `oasis-mqtt-311-to-50` | — | — | — | — |
 | `nist-csf-v1-1-to-v2-0` | 1/3 | — | 1/3 | — |
-| **Aggregate** | **31/36** | **10/12** | **29/36** | **2/4** |
+| **Aggregate** | **31/36** | **10/12** | **29/36** | **4/4** |
 
 The dedicated running-matter path groups exact repeated header or footer
 templates, requires at least two same-page old/new occurrences, and accepts a
 replacement only when the relation is reciprocal, unique, margin-qualified,
 and its minimal edit changes both sides. Exact one-sided containment remains
 eligible for deletion or insertion instead of being coerced into a
-replacement. ECMA-109 now reports the reviewed 2020-to-2025 footer change as
-one 28-occurrence replacement, raising reviewed recall from 2/3 to 3/3 and
-exact localization from 1/2 to 2/2. The EDPB Right of Access consultation
-watermark remains a 51-occurrence deletion, preserving its 3/4 legacy recall
-and all three reviewed content changes at the presence and relation levels.
+replacement. ECMA-109 reports the reviewed 2020-to-2025 footer change as one
+28-occurrence replacement, holding reviewed recall at 3/3 and exact
+localization at 2/2. The EDPB Right of Access consultation watermark remains a
+51-occurrence deletion, and its relocated clause run now also reports as a
+move, completing its reviewed move expectation.
 
 Across the 19 completely extracted pairs, mean comparison coverage changes
-from 59.00% to 59.19%, total reported content events fall from 12,169 to
-11,943, and unresolved-region count rises from 30,928 to 31,837. The region
-count can increase when role isolation splits a formerly coarse remainder; it
-is not a monotone quality measure. These unreviewed aggregate changes do not by
-themselves establish a precision improvement outside the declared complete
-scopes.
+from 59.19% to 59.10%, total reported content events rise from 11,943 to
+12,148, and unresolved-region count from 31,837 to 31,865. The region count can
+increase when role isolation splits a formerly coarse remainder; it is not a
+monotone quality measure. These unreviewed aggregate changes do not by
+themselves establish a precision change outside the declared complete scopes.
 
-The current capture proves 229 anchor-bounded changed regions across 11 pairs without
+The current capture proves 215 anchor-bounded changed regions across 11 pairs without
 inventing an exact old/new correspondence. These proofs add one reviewed
 presence detection for IRS 1040 and one for Korean W-4. The proof feature was
 introduced behavior-neutrally in schema v60; later running-matter behavior
@@ -1450,6 +1466,7 @@ Each record includes:
 
 ## Historical Captures
 
+- [`2026-09-03-047786f.json`](2026-09-03-047786f.json): schema-v64 exact range-parent diagnostics before relocated clause-run moves and the proven row-order fix.
 - [`2026-09-02-5ed948e.json`](2026-09-02-5ed948e.json): schema-v61 structural-container inventory before section-pairing diagnostics.
 - [`2026-09-02-f46b9c4.json`](2026-09-02-f46b9c4.json): corrected schema-v59 ECMA annotation baseline before anchor-bounded content-presence proofs.
 - [`2026-09-02-06c6a18.json`](2026-09-02-06c6a18.json): schema-v59 paired-stream sequence-relation shadow before the ECMA annotation correction.
