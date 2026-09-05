@@ -5191,14 +5191,12 @@ fn relocated_move_span(
     consumed: &[sentence::LocalSentenceRange],
     committed: &[sentence::LocalSentenceRange],
 ) -> Option<TextSpan> {
-    let mut blocks = Vec::new();
-    blocks.try_reserve(consumed.len()).ok()?;
-    for range in consumed {
-        if blocks.last() != Some(&range.block) {
-            blocks.try_reserve_exact(1).ok()?;
-            blocks.push(range.block);
-        }
-    }
+    // Shares `sentence::ordered_unique_blocks`'s stronger dedup (checks the
+    // whole vector, not just the last entry) so a block visited non-adjacently
+    // (A, B, A) is never pushed twice, which would otherwise let a later
+    // `scalar_base`/`token_base` insert silently overwrite the earlier base
+    // for that block and corrupt every offset computed from it.
+    let blocks = sentence::ordered_unique_blocks(consumed)?;
     let separator = if blocks.len() > 1 {
         Some(BlockSeparator::Space)
     } else {

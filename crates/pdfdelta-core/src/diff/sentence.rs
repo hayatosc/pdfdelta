@@ -456,7 +456,7 @@ fn assemble_merged_clause_run(
 }
 
 /// Ordered unique block ids preserving first-seen order.
-fn ordered_unique_blocks(consumed: &[LocalSentenceRange]) -> Option<Vec<BlockId>> {
+pub(super) fn ordered_unique_blocks(consumed: &[LocalSentenceRange]) -> Option<Vec<BlockId>> {
     let mut blocks = Vec::new();
     blocks.try_reserve(consumed.len()).ok()?;
     for range in consumed {
@@ -40951,6 +40951,37 @@ mod tests {
         assert!(!is_bare_list_marker("civil:"));
         assert!(is_bare_list_marker("iv."));
         assert!(is_bare_list_marker("(ix)"));
+    }
+
+    #[test]
+    fn ordered_unique_blocks_deduplicates_non_adjacent_repeats() {
+        // A, B, A: the block-visit order used to merge relocated clause runs
+        // and relocated move spans, non-adjacently repeating block A.
+        let consumed = vec![
+            LocalSentenceRange {
+                block: BlockId(1),
+                canonical: ScalarRange { start: 0, end: 1 },
+                comparable: TokenRange { start: 0, end: 1 },
+            },
+            LocalSentenceRange {
+                block: BlockId(2),
+                canonical: ScalarRange { start: 0, end: 1 },
+                comparable: TokenRange { start: 0, end: 1 },
+            },
+            LocalSentenceRange {
+                block: BlockId(1),
+                canonical: ScalarRange { start: 1, end: 2 },
+                comparable: TokenRange { start: 1, end: 2 },
+            },
+        ];
+        // A weaker `blocks.last() != Some(&range.block)` guard would push
+        // block 1 twice here (it is only adjacent to itself the first time),
+        // letting a later `scalar_base`/`token_base` insert for block 1
+        // silently overwrite its earlier offset.
+        assert_eq!(
+            ordered_unique_blocks(&consumed),
+            Some(vec![BlockId(1), BlockId(2)])
+        );
     }
 
     #[test]
