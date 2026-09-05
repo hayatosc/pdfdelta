@@ -29193,12 +29193,23 @@ fn exact_clause_prefix_candidates(
     }
     let old_postings = index_postings(old_clauses, used_old)?;
     let new_postings = index_postings(new_clauses, used_new)?;
+    // `HashMap` iteration order is randomized per process, so walking
+    // `old_postings` directly would make the surviving candidate set (after
+    // the `max_candidates` cap below) vary between runs on the same input.
+    // Sorting the keys first fixes a total, input-derived order: prefixes
+    // are unique strings here, so this ties nothing and reproduces
+    // identically for identical clause text.
+    let mut old_prefixes: Vec<&str> = Vec::new();
+    old_prefixes.try_reserve_exact(old_postings.len()).ok()?;
+    old_prefixes.extend(old_postings.keys().copied());
+    old_prefixes.sort_unstable();
     let mut candidates = Vec::new();
     candidates
         .try_reserve_exact(old_postings.len().min(max_candidates))
         .ok()?;
-    for (prefix, old_indices) in &old_postings {
-        let Some(new_indices) = new_postings.get(*prefix) else {
+    for prefix in old_prefixes {
+        let old_indices = &old_postings[prefix];
+        let Some(new_indices) = new_postings.get(prefix) else {
             continue;
         };
         let ([old_index], [new_index]) = (old_indices.as_slice(), new_indices.as_slice()) else {
@@ -40653,6 +40664,58 @@ mod tests {
             budget.output_tokens, 0,
             "a silently-resolved run must not charge the output budget"
         );
+    }
+
+    #[test]
+    fn prefix_clause_candidates_survive_the_cap_in_deterministic_order() {
+        fn clause(key: &str, block: u64, span: usize) -> SentenceOccurrence {
+            let len = key.chars().count();
+            SentenceOccurrence {
+                key: key.to_owned(),
+                tokens: key.chars().map(SentenceEvidenceToken::Scalar).collect(),
+                word_ranges: Vec::new(),
+                kind: RecoveryUnitKind::Sentence,
+                role: Some(BlockRole::Body),
+                location: Some(test_location(
+                    LocalSentenceRange {
+                        block: BlockId(block),
+                        canonical: ScalarRange { start: 0, end: len },
+                        comparable: TokenRange { start: 0, end: len },
+                    },
+                    span,
+                )),
+                span_index: Some(span),
+                trusted_position: None,
+                run_descriptor_index: None,
+                page: Some(0),
+                evidence_block_index: None,
+                parent_consumed: Vec::new(),
+            }
+        }
+        // Three prefixes, each at least the 32-scalar pairing floor, that
+        // differ only in their tails (so exact pairing never claims them and
+        // prefix pairing is the only source of candidates).
+        let old = vec![
+            clause(" 00000000000000000000000000000000 old tail alpha.", 1, 0),
+            clause(" 11111111111111111111111111111111 old tail beta.", 2, 0),
+            clause(" 22222222222222222222222222222222 old tail gamma.", 3, 0),
+        ];
+        let new = vec![
+            clause(" 00000000000000000000000000000000 new tail alpha.", 11, 1),
+            clause(" 11111111111111111111111111111111 new tail beta.", 12, 1),
+            clause(" 22222222222222222222222222222222 new tail gamma.", 13, 1),
+        ];
+        let empty = HashSet::new();
+        // Capped below the number of eligible prefixes: before the fix, which
+        // two survived depended on `HashMap`'s randomized iteration order.
+        let candidates = exact_clause_prefix_candidates(&old, &new, &empty, &empty, 2)
+            .expect("prefix pairing fits");
+        assert_eq!(candidates.len(), 2);
+        // Sorted keys make the outcome the same on every run: the two
+        // lexicographically smallest prefixes ("0...0" and "1...1") survive,
+        // never "2...2".
+        assert_eq!(candidates[0].old_occurrence_index, 0);
+        assert_eq!(candidates[1].old_occurrence_index, 1);
     }
 
     #[test]
