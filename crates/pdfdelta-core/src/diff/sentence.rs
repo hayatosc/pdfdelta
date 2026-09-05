@@ -30664,15 +30664,106 @@ pub(super) fn is_bare_list_marker(segment: &str) -> bool {
         || (without_opener.len() == 1 && without_opener.chars().all(|c| c.is_ascii_alphabetic()))
 }
 
-/// Reports whether text is a non-empty roman numeral (case-insensitive).
+/// Maximum length accepted for a candidate roman numeral list marker.
+///
+/// `is_bare_list_marker`'s digit branch caps plain-digit markers at 3
+/// characters (three-digit item numbers); the worst-case strict roman
+/// numeral for any value in that same three-digit range (888 =
+/// `DCCCLXXXVIII`) needs at most 12 characters. Capping the scan here keeps
+/// it bounded on adversarial input and, combined with the syntax check
+/// below, rejects unrelated all-roman-letter runs before they are treated
+/// as list-marker evidence.
+const MAX_ROMAN_NUMERAL_LEN: usize = 12;
+
+/// Reports whether `text` is a non-empty, syntactically well-formed roman
+/// numeral (case-insensitive) for a value in the classical `1..=3999` range.
+///
+/// Validation round-trips `text` through its numeric value: the unique
+/// canonical (minimal) roman numeral for that value is regenerated and
+/// compared against `text` (uppercased). Any malformed input —invalid
+/// subtractive pairs (`IL`), over-repeated symbols (`IIII`), or
+/// non-canonical ordering (`IVI`)— fails to round-trip and is rejected in
+/// one pass. So do ordinary words built only from roman-numeral letters
+/// (`civil`, `mill`, `did`, `mic`, `midi`): each contains a letter pair with
+/// no valid roman-numeral reading (e.g. `di`, `mi`, `il` are not among the
+/// six valid subtractive pairs), so they never round-trip either.
 fn is_roman_numeral(text: &str) -> bool {
-    !text.is_empty()
-        && text.chars().all(|character| {
-            matches!(
-                character,
-                'i' | 'v' | 'x' | 'l' | 'c' | 'd' | 'm' | 'I' | 'V' | 'X' | 'L' | 'C' | 'D' | 'M'
-            )
+    if text.is_empty() || text.chars().count() > MAX_ROMAN_NUMERAL_LEN {
+        return false;
+    }
+    let Some(value) = roman_numeral_value(text) else {
+        return false;
+    };
+    text.chars()
+        .map(|character| character.to_ascii_uppercase())
+        .eq(format_roman_numeral(value).chars())
+}
+
+/// Parses a roman numeral's numeric value using the standard
+/// subtractive-pair rule (a symbol immediately followed by a strictly
+/// larger one is subtracted rather than added). Accepts any letter
+/// sequence this rule can assign a value to, including malformed ones
+/// (e.g. `IIII` sums to 4); [`is_roman_numeral`] rejects those separately
+/// by comparing against the regenerated canonical form.
+fn roman_numeral_value(text: &str) -> Option<u16> {
+    let values = text
+        .chars()
+        .map(|character| match character.to_ascii_uppercase() {
+            'I' => Some(1u16),
+            'V' => Some(5),
+            'X' => Some(10),
+            'L' => Some(50),
+            'C' => Some(100),
+            'D' => Some(500),
+            'M' => Some(1000),
+            _ => None,
         })
+        .collect::<Option<Vec<_>>>()?;
+    let mut total: u16 = 0;
+    let mut index = 0;
+    while let Some(&current) = values.get(index) {
+        let step = match values.get(index.checked_add(1)?) {
+            Some(&next) if current < next => {
+                total = total.checked_add(next.checked_sub(current)?)?;
+                2
+            }
+            _ => {
+                total = total.checked_add(current)?;
+                1
+            }
+        };
+        index = index.checked_add(step)?;
+    }
+    (1..=3999).contains(&total).then_some(total)
+}
+
+/// Renders `value` (1..=3999) as its unique canonical (minimal) roman
+/// numeral, greedily consuming the largest symbol or subtractive pair that
+/// fits at each step.
+fn format_roman_numeral(mut value: u16) -> String {
+    const SYMBOLS: [(u16, &str); 13] = [
+        (1000, "M"),
+        (900, "CM"),
+        (500, "D"),
+        (400, "CD"),
+        (100, "C"),
+        (90, "XC"),
+        (50, "L"),
+        (40, "XL"),
+        (10, "X"),
+        (9, "IX"),
+        (5, "V"),
+        (4, "IV"),
+        (1, "I"),
+    ];
+    let mut result = String::new();
+    for (amount, symbol) in SYMBOLS {
+        while value >= amount {
+            result.push_str(symbol);
+            value -= amount;
+        }
+    }
+    result
 }
 
 fn is_closing_punctuation(character: char) -> bool {
@@ -40835,6 +40926,31 @@ mod tests {
                 comparable: TokenRange { start: 0, end: 11 },
             }]
         );
+    }
+
+    #[test]
+    fn roman_numeral_markers_reject_real_words_and_malformed_forms() {
+        // Genuine roman numerals, including subtractive forms, still pass.
+        for numeral in ["I", "iv", "IX", "xl", "XC", "CD", "cm", "MCMXCIV", "iii"] {
+            assert!(is_roman_numeral(numeral), "{numeral:?} is a roman numeral");
+        }
+        // Real words built only from roman-numeral letters must not pass:
+        // each contains a letter pair with no valid subtractive reading.
+        for word in ["civil", "mill", "did", "mic", "midi"] {
+            assert!(!is_roman_numeral(word), "{word:?} is not a roman numeral");
+        }
+        // Malformed roman numerals (bad subtractive pair, over-repeated
+        // symbol, non-canonical ordering) fail the round-trip check.
+        for malformed in ["IL", "IIII", "IVI", "VX", "IM"] {
+            assert!(!is_roman_numeral(malformed), "{malformed:?} is malformed");
+        }
+        // The length bound rejects long runs outright.
+        assert!(!is_roman_numeral(&"i".repeat(MAX_ROMAN_NUMERAL_LEN + 1)));
+        // List-marker classification follows: a heading abbreviation no
+        // longer masquerades as a list marker, while real markers still do.
+        assert!(!is_bare_list_marker("civil:"));
+        assert!(is_bare_list_marker("iv."));
+        assert!(is_bare_list_marker("(ix)"));
     }
 
     #[test]
