@@ -290,7 +290,7 @@ fn assemble_merged_clause_run(
                 trim..trim.checked_add(shared)?
             };
             let mut offset = 0usize;
-            for range in &location.consumed {
+            for (position, range) in location.consumed.iter().enumerate() {
                 let len = range.canonical.end.checked_sub(range.canonical.start)?;
                 if range.comparable.end.checked_sub(range.comparable.start)? != len {
                     return None;
@@ -326,6 +326,33 @@ fn assemble_merged_clause_run(
                     union.push(trimmed);
                 }
                 offset = end;
+                // `range.canonical` is local to `range.block` and never
+                // includes the separator scalar `build_stream` inserts
+                // between blocks, but `occurrence.key` (the text `keep` is
+                // measured against) does. Without this correction, `offset`
+                // falls one scalar behind `key` at every block transition,
+                // and `overlap_end = end.min(keep.end)` above then places
+                // the common-prefix cut too late, pulling non-matching
+                // trailing scalars into the reported range.
+                //
+                // deliberate: `build_stream` only inserts that separator as
+                // a literal U+0020 when neither neighbor already supplies
+                // one (see `append_evidence_tokens`), so a block whose own
+                // text happens to start with a real U+0020 at this exact
+                // position is indistinguishable from an inserted one and
+                // is (rarely) treated as a separator too. Fixing that
+                // residual ambiguity would require carrying the source
+                // block text (or the separator decision) into this
+                // function; upgrade if a fixture demonstrates the
+                // ambiguous case in practice.
+                if location
+                    .consumed
+                    .get(position.checked_add(1)?)
+                    .is_some_and(|next| next.block != range.block)
+                    && occurrence.key.chars().nth(offset) == Some(' ')
+                {
+                    offset = offset.checked_add(1)?;
+                }
             }
         }
         (!union.is_empty()).then_some(union)
@@ -40716,6 +40743,98 @@ mod tests {
         // never "2...2".
         assert_eq!(candidates[0].old_occurrence_index, 0);
         assert_eq!(candidates[1].old_occurrence_index, 1);
+    }
+
+    #[test]
+    fn merged_run_assembly_skips_the_synthetic_block_separator() {
+        // The old occurrence's own text spans two blocks with a synthetic
+        // separator scalar between them (`build_stream` inserts one because
+        // neither "Alpha bravo"'s trailing character nor "charlie"'s leading
+        // character is whitespace); the new occurrence shares only the
+        // leading "Alpha bravo " run before diverging.
+        let old_key = "Alpha bravo charlie";
+        assert_eq!(old_key.chars().nth(11), Some(' '));
+        let old = SentenceOccurrence {
+            key: old_key.to_owned(),
+            tokens: old_key.chars().map(SentenceEvidenceToken::Scalar).collect(),
+            word_ranges: Vec::new(),
+            kind: RecoveryUnitKind::Sentence,
+            role: Some(BlockRole::Body),
+            location: Some(SentenceLocation {
+                recovery: RecoveredSentence {
+                    origin: ChangeOrigin::SentenceNear,
+                    span_index: 0,
+                    kind: RecoveryUnitKind::Sentence,
+                    role: OccurrenceRole::Body,
+                    blocks: vec![BlockId(1), BlockId(2)],
+                    separator: Some(BlockSeparator::Space),
+                    canonical: ScalarRange { start: 0, end: 19 },
+                    comparable: TokenRange { start: 0, end: 19 },
+                    source_tokens: 19,
+                },
+                consumed: vec![
+                    LocalSentenceRange {
+                        block: BlockId(1),
+                        canonical: ScalarRange { start: 0, end: 11 },
+                        comparable: TokenRange { start: 0, end: 11 },
+                    },
+                    LocalSentenceRange {
+                        block: BlockId(2),
+                        canonical: ScalarRange { start: 0, end: 7 },
+                        comparable: TokenRange { start: 0, end: 7 },
+                    },
+                ],
+            }),
+            span_index: Some(0),
+            trusted_position: None,
+            run_descriptor_index: None,
+            page: Some(1),
+            evidence_block_index: None,
+            parent_consumed: Vec::new(),
+        };
+        let new_key = "Alpha bravo delta";
+        let new = SentenceOccurrence {
+            key: new_key.to_owned(),
+            tokens: new_key.chars().map(SentenceEvidenceToken::Scalar).collect(),
+            word_ranges: Vec::new(),
+            kind: RecoveryUnitKind::Sentence,
+            role: Some(BlockRole::Body),
+            location: Some(test_location(
+                LocalSentenceRange {
+                    block: BlockId(3),
+                    canonical: ScalarRange { start: 0, end: 17 },
+                    comparable: TokenRange { start: 0, end: 17 },
+                },
+                1,
+            )),
+            span_index: Some(1),
+            trusted_position: None,
+            run_descriptor_index: None,
+            page: Some(2),
+            evidence_block_index: None,
+            parent_consumed: Vec::new(),
+        };
+        let run = MergedClauseRun {
+            old_span: 0,
+            new_span: 1,
+            old_role: BlockRole::Body,
+            new_role: BlockRole::Body,
+            members: vec![(0, 0)],
+        };
+        let assembled = assemble_merged_clause_run(&[old], &[new], &run)
+            .expect("run assembles from located clauses");
+        // The shared leading run is exactly "Alpha bravo " (12 scalars,
+        // including the separator): the fix must stop right there, on the
+        // block-1 boundary, and must not pull in "c" from block 2's real
+        // (non-matching) content the way the unfixed offset math did.
+        assert_eq!(
+            assembled.old_consumed,
+            vec![LocalSentenceRange {
+                block: BlockId(1),
+                canonical: ScalarRange { start: 0, end: 11 },
+                comparable: TokenRange { start: 0, end: 11 },
+            }]
+        );
     }
 
     #[test]
