@@ -333,6 +333,26 @@ pub(crate) fn reconstruct_blocks_with_issues(
                     &mut ordered_stats,
                     line_ids.iter().copied(),
                 )?;
+                // A proven line order may still leave unsupported lines out of
+                // `line_ids`; place them in raw region order so every page line
+                // is emitted. Their position is not proven, but `uncertain_reason`
+                // travels with them so block joining still treats them as barriers.
+                if let Some(reason) = partition.uncertain_reason {
+                    issues.push(LayoutIssue::UnknownReadingOrder {
+                        page,
+                        line_ids: partition.uncertain_line_ids,
+                        reason,
+                    });
+                }
+                for region in &graph.regions {
+                    let remaining = region
+                        .line_ids
+                        .iter()
+                        .copied()
+                        .filter(|line_id| stats_by_line_id.contains_key(line_id))
+                        .collect::<Vec<_>>();
+                    append_region_order(&mut stats_by_line_id, &mut ordered_stats, remaining)?;
+                }
             }
             reading_order => {
                 if matches!(reading_order, super::region::ReadingOrder::Unknown)

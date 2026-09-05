@@ -301,8 +301,21 @@ fn classify_reading_order(
             } else {
                 // When region order is known but contains unsupported lines, scope uncertainty
                 // only to those unsupported lines rather than invalidating proven runs.
+                //
+                // A line-level order (KnownLines) already contains only trusted lines:
+                // parallel_row_order runs on the pre-filtered supported regions, so the
+                // order itself is proven and can be forwarded to block reconstruction
+                // unchanged. A region-level order (Known) cannot be forwarded the same
+                // way: block reconstruction resolves each region id against the raw,
+                // unfiltered partition, so it would replay the untrusted lines in
+                // whatever order XY-Cut happened to assign them instead of the proven
+                // one. Fall back to Unknown for that case rather than inventing an order.
+                let reading_order = match &supported_order {
+                    ReadingOrder::KnownLines(line_ids) if !line_ids.is_empty() => supported_order,
+                    _ => ReadingOrder::Unknown,
+                };
                 (
-                    ReadingOrder::Unknown,
+                    reading_order,
                     uncertain_line_ids,
                     Some(UncertainLineReason::UntrustedLinesInKnownOrder),
                     trusted_runs,
@@ -1577,7 +1590,14 @@ mod tests {
 
         let partition = partition(&lines);
 
-        assert_eq!(partition.graph.reading_order, ReadingOrder::Unknown);
+        // The proven order is row-major (1,2,3,4,5,6): asserting it here, rather
+        // than only checking which lines survive, is what distinguishes this
+        // proven order from the column-major fallback (1,3,5,2,4,6) that region
+        // slice order would produce if the fix regressed.
+        assert_eq!(
+            partition.graph.reading_order,
+            ReadingOrder::KnownLines((1..=6).map(LineId).collect())
+        );
         assert_eq!(partition.uncertain_line_ids, vec![LineId(7), LineId(8)]);
         assert_eq!(
             partition.trusted_runs,
