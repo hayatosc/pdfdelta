@@ -12,13 +12,16 @@ use pdfdelta_core::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::fs::read_limited_typed;
+
 /// Bump when anything that changes extraction results is added to the cache
 /// key or the cached payload shape.
 const CACHE_FORMAT_VERSION: u32 = 1;
 
 /// Cached payloads are compact glyph evidence, never larger than the PDF they
 /// came from; entries above this bound are treated as corrupt rather than
-/// parsed, so a planted oversized entry cannot exhaust memory.
+/// parsed, and the bound is enforced during the read itself so a planted
+/// oversized entry cannot exhaust memory.
 const MAX_CACHE_PAYLOAD_BYTES: usize = 256 * 1024 * 1024;
 
 #[derive(Serialize, Deserialize)]
@@ -45,10 +48,14 @@ impl ExtractionCache {
     }
 
     pub fn load(&self, key: &str, limits: &ExtractionLimits) -> Option<ExtractionOutcome> {
-        let payload = fs::read(self.dir.join(format!("{key}.json"))).ok()?;
-        if payload.len() > MAX_CACHE_PAYLOAD_BYTES {
-            return None;
-        }
+        // Bounded read: the size ceiling is enforced while streaming via
+        // `take`, so an oversized entry is rejected without ever being held
+        // in memory in full.
+        let payload = read_limited_typed(
+            &self.dir.join(format!("{key}.json")),
+            MAX_CACHE_PAYLOAD_BYTES,
+        )
+        .ok()?;
         let cached = serde_json::from_slice::<CachedExtraction>(&payload).ok()?;
         if cached.cache_version != CACHE_FORMAT_VERSION || cached.cache_key != key {
             return None;
@@ -71,9 +78,14 @@ impl ExtractionCache {
             })
             .collect::<Result<Vec<_>, _>>()
             .ok()?;
-        // Reconstruction revalidates the outcome invariants that extraction
-        // guarantees, so a stale or tampered cache cannot smuggle in invalid
-        // evidence.
+        // Reconstruction revalidates only what extraction enforces at the
+        // boundaries: the resource ceilings (glyph and vector-line counts)
+        // and the issue-scope invariants checked by `ExtractionIssue::new`
+        // and `ExtractionOutcome::new`. Glyph content, geometry, and ids are
+        // NOT revalidated, and cache entries are not authenticated, so a
+        // well-formed but different glyph stream passes and silently changes
+        // comparison results; the cache directory must not be writable by
+        // untrusted writers.
         ExtractionOutcome::new(cached.document, issues).ok()
     }
 
@@ -190,10 +202,14 @@ pub fn cache_key(
     key
 }
 
+/// Builds a name suffix unique across processes and within a process:
+/// the high 32 bits carry the pid and the low 32 bits carry a per-process
+/// counter, so `(pid, counter)` pairs never collide the way an XOR of the
+/// two would.
 fn unique_temp_suffix() -> u64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    (std::process::id() as u64) ^ COUNTER.fetch_add(1, Ordering::SeqCst)
+    ((std::process::id() as u64) << 32) | (COUNTER.fetch_add(1, Ordering::SeqCst) & 0xffff_ffff)
 }
 
 #[cfg(test)]

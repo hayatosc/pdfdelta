@@ -520,8 +520,8 @@ fn pipeline_record(record: &PipelineDiagnosticRecord) -> TracePhase {
     }
 }
 
-/// Clamps a phase duration into the `usize` trace metric; phases longer than
-/// `usize` cannot occur on the supported platforms.
+/// Converts a phase duration into the `usize` trace metric; returns `None`
+/// on overflow, in which case the metric is dropped from the phase entry.
 fn duration_us(duration: std::time::Duration) -> Option<usize> {
     u64::try_from(duration.as_micros())
         .ok()

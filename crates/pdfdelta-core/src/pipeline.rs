@@ -350,9 +350,13 @@ impl PipelineDiagnostics {
 
     /// Appends another diagnostics' records verbatim, keeping their recorded
     /// durations. Used to merge per-side records from parallel phases back
-    /// into deterministic (old-side first) order.
+    /// into deterministic (old-side first) order. Merged records keep their
+    /// own durations; the parent measurement interval restarts so the next
+    /// parent-side record does not include time already accounted for inside
+    /// the merged per-side records.
     fn append(&mut self, other: PipelineDiagnostics) {
         self.records.extend(other.records);
+        self.phase_started = Instant::now();
     }
 
     fn push(&mut self, mut record: PipelineDiagnosticRecord) {

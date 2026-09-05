@@ -84,6 +84,89 @@ fn comparison_limit_scale_is_available_and_never_lowers_defaults() {
 }
 
 #[test]
+fn extraction_cache_produces_identical_reports_cold_and_warm() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    write_pdf(
+        &old,
+        &[
+            "Opening paragraph establishes context",
+            "Release 10 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+    write_pdf(
+        &new,
+        &[
+            "Opening paragraph establishes context",
+            "Release 20 remains available",
+            "Closing paragraph confirms context",
+        ],
+    );
+    let cache_dir = directory.join("cache");
+    let baseline = directory.join("baseline.json");
+    let cold = directory.join("cold.json");
+    let warm = directory.join("warm.json");
+    let warm_trace = directory.join("warm-trace.json");
+
+    let baseline_output = compare(&old, &new, &["--json", path_text(&baseline)]);
+    assert_eq!(
+        baseline_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&baseline_output)
+    );
+    let cold_output = compare(
+        &old,
+        &new,
+        &[
+            "--json",
+            path_text(&cold),
+            "--extraction-cache-dir",
+            path_text(&cache_dir),
+        ],
+    );
+    assert_eq!(
+        cold_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&cold_output)
+    );
+    let warm_output = compare(
+        &old,
+        &new,
+        &[
+            "--json",
+            path_text(&warm),
+            "--trace-json",
+            path_text(&warm_trace),
+            "--extraction-cache-dir",
+            path_text(&cache_dir),
+        ],
+    );
+    assert_eq!(
+        warm_output.status.code(),
+        Some(1),
+        "{}",
+        stderr(&warm_output)
+    );
+
+    // Comparison results must be identical with and without the cache.
+    let baseline_report = read_json(&baseline);
+    assert_eq!(read_json(&cold), baseline_report);
+    assert_eq!(read_json(&warm), baseline_report);
+
+    // The warm run must actually serve both sides from the cache.
+    let trace = read_json(&warm_trace);
+    for side in ["old", "new"] {
+        let parse = phase(&trace, "pdf_parse", Some(side));
+        assert_eq!(parse["status"], "skipped");
+        assert_eq!(parse["skip_reason"], "extraction_cache_hit");
+    }
+}
+
+#[test]
 fn inspect_without_flags_prints_backend_summary() {
     let directory = TestDirectory::new();
     let document = directory.join("document.pdf");
