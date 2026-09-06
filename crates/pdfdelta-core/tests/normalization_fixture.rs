@@ -203,6 +203,24 @@ fn applies_nfc_with_scalar_ranges_and_combined_glyph_sources() {
 }
 
 #[test]
+fn reports_no_nfc_event_when_a_composable_mark_does_not_compose() {
+    // U+0301 makes the NFC quick check inconclusive, but "q" has no
+    // precomposed form, so normalization leaves the grapheme untouched and
+    // must not be recorded as an applied normalization.
+    let text = normalize_mapped_lines(&["q\u{301}"]);
+
+    assert_eq!(text.canonical.text, "q\u{301}");
+    assert!(
+        !text
+            .normalization_events
+            .iter()
+            .any(|event| event.kind == NormalizationKind::Nfc),
+        "an unchanged grapheme must not produce an NFC event"
+    );
+    assert_token_source_parity(&text.canonical);
+}
+
+#[test]
 fn expands_typographic_ligatures_without_losing_the_glyph_source() {
     let text = normalize_mapped_lines(&["oﬃce"]);
 

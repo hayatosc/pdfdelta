@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use rayon::prelude::*;
 use smallvec::SmallVec;
-use unicode_normalization::UnicodeNormalization;
+use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfc_quick};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
@@ -1002,6 +1002,10 @@ impl NormalizationKinds {
         Self(self.0 | other.0)
     }
 
+    fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
     /// Iterates the present kinds in ascending discriminant order.
     fn iter(self) -> impl Iterator<Item = NormalizationKind> {
         (0u8..5).filter_map(move |bit| {
@@ -1292,15 +1296,19 @@ impl TextSource {
     }
 
     fn combine<'a>(sources: impl IntoIterator<Item = &'a Self>) -> Self {
-        let mut seen = HashSet::new();
-        // collect keeps a single atom inline instead of round-tripping
-        // through a heap allocation.
+        // Inputs hold at most a few atoms and single-atom sources dominate,
+        // so linear dedup scans avoid the per-call HashSet allocation. The
+        // first occurrence of each atom is retained, matching the previous
+        // set-based order.
         let mut atoms = SmallVec::new();
         for source in sources {
-            for atom in &source.atoms {
-                if seen.insert(atom.clone()) {
-                    atoms.push(atom.clone());
+            'source: for atom in &source.atoms {
+                for existing in &atoms {
+                    if existing == atom {
+                        continue 'source;
+                    }
                 }
+                atoms.push(atom.clone());
             }
         }
         Self { atoms }
@@ -1782,12 +1790,38 @@ fn collapse_whitespace(atoms: &mut Vec<Atom>) {
 
 #[derive(Clone, Debug)]
 enum FinalValue {
-    Text(String),
+    Text(TextPiece),
     Unmapped {
         font_hash: FontProgramHash,
         glyph_id: u16,
     },
     Deleted,
+}
+
+/// Canonical text of one NFC piece.
+///
+/// Unchanged single-scalar graphemes — the overwhelming majority — carry the
+/// scalar inline so the per-character hot path allocates no `String`.
+#[derive(Clone, Debug)]
+enum TextPiece {
+    Char(char),
+    Str(String),
+}
+
+impl TextPiece {
+    fn push_into(self, text: &mut String) -> usize {
+        match self {
+            Self::Char(scalar) => {
+                text.push(scalar);
+                1
+            }
+            Self::Str(value) => {
+                let count = value.chars().count();
+                text.push_str(&value);
+                count
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1845,17 +1879,37 @@ fn flush_nfc_run(run: &mut Vec<Atom>, pieces: &mut Vec<FinalPiece>) {
     for grapheme in text.graphemes(true) {
         let scalar_count = grapheme.chars().count();
         let atoms = &run[scalar_offset..scalar_offset + scalar_count];
-        let normalized = grapheme.nfc().collect::<String>();
+        // The overwhelming majority of graphemes are already NFC, often a
+        // single scalar: skip the normalization iterator and its per-character
+        // String allocation for them. `IsNormalized::Maybe` only means the
+        // quick check is inconclusive, so those graphemes still have to be
+        // normalized and compared — reporting `Nfc` for them unconditionally
+        // would record a normalization that never happened.
+        let (value, normalized) = match is_nfc_quick(grapheme.chars()) {
+            IsNormalized::Yes => {
+                let mut chars = grapheme.chars();
+                let value = match (chars.next(), chars.next()) {
+                    (Some(single), None) => TextPiece::Char(single),
+                    _ => TextPiece::Str(grapheme.to_owned()),
+                };
+                (value, false)
+            }
+            _ => {
+                let canonical = grapheme.nfc().collect::<String>();
+                let normalized = canonical != grapheme;
+                (TextPiece::Str(canonical), normalized)
+            }
+        };
         let mut kinds = atoms
             .iter()
             .fold(NormalizationKinds::default(), |acc, atom| {
                 acc.union(atom.kinds)
             });
-        if normalized != grapheme {
+        if normalized {
             kinds.insert(NormalizationKind::Nfc);
         }
         pieces.push(FinalPiece {
-            value: FinalValue::Text(normalized),
+            value: FinalValue::Text(value),
             raw_range: union_range(atoms.iter().map(|atom| atom.raw_range)),
             source: TextSource::combine(atoms.iter().map(|atom| &atom.source)),
             kinds,
@@ -1874,40 +1928,67 @@ fn assemble_canonical(pieces: Vec<FinalPiece>) -> (MappedText, Vec<Normalization
 
     for piece in pieces {
         let start = scalar_index;
+        // The piece owns its source, so the consumer can move it instead of
+        // cloning; only the rare event-per-piece path needs a copy.
+        let mut source = piece.source;
         match piece.value {
             FinalValue::Text(value) => {
-                scalar_index += value.chars().count();
-                text.push_str(&value);
+                scalar_index += value.push_into(&mut text);
+                let entry_source = if piece.kinds.is_empty() {
+                    std::mem::take(&mut source)
+                } else {
+                    source.clone()
+                };
                 source_map.push(SourceMapEntry {
                     output_range: ScalarRange {
                         start,
                         end: scalar_index,
                     },
-                    source: piece.source.clone(),
+                    source: entry_source,
                 });
+                emit_piece_events(
+                    &mut events,
+                    piece.kinds,
+                    piece.raw_range,
+                    start,
+                    scalar_index,
+                    &mut source,
+                );
             }
             FinalValue::Unmapped {
                 font_hash,
                 glyph_id,
-            } => unmapped.push(UnmappedToken {
-                scalar_index,
-                font_hash,
-                glyph_id,
-                source: piece.source.clone(),
-            }),
-            FinalValue::Deleted => {}
-        }
-
-        for kind in piece.kinds.iter() {
-            events.push(NormalizationEvent {
-                kind,
-                raw_range: piece.raw_range,
-                canonical_range: ScalarRange {
+            } => {
+                let token_source = if piece.kinds.is_empty() {
+                    std::mem::take(&mut source)
+                } else {
+                    source.clone()
+                };
+                unmapped.push(UnmappedToken {
+                    scalar_index,
+                    font_hash,
+                    glyph_id,
+                    source: token_source,
+                });
+                emit_piece_events(
+                    &mut events,
+                    piece.kinds,
+                    piece.raw_range,
                     start,
-                    end: scalar_index,
-                },
-                source: piece.source.clone(),
-            });
+                    scalar_index,
+                    &mut source,
+                );
+            }
+            FinalValue::Deleted => {
+                emit_piece_events(
+                    &mut events,
+                    piece.kinds,
+                    piece.raw_range,
+                    start,
+                    scalar_index,
+                    &mut source,
+                );
+            }
         }
     }
 
@@ -1919,6 +2000,32 @@ fn assemble_canonical(pieces: Vec<FinalPiece>) -> (MappedText, Vec<Normalization
         },
         merge_events(events),
     )
+}
+
+/// Emits one event per kind, moving the owned source into the last event and
+/// cloning it only for the earlier ones.
+fn emit_piece_events(
+    events: &mut Vec<NormalizationEvent>,
+    kinds: NormalizationKinds,
+    raw_range: ScalarRange,
+    start: usize,
+    end: usize,
+    source: &mut TextSource,
+) {
+    let count = kinds.iter().count();
+    for (index, kind) in kinds.iter().enumerate() {
+        let event_source = if index + 1 == count {
+            std::mem::take(source)
+        } else {
+            source.clone()
+        };
+        events.push(NormalizationEvent {
+            kind,
+            raw_range,
+            canonical_range: ScalarRange { start, end },
+            source: event_source,
+        });
+    }
 }
 
 impl Atom {

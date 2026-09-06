@@ -98,10 +98,21 @@ pub(crate) fn validate_line_options(options: LineOptions) -> Result<()> {
 
 pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Result<Vec<Line>> {
     validate_line_options(options)?;
-    let mut glyph_ids = HashSet::with_capacity(document.items().len());
-    let mut glyphs = Vec::with_capacity(document.items().len());
+    // Duplicate ids must be reported for the first duplicate in document
+    // order, exactly like the sequential set-based scan this replaces. Glyph
+    // ids are dense in practice (extraction assigns sequential ids), so a
+    // bitset over the id range avoids hashing; sparse id spaces fall back to
+    // the set, keeping both paths behaviorally identical.
+    let items = document.items();
+    let max_id = items.iter().map(|glyph| glyph.id.0).max().unwrap_or(0);
+    let mut glyph_ids = if max_id <= items.len() as u64 * 8 + 64 {
+        SeenGlyphIds::Dense(vec![0; (max_id as usize / 64) + 1])
+    } else {
+        SeenGlyphIds::Sparse(HashSet::with_capacity(items.len()))
+    };
+    let mut glyphs = Vec::with_capacity(items.len());
 
-    for glyph in document.items() {
+    for glyph in items {
         validate_glyph(glyph)?;
         if !glyph_ids.insert(glyph.id) {
             return Err(Error::Unresolved(format!(
@@ -163,11 +174,15 @@ pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Re
 fn build_page_lines<'a>(glyphs: &[&'a Glyph], options: LineOptions) -> Vec<WorkingLine<'a>> {
     let mut working_lines = Vec::<WorkingLine>::new();
     for glyph in glyphs {
+        // Every open line is scored per glyph, so the glyph's normalized
+        // direction is computed once here instead of once per pair; the
+        // result is identical because normalization is a pure function.
+        let glyph_direction = normalize(glyph.direction);
         let best = working_lines
             .iter()
             .enumerate()
             .filter_map(|(index, line)| {
-                line.candidate_score(glyph, options)
+                line.candidate_score(glyph, glyph_direction, options)
                     .map(|score| (index, score))
             })
             .min_by(|(_, score_a), (_, score_b)| score_a.total_cmp(score_b));
@@ -179,6 +194,29 @@ fn build_page_lines<'a>(glyphs: &[&'a Glyph], options: LineOptions) -> Vec<Worki
         }
     }
     working_lines
+}
+
+/// Duplicate-glyph-id detection with an O(1) dense bitset over sequential id
+/// ranges, falling back to a hash set for sparse id spaces.
+enum SeenGlyphIds {
+    Dense(Vec<u64>),
+    Sparse(HashSet<GlyphId>),
+}
+
+impl SeenGlyphIds {
+    /// Returns `false` when the id was already present.
+    fn insert(&mut self, id: GlyphId) -> bool {
+        match self {
+            Self::Dense(bits) => {
+                let slot = &mut bits[(id.0 / 64) as usize];
+                let bit = 1u64 << (id.0 % 64);
+                let duplicate = *slot & bit != 0;
+                *slot |= bit;
+                !duplicate
+            }
+            Self::Sparse(seen) => seen.insert(id),
+        }
+    }
 }
 
 struct WorkingLine<'a> {
@@ -237,13 +275,17 @@ impl<'a> WorkingLine<'a> {
         insert_sorted(&mut self.font_sizes, glyph.font_size);
     }
 
-    fn candidate_score(&self, glyph: &Glyph, options: LineOptions) -> Option<f64> {
+    fn candidate_score(
+        &self,
+        glyph: &Glyph,
+        glyph_direction: Vec2,
+        options: LineOptions,
+    ) -> Option<f64> {
         if self.page != glyph.page {
             return None;
         }
 
         let direction = self.direction;
-        let glyph_direction = normalize(glyph.direction);
         let direction_similarity = dot(direction, glyph_direction);
         if !directions_are_compatible(direction, glyph_direction)
             || direction_similarity < options.min_direction_similarity
