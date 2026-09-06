@@ -30931,7 +30931,7 @@ mod tests {
                     end: index + 1,
                 },
                 source: TextSource {
-                    atoms: vec![TextSourceAtom::Glyph(GlyphId(index as u64 + 1))],
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(index as u64 + 1))].into(),
                 },
             })
             .collect();
@@ -31131,7 +31131,9 @@ mod tests {
                 .push(crate::normalize::NormalizationIssue {
                     kind: crate::normalize::NormalizationIssueKind::AmbiguousLineBreak,
                     raw_range: ScalarRange { start: 0, end: 1 },
-                    source: crate::normalize::TextSource { atoms: Vec::new() },
+                    source: crate::normalize::TextSource {
+                        atoms: Vec::new().into(),
+                    },
                 });
         }
         collect_test_blocks(blocks, trusted, budget)
@@ -38170,7 +38172,7 @@ mod tests {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 1, end: 2 },
             source: TextSource {
-                atoms: vec![TextSourceAtom::Glyph(GlyphId(999))],
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(999))].into(),
             },
         });
 
@@ -38188,7 +38190,9 @@ mod tests {
         blocks[0].issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         add_test_issue(&mut blocks[1], ScalarRange { start: 0, end: 7 }, 0);
         blocks[2].canonical.source_map.clear();
@@ -38281,7 +38285,7 @@ mod tests {
             font_hash: FontProgramHash(vec![1]),
             glyph_id: 7,
             source: TextSource {
-                atoms: vec![TextSourceAtom::Glyph(GlyphId(99))],
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(99))].into(),
             },
         };
         block.canonical.unmapped.push(unmapped);
@@ -38773,7 +38777,7 @@ mod tests {
     fn unmapped_uncertainty_uses_half_open_comparable_ranges() {
         let mut block = collection_test_block(1, "abc", None);
         let source = TextSource {
-            atoms: vec![TextSourceAtom::Glyph(GlyphId(99))],
+            atoms: vec![TextSourceAtom::Glyph(GlyphId(99))].into(),
         };
         let unmapped = UnmappedToken {
             scalar_index: 1,
@@ -38901,7 +38905,7 @@ mod tests {
                 font_hash: FontProgramHash(vec![1]),
                 glyph_id: 7,
                 source: TextSource {
-                    atoms: vec![TextSourceAtom::Glyph(GlyphId(100))],
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(100))].into(),
                 },
             },
             UnmappedToken {
@@ -38909,7 +38913,7 @@ mod tests {
                 font_hash: FontProgramHash(vec![2]),
                 glyph_id: 8,
                 source: TextSource {
-                    atoms: vec![TextSourceAtom::Glyph(GlyphId(101))],
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(101))].into(),
                 },
             },
         ];
@@ -50504,7 +50508,7 @@ mod tests {
             font_hash: FontProgramHash(vec![1]),
             glyph_id: 7,
             source: TextSource {
-                atoms: vec![TextSourceAtom::Glyph(GlyphId(99))],
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(99))].into(),
             },
         });
         let canonical = vec![

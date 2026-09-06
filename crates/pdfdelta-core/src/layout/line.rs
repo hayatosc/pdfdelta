@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::ops::RangeInclusive;
 
+use rayon::prelude::*;
 use unicode_bidi::{BidiClass, bidi_class};
 
 use crate::{
@@ -119,31 +120,27 @@ pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Re
             .then(left.id.0.cmp(&right.id.0))
     });
 
-    let mut working_lines = Vec::<WorkingLine<'_>>::new();
-    let mut active_page = None;
-    let mut active_page_start = 0;
-    for glyph in glyphs {
-        if active_page != Some(glyph.page) {
-            active_page = Some(glyph.page);
-            active_page_start = working_lines.len();
-        }
-
-        // Lines for the active page remain contiguous because glyphs are page-sorted.
-        let best = working_lines[active_page_start..]
-            .iter()
-            .enumerate()
-            .filter_map(|(index, line)| {
-                line.candidate_score(glyph, options)
-                    .map(|score| (index, score))
-            })
-            .min_by(|(_, score_a), (_, score_b)| score_a.total_cmp(score_b));
-
-        if let Some((index, _)) = best {
-            working_lines[active_page_start + index].push(glyph);
-        } else {
-            working_lines.push(WorkingLine::new(glyph));
+    // Glyphs are page-sorted, so line building within one page depends only
+    // on that page's glyphs: the active-page slice in the sequential loop
+    // never consults other pages' lines. Building per-page runs in parallel
+    // and concatenating in page order therefore reproduces the sequential
+    // output exactly; line ids are assigned after the global sort below.
+    let mut page_runs = Vec::new();
+    let mut run_start = 0;
+    for index in 1..glyphs.len() {
+        if glyphs[index].page != glyphs[run_start].page {
+            page_runs.push(run_start..index);
+            run_start = index;
         }
     }
+    if run_start < glyphs.len() {
+        page_runs.push(run_start..glyphs.len());
+    }
+
+    let mut working_lines = page_runs
+        .par_iter()
+        .flat_map_iter(|run| build_page_lines(&glyphs[run.clone()], options))
+        .collect::<Vec<_>>();
 
     working_lines.sort_by(|left, right| {
         left.page
@@ -158,6 +155,30 @@ pub fn reconstruct_lines(document: &Document<Glyph>, options: LineOptions) -> Re
         .enumerate()
         .map(|(index, line)| line.finish(LineId(index as u64), options))
         .collect())
+}
+
+/// Sequentially builds the lines of one page run; identical to the inner
+/// loop of the original single-threaded pass with the page-start offset
+/// removed because each run starts with an empty line list.
+fn build_page_lines<'a>(glyphs: &[&'a Glyph], options: LineOptions) -> Vec<WorkingLine<'a>> {
+    let mut working_lines = Vec::<WorkingLine>::new();
+    for glyph in glyphs {
+        let best = working_lines
+            .iter()
+            .enumerate()
+            .filter_map(|(index, line)| {
+                line.candidate_score(glyph, options)
+                    .map(|score| (index, score))
+            })
+            .min_by(|(_, score_a), (_, score_b)| score_a.total_cmp(score_b));
+
+        if let Some((index, _)) = best {
+            working_lines[index].push(glyph);
+        } else {
+            working_lines.push(WorkingLine::new(glyph));
+        }
+    }
+    working_lines
 }
 
 struct WorkingLine<'a> {

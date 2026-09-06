@@ -1744,7 +1744,7 @@ mod tests {
                     end: index + 1,
                 },
                 source: TextSource {
-                    atoms: vec![TextSourceAtom::Glyph(glyph_id)],
+                    atoms: vec![TextSourceAtom::Glyph(glyph_id)].into(),
                 },
             });
             glyphs.push(GlyphEvidence {

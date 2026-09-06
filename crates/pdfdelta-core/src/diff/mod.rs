@@ -8976,7 +8976,9 @@ mod tests {
         issue.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
 
         for (opposite, opposite_run) in [
@@ -11427,7 +11429,9 @@ mod tests {
         issue.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         let mut unmapped = sentence_block(102, "opaque evidence");
         unmapped.canonical.unmapped.extend([
@@ -11435,13 +11439,17 @@ mod tests {
                 scalar_index: 0,
                 font_hash: FontProgramHash(vec![1]),
                 glyph_id: 1,
-                source: TextSource { atoms: Vec::new() },
+                source: TextSource {
+                    atoms: Vec::new().into(),
+                },
             },
             UnmappedToken {
                 scalar_index: 1,
                 font_hash: FontProgramHash(vec![2]),
                 glyph_id: 2,
-                source: TextSource { atoms: Vec::new() },
+                source: TextSource {
+                    atoms: Vec::new().into(),
+                },
             },
         ]);
         for fragment in [issue, unmapped] {
@@ -11471,7 +11479,9 @@ mod tests {
         fragment_only.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         let fragment_only = vec![fragment_only];
         let result = compare_sentence_recovery(
@@ -11556,7 +11566,7 @@ mod tests {
                 kind: NormalizationIssueKind::AmbiguousLineBreak,
                 raw_range: ScalarRange { start: 11, end: 12 },
                 source: TextSource {
-                    atoms: vec![TextSourceAtom::Glyph(GlyphId(12))],
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(12))].into(),
                 },
             });
         }
@@ -11919,7 +11929,9 @@ mod tests {
         unrelated_fragment.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         let new = vec![sentence_block(101, suffix), unrelated_fragment];
         let alignment = Alignment {
@@ -11968,7 +11980,9 @@ mod tests {
         issue.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
 
         let cases = vec![
@@ -12152,7 +12166,9 @@ mod tests {
         issue.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         let unmapped = sentence_block_with_unmapped(3, "Guarded sentence.");
 
@@ -13749,7 +13765,7 @@ mod tests {
                     end: index + 1,
                 },
                 source: TextSource {
-                    atoms: vec![TextSourceAtom::Glyph(GlyphId((index + 1) as u64))],
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId((index + 1) as u64))].into(),
                 },
             })
             .collect::<Vec<_>>();
@@ -13768,7 +13784,7 @@ mod tests {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: issue_range,
             source: TextSource {
-                atoms: vec![TextSourceAtom::Glyph(GlyphId(issue_range.start as u64 + 1))],
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(issue_range.start as u64 + 1))].into(),
             },
         });
         block
@@ -13824,7 +13840,9 @@ mod tests {
             scalar_index: 0,
             font_hash: FontProgramHash(vec![1]),
             glyph_id: 1,
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         block
     }

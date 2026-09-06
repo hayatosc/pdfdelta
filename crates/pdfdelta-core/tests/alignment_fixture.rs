@@ -1472,7 +1472,9 @@ fn keeps_empty_normalization_issue_evidence_unresolved() {
     let issue = NormalizationIssue {
         kind: NormalizationIssueKind::AmbiguousLineBreak,
         raw_range: ScalarRange { start: 0, end: 0 },
-        source: TextSource { atoms: Vec::new() },
+        source: TextSource {
+            atoms: Vec::new().into(),
+        },
     };
     let mut old_text = block_text(1, "");
     old_text.issues.push(issue.clone());
@@ -2313,7 +2315,9 @@ fn unmapped_block_text(id: u64, font_hash: Vec<u8>, glyph_id: u16) -> BlockText 
         scalar_index: 0,
         font_hash: font_hash.clone(),
         glyph_id,
-        source: TextSource { atoms: vec![] },
+        source: TextSource {
+            atoms: vec![].into(),
+        },
     };
     let mapped = MappedText {
         text: String::new(),
@@ -2544,7 +2548,9 @@ fn exact_anchors_rejects_duplicate_and_ambiguous_blocks() {
     ambiguous_block.issues.push(NormalizationIssue {
         kind: NormalizationIssueKind::AmbiguousLineBreak,
         raw_range: ScalarRange { start: 5, end: 6 },
-        source: TextSource { atoms: vec![] },
+        source: TextSource {
+            atoms: vec![].into(),
+        },
     });
 
     let old_blocks = [
@@ -2997,7 +3003,9 @@ fn multi_unmapped_block_text(id: u64, font_hash: Vec<u8>, glyph_ids: &[u16]) -> 
             scalar_index: 0,
             font_hash: font_hash.clone(),
             glyph_id,
-            source: TextSource { atoms: vec![] },
+            source: TextSource {
+                atoms: vec![].into(),
+            },
         });
         matching_tokens.push(ComparableToken::Unmapped {
             font_hash: font_hash.clone(),
@@ -3040,7 +3048,9 @@ fn mixed_mapped_unmapped_block_text(
         scalar_index: prefix.chars().count(),
         font_hash: font_hash.clone(),
         glyph_id,
-        source: TextSource { atoms: vec![] },
+        source: TextSource {
+            atoms: vec![].into(),
+        },
     };
     let mapped = MappedText {
         text: text.clone(),
@@ -3303,7 +3313,9 @@ fn unmapped_block_with_actual_normalization_issue_is_excluded_from_primary_ancho
     old_block.issues.push(NormalizationIssue {
         kind: NormalizationIssueKind::AmbiguousLineBreak,
         raw_range: ScalarRange { start: 0, end: 0 },
-        source: TextSource { atoms: vec![] },
+        source: TextSource {
+            atoms: vec![].into(),
+        },
     });
     let new_block = multi_unmapped_block_text(101, hash, &[30, 31, 32]);
 
@@ -3560,7 +3572,9 @@ fn direct_identity_shortcut_calibrates_each_span_from_own_normalization_features
         .push(pdfdelta_core::normalize::NormalizationIssue {
             kind: pdfdelta_core::normalize::NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: pdfdelta_core::normalize::ScalarRange { start: 0, end: 1 },
-            source: pdfdelta_core::normalize::TextSource { atoms: Vec::new() },
+            source: pdfdelta_core::normalize::TextSource {
+                atoms: Vec::new().into(),
+            },
         });
     let old_clean3 = block_text(
         3,
