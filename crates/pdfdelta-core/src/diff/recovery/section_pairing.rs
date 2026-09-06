@@ -2823,7 +2823,7 @@ mod tests {
                         end: index + 1,
                     },
                     source: TextSource {
-                        atoms: vec![TextSourceAtom::Glyph(GlyphId((index + 1) as u64))],
+                        atoms: vec![TextSourceAtom::Glyph(GlyphId((index + 1) as u64))].into(),
                     },
                 })
                 .collect(),

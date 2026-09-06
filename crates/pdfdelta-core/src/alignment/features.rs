@@ -89,15 +89,22 @@ pub fn dice_similarity(left: &NGramSet, right: &NGramSet) -> f64 {
 }
 
 pub fn multiset_dice_similarity(left: &NGramCounts, right: &NGramCounts) -> f64 {
+    // Shared mass is symmetric, so iterating the smaller multiset minimizes
+    // lookups without changing the result.
+    let (queried, indexed) = if left.len() <= right.len() {
+        (left, right)
+    } else {
+        (right, left)
+    };
     let left_total = left.values().map(|count| *count as f64).sum::<f64>();
     let right_total = right.values().map(|count| *count as f64).sum::<f64>();
     let total = left_total + right_total;
     if total == 0.0 {
         return 1.0;
     }
-    let shared = left
+    let shared = queried
         .iter()
-        .map(|(ngram, left_count)| *left_count.min(right.get(ngram).unwrap_or(&0)) as f64)
+        .map(|(ngram, count)| *count.min(indexed.get(ngram).unwrap_or(&0)) as f64)
         .sum::<f64>();
     2.0 * shared / total
 }

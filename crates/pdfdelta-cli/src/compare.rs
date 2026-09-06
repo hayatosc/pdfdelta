@@ -20,6 +20,7 @@ use pdfdelta_core::{
 
 use crate::{
     args::{ColorChoice, CompareCommand, ComparisonInput, ComparisonOptions, resolve_color},
+    extraction_cache::{ExtractionCache, cache_key},
     fs::{
         InputReadError, ensure_named_output_does_not_alias_input,
         ensure_output_does_not_alias_input, ensure_trace_does_not_alias_input,
@@ -27,7 +28,7 @@ use crate::{
         read_limited_typed, read_password_file, write_json_atomically,
         write_text_report_atomically, write_trace_atomically,
     },
-    trace::{ExecutionTrace, TraceSide},
+    trace::{ExecutionTrace, TraceSide, duration_metric},
 };
 
 pub fn compare_documents<W: Write>(
@@ -62,37 +63,45 @@ pub fn compare_documents<W: Write>(
     if let Some(trace_path) = command.trace_path {
         ensure_trace_does_not_alias_input(trace_path, old_path, new_path)?;
     }
-    if let (Some(json_path), Some(trace_path)) = (command.options.json_path, command.trace_path)
-        && output_paths_refer_to_same_file(trace_path, json_path, "trace/report output collision")?
-    {
-        return Err(format!(
-            "refusing trace output {} because it refers to the JSON report {}",
-            trace_path.display(),
-            json_path.display()
-        ));
-    }
-    if let (Some(output_path), Some(trace_path)) = (command.options.output_path, command.trace_path)
-        && output_paths_refer_to_same_file(
-            trace_path,
-            output_path,
-            "trace/report output collision",
-        )?
-    {
-        return Err(format!(
-            "refusing trace output {} because it refers to the text report {}",
-            trace_path.display(),
-            output_path.display()
-        ));
-    }
-    if let (Some(output_path), Some(json_path)) =
-        (command.options.output_path, command.options.json_path)
-        && output_paths_refer_to_same_file(output_path, json_path, "report/json output collision")?
-    {
-        return Err(format!(
-            "refusing text report output {} because it refers to the JSON report {}",
-            output_path.display(),
-            json_path.display()
-        ));
+    // One guard per pair of output destinations; the pair table keeps the
+    // exact refusal messages next to the aliasing check they motivate.
+    const TRACE_REPORT: &str = "trace/report output collision";
+    const REPORT_JSON: &str = "report/json output collision";
+    let report_output = command.options.output_path;
+    let json_output = command.options.json_path;
+    let trace_output = command.trace_path;
+    for (left, right, label, left_noun, right_noun) in [
+        (
+            trace_output,
+            json_output,
+            TRACE_REPORT,
+            "trace output",
+            "JSON report",
+        ),
+        (
+            trace_output,
+            report_output,
+            TRACE_REPORT,
+            "trace output",
+            "text report",
+        ),
+        (
+            report_output,
+            json_output,
+            REPORT_JSON,
+            "text report output",
+            "JSON report",
+        ),
+    ] {
+        if let (Some(left), Some(right)) = (left, right)
+            && output_paths_refer_to_same_file(left, right, label)?
+        {
+            return Err(format!(
+                "refusing {left_noun} {} because it refers to the {right_noun} {}",
+                left.display(),
+                right.display()
+            ));
+        }
     }
 
     let mut trace = ExecutionTrace::new(old_path, new_path, command.options.strict);
@@ -127,6 +136,7 @@ pub fn compare_documents<W: Write>(
         new_input,
         pipeline_options,
         command.options,
+        command.extraction_cache_dir,
         diagnostics,
         &mut trace,
     );
@@ -159,6 +169,7 @@ pub fn compare_documents_traced<W: Write>(
     new_input: ComparisonInput<'_>,
     pipeline_options: PipelineOptions,
     options: ComparisonOptions<'_>,
+    extraction_cache_dir: Option<&Path>,
     diagnostics: &mut W,
     trace: &mut ExecutionTrace,
 ) -> Result<(u8, bool), String> {
@@ -173,26 +184,79 @@ pub fn compare_documents_traced<W: Write>(
         .transpose()?;
     let old_font_identities = parse_external_font_identities(old_input.font_identities)?;
     let new_font_identities = parse_external_font_identities(new_input.font_identities)?;
-    let old = extract_comparison_outcome(
-        "old",
-        TraceSide::Old,
-        old_input.path,
-        parse_limits,
-        old_password.as_deref(),
-        &old_font_identities,
-        trace,
-    )?;
-    report_extraction_issues(diagnostics, "old", old_input.path, old.issues())?;
-    let new = extract_comparison_outcome(
-        "new",
-        TraceSide::New,
-        new_input.path,
-        parse_limits,
-        new_password.as_deref(),
-        &new_font_identities,
-        trace,
-    )?;
-    report_extraction_issues(diagnostics, "new", new_input.path, new.issues())?;
+    let extraction_cache = extraction_cache_dir.map(ExtractionCache::new);
+    // Both sides extract concurrently; read, parse, and glyph extraction are
+    // independent per side. Each side records into its own trace buffer so
+    // the shared trace can be appended old-first afterwards, reproducing the
+    // sequential phase sequence exactly, and issue reporting stays in
+    // old-then-new order. When the old side fails, the new side's trace
+    // buffer is discarded so the trace and reported error match the
+    // sequential run, where the new side never ran.
+    let mut old_trace = ExecutionTrace::new(old_input.path, new_input.path, false);
+    let mut new_trace = ExecutionTrace::new(old_input.path, new_input.path, false);
+    let extract = |input: &ComparisonInput<'_>,
+                   password: Option<&str>,
+                   font_identities: &ExternalFontIdentities,
+                   side: &str,
+                   trace_side: TraceSide,
+                   trace: &mut ExecutionTrace| {
+        extract_comparison_outcome(
+            side,
+            trace_side,
+            input.path,
+            ExtractionContext {
+                parse_limits,
+                password,
+                external_font_identities: font_identities,
+                cache: extraction_cache.as_ref(),
+            },
+            trace,
+        )
+    };
+    let (old_result, new_result) = rayon::join(
+        || {
+            extract(
+                &old_input,
+                old_password.as_deref(),
+                &old_font_identities,
+                "old",
+                TraceSide::Old,
+                &mut old_trace,
+            )
+        },
+        || {
+            extract(
+                &new_input,
+                new_password.as_deref(),
+                &new_font_identities,
+                "new",
+                TraceSide::New,
+                &mut new_trace,
+            )
+        },
+    );
+    let old = match old_result {
+        Ok(outcome) => {
+            trace.extend_trace(old_trace);
+            report_extraction_issues(diagnostics, "old", old_input.path, outcome.issues())?;
+            outcome
+        }
+        Err(error) => {
+            trace.extend_trace(old_trace);
+            return Err(error);
+        }
+    };
+    let new = match new_result {
+        Ok(outcome) => {
+            trace.extend_trace(new_trace);
+            report_extraction_issues(diagnostics, "new", new_input.path, outcome.issues())?;
+            outcome
+        }
+        Err(error) => {
+            trace.extend_trace(new_trace);
+            return Err(error);
+        }
+    };
     let mut pipeline_diagnostics = PipelineDiagnostics::new();
     let outcome_result = compare_extraction_outcomes_with_sentence_edge_gate_shadow_diagnostics(
         old,
@@ -304,16 +368,26 @@ pub fn compare_documents_traced<W: Write>(
     Ok((status.code(), !summary.comparison_complete))
 }
 
+/// Everything a single-side extraction needs besides the file itself.
+pub struct ExtractionContext<'a> {
+    pub parse_limits: ParseLimits,
+    pub password: Option<&'a str>,
+    pub external_font_identities: &'a ExternalFontIdentities,
+    pub cache: Option<&'a ExtractionCache>,
+}
+
 pub fn extract_comparison_outcome(
     side: &str,
     trace_side: TraceSide,
     path: &Path,
-    parse_limits: ParseLimits,
-    password: Option<&str>,
-    external_font_identities: &ExternalFontIdentities,
+    context: ExtractionContext<'_>,
     trace: &mut ExecutionTrace,
 ) -> Result<ExtractionOutcome, String> {
-    let bytes = match read_limited_typed(path, parse_limits.max_input_bytes) {
+    // Wall-clock durations mirror the pipeline phases' duration_us metric so
+    // the extraction cost is visible in the trace; the metric is
+    // nondeterministic by design (see the README trace notes).
+    let read_started = std::time::Instant::now();
+    let bytes = match read_limited_typed(path, context.parse_limits.max_input_bytes) {
         Ok(bytes) => bytes,
         Err(error) => {
             match &error {
@@ -343,10 +417,51 @@ pub fn extract_comparison_outcome(
     trace.complete(
         "input_read",
         Some(trace_side),
-        [("input_bytes", bytes.len())],
+        [
+            ("input_bytes", bytes.len()),
+            ("duration_us", duration_metric(read_started.elapsed())),
+        ],
     );
 
-    let parsed = match parse_lopdf(bytes, parse_limits, password) {
+    // The cache key covers the complete set of extraction-determining inputs,
+    // so a hit is exactly equivalent to re-running parse and extraction. Any
+    // cache failure falls through to the normal path below.
+    let cache_entry = context.cache.map(|cache| {
+        let key = cache_key(
+            &bytes,
+            &context.parse_limits,
+            &ExtractionLimits::default(),
+            context.password,
+            context.external_font_identities,
+        );
+        (cache, key)
+    });
+    if let Some((cache, key)) = &cache_entry
+        && let Some(outcome) = cache.load(key, &ExtractionLimits::default())
+    {
+        trace.skip_phase("pdf_parse", Some(trace_side), "extraction_cache_hit");
+        if outcome.is_complete() {
+            trace.complete(
+                "glyph_extraction",
+                Some(trace_side),
+                [
+                    ("glyphs", outcome.document().items().len()),
+                    ("issues", outcome.issues().len()),
+                ],
+            );
+        } else {
+            trace.incomplete_extraction(
+                trace_side,
+                outcome.document().items().len(),
+                outcome.issues(),
+                None,
+            );
+        }
+        return Ok(outcome);
+    }
+
+    let parse_started = std::time::Instant::now();
+    let parsed = match parse_lopdf(bytes, context.parse_limits, context.password) {
         Ok(parsed) => {
             let version = parsed.version();
             trace.complete(
@@ -355,6 +470,7 @@ pub fn extract_comparison_outcome(
                 [
                     ("pdf_version_major", usize::from(version.major)),
                     ("pdf_version_minor", usize::from(version.minor)),
+                    ("duration_us", duration_metric(parse_started.elapsed())),
                 ],
             );
             parsed
@@ -377,23 +493,35 @@ pub fn extract_comparison_outcome(
         }
     };
 
+    let extraction_started = std::time::Instant::now();
     match ContentStreamGlyphExtractor.extract_outcome_with_external_font_identities(
         parsed.as_ref(),
         ExtractionLimits::default(),
-        external_font_identities,
+        context.external_font_identities,
     ) {
         Ok(outcome) => {
+            let extraction_duration = extraction_started.elapsed();
+            if let Some((cache, key)) = &cache_entry
+                && outcome.is_complete()
+            {
+                cache.store(key, &outcome);
+            }
             if outcome.is_complete() {
                 trace.complete(
                     "glyph_extraction",
                     Some(trace_side),
-                    [("glyphs", outcome.document().items().len()), ("issues", 0)],
+                    [
+                        ("glyphs", outcome.document().items().len()),
+                        ("issues", 0),
+                        ("duration_us", duration_metric(extraction_duration)),
+                    ],
                 );
             } else {
                 trace.incomplete_extraction(
                     trace_side,
                     outcome.document().items().len(),
                     outcome.issues(),
+                    Some(extraction_duration),
                 );
             }
             Ok(outcome)

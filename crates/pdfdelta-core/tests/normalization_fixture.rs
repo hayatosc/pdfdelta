@@ -35,7 +35,7 @@ fn preserves_reversible_raw_text_and_synthetic_spaces() {
     }
     assert!(text.raw.source_map.iter().any(|entry| {
         entry.output_range == ScalarRange { start: 1, end: 2 }
-            && entry.source.atoms
+            && entry.source.atoms.as_slice()
                 == [TextSourceAtom::SyntheticSpace {
                     preceding: GlyphId(1),
                     following: GlyphId(2),
@@ -203,6 +203,24 @@ fn applies_nfc_with_scalar_ranges_and_combined_glyph_sources() {
 }
 
 #[test]
+fn reports_no_nfc_event_when_a_composable_mark_does_not_compose() {
+    // U+0301 makes the NFC quick check inconclusive, but "q" has no
+    // precomposed form, so normalization leaves the grapheme untouched and
+    // must not be recorded as an applied normalization.
+    let text = normalize_mapped_lines(&["q\u{301}"]);
+
+    assert_eq!(text.canonical.text, "q\u{301}");
+    assert!(
+        !text
+            .normalization_events
+            .iter()
+            .any(|event| event.kind == NormalizationKind::Nfc),
+        "an unchanged grapheme must not produce an NFC event"
+    );
+    assert_token_source_parity(&text.canonical);
+}
+
+#[test]
 fn expands_typographic_ligatures_without_losing_the_glyph_source() {
     let text = normalize_mapped_lines(&["oﬃce"]);
 
@@ -214,14 +232,26 @@ fn expands_typographic_ligatures_without_losing_the_glyph_source() {
         .expect("ligature event should be retained");
     assert_eq!(event.raw_range, ScalarRange { start: 1, end: 2 });
     assert_eq!(event.canonical_range, ScalarRange { start: 1, end: 4 });
-    assert_eq!(event.source.atoms, [TextSourceAtom::Glyph(GlyphId(2))]);
+    assert_eq!(
+        event.source.atoms.as_slice(),
+        [TextSourceAtom::Glyph(GlyphId(2))]
+    );
     let paired = text
         .canonical
         .comparable_tokens_with_sources()
         .expect("ligature sources should remain valid");
-    assert_eq!(paired[1].1.atoms, [TextSourceAtom::Glyph(GlyphId(2))]);
-    assert_eq!(paired[2].1.atoms, [TextSourceAtom::Glyph(GlyphId(2))]);
-    assert_eq!(paired[3].1.atoms, [TextSourceAtom::Glyph(GlyphId(2))]);
+    assert_eq!(
+        paired[1].1.atoms.as_slice(),
+        [TextSourceAtom::Glyph(GlyphId(2))]
+    );
+    assert_eq!(
+        paired[2].1.atoms.as_slice(),
+        [TextSourceAtom::Glyph(GlyphId(2))]
+    );
+    assert_eq!(
+        paired[3].1.atoms.as_slice(),
+        [TextSourceAtom::Glyph(GlyphId(2))]
+    );
     assert_token_source_parity(&text.canonical);
 }
 
@@ -313,7 +343,10 @@ fn retains_unmapped_tokens_in_comparison_order() {
         .canonical
         .comparable_tokens_with_sources()
         .expect("unmapped sources should remain valid");
-    assert_eq!(paired[1].1.atoms, [TextSourceAtom::Glyph(GlyphId(2))]);
+    assert_eq!(
+        paired[1].1.atoms.as_slice(),
+        [TextSourceAtom::Glyph(GlyphId(2))]
+    );
     assert_token_source_parity(&text.canonical);
 }
 
@@ -324,7 +357,7 @@ fn token_sources_do_not_mix_mapped_and_unmapped_evidence_at_the_same_offset() {
         source_map: vec![pdfdelta_core::normalize::SourceMapEntry {
             output_range: ScalarRange { start: 0, end: 1 },
             source: TextSource {
-                atoms: vec![TextSourceAtom::Glyph(GlyphId(1))],
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(1))].into(),
             },
         }],
         unmapped: vec![UnmappedToken {
@@ -332,7 +365,7 @@ fn token_sources_do_not_mix_mapped_and_unmapped_evidence_at_the_same_offset() {
             font_hash: FontProgramHash(vec![1]),
             glyph_id: 9,
             source: TextSource {
-                atoms: vec![TextSourceAtom::Glyph(GlyphId(2))],
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(2))].into(),
             },
         }],
     };
@@ -341,8 +374,14 @@ fn token_sources_do_not_mix_mapped_and_unmapped_evidence_at_the_same_offset() {
         .comparable_tokens_with_sources()
         .expect("token source map should be valid");
 
-    assert_eq!(paired[0].1.atoms, [TextSourceAtom::Glyph(GlyphId(2))]);
-    assert_eq!(paired[1].1.atoms, [TextSourceAtom::Glyph(GlyphId(1))]);
+    assert_eq!(
+        paired[0].1.atoms.as_slice(),
+        [TextSourceAtom::Glyph(GlyphId(2))]
+    );
+    assert_eq!(
+        paired[1].1.atoms.as_slice(),
+        [TextSourceAtom::Glyph(GlyphId(1))]
+    );
     assert_token_source_parity(&mapped);
 }
 
@@ -356,7 +395,7 @@ fn source_free_comparable_tokens_do_not_validate_or_walk_source_map() {
                 end: usize::MAX,
             },
             source: TextSource {
-                atoms: vec![TextSourceAtom::Glyph(GlyphId(1)); 10_000],
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(1)); 10_000].into(),
             },
         }],
         unmapped: Vec::new(),
@@ -400,7 +439,7 @@ fn rejects_unassigned_lines_and_glyphs() {
 #[test]
 fn rejects_out_of_bounds_and_unordered_unmapped_indices() {
     let source = TextSource {
-        atoms: vec![TextSourceAtom::Glyph(GlyphId(1))],
+        atoms: vec![TextSourceAtom::Glyph(GlyphId(1))].into(),
     };
     let out_of_bounds = MappedText {
         text: "A".to_owned(),
@@ -522,7 +561,7 @@ fn soft_line_break_inserted_space_source_mapping() {
         .canonical
         .project_source(ScalarRange { start: 5, end: 6 });
     assert_eq!(
-        space_source.atoms,
+        space_source.atoms.as_slice(),
         [TextSourceAtom::LineBreak {
             preceding: GlyphId(5),
             following: GlyphId(6),
@@ -613,7 +652,7 @@ fn unmapped_glyph_evidence_is_not_empty_text_and_has_exact_source_mapping() {
     assert_eq!(text.canonical.unmapped[0].glyph_id, 99);
     assert_eq!(text.canonical.unmapped[0].scalar_index, 5);
     assert_eq!(
-        text.canonical.unmapped[0].source.atoms,
+        text.canonical.unmapped[0].source.atoms.as_slice(),
         [TextSourceAtom::Glyph(GlyphId(2))]
     );
 

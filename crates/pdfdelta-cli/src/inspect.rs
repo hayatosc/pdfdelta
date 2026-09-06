@@ -74,6 +74,10 @@ pub fn inspect_document(
     })
 }
 
+fn inspect_error(path: &Path) -> impl Fn(pdfdelta_core::Error) -> String + '_ {
+    move |error| format!("cannot inspect {}: {error}", path.display())
+}
+
 pub fn inspect_backend<W: Write>(
     path: &Path,
     bytes: Arc<[u8]>,
@@ -81,13 +85,9 @@ pub fn inspect_backend<W: Write>(
     password: Option<&str>,
     writer: &mut W,
 ) -> Result<(), String> {
-    let pdf = parse_lopdf(bytes, limits, password)
-        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+    let pdf = parse_lopdf(bytes, limits, password).map_err(inspect_error(path))?;
     let version = pdf.version();
-    let page_count = pdf
-        .pages()
-        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?
-        .len();
+    let page_count = pdf.pages().map_err(inspect_error(path))?.len();
 
     write_inspection_line(writer, path, format_args!("backend: {}", LopdfParser::NAME))?;
     write_inspection_line(
@@ -113,25 +113,18 @@ pub fn inspect_objects<W: Write>(
     password: Option<&str>,
     writer: &mut W,
 ) -> Result<(), String> {
-    let pdf = parse_lopdf(bytes, parse_limits, password)
-        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
-    let trailer = pdf
-        .trailer()
-        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+    let pdf = parse_lopdf(bytes, parse_limits, password).map_err(inspect_error(path))?;
+    let trailer = pdf.trailer().map_err(inspect_error(path))?;
     write_inspection_line(
         writer,
         path,
         format_args!("trailer: {}", format_pdf_dict(&trailer)),
     )?;
-    let pages = pdf
-        .pages()
-        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+    let pages = pdf.pages().map_err(inspect_error(path))?;
     write_inspection_line(writer, path, format_args!("pages: {}", pages.len()))?;
     for (index, page_ref) in pages.iter().enumerate() {
         let page_num = index + 1;
-        let page_dict = pdf
-            .page_dict(*page_ref)
-            .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+        let page_dict = pdf.page_dict(*page_ref).map_err(inspect_error(path))?;
         write_inspection_line(
             writer,
             path,
@@ -161,15 +154,14 @@ pub fn inspect_glyphs<W: Write>(
     external_font_identities: &ExternalFontIdentities,
     writer: &mut W,
 ) -> Result<(), String> {
-    let pdf = parse_lopdf(bytes, parse_limits, password)
-        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+    let pdf = parse_lopdf(bytes, parse_limits, password).map_err(inspect_error(path))?;
     let outcome = ContentStreamGlyphExtractor
         .extract_outcome_with_external_font_identities(
             pdf.as_ref(),
             ExtractionLimits::default(),
             external_font_identities,
         )
-        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+        .map_err(inspect_error(path))?;
     for issue in outcome.issues() {
         write_inspection_line(
             writer,
@@ -212,15 +204,14 @@ pub fn inspect_svg(
     password: Option<&str>,
     external_font_identities: &ExternalFontIdentities,
 ) -> Result<(), String> {
-    let pdf = parse_lopdf(bytes, parse_limits, password)
-        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+    let pdf = parse_lopdf(bytes, parse_limits, password).map_err(inspect_error(path))?;
     let outcome = ContentStreamGlyphExtractor
         .extract_outcome_with_external_font_identities(
             pdf.as_ref(),
             ExtractionLimits::default(),
             external_font_identities,
         )
-        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
+        .map_err(inspect_error(path))?;
     let document = outcome.document();
     let mut file = std::fs::File::create(svg_path).map_err(|error| {
         format!(

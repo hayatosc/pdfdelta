@@ -405,6 +405,9 @@ pdfdelta old.pdf new.pdf --limit-scale 16
 pdfdelta old.pdf new.pdf --old-password-file old.secret --new-password-file new.secret
 pdfdelta old.pdf new.pdf --old-font-identity TraditionalArabic=windows-v1 --new-font-identity TraditionalArabic=windows-v1
 
+# Reuse cached glyph extraction results across runs (directory must be trusted)
+pdfdelta old.pdf new.pdf --extraction-cache-dir ~/.cache/pdfdelta
+
 # Inspect PDF internal structures, backend info, objects, or glyphs
 pdfdelta inspect document.pdf
 pdfdelta inspect document.pdf --objects
@@ -418,7 +421,9 @@ Text reports are written to standard output as contextual unified-diff hunks: a 
 
 `--limit-scale FACTOR` raises the comparison pipeline budgets for n-gram token elements, alignment candidate visits, alignment DP cells, and diff tokens. It also raises the diff edit-distance budget up to the bounded Myers implementation's 64 MiB trace-allocation cap. The factor must be finite and at least `1`; parser and extraction limits remain unchanged.
 
-`--trace-json PATH` writes a separate version 2 diagnostic trace without changing the normal report. The trace records input reading, PDF parsing, glyph extraction, layout reconstruction, normalization, alignment, exact diff, and report phases with bounded metrics, including sentence-recovery diagnostics when available. It also identifies incomplete or failed phases, records typed resource-limit errors, and marks phases that were skipped after an earlier stop. Trace files use the same atomic, no-overwrite publication policy as JSON reports.
+`--extraction-cache-dir DIR` reuses cached glyph extraction results stored under `DIR`, keyed by the file contents and every extraction-determining input (parser and extraction limits, password, and asserted font identities). A missing, corrupt, oversized, or outdated entry falls back to a fresh extraction, so comparison results are identical with or without the cache. Entries are revalidated only for resource ceilings and issue-scope invariants; glyph content, geometry, and ids are not re-verified and entries are not authenticated, so the cache directory is a trust boundary and must not be shared with untrusted writers.
+
+`--trace-json PATH` writes a separate version 2 diagnostic trace without changing the normal report. The trace records input reading, PDF parsing, glyph extraction, layout reconstruction, normalization, alignment, exact diff, and report phases with bounded metrics, including sentence-recovery diagnostics when available. It also identifies incomplete or failed phases, records typed resource-limit errors, and marks phases that were skipped after an earlier stop. Each phase entry carries a wall-clock `duration_us` metric, which is nondeterministic across runs and must be excluded from golden-file comparisons. Trace files use the same atomic, no-overwrite publication policy as JSON reports.
 
 ## Current limitations
 

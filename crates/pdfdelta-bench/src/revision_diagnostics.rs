@@ -2362,7 +2362,9 @@ mod tests {
             scalar_index: 3,
             font_hash: FontProgramHash(vec![1]),
             glyph_id: 7,
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         let mut budget = DiagnosticBudget::default();
         assert_eq!(
@@ -2380,7 +2382,9 @@ mod tests {
         issue.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         let mut budget = DiagnosticBudget::default();
         assert_eq!(
@@ -2401,13 +2405,17 @@ mod tests {
         unrelated.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         let unmapped = UnmappedToken {
             scalar_index: 0,
             font_hash: FontProgramHash(vec![1]),
             glyph_id: 7,
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         };
         unrelated.raw.unmapped.push(unmapped.clone());
         unrelated.canonical.unmapped.push(unmapped);
@@ -2437,7 +2445,9 @@ mod tests {
         uncertain_anchor.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         let mut budget = DiagnosticBudget::default();
         assert_eq!(
@@ -2462,7 +2472,9 @@ mod tests {
                 duplicate.issues.push(NormalizationIssue {
                     kind: NormalizationIssueKind::AmbiguousLineBreak,
                     raw_range: ScalarRange { start: 0, end: 1 },
-                    source: TextSource { atoms: Vec::new() },
+                    source: TextSource {
+                        atoms: Vec::new().into(),
+                    },
                 });
             }
             let mut budget = DiagnosticBudget::default();

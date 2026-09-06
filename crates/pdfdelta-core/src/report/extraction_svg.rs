@@ -478,6 +478,8 @@ fn render_glyph<W: Write>(
 
 fn validate_snapshot(side: &str, snapshot: &PrimitiveExtractionSnapshot) -> Result<()> {
     for (index, glyph) in snapshot.glyphs.iter().enumerate() {
+        let glyph_error =
+            |message: String| Error::Report(format!("{side} extraction glyph {index} {message}"));
         let coordinates = [
             ("bbox.min.x", glyph.bbox.min.x),
             ("bbox.min.y", glyph.bbox.min.y),
@@ -492,33 +494,27 @@ fn validate_snapshot(side: &str, snapshot: &PrimitiveExtractionSnapshot) -> Resu
             .into_iter()
             .find(|(_, value)| !value.is_finite())
         {
-            return Err(Error::Report(format!(
-                "{side} extraction glyph {index} has non-finite {field}: {value}"
-            )));
+            return Err(glyph_error(format!("has non-finite {field}: {value}")));
         }
         if glyph.bbox.min.x > glyph.bbox.max.x || glyph.bbox.min.y > glyph.bbox.max.y {
-            return Err(Error::Report(format!(
-                "{side} extraction glyph {index} bbox minimum exceeds its maximum"
-            )));
+            return Err(glyph_error("bbox minimum exceeds its maximum".to_owned()));
         }
         let width = glyph.bbox.max.x - glyph.bbox.min.x;
         let height = glyph.bbox.max.y - glyph.bbox.min.y;
         let direction_length = glyph.direction.x.hypot(glyph.direction.y);
         if !width.is_finite() || !height.is_finite() {
-            return Err(Error::Report(format!(
-                "{side} extraction glyph {index} has non-finite bbox dimensions"
-            )));
+            return Err(glyph_error("has non-finite bbox dimensions".to_owned()));
         }
         if !direction_length.is_finite() || direction_length <= f64::EPSILON {
-            return Err(Error::Report(format!(
-                "{side} extraction glyph {index} direction must be finite and non-zero"
-            )));
+            return Err(glyph_error(
+                "direction must be finite and non-zero".to_owned(),
+            ));
         }
         let (end_x, end_y) = baseline_endpoint(glyph);
         if !end_x.is_finite() || !end_y.is_finite() {
-            return Err(Error::Report(format!(
-                "{side} extraction glyph {index} has non-finite derived baseline endpoint"
-            )));
+            return Err(glyph_error(
+                "has non-finite derived baseline endpoint".to_owned(),
+            ));
         }
     }
     Ok(())

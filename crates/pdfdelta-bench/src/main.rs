@@ -528,30 +528,9 @@ fn main() -> ExitCode {
 }
 
 fn read_canonical_yaml_file(path: &Path) -> Result<String, String> {
-    let metadata = fs::metadata(path)
-        .map_err(|error| format!("cannot read canonical YAML {}: {error}", path.display()))?;
-    if metadata.len() > MAX_CANONICAL_YAML_BYTES as u64 {
-        return Err(format!(
-            "cannot read canonical YAML {}: canonical YAML must not exceed {} bytes",
-            path.display(),
-            MAX_CANONICAL_YAML_BYTES
-        ));
-    }
-    let file = fs::File::open(path)
-        .map_err(|error| format!("cannot read canonical YAML {}: {error}", path.display()))?;
-    let mut limited = file.take(MAX_CANONICAL_YAML_BYTES as u64 + 1);
-    let mut yaml = String::new();
-    limited
-        .read_to_string(&mut yaml)
-        .map_err(|error| format!("cannot read canonical YAML {}: {error}", path.display()))?;
-    if yaml.len() > MAX_CANONICAL_YAML_BYTES {
-        return Err(format!(
-            "cannot read canonical YAML {}: canonical YAML must not exceed {} bytes",
-            path.display(),
-            MAX_CANONICAL_YAML_BYTES
-        ));
-    }
-    Ok(yaml)
+    let bytes = read_bounded_file(path, MAX_CANONICAL_YAML_BYTES, "canonical YAML")?;
+    String::from_utf8(bytes)
+        .map_err(|error| format!("cannot read canonical YAML {}: {error}", path.display()))
 }
 
 fn read_bounded_file(path: &Path, max_bytes: usize, description: &str) -> Result<Vec<u8>, String> {

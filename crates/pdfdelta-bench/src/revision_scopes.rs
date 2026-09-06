@@ -2376,7 +2376,9 @@ mod tests {
         uncertain.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         resolve_revision_scopes(
             &[scope("s", "known", "text", "new start", "new end")],
@@ -2389,7 +2391,9 @@ mod tests {
         uncertain_anchor.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         assert_eq!(
             resolve_revision_scopes(
@@ -2408,7 +2412,9 @@ mod tests {
         uncertain.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         let old = [block(1, "old start"), uncertain, block(3, "old end")];
         let new = [block(4, "new start"), block(5, "new end")];
@@ -2460,7 +2466,9 @@ mod tests {
             uncertain.issues.push(NormalizationIssue {
                 kind: NormalizationIssueKind::AmbiguousLineBreak,
                 raw_range: ScalarRange { start: 0, end: 1 },
-                source: TextSource { atoms: Vec::new() },
+                source: TextSource {
+                    atoms: Vec::new().into(),
+                },
             });
             let expected = [ExpectedChange {
                 id: "reviewed".to_owned(),
@@ -3145,7 +3153,9 @@ mod tests {
         uncertain_old.issues.push(NormalizationIssue {
             kind: NormalizationIssueKind::AmbiguousLineBreak,
             raw_range: ScalarRange { start: 0, end: 1 },
-            source: TextSource { atoms: Vec::new() },
+            source: TextSource {
+                atoms: Vec::new().into(),
+            },
         });
         let uncertain_scopes = [ResolvedScope {
             id: "body".to_owned(),

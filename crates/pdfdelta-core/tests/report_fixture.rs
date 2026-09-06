@@ -662,7 +662,7 @@ fn json_report_deduplicates_expansion_and_preserves_contraction_sources() -> Res
         vec![SourceMapEntry {
             output_range: ScalarRange { start: 0, end: 3 },
             source: TextSource {
-                atoms: vec![TextSourceAtom::Glyph(GlyphId(1))],
+                atoms: vec![TextSourceAtom::Glyph(GlyphId(1))].into(),
             },
         }],
     )];
@@ -675,7 +675,8 @@ fn json_report_deduplicates_expansion_and_preserves_contraction_sources() -> Res
                 atoms: vec![
                     TextSourceAtom::Glyph(GlyphId(2)),
                     TextSourceAtom::Glyph(GlyphId(3)),
-                ],
+                ]
+                .into(),
             },
         }],
     )];
@@ -728,7 +729,8 @@ fn json_report_keeps_synthetic_unmapped_and_separator_sources_distinct() -> Resu
                 atoms: vec![TextSourceAtom::SyntheticSpace {
                     preceding: GlyphId(1),
                     following: GlyphId(2),
-                }],
+                }]
+                .into(),
             },
         }],
     )];
@@ -742,7 +744,7 @@ fn json_report_keeps_synthetic_unmapped_and_separator_sources_distinct() -> Resu
                 font_hash: FontProgramHash(vec![1]),
                 glyph_id: 9,
                 source: TextSource {
-                    atoms: vec![TextSourceAtom::Glyph(GlyphId(3))],
+                    atoms: vec![TextSourceAtom::Glyph(GlyphId(3))].into(),
                 },
             }],
         },
@@ -931,7 +933,8 @@ fn source_projection_matches_json_source_order_and_fields() -> Result<()> {
                 atoms: vec![TextSourceAtom::SyntheticSpace {
                     preceding: GlyphId(1),
                     following: GlyphId(2),
-                }],
+                }]
+                .into(),
             },
         }],
     )];
@@ -1019,7 +1022,8 @@ fn source_projection_rejects_invalid_ranges_duplicates_and_limits() {
                 atoms: vec![TextSourceAtom::SyntheticSpace {
                     preceding: GlyphId(1),
                     following: GlyphId(2),
-                }],
+                }]
+                .into(),
             },
         }],
     );
@@ -1091,7 +1095,8 @@ fn source_projection_preserves_boundary_event_order_without_stable_sort() -> Res
             atoms: vec![TextSourceAtom::LineBreak {
                 preceding: GlyphId(1),
                 following: GlyphId(2),
-            }],
+            }]
+            .into(),
         },
     });
     let mut second = sourced_block(2, "b", Vec::new());
@@ -1103,7 +1108,8 @@ fn source_projection_preserves_boundary_event_order_without_stable_sort() -> Res
             atoms: vec![TextSourceAtom::SyntheticSpace {
                 preceding: GlyphId(3),
                 following: GlyphId(4),
-            }],
+            }]
+            .into(),
         },
     });
     let sources = project_span_sources(
@@ -1200,7 +1206,8 @@ fn json_report_projects_deleted_line_break_and_hyphenation_evidence() -> Result<
             atoms: vec![TextSourceAtom::LineBreak {
                 preceding: GlyphId(2),
                 following: GlyphId(3),
-            }],
+            }]
+            .into(),
         },
     });
     let mut hyphenation = sourced_block(
@@ -1221,7 +1228,8 @@ fn json_report_projects_deleted_line_break_and_hyphenation_evidence() -> Result<
                     preceding: GlyphId(16),
                     following: GlyphId(17),
                 },
-            ],
+            ]
+            .into(),
         },
     });
     let mut comparison = empty_comparison();
@@ -1282,7 +1290,7 @@ fn json_report_orders_concatenated_boundary_events_before_the_next_token() -> Re
         raw_range: ScalarRange { start: 1, end: 1 },
         canonical_range: ScalarRange { start: 1, end: 1 },
         source: TextSource {
-            atoms: vec![TextSourceAtom::Glyph(GlyphId(99))],
+            atoms: vec![TextSourceAtom::Glyph(GlyphId(99))].into(),
         },
     });
     let mut next = sourced_block(2, "b", vec![glyph_entry(0, 1, 2)]);
@@ -1291,7 +1299,7 @@ fn json_report_orders_concatenated_boundary_events_before_the_next_token() -> Re
         raw_range: ScalarRange { start: 0, end: 0 },
         canonical_range: ScalarRange { start: 0, end: 0 },
         source: TextSource {
-            atoms: vec![TextSourceAtom::Glyph(GlyphId(100))],
+            atoms: vec![TextSourceAtom::Glyph(GlyphId(100))].into(),
         },
     });
     let mut comparison = empty_comparison();
@@ -1351,7 +1359,8 @@ fn json_report_attributes_zero_width_events_only_to_interior_or_matching_points(
             atoms: vec![TextSourceAtom::LineBreak {
                 preceding: GlyphId(2),
                 following: GlyphId(3),
-            }],
+            }]
+            .into(),
         },
     });
     let mut comparison = empty_comparison();
@@ -2709,7 +2718,7 @@ fn glyph_entry(start: usize, end: usize, glyph: u64) -> SourceMapEntry {
     SourceMapEntry {
         output_range: ScalarRange { start, end },
         source: TextSource {
-            atoms: vec![TextSourceAtom::Glyph(GlyphId(glyph))],
+            atoms: vec![TextSourceAtom::Glyph(GlyphId(glyph))].into(),
         },
     }
 }
@@ -2760,13 +2769,17 @@ fn unmapped_block_fixture(id: u64) -> BlockText {
                     scalar_index: 0,
                     font_hash: FontProgramHash(vec![1, 2, 3, 4, 5]),
                     glyph_id: 7,
-                    source: TextSource { atoms: Vec::new() },
+                    source: TextSource {
+                        atoms: Vec::new().into(),
+                    },
                 },
                 UnmappedToken {
                     scalar_index: 2,
                     font_hash: FontProgramHash(vec![9]),
                     glyph_id: 11,
-                    source: TextSource { atoms: Vec::new() },
+                    source: TextSource {
+                        atoms: Vec::new().into(),
+                    },
                 },
             ],
         },
@@ -2801,7 +2814,9 @@ fn unmapped_only_block(id: u64, hash: Vec<u8>, glyph_id: u16) -> BlockText {
                 scalar_index: 0,
                 font_hash: FontProgramHash(hash),
                 glyph_id,
-                source: TextSource { atoms: Vec::new() },
+                source: TextSource {
+                    atoms: Vec::new().into(),
+                },
             }],
         },
         matching: String::new(),
