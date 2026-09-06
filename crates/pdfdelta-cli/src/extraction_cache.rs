@@ -1,6 +1,5 @@
 use std::{
-    fs,
-    io::Write as _,
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -23,6 +22,12 @@ const CACHE_FORMAT_VERSION: u32 = 1;
 /// parsed, and the bound is enforced during the read itself so a planted
 /// oversized entry cannot exhaust memory.
 const MAX_CACHE_PAYLOAD_BYTES: usize = 256 * 1024 * 1024;
+
+/// Suffix of the marker recording that serializing an entry exceeded
+/// [`MAX_CACHE_PAYLOAD_BYTES`]. Such an entry can never be read back, so the
+/// marker lets later runs skip the doomed serialization entirely instead of
+/// paying it on every run.
+const OVERSIZED_MARKER_SUFFIX: &str = ".oversized";
 
 #[derive(Serialize, Deserialize)]
 struct CachedExtraction {
@@ -90,6 +95,18 @@ impl ExtractionCache {
     }
 
     pub fn store(&self, key: &str, outcome: &ExtractionOutcome) {
+        self.store_with_ceiling(key, outcome, MAX_CACHE_PAYLOAD_BYTES);
+    }
+
+    /// Serializes the outcome into the entry file directly, never buffering
+    /// more than `ceiling` bytes: an entry that cannot be read back within
+    /// [`MAX_CACHE_PAYLOAD_BYTES`] is never written, and a marker records it
+    /// so later runs skip the doomed serialization entirely.
+    fn store_with_ceiling(&self, key: &str, outcome: &ExtractionOutcome, ceiling: usize) {
+        let marker = self.dir.join(format!("{key}{OVERSIZED_MARKER_SUFFIX}"));
+        if marker.try_exists().unwrap_or(false) {
+            return;
+        }
         if self
             .dir
             .try_exists()
@@ -99,27 +116,42 @@ impl ExtractionCache {
         {
             return;
         }
-        let cached = CachedExtraction {
+        // Serialize from borrowed evidence: cloning the document would double
+        // the store cost for large documents.
+        let cached = CachedRef {
             cache_version: CACHE_FORMAT_VERSION,
-            cache_key: key.to_owned(),
-            document: outcome.document().clone(),
-            issues: outcome.issues().to_vec(),
-        };
-        let Ok(payload) = serde_json::to_vec(&cached) else {
-            return;
+            cache_key: key,
+            document: outcome.document(),
+            issues: outcome.issues(),
         };
         let target = self.dir.join(format!("{key}.json"));
         let temp = self.dir.join(format!("{key}.{}.tmp", unique_temp_suffix()));
-        if write_exclusive(&temp, &payload)
-            .and_then(|()| fs::rename(&temp, &target))
-            .is_err()
-        {
-            let _ = fs::remove_file(&temp);
+        match write_entry_exclusive(&temp, &cached, ceiling) {
+            Ok(false) => {
+                let _ = fs::rename(&temp, &target);
+            }
+            Ok(true) => {
+                let _ = fs::remove_file(&temp);
+                let _ = fs::write(&marker, b"");
+            }
+            Err(_) => {
+                let _ = fs::remove_file(&temp);
+            }
         }
     }
 }
 
-fn write_exclusive(path: &Path, payload: &[u8]) -> std::io::Result<()> {
+/// Serializes `cached` into a new exclusive file under the byte `ceiling`.
+///
+/// Returns `Ok(true)` when serialization was aborted because the payload
+/// exceeded the ceiling (the caller should record the oversized marker);
+/// `Ok(false)` after a successful durable write; `Err` for other I/O or
+/// serialization failures.
+fn write_entry_exclusive(
+    path: &Path,
+    cached: &CachedRef<'_>,
+    ceiling: usize,
+) -> std::io::Result<bool> {
     // create_new refuses symlinked pre-created names and 0o600 keeps the
     // entry private to the user, matching the report writers in fs.rs.
     let mut options = fs::OpenOptions::new();
@@ -130,8 +162,72 @@ fn write_exclusive(path: &Path, payload: &[u8]) -> std::io::Result<()> {
         options.mode(0o600);
     }
     let mut file = options.open(path)?;
-    file.write_all(payload)?;
-    file.sync_all()
+    // serde_json emits many small writes; buffer them so the ceiling check
+    // does not turn into one syscall per token.
+    let mut writer = CeilingWriter {
+        inner: io::BufWriter::new(&mut file),
+        remaining: ceiling,
+        oversized: false,
+    };
+    let serialize_result = serde_json::to_writer(&mut writer, cached);
+    let oversized = writer.oversized;
+    let CeilingWriter {
+        inner: buffered, ..
+    } = writer;
+    match serialize_result {
+        Ok(()) => {
+            // `into_inner` flushes the buffer and returns the file reference,
+            // ending the writer's borrow before the durability sync.
+            let file = buffered.into_inner()?;
+            file.sync_all()?;
+            Ok(false)
+        }
+        Err(_) if oversized => Ok(true),
+        Err(error) => {
+            // serde_json wraps the underlying I/O error, preserving its kind.
+            Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                error.to_string(),
+            ))
+        }
+    }
+}
+
+/// Write wrapper that fails the serialization once the payload would exceed
+/// the ceiling, so oversized entries abort before consuming the full disk or
+/// memory cost.
+struct CeilingWriter<W> {
+    inner: W,
+    remaining: usize,
+    oversized: bool,
+}
+
+impl<W: io::Write> io::Write for CeilingWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if buf.len() > self.remaining {
+            self.oversized = true;
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "cache payload exceeds the size ceiling",
+            ));
+        }
+        self.remaining -= buf.len();
+        self.inner.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+/// Borrowing twin of the cached payload shape; serializes without cloning
+/// the document.
+#[derive(Serialize)]
+struct CachedRef<'a> {
+    cache_version: u32,
+    cache_key: &'a str,
+    document: &'a Document<pdfdelta_core::model::Glyph>,
+    issues: &'a [ExtractionIssue],
 }
 
 /// Hashes every input that determines the extraction outcome: file bytes,
@@ -284,6 +380,50 @@ mod tests {
             loaded.document().items(),
             fixture_outcome().document().items()
         );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn oversized_entries_are_never_stored_and_marker_skips_later_stores() {
+        // The ceiling is parameterized so the guard is testable without
+        // materializing a 256 MiB payload: serialization aborts at the
+        // ceiling, nothing is written, and a marker records the oversized
+        // key so later stores skip the doomed serialization entirely.
+        let dir = unique_temp_dir("oversized");
+        let cache = ExtractionCache::new(&dir);
+        let (parse_limits, extraction_limits) = fixture_limits();
+        let key = cache_key(
+            b"pdf",
+            &parse_limits,
+            &extraction_limits,
+            None,
+            &ExternalFontIdentities::default(),
+        );
+        let outcome = fixture_outcome();
+
+        cache.store_with_ceiling(&key, &outcome, 32);
+
+        let entries = fs::read_dir(&dir)
+            .expect("cache directory should exist")
+            .map(|entry| entry.expect("entry readable").file_name())
+            .collect::<Vec<_>>();
+        assert_eq!(entries.len(), 1, "{entries:?}");
+        assert!(
+            entries[0].to_string_lossy().ends_with(".oversized"),
+            "{entries:?}"
+        );
+        assert!(
+            cache.load(&key, &extraction_limits).is_none(),
+            "no readable entry may exist for an oversized payload"
+        );
+
+        // A later store sees the marker and degrades to a no-op.
+        cache.store_with_ceiling(&key, &outcome, 32);
+        let entries_after = fs::read_dir(&dir)
+            .expect("cache directory should exist")
+            .count();
+        assert_eq!(entries_after, 1);
 
         let _ = fs::remove_dir_all(&dir);
     }

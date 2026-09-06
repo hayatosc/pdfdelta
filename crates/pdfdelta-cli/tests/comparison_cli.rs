@@ -896,6 +896,35 @@ fn trace_records_candidate_visit_metrics_on_the_alignment_phase() {
 }
 
 #[test]
+fn concurrent_extraction_matches_sequential_phases_when_the_old_side_fails() {
+    let directory = TestDirectory::new();
+    let old = directory.join("old.pdf");
+    let new = directory.join("new.pdf");
+    let trace_path = directory.join("trace.json");
+    fs::write(&old, b"not a PDF").expect("malformed fixture should be written");
+    write_pdf(&new, &["A generic paragraph remains stable"]);
+
+    let output = compare(&old, &new, &["--trace-json", path_text(&trace_path)]);
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    let trace = read_json(&trace_path);
+    // The sides extract concurrently, but a failed old side must discard the
+    // new side's phase records so the trace matches the sequential run where
+    // the new side never ran: new-side entries may only be the
+    // `prior_phase_did_not_complete` skip placeholders, and the old side's
+    // error still wins.
+    let phases = trace["phases"].as_array().expect("trace phases");
+    assert!(
+        phases
+            .iter()
+            .all(|phase| phase["side"] != Value::String("new".to_owned())
+                || phase["status"] == "skipped"),
+        "{phases:#?}"
+    );
+    assert_eq!(phase(&trace, "pdf_parse", Some("old"))["status"], "failed");
+}
+
+#[test]
 fn writes_failure_trace_when_pdf_parsing_stops_the_pipeline() {
     let directory = TestDirectory::new();
     let old = directory.join("old.pdf");

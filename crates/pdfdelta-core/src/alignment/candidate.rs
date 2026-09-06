@@ -68,8 +68,10 @@ pub trait CandidateGenerator {
     fn candidates(&self, old: &BlockFeatures, limit: usize) -> Result<Vec<Candidate>>;
 }
 
-pub struct InvertedIndexCandidateGenerator {
-    new_features: HashMap<BlockId, BlockFeatures>,
+pub struct InvertedIndexCandidateGenerator<'a> {
+    /// New-side features, referenced by index instead of cloned per block.
+    features: &'a [BlockFeatures],
+    feature_indices: HashMap<BlockId, usize>,
     exact_index: HashMap<BlockRole, HashMap<ExactHash, Vec<BlockId>>>,
     ngram_index: HashMap<BlockRole, HashMap<NGram, Vec<BlockId>>>,
     role_document_counts: HashMap<BlockRole, usize>,
@@ -83,10 +85,16 @@ pub struct InvertedIndexCandidateGenerator {
     ngram_size: Option<usize>,
 }
 
-impl InvertedIndexCandidateGenerator {
-    pub fn new(new: &[BlockFeatures]) -> Result<Self> {
+impl<'a> InvertedIndexCandidateGenerator<'a> {
+    /// Returns the referenced features of a new-side block.
+    fn features_for(&self, block: BlockId) -> Option<&BlockFeatures> {
+        let index = *self.feature_indices.get(&block)?;
+        self.features.get(index)
+    }
+
+    pub fn new(new: &'a [BlockFeatures]) -> Result<Self> {
         let ngram_size = common_ngram_size(new)?;
-        let mut new_features = HashMap::with_capacity(new.len());
+        let mut feature_indices = HashMap::with_capacity(new.len());
         let mut exact_index = HashMap::<BlockRole, HashMap<ExactHash, Vec<BlockId>>>::new();
         let mut ngram_index = HashMap::<BlockRole, HashMap<NGram, Vec<BlockId>>>::new();
         let mut role_document_counts = HashMap::<BlockRole, usize>::new();
@@ -95,10 +103,7 @@ impl InvertedIndexCandidateGenerator {
         let mut positioned_short_blocks = Vec::new();
 
         for (index, features) in new.iter().enumerate() {
-            if new_features
-                .insert(features.block, features.clone())
-                .is_some()
-            {
+            if feature_indices.insert(features.block, index).is_some() {
                 return Err(Error::Unresolved(format!(
                     "duplicate candidate block id {}",
                     features.block.0
@@ -112,14 +117,17 @@ impl InvertedIndexCandidateGenerator {
                 .entry(features.exact_hash)
                 .or_default()
                 .push(features.block);
-            ngram_index.entry(features.role).or_default();
+            // The role posting table is looked up once per block, not once
+            // per n-gram, and the key is cloned only when a posting list is
+            // first created — the overwhelmingly common case is a hit.
+            let role_ngrams = ngram_index.entry(features.role).or_default();
             for ngram in features.ngram_counts.keys() {
-                ngram_index
-                    .entry(features.role)
-                    .or_default()
-                    .entry(ngram.clone())
-                    .or_default()
-                    .push(features.block);
+                match role_ngrams.get_mut(ngram) {
+                    Some(blocks) => blocks.push(features.block),
+                    None => {
+                        role_ngrams.insert(ngram.clone(), vec![features.block]);
+                    }
+                }
             }
             if is_short(features) {
                 short_blocks.push(features.block);
@@ -166,7 +174,8 @@ impl InvertedIndexCandidateGenerator {
         }
 
         Ok(Self {
-            new_features,
+            features: new,
+            feature_indices,
             exact_index,
             ngram_index,
             role_document_counts,
@@ -290,8 +299,7 @@ impl InvertedIndexCandidateGenerator {
     }
 
     fn has_compatible_role(&self, old: &BlockFeatures, block: BlockId) -> bool {
-        self.new_features
-            .get(&block)
+        self.features_for(block)
             .is_some_and(|new| old.role.is_alignment_compatible(new.role))
     }
 }
@@ -302,7 +310,7 @@ struct CandidateEvidence {
     shared_ngram_weight: f64,
 }
 
-impl CandidateGenerator for InvertedIndexCandidateGenerator {
+impl CandidateGenerator for InvertedIndexCandidateGenerator<'_> {
     fn estimate_visits(&self, old: &BlockFeatures, limit: usize) -> Result<CandidateVisitEstimate> {
         validate_query_ngram_size(self.ngram_size, old)?;
         if limit == 0 {
@@ -362,7 +370,7 @@ impl CandidateGenerator for InvertedIndexCandidateGenerator {
             .and_then(|index| index.get(&old.exact_hash))
         {
             for block in blocks {
-                let Some(features) = self.new_features.get(block) else {
+                let Some(features) = self.features_for(*block) else {
                     continue;
                 };
                 if old.role.is_alignment_compatible(features.role)
@@ -394,7 +402,7 @@ impl CandidateGenerator for InvertedIndexCandidateGenerator {
             let old_count = old.ngram_counts.get(*ngram).copied().unwrap_or(0);
             let weight = self.idf(old.role, ngram);
             for block in blocks {
-                let Some(features) = self.new_features.get(block) else {
+                let Some(features) = self.features_for(*block) else {
                     continue;
                 };
                 if !old.role.is_alignment_compatible(features.role) {
@@ -960,7 +968,8 @@ mod tests {
         let old = feature(10, &[('a', 1), ('b', 1)]);
         let inflated = feature(1, &[('a', 8), ('b', 1)]);
         let balanced = feature(2, &[('a', 1), ('b', 1)]);
-        let generator = InvertedIndexCandidateGenerator::new(&[inflated, balanced])
+        let features = [inflated, balanced];
+        let generator = InvertedIndexCandidateGenerator::new(&features)
             .expect("consistent n-gram features build an index");
 
         let candidates = generator
@@ -1046,9 +1055,9 @@ mod tests {
         near_right.page_position = Some(6_000);
         let mut far_other = feature(2, &[('c', 1)]);
         far_other.page_position = Some(10_000);
-        let generator =
-            InvertedIndexCandidateGenerator::new(&[far_text, near_left, near_right, far_other])
-                .expect("positioned short features build an index");
+        let features = [far_text, near_left, near_right, far_other];
+        let generator = InvertedIndexCandidateGenerator::new(&features)
+            .expect("positioned short features build an index");
 
         let estimate = generator
             .estimate_visits(&old, 2)
@@ -1091,8 +1100,9 @@ mod tests {
         let unpositioned = feature(1, &[('a', 1)]);
         let mut positioned = feature(2, &[('b', 1)]);
         positioned.page_position = Some(6_000);
-        let generator = InvertedIndexCandidateGenerator::new(&[unpositioned, positioned])
-            .expect("short features build an index");
+        let features = [unpositioned, positioned];
+        let generator =
+            InvertedIndexCandidateGenerator::new(&features).expect("short features build an index");
 
         let positioned_estimate = generator
             .estimate_visits(&positioned_old, 2)

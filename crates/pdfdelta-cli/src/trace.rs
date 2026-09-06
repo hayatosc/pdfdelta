@@ -300,6 +300,7 @@ impl ExecutionTrace {
         side: TraceSide,
         glyphs: usize,
         issues: &[ExtractionIssue],
+        duration: Option<std::time::Duration>,
     ) {
         let unsupported = issues
             .iter()
@@ -324,7 +325,9 @@ impl ExecutionTrace {
                 ("issues", issues.len()),
                 ("unsupported_issues", unsupported),
                 ("unresolved_issues", unresolved),
-            ],
+            ]
+            .into_iter()
+            .chain(duration.map(|d| ("duration_us", duration_metric(d)))),
             error,
         );
     }
@@ -407,6 +410,15 @@ impl ExecutionTrace {
     pub fn extend_pipeline(&mut self, diagnostics: &PipelineDiagnostics) {
         self.phases
             .extend(diagnostics.records().iter().map(pipeline_record));
+    }
+
+    /// Appends another trace's phase records verbatim, preserving order.
+    ///
+    /// Used to merge the per-side buffers recorded by the concurrent
+    /// extractions back into the shared trace in old-then-new order, so the
+    /// phase sequence matches the sequential pipeline exactly.
+    pub fn extend_trace(&mut self, other: ExecutionTrace) {
+        self.phases.extend(other.phases);
     }
 
     /// Records an explicit phase skip so trace consumers see why an expected
@@ -526,6 +538,12 @@ fn duration_us(duration: std::time::Duration) -> Option<usize> {
     u64::try_from(duration.as_micros())
         .ok()
         .and_then(|v| usize::try_from(v).ok())
+}
+
+/// Converts a measured interval into the saturating `duration_us` trace
+/// metric used by the CLI extraction phases.
+pub(crate) fn duration_metric(duration: std::time::Duration) -> usize {
+    usize::try_from(duration.as_micros()).unwrap_or(usize::MAX)
 }
 
 /// Flattens an optional stop reason into its one-hot trace metric: 1 when the
