@@ -39,6 +39,10 @@ pub struct AnchorIntervalWindow {
 /// - Appear exactly once per role in `old` and exactly once per role in `new`
 /// - Have at least `min_token_count` tokens
 /// - Have no unresolved normalization issues (e.g. ambiguous line breaks); verified stable unmapped identities participate normally
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidConfiguration`] if `min_token_count` is zero or if either feature slice contains duplicate block ids.
 pub fn exact_anchors(
     old: &[BlockFeatures],
     new: &[BlockFeatures],
@@ -118,6 +122,10 @@ pub(crate) fn primary_exact_anchors(
 /// Equal-length chains prefer short structural labels, which remain stable
 /// boundaries when an adjacent value such as a URL changes position. Anchors
 /// not included in the monotone main chain are preserved as move candidates.
+///
+/// # Errors
+///
+/// Returns [`Error::Unresolved`] if any anchor references a block id not present in `old` or `new`.
 pub fn select_monotone_anchor_chain(
     anchors: &[ExactAnchor],
     old: &[BlockFeatures],
@@ -284,6 +292,10 @@ fn is_structural_label(tokens: &[ComparableToken]) -> bool {
 }
 
 /// Partitions old and new block sequences into bounded alignment interval windows around the monotone main chain.
+///
+/// # Errors
+///
+/// Returns [`Error::Unresolved`] if any anchor in `main_chain` references a block id not present in `old` or `new`.
 pub fn partition_anchor_windows(
     main_chain: &[ExactAnchor],
     old: &[BlockFeatures],

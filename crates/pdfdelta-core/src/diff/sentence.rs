@@ -1802,23 +1802,22 @@ fn project_segment_line_range(
         };
         for consumed in &location.consumed {
             budget.charge_projection(limits)?;
-            let block_index = match context.side.index.get(&consumed.block).copied() {
-                Some(index) => index,
-                None => return Ok(Err(SegmentTopologyUnknownReason::MissingTrustedInterval)),
+            let Some(block_index) = context.side.index.get(&consumed.block).copied() else {
+                return Ok(Err(SegmentTopologyUnknownReason::MissingTrustedInterval));
             };
             let interval = match context.trusted_intervals.get(block_index) {
                 Some(Some(interval)) => *interval,
                 Some(None) => return Ok(Err(SegmentTopologyUnknownReason::UntrustedBarrier)),
                 None => return Ok(Err(SegmentTopologyUnknownReason::MissingTrustedInterval)),
             };
-            let stream_index = match context.stream_indices.get(block_index).copied().flatten() {
-                Some(stream_index) => stream_index,
-                None => return Ok(Err(SegmentTopologyUnknownReason::UntrustedBarrier)),
+            let Some(stream_index) = context.stream_indices.get(block_index).copied().flatten()
+            else {
+                return Ok(Err(SegmentTopologyUnknownReason::UntrustedBarrier));
             };
-            let role = match context.side.blocks.get(block_index) {
-                Some(block) => block.role,
-                None => return Ok(Err(SegmentTopologyUnknownReason::MissingTrustedInterval)),
+            let Some(block) = context.side.blocks.get(block_index) else {
+                return Ok(Err(SegmentTopologyUnknownReason::MissingTrustedInterval));
             };
+            let role = block.role;
             if role != segment.role {
                 return Ok(Err(SegmentTopologyUnknownReason::MixedRoleProjection));
             }
@@ -2048,18 +2047,15 @@ fn source_range_topology_shadow_inner(
     let target_posting = projected_main_anchors
         .pair_postings
         .get(&target_key)
-        .map(Vec::as_slice)
-        .unwrap_or(&[]);
+        .map_or(&[][..], Vec::as_slice);
     let old_partners = projected_main_anchors
         .old_partners
         .get(&old_key)
-        .map(Vec::as_slice)
-        .unwrap_or(&[]);
+        .map_or(&[][..], Vec::as_slice);
     let new_partners = projected_main_anchors
         .new_partners
         .get(&new_key)
-        .map(Vec::as_slice)
-        .unwrap_or(&[]);
+        .map_or(&[][..], Vec::as_slice);
     let mut wrong_stream_pair_vetoes = 0usize;
     for partner in old_partners {
         budget.charge_candidate(limits)?;
@@ -3827,11 +3823,11 @@ fn quote_local_pair_evidence(
     };
     let old_tokens = old_occurrence
         .tokens
-        .get(old_range.clone())
+        .get(old_range)
         .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
     let new_tokens = new_occurrence
         .tokens
-        .get(new_range.clone())
+        .get(new_range)
         .ok_or(RecoveryWatchQuoteLocalStopReason::AllocationFailure)?;
     let shorter = old_tokens.len().min(new_tokens.len());
     let mut prefix = 0usize;
@@ -3941,17 +3937,14 @@ fn quote_local_pair_evidence(
         .and_then(|value| value.checked_add(triangular))
         .ok_or(RecoveryWatchQuoteLocalStopReason::EditWorkLimit)?;
     budget.charge_edit_work(myers_work_bound)?;
-    let edits = match super::myers::diff(old_tokens, new_tokens, MAX_EDIT_DISTANCE) {
-        Ok(Some(edits)) => edits,
-        Ok(None) | Err(_) => {
-            budget.charge_output(1, 0)?;
-            return Ok(Some(RecoveryWatchQuoteLocalPairEvidence {
-                status: RecoveryWatchQuoteLocalStatus::EditDistanceLimit,
-                old: old.side,
-                new: new.side,
-                score: None,
-            }));
-        }
+    let Ok(Some(edits)) = super::myers::diff(old_tokens, new_tokens, MAX_EDIT_DISTANCE) else {
+        budget.charge_output(1, 0)?;
+        return Ok(Some(RecoveryWatchQuoteLocalPairEvidence {
+            status: RecoveryWatchQuoteLocalStatus::EditDistanceLimit,
+            old: old.side,
+            new: new.side,
+            score: None,
+        }));
     };
     budget.charge_output(
         edits

@@ -1312,7 +1312,7 @@ fn classify_exact_range_parents(
             .map_err(|_| ExactRangeParentStopReason::AllocationFailure)?;
 
         for (old_index, old) in candidates[0].iter().enumerate() {
-            let own = indexes[0].get(&old.hash).map(Vec::as_slice).unwrap_or(&[]);
+            let own = indexes[0].get(&old.hash).map_or(&[][..], Vec::as_slice);
             if exact_occurrence_count(
                 old_index,
                 old,
@@ -1325,7 +1325,7 @@ fn classify_exact_range_parents(
             {
                 continue;
             }
-            let opposite = indexes[1].get(&old.hash).map(Vec::as_slice).unwrap_or(&[]);
+            let opposite = indexes[1].get(&old.hash).map_or(&[][..], Vec::as_slice);
             metrics.hash_matches = parent_add(metrics.hash_matches, opposite.len())?;
             let mut exact_new = None;
             let mut exact_count = 0usize;

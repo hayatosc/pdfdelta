@@ -76,9 +76,9 @@ impl ExtractionCache {
         }
         let issues = cached
             .issues
-            .iter()
+            .into_iter()
             .map(|issue| {
-                let (kind, scope, description) = issue.clone().into_parts();
+                let (kind, scope, description) = issue.into_parts();
                 ExtractionIssue::new(kind, scope, description)
             })
             .collect::<Result<Vec<_>, _>>()
@@ -107,11 +107,7 @@ impl ExtractionCache {
         if marker.try_exists().unwrap_or(false) {
             return;
         }
-        if self
-            .dir
-            .try_exists()
-            .map(|exists| !exists)
-            .unwrap_or_default()
+        if self.dir.try_exists().is_ok_and(|exists| !exists)
             && fs::create_dir_all(&self.dir).is_err()
         {
             return;

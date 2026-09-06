@@ -140,14 +140,11 @@ pub fn compare_documents<W: Write>(
         diagnostics,
         &mut trace,
     );
-    let incomplete = comparison
-        .as_ref()
-        .map(|(_, incomplete)| *incomplete)
-        .unwrap_or(false);
+    let incomplete = comparison.as_ref().is_ok_and(|(_, incomplete)| *incomplete);
     trace.finish(
         comparison
             .as_ref()
-            .map(|(status, _)| *status)
+            .map(|&(status, _)| status)
             .map_err(|_| ()),
         incomplete,
     );
@@ -204,7 +201,7 @@ pub fn compare_documents_traced<W: Write>(
             side,
             trace_side,
             input.path,
-            ExtractionContext {
+            &ExtractionContext {
                 parse_limits,
                 password,
                 external_font_identities: font_identities,
@@ -380,7 +377,7 @@ pub fn extract_comparison_outcome(
     side: &str,
     trace_side: TraceSide,
     path: &Path,
-    context: ExtractionContext<'_>,
+    context: &ExtractionContext<'_>,
     trace: &mut ExecutionTrace,
 ) -> Result<ExtractionOutcome, String> {
     // Wall-clock durations mirror the pipeline phases' duration_us metric so

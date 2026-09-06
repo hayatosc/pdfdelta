@@ -720,18 +720,15 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
                 }
                 Err(error) => return Err(error),
             };
-        let dictionary = match resolved.as_dict() {
-            Ok(dictionary) => dictionary,
-            Err(_) => {
-                issues.push(PdfIssue::unresolved_page_tree_gap(
-                    pages.len(),
-                    format!(
-                        "walking page tree: skipping object {} {}: node is not a dictionary",
-                        reference.0, reference.1
-                    ),
-                )?);
-                continue;
-            }
+        let Ok(dictionary) = resolved.as_dict() else {
+            issues.push(PdfIssue::unresolved_page_tree_gap(
+                pages.len(),
+                format!(
+                    "walking page tree: skipping object {} {}: node is not a dictionary",
+                    reference.0, reference.1
+                ),
+            )?);
+            continue;
         };
         let declared_parent =
             match optional_reference(dictionary, b"Parent", "reading page tree Parent") {
@@ -758,18 +755,15 @@ fn collect_pages(document: &Document, limits: ParseLimits) -> Result<PageTree> {
             continue;
         }
         parents.insert(reference, expected_parent);
-        let node_type = match dictionary.get(b"Type").and_then(Object::as_name) {
-            Ok(node_type) => node_type,
-            Err(_) => {
-                issues.push(PdfIssue::unresolved_page_tree_gap(
-                    pages.len(),
-                    format!(
-                        "walking page tree: skipping object {} {}: node has no readable /Type",
-                        reference.0, reference.1
-                    ),
-                )?);
-                continue;
-            }
+        let Ok(node_type) = dictionary.get(b"Type").and_then(Object::as_name) else {
+            issues.push(PdfIssue::unresolved_page_tree_gap(
+                pages.len(),
+                format!(
+                    "walking page tree: skipping object {} {}: node has no readable /Type",
+                    reference.0, reference.1
+                ),
+            )?);
+            continue;
         };
 
         match node_type {

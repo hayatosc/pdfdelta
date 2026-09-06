@@ -2258,6 +2258,15 @@ struct CompareAlignedConfig<'a> {
     retain_atomic_edits: bool,
 }
 
+/// Compares aligned old and new document blocks, classifying changes into
+/// insertions, deletions, replacements, moves, and formatting-only changes under
+/// the given [`DiffOptions`].
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidConfiguration`] if options or alignment invariants
+/// are violated, or [`Error::LimitExceeded`] if diff edit work or cell bounds
+/// are exceeded during comparison.
 pub fn compare_aligned(
     old: &[BlockText],
     new: &[BlockText],
