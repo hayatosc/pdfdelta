@@ -746,12 +746,10 @@ fn refine_reading_order_windows(
         let mut new_start = window.new_range.0;
         let mut left_anchor = window.left_anchor;
         for right_anchor in anchors.into_iter().map(Some).chain([window.right_anchor]) {
-            let old_end = right_anchor
-                .map(|anchor| old_indices[&anchor.old])
-                .unwrap_or(window.old_range.1);
-            let new_end = right_anchor
-                .map(|anchor| new_indices[&anchor.new])
-                .unwrap_or(window.new_range.1);
+            let old_end =
+                right_anchor.map_or(window.old_range.1, |anchor| old_indices[&anchor.old]);
+            let new_end =
+                right_anchor.map_or(window.new_range.1, |anchor| new_indices[&anchor.new]);
             let child = AnchorIntervalWindow {
                 old_range: (old_start, old_end),
                 new_range: (new_start, new_end),

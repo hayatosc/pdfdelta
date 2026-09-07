@@ -48,11 +48,19 @@ pub trait CandidateGenerator {
     ///
     /// Implementations must never underestimate this work. They should return a conservative
     /// value, including visits that do not ultimately produce a candidate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the visit estimate computation fails or exceeds resource limits.
     fn estimated_visits(&self, old: &BlockFeatures, limit: usize) -> Result<usize>;
 
     /// Returns the total visit estimate plus, when the implementation can
     /// decompose it, the exact/ngram/short-fallback breakdown. The default
     /// delegates to `estimated_visits` with no breakdown.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the visit estimate computation fails or exceeds resource limits.
     fn estimate_visits(&self, old: &BlockFeatures, limit: usize) -> Result<CandidateVisitEstimate> {
         Ok(CandidateVisitEstimate {
             total: self.estimated_visits(old, limit)?,
@@ -65,6 +73,10 @@ pub trait CandidateGenerator {
     /// Implementations must consider only blocks with an alignment-compatible role before
     /// ranking and applying `limit`. Ordered alignment filters incompatible blocks returned by
     /// custom generators, but cannot recover compatible blocks omitted by premature limiting.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if candidate generation fails or exceeds resource limits.
     fn candidates(&self, old: &BlockFeatures, limit: usize) -> Result<Vec<Candidate>>;
 }
 
@@ -92,6 +104,12 @@ impl<'a> InvertedIndexCandidateGenerator<'a> {
         self.features.get(index)
     }
 
+    /// Creates an inverted-index candidate generator over `new` block features.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unresolved`] if `new` contains duplicate block ids, or
+    /// [`Error::InvalidConfiguration`] if `new` features have inconsistent n-gram sizes.
     pub fn new(new: &'a [BlockFeatures]) -> Result<Self> {
         let ngram_size = common_ngram_size(new)?;
         let mut feature_indices = HashMap::with_capacity(new.len());
@@ -551,6 +569,12 @@ pub struct ExhaustiveCandidateGenerator {
 }
 
 impl ExhaustiveCandidateGenerator {
+    /// Creates an exhaustive candidate generator over `new` block features.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unresolved`] if `new` contains duplicate block ids, or
+    /// [`Error::InvalidConfiguration`] if `new` features have inconsistent n-gram sizes.
     pub fn new(new: &[BlockFeatures]) -> Result<Self> {
         let ngram_size = common_ngram_size(new)?;
         let mut ids = HashSet::with_capacity(new.len());
@@ -625,10 +649,22 @@ pub struct MinHashLshCandidateGenerator {
 }
 
 impl MinHashLshCandidateGenerator {
+    /// Creates a MinHash LSH candidate generator with default options.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same configuration and validation errors as [`Self::with_options`].
     pub fn new(new: &[BlockFeatures]) -> Result<Self> {
         Self::with_options(new, MinHashLshOptions::default())
     }
 
+    /// Creates a MinHash LSH candidate generator with the given options.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidConfiguration`] if `options.num_hashes` or `options.num_bands` is zero,
+    /// if `num_hashes` is not divisible by `num_bands`, or if features have inconsistent n-gram sizes.
+    /// Returns [`Error::Unresolved`] if `new` contains duplicate block ids.
     pub fn with_options(new: &[BlockFeatures], options: MinHashLshOptions) -> Result<Self> {
         if options.num_hashes == 0 || options.num_bands == 0 {
             return Err(Error::InvalidConfiguration(

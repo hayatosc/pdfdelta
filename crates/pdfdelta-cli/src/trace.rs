@@ -548,7 +548,7 @@ pub(crate) fn duration_metric(duration: std::time::Duration) -> usize {
 
 /// Flattens an optional stop reason into its one-hot trace metric: 1 when the
 /// reason is present and equal to the variant, 0 otherwise.
-fn stop_flag<T: PartialEq>(reason: Option<T>, variant: T) -> usize {
+fn stop_flag<T: PartialEq + Copy>(reason: Option<T>, variant: T) -> usize {
     usize::from(reason == Some(variant))
 }
 
