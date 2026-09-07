@@ -1,0 +1,11 @@
+[package]
+name = "issue12-sp80057-association-probe"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+pdfdelta-core = { path = "../../crates/pdfdelta-core" }
+serde_json = "1"

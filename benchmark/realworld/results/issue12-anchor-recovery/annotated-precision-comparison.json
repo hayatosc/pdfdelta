@@ -1,0 +1,784 @@
+{
+  "scope": "Twelve annotated corpus pairs, measured only inside their source-reviewed complete scopes. This is not a whole-document precision claim.",
+  "pair_count": 12,
+  "changed_token_precision_nonregression": true,
+  "false_positive_rate_nonregression": true,
+  "pairs": [
+    {
+      "pair": "arxiv-attention-v6-to-v7",
+      "token_metrics": {
+        "baseline": {
+          "expected_changed_tokens": 11,
+          "reported_changed_tokens": 11,
+          "true_positive_tokens": 11,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "span_iou": 1.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "current": {
+          "expected_changed_tokens": 11,
+          "reported_changed_tokens": 11,
+          "true_positive_tokens": 11,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "span_iou": 1.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        }
+      },
+      "event_metrics": {
+        "baseline": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "current": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "coverage": {
+        "baseline": {
+          "coverage_old": 0.9611652990659029,
+          "coverage_new": 0.9611642969576549
+        },
+        "current": {
+          "coverage_old": 0.9611652990659029,
+          "coverage_new": 0.9611642969576549
+        }
+      },
+      "changed_token_precision_nonregression": true,
+      "false_positive_rate_nonregression": true,
+      "evidence": {
+        "baseline": "before/arxiv-attention-v6-to-v7.json",
+        "current": "gap-budget/after/arxiv-attention-v6-to-v7.json",
+        "final_equivalence": "final-ownership/comparison.json"
+      },
+      "capture_sha256": {
+        "baseline": "6e2866c498948431f0d723e1470293f2b01aa02bc55b6d2c8e575850550d6da9",
+        "current": "34ac8c1486cea42873a1f22a206c66958da529aae4b4e96e3c2ca656f5e1c6d2"
+      }
+    },
+    {
+      "pair": "bis-operational-risk-2011-to-2021",
+      "token_metrics": {
+        "baseline": {
+          "expected_changed_tokens": 122,
+          "reported_changed_tokens": 122,
+          "true_positive_tokens": 122,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "span_iou": 1.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "current": {
+          "expected_changed_tokens": 122,
+          "reported_changed_tokens": 122,
+          "true_positive_tokens": 122,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "span_iou": 1.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        }
+      },
+      "event_metrics": {
+        "baseline": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "current": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "coverage": {
+        "baseline": {
+          "coverage_old": 0.7768008389126402,
+          "coverage_new": 0.8340045252088284
+        },
+        "current": {
+          "coverage_old": 0.782608695652174,
+          "coverage_new": 0.8391274031278015
+        }
+      },
+      "changed_token_precision_nonregression": true,
+      "false_positive_rate_nonregression": true,
+      "evidence": {
+        "baseline": "before/bis-operational-risk-2011-to-2021.json",
+        "current": "gap-budget/after/bis-operational-risk-2011-to-2021.json",
+        "final_equivalence": "final-ownership/comparison.json"
+      },
+      "capture_sha256": {
+        "baseline": "f7b24e23877fd89c62b1ab00784f89f308373868e07f3b3b1f93de2fa772ffa0",
+        "current": "5e070b8aae3df6da36ad26469ac9699c38fd0f9702c5c0b86091831252502fc2"
+      }
+    },
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "coverage": {
+        "baseline": {
+          "coverage_old": 0.76819328072887,
+          "coverage_new": 0.7633854556093755
+        },
+        "current": {
+          "coverage_old": 0.8228748068006182,
+          "coverage_new": 0.8180650824095446
+        }
+      },
+      "token_metrics": {
+        "baseline": {
+          "expected_changed_tokens": 14,
+          "reported_changed_tokens": 16,
+          "true_positive_tokens": 14,
+          "precision": 0.875,
+          "recall": 1.0,
+          "f1": 0.9333333333333333,
+          "span_iou": 0.875,
+          "false_positive_tokens_per_10k_unchanged": 84.7457627118644
+        },
+        "current": {
+          "expected_changed_tokens": 14,
+          "reported_changed_tokens": 16,
+          "true_positive_tokens": 14,
+          "precision": 0.875,
+          "recall": 1.0,
+          "f1": 0.9333333333333333,
+          "span_iou": 0.875,
+          "false_positive_tokens_per_10k_unchanged": 84.7457627118644
+        }
+      },
+      "event_metrics": {
+        "baseline": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "current": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "quality_skipped_reason": {
+        "baseline": null,
+        "current": null
+      },
+      "changed_token_precision_nonregression": true,
+      "false_positive_rate_nonregression": true,
+      "binary_sha256": {
+        "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+        "current": "2da207a3ad4cd6b7feaad30c9a03ec375355c24d4511a06ff7611a8a0961750c"
+      },
+      "artifact_sha256": {
+        "baseline.json": "6a35ff1d11b0383398a9f29682521a1583e45b2d7a06bfe3390dd02bb52ecfcb",
+        "current.json": "90b01eca6f0f75c45d38d00b0558b5f4f3a7389e3f7cead21c855fb597bca140",
+        "manifest.tsv": "b8fe86dfc66d540f13b24a7eb7bf2026522a110831aebb078325fc5df16447af",
+        "reviewed-expected.json": "7e84b8cb911631b3c6b4ea1caf7118867455afda057dce887117e76f5c3ff048"
+      },
+      "evidence": "six-pair-scope-review/ecma-109-ed10-to-ed11/comparison.json"
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "coverage": {
+        "baseline": {
+          "coverage_old": 0.7710572020321164,
+          "coverage_new": 0.7837738686184282
+        },
+        "current": {
+          "coverage_old": 0.8471315395974776,
+          "coverage_new": 0.8581334468640168
+        }
+      },
+      "token_metrics": {
+        "baseline": {
+          "expected_changed_tokens": 10,
+          "reported_changed_tokens": 14,
+          "true_positive_tokens": 10,
+          "precision": 0.7142857142857143,
+          "recall": 1.0,
+          "f1": 0.8333333333333333,
+          "span_iou": 0.7142857142857143,
+          "false_positive_tokens_per_10k_unchanged": 169.4915254237288
+        },
+        "current": {
+          "expected_changed_tokens": 10,
+          "reported_changed_tokens": 14,
+          "true_positive_tokens": 10,
+          "precision": 0.7142857142857143,
+          "recall": 1.0,
+          "f1": 0.8333333333333333,
+          "span_iou": 0.7142857142857143,
+          "false_positive_tokens_per_10k_unchanged": 169.4915254237288
+        }
+      },
+      "event_metrics": {
+        "baseline": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "current": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "quality_skipped_reason": {
+        "baseline": null,
+        "current": null
+      },
+      "changed_token_precision_nonregression": true,
+      "false_positive_rate_nonregression": true,
+      "binary_sha256": {
+        "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+        "current": "2da207a3ad4cd6b7feaad30c9a03ec375355c24d4511a06ff7611a8a0961750c"
+      },
+      "artifact_sha256": {
+        "baseline.json": "0859198cbc0317b500e97b6a921f7ccd8ef4e6a9eff473c28d820c79ad081cad",
+        "current.json": "97579b7e5c5b024f9b6d29e22603015a2eae840a7ac5d044498b5da98fb7b026",
+        "manifest.tsv": "2b1f4fa4dfab992421eced017df670d7fd9fbd4c7a0506c261b84f1448b4a5ab",
+        "reviewed-expected.json": "ce30469ce94777e03aaaccda3c5019c58b4614c784c4c81dcfd1fa2939dca859"
+      },
+      "manifest_normalization": {
+        "capture_manifest_sha256": "877596a806d23aa323989aa18dfa59a23bf44537f321b2ba489080ed089e60e6",
+        "retained_manifest_sha256": "2b1f4fa4dfab992421eced017df670d7fd9fbd4c7a0506c261b84f1448b4a5ab",
+        "change": "CRLF to LF after capture; parsed TSV rows are identical."
+      },
+      "evidence": "six-pair-scope-review/edpb-right-of-access-v1-to-final/comparison.json"
+    },
+    {
+      "pair": "irs-form-1040-2024-to-2025",
+      "coverage": {
+        "baseline": {
+          "coverage_old": 0.47129245052528707,
+          "coverage_new": 0.4530936118923262
+        },
+        "current": {
+          "coverage_old": 0.507207427314928,
+          "coverage_new": 0.48674166331860186
+        }
+      },
+      "token_metrics": {
+        "baseline": {
+          "expected_changed_tokens": 17,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "span_iou": 0.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "current": {
+          "expected_changed_tokens": 17,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "span_iou": 0.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        }
+      },
+      "event_metrics": {
+        "baseline": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "current": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "quality_skipped_reason": {
+        "baseline": null,
+        "current": null
+      },
+      "changed_token_precision_nonregression": true,
+      "false_positive_rate_nonregression": true,
+      "binary_sha256": {
+        "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+        "current": "2da207a3ad4cd6b7feaad30c9a03ec375355c24d4511a06ff7611a8a0961750c"
+      },
+      "artifact_sha256": {
+        "baseline.json": "8fe52113d9cbe9378190b3621d927b15cd9e536cc635400cdd269a666676cb44",
+        "current.json": "9b8115ffb789d6dd3c0baf536ae5f79afec1c9fbfc33825f32e31b14b759e571",
+        "manifest.tsv": "38bdfc6e8e8e3071b93edcd4c5673ef801e8959a8e74a7d1f71d9290d0d093f1",
+        "reviewed-expected.json": "e886872234289fec682dc4e695dca7930217516baaf1d460e4f25bda18288f24"
+      },
+      "manifest_normalization": {
+        "capture_manifest_sha256": "aabe6730f46a7ef968eac1f0b7df192e5b020b67d76665c2ddc0ab3c9220f661",
+        "retained_manifest_sha256": "38bdfc6e8e8e3071b93edcd4c5673ef801e8959a8e74a7d1f71d9290d0d093f1",
+        "change": "CRLF to LF after capture; parsed TSV rows are identical."
+      },
+      "evidence": "six-pair-scope-review/irs-form-1040-2024-to-2025/comparison.json"
+    },
+    {
+      "pair": "irs-w4-korean-2024-to-2025",
+      "coverage": {
+        "baseline": {
+          "coverage_old": 0.22698921105866487,
+          "coverage_new": 0.24255663430420712
+        },
+        "current": {
+          "coverage_old": 0.22698921105866487,
+          "coverage_new": 0.24255663430420712
+        }
+      },
+      "token_metrics": {
+        "baseline": {
+          "expected_changed_tokens": 2,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "span_iou": 0.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "current": {
+          "expected_changed_tokens": 2,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "span_iou": 0.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        }
+      },
+      "event_metrics": {
+        "baseline": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "current": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "quality_skipped_reason": {
+        "baseline": null,
+        "current": null
+      },
+      "changed_token_precision_nonregression": true,
+      "false_positive_rate_nonregression": true,
+      "binary_sha256": {
+        "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+        "current": "2da207a3ad4cd6b7feaad30c9a03ec375355c24d4511a06ff7611a8a0961750c"
+      },
+      "artifact_sha256": {
+        "baseline.json": "070e8ed7ca78060a16dfa27dd223003f1597fa0280e2081ec5b4cdaa7c687121",
+        "current.json": "453de44a92a6d69945f74d37a00723c0142753ccde9a22567e47f7a25c465e29",
+        "manifest.tsv": "550cd3dee19ea02bd6ba00cb711b5f4f1c2fe3920624154ac3badd9414dead6a",
+        "reviewed-expected.json": "10a08312fca78927ea9955bcfbb63deb9c924b16e2dfa390e1f8935e1acac078"
+      },
+      "manifest_normalization": {
+        "capture_manifest_sha256": "cea7ef0511612dfc1c027c790f171447ad6ecb4d44a19bc671a632eefd0da89e",
+        "retained_manifest_sha256": "550cd3dee19ea02bd6ba00cb711b5f4f1c2fe3920624154ac3badd9414dead6a",
+        "change": "CRLF to LF after capture; parsed TSV rows are identical."
+      },
+      "evidence": "six-pair-scope-review/irs-w4-korean-2024-to-2025/comparison.json"
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "coverage": {
+        "baseline": {
+          "coverage_old": 0.6762929693420874,
+          "coverage_new": 0.715115683491139
+        },
+        "current": {
+          "coverage_old": 0.6778805115236416,
+          "coverage_new": 0.7180278928189894
+        }
+      },
+      "token_metrics": {
+        "baseline": {
+          "expected_changed_tokens": 178,
+          "reported_changed_tokens": 254,
+          "true_positive_tokens": 178,
+          "precision": 0.7007874015748031,
+          "recall": 1.0,
+          "f1": 0.824074074074074,
+          "span_iou": 0.7007874015748031,
+          "false_positive_tokens_per_10k_unchanged": 10000.0
+        },
+        "current": {
+          "expected_changed_tokens": 178,
+          "reported_changed_tokens": 254,
+          "true_positive_tokens": 178,
+          "precision": 0.7007874015748031,
+          "recall": 1.0,
+          "f1": 0.824074074074074,
+          "span_iou": 0.7007874015748031,
+          "false_positive_tokens_per_10k_unchanged": 10000.0
+        }
+      },
+      "event_metrics": {
+        "baseline": null,
+        "current": null
+      },
+      "quality_skipped_reason": {
+        "baseline": "scoped-complete reported change coordinates are indeterminate",
+        "current": "scoped-complete reported change coordinates are indeterminate"
+      },
+      "changed_token_precision_nonregression": true,
+      "false_positive_rate_nonregression": true,
+      "binary_sha256": {
+        "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+        "current": "2da207a3ad4cd6b7feaad30c9a03ec375355c24d4511a06ff7611a8a0961750c"
+      },
+      "artifact_sha256": {
+        "baseline.json": "b0620f77b66b1289c9bac7512a6d5e460855ca4f56be0ac3e749e8e8a5acc05e",
+        "current.json": "0eb8fab0da41ab5708794b1a7e849cd546a8ddb46901f3eb49a947d77457337f",
+        "manifest.tsv": "edc35fe7f6ee24def710258e7c6ff30709532e4e8b50f21d514813e542efdff0",
+        "reviewed-expected.json": "dd62aafc8f208a0bd9ebcbcb1b23821d17c092d69339d6ffb1400a2afa61a7a9"
+      },
+      "evidence": "six-pair-scope-review/nist-csf-v1-1-to-v2-0/comparison.json"
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "coverage": {
+        "baseline": {
+          "coverage_old": 0.6491198847521722,
+          "coverage_new": 0.5570796762017373
+        },
+        "current": {
+          "coverage_old": 0.6841714311439248,
+          "coverage_new": 0.6013461276092592
+        }
+      },
+      "token_metrics": {
+        "baseline": {
+          "expected_changed_tokens": 206,
+          "reported_changed_tokens": 206,
+          "true_positive_tokens": 206,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "span_iou": 1.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "current": {
+          "expected_changed_tokens": 206,
+          "reported_changed_tokens": 206,
+          "true_positive_tokens": 206,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "span_iou": 1.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        }
+      },
+      "event_metrics": {
+        "baseline": {
+          "reviewed_scope_count": 2,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "current": {
+          "reviewed_scope_count": 2,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "quality_skipped_reason": {
+        "baseline": null,
+        "current": null
+      },
+      "changed_token_precision_nonregression": true,
+      "false_positive_rate_nonregression": true,
+      "binary_sha256": {
+        "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+        "current": "2da207a3ad4cd6b7feaad30c9a03ec375355c24d4511a06ff7611a8a0961750c"
+      },
+      "artifact_sha256": {
+        "baseline.json": "e9bb78acc61019eaa4fe72e663facb0b2a5179240fed41263ab34aac7ff4d1e5",
+        "current.json": "97b888d712aeb6ee02d049e189b520fbf8e5e51c6830ee0b3f875f9d82e1264b",
+        "manifest.tsv": "b08ea97e876b932b197d47074a2ba9890f424c9d835c9a84773b6c1d64103547",
+        "reviewed-expected.json": "558c07c85e97b7f0bcf8ee8baa5bbe58f01c423e231e6df9ffc4d75f0547657a"
+      },
+      "manifest_normalization": {
+        "capture_manifest_sha256": "7c1564c24d899e5c183442b950d1ac717499e8594cbf588d7ba818d7dbe01b95",
+        "retained_manifest_sha256": "b08ea97e876b932b197d47074a2ba9890f424c9d835c9a84773b6c1d64103547",
+        "change": "CRLF to LF after capture; parsed TSV rows are identical."
+      },
+      "evidence": "fips-unchanged-scope/comparison.json"
+    },
+    {
+      "scope": "Supplementary comparison preserving the seven reviewed changed source tokens and scope endpoints; canonical corpus annotation is unchanged.",
+      "token_metrics": {
+        "baseline": {
+          "expected_changed_tokens": 7,
+          "reported_changed_tokens": 29,
+          "true_positive_tokens": 3,
+          "precision": 0.10344827586206896,
+          "recall": 0.42857142857142855,
+          "f1": 0.16666666666666663,
+          "span_iou": 0.09090909090909091,
+          "false_positive_tokens_per_10k_unchanged": 182.71257905832746
+        },
+        "current": {
+          "expected_changed_tokens": 7,
+          "reported_changed_tokens": 7,
+          "true_positive_tokens": 7,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "span_iou": 1.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        }
+      },
+      "quality_skipped_reason": {
+        "baseline": "scoped-complete reported change coordinates are indeterminate",
+        "current": null
+      },
+      "scoped_event_metrics": {
+        "baseline": null,
+        "current": {
+          "reviewed_scope_count": 2,
+          "precision": 0.75,
+          "recall": 0.75,
+          "f1": 0.75
+        }
+      },
+      "changed_token_precision_nonregression": true,
+      "false_positive_rate_nonregression": true,
+      "binary_sha256": {
+        "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+        "current": "f565e6fd4f5519dd7109ed4d32e1d706b1f5526bf3009a01d59f59cb713e0836"
+      },
+      "artifact_sha256": {
+        "current.json": "0de2cf0b5ea697caee2ad027cc2e03d65d9a5131a368b1ec6df336398870cfb9",
+        "baseline.log": "4397791c88e6dc4119d56698d9d6016748f03bc2dc0039e2e15789b00ea61832",
+        "equivalence.json": "02e37bbefe6266c1aae6dd81e8fec7068b31e95708b1d1841678884857c39d8c",
+        "current.log": "79be227a18bc3e8676f78261da37c2cb34c53a1e5961d10daff40429f369b1a4",
+        "manifest.tsv": "e758b61ad1322903d3d7ea5a9aed6175aa57ed89a747735fe368b21e801b6561",
+        "baseline.json": "161dbd11bae9fbd6a4586620e4ede1c7cf7fbda1de8f2563335d68cf0f0c5f6d",
+        "expected.json": "ff1afaab9857bb16f0cfa471e95328a9021be9e4e69452d76fbb9b94bc452249"
+      },
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "evidence": "sp80057-token-comparability/comparison.json",
+      "event_metrics": {
+        "baseline": null,
+        "current": {
+          "reviewed_scope_count": 2,
+          "precision": 0.75,
+          "recall": 0.75,
+          "f1": 0.75
+        }
+      }
+    },
+    {
+      "pair": "oasis-csaf-v2-cs01-to-csd02",
+      "coverage": {
+        "baseline": {
+          "coverage_old": 0.778214831042953,
+          "coverage_new": 0.7384063504466267
+        },
+        "current": {
+          "coverage_old": 0.836644426741021,
+          "coverage_new": 0.7884605139315587
+        }
+      },
+      "token_metrics": {
+        "baseline": {
+          "expected_changed_tokens": 25,
+          "reported_changed_tokens": 87,
+          "true_positive_tokens": 25,
+          "precision": 0.28735632183908044,
+          "recall": 1.0,
+          "f1": 0.4464285714285714,
+          "span_iou": 0.28735632183908044,
+          "false_positive_tokens_per_10k_unchanged": 3974.358974358974
+        },
+        "current": {
+          "expected_changed_tokens": 25,
+          "reported_changed_tokens": 87,
+          "true_positive_tokens": 25,
+          "precision": 0.28735632183908044,
+          "recall": 1.0,
+          "f1": 0.4464285714285714,
+          "span_iou": 0.28735632183908044,
+          "false_positive_tokens_per_10k_unchanged": 3974.358974358974
+        }
+      },
+      "event_metrics": {
+        "baseline": {
+          "reviewed_scope_count": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "current": {
+          "reviewed_scope_count": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "quality_skipped_reason": {
+        "baseline": null,
+        "current": null
+      },
+      "changed_token_precision_nonregression": true,
+      "false_positive_rate_nonregression": true,
+      "binary_sha256": {
+        "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+        "current": "2da207a3ad4cd6b7feaad30c9a03ec375355c24d4511a06ff7611a8a0961750c"
+      },
+      "artifact_sha256": {
+        "baseline.json": "7db73e2692fc6ada1042abac9ac66f543c36972017858397470a4add7dc0e987",
+        "current.json": "c5da1b06599ee41e54882f0a92f55df06a1853f86d73f85383c64db5d798260f",
+        "manifest.tsv": "ea6de2d838366c69b71c672ac18859d555ec22908c6262f1ec015fb22e542c56",
+        "reviewed-expected.json": "82c19618c5e14374205d305ffc07034f34d6474de64959f5b194ebf91487c741"
+      },
+      "evidence": "six-pair-scope-review/oasis-csaf-v2-cs01-to-csd02/comparison.json"
+    },
+    {
+      "pair": "oasis-mqtt-311-to-50",
+      "token_metrics": {
+        "baseline": {
+          "expected_changed_tokens": 0,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "span_iou": 1.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        },
+        "current": {
+          "expected_changed_tokens": 0,
+          "reported_changed_tokens": 0,
+          "true_positive_tokens": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "span_iou": 1.0,
+          "false_positive_tokens_per_10k_unchanged": 0.0
+        }
+      },
+      "event_metrics": {
+        "baseline": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "current": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "coverage": {
+        "baseline": {
+          "coverage_old": 0.43980436813215645,
+          "coverage_new": 0.42577203575061134
+        },
+        "current": {
+          "coverage_old": 0.5019888540212635,
+          "coverage_new": 0.45793027332337854
+        }
+      },
+      "changed_token_precision_nonregression": true,
+      "false_positive_rate_nonregression": true,
+      "evidence": {
+        "baseline": "before/oasis-mqtt-311-to-50.json",
+        "current": "gap-budget/after/oasis-mqtt-311-to-50.json",
+        "final_equivalence": "final-ownership/comparison.json"
+      },
+      "capture_sha256": {
+        "baseline": "e6071437e0c59848f1af1f4d3cb356a9adc94a0503fd9ed66718e05416c88359",
+        "current": "11cbb2d1e835cfa98cfaed003cf6bb4f4e0ba190e2bb45976e09b8f5444b556b"
+      }
+    },
+    {
+      "pair": "w3c-ws-policy-attach-20060927-to-20061102",
+      "token_metrics": {
+        "baseline": {
+          "expected_changed_tokens": 239,
+          "reported_changed_tokens": 243,
+          "true_positive_tokens": 239,
+          "precision": 0.9835390946502057,
+          "recall": 1.0,
+          "f1": 0.9917012448132779,
+          "span_iou": 0.9835390946502057,
+          "false_positive_tokens_per_10k_unchanged": 68.02721088435374
+        },
+        "current": {
+          "expected_changed_tokens": 239,
+          "reported_changed_tokens": 243,
+          "true_positive_tokens": 239,
+          "precision": 0.9835390946502057,
+          "recall": 1.0,
+          "f1": 0.9917012448132779,
+          "span_iou": 0.9835390946502057,
+          "false_positive_tokens_per_10k_unchanged": 68.02721088435374
+        }
+      },
+      "event_metrics": {
+        "baseline": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "current": {
+          "reviewed_scope_count": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "coverage": {
+        "baseline": {
+          "coverage_old": 0.7380592268004806,
+          "coverage_new": 0.6521644595839847
+        },
+        "current": {
+          "coverage_old": 0.7753480811364761,
+          "coverage_new": 0.6794777548844
+        }
+      },
+      "changed_token_precision_nonregression": true,
+      "false_positive_rate_nonregression": true,
+      "evidence": {
+        "baseline": "before/w3c-ws-policy-attach-20060927-to-20061102.json",
+        "current": "gap-budget/after/w3c-ws-policy-attach-20060927-to-20061102.json",
+        "final_equivalence": "final-ownership/comparison.json"
+      },
+      "capture_sha256": {
+        "baseline": "9de16b23392d664d48f9a307676a41bd6fc41ac1725513b714fda5f25b66d3d3",
+        "current": "041aa6120aa708f0c6b39ad8c2105d05121845696798da697f29bd01644b9d19"
+      }
+    }
+  ]
+}

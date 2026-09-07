@@ -1,0 +1,55 @@
+{
+  "pair": "nist-csf-v1-1-to-v2-0",
+  "coverage": {
+    "baseline": {
+      "coverage_old": 0.6762929693420874,
+      "coverage_new": 0.715115683491139
+    },
+    "current": {
+      "coverage_old": 0.6778805115236416,
+      "coverage_new": 0.7180278928189894
+    }
+  },
+  "token_metrics": {
+    "baseline": {
+      "expected_changed_tokens": 178,
+      "reported_changed_tokens": 254,
+      "true_positive_tokens": 178,
+      "precision": 0.7007874015748031,
+      "recall": 1.0,
+      "f1": 0.824074074074074,
+      "span_iou": 0.7007874015748031,
+      "false_positive_tokens_per_10k_unchanged": 10000.0
+    },
+    "current": {
+      "expected_changed_tokens": 178,
+      "reported_changed_tokens": 254,
+      "true_positive_tokens": 178,
+      "precision": 0.7007874015748031,
+      "recall": 1.0,
+      "f1": 0.824074074074074,
+      "span_iou": 0.7007874015748031,
+      "false_positive_tokens_per_10k_unchanged": 10000.0
+    }
+  },
+  "event_metrics": {
+    "baseline": null,
+    "current": null
+  },
+  "quality_skipped_reason": {
+    "baseline": "scoped-complete reported change coordinates are indeterminate",
+    "current": "scoped-complete reported change coordinates are indeterminate"
+  },
+  "changed_token_precision_nonregression": true,
+  "false_positive_rate_nonregression": true,
+  "binary_sha256": {
+    "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+    "current": "2da207a3ad4cd6b7feaad30c9a03ec375355c24d4511a06ff7611a8a0961750c"
+  },
+  "artifact_sha256": {
+    "baseline.json": "b0620f77b66b1289c9bac7512a6d5e460855ca4f56be0ac3e749e8e8a5acc05e",
+    "current.json": "0eb8fab0da41ab5708794b1a7e849cd546a8ddb46901f3eb49a947d77457337f",
+    "manifest.tsv": "edc35fe7f6ee24def710258e7c6ff30709532e4e8b50f21d514813e542efdff0",
+    "reviewed-expected.json": "dd62aafc8f208a0bd9ebcbcb1b23821d17c092d69339d6ffb1400a2afa61a7a9"
+  }
+}

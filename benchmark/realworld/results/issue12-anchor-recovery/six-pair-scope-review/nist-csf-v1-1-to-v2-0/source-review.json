@@ -1,0 +1,134 @@
+{
+  "pair": "nist-csf-v1-1-to-v2-0",
+  "method": "Rendered PDF source and independent PyMuPDF spatial text; every character change in the selected scope was reviewed. Changed ranges use an independent difflib.SequenceMatcher comparison with autojunk disabled and preserve the verified shared scalar subsequence. Offsets are Unicode scalars in whitespace-collapsed expected quotes.",
+  "sources": {
+    "old": {
+      "pdf_sha256": "0f3ca796610ab024cbc3484cbd6799e19b4d9159d3634972a2a76af83f15fb92",
+      "page_index": 9,
+      "scope_text": "The Framework Core consists of five concurrent and continuous Functions—Identify, Protect, Detect, Respond, Recover.",
+      "scope_occurrences_in_source_extraction": 1,
+      "page_text": "April 16, 2018 Cybersecurity Framework Version 1.1 This publication is available free of charge from: https://doi.org/10.6028/NIST.CSWP.04162018 3 To account for the unique cybersecurity needs of organizations, there are a wide variety of ways to use the Framework. The decision about how to apply it is left to the implementing organization. For example, one organization may choose to use the Framework Implementation Tiers to articulate envisioned risk management practices. Another organization may use the Framework’s five Functions to analyze its entire risk management portfolio; that analysis may or may not rely on more detailed companion guidance, such as controls catalogs. There sometimes is discussion about “compliance” with the Framework, and the Framework has utility as a structure and language for organizing and expressing compliance with an organization’s own cybersecurity requirements. Nevertheless, the variety of ways in which the Framework can be used by an organization means that phrases like “compliance with the Framework” can be confusing and mean something very different to various stakeholders. The Framework complements, and does not replace, an organization’s risk management process and cybersecurity program. The organization can use its current processes and leverage the Framework to identify opportunities to strengthen and communicate its management of cybersecurity risk while aligning with industry practices. Alternatively, an organization without an existing cybersecurity program can use the Framework as a reference to establish one. While the Framework has been developed to improve cybersecurity risk management as it relates to critical infrastructure, it can be used by organizations in any sector of the economy or society. It is intended to be useful to companies, government agencies, and not-for-profit organizations regardless of their focus or size. The common taxonomy of standards, guidelines, and practices that it provides also is not country-specific. Organizations outside the United States may also use the Framework to strengthen their own cybersecurity efforts, and the Framework can contribute to developing a common language for international cooperation on critical infrastructure cybersecurity. 1.1 Overview of the Framework The Framework is a risk-based approach to managing cybersecurity risk, and is composed of three parts: the Framework Core, the Framework Implementation Tiers, and the Framework Profiles. Each Framework component reinforces the connection between business/mission drivers and cybersecurity activities. These components are explained below.  The Framework Core is a set of cybersecurity activities, desired outcomes, and applicable references that are common across critical infrastructure sectors. The Core presents industry standards, guidelines, and practices in a manner that allows for communication of cybersecurity activities and outcomes across the organization from the executive level to the implementation/operations level. The Framework Core consists of five concurrent and continuous Functions—Identify, Protect, Detect, Respond, Recover. When considered together, these Functions provide a high-level, strategic view of the lifecycle of an organization’s management of cybersecurity risk. The Framework Core then identifies underlying key Categories and Subcategories – which are discrete outcomes – for each Function, and matches them with example Informative References such as existing standards, guidelines, and practices for each Subcategory.  Framework Implementation Tiers (“Tiers”) provide context on how an organization views cybersecurity risk and the processes in place to manage that risk. Tiers describe the degree to which an organization’s cybersecurity risk management practices exhibit the"
+    },
+    "new": {
+      "pdf_sha256": "3c31f46fee98cac0c4323453e5109291a213b4de7fef8c058af9bf67f717433c",
+      "page_index": 7,
+      "scope_text": "The CSF Core Functions — GOVERN, IDENTIFY, PROTECT, DETECT, RESPOND, and RECOVER — organize cybersecurity outcomes at their highest level.",
+      "scope_occurrences_in_source_extraction": 1,
+      "page_text": "NIST CSWP 29 The NIST Cybersecurity Framework (CSF) 2.0 February 26, 2024 3 2. Introduction to the CSF Core Appendix A is the CSF Core — a set of cybersecurity outcomes arranged by Function, then Category, and finally Subcategory, as depicted in Fig. 1. These outcomes are not a checklist of actions to perform; specific actions taken to achieve an outcome will vary by organization and use case, as will the individual responsible for those actions. Additionally, the order and size of Functions, Categories, and Subcategories in the Core does not imply the sequence or importance of achieving them. The structure of the Core is intended to resonate most with those charged with operationalizing risk management within an organization. Fig. 1. CSF Core structure The CSF Core Functions — GOVERN, IDENTIFY, PROTECT, DETECT, RESPOND, and RECOVER — organize cybersecurity outcomes at their highest level. • GOVERN (GV) — The organization’s cybersecurity risk management strategy, expectations, and policy are established, communicated, and monitored. The GOVERN Function provides outcomes to inform what an organization may do to achieve and prioritize the outcomes of the other five Functions in the context of its mission and stakeholder expectations. Governance activities are critical for incorporating cybersecurity into an organization’s broader enterprise risk management (ERM) strategy. GOVERN addresses an understanding of organizational context; the establishment of cybersecurity strategy and cybersecurity supply chain risk management; roles, responsibilities, and authorities; policy; and the oversight of cybersecurity strategy. • IDENTIFY (ID) — The organization’s current cybersecurity risks are understood. Understanding the organization’s assets (e.g., data, hardware, software, systems, facilities, services, people), suppliers, and related cybersecurity risks enables an organization to prioritize its efforts consistent with its risk management strategy and the mission needs identified under GOVERN. This Function also includes the identification of"
+    }
+  },
+  "changed_ranges": {
+    "old": [
+      {
+        "start": 5,
+        "end": 13
+      },
+      {
+        "start": 18,
+        "end": 61
+      },
+      {
+        "start": 73,
+        "end": 80
+      },
+      {
+        "start": 83,
+        "end": 89
+      },
+      {
+        "start": 92,
+        "end": 97
+      },
+      {
+        "start": 102,
+        "end": 107
+      },
+      {
+        "start": 108,
+        "end": 109
+      },
+      {
+        "start": 110,
+        "end": 112
+      },
+      {
+        "start": 114,
+        "end": 115
+      }
+    ],
+    "new": [
+      {
+        "start": 4,
+        "end": 6
+      },
+      {
+        "start": 22,
+        "end": 23
+      },
+      {
+        "start": 24,
+        "end": 33
+      },
+      {
+        "start": 34,
+        "end": 41
+      },
+      {
+        "start": 44,
+        "end": 50
+      },
+      {
+        "start": 53,
+        "end": 58
+      },
+      {
+        "start": 61,
+        "end": 112
+      },
+      {
+        "start": 115,
+        "end": 120
+      },
+      {
+        "start": 121,
+        "end": 134
+      },
+      {
+        "start": 136,
+        "end": 137
+      }
+    ]
+  },
+  "changed_substrings": {
+    "old": [
+      "ramework",
+      " consists of five concurrent and continuous",
+      "dentify",
+      "rotect",
+      "etect",
+      "pond,",
+      "R",
+      "co",
+      "r"
+    ],
+    "new": [
+      "CS",
+      " ",
+      " GOVERN, ",
+      "DENTIFY",
+      "ROTECT",
+      "ETECT",
+      "ESPOND, and RECOVER — organize cybersecurity outcom",
+      "at th",
+      "ir highest le",
+      "l"
+    ]
+  },
+  "scope_complete": true,
+  "limitations": "Only the named scope is complete. Other partial expectations are retained; no whole-document precision claim is supported.",
+  "range_complement_check": {
+    "old": "The F Core Functions—I, P, D, Res eve.",
+    "new": "The F Core Functions—I, P, D, Res eve.",
+    "equal": true
+  }
+}

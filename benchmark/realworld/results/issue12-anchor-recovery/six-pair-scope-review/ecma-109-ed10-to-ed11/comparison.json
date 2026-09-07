@@ -1,0 +1,65 @@
+{
+  "pair": "ecma-109-ed10-to-ed11",
+  "coverage": {
+    "baseline": {
+      "coverage_old": 0.76819328072887,
+      "coverage_new": 0.7633854556093755
+    },
+    "current": {
+      "coverage_old": 0.8228748068006182,
+      "coverage_new": 0.8180650824095446
+    }
+  },
+  "token_metrics": {
+    "baseline": {
+      "expected_changed_tokens": 14,
+      "reported_changed_tokens": 16,
+      "true_positive_tokens": 14,
+      "precision": 0.875,
+      "recall": 1.0,
+      "f1": 0.9333333333333333,
+      "span_iou": 0.875,
+      "false_positive_tokens_per_10k_unchanged": 84.7457627118644
+    },
+    "current": {
+      "expected_changed_tokens": 14,
+      "reported_changed_tokens": 16,
+      "true_positive_tokens": 14,
+      "precision": 0.875,
+      "recall": 1.0,
+      "f1": 0.9333333333333333,
+      "span_iou": 0.875,
+      "false_positive_tokens_per_10k_unchanged": 84.7457627118644
+    }
+  },
+  "event_metrics": {
+    "baseline": {
+      "reviewed_scope_count": 1,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "current": {
+      "reviewed_scope_count": 1,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  "quality_skipped_reason": {
+    "baseline": null,
+    "current": null
+  },
+  "changed_token_precision_nonregression": true,
+  "false_positive_rate_nonregression": true,
+  "binary_sha256": {
+    "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+    "current": "2da207a3ad4cd6b7feaad30c9a03ec375355c24d4511a06ff7611a8a0961750c"
+  },
+  "artifact_sha256": {
+    "baseline.json": "6a35ff1d11b0383398a9f29682521a1583e45b2d7a06bfe3390dd02bb52ecfcb",
+    "current.json": "90b01eca6f0f75c45d38d00b0558b5f4f3a7389e3f7cead21c855fb597bca140",
+    "manifest.tsv": "b8fe86dfc66d540f13b24a7eb7bf2026522a110831aebb078325fc5df16447af",
+    "reviewed-expected.json": "7e84b8cb911631b3c6b4ea1caf7118867455afda057dce887117e76f5c3ff048"
+  }
+}

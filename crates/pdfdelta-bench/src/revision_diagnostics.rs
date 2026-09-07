@@ -5,7 +5,7 @@ use pdfdelta_core::{
         Alignment, AlignmentEvidence, AlignmentKind, BlockFeatures, BlockSeparator,
         CandidateGenerator, InvertedIndexCandidateGenerator, build_block_features,
     },
-    diff::{Comparison, TextSpan},
+    diff::{ChangeKind, Comparison, TextSpan},
     layout::BlockId,
     normalize::{BlockText, ComparableToken, ScalarRange},
     pipeline::PipelineOptions,
@@ -1558,6 +1558,67 @@ fn alignment_failure_reason(
     }
 }
 
+fn final_one_sided_ownership(
+    change: &ExpectedChange,
+    comparison: &Comparison,
+    locations: &ExpectedQuoteLocations,
+    blocks_by_side: [&HashMap<u64, &BlockText>; 2],
+    claimed_actuals: &HashSet<usize>,
+    budget: &mut DiagnosticBudget,
+    limits: DiagnosticLimits,
+) -> DiagnosticScanResult<bool> {
+    if change.kind != ExpectedKind::Replacement {
+        return Ok(false);
+    }
+    let (Some(old), Some(new)) = (location(&locations.old), location(&locations.new)) else {
+        return Ok(false);
+    };
+    let mut old_owners = 0usize;
+    let mut new_owners = 0usize;
+    for (change_index, event) in comparison.changes.iter().enumerate() {
+        if claimed_actuals.contains(&change_index) {
+            continue;
+        }
+        budget.charge_hunk(limits)?;
+        match event.kind {
+            ChangeKind::Deletion => {
+                for occurrence in &event.occurrences {
+                    let Some(span) = occurrence.old_span.as_ref() else {
+                        continue;
+                    };
+                    if span_contains_location(span, old, blocks_by_side[0], budget, limits)? {
+                        old_owners = old_owners.checked_add(1).ok_or_else(|| {
+                            budget.limited = true;
+                            DiagnosticScanError::Limited
+                        })?;
+                        if old_owners > 1 {
+                            return Ok(false);
+                        }
+                    }
+                }
+            }
+            ChangeKind::Insertion => {
+                for occurrence in &event.occurrences {
+                    let Some(span) = occurrence.new_span.as_ref() else {
+                        continue;
+                    };
+                    if span_contains_location(span, new, blocks_by_side[1], budget, limits)? {
+                        new_owners = new_owners.checked_add(1).ok_or_else(|| {
+                            budget.limited = true;
+                            DiagnosticScanError::Limited
+                        })?;
+                        if new_owners > 1 {
+                            return Ok(false);
+                        }
+                    }
+                }
+            }
+            ChangeKind::Replacement | ChangeKind::Move => {}
+        }
+    }
+    Ok(old_owners == 1 && new_owners == 1)
+}
+
 fn classify_expected_failure(
     change: &ExpectedChange,
     candidate: ReviewedCandidateResult,
@@ -1576,15 +1637,10 @@ fn classify_expected_failure(
     if candidate == ReviewedCandidateResult::Missed {
         return Ok(ExpectedChangeFailureReason::CandidateNotGenerated);
     }
-    if candidate == ReviewedCandidateResult::Recalled {
-        if context.alignment_index_limited {
-            return Ok(ExpectedChangeFailureReason::AlignmentOrCandidate {
-                diagnostic_limited: true,
-            });
-        }
-        if let Some(reason) = alignment_failure_reason(context.alignment_index, locations) {
-            return Ok(reason);
-        }
+    if candidate == ReviewedCandidateResult::Recalled && context.alignment_index_limited {
+        return Ok(ExpectedChangeFailureReason::AlignmentOrCandidate {
+            diagnostic_limited: true,
+        });
     }
     match unresolved_failure_reason(
         context.comparison,
@@ -1601,6 +1657,33 @@ fn classify_expected_failure(
             });
         }
         Err(DiagnosticScanError::Invalid(error)) => return Err(error),
+    }
+    if candidate == ReviewedCandidateResult::Recalled {
+        match final_one_sided_ownership(
+            change,
+            context.comparison,
+            locations,
+            context.blocks_by_side,
+            context.claimed_actuals,
+            context.budget,
+            context.limits,
+        ) {
+            Ok(true) => {
+                return Ok(ExpectedChangeFailureReason::AlignmentOrCandidate {
+                    diagnostic_limited: false,
+                });
+            }
+            Ok(false) => {}
+            Err(DiagnosticScanError::Limited) => {
+                return Ok(ExpectedChangeFailureReason::AlignmentOrCandidate {
+                    diagnostic_limited: true,
+                });
+            }
+            Err(DiagnosticScanError::Invalid(error)) => return Err(error),
+        }
+        if let Some(reason) = alignment_failure_reason(context.alignment_index, locations) {
+            return Ok(reason);
+        }
     }
     if candidate == ReviewedCandidateResult::Limited {
         return Ok(ExpectedChangeFailureReason::AlignmentOrCandidate {
@@ -2205,7 +2288,14 @@ mod tests {
             main_anchors: Vec::new(),
             move_candidates: Vec::new(),
         };
-        let comparison = diagnostic_comparison(Vec::new(), Vec::new());
+        let comparison = diagnostic_comparison(
+            Vec::new(),
+            vec![UnresolvedRegion {
+                old_span: Some(diagnostic_span(1, 0, "annual fee of fifty dollars".len())),
+                new_span: Some(diagnostic_span(2, 0, "annual fee of sixty dollars".len())),
+                evidence: vec![AlignmentEvidence::ReadingOrderUnknown],
+            }],
+        );
         let outcome = match_changes(&expected, &[]);
 
         let diagnostics = evaluate_reviewed_diagnostics(
@@ -2227,6 +2317,73 @@ mod tests {
             diagnostics.expected_change_diagnostics.failures[0].reason,
             ExpectedChangeFailureReason::ReadingOrderUnresolved {
                 side: MissSide::Both,
+            }
+        );
+    }
+
+    #[test]
+    fn recalled_replacement_with_final_one_sided_owners_reports_alignment_or_candidate() {
+        let expected = [expected_change(
+            "fee-replacement",
+            ExpectedKind::Replacement,
+            Some("annual fee of fifty dollars"),
+            Some("annual fee of sixty dollars"),
+        )];
+        let old = [diagnostic_block(1, "annual fee of fifty dollars")];
+        let new = [diagnostic_block(2, "annual fee of sixty dollars")];
+        let alignment = Alignment {
+            spans: vec![AlignmentSpan {
+                kind: AlignmentKind::Unresolved,
+                old: vec![BlockId(1)],
+                new: vec![BlockId(2)],
+                score: 0.0,
+                canonical_similarity: 0.0,
+                score_margin: None,
+                confidence: AlignmentConfidence::Low,
+                evidence: vec![AlignmentEvidence::ReadingOrderUnknown],
+                old_separator: None,
+                new_separator: None,
+            }],
+            main_anchors: Vec::new(),
+            move_candidates: Vec::new(),
+        };
+        let comparison = diagnostic_comparison(
+            vec![
+                diagnostic_change(
+                    ChangeKind::Deletion,
+                    Some(diagnostic_span(1, 0, "annual fee of fifty dollars".len())),
+                    None,
+                ),
+                diagnostic_change(
+                    ChangeKind::Insertion,
+                    None,
+                    Some(diagnostic_span(2, 0, "annual fee of sixty dollars".len())),
+                ),
+            ],
+            Vec::new(),
+        );
+        let outcome = match_changes(&expected, &[]);
+
+        let diagnostics = evaluate_reviewed_diagnostics(
+            &expected,
+            &old,
+            &new,
+            ComparisonDiagnosticInput {
+                alignment: Some(&alignment),
+                comparison: &comparison,
+                actual_scopes: None,
+            },
+            &[],
+            &outcome,
+        )
+        .expect("diagnostics succeed");
+
+        assert_eq!(candidate_recall(&diagnostics).recalled_counterparts, 1);
+        assert_eq!(diagnostics.expected_change_diagnostics.failures.len(), 1);
+        assert_eq!(
+            diagnostics.expected_change_diagnostics.failures[0].reason,
+            ExpectedChangeFailureReason::AlignmentOrCandidate {
+                diagnostic_limited: false,
             }
         );
     }

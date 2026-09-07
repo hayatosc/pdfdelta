@@ -1,0 +1,86 @@
+{
+  "issue": 12,
+  "coverage_evidence": "final-ownership/coverage-from-baseline.json",
+  "annotated_precision_evidence": "annotated-precision-comparison.json",
+  "reading_order_diagnostic_evidence": "final-ownership/comparison.json",
+  "reading_order_annotation_snapshot": "Annotations at commit 4807545, preserving all five pairs' expected kinds and quotes; later scoped evaluation metadata does not change core output. CSF scoped event evaluation remains unavailable separately.",
+  "required_pairs": [
+    {
+      "pair": "ecma-109-ed10-to-ed11",
+      "complete": true,
+      "reading_order_unresolved_failures": 0,
+      "other_failures": []
+    },
+    {
+      "pair": "edpb-right-of-access-v1-to-final",
+      "complete": true,
+      "reading_order_unresolved_failures": 0,
+      "other_failures": []
+    },
+    {
+      "pair": "nist-csf-v1-1-to-v2-0",
+      "complete": true,
+      "reading_order_unresolved_failures": 0,
+      "other_failures": [
+        {
+          "expected_id": "all-sector-scope-emphasized",
+          "reason": "alignment_or_candidate",
+          "diagnostic_limited": false
+        },
+        {
+          "expected_id": "core-expanded-from-five-to-six-functions",
+          "reason": "alignment_or_candidate",
+          "diagnostic_limited": false
+        }
+      ]
+    },
+    {
+      "pair": "nist-fips-186-4-to-5",
+      "complete": true,
+      "reading_order_unresolved_failures": 0,
+      "other_failures": []
+    },
+    {
+      "pair": "nist-sp800-57-part1-r4-to-r5",
+      "complete": true,
+      "reading_order_unresolved_failures": 0,
+      "other_failures": [
+        {
+          "expected_id": "footer-rev-branding-removed",
+          "reason": "occurrence_count_mismatch",
+          "expected": 157,
+          "actual": 150
+        },
+        {
+          "expected_id": "approved-definition-comma-removed",
+          "reason": "alignment_or_candidate",
+          "diagnostic_limited": false
+        }
+      ]
+    }
+  ],
+  "checks": {
+    "format": "passed",
+    "clippy": "passed",
+    "workspace_tests": 1988,
+    "test_suites": 28,
+    "generated_cases": "48/48 passed, including all five core cases"
+  },
+  "inferred_confidence": {
+    "source": "crates/pdfdelta-core/src/pipeline.rs:1101",
+    "behavior": "Final content, formatting, and proven changed regions touching inferred-order source blocks are demoted to Low.",
+    "passing_tests": [
+      "inferred_order_remains_low_confidence_through_sentence_recovery",
+      "single_leaf_inferred_order_reports_changes_at_low_confidence",
+      "anchored_gap_emission_counts_only_gap_and_retains_context"
+    ],
+    "anchored_gap_source": "crates/pdfdelta-core/src/diff/mod.rs:4509"
+  },
+  "limitations": [
+    "CSF retains two unmatched replacement relations; final deletion/insertion ownership is not replacement recall.",
+    "CSF scoped event coordinates and baseline SP 800-57 scoped event coordinates remain indeterminate.",
+    "Scope-level token precision and false-positive rate do not establish whole-document accuracy.",
+    "The IRS form scopes miss their expected changes; form-heavy reading-order failures are outside the issue's named-pair zero-failure criterion.",
+    "Initial row-barrier work reduced IRS Form 1040 coverage; all absolute values remain recorded."
+  ]
+}

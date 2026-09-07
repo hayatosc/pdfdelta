@@ -1,0 +1,964 @@
+use std::{collections::HashMap, fs, ops::Range, path::Path, sync::Arc};
+
+use pdfdelta_core::{
+    alignment::{Alignment, AlignmentEvidence, AlignmentKind, BlockSeparator},
+    diff::{ChangeKind, Comparison, TextSpan},
+    layout::BlockId,
+    normalize::{BlockText, ComparableToken},
+    pdf::{LopdfParser, ParseLimits},
+    pipeline::{
+        PipelineDiagnostics, PipelineOptions,
+        compare_extraction_outcomes_with_alignment_diagnostics,
+    },
+    source::{
+        ContentStreamGlyphExtractor, ExtractionLimits, ExtractionOutcome, ParserBackedGlyphSource,
+    },
+};
+use serde_json::{Value, json};
+
+const OLD_PDF: &str = "benchmark/realworld/cache/nist-csf-v1-1-to-v2-0-old.pdf";
+const NEW_PDF: &str = "benchmark/realworld/cache/nist-csf-v1-1-to-v2-0-new.pdf";
+const OUTPUT: &str = "target/issue12-csf-final-ownership-probe/ownership.json";
+
+const QUOTES: &[(&str, &str, &str, &str)] = &[
+    (
+        "all-sector-scope-emphasized",
+        "replacement",
+        "old",
+        "While this document was developed to improve cybersecurity risk management in critical infrastructure, the Framework can be used by organizations in any sector or community.",
+    ),
+    (
+        "all-sector-scope-emphasized",
+        "replacement",
+        "new",
+        "The Cybersecurity Framework (CSF) 2.0 is designed to help organizations of all sizes and sectors — including industry, government, academia, and nonprofit — to manage and reduce their cybersecurity risks.",
+    ),
+    (
+        "core-expanded-from-five-to-six-functions",
+        "replacement",
+        "old",
+        "The Framework Core consists of five concurrent and continuous Functions—Identify, Protect, Detect, Respond, Recover.",
+    ),
+    (
+        "core-expanded-from-five-to-six-functions",
+        "replacement",
+        "new",
+        "The CSF Core Functions — GOVERN, IDENTIFY, PROTECT, DETECT, RESPOND, and RECOVER — organize cybersecurity outcomes at their highest level.",
+    ),
+];
+
+struct SideData<'a> {
+    blocks: &'a [BlockText],
+    tokens: Vec<Vec<ComparableToken>>,
+    index: HashMap<BlockId, usize>,
+}
+
+impl<'a> SideData<'a> {
+    fn new(blocks: &'a [BlockText]) -> Result<Self, String> {
+        let tokens = blocks
+            .iter()
+            .map(|block| {
+                block
+                    .canonical
+                    .comparable_tokens()
+                    .map_err(|error| format!("block {} tokens: {error}", block.block.0))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let index = blocks
+            .iter()
+            .enumerate()
+            .map(|(index, block)| (block.block, index))
+            .collect();
+        Ok(Self {
+            blocks,
+            tokens,
+            index,
+        })
+    }
+
+    fn block_index(&self, id: BlockId) -> Option<usize> {
+        self.index.get(&id).copied()
+    }
+}
+
+#[derive(Clone, Debug)]
+struct GroupLayout {
+    blocks: Vec<usize>,
+    separator: Option<BlockSeparator>,
+    token_starts: Vec<usize>,
+    scalar_starts: Vec<usize>,
+    total_tokens: usize,
+    total_scalars: usize,
+}
+
+impl GroupLayout {
+    fn new(side: &SideData<'_>, blocks: Vec<usize>, separator: Option<BlockSeparator>) -> Self {
+        let separator =
+            (blocks.len() > 1).then_some(separator.unwrap_or(BlockSeparator::Concatenate));
+        let mut token_starts = Vec::with_capacity(blocks.len());
+        let mut scalar_starts = Vec::with_capacity(blocks.len());
+        let mut token_cursor = 0;
+        let mut scalar_cursor = 0;
+        let mut previous_last_space = None;
+
+        for (position, &block_index) in blocks.iter().enumerate() {
+            let tokens = &side.tokens[block_index];
+            let next_first_space = tokens.first().is_some_and(is_space_token);
+            let insert_space = position > 0
+                && separator == Some(BlockSeparator::Space)
+                && previous_last_space != Some(true)
+                && !next_first_space;
+            if insert_space {
+                token_cursor += 1;
+                scalar_cursor += 1;
+            }
+            token_starts.push(token_cursor);
+            scalar_starts.push(scalar_cursor);
+            token_cursor += tokens.len();
+            scalar_cursor += side.blocks[block_index].canonical.text.chars().count();
+            previous_last_space = tokens.last().map(is_space_token);
+        }
+
+        Self {
+            blocks,
+            separator,
+            token_starts,
+            scalar_starts,
+            total_tokens: token_cursor,
+            total_scalars: scalar_cursor,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ProjectedSegment {
+    block_index: usize,
+    local_start: usize,
+    local_end: usize,
+    group_start: usize,
+    group_end: usize,
+}
+
+#[derive(Clone, Debug)]
+struct ProjectedSpan {
+    layout: GroupLayout,
+    canonical_range: Range<usize>,
+    comparable_range: Range<usize>,
+    segments: Vec<ProjectedSegment>,
+}
+
+#[derive(Clone, Debug)]
+struct QuoteLocation {
+    id: &'static str,
+    expected_kind: &'static str,
+    side: &'static str,
+    quote: &'static str,
+    block_ranges: Vec<QuoteBlockRange>,
+    projected: ProjectedSpan,
+}
+
+#[derive(Clone, Debug)]
+struct QuoteBlockRange {
+    block_index: usize,
+    canonical_range: Range<usize>,
+    comparable_range: Range<usize>,
+}
+
+#[derive(Clone, Debug)]
+struct SourceChar {
+    value: char,
+    block_index: usize,
+    source_range: Option<Range<usize>>,
+}
+
+#[derive(Clone, Debug)]
+struct Overlap {
+    ranges: Vec<OverlapRange>,
+    fully_covers_source: bool,
+}
+
+#[derive(Clone, Debug)]
+struct OverlapRange {
+    block_index: usize,
+    quote_range: Range<usize>,
+    span_range: Range<usize>,
+}
+
+#[derive(Clone, Debug)]
+struct Coverage {
+    source_ranges: Vec<Range<usize>>,
+    unresolved_ranges: Vec<Range<usize>>,
+    changed_ranges: Vec<Range<usize>>,
+}
+
+fn main() -> Result<(), String> {
+    let source = ParserBackedGlyphSource::new(LopdfParser, ContentStreamGlyphExtractor);
+    let old = extract(&source, Path::new(OLD_PDF))?;
+    let new = extract(&source, Path::new(NEW_PDF))?;
+    let (outcome, alignment) = compare_extraction_outcomes_with_alignment_diagnostics(
+        old,
+        new,
+        PipelineOptions::default(),
+        &mut PipelineDiagnostics::new(),
+    )
+    .map_err(|error| format!("comparison failed: {error}"))?;
+
+    let old_side = SideData::new(&outcome.old_blocks)?;
+    let new_side = SideData::new(&outcome.new_blocks)?;
+    let mut quote_reports = Vec::with_capacity(QUOTES.len());
+    let mut warnings = Vec::new();
+    for &(id, expected_kind, side, quote) in QUOTES {
+        let side_data = if side == "old" { &old_side } else { &new_side };
+        match locate_quote(id, expected_kind, side, quote, side_data) {
+            Ok(location) => quote_reports.push(build_quote_report(
+                &location,
+                side_data,
+                alignment.as_ref(),
+                &outcome.comparison,
+            )),
+            Err(error) => {
+                warnings.push(format!("{id}/{side}: {error}"));
+                quote_reports.push(json!({
+                    "expected_change_id": id,
+                    "expected_kind": expected_kind,
+                    "side": side,
+                    "quote": quote,
+                    "status": "location_error",
+                    "error": error,
+                }));
+            }
+        }
+    }
+
+    let report = json!({
+        "schema_version": 1,
+        "record_kind": "issue12_csf_final_ownership_probe",
+        "pair": "nist-csf-v1-1-to-v2-0",
+        "expected_source": "benchmark/realworld/expected/nist-csf-v1-1-to-v2-0.json",
+        "selection": "The four sides of the two annotated replacement entries are located independently; the old/new pairing comes from the reviewed entry IDs.",
+        "inputs": {"old": OLD_PDF, "new": NEW_PDF},
+        "comparison": comparison_summary(&outcome.comparison, alignment.as_ref()),
+        "quotes": quote_reports,
+        "warnings": warnings,
+    });
+    let encoded = serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?;
+    fs::write(OUTPUT, format!("{encoded}\n"))
+        .map_err(|error| format!("write {OUTPUT}: {error}"))?;
+    println!("wrote {OUTPUT}");
+    Ok(())
+}
+
+fn extract(
+    source: &ParserBackedGlyphSource<LopdfParser, ContentStreamGlyphExtractor>,
+    path: &Path,
+) -> Result<ExtractionOutcome, String> {
+    let bytes = fs::read(path).map_err(|error| format!("read {}: {error}", path.display()))?;
+    source
+        .extract_outcome(
+            Arc::from(bytes),
+            ParseLimits::default(),
+            ExtractionLimits::default(),
+        )
+        .map_err(|error| format!("extract {}: {error}", path.display()))
+}
+
+fn locate_quote(
+    id: &'static str,
+    expected_kind: &'static str,
+    side: &'static str,
+    quote: &'static str,
+    data: &SideData<'_>,
+) -> Result<QuoteLocation, String> {
+    let needle = normalize_text(quote);
+    if needle.is_empty() {
+        return Err("expected quote is empty after whitespace normalization".to_owned());
+    }
+    let stream = normalized_stream(data);
+    let matches = stream
+        .windows(needle.len())
+        .enumerate()
+        .filter_map(|(start, window)| {
+            (window
+                .iter()
+                .map(|item| item.value)
+                .eq(needle.iter().copied()))
+            .then_some(start)
+        })
+        .collect::<Vec<_>>();
+    if matches.len() != 1 {
+        return Err(format!(
+            "expected one normalized occurrence, found {}",
+            matches.len()
+        ));
+    }
+    let start = matches[0];
+    let end = start + needle.len();
+    let first = stream[start..end]
+        .iter()
+        .find_map(|item| {
+            item.source_range
+                .as_ref()
+                .map(|range| (item.block_index, range.start))
+        })
+        .ok_or_else(|| "normalized occurrence has no source start".to_owned())?;
+    let last = stream[start..end]
+        .iter()
+        .rev()
+        .find_map(|item| {
+            item.source_range
+                .as_ref()
+                .map(|range| (item.block_index, range.end))
+        })
+        .ok_or_else(|| "normalized occurrence has no source end".to_owned())?;
+    if first.0 > last.0 {
+        return Err("normalized occurrence has inverted source blocks".to_owned());
+    }
+
+    let block_indices = (first.0..=last.0).collect::<Vec<_>>();
+    let layout = GroupLayout::new(data, block_indices.clone(), Some(BlockSeparator::Space));
+    let start_token = scalar_to_token_boundary(&data.tokens[first.0], first.1)
+        .ok_or_else(|| "quote start is not a token boundary".to_owned())?;
+    let end_token = scalar_to_token_boundary(&data.tokens[last.0], last.1)
+        .ok_or_else(|| "quote end is not a token boundary".to_owned())?;
+    let last_position = block_indices.len() - 1;
+    let comparable_range =
+        layout.token_starts[0] + start_token..layout.token_starts[last_position] + end_token;
+    let canonical_range =
+        layout.scalar_starts[0] + first.1..layout.scalar_starts[last_position] + last.1;
+    let projected = project_group_range(
+        layout.clone(),
+        canonical_range.clone(),
+        comparable_range.clone(),
+        data,
+    )?;
+    let block_ranges = block_indices
+        .iter()
+        .enumerate()
+        .map(|(position, &block_index)| {
+            let local_start = if position == 0 { first.1 } else { 0 };
+            let local_end = if position == last_position {
+                last.1
+            } else {
+                data.blocks[block_index].canonical.text.chars().count()
+            };
+            let token_start = scalar_to_token_boundary(&data.tokens[block_index], local_start)?;
+            let token_end = scalar_to_token_boundary(&data.tokens[block_index], local_end)?;
+            Some(QuoteBlockRange {
+                block_index,
+                canonical_range: local_start..local_end,
+                comparable_range: token_start..token_end,
+            })
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| "quote block projection failed".to_owned())?;
+
+    Ok(QuoteLocation {
+        id,
+        expected_kind,
+        side,
+        quote,
+        block_ranges,
+        projected,
+    })
+}
+
+fn normalize_text(text: &str) -> Vec<char> {
+    let mut normalized = Vec::new();
+    for value in text.chars() {
+        if value.is_whitespace() {
+            if normalized.last().copied() != Some(' ') {
+                normalized.push(' ');
+            }
+        } else {
+            normalized.push(value);
+        }
+    }
+    normalized
+}
+
+fn normalized_stream(data: &SideData<'_>) -> Vec<SourceChar> {
+    let mut stream = Vec::new();
+    for (block_index, block) in data.blocks.iter().enumerate() {
+        if block_index > 0 {
+            append_normalized_space(&mut stream, block_index, None);
+        }
+        for (scalar_index, value) in block.canonical.text.chars().enumerate() {
+            if value.is_whitespace() {
+                append_normalized_space(
+                    &mut stream,
+                    block_index,
+                    Some(scalar_index..scalar_index + 1),
+                );
+            } else {
+                stream.push(SourceChar {
+                    value,
+                    block_index,
+                    source_range: Some(scalar_index..scalar_index + 1),
+                });
+            }
+        }
+    }
+    stream
+}
+
+fn append_normalized_space(
+    stream: &mut Vec<SourceChar>,
+    block_index: usize,
+    source_range: Option<Range<usize>>,
+) {
+    if stream.last().is_some_and(|item| item.value == ' ') {
+        return;
+    }
+    stream.push(SourceChar {
+        value: ' ',
+        block_index,
+        source_range,
+    });
+}
+
+fn scalar_to_token_boundary(tokens: &[ComparableToken], scalar: usize) -> Option<usize> {
+    let mut scalar_count = 0;
+    for (index, token) in tokens.iter().enumerate() {
+        if scalar_count == scalar {
+            return Some(index);
+        }
+        if token.is_scalar() {
+            scalar_count += 1;
+        }
+    }
+    (scalar_count == scalar).then_some(tokens.len())
+}
+
+fn project_text_span(side: &SideData<'_>, span: &TextSpan) -> Option<ProjectedSpan> {
+    let blocks = span
+        .blocks
+        .iter()
+        .map(|id| side.block_index(*id))
+        .collect::<Option<Vec<_>>>()?;
+    let layout = GroupLayout::new(side, blocks, span.separator);
+    project_group_range(
+        layout,
+        span.canonical_range.start..span.canonical_range.end,
+        span.comparable_range.start..span.comparable_range.end,
+        side,
+    )
+    .ok()
+}
+
+fn project_group_range(
+    layout: GroupLayout,
+    canonical_range: Range<usize>,
+    comparable_range: Range<usize>,
+    side: &SideData<'_>,
+) -> Result<ProjectedSpan, String> {
+    if canonical_range.start > canonical_range.end
+        || canonical_range.end > layout.total_scalars
+        || comparable_range.start > comparable_range.end
+        || comparable_range.end > layout.total_tokens
+    {
+        return Err("span range is outside its block group".to_owned());
+    }
+    let mut segments = Vec::new();
+    for (position, &block_index) in layout.blocks.iter().enumerate() {
+        let group_start = layout.token_starts[position];
+        let group_end = group_start + side.tokens[block_index].len();
+        let start = comparable_range.start.max(group_start);
+        let end = comparable_range.end.min(group_end);
+        if start < end {
+            segments.push(ProjectedSegment {
+                block_index,
+                local_start: start - group_start,
+                local_end: end - group_start,
+                group_start: start,
+                group_end: end,
+            });
+        }
+    }
+    Ok(ProjectedSpan {
+        layout,
+        canonical_range,
+        comparable_range,
+        segments,
+    })
+}
+
+fn build_quote_report(
+    location: &QuoteLocation,
+    side: &SideData<'_>,
+    alignment: Option<&Alignment>,
+    comparison: &Comparison,
+) -> Value {
+    let (alignment_membership, original_alignment) = alignment_records(location, side, alignment);
+
+    let mut unresolved = Vec::new();
+    let mut unresolved_ranges = Vec::new();
+    for (index, region) in comparison.unresolved_regions.iter().enumerate() {
+        let Some(span) = side_span_for_side(
+            region.old_span.as_ref(),
+            region.new_span.as_ref(),
+            location.side,
+        ) else {
+            continue;
+        };
+        let Some(projected) = project_text_span(side, span) else {
+            continue;
+        };
+        let Some(overlap) = overlap_with_quote(&projected, &location.projected) else {
+            continue;
+        };
+        unresolved_ranges.extend(overlap.ranges.iter().map(|range| range.quote_range.clone()));
+        unresolved.push(json!({
+            "unresolved_region_index": index,
+            "evidence": evidence_names(&region.evidence),
+            "span": text_span_json(side, span),
+            "overlap": overlap_json(side, &overlap),
+        }));
+    }
+
+    let mut changes = Vec::new();
+    let mut changed_ranges = Vec::new();
+    for (change_index, change) in comparison.changes.iter().enumerate() {
+        for (occurrence_index, occurrence) in change.occurrences.iter().enumerate() {
+            let Some(span) = side_span_for_side(
+                occurrence.old_span.as_ref(),
+                occurrence.new_span.as_ref(),
+                location.side,
+            ) else {
+                continue;
+            };
+            let Some(projected) = project_text_span(side, span) else {
+                continue;
+            };
+            let Some(overlap) = overlap_with_quote(&projected, &location.projected) else {
+                continue;
+            };
+            changed_ranges.extend(overlap.ranges.iter().map(|range| range.quote_range.clone()));
+            changes.push(json!({
+                "change_index": change_index,
+                "occurrence_index": occurrence_index,
+                "kind": format!("{:?}", change.kind),
+                "confidence": format!("{:?}", change.confidence),
+                "tags": change.tags.iter().map(|tag| format!("{:?}", tag)).collect::<Vec<_>>(),
+                "span": text_span_json(side, span),
+                "overlap": overlap_json(side, &overlap),
+            }));
+        }
+    }
+
+    let coverage = build_coverage(&location.projected, unresolved_ranges, changed_ranges);
+    let original_reading_order_unknown = alignment_membership.iter().any(|entry| {
+        entry["evidence"]
+            .as_array()
+            .is_some_and(|evidence| evidence.iter().any(|item| item == "ReadingOrderUnknown"))
+    });
+    let original_alignment_has_overlap = original_alignment
+        .iter()
+        .any(|entry| entry["status"] == "overlap");
+    let original_alignment_projection_failure = original_alignment
+        .iter()
+        .any(|entry| entry["status"] == "projection_failed");
+    let original_alignment_status = if alignment.is_none() {
+        "unavailable"
+    } else if original_alignment_projection_failure {
+        "unsupported_projection_failure"
+    } else if original_alignment_has_overlap {
+        "overlap"
+    } else if alignment_membership.is_empty() {
+        "no_matching_alignment_span"
+    } else {
+        "membership_without_overlap"
+    };
+    let has_unresolved_overlap = !unresolved.is_empty();
+    json!({
+        "expected_change_id": location.id,
+        "expected_kind": location.expected_kind,
+        "side": location.side,
+        "quote": location.quote,
+        "status": "located",
+        "source": quote_source_json(side, location),
+        "original_alignment_membership": alignment_membership,
+        "original_alignment": original_alignment,
+        "final_unresolved_overlaps": unresolved,
+        "final_change_overlaps": changes,
+        "quote_coverage": coverage_json(&coverage),
+        "ownership_interpretation": {
+            "original_alignment_has_reading_order_unknown": original_reading_order_unknown,
+            "original_alignment_has_overlap": original_alignment_has_overlap,
+            "original_alignment_status": original_alignment_status,
+            "final_unresolved_overlap": has_unresolved_overlap,
+            "possible_diagnostic_misattribution": original_alignment_status == "overlap"
+                && original_reading_order_unknown
+                && !has_unresolved_overlap,
+        },
+    })
+}
+
+fn alignment_records(
+    location: &QuoteLocation,
+    side: &SideData<'_>,
+    alignment: Option<&Alignment>,
+) -> (Vec<Value>, Vec<Value>) {
+    let quote_block_ids = location
+        .block_ranges
+        .iter()
+        .map(|range| side.blocks[range.block_index].block)
+        .collect::<Vec<_>>();
+    let Some(alignment) = alignment else {
+        return (Vec::new(), Vec::new());
+    };
+
+    let mut membership = Vec::new();
+    let mut projections = Vec::new();
+    for (index, span) in alignment.spans.iter().enumerate() {
+        let (source_blocks, _) = alignment_source_parts(span, location.side);
+        let matching_block_ids = source_blocks
+            .iter()
+            .filter(|block| quote_block_ids.contains(block))
+            .map(|block| block.0)
+            .collect::<Vec<_>>();
+        if matching_block_ids.is_empty() {
+            continue;
+        }
+        membership.push(json!({
+            "alignment_span_index": index,
+            "kind": format!("{:?}", span.kind),
+            "confidence": format!("{:?}", span.confidence),
+            "score": span.score,
+            "canonical_similarity": span.canonical_similarity,
+            "evidence": evidence_names(&span.evidence),
+            "source_block_count": source_blocks.len(),
+            "quoted_block_ids_in_span": matching_block_ids,
+        }));
+
+        let source_span = match alignment_source_span(side, span, location.side) {
+            Ok(source_span) => source_span,
+            Err(error) => {
+                projections.push(json!({
+                    "alignment_span_index": index,
+                    "status": "projection_failed",
+                    "error": error,
+                }));
+                continue;
+            }
+        };
+        let Some(projected) = project_text_span(side, &source_span) else {
+            projections.push(json!({
+                "alignment_span_index": index,
+                "status": "projection_failed",
+                "error": "source span could not be projected onto normalized blocks",
+            }));
+            continue;
+        };
+        let Some(overlap) = overlap_with_quote(&projected, &location.projected) else {
+            projections.push(json!({
+                "alignment_span_index": index,
+                "status": "membership_without_overlap",
+                "span": text_span_json(side, &source_span),
+            }));
+            continue;
+        };
+        projections.push(json!({
+            "alignment_span_index": index,
+            "status": "overlap",
+            "span": text_span_json(side, &source_span),
+            "overlap": overlap_json(side, &overlap),
+        }));
+    }
+    (membership, projections)
+}
+
+fn alignment_source_span(
+    side: &SideData<'_>,
+    span: &pdfdelta_core::alignment::AlignmentSpan,
+    side_name: &str,
+) -> Result<TextSpan, String> {
+    let (blocks, separator) = alignment_source_parts(span, side_name);
+    if blocks.is_empty() {
+        return Err("alignment span has no source blocks".to_owned());
+    }
+    let block_indices = blocks
+        .iter()
+        .map(|id| side.block_index(*id))
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| "alignment span references a block absent from this side".to_owned())?;
+    let layout = GroupLayout::new(side, block_indices, separator);
+    Ok(TextSpan {
+        blocks: blocks.to_vec(),
+        separator: layout.separator,
+        canonical_range: pdfdelta_core::normalize::ScalarRange {
+            start: 0,
+            end: layout.total_scalars,
+        },
+        comparable_range: pdfdelta_core::diff::TokenRange {
+            start: 0,
+            end: layout.total_tokens,
+        },
+    })
+}
+
+fn alignment_source_parts<'a>(
+    span: &'a pdfdelta_core::alignment::AlignmentSpan,
+    side: &str,
+) -> (&'a [BlockId], Option<BlockSeparator>) {
+    if side == "old" {
+        (&span.old, span.old_separator)
+    } else {
+        (&span.new, span.new_separator)
+    }
+}
+
+fn side_span_for_side<'a>(
+    old: Option<&'a TextSpan>,
+    new: Option<&'a TextSpan>,
+    side: &str,
+) -> Option<&'a TextSpan> {
+    if side == "old" { old } else { new }
+}
+
+fn overlap_with_quote(span: &ProjectedSpan, quote: &ProjectedSpan) -> Option<Overlap> {
+    let mut ranges = Vec::new();
+    for quote_segment in &quote.segments {
+        for span_segment in &span.segments {
+            if quote_segment.block_index != span_segment.block_index {
+                continue;
+            }
+            let start = quote_segment.local_start.max(span_segment.local_start);
+            let end = quote_segment.local_end.min(span_segment.local_end);
+            if start < end {
+                let quote_base = quote_segment.group_start - quote.comparable_range.start;
+                let span_base = span_segment.group_start;
+                ranges.push(OverlapRange {
+                    block_index: quote_segment.block_index,
+                    quote_range: quote_base + (start - quote_segment.local_start)
+                        ..quote_base + (end - quote_segment.local_start),
+                    span_range: span_base + (start - span_segment.local_start)
+                        ..span_base + (end - span_segment.local_start),
+                });
+            }
+        }
+    }
+    if ranges.is_empty() {
+        return None;
+    }
+    ranges.sort_by_key(|range| (range.quote_range.start, range.quote_range.end));
+    let required = quote
+        .segments
+        .iter()
+        .map(|segment| {
+            segment.group_start - quote.comparable_range.start
+                ..segment.group_end - quote.comparable_range.start
+        })
+        .collect::<Vec<_>>();
+    let covered = ranges
+        .iter()
+        .map(|range| range.quote_range.clone())
+        .collect::<Vec<_>>();
+    Some(Overlap {
+        fully_covers_source: covers_ranges(&covered, &required),
+        ranges,
+    })
+}
+
+fn build_coverage(
+    quote: &ProjectedSpan,
+    unresolved: Vec<Range<usize>>,
+    changed: Vec<Range<usize>>,
+) -> Coverage {
+    let source_ranges = quote
+        .segments
+        .iter()
+        .map(|segment| {
+            segment.group_start - quote.comparable_range.start
+                ..segment.group_end - quote.comparable_range.start
+        })
+        .collect::<Vec<_>>();
+    Coverage {
+        source_ranges,
+        unresolved_ranges: union_ranges(unresolved),
+        changed_ranges: union_ranges(changed),
+    }
+}
+
+fn union_ranges(mut ranges: Vec<Range<usize>>) -> Vec<Range<usize>> {
+    ranges.retain(|range| range.start < range.end);
+    ranges.sort_by_key(|range| (range.start, range.end));
+    let mut union: Vec<Range<usize>> = Vec::new();
+    for range in ranges {
+        if let Some(last) = union.last_mut()
+            && range.start <= last.end
+        {
+            last.end = last.end.max(range.end);
+        } else {
+            union.push(range);
+        }
+    }
+    union
+}
+
+fn covers_ranges(covered: &[Range<usize>], required: &[Range<usize>]) -> bool {
+    let covered = union_ranges(covered.to_vec());
+    required.iter().all(|range| {
+        covered
+            .iter()
+            .any(|candidate| candidate.start <= range.start && candidate.end >= range.end)
+    })
+}
+
+fn comparison_summary(comparison: &Comparison, alignment: Option<&Alignment>) -> Value {
+    json!({
+        "alignment": alignment.map(|value| {
+            json!({
+                "span_count": value.spans.len(),
+                "main_anchor_count": value.main_anchors.len(),
+                "move_candidate_count": value.move_candidates.len(),
+            })
+        }),
+        "changes": comparison.changes.len(),
+        "unresolved_regions": comparison.unresolved_regions.len(),
+        "old_coverage": coverage_value(comparison.old_coverage),
+        "new_coverage": coverage_value(comparison.new_coverage),
+    })
+}
+
+fn coverage_value(coverage: pdfdelta_core::diff::Coverage) -> Value {
+    json!({
+        "resolved_tokens": coverage.resolved_tokens,
+        "total_tokens": coverage.total_tokens,
+        "ratio": coverage.ratio,
+    })
+}
+
+fn quote_source_json(side: &SideData<'_>, location: &QuoteLocation) -> Value {
+    json!({
+        "blocks": location.block_ranges.iter().map(|range| {
+            let block = &side.blocks[range.block_index];
+            json!({
+                "block_index": range.block_index,
+                "block_id": block.block.0,
+                "pages": block.pages,
+                "canonical_range": range_value(&range.canonical_range),
+                "comparable_range": range_value(&range.comparable_range),
+            })
+        }).collect::<Vec<_>>(),
+        "separator": location.projected.layout.separator.map(|value| format!("{:?}", value)),
+        "canonical_range": range_value(&location.projected.canonical_range),
+        "comparable_range": range_value(&location.projected.comparable_range),
+    })
+}
+
+fn text_span_json(side: &SideData<'_>, span: &TextSpan) -> Value {
+    json!({
+        "blocks": span.blocks.iter().map(|id| {
+            json!({
+                "block_id": id.0,
+                "block_index": side.block_index(*id),
+            })
+        }).collect::<Vec<_>>(),
+        "separator": span.separator.map(|value| format!("{:?}", value)),
+        "canonical_range": range_value(&(span.canonical_range.start..span.canonical_range.end)),
+        "comparable_range": range_value(&(span.comparable_range.start..span.comparable_range.end)),
+    })
+}
+
+fn overlap_json(side: &SideData<'_>, overlap: &Overlap) -> Value {
+    json!({
+        "fully_covers_quote_source_tokens": overlap.fully_covers_source,
+        "ranges": overlap.ranges.iter().map(|range| {
+            json!({
+                "block_index": range.block_index,
+                "block_id": side.blocks[range.block_index].block.0,
+                "quote_comparable_range": range_value(&range.quote_range),
+                "span_comparable_range": range_value(&range.span_range),
+            })
+        }).collect::<Vec<_>>(),
+    })
+}
+
+fn coverage_json(coverage: &Coverage) -> Value {
+    let required = union_ranges(coverage.source_ranges.clone());
+    let covered_any = union_ranges(
+        coverage
+            .unresolved_ranges
+            .iter()
+            .chain(&coverage.changed_ranges)
+            .cloned()
+            .collect(),
+    );
+    let covered_count = covered_any
+        .iter()
+        .map(|range| range.end - range.start)
+        .sum::<usize>();
+    let source_count = required
+        .iter()
+        .map(|range| range.end - range.start)
+        .sum::<usize>();
+    let uncovered = subtract_ranges(&required, &covered_any);
+    json!({
+        "source_token_ranges": required.iter().map(range_value).collect::<Vec<_>>(),
+        "source_token_count": source_count,
+        "covered_by_unresolved_ranges": coverage.unresolved_ranges.iter().map(range_value).collect::<Vec<_>>(),
+        "covered_by_change_ranges": coverage.changed_ranges.iter().map(range_value).collect::<Vec<_>>(),
+        "covered_by_any_final_record_ranges": covered_any.iter().map(range_value).collect::<Vec<_>>(),
+        "covered_token_count": covered_count,
+        "uncovered_ranges": uncovered.iter().map(range_value).collect::<Vec<_>>(),
+        "fully_covered": uncovered.is_empty(),
+    })
+}
+
+fn subtract_ranges(required: &[Range<usize>], covered: &[Range<usize>]) -> Vec<Range<usize>> {
+    let mut result = Vec::new();
+    for required_range in required {
+        let mut cursor = required_range.start;
+        for covered_range in covered {
+            if covered_range.end <= cursor {
+                continue;
+            }
+            if covered_range.start >= required_range.end {
+                break;
+            }
+            if covered_range.start > cursor {
+                result.push(cursor..covered_range.start.min(required_range.end));
+            }
+            cursor = cursor.max(covered_range.end);
+            if cursor >= required_range.end {
+                break;
+            }
+        }
+        if cursor < required_range.end {
+            result.push(cursor..required_range.end);
+        }
+    }
+    result
+}
+
+fn range_value(range: &Range<usize>) -> Value {
+    json!({"start": range.start, "end": range.end})
+}
+
+fn evidence_names(evidence: &[AlignmentEvidence]) -> Vec<String> {
+    evidence.iter().map(|item| format!("{:?}", item)).collect()
+}
+
+fn is_space_token(token: &ComparableToken) -> bool {
+    matches!(token, ComparableToken::Scalar(value) if value.is_whitespace())
+}
+
+#[allow(dead_code)]
+fn _alignment_kind_name(kind: AlignmentKind) -> &'static str {
+    match kind {
+        AlignmentKind::Match => "Match",
+        AlignmentKind::Deletion => "Deletion",
+        AlignmentKind::Insertion => "Insertion",
+        AlignmentKind::Unresolved => "Unresolved",
+    }
+}
+
+#[allow(dead_code)]
+fn _change_kind_name(kind: ChangeKind) -> &'static str {
+    match kind {
+        ChangeKind::Replacement => "Replacement",
+        ChangeKind::Insertion => "Insertion",
+        ChangeKind::Deletion => "Deletion",
+        ChangeKind::Move => "Move",
+    }
+}

@@ -1,0 +1,70 @@
+{
+  "pair": "nist-fips-186-4-to-5",
+  "coverage": {
+    "baseline": {
+      "coverage_old": 0.6491198847521722,
+      "coverage_new": 0.5570796762017373
+    },
+    "current": {
+      "coverage_old": 0.6841714311439248,
+      "coverage_new": 0.6013461276092592
+    }
+  },
+  "token_metrics": {
+    "baseline": {
+      "expected_changed_tokens": 206,
+      "reported_changed_tokens": 206,
+      "true_positive_tokens": 206,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "span_iou": 1.0,
+      "false_positive_tokens_per_10k_unchanged": 0.0
+    },
+    "current": {
+      "expected_changed_tokens": 206,
+      "reported_changed_tokens": 206,
+      "true_positive_tokens": 206,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "span_iou": 1.0,
+      "false_positive_tokens_per_10k_unchanged": 0.0
+    }
+  },
+  "event_metrics": {
+    "baseline": {
+      "reviewed_scope_count": 2,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "current": {
+      "reviewed_scope_count": 2,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  "quality_skipped_reason": {
+    "baseline": null,
+    "current": null
+  },
+  "changed_token_precision_nonregression": true,
+  "false_positive_rate_nonregression": true,
+  "binary_sha256": {
+    "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+    "current": "2da207a3ad4cd6b7feaad30c9a03ec375355c24d4511a06ff7611a8a0961750c"
+  },
+  "artifact_sha256": {
+    "baseline.json": "e9bb78acc61019eaa4fe72e663facb0b2a5179240fed41263ab34aac7ff4d1e5",
+    "current.json": "97b888d712aeb6ee02d049e189b520fbf8e5e51c6830ee0b3f875f9d82e1264b",
+    "manifest.tsv": "b08ea97e876b932b197d47074a2ba9890f424c9d835c9a84773b6c1d64103547",
+    "reviewed-expected.json": "558c07c85e97b7f0bcf8ee8baa5bbe58f01c423e231e6df9ffc4d75f0547657a"
+  },
+  "manifest_normalization": {
+    "capture_manifest_sha256": "7c1564c24d899e5c183442b950d1ac717499e8594cbf588d7ba818d7dbe01b95",
+    "retained_manifest_sha256": "b08ea97e876b932b197d47074a2ba9890f424c9d835c9a84773b6c1d64103547",
+    "change": "CRLF to LF after capture; parsed TSV rows are identical."
+  }
+}

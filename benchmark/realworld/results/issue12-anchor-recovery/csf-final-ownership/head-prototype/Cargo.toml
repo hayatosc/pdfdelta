@@ -1,0 +1,7 @@
+[package]
+name = "issue12-enumeration-head-prototype"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]

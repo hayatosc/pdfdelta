@@ -1,0 +1,6 @@
+{
+  "format": "cargo fmt --all -- --check passed",
+  "clippy": "cargo clippy --workspace --all-targets -- -D warnings passed",
+  "workspace_tests": "cargo test --workspace passed: 1988 tests, 28 suites",
+  "generated_verification": "../final-ownership/verify.log: 48/48 passed; source code is unchanged by annotation review."
+}

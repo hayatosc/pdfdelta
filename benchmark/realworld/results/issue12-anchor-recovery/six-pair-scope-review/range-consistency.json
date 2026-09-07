@@ -1,0 +1,56 @@
+[
+  {
+    "pair": "oasis-csaf-v2-cs01-to-csd02",
+    "expected_id": "publication-stage",
+    "unchanged_complements_equal": true,
+    "unchanged_scalar_count_per_side": 25
+  },
+  {
+    "pair": "oasis-csaf-v2-cs01-to-csd02",
+    "expected_id": "publication-date",
+    "unchanged_complements_equal": true,
+    "unchanged_scalar_count_per_side": 6
+  },
+  {
+    "pair": "nist-csf-v1-1-to-v2-0",
+    "expected_id": "core-expanded-from-five-to-six-functions",
+    "unchanged_complements_equal": true,
+    "unchanged_scalar_count_per_side": 38
+  },
+  {
+    "pair": "ecma-109-ed10-to-ed11",
+    "expected_id": "edition-date",
+    "unchanged_complements_equal": true,
+    "unchanged_scalar_count_per_side": 19
+  },
+  {
+    "pair": "ecma-109-ed10-to-ed11",
+    "expected_id": "copyright-year",
+    "unchanged_complements_equal": true,
+    "unchanged_scalar_count_per_side": 24
+  },
+  {
+    "pair": "ecma-109-ed10-to-ed11",
+    "expected_id": "copyright-notice-updated",
+    "unchanged_complements_equal": true,
+    "unchanged_scalar_count_per_side": 41
+  },
+  {
+    "pair": "irs-form-1040-2024-to-2025",
+    "expected_id": "footer-form-year-stamp",
+    "unchanged_complements_equal": true,
+    "unchanged_scalar_count_per_side": 31
+  },
+  {
+    "pair": "edpb-right-of-access-v1-to-final",
+    "expected_id": "exception-effect-qualified",
+    "unchanged_complements_equal": true,
+    "unchanged_scalar_count_per_side": 35
+  },
+  {
+    "pair": "irs-w4-korean-2024-to-2025",
+    "expected_id": "form-year-footer",
+    "unchanged_complements_equal": true,
+    "unchanged_scalar_count_per_side": 12
+  }
+]

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "pair": "edpb-right-of-access-v1-to-final",
+  "reviewed_on": "2026-08-29",
+  "annotation": "partial",
+  "notes": "Representative human-reviewed subset of EDPB Guidelines 01/2022 on data subject rights - right of access, consultation version 1.0 (18 January 2022) -> final adopted version (v2.x, after public consultation). The sampled changes were reviewed directly against the extracted text of both PDFs and correspond to documented post-consultation edits: removal of the consultation watermark, expanded completeness wording around providing a copy, a changed qualification of whether an exception affects confirmation of processing, and footnote/citation reflow.",
+  "changes": [
+    {
+      "id": "consultation-watermark-removed",
+      "kind": "deletion",
+      "occurrence_count": 51,
+      "old_quote": "Adopted - version for public consultation",
+      "note": "The consultation watermark no longer appears on every page of the final version."
+    },
+    {
+      "id": "completeness-of-copy-clarified",
+      "kind": "insertion",
+      "new_quote": "which includes all information necessary to enable the data subject to understand and verify the lawfulness of the processing",
+      "note": "Paragraph 23 area: final text adds an explicit completeness clause when providing a copy."
+    },
+    {
+      "id": "exception-effect-qualified",
+      "kind": "replacement",
+      "old_quote": "will mostly not be affected by the exception",
+      "new_quote": "may not be affected by the exception",
+      "note": "The final text changes the qualification of whether the exception affects confirmation of processing."
+    },
+    {
+      "id": "rijkeboer-citation-reflow",
+      "kind": "move",
+      "old_quote": "European Union, C-553/07, 7 May 2009, College van burgemeester en wethouders van Rotterdam v M. E. E.",
+      "new_quote": "European Union, C-553/07, 7 May 2009, College van burgemeester en wethouders van Rotterdam v M. E. E.",
+      "note": "CJEU Rijkeboer citation reported as a move after footnote restructuring."
+    }
+  ]
+}

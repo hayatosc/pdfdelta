@@ -1,0 +1,70 @@
+{
+  "pair": "edpb-right-of-access-v1-to-final",
+  "coverage": {
+    "baseline": {
+      "coverage_old": 0.7710572020321164,
+      "coverage_new": 0.7837738686184282
+    },
+    "current": {
+      "coverage_old": 0.8471315395974776,
+      "coverage_new": 0.8581334468640168
+    }
+  },
+  "token_metrics": {
+    "baseline": {
+      "expected_changed_tokens": 10,
+      "reported_changed_tokens": 14,
+      "true_positive_tokens": 10,
+      "precision": 0.7142857142857143,
+      "recall": 1.0,
+      "f1": 0.8333333333333333,
+      "span_iou": 0.7142857142857143,
+      "false_positive_tokens_per_10k_unchanged": 169.4915254237288
+    },
+    "current": {
+      "expected_changed_tokens": 10,
+      "reported_changed_tokens": 14,
+      "true_positive_tokens": 10,
+      "precision": 0.7142857142857143,
+      "recall": 1.0,
+      "f1": 0.8333333333333333,
+      "span_iou": 0.7142857142857143,
+      "false_positive_tokens_per_10k_unchanged": 169.4915254237288
+    }
+  },
+  "event_metrics": {
+    "baseline": {
+      "reviewed_scope_count": 1,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "current": {
+      "reviewed_scope_count": 1,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  "quality_skipped_reason": {
+    "baseline": null,
+    "current": null
+  },
+  "changed_token_precision_nonregression": true,
+  "false_positive_rate_nonregression": true,
+  "binary_sha256": {
+    "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+    "current": "2da207a3ad4cd6b7feaad30c9a03ec375355c24d4511a06ff7611a8a0961750c"
+  },
+  "artifact_sha256": {
+    "baseline.json": "0859198cbc0317b500e97b6a921f7ccd8ef4e6a9eff473c28d820c79ad081cad",
+    "current.json": "97579b7e5c5b024f9b6d29e22603015a2eae840a7ac5d044498b5da98fb7b026",
+    "manifest.tsv": "2b1f4fa4dfab992421eced017df670d7fd9fbd4c7a0506c261b84f1448b4a5ab",
+    "reviewed-expected.json": "ce30469ce94777e03aaaccda3c5019c58b4614c784c4c81dcfd1fa2939dca859"
+  },
+  "manifest_normalization": {
+    "capture_manifest_sha256": "877596a806d23aa323989aa18dfa59a23bf44537f321b2ba489080ed089e60e6",
+    "retained_manifest_sha256": "2b1f4fa4dfab992421eced017df670d7fd9fbd4c7a0506c261b84f1448b4a5ab",
+    "change": "CRLF to LF after capture; parsed TSV rows are identical."
+  }
+}

@@ -1,0 +1,290 @@
+{
+  "schema_version": 1,
+  "record_kind": "issue12_csf_section_context_evidence",
+  "pair": "nist-csf-v1-1-to-v2-0",
+  "purpose": "Bounded source evidence for the true Core prose correspondence and the Current Profile/glossary alternative.",
+  "provenance": {
+    "pdf_cache": [
+      {
+        "side": "old",
+        "path": "benchmark/realworld/cache/nist-csf-v1-1-to-v2-0-old.pdf",
+        "sha256": "0f3ca796610ab024cbc3484cbd6799e19b4d9159d3634972a2a76af83f15fb92"
+      },
+      {
+        "side": "new",
+        "path": "benchmark/realworld/cache/nist-csf-v1-1-to-v2-0-new.pdf",
+        "sha256": "3c31f46fee98cac0c4323453e5109291a213b4de7fef8c058af9bf67f717433c"
+      }
+    ],
+    "normalized_blocks": {
+      "path": "target/issue12-probe-blocks.json",
+      "sha256": "2544159eeae623c98a351f5ce67d798f0b704b5f13c3b8cceaede939762f8913"
+    },
+    "trust_blocks": {
+      "path": "target/issue12-trust-blocks.json",
+      "sha256": "4baf8aaf97c7ed902ec68cb24e9d3eb966323e0bd058f7d64967be5db5a9d71f"
+    },
+    "line_geometry": {
+      "path": "target/issue12-line-geometry.json",
+      "sha256": "f68b9afd2b346fe5cfc431a507d47ff80b4d3e1e5dab464a3e6e3ef617fc5730"
+    },
+    "structural_shadow": {
+      "path": "target/issue12-current-csf.json",
+      "sha256": "6abda714c8b760e6b9f89fcf410732a0df1a7f177e30224c45b0cfc4fd4214aa"
+    },
+    "source": [
+      "crates/pdfdelta-core/src/diff/recovery/container.rs:279-299,475-513",
+      "crates/pdfdelta-core/src/diff/recovery/section_pairing.rs:548-577,901-967"
+    ]
+  },
+  "coordinate_contract": {
+    "block_index": "normalized block index and BlockId in the captured dump",
+    "page": "parser PageId value; zero-based",
+    "canonical_range": "half-open Unicode scalar offsets within the normalized block",
+    "line_breaks": "comparable-token offsets before each subsequent line",
+    "geometry": "normalized page coordinates; bbox is [min_x, min_y, max_x, max_y]",
+    "font": "exact effective font-size values from source glyph signatures; prominence is strict median > page body median",
+    "reading_order": "not established by the public facade; this artifact records evidence and does not claim semantic correspondence"
+  },
+  "generic_numbering_rule": {
+    "rule": "Recognize dotted ASCII numeric prefixes, Appendix followed by whitespace, or a single alphabetic letter followed by a dot; strip only that prefix and following whitespace, colon, or hyphen.",
+    "source": "section_pairing.rs:901-967",
+    "dictionary_or_semantic_model": false,
+    "nonempty_cross_side_exact_title_matches_among_numbered_single_line_blocks": 0
+  },
+  "context_table": {
+    "true_expected": {
+      "old": {
+        "heading": {
+          "block_index": 163,
+          "page": 9,
+          "text": "1.1 Overview of the Framework",
+          "numbering_level": 2,
+          "stripped_title": "Overview of the Framework",
+          "single_line": true,
+          "line_count": 1,
+          "line_ids": [352],
+          "bbox": [72.024, 352.25432, 293.13416, 364.77368],
+          "baseline_y": [354.65, 354.65],
+          "font_size_values": [11.04],
+          "font_median": 11.04,
+          "page_body_font_median": 12.0,
+          "prominent": false,
+          "structural_heading_candidate": true,
+          "structural_heading_accepted": false,
+          "structural_rejection": "not_font_prominent",
+          "source_glyph_range": [24467, 24496],
+          "glyph_count": 30,
+          "render_order": [24467, 24496]
+        },
+        "nearest_prior_heading": {
+          "block_index": 124,
+          "text": "1.0 Framework Introduction",
+          "numbering_level": 2
+        },
+        "prose": {
+          "block_index": 166,
+          "page": 9,
+          "canonical_range": [314, 430],
+          "text": "The Framework Core consists of five concurrent and continuous Functions—Identify, Protect, Detect, Respond, Recover.",
+          "line_count": 6,
+          "line_breaks": [87, 170, 258, 345, 431],
+          "bbox": [108.02, 187.988, 539.41, 270.302],
+          "baseline_y": [190.58, 259.61],
+          "font_size_values": [12.0],
+          "font_median": 12.0,
+          "source_glyph_range": [24917, 25433],
+          "glyph_count": 517,
+          "render_order": [24917, 25433]
+        }
+      },
+      "new": {
+        "heading": {
+          "block_index": 95,
+          "page": 7,
+          "text": "2. Introduction to the CSF Core",
+          "numbering_level": 1,
+          "stripped_title": "Introduction to the CSF Core",
+          "single_line": true,
+          "line_count": 1,
+          "line_ids": [205],
+          "bbox": [72.0, 704.088, 231.192, 721.272],
+          "baseline_y": [708.6, 708.6],
+          "font_size_values": [12.0],
+          "font_median": 12.0,
+          "page_body_font_median": 12.0,
+          "prominent": false,
+          "structural_heading_candidate": true,
+          "structural_heading_accepted": false,
+          "structural_rejection": "not_font_prominent",
+          "source_glyph_range": [13459, 13491],
+          "glyph_count": 33,
+          "render_order": [13459, 13491]
+        },
+        "nearest_prior_heading": {
+          "block_index": 53,
+          "text": "1. Cybersecurity Framework (CSF) Overview",
+          "numbering_level": 1
+        },
+        "prose": {
+          "block_index": 99,
+          "page": 7,
+          "canonical_range": [0, 138],
+          "text": "The CSF Core Functions — GOVERN, IDENTIFY, PROTECT, DETECT, RESPOND, and RECOVER — organize cybersecurity outcomes at their highest level.",
+          "line_count": 2,
+          "line_breaks": [92],
+          "bbox": [72.0, 305.856, 524.5908, 336.708],
+          "baseline_y": [309.6, 324.24],
+          "font_size_values": [9.48, 12.0],
+          "font_median": 12.0,
+          "source_glyph_range": [14149, 14287],
+          "glyph_count": 139,
+          "render_order": [14149, 14287]
+        }
+      }
+    },
+    "false_current_profile_to_glossary": {
+        "old": {
+          "heading": {
+            "block_index": 331,
+            "page": 19,
+            "text": "3.1 Basic Review of Cybersecurity Practices",
+            "numbering_level": 2,
+            "stripped_title": "Basic Review of Cybersecurity Practices",
+            "single_line": true,
+            "line_count": 1,
+            "line_ids": [760],
+            "bbox": [72.024, 207.53432, 374.03416, 220.05368],
+            "baseline_y": [209.93, 209.93],
+            "font_size_values": [11.04],
+            "font_median": 11.04,
+            "page_body_font_median": 12.0,
+            "prominent": false,
+            "structural_heading_candidate": true,
+            "structural_heading_accepted": false,
+            "structural_rejection": "not_font_prominent",
+            "source_glyph_range": [53439, 53482],
+            "glyph_count": 44,
+            "render_order": [53439, 53482]
+          },
+          "nearest_prior_heading": {
+            "block_index": 327,
+            "text": "3.0 How to Use the Framework",
+            "numbering_level": 2
+          },
+          "prose": {
+            "block_index": 333,
+            "page": 19,
+            "canonical_range": [38, 303],
+            "text": "Through the creation of a Current Profile, organizations can examine the extent to which they are achieving the outcomes described in the Core Categories and Subcategories, aligned with the five high-level Functions: Identify, Protect, Detect, Respond, and Recover.",
+            "line_count": 4,
+            "line_breaks": [95, 181, 274],
+            "bbox": [72.024, 132.788, 534.994, 187.472],
+            "baseline_y": [135.38, 176.78],
+            "font_size_values": [12.0],
+            "font_median": 12.0,
+            "source_glyph_range": [53576, 53945],
+            "glyph_count": 370,
+            "render_order": [53576, 53945]
+          }
+        },
+        "new": {
+          "heading": {
+            "block_index": 547,
+            "page": 30,
+            "text": "Appendix C. Glossary CSF Category",
+            "numbering_level": 1,
+            "stripped_title": "C. Glossary CSF Category",
+            "single_line": false,
+            "line_count": 2,
+            "line_ids": [1073, 1074],
+            "bbox": [72.0, 668.64396, 180.312, 706.632],
+            "baseline_y": [672.12, 693.96],
+            "font_size_values": [9.96, 12.0],
+            "font_median": 12.0,
+            "page_body_font_median": 9.96,
+            "prominent": true,
+            "structural_heading_candidate": true,
+            "structural_heading_accepted": false,
+            "structural_rejection": "not_single_line",
+            "source_glyph_range": [65067, 65100],
+            "glyph_count": 34,
+            "render_order": [65067, 65100]
+          },
+          "nearest_prior_heading": {
+            "block_index": 466,
+            "text": "Appendix B. CSF Tiers",
+            "numbering_level": 1
+          },
+          "prose": {
+            "block_index": 556,
+            "page": 30,
+            "canonical_range": [62, 147],
+            "text": "There are six CSF Functions: Govern, Identify, Protect, Detect, Respond, and Recover.",
+            "line_count": 2,
+            "line_breaks": [109],
+            "bbox": [72.0, 440.53008, 507.926292, 487.7106],
+            "baseline_y": [465.2508, 477.49164],
+            "font_size_values": [9.96],
+            "font_median": 9.96,
+            "source_glyph_range": [66010, 66157],
+            "glyph_count": 148,
+            "render_order": [66010, 66157]
+          }
+        }
+      }
+  },
+  "title_pairing_result": {
+    "true_expected": {
+      "old_heading": 163,
+      "new_heading": 95,
+      "old_stripped_title": "Overview of the Framework",
+      "new_stripped_title": "Introduction to the CSF Core",
+      "exact_title_equal": false,
+      "number_stripped_title_equal": false,
+      "interpretation": "The generic heading rule supplies no positive title pair for the true correspondence."
+    },
+    "false_current_profile_to_glossary": {
+      "old_heading": 331,
+      "new_heading": 547,
+      "old_stripped_title": "Basic Review of Cybersecurity Practices",
+      "new_stripped_title": "C. Glossary CSF Category",
+      "exact_title_equal": false,
+      "number_stripped_title_equal": false,
+      "interpretation": "The generic heading rule also supplies no positive title pair for this alternative."
+    }
+  },
+  "existing_section_pairing_behavior": {
+    "structure_gate": "A section is accepted only when the generic numbering is present, the block is single-line, and its exact font median is strictly above the page body median (container.rs:279-299).",
+    "pair_gate": "Only Alignment Match spans with one section on each side are examined; heading tokens must be exactly equal or equal after the generic prefix is stripped (section_pairing.rs:548-577).",
+    "current_structural_shadow": {
+      "old": {
+        "heading_candidates": 87,
+        "accepted_headings": 23,
+        "rejected_not_single_line": 8,
+        "rejected_not_font_prominent": 56
+      },
+      "new": {
+        "heading_candidates": 32,
+        "accepted_headings": 6,
+        "rejected_not_single_line": 4,
+        "rejected_not_font_prominent": 17
+      }
+    },
+    "current_section_pairing_shadow": {
+      "complete": true,
+      "match_spans_examined": 0,
+      "exact_heading_pairs": 0,
+      "stripped_heading_pairs": 0,
+      "strong_heading_pairs": 0,
+      "number_only_section_pairs": 0
+    },
+    "decision_for_this_investigation": "Section context is neutral: it adds no positive pair for either candidate and provides no veto against the head-word textual distinction."
+  },
+  "falsifiable_rule": {
+    "rule": "Use only generic numbered single-line headings, exact source-derived prefix stripping, strict font prominence, and one-to-one Alignment Match membership.",
+    "prediction": "The rule will not pair old block 166 with new block 99 because their enclosing titles differ and both enclosing headings fail prominence; it will not pair old block 333 with new block 556 because their enclosing titles differ and the glossary heading is multiline.",
+    "observed": true,
+    "semantic_or_vocabulary_inference": false
+  }
+}

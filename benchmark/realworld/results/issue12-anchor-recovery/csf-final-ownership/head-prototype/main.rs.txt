@@ -1,0 +1,1389 @@
+use std::{cmp::Ordering, fmt::Write as _, fs, ops::Range, path::Path};
+
+const MIN_ITEMS: usize = 4;
+const MAX_ITEMS: usize = 32;
+const REPORT_WORK_LIMIT: usize = 1_000_000;
+const REPORT_PAIR_LIMIT: usize = 8;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Side {
+    Old,
+    New,
+}
+
+impl Side {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Old => "old",
+            Self::New => "new",
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct Candidate<'a> {
+    id: &'a str,
+    side: Side,
+    block_index: usize,
+    page: usize,
+    canonical_range: Range<usize>,
+    raw_range: Range<usize>,
+    head_before_label: &'a str,
+    label: &'a str,
+    delimiter: char,
+    items: &'a [&'a str],
+    canonical_text: &'a str,
+    raw_text: Option<&'a str>,
+    eligible: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct Score {
+    shared: usize,
+    union: usize,
+}
+
+impl Score {
+    fn jaccard(self) -> f64 {
+        self.shared as f64 / self.union as f64
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SelectionAbort {
+    WorkBudget,
+    AllocationFailure,
+    OutputLimit,
+}
+
+impl SelectionAbort {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::WorkBudget => "work_budget",
+            Self::AllocationFailure => "allocation_failure",
+            Self::OutputLimit => "output_limit",
+        }
+    }
+}
+
+struct WorkBudget {
+    remaining: usize,
+}
+
+impl WorkBudget {
+    fn new(limit: usize) -> Self {
+        Self { remaining: limit }
+    }
+
+    fn consume(&mut self, amount: usize) -> Result<(), SelectionAbort> {
+        self.remaining = self
+            .remaining
+            .checked_sub(amount)
+            .ok_or(SelectionAbort::WorkBudget)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct HeadWords {
+    before_label: Vec<String>,
+    through_label: Vec<String>,
+}
+
+#[derive(Debug)]
+struct Edge {
+    old: usize,
+    new: usize,
+    common_items: Vec<String>,
+    list_score_scaled: u32,
+    head_score: Score,
+    shared_before_label: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct Rank {
+    edge_count: usize,
+    top_count: usize,
+    best: Option<usize>,
+    runner: Option<usize>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PairStatus {
+    InvalidCandidate,
+    LabelMismatch,
+    ListOrderMismatch,
+    Compatible,
+}
+
+impl PairStatus {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::InvalidCandidate => "invalid_candidate",
+            Self::LabelMismatch => "label_mismatch",
+            Self::ListOrderMismatch => "list_order_or_common_item_mismatch",
+            Self::Compatible => "compatible",
+        }
+    }
+}
+
+#[derive(Debug)]
+struct PairEvidence {
+    old: usize,
+    new: usize,
+    status: PairStatus,
+    edge: Option<usize>,
+}
+
+#[derive(Debug)]
+struct SelectedPair {
+    edge: usize,
+}
+
+#[derive(Debug)]
+struct Evaluation {
+    edges: Vec<Edge>,
+    pair_evidence: Vec<PairEvidence>,
+    old_ranks: Vec<Rank>,
+    new_ranks: Vec<Rank>,
+    selected: Vec<SelectedPair>,
+}
+
+fn reserve<T>(items: &mut Vec<T>, additional: usize) -> Result<(), SelectionAbort> {
+    items
+        .try_reserve(additional)
+        .map_err(|_| SelectionAbort::AllocationFailure)
+}
+
+fn evaluate(
+    old: &[Candidate<'_>],
+    new: &[Candidate<'_>],
+    work_limit: usize,
+    max_pairs: usize,
+) -> Result<Evaluation, SelectionAbort> {
+    let mut work = WorkBudget::new(work_limit);
+    let old_valid = validate_candidates(old, &mut work)?;
+    let new_valid = validate_candidates(new, &mut work)?;
+    let old_heads = prepare_heads(old, &old_valid, &mut work)?;
+    let new_heads = prepare_heads(new, &new_valid, &mut work)?;
+
+    let pair_count = old
+        .len()
+        .checked_mul(new.len())
+        .ok_or(SelectionAbort::WorkBudget)?;
+    if pair_count > work.remaining {
+        return Err(SelectionAbort::WorkBudget);
+    }
+    let mut pair_evidence = Vec::new();
+    reserve(&mut pair_evidence, pair_count)?;
+    let mut edges = Vec::new();
+
+    for (old_index, old_candidate) in old.iter().enumerate() {
+        for (new_index, new_candidate) in new.iter().enumerate() {
+            work.consume(1)?;
+            if !old_valid[old_index] || !new_valid[new_index] {
+                pair_evidence.push(PairEvidence {
+                    old: old_index,
+                    new: new_index,
+                    status: PairStatus::InvalidCandidate,
+                    edge: None,
+                });
+                continue;
+            }
+            if !ascii_equal(old_candidate.label, new_candidate.label, &mut work)? {
+                pair_evidence.push(PairEvidence {
+                    old: old_index,
+                    new: new_index,
+                    status: PairStatus::LabelMismatch,
+                    edge: None,
+                });
+                continue;
+            }
+            let Some(common_items) =
+                ordered_common_items(old_candidate.items, new_candidate.items, &mut work)?
+            else {
+                pair_evidence.push(PairEvidence {
+                    old: old_index,
+                    new: new_index,
+                    status: PairStatus::ListOrderMismatch,
+                    edge: None,
+                });
+                continue;
+            };
+            let old_head = old_heads[old_index]
+                .as_ref()
+                .ok_or(SelectionAbort::WorkBudget)?;
+            let new_head = new_heads[new_index]
+                .as_ref()
+                .ok_or(SelectionAbort::WorkBudget)?;
+            let head_score = jaccard(&old_head.through_label, &new_head.through_label, &mut work)?;
+            let shared_before_label =
+                shared_words(&old_head.before_label, &new_head.before_label, &mut work)?;
+            let list_score_scaled = list_score(
+                common_items.len(),
+                old_candidate.items.len(),
+                new_candidate.items.len(),
+            )?;
+            reserve(&mut edges, 1)?;
+            let edge_index = edges.len();
+            edges.push(Edge {
+                old: old_index,
+                new: new_index,
+                common_items,
+                list_score_scaled,
+                head_score,
+                shared_before_label,
+            });
+            pair_evidence.push(PairEvidence {
+                old: old_index,
+                new: new_index,
+                status: PairStatus::Compatible,
+                edge: Some(edge_index),
+            });
+        }
+    }
+
+    let mut old_ranks = empty_ranks(old.len())?;
+    let mut new_ranks = empty_ranks(new.len())?;
+    for (edge_index, edge) in edges.iter().enumerate() {
+        record_rank(&mut old_ranks[edge.old], edge_index, &edges, &mut work)?;
+        record_rank(&mut new_ranks[edge.new], edge_index, &edges, &mut work)?;
+    }
+
+    let mut selected = Vec::new();
+    for (old_index, old_rank) in old_ranks.iter().enumerate() {
+        let Some(edge_index) = old_rank.best else {
+            continue;
+        };
+        let edge = edges.get(edge_index).ok_or(SelectionAbort::WorkBudget)?;
+        if edge.old != old_index {
+            return Err(SelectionAbort::WorkBudget);
+        }
+        let new_rank = new_ranks.get(edge.new).ok_or(SelectionAbort::WorkBudget)?;
+        if !rank_accepts(old_rank, edge_index, &edges, &mut work)?
+            || !rank_accepts(new_rank, edge_index, &edges, &mut work)?
+            || !old[edge.old].eligible
+            || !new[edge.new].eligible
+        {
+            continue;
+        }
+        if selected.len() >= max_pairs {
+            return Err(SelectionAbort::OutputLimit);
+        }
+        reserve(&mut selected, 1)?;
+        selected.push(SelectedPair { edge: edge_index });
+    }
+
+    Ok(Evaluation {
+        edges,
+        pair_evidence,
+        old_ranks,
+        new_ranks,
+        selected,
+    })
+}
+
+fn validate_candidates(
+    candidates: &[Candidate<'_>],
+    work: &mut WorkBudget,
+) -> Result<Vec<bool>, SelectionAbort> {
+    let mut valid = Vec::new();
+    reserve(&mut valid, candidates.len())?;
+    for candidate in candidates {
+        valid.push(valid_candidate(candidate, work)?);
+    }
+    Ok(valid)
+}
+
+fn valid_candidate(
+    candidate: &Candidate<'_>,
+    work: &mut WorkBudget,
+) -> Result<bool, SelectionAbort> {
+    if !(MIN_ITEMS..=MAX_ITEMS).contains(&candidate.items.len())
+        || !is_identifier(candidate.label, work)?
+    {
+        return Ok(false);
+    }
+    for (index, item) in candidate.items.iter().enumerate() {
+        if !is_identifier(item, work)? {
+            return Ok(false);
+        }
+        for previous in &candidate.items[..index] {
+            if ascii_equal(previous, item, work)? {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+fn is_identifier(value: &str, work: &mut WorkBudget) -> Result<bool, SelectionAbort> {
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return Ok(false);
+    };
+    work.consume(1)?;
+    if !first.is_ascii_alphabetic() {
+        return Ok(false);
+    }
+    for character in chars {
+        work.consume(1)?;
+        if !(character.is_ascii_alphanumeric() || matches!(character, '-' | '_')) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn prepare_heads(
+    candidates: &[Candidate<'_>],
+    valid: &[bool],
+    work: &mut WorkBudget,
+) -> Result<Vec<Option<HeadWords>>, SelectionAbort> {
+    let mut heads = Vec::new();
+    reserve(&mut heads, candidates.len())?;
+    for (candidate, is_valid) in candidates.iter().zip(valid) {
+        if !is_valid {
+            heads.push(None);
+            continue;
+        }
+        let before_label = words_from_parts(&[candidate.head_before_label], work)?;
+        let through_label =
+            words_from_parts(&[candidate.head_before_label, candidate.label], work)?;
+        heads.push(Some(HeadWords {
+            before_label,
+            through_label,
+        }));
+    }
+    Ok(heads)
+}
+
+fn words_from_parts(parts: &[&str], work: &mut WorkBudget) -> Result<Vec<String>, SelectionAbort> {
+    let mut words = Vec::new();
+    for part in parts {
+        let mut start = None;
+        for (index, byte) in part.bytes().enumerate() {
+            work.consume(1)?;
+            if byte.is_ascii_alphanumeric() {
+                start.get_or_insert(index);
+            } else if let Some(start) = start.take() {
+                add_word(&mut words, &part[start..index], work)?;
+            }
+        }
+        if let Some(start) = start {
+            add_word(&mut words, &part[start..], work)?;
+        }
+    }
+    Ok(words)
+}
+
+fn add_word(
+    words: &mut Vec<String>,
+    source: &str,
+    work: &mut WorkBudget,
+) -> Result<(), SelectionAbort> {
+    let mut normalized = String::new();
+    normalized
+        .try_reserve(source.len())
+        .map_err(|_| SelectionAbort::AllocationFailure)?;
+    for byte in source.bytes() {
+        work.consume(1)?;
+        normalized.push(byte.to_ascii_lowercase() as char);
+    }
+    if words.iter().any(|word| word == &normalized) {
+        return Ok(());
+    }
+    reserve(words, 1)?;
+    words.push(normalized);
+    Ok(())
+}
+
+fn ascii_equal(left: &str, right: &str, work: &mut WorkBudget) -> Result<bool, SelectionAbort> {
+    work.consume(left.len().max(right.len()))?;
+    Ok(left.eq_ignore_ascii_case(right))
+}
+
+fn ordered_common_items(
+    old: &[&str],
+    new: &[&str],
+    work: &mut WorkBudget,
+) -> Result<Option<Vec<String>>, SelectionAbort> {
+    if let Some(common) = ordered_subsequence(old, new, work)? {
+        return Ok(Some(common));
+    }
+    ordered_subsequence(new, old, work)
+}
+
+fn ordered_subsequence(
+    shorter: &[&str],
+    longer: &[&str],
+    work: &mut WorkBudget,
+) -> Result<Option<Vec<String>>, SelectionAbort> {
+    let mut remaining = longer.iter();
+    let mut common = Vec::new();
+    reserve(&mut common, shorter.len())?;
+    for item in shorter {
+        let mut found = None;
+        for candidate in &mut remaining {
+            work.consume(item.len().max(candidate.len()))?;
+            if item.eq_ignore_ascii_case(candidate) {
+                found = Some(*item);
+                break;
+            }
+        }
+        let Some(found) = found else {
+            return Ok(None);
+        };
+        let copied = copy_string(found)?;
+        common.push(copied);
+    }
+    Ok(Some(common))
+}
+
+fn copy_string(source: &str) -> Result<String, SelectionAbort> {
+    let mut copied = String::new();
+    copied
+        .try_reserve(source.len())
+        .map_err(|_| SelectionAbort::AllocationFailure)?;
+    copied.push_str(source);
+    Ok(copied)
+}
+
+fn list_score(common: usize, old: usize, new: usize) -> Result<u32, SelectionAbort> {
+    let numerator = common
+        .checked_mul(2)
+        .and_then(|value| value.checked_mul(10_000))
+        .ok_or(SelectionAbort::WorkBudget)?;
+    let denominator = old.checked_add(new).ok_or(SelectionAbort::WorkBudget)?;
+    u32::try_from(numerator / denominator).map_err(|_| SelectionAbort::WorkBudget)
+}
+
+fn jaccard(
+    left: &[String],
+    right: &[String],
+    work: &mut WorkBudget,
+) -> Result<Score, SelectionAbort> {
+    let mut shared: usize = 0;
+    for left_word in left {
+        for right_word in right {
+            work.consume(left_word.len().max(right_word.len()))?;
+            if left_word == right_word {
+                shared = shared.checked_add(1).ok_or(SelectionAbort::WorkBudget)?;
+                break;
+            }
+        }
+    }
+    let union = left
+        .len()
+        .checked_add(right.len())
+        .and_then(|value| value.checked_sub(shared))
+        .ok_or(SelectionAbort::WorkBudget)?;
+    Ok(Score { shared, union })
+}
+
+fn shared_words(
+    left: &[String],
+    right: &[String],
+    work: &mut WorkBudget,
+) -> Result<Vec<String>, SelectionAbort> {
+    let mut shared = Vec::new();
+    for left_word in left {
+        for right_word in right {
+            work.consume(left_word.len().max(right_word.len()))?;
+            if left_word == right_word {
+                reserve(&mut shared, 1)?;
+                shared.push(copy_string(left_word)?);
+                break;
+            }
+        }
+    }
+    shared.sort_unstable();
+    Ok(shared)
+}
+
+fn empty_ranks(count: usize) -> Result<Vec<Rank>, SelectionAbort> {
+    let mut ranks = Vec::new();
+    reserve(&mut ranks, count)?;
+    for _ in 0..count {
+        ranks.push(Rank::default());
+    }
+    Ok(ranks)
+}
+
+fn record_rank(
+    rank: &mut Rank,
+    edge_index: usize,
+    edges: &[Edge],
+    work: &mut WorkBudget,
+) -> Result<(), SelectionAbort> {
+    work.consume(1)?;
+    rank.edge_count = rank
+        .edge_count
+        .checked_add(1)
+        .ok_or(SelectionAbort::WorkBudget)?;
+    let Some(best_index) = rank.best else {
+        rank.best = Some(edge_index);
+        rank.top_count = 1;
+        return Ok(());
+    };
+    let best_score = edges
+        .get(best_index)
+        .ok_or(SelectionAbort::WorkBudget)?
+        .head_score;
+    let score = edges
+        .get(edge_index)
+        .ok_or(SelectionAbort::WorkBudget)?
+        .head_score;
+    match compare_scores(score, best_score, work)? {
+        Ordering::Greater => {
+            rank.runner = Some(best_index);
+            rank.best = Some(edge_index);
+            rank.top_count = 1;
+        }
+        Ordering::Equal => {
+            rank.top_count = rank
+                .top_count
+                .checked_add(1)
+                .ok_or(SelectionAbort::WorkBudget)?;
+            rank.runner = Some(edge_index);
+        }
+        Ordering::Less => {
+            let should_replace_runner = match rank.runner {
+                None => true,
+                Some(runner_index) => {
+                    let runner_score = edges
+                        .get(runner_index)
+                        .ok_or(SelectionAbort::WorkBudget)?
+                        .head_score;
+                    compare_scores(score, runner_score, work)? == Ordering::Greater
+                }
+            };
+            if should_replace_runner {
+                rank.runner = Some(edge_index);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn compare_scores(
+    left: Score,
+    right: Score,
+    work: &mut WorkBudget,
+) -> Result<Ordering, SelectionAbort> {
+    work.consume(1)?;
+    let left_product = left
+        .shared
+        .checked_mul(right.union)
+        .ok_or(SelectionAbort::WorkBudget)?;
+    let right_product = right
+        .shared
+        .checked_mul(left.union)
+        .ok_or(SelectionAbort::WorkBudget)?;
+    Ok(left_product.cmp(&right_product))
+}
+
+fn rank_accepts(
+    rank: &Rank,
+    edge_index: usize,
+    edges: &[Edge],
+    work: &mut WorkBudget,
+) -> Result<bool, SelectionAbort> {
+    if rank.best != Some(edge_index) || rank.top_count != 1 {
+        return Ok(false);
+    }
+    let Some(runner_index) = rank.runner else {
+        return Ok(false);
+    };
+    let best = edges
+        .get(edge_index)
+        .ok_or(SelectionAbort::WorkBudget)?
+        .head_score;
+    let runner = edges
+        .get(runner_index)
+        .ok_or(SelectionAbort::WorkBudget)?
+        .head_score;
+    work.consume(1)?;
+    let left = best
+        .shared
+        .checked_mul(runner.union)
+        .ok_or(SelectionAbort::WorkBudget)?;
+    let right = runner
+        .shared
+        .checked_mul(best.union)
+        .and_then(|value| value.checked_mul(2))
+        .ok_or(SelectionAbort::WorkBudget)?;
+    Ok(left >= right)
+}
+
+fn real_candidates() -> (Vec<Candidate<'static>>, Vec<Candidate<'static>>) {
+    const OLD_CORE_ITEMS: &[&str] = &["Identify", "Protect", "Detect", "Respond", "Recover"];
+    const OLD_ELEMENTS_ITEMS: &[&str] =
+        &["Functions", "Categories", "Subcategories", "Informative"];
+    const NEW_CORE_ITEMS: &[&str] = &[
+        "GOVERN", "IDENTIFY", "PROTECT", "DETECT", "RESPOND", "RECOVER",
+    ];
+    const NEW_GLOSSARY_ITEMS: &[&str] = &[
+        "Govern", "Identify", "Protect", "Detect", "Respond", "Recover",
+    ];
+
+    let old = vec![
+        Candidate {
+            id: "old-core-functions-main",
+            side: Side::Old,
+            block_index: 166,
+            page: 9,
+            canonical_range: 314..430,
+            raw_range: 317..434,
+            head_before_label: "The Framework Core consists of five concurrent and continuous",
+            label: "Functions",
+            delimiter: '—',
+            items: OLD_CORE_ITEMS,
+            canonical_text: "The Framework Core consists of five concurrent and continuous Functions—Identify, Protect, Detect, Respond, Recover.",
+            raw_text: None,
+            eligible: true,
+        },
+        Candidate {
+            id: "old-elements-core",
+            side: Side::Old,
+            block_index: 219,
+            page: 12,
+            canonical_range: 315..436,
+            raw_range: 318..440,
+            head_before_label: "The Core comprises four",
+            label: "elements",
+            delimiter: ':',
+            items: OLD_ELEMENTS_ITEMS,
+            canonical_text: "The Core comprises four elements: Functions, Categories, Subcategories, and Informative References, depicted in Figure 1:",
+            raw_text: None,
+            eligible: true,
+        },
+        Candidate {
+            id: "old-profile-functions-counterexample",
+            side: Side::Old,
+            block_index: 333,
+            page: 19,
+            canonical_range: 38..303,
+            raw_range: 38..306,
+            head_before_label: "Through the creation of a Current Profile, organizations can examine the extent to which they are achieving the outcomes described in the Core Categories and Subcategories, aligned with the five high-level",
+            label: "Functions",
+            delimiter: ':',
+            items: OLD_CORE_ITEMS,
+            canonical_text: "Through the creation of a Current Profile, organizations can examine the extent to which they are achieving the outcomes described in the Core Categories and Subcategories, aligned with the five high-level Functions: Identify, Protect, Detect, Respond, and Recover.",
+            raw_text: Some(
+                "Through the creation of a Current Profile, organizations \ncan examine the extent to which they are achieving the outcomes described in the Core \nCategories and Subcategories, aligned with the five high-level Functions: Identify, Protect, \nDetect, Respond, and Recover.",
+            ),
+            eligible: true,
+        },
+        Candidate {
+            id: "old-elements-appendix",
+            side: Side::Old,
+            block_index: 1432,
+            page: 51,
+            canonical_range: 85..203,
+            raw_range: 86..206,
+            head_before_label: "The Framework Core comprises four types of",
+            label: "elements",
+            delimiter: ':',
+            items: OLD_ELEMENTS_ITEMS,
+            canonical_text: "The Framework Core comprises four types of elements: Functions, Categories, Subcategories, and Informative References.",
+            raw_text: None,
+            eligible: true,
+        },
+    ];
+    let new = vec![
+        Candidate {
+            id: "new-core-functions-main",
+            side: Side::New,
+            block_index: 99,
+            page: 7,
+            canonical_range: 0..138,
+            raw_range: 0..139,
+            head_before_label: "The CSF Core",
+            label: "Functions",
+            delimiter: '—',
+            items: NEW_CORE_ITEMS,
+            canonical_text: "The CSF Core Functions — GOVERN, IDENTIFY, PROTECT, DETECT, RESPOND, and RECOVER — organize cybersecurity outcomes at their highest level.",
+            raw_text: Some(
+                "The CSF Core Functions — GOVERN, IDENTIFY, PROTECT, DETECT, RESPOND, and RECOVER — organize \ncybersecurity outcomes at their highest level.",
+            ),
+            eligible: true,
+        },
+        Candidate {
+            id: "new-glossary-functions-counterexample",
+            side: Side::New,
+            block_index: 556,
+            page: 30,
+            canonical_range: 62..147,
+            raw_range: 62..148,
+            head_before_label: "There are six CSF",
+            label: "Functions",
+            delimiter: ':',
+            items: NEW_GLOSSARY_ITEMS,
+            canonical_text: "There are six CSF Functions: Govern, Identify, Protect, Detect, Respond, and Recover.",
+            raw_text: Some(
+                "There are six CSF Functions: Govern, Identify, \nProtect, Detect, Respond, and Recover.",
+            ),
+            eligible: true,
+        },
+    ];
+    (old, new)
+}
+
+fn synthetic_candidate<'a>(
+    id: &'a str,
+    side: Side,
+    head: &'a str,
+    label: &'a str,
+    items: &'a [&'a str],
+    eligible: bool,
+) -> Candidate<'a> {
+    Candidate {
+        id,
+        side,
+        block_index: 0,
+        page: 0,
+        canonical_range: 0..head.len(),
+        raw_range: 0..head.len(),
+        head_before_label: head,
+        label,
+        delimiter: ':',
+        items,
+        canonical_text: head,
+        raw_text: None,
+        eligible,
+    }
+}
+
+#[derive(Clone, Copy)]
+struct TestResult {
+    name: &'static str,
+    passed: bool,
+    detail: &'static str,
+}
+
+fn test_results() -> Vec<TestResult> {
+    let mut results = Vec::new();
+    let (old, new) = real_candidates();
+    let real = evaluate(&old, &new, REPORT_WORK_LIMIT, REPORT_PAIR_LIMIT);
+    let real_passed = real.as_ref().is_ok_and(|evaluation| {
+        evaluation.selected.len() == 1
+            && evaluation
+                .selected
+                .first()
+                .and_then(|selected| evaluation.edges.get(selected.edge))
+                .is_some_and(|edge| {
+                    old[edge.old].id == "old-core-functions-main"
+                        && new[edge.new].id == "new-core-functions-main"
+                })
+    });
+    results.push(TestResult {
+        name: "real_source_selects_only_true_core_pair",
+        passed: real_passed,
+        detail: "four real source candidates produce one trueCore->Core selection",
+    });
+
+    let old_items = ["alpha", "beta", "gamma", "delta"];
+    let new_items = ["beta", "alpha", "gamma", "delta", "extra"];
+    let reordered = evaluate(
+        &[synthetic_candidate(
+            "old",
+            Side::Old,
+            "The Alpha",
+            "Plan",
+            &old_items,
+            true,
+        )],
+        &[synthetic_candidate(
+            "new",
+            Side::New,
+            "The Alpha",
+            "Plan",
+            &new_items,
+            true,
+        )],
+        usize::MAX,
+        1,
+    );
+    results.push(TestResult {
+        name: "reordered_lists_reject",
+        passed: reordered.is_ok_and(|evaluation| evaluation.edges.is_empty()),
+        detail: "an order inversion is not an ordered subsequence",
+    });
+
+    let duplicate_items = ["alpha", "beta", "gamma", "delta"];
+    let longer_items = ["alpha", "beta", "gamma", "delta", "extra"];
+    let duplicate = evaluate(
+        &[
+            synthetic_candidate(
+                "old-a",
+                Side::Old,
+                "The Alpha",
+                "Plan",
+                &duplicate_items,
+                true,
+            ),
+            synthetic_candidate(
+                "old-b",
+                Side::Old,
+                "The Alpha",
+                "Plan",
+                &duplicate_items,
+                true,
+            ),
+        ],
+        &[synthetic_candidate(
+            "new",
+            Side::New,
+            "The Alpha",
+            "Plan",
+            &longer_items,
+            true,
+        )],
+        usize::MAX,
+        1,
+    );
+    let duplicate_passed = duplicate.is_ok_and(|evaluation| evaluation.selected.is_empty());
+    results.push(TestResult {
+        name: "exact_duplicate_competitor_vetoes",
+        passed: duplicate_passed,
+        detail: "an exact source candidate duplicate creates a reciprocal top tie",
+    });
+
+    let equal_head = evaluate(
+        &[synthetic_candidate(
+            "old",
+            Side::Old,
+            "The Alpha",
+            "Plan",
+            &duplicate_items,
+            true,
+        )],
+        &[
+            synthetic_candidate("new-a", Side::New, "The Alpha", "Plan", &longer_items, true),
+            synthetic_candidate("new-b", Side::New, "the alpha", "Plan", &longer_items, true),
+        ],
+        usize::MAX,
+        1,
+    );
+    results.push(TestResult {
+        name: "equal_head_competitor_vetoes",
+        passed: equal_head.is_ok_and(|evaluation| evaluation.selected.is_empty()),
+        detail: "case-insensitively equal heads tie the reciprocal best rank",
+    });
+
+    let mut ineligible_new = real_candidates().1;
+    ineligible_new[0].eligible = false;
+    let ineligible = evaluate(&old, &ineligible_new, REPORT_WORK_LIMIT, REPORT_PAIR_LIMIT);
+    let ineligible_passed = ineligible.is_ok_and(|evaluation| {
+        evaluation.selected.is_empty()
+            && evaluation.edges.len() == 4
+            && evaluation.edges.iter().any(|edge| {
+                old[edge.old].id == "old-profile-functions-counterexample"
+                    && ineligible_new[edge.new].id == "new-glossary-functions-counterexample"
+            })
+    });
+    results.push(TestResult {
+        name: "ineligible_winner_does_not_rematch_losers",
+        passed: ineligible_passed,
+        detail: "eligibility is applied after the complete census, so no Profile/Gloss rematch occurs",
+    });
+
+    let unrelated_old_items = ["alpha", "beta", "gamma", "delta"];
+    let unrelated_new_items = ["epsilon", "zeta", "eta", "theta", "iota"];
+    let unrelated = evaluate(
+        &[synthetic_candidate(
+            "old",
+            Side::Old,
+            "Framework North",
+            "Plan",
+            &unrelated_old_items,
+            true,
+        )],
+        &[synthetic_candidate(
+            "new",
+            Side::New,
+            "Glossary South",
+            "Plan",
+            &unrelated_new_items,
+            true,
+        )],
+        usize::MAX,
+        1,
+    );
+    results.push(TestResult {
+        name: "unrelated_heads_reject",
+        passed: unrelated.is_ok_and(|evaluation| evaluation.selected.is_empty()),
+        detail: "zero shared words before the label fails the contextual gate",
+    });
+
+    let exhausted = evaluate(&old, &new, 1, REPORT_PAIR_LIMIT);
+    results.push(TestResult {
+        name: "work_budget_exhaustion_is_incomplete",
+        passed: matches!(exhausted, Err(SelectionAbort::WorkBudget)),
+        detail: "budget exhaustion returns no partial winner",
+    });
+    results
+}
+
+fn json_string(output: &mut String, value: &str) {
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            character if character.is_control() => {
+                let _ = write!(output, "\\u{:04x}", character as u32);
+            }
+            character => output.push(character),
+        }
+    }
+    output.push('"');
+}
+
+fn json_range(output: &mut String, range: &Range<usize>) {
+    let _ = write!(output, "[{},{}]", range.start, range.end);
+}
+
+fn json_score(output: &mut String, score: Score) {
+    let _ = write!(
+        output,
+        "{{\"shared\":{},\"union\":{},\"jaccard\":{:.16}}}",
+        score.shared,
+        score.union,
+        score.jaccard()
+    );
+}
+
+fn json_edge_id(
+    output: &mut String,
+    edge: Option<usize>,
+    evaluation: &Evaluation,
+    old: &[Candidate<'_>],
+    new: &[Candidate<'_>],
+) {
+    let Some(edge) = edge.and_then(|index| evaluation.edges.get(index)) else {
+        output.push_str("null");
+        return;
+    };
+    output.push('{');
+    output.push_str("\"old\":");
+    json_string(output, old[edge.old].id);
+    output.push_str(",\"new\":");
+    json_string(output, new[edge.new].id);
+    output.push('}');
+}
+
+fn json_rank(
+    output: &mut String,
+    rank: Rank,
+    evaluation: &Evaluation,
+    old: &[Candidate<'_>],
+    new: &[Candidate<'_>],
+) {
+    output.push('{');
+    let _ = write!(
+        output,
+        "\"edge_count\":{},\"top_count\":{},\"best\":",
+        rank.edge_count, rank.top_count
+    );
+    json_edge_id(output, rank.best, evaluation, old, new);
+    output.push_str(",\"best_score\":");
+    if let Some(best) = rank.best.and_then(|index| evaluation.edges.get(index)) {
+        json_score(output, best.head_score);
+    } else {
+        output.push_str("null");
+    }
+    output.push_str(",\"runner\":");
+    json_edge_id(output, rank.runner, evaluation, old, new);
+    output.push_str(",\"runner_score\":");
+    if let Some(runner) = rank.runner.and_then(|index| evaluation.edges.get(index)) {
+        json_score(output, runner.head_score);
+    } else {
+        output.push_str("null");
+    }
+    output.push('}');
+}
+
+fn selected_edge(evaluation: &Evaluation, edge_index: usize) -> bool {
+    evaluation
+        .selected
+        .iter()
+        .any(|selected| selected.edge == edge_index)
+}
+
+fn margin_passes(rank: Rank, _edge_index: usize, evaluation: &Evaluation) -> bool {
+    let Some(runner_index) = rank.runner else {
+        return false;
+    };
+    let Some(best_index) = rank.best else {
+        return false;
+    };
+    let Some(best) = evaluation.edges.get(best_index).map(|edge| edge.head_score) else {
+        return false;
+    };
+    let Some(runner) = evaluation
+        .edges
+        .get(runner_index)
+        .map(|edge| edge.head_score)
+    else {
+        return false;
+    };
+    best.shared * runner.union >= runner.shared * best.union * 2
+}
+
+fn rejection_reasons(
+    edge_index: usize,
+    evaluation: &Evaluation,
+    old: &[Candidate<'_>],
+    new: &[Candidate<'_>],
+) -> Vec<&'static str> {
+    if selected_edge(evaluation, edge_index) {
+        return Vec::new();
+    }
+    let edge = &evaluation.edges[edge_index];
+    let old_rank = evaluation.old_ranks[edge.old];
+    let new_rank = evaluation.new_ranks[edge.new];
+    let mut reasons = Vec::new();
+    if old_rank.best != Some(edge_index) {
+        reasons.push("old_not_best");
+    }
+    if old_rank.top_count != 1 {
+        reasons.push("old_best_tie");
+    }
+    if old_rank.runner.is_none() {
+        reasons.push("old_runner_missing");
+    } else if !margin_passes(old_rank, edge_index, evaluation) {
+        reasons.push("old_margin_below_2x");
+    }
+    if new_rank.best != Some(edge_index) {
+        reasons.push("new_not_best");
+    }
+    if new_rank.top_count != 1 {
+        reasons.push("new_best_tie");
+    }
+    if new_rank.runner.is_none() {
+        reasons.push("new_runner_missing");
+    } else if !margin_passes(new_rank, edge_index, evaluation) {
+        reasons.push("new_margin_below_2x");
+    }
+    if edge.shared_before_label.len() < 2 {
+        reasons.push("shared_before_label_below_2");
+    }
+    if !old[edge.old].eligible || !new[edge.new].eligible {
+        reasons.push("ineligible_after_census");
+    }
+    reasons
+}
+
+fn render_report(
+    old: &[Candidate<'_>],
+    new: &[Candidate<'_>],
+    evaluation: &Evaluation,
+    tests: &[TestResult],
+) -> String {
+    let mut output = String::new();
+    output.push_str(
+        "{\n  \"schema_version\": 1,\n  \"record_kind\": \"issue12_enumeration_head_prototype\",\n",
+    );
+    output.push_str("  \"outcome\": {\n    \"status\": \"experimental_rule_evaluated\",\n    \"issue_fixed\": false,\n    \"selected_pair_count\": ");
+    let _ = write!(
+        output,
+        "{},\n    \"selected_pairs\": [",
+        evaluation.selected.len()
+    );
+    for (index, selected) in evaluation.selected.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        let edge = &evaluation.edges[selected.edge];
+        output.push('{');
+        output.push_str("\"old\":");
+        json_string(&mut output, old[edge.old].id);
+        output.push_str(",\"new\":");
+        json_string(&mut output, new[edge.new].id);
+        output.push_str(",\"edge_index\":");
+        let _ = write!(output, "{}", selected.edge);
+        output.push('}');
+    }
+    output.push_str("]\n  },\n  \"rule\": {\n");
+    output.push_str("    \"list_shape\": \"4..=32 unique ASCII identifiers; one list must be an ordered subsequence of the other, equality accepted\",\n    \"selection_casefold\": \"ASCII case-insensitive labels and ordered list items\",\n    \"head_scope\": \"prefix through label\",\n    \"head_metric\": \"case-insensitive word-set Jaccard; label participates in Jaccard but is excluded from the shared-before-label gate\",\n    \"minimum_shared_before_label\": 2,\n    \"reciprocal_margin\": \"unique best on both sides and each best score is at least twice the actual runner-up\",\n    \"eligibility_order\": \"eligibility is checked only after the complete all-candidate census\",\n    \"semantic_features\": false\n  },\n");
+    output.push_str("  \"candidates\": [\n");
+    let mut first = true;
+    for candidate in old.iter().chain(new) {
+        if !first {
+            output.push_str(",\n");
+        }
+        first = false;
+        output.push_str("    {\"id\":");
+        json_string(&mut output, candidate.id);
+        output.push_str(",\"side\":");
+        json_string(&mut output, candidate.side.as_str());
+        let _ = write!(
+            output,
+            ",\"block_index\":{},\"page\":{},\"canonical_range\":",
+            candidate.block_index, candidate.page
+        );
+        json_range(&mut output, &candidate.canonical_range);
+        output.push_str(",\"raw_range\":");
+        json_range(&mut output, &candidate.raw_range);
+        output.push_str(",\"head_before_label\":");
+        json_string(&mut output, candidate.head_before_label);
+        output.push_str(",\"label\":");
+        json_string(&mut output, candidate.label);
+        output.push_str(",\"delimiter\":");
+        let delimiter = candidate.delimiter.to_string();
+        json_string(&mut output, &delimiter);
+        output.push_str(",\"items\":[");
+        for (index, item) in candidate.items.iter().enumerate() {
+            if index > 0 {
+                output.push(',');
+            }
+            json_string(&mut output, item);
+        }
+        output.push_str("],\"canonical_text\":");
+        json_string(&mut output, candidate.canonical_text);
+        output.push_str(",\"raw_text\":");
+        if let Some(raw_text) = candidate.raw_text {
+            json_string(&mut output, raw_text);
+        } else {
+            output.push_str("null");
+        }
+        let _ = write!(output, ",\"eligible\":{} }}", candidate.eligible);
+    }
+    output.push_str("\n  ],\n  \"pair_evidence\": [\n");
+    for (index, pair) in evaluation.pair_evidence.iter().enumerate() {
+        if index > 0 {
+            output.push_str(",\n");
+        }
+        output.push_str("    {\"old\":");
+        json_string(&mut output, old[pair.old].id);
+        output.push_str(",\"new\":");
+        json_string(&mut output, new[pair.new].id);
+        output.push_str(",\"status\":");
+        json_string(&mut output, pair.status.as_str());
+        if let Some(edge_index) = pair.edge {
+            let edge = &evaluation.edges[edge_index];
+            output.push_str(",\"common_items\":[");
+            for (item_index, item) in edge.common_items.iter().enumerate() {
+                if item_index > 0 {
+                    output.push(',');
+                }
+                json_string(&mut output, item);
+            }
+            output.push_str("],\"list_score_scaled_10000\":");
+            let _ = write!(output, "{},\"head_score\":", edge.list_score_scaled);
+            json_score(&mut output, edge.head_score);
+            output.push_str(",\"shared_before_label\":[");
+            for (word_index, word) in edge.shared_before_label.iter().enumerate() {
+                if word_index > 0 {
+                    output.push(',');
+                }
+                json_string(&mut output, word);
+            }
+            output.push_str("],\"old_rank\":");
+            json_rank(
+                &mut output,
+                evaluation.old_ranks[edge.old],
+                evaluation,
+                old,
+                new,
+            );
+            output.push_str(",\"new_rank\":");
+            json_rank(
+                &mut output,
+                evaluation.new_ranks[edge.new],
+                evaluation,
+                old,
+                new,
+            );
+            output.push_str(",\"selected\":");
+            let _ = write!(output, "{}", selected_edge(evaluation, edge_index));
+            output.push_str(",\"rejection_reasons\":[");
+            for (reason_index, reason) in rejection_reasons(edge_index, evaluation, old, new)
+                .iter()
+                .enumerate()
+            {
+                if reason_index > 0 {
+                    output.push(',');
+                }
+                json_string(&mut output, reason);
+            }
+            output.push(']');
+        } else if pair.status != PairStatus::Compatible {
+            output.push_str(",\"rejection_reasons\":[");
+            json_string(&mut output, pair.status.as_str());
+            output.push(']');
+        }
+        output.push('}');
+    }
+    output.push_str("\n  ],\n  \"tests\": [\n");
+    for (index, test) in tests.iter().enumerate() {
+        if index > 0 {
+            output.push_str(",\n");
+        }
+        output.push_str("    {\"name\":");
+        json_string(&mut output, test.name);
+        output.push_str(",\"passed\":");
+        let _ = write!(output, "{},\"detail\":", test.passed);
+        json_string(&mut output, test.detail);
+        output.push('}');
+    }
+    output.push_str("\n  ],\n  \"source_hashes\": [\n");
+    const SOURCES: &[(&str, &str)] = &[
+        (
+            "target/issue12-csf-enumeration-head-evidence.json",
+            "c680e9e6421739f540b4e430934d55906ef0db1625e960ec506ced129217b325",
+        ),
+        (
+            "target/issue12-csf-head-candidate-scores.json",
+            "d52c8e01e0ca674129b37d28cb407ff564cfe05eb17b9ace052789802dc07f0a",
+        ),
+        (
+            "target/issue12-csf-section-context-evidence.json",
+            "bf313ada0c5d7d2790fb59453625ec7fef0873e8ab540b765e8087f47b6c87ac",
+        ),
+        (
+            "benchmark/realworld/results/issue12-anchor-recovery/enumeration-selector.rs.txt",
+            "0d44af0137245b6a33b2f168b1c3368c4ee301c48d4970afd2e6b90a1f1fb5cf",
+        ),
+        (
+            "benchmark/realworld/results/issue12-anchor-recovery/enumeration-integration.rs.txt",
+            "b102c105164929f001f53ba0b79201316fbd1a13ccc6d5bb0f9ece09772b00b6",
+        ),
+        (
+            "benchmark/realworld/results/issue12-anchor-recovery/enumeration-decision.md",
+            "d529c9e746fec741eb2a30522f9f506e482acfaef86afeb0065e653bacaae262",
+        ),
+        (
+            "benchmark/realworld/results/issue12-anchor-recovery/enumeration-source.json",
+            "d40c371a0ebc59db33a4f63ee30ab6afd7f68418d3d888b840adab985d12397b",
+        ),
+        (
+            "benchmark/realworld/results/issue12-anchor-recovery/enumeration-rejected/nist-csf-v1-1-to-v2-0.json",
+            "3ef98753caceb5bcaa6e5928bd124b8fc2ccd15260b3a7b1e925cfa994659db3",
+        ),
+    ];
+    for (index, (path, hash)) in SOURCES.iter().enumerate() {
+        if index > 0 {
+            output.push_str(",\n");
+        }
+        output.push_str("    {\"path\":");
+        json_string(&mut output, path);
+        output.push_str(",\"sha256\":");
+        json_string(&mut output, hash);
+        output.push('}');
+    }
+    output.push_str("\n  ],\n  \"limitations\": [\n    \"This is an experimental selector and does not establish an acceptance policy.\",\n    \"Section context evidence is neutral; no heading evidence is inferred.\",\n    \"Source ownership, exact output diff construction, and production integration are out of scope.\",\n    \"The fixture census is bounded to the six captured valid candidates and does not claim whole-corpus behavior.\"\n  ]\n}\n");
+    output
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let (old, new) = real_candidates();
+    let evaluation = evaluate(&old, &new, REPORT_WORK_LIMIT, REPORT_PAIR_LIMIT)
+        .map_err(|error| format!("prototype evaluation aborted: {}", error.as_str()))?;
+    let tests = test_results();
+    if tests.iter().any(|test| !test.passed) {
+        return Err("prototype self-check failed".into());
+    }
+    let report = render_report(&old, &new, &evaluation, &tests);
+    let report_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("report.json");
+    fs::write(&report_path, report)?;
+    println!("wrote {}", report_path.display());
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn required_probes_pass() {
+        for result in test_results() {
+            assert!(result.passed, "{}: {}", result.name, result.detail);
+        }
+    }
+
+    #[test]
+    fn real_candidate_scores_match_evidence() {
+        let (old, new) = real_candidates();
+        let evaluation = evaluate(&old, &new, REPORT_WORK_LIMIT, REPORT_PAIR_LIMIT)
+            .expect("real source evaluation succeeds");
+        let scores: Vec<_> = evaluation
+            .edges
+            .iter()
+            .map(|edge| {
+                (
+                    old[edge.old].id,
+                    new[edge.new].id,
+                    edge.head_score,
+                    edge.shared_before_label.clone(),
+                )
+            })
+            .collect();
+        assert_eq!(scores.len(), 4);
+        assert_eq!(scores[0].0, "old-core-functions-main");
+        assert_eq!(scores[0].1, "new-core-functions-main");
+        assert_eq!(
+            scores[0].2,
+            Score {
+                shared: 3,
+                union: 11
+            }
+        );
+        assert_eq!(scores[0].3, ["core", "the"]);
+        assert_eq!(
+            scores[1].2,
+            Score {
+                shared: 1,
+                union: 14
+            }
+        );
+        assert_eq!(
+            scores[2].2,
+            Score {
+                shared: 3,
+                union: 30
+            }
+        );
+        assert_eq!(
+            scores[3].2,
+            Score {
+                shared: 2,
+                union: 32
+            }
+        );
+    }
+
+    #[test]
+    fn missing_runner_is_rejected_without_fabricating_a_score() {
+        let items = ["alpha", "beta", "gamma", "delta"];
+        let evaluation = evaluate(
+            &[synthetic_candidate(
+                "old",
+                Side::Old,
+                "Framework Core",
+                "Plan",
+                &items,
+                true,
+            )],
+            &[synthetic_candidate(
+                "new",
+                Side::New,
+                "Framework Core",
+                "Plan",
+                &items,
+                true,
+            )],
+            usize::MAX,
+            1,
+        )
+        .expect("single edge evaluation succeeds");
+        assert!(evaluation.selected.is_empty());
+        assert_eq!(evaluation.old_ranks[0].runner, None);
+        assert_eq!(evaluation.new_ranks[0].runner, None);
+    }
+}

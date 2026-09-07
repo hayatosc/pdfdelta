@@ -1,0 +1,70 @@
+{
+  "pair": "irs-form-1040-2024-to-2025",
+  "coverage": {
+    "baseline": {
+      "coverage_old": 0.47129245052528707,
+      "coverage_new": 0.4530936118923262
+    },
+    "current": {
+      "coverage_old": 0.507207427314928,
+      "coverage_new": 0.48674166331860186
+    }
+  },
+  "token_metrics": {
+    "baseline": {
+      "expected_changed_tokens": 17,
+      "reported_changed_tokens": 0,
+      "true_positive_tokens": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "span_iou": 0.0,
+      "false_positive_tokens_per_10k_unchanged": 0.0
+    },
+    "current": {
+      "expected_changed_tokens": 17,
+      "reported_changed_tokens": 0,
+      "true_positive_tokens": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "span_iou": 0.0,
+      "false_positive_tokens_per_10k_unchanged": 0.0
+    }
+  },
+  "event_metrics": {
+    "baseline": {
+      "reviewed_scope_count": 1,
+      "precision": 1.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "current": {
+      "reviewed_scope_count": 1,
+      "precision": 1.0,
+      "recall": 0.0,
+      "f1": 0.0
+    }
+  },
+  "quality_skipped_reason": {
+    "baseline": null,
+    "current": null
+  },
+  "changed_token_precision_nonregression": true,
+  "false_positive_rate_nonregression": true,
+  "binary_sha256": {
+    "baseline": "d7b897138a5064064f7764a066497be783e2509a157465235e81e6758bfef4b5",
+    "current": "2da207a3ad4cd6b7feaad30c9a03ec375355c24d4511a06ff7611a8a0961750c"
+  },
+  "artifact_sha256": {
+    "baseline.json": "8fe52113d9cbe9378190b3621d927b15cd9e536cc635400cdd269a666676cb44",
+    "current.json": "9b8115ffb789d6dd3c0baf536ae5f79afec1c9fbfc33825f32e31b14b759e571",
+    "manifest.tsv": "38bdfc6e8e8e3071b93edcd4c5673ef801e8959a8e74a7d1f71d9290d0d093f1",
+    "reviewed-expected.json": "e886872234289fec682dc4e695dca7930217516baaf1d460e4f25bda18288f24"
+  },
+  "manifest_normalization": {
+    "capture_manifest_sha256": "aabe6730f46a7ef968eac1f0b7df192e5b020b67d76665c2ddc0ab3c9220f661",
+    "retained_manifest_sha256": "38bdfc6e8e8e3071b93edcd4c5673ef801e8959a8e74a7d1f71d9290d0d093f1",
+    "change": "CRLF to LF after capture; parsed TSV rows are identical."
+  }
+}

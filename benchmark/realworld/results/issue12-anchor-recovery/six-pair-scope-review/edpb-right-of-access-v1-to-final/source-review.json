@@ -1,0 +1,54 @@
+{
+  "pair": "edpb-right-of-access-v1-to-final",
+  "method": "Rendered PDF source and independent PyMuPDF spatial text; every character change in the selected scope was reviewed. Offsets are Unicode scalars in whitespace-collapsed expected quotes.",
+  "sources": {
+    "old": {
+      "pdf_sha256": "90df6b680463318d266a804e91e57543ed891180fdd671594b952ad3863734df",
+      "page_index": 15,
+      "scope_text": "For example, confirmation of the processing of personal data itself (component 1) will mostly not be affected by the exception.",
+      "scope_occurrences_in_source_extraction": 1,
+      "page_text": "Example 2: A big insurance company receives a general access request by letter from a person who has been a customer for many years. Even though deletion periods are fully respected, the company actually processes a vast amount of data concerning the customer, because processing is still necessary to fulfil contractual obligations arising from the contractual relationship with the customer (including for example continuing obligations, communication on controversial issues with the customer and with third parties, …) or to comply with legal obligations (archived data that have to be stored for tax purposes, etc.). The insurance company may have doubts as to whether the request, that was made in very general terms, is really intended to encompass all kinds of those data. This may be especially problematic if the insurance company only has a postal address of the data subject and therefore has to send any information on paper. However, the same doubts may be relevant also when providing the information by other means. If, in such cases, the controller decides to ask the data subject to specify the request, in order to fulfil its obligation to facilitate the exercise of the right of access (Art. 12(2) GDPR) the controller shall at the same time give meaningful information about all the processing operations concerning the data subject, like different branches of its activities, different databases etc. It is important to underline that the request for specification shall not aim at a limitation of the reply to the access request and shall not be used to hide any information on the data or the processing concerning the data subject. If the data subject, who has been asked to specify the scope of its request, confirms to seek all personal data concerning him or her, the controller of course has to provide it in full. In any case, the controller should always be able to demonstrate, that the way to handle the request aims to give the broadest effect to the right of access and that it is in line with its obligation to facilitate the exercise of data subjects rights (Art. 12(2) GDPR). Subject to these principles, the controller may await the answer of the data subject before providing additional data according to the data subject’s wish, if the controller has provided the data subject with a clear overview of all processing operations that concern the data subject, including especially those that the data subject might not have expected, if the controller has also given access to all data that the data subject clearly aimed for, and if, furthermore, this information has been combined with clear indication of how to get access to the remaining parts of the processed data. c) Exceptions or restrictions to the right of access apply (see below in section 6). In such cases, the controller must carefully check to which parts of the information the exception relates to and provide all information that is not excluded by the exception. For example, confirmation of the processing of personal data itself (component 1) will mostly not be affected by the exception. As a result, information has to be provided about all the personal data and all the information referred to in Art. 15(1) and (2) that are not concerned by the exception or the restriction.obsolete 2.3.2 Correctness of the information 36. The information included in the copy of the personal data given to the data subject has to comprise the actual information or personal data held about the data subject. This includes the obligation to give information about data that are inaccurate or about data processing which is not or no longer lawful. The data subject may for example use the right of access to find out about the source of inaccurate data being circulated between different controllers. If the controller corrected inaccurate data before informing the data subject about it, the data subject would be deprived of this possibility. The same applies in case of unlawful processing. The possibility to know about unlawful processing concerning the data subject is one of the main purposes of the right of access. The obligation to inform 16 Adopted - version for public consultation"
+    },
+    "new": {
+      "pdf_sha256": "b399b25634b379576378d725284d5ed2b1a81c93c34ade9ee8eb48ef5eb75032",
+      "page_index": 16,
+      "scope_text": "For example, confirmation of the processing of personal data itself (component 1) may not be affected by the exception.",
+      "scope_occurrences_in_source_extraction": 1,
+      "page_text": "of the request, especially the variety of processing operations that it would encompass, the amount of information and the number of pages that the data subject would receive. Example 4: A big insurance company receives a general access request by letter from a person who has been a customer for many years. Even though deletion periods are fully respected, the company actually processes a vast amount of data concerning the customer, because processing is still necessary to fulfil contractual obligations arising from the contractual relationship with the customer (including for example continuing obligations, communication on controversial issues with the customer and with third parties, …) or to comply with legal obligations (archived data that have to be stored for tax purposes, etc.). The insurance company may have doubts as to whether the request, that was made in very general terms, is really intended to encompass all kinds of those data. This may be especially problematic if the insurance company only has a postal address of the data subject and therefore has to send any information on paper. However, the same doubts may be relevant also when providing the information by other means. If, in such cases, the controller decides to ask the data subject to specify the request, in order to fulfil its obligation to facilitate the exercise of the right of access (Art. 12(2) GDPR) the controller shall at the same time give meaningful information about its processing operations that could concern the data subject, by informing about relevant branches of its activities, databases etc. Example 5: In an employment relationship, in case of a generally formulated request for access, it is not per se clear that the employee wants to receive all user-login data, data on access to a workplace, data on settlements in the canteen, data on salary payments, etc. A request for specification made by the employer could for example lead to the clarification, that the employee’s interest is to understand or verify to whom his performance assessment has been passed on. Without request for specification, the employee would receive a large quantity of information, without having an interest in most of the data. At the same time, the employer would need to give information on the different contexts of processing which could concern the employee in order to allow the employee to specify the request sensibly. It is important to underline that the request for specification shall not aim at a limitation of the reply to the access request and shall not be used to hide any information on the data or the processing concerning the data subject. If the data subject, who has been asked to specify the scope of its request, confirms to seek all personal data concerning him or her, the controller of course has to provide it in full. In any case, the controller should always be able to demonstrate, that the way to handle the request aims to give the broadest effect to the right of access and that it is in line with its obligation to facilitate the exercise of data subjects rights (Art. 12(2) GDPR). Subject to these principles, the controller may await the answer of the data subject before providing additional data according to the data subject’s wish, if the controller has provided the data subject with a clear overview of all processing operations that could concern the data subject, including especially those that the data subject might not have expected, if the controller has also given access to all data that the data subject clearly aimed for, and if, furthermore, this information has been combined with clear indication of how to get access to the remaining parts of the processed data. c) Exceptions or restrictions to the right of access apply (see below in section 6). In such cases, the controller should carefully check to which parts of the information the exception relates to and provide all information that is not excluded by the exception. For example, confirmation of the processing of personal data itself (component 1) may not be affected by the exception. As a result, information has 17 Adopted"
+    }
+  },
+  "changed_ranges": {
+    "old": [
+      {
+        "start": 0,
+        "end": 5
+      },
+      {
+        "start": 6,
+        "end": 10
+      }
+    ],
+    "new": [
+      {
+        "start": 1,
+        "end": 2
+      }
+    ]
+  },
+  "changed_substrings": {
+    "old": [
+      "will ",
+      "ostl"
+    ],
+    "new": [
+      "a"
+    ]
+  },
+  "scope_complete": true,
+  "limitations": "Only the named scope is complete. Other partial expectations are retained; no whole-document precision claim is supported.",
+  "manifest_normalization": {
+    "capture_manifest_sha256": "877596a806d23aa323989aa18dfa59a23bf44537f321b2ba489080ed089e60e6",
+    "retained_manifest_sha256": "2b1f4fa4dfab992421eced017df670d7fd9fbd4c7a0506c261b84f1448b4a5ab",
+    "change": "CRLF to LF after capture; parsed TSV rows are identical."
+  }
+}
